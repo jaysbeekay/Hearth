@@ -33,6 +33,7 @@ with optional reminders before anything expires.
 - Signing in with a passkey appears as a second button on the login page
 - Requires `APP_URL` to be set to the correct hostname (used as the WebAuthn Relying Party ID)
 
+
 **Platform**
 - Optional bring-your-own-key AI extraction (Claude/Gemini/OpenAI) per user for higher accuracy
 - DB-backed system settings — configure SMTP, ntfy, Ollama, S3/SFTP backup, and more from the UI
