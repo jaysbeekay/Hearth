@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { DatabaseBackup, LayoutGrid, Settings2, Users, Webhook } from "lucide-react";
+import { DatabaseBackup, KeyRound, LayoutGrid, Settings2, Users, Webhook } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateNotificationPreferences } from "@/lib/actions/auth";
@@ -129,6 +129,19 @@ export default async function SettingsPage() {
             Set ENCRYPTION_KEY on the server to enable bringing your own AI provider key.
           </p>
         )}
+      </section>
+
+      <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+        <h2 className="mb-3 font-medium">Security</h2>
+        <div className="flex flex-col gap-2">
+          <Link
+            href="/settings/passkeys"
+            className="inline-flex items-center gap-2 text-sm text-accent hover:underline"
+          >
+            <KeyRound size={16} />
+            Manage passkeys
+          </Link>
+        </div>
       </section>
 
       <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
