@@ -7,6 +7,24 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-03
+
+### Added
+
+- **Passkeys / WebAuthn** — register Face ID, Touch ID, or a security key as
+  an alternative to your password from **Settings → Security**. Passkeys are
+  per-user and opt-in; passwords continue to work as normal. Signing in with a
+  passkey appears as a second button on the login page below the email/password
+  form. Requires `APP_URL` to be set to the correct origin (its hostname
+  becomes the WebAuthn Relying Party ID).
+- **Offline read cache** — a service worker (via `@serwist/next`) caches
+  navigation responses and RSC payloads using NetworkFirst strategies, so
+  previously-visited pages are still browsable when your home server is
+  unreachable. Each list page (contracts, products, travel, home) also
+  persists the fetched data to IndexedDB on every successful load. When
+  connectivity is lost an amber banner appears at the top of the screen and
+  "Add" buttons are disabled until you reconnect.
+
 ## [0.2.1] - 2026-07-01
 
 ### Added
