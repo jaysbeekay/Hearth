@@ -27,6 +27,12 @@ with optional reminders before anything expires.
 - Attach receipts/invoices and record costs, providers, and dates
 - Manage rental agreements and track rental income statements per property
 
+**Passkeys**
+- Register Face ID, Touch ID, or a security key as an alternative to your password from **Settings → Security**
+- Passkeys are per-user and opt-in — passwords continue to work normally
+- Signing in with a passkey appears as a second button on the login page
+- Requires `APP_URL` to be set to the correct hostname (used as the WebAuthn Relying Party ID)
+
 **Platform**
 - Optional bring-your-own-key AI extraction (Claude/Gemini/OpenAI) per user for higher accuracy
 - DB-backed system settings — configure SMTP, ntfy, Ollama, S3/SFTP backup, and more from the UI
@@ -35,6 +41,7 @@ with optional reminders before anything expires.
 - Multi-user/household accounts — everyone sees the same data
 - Admin-invite-only (no public sign-up) since this stores sensitive household data
 - Mobile-friendly responsive UI, installable as a PWA ("Add to Home Screen")
+- **Offline read cache** — a service worker caches previously-visited pages so they're still browsable when your home server is unreachable; an amber banner appears and write actions are disabled until you reconnect
 - SQLite storage — a single file, easy to back up, no separate database service
 - Opt-in modules: enable Travel and/or Home at first-run setup, or toggle from Settings later
 
@@ -188,7 +195,7 @@ separate from your server's TLS certificate (e.g. from Let's Encrypt):
 ```bash
 openssl genrsa -out ca.key 4096
 openssl req -x509 -new -nodes -key ca.key -sha256 -days 3650 \
-  -subj "/CN=Contracts Client CA" -out client-ca.crt
+  -subj "/CN=Hearth Client CA" -out client-ca.crt
 ```
 
 Copy `client-ca.crt` to the path referenced by `ssl_client_certificate` in
@@ -431,7 +438,7 @@ secret and comparing to the header. Three events exist:
 - **`webhook.test`** — sent by the "Send test" button on the Settings page:
 
   ```json
-  { "event": "webhook.test", "message": "This is a test notification from your Contracts app.", "sentAt": "..." }
+  { "event": "webhook.test", "message": "This is a test notification from Hearth.", "sentAt": "..." }
   ```
 
 For Home Assistant, point the URL at a
@@ -462,6 +469,7 @@ for the full list with defaults. Notable ones:
 | Variable | Purpose |
 | --- | --- |
 | `AUTH_SECRET` | Required. Signs session JWTs. Generate with `openssl rand -base64 32`. |
+| `APP_URL` | The public URL of the app (e.g. `https://hearth.example.com`). Required for passkeys — its hostname becomes the WebAuthn Relying Party ID. Also used in webhook `url` fields and reminder links. |
 | `DATABASE_URL` | SQLite file path, e.g. `file:./data/app.db`. |
 | `SMTP_HOST` / `SMTP_USER` | Set both to enable email reminders. |
 | `NTFY_TOPIC` | Set to enable push reminders via ntfy. |
