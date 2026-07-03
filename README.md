@@ -65,6 +65,10 @@ with optional reminders before anything expires.
 | --- | --- |
 | ![Property detail](docs/screenshots/property-detail.png) | ![Settings — system](docs/screenshots/settings-system.png) |
 
+| Settings — modules |
+| --- |
+| ![Settings — modules](docs/screenshots/settings-modules.png) |
+
 ## Tech stack
 
 Next.js (App Router) + TypeScript, Prisma 7 (SQLite via `@prisma/adapter-libsql`),
