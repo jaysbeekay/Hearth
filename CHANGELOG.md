@@ -7,6 +7,27 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-04
+
+### Added
+
+- **Vehicles module** — track cars, motorbikes, and other vehicles with make,
+  model, year, colour, licence plate, and VIN. Log service history, repairs,
+  registration, roadworthy checks, insurance, and modifications against each
+  vehicle with provider, date, cost, and attachable receipt/invoice. AI-assisted
+  field extraction pre-fills record details from uploaded documents. Configurable
+  expiry-date reminders for registration and insurance lapses — same
+  threshold/channel system (email, ntfy, webhook) as contracts.
+- **Offline write queue** — while offline, create and edit contracts, products,
+  and vehicles; changes are queued in IndexedDB and replayed automatically
+  via `/api/sync` when connectivity is restored. An amber/green sync strip
+  shows queue status and lets you retry manually.
+- **Android native wrapper** (`android/`) — thin Capacitor shell matching the
+  iOS wrapper: server URL entry, camera permissions for barcode scanning, and
+  full mTLS client-certificate support via a custom `BridgeWebViewClient`
+  subclass that intercepts TLS challenges and responds with the imported PKCS12
+  credential.
+
 ## [0.3.0] - 2026-07-03
 
 ### Added
