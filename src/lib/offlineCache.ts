@@ -2,12 +2,17 @@ import { openDB } from "idb";
 
 const DB_NAME = "hearth-cache";
 const STORE_NAME = "pages";
+export const QUEUE_STORE = "offline-queue";
 
-function getDb() {
-  return openDB(DB_NAME, 1, {
-    upgrade(db) {
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
+export function getDb() {
+  return openDB(DB_NAME, 2, {
+    upgrade(db, oldVersion) {
+      if (oldVersion < 1) {
         db.createObjectStore(STORE_NAME);
+      }
+      if (oldVersion < 2) {
+        const store = db.createObjectStore(QUEUE_STORE, { keyPath: "id" });
+        store.createIndex("by-timestamp", "timestamp");
       }
     },
   });

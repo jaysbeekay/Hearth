@@ -24,7 +24,7 @@ export default async function NewVehicleItemPage({
         <p className="text-sm text-foreground/60">{vehicle.label}</p>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
-        <VehicleItemForm action={boundAction} />
+        <VehicleItemForm action={boundAction} vehicleId={vehicle.id} />
       </div>
     </div>
   );
