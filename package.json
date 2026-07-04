@@ -7,10 +7,14 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
-    "test:e2e": "tsx e2e/prepare-db.ts && playwright test"
+    "test:e2e": "tsx e2e/prepare-db.ts && playwright test",
+    "cap:sync": "cap sync",
+    "cap:android": "cap open android",
+    "cap:ios": "cap open ios"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1075.0",
+    "@capacitor/android": "8.4.1",
     "@capacitor/app": "^8.1.0",
     "@capacitor/core": "^8.4.1",
     "@capacitor/ios": "^8.4.1",
