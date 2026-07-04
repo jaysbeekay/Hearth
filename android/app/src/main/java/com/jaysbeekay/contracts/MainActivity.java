@@ -33,5 +33,13 @@ public class MainActivity extends BridgeActivity {
         }
 
         super.onCreate(savedInstanceState);
+
+        // Replace Capacitor's default BridgeWebViewClient with our mTLS-aware one.
+        // This must run after super.onCreate() has created the bridge.
+        // MtlsWebViewClient delegates all non-cert behaviour to BridgeWebViewClient
+        // and overrides onReceivedClientCertRequest to supply the stored client cert.
+        if (bridge != null) {
+            bridge.setWebViewClient(new MtlsWebViewClient(bridge));
+        }
     }
 }
