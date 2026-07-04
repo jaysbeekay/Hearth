@@ -188,5 +188,91 @@ export async function runExpirationCheck(now: Date = new Date()) {
     }
   }
 
-  return { checked: contracts.length + products.length, sent: sentCount };
+  const vehicles = await prisma.vehicle.findMany({
+    where: { OR: [{ regoExpiry: { not: null } }, { insuranceExpiry: { not: null } }] },
+    include: { notificationLogs: true },
+  });
+
+  for (const vehicle of vehicles) {
+    const expiries: { field: string; date: Date | null; detail: string }[] = [
+      { field: "regoExpiry", date: vehicle.regoExpiry, detail: "Registration expires in" },
+      { field: "insuranceExpiry", date: vehicle.insuranceExpiry, detail: "Insurance expires in" },
+    ];
+
+    for (const { field, date, detail } of expiries) {
+      if (!date) continue;
+      const remaining = daysRemaining(date, now);
+      if (remaining < 0) continue;
+
+      const thresholds = parseThresholds(vehicle.reminderDaysBefore, defaultDays);
+      const dueThresholds = thresholds.filter((t) => remaining <= t);
+      if (dueThresholds.length === 0) continue;
+
+      const channels: NotificationChannel[] = [
+        ...(emailEnabled && recipientEmails.length > 0 ? (["EMAIL"] as const) : []),
+        ...(ntfyEnabled ? (["NTFY"] as const) : []),
+        ...(webhookEnabled ? (["WEBHOOK"] as const) : []),
+      ];
+
+      for (const channel of channels) {
+        const loggedThresholds = new Set(
+          vehicle.notificationLogs
+            .filter((n) => n.channel === channel && n.field === field)
+            .map((n) => n.thresholdDays),
+        );
+        const unlogged = dueThresholds.filter((t) => !loggedThresholds.has(t));
+        if (unlogged.length === 0) continue;
+
+        const threshold = Math.min(...unlogged);
+        const title = `Vehicle: ${vehicle.label}`;
+        const notifDetail = `${detail} ${remaining} day${remaining === 1 ? "" : "s"}`;
+
+        try {
+          if (channel === "EMAIL") {
+            await Promise.all(
+              recipientEmails.map((to) =>
+                sendReminderEmail({
+                  to,
+                  kind: "contract",
+                  title,
+                  detail: notifDetail,
+                  daysRemaining: remaining,
+                  endDate: date,
+                }),
+              ),
+            );
+          } else if (channel === "NTFY") {
+            await sendNtfyReminder({
+              kind: "contract",
+              title,
+              detail: notifDetail,
+              daysRemaining: remaining,
+              endDate: date,
+            });
+          } else {
+            await sendExpiryWebhooks({
+              kind: "contract",
+              id: vehicle.id,
+              title,
+              detail: notifDetail,
+              daysRemaining: remaining,
+              endDate: date,
+            });
+          }
+
+          await prisma.vehicleNotificationLog.create({
+            data: { vehicleId: vehicle.id, channel, thresholdDays: threshold, field },
+          });
+          sentCount += 1;
+        } catch (error) {
+          console.error(
+            `[notifications] failed to send ${channel} reminder for vehicle ${vehicle.id} (${field}):`,
+            error,
+          );
+        }
+      }
+    }
+  }
+
+  return { checked: contracts.length + products.length + vehicles.length, sent: sentCount };
 }

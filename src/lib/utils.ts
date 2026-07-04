@@ -105,6 +105,16 @@ export const HOME_ITEM_TYPE_LABELS: Record<string, string> = {
   OTHER: "Other",
 };
 
+export const VEHICLE_ITEM_TYPE_LABELS: Record<string, string> = {
+  SERVICE: "Service",
+  REPAIR: "Repair",
+  REGISTRATION: "Registration",
+  INSURANCE: "Insurance",
+  ROADWORTHY: "Roadworthy",
+  MODIFICATION: "Modification",
+  OTHER: "Other",
+};
+
 // AU financial year runs 1 Jul–30 Jun; e.g. 15 Mar 2026 and 1 Aug 2025 are both "FY2025–26".
 export function financialYearLabel(date: Date) {
   const startYear = date.getMonth() >= 6 ? date.getFullYear() : date.getFullYear() - 1;

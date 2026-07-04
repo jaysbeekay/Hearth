@@ -38,6 +38,7 @@ const CONTRACT_FORM_FIELDS = [
   "contactEmail",
   "notes",
   "reminderDaysBefore",
+  "isTaxDeductible",
 ];
 
 function firstIssueMessage(error: { issues: { message: string }[] }) {
@@ -88,6 +89,7 @@ function formToContractInput(formData: FormData) {
     contactEmail: formData.get("contactEmail"),
     notes: formData.get("notes"),
     reminderDaysBefore: formData.get("reminderDaysBefore"),
+    isTaxDeductible: formData.get("isTaxDeductible") === "on",
   };
 }
 

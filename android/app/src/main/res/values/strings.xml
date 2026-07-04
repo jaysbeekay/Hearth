@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Contracts</string>
+    <string name="title_activity_main">Contracts</string>
+    <string name="package_name">com.jaysbeekay.contracts</string>
+    <string name="custom_url_scheme">com.jaysbeekay.contracts</string>
+</resources>

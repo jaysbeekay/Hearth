@@ -1,6 +1,6 @@
-import { Plane, Home as HomeIcon, type LucideIcon } from "lucide-react";
+import { Plane, Home as HomeIcon, Car, Package, type LucideIcon } from "lucide-react";
 
-export const MODULE_KEYS = ["TRAVEL", "HOME"] as const;
+export const MODULE_KEYS = ["TRAVEL", "HOME", "VEHICLES", "INVENTORY"] as const;
 
 export type ModuleKey = (typeof MODULE_KEYS)[number];
 
@@ -26,5 +26,19 @@ export const MODULE_REGISTRY: Record<ModuleKey, ModuleDefinition> = {
     description: "Track maintenance, improvements, and repairs across your properties, with receipts attached.",
     icon: HomeIcon,
     href: "/home",
+  },
+  VEHICLES: {
+    key: "VEHICLES",
+    label: "Vehicles",
+    description: "Track cars, rego, insurance, and service history — with expiry reminders.",
+    icon: Car,
+    href: "/vehicles",
+  },
+  INVENTORY: {
+    key: "INVENTORY",
+    label: "Inventory",
+    description: "Catalogue household items, appliances, and valuables with receipts and serial numbers.",
+    icon: Package,
+    href: "/inventory",
   },
 };

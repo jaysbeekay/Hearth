@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { DatabaseBackup, LayoutGrid, Settings2, Users, Webhook } from "lucide-react";
+import { DatabaseBackup, KeyRound, LayoutGrid, Settings2, Users, Webhook } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateNotificationPreferences } from "@/lib/actions/auth";
 import { isEncryptionConfigured } from "@/lib/env";
+import { env } from "@/lib/env";
 import { isSmtpConfigured, isNtfyConfigured } from "@/lib/appSettings";
 import { ChangePasswordForm } from "@/components/ChangePasswordForm";
 import { AiSettingsForm } from "@/components/AiSettingsForm";
+import { IcalTokenSection } from "@/components/IcalTokenSection";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -18,6 +20,7 @@ export default async function SettingsPage() {
     isSmtpConfigured(),
     isNtfyConfigured(),
   ]);
+  const appUrl = env.appUrl ?? "http://localhost:3000";
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -130,6 +133,21 @@ export default async function SettingsPage() {
           </p>
         )}
       </section>
+
+      <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+        <h2 className="mb-3 font-medium">Security</h2>
+        <div className="flex flex-col gap-2">
+          <Link
+            href="/settings/passkeys"
+            className="inline-flex items-center gap-2 text-sm text-accent hover:underline"
+          >
+            <KeyRound size={16} />
+            Manage passkeys
+          </Link>
+        </div>
+      </section>
+
+      <IcalTokenSection token={user.icalToken ?? null} appUrl={appUrl} />
 
       <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <h2 className="mb-3 font-medium">Change password</h2>

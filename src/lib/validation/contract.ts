@@ -72,6 +72,7 @@ export const contractSchema = z.object({
       )
       .optional(),
   ),
+  isTaxDeductible: z.boolean().default(false),
 }).refine(
   (data) => !data.startDate || !data.endDate || data.endDate >= data.startDate,
   { message: "End date can't be before the start date.", path: ["endDate"] },

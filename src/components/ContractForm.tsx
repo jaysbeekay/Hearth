@@ -12,6 +12,7 @@ import {
   CATEGORY_LABELS,
   RENEWAL_LABELS,
 } from "@/lib/utils";
+import { enqueueOperation, serializeFormData } from "@/lib/offlineQueue";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -41,7 +42,25 @@ export function ContractForm({
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   contract?: ContractModel;
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  const offlineAwareAction = async (
+    prevState: ActionState,
+    formData: FormData,
+  ): Promise<ActionState> => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      await enqueueOperation({
+        label: contract ? `Update contract: ${contract.title}` : "Add contract",
+        entity: "contract",
+        operation: contract ? "update" : "create",
+        entityId: contract?.id,
+        formValues: serializeFormData(formData),
+      });
+      window.dispatchEvent(new Event("offline-queued"));
+      return { success: "Saved offline — will sync when you reconnect." };
+    }
+    return action(prevState, formData);
+  };
+
+  const [state, formAction] = useActionState<ActionState, FormData>(offlineAwareAction, null);
   const [scanning, setScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
 
@@ -343,6 +362,23 @@ export function ContractForm({
           className={inputClass}
         />
       </Field>
+
+      <div className="flex items-center gap-2">
+        <input
+          id="isTaxDeductible"
+          name="isTaxDeductible"
+          type="checkbox"
+          defaultChecked={
+            state?.values?.isTaxDeductible === "on"
+              ? true
+              : contract?.isTaxDeductible ?? false
+          }
+          className="size-4 rounded border-border accent-accent"
+        />
+        <label htmlFor="isTaxDeductible" className="text-sm">
+          Tax deductible
+        </label>
+      </div>
 
       <FormMessage error={state?.error} success={state?.success} />
 

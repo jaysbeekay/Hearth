@@ -10,6 +10,7 @@ const config: CapacitorConfig = {
   webDir: "ios-shell/www",
   server: {
     iosScheme: "capacitor",
+    androidScheme: "capacitor",
     // On a load failure (e.g. unreachable self-hosted server), Capacitor's
     // WebViewDelegationHandler reloads the WebView to this local file instead
     // of showing a blank WKWebView error page. app.js detects the bounce-back
