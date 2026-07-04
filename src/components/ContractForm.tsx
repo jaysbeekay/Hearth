@@ -12,6 +12,7 @@ import {
   CATEGORY_LABELS,
   RENEWAL_LABELS,
 } from "@/lib/utils";
+import { enqueueOperation, serializeFormData } from "@/lib/offlineQueue";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -41,7 +42,25 @@ export function ContractForm({
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   contract?: ContractModel;
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  const offlineAwareAction = async (
+    prevState: ActionState,
+    formData: FormData,
+  ): Promise<ActionState> => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      await enqueueOperation({
+        label: contract ? `Update contract: ${contract.title}` : "Add contract",
+        entity: "contract",
+        operation: contract ? "update" : "create",
+        entityId: contract?.id,
+        formValues: serializeFormData(formData),
+      });
+      window.dispatchEvent(new Event("offline-queued"));
+      return { success: "Saved offline — will sync when you reconnect." };
+    }
+    return action(prevState, formData);
+  };
+
+  const [state, formAction] = useActionState<ActionState, FormData>(offlineAwareAction, null);
   const [scanning, setScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
 

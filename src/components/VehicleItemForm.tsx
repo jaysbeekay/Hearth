@@ -9,6 +9,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { VEHICLE_ITEM_TYPES } from "@/lib/validation/vehicles";
 import { VEHICLE_ITEM_TYPE_LABELS } from "@/lib/utils";
+import { enqueueOperation, serializeFormData } from "@/lib/offlineQueue";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -20,11 +21,32 @@ type ExtractedFields = Partial<Record<"type" | "title" | "provider" | "date" | "
 export function VehicleItemForm({
   action,
   item,
+  vehicleId,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   item?: VehicleItemModel;
+  vehicleId?: string;
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  const offlineAwareAction = async (
+    prevState: ActionState,
+    formData: FormData,
+  ): Promise<ActionState> => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      await enqueueOperation({
+        label: item ? `Update record: ${item.title}` : "Add vehicle record",
+        entity: "vehicleItem",
+        operation: item ? "update" : "create",
+        entityId: item?.id,
+        parentId: item?.vehicleId ?? vehicleId,
+        formValues: serializeFormData(formData),
+      });
+      window.dispatchEvent(new Event("offline-queued"));
+      return { success: "Saved offline — will sync when you reconnect." };
+    }
+    return action(prevState, formData);
+  };
+
+  const [state, formAction] = useActionState<ActionState, FormData>(offlineAwareAction, null);
   const [scanning, setScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
 
