@@ -363,6 +363,23 @@ export function ContractForm({
         />
       </Field>
 
+      <div className="flex items-center gap-2">
+        <input
+          id="isTaxDeductible"
+          name="isTaxDeductible"
+          type="checkbox"
+          defaultChecked={
+            state?.values?.isTaxDeductible === "on"
+              ? true
+              : contract?.isTaxDeductible ?? false
+          }
+          className="size-4 rounded border-border accent-accent"
+        />
+        <label htmlFor="isTaxDeductible" className="text-sm">
+          Tax deductible
+        </label>
+      </div>
+
       <FormMessage error={state?.error} success={state?.success} />
 
       <div className="flex justify-end gap-3">

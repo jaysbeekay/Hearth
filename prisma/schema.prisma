@@ -79,6 +79,19 @@ enum ModuleKey {
   TRAVEL
   HOME
   VEHICLES
+  INVENTORY
+}
+
+enum InventoryItemCategory {
+  APPLIANCE
+  ELECTRONICS
+  FURNITURE
+  TOOL
+  CLOTHING
+  SPORTING
+  BOOK
+  MEDIA
+  OTHER
 }
 
 enum VehicleItemType {
@@ -114,6 +127,7 @@ model User {
   aiProvider        AiProvider?
   aiApiKeyEncrypted String?
   aiModel           String?
+  icalToken         String?    @unique
   createdAt         DateTime   @default(now())
   contracts         Contract[]
   products          Product[]
@@ -122,6 +136,7 @@ model User {
   properties        Property[]
   passkeys          PasskeyCredential[]
   vehicles          Vehicle[]
+  inventoryItems    InventoryItem[]
 
   @@map("users")
 }
@@ -172,6 +187,7 @@ model Contract {
   contactEmail      String?
   notes             String?
   reminderDaysBefore String?      @default("30,14,7,1")
+  isTaxDeductible   Boolean       @default(false)
 
   createdById       String
   createdBy         User          @relation(fields: [createdById], references: [id])
@@ -552,4 +568,41 @@ model VehicleNotificationLog {
 
   @@unique([vehicleId, channel, thresholdDays, field])
   @@map("vehicle_notification_logs")
+}
+
+model InventoryItem {
+  id            String                @id @default(cuid())
+  label         String
+  category      InventoryItemCategory @default(OTHER)
+  brand         String?
+  model         String?
+  serialNumber  String?
+  purchaseDate  DateTime?
+  purchasePrice Float?
+  currency      String                @default("AUD")
+  location      String?
+  notes         String?
+
+  documents     InventoryItemDocument[]
+
+  createdById   String
+  createdBy     User                  @relation(fields: [createdById], references: [id])
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("inventory_items")
+}
+
+model InventoryItemDocument {
+  id              String        @id @default(cuid())
+  inventoryItemId String
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  filename        String
+  storedName      String
+  mimeType        String
+  size            Int
+  uploadedAt      DateTime      @default(now())
+
+  @@map("inventory_item_documents")
 }

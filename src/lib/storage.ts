@@ -213,3 +213,38 @@ export async function deleteRentalStatementDocument(statementId: string, storedN
 export async function deleteRentalStatementDir(statementId: string) {
   await fs.rm(rentalStatementDir(statementId), { recursive: true, force: true });
 }
+
+function inventoryItemDir(inventoryItemId: string) {
+  return path.join(
+    path.resolve(env.uploadsDir),
+    "inventory-items",
+    path.basename(inventoryItemId),
+  );
+}
+
+export async function saveInventoryItemDocument(inventoryItemId: string, file: File) {
+  const dir = inventoryItemDir(inventoryItemId);
+  await fs.mkdir(dir, { recursive: true });
+
+  const storedName = `${randomUUID()}${safeExtension(file.name)}`;
+  const fullPath = path.join(dir, storedName);
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  await fs.writeFile(fullPath, buffer);
+
+  return { storedName, size: buffer.byteLength };
+}
+
+export async function readInventoryItemDocument(inventoryItemId: string, storedName: string) {
+  const fullPath = path.join(inventoryItemDir(inventoryItemId), storedName);
+  return fs.readFile(fullPath);
+}
+
+export async function deleteInventoryItemDocument(inventoryItemId: string, storedName: string) {
+  const fullPath = path.join(inventoryItemDir(inventoryItemId), storedName);
+  await fs.rm(fullPath, { force: true });
+}
+
+export async function deleteInventoryItemDir(inventoryItemId: string) {
+  await fs.rm(inventoryItemDir(inventoryItemId), { recursive: true, force: true });
+}

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, ChevronDown } from "lucide-react";
 import { VehicleCard } from "@/components/VehicleCard";
 import type { VehicleModel } from "@/generated/prisma/models";
 import { cachePageData } from "@/lib/offlineCache";
@@ -36,15 +36,26 @@ export function VehicleListClient({ vehicles }: Props) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Vehicles</h1>
-        <Link
-          href="/vehicles/new"
-          aria-disabled={!online}
-          tabIndex={!online ? -1 : undefined}
-          className={`flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90${!online ? " pointer-events-none opacity-40" : ""}`}
-        >
-          <Plus size={16} />
-          Add vehicle
-        </Link>
+        <div className="flex items-center gap-2">
+          <details className="relative">
+            <summary className="flex cursor-pointer list-none items-center gap-1 rounded-lg border border-border px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/5">
+              Export <ChevronDown size={14} />
+            </summary>
+            <div className="absolute right-0 z-10 mt-1 w-28 overflow-hidden rounded-lg border border-border bg-surface shadow-md">
+              <a href="/api/export/vehicles?format=csv" download className="block px-4 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/5">CSV</a>
+              <a href="/api/export/vehicles?format=pdf" download className="block px-4 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/5">PDF</a>
+            </div>
+          </details>
+          <Link
+            href="/vehicles/new"
+            aria-disabled={!online}
+            tabIndex={!online ? -1 : undefined}
+            className={`flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90${!online ? " pointer-events-none opacity-40" : ""}`}
+          >
+            <Plus size={16} />
+            Add vehicle
+          </Link>
+        </div>
       </div>
 
       {vehicles.length === 0 ? (
