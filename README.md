@@ -27,6 +27,13 @@ with optional reminders before anything expires.
 - Attach receipts/invoices and record costs, providers, and dates
 - Manage rental agreements and track rental income statements per property
 
+**Vehicles** *(opt-in module)*
+- Track cars with make, model, year, licence plate, VIN, and registration/insurance expiry dates
+- Log service history, repairs, registration, roadworthy checks, and modifications against each vehicle
+- Attach receipts/invoices to any record
+- Configurable reminders before rego or insurance lapses — same threshold/channel system as contracts
+- AI extraction pre-fills service record details when you upload a receipt or invoice
+
 **Passkeys**
 - Register Face ID, Touch ID, or a security key as an alternative to your password from **Settings → Security**
 - Passkeys are per-user and opt-in — passwords continue to work normally
@@ -41,9 +48,9 @@ with optional reminders before anything expires.
 - Multi-user/household accounts — everyone sees the same data
 - Admin-invite-only (no public sign-up) since this stores sensitive household data
 - Mobile-friendly responsive UI, installable as a PWA ("Add to Home Screen")
-- **Offline read cache** — a service worker caches previously-visited pages so they're still browsable when your home server is unreachable; an amber banner appears and write actions are disabled until you reconnect
+- **Offline read cache** — a service worker caches previously-visited pages so they're still browsable when your home server is unreachable; an amber banner appears and writes are queued locally and synced automatically when you reconnect
 - SQLite storage — a single file, easy to back up, no separate database service
-- Opt-in modules: enable Travel and/or Home at first-run setup, or toggle from Settings later
+- Opt-in modules: enable Travel, Home, and/or Vehicles at first-run setup, or toggle from Settings later
 
 ## Screenshots
 
@@ -57,17 +64,17 @@ with optional reminders before anything expires.
 | --- | --- |
 | ![Contract detail](docs/screenshots/contract-detail.png) | ![Travel list](docs/screenshots/travel-list.png) |
 
-| Trip detail | Home — properties |
+| Trip detail | Vehicles |
 | --- | --- |
-| ![Trip detail](docs/screenshots/trip-detail.png) | ![Home list](docs/screenshots/home-list.png) |
+| ![Trip detail](docs/screenshots/trip-detail.png) | ![Vehicles list](docs/screenshots/vehicles-list.png) |
 
-| Property detail | Settings — system |
+| Vehicle detail | Home — properties |
 | --- | --- |
-| ![Property detail](docs/screenshots/property-detail.png) | ![Settings — system](docs/screenshots/settings-system.png) |
+| ![Vehicle detail](docs/screenshots/vehicle-detail.png) | ![Home list](docs/screenshots/home-list.png) |
 
-| Settings — modules |
-| --- |
-| ![Settings — modules](docs/screenshots/settings-modules.png) |
+| Property detail | Settings — modules |
+| --- | --- |
+| ![Property detail](docs/screenshots/property-detail.png) | ![Settings — modules](docs/screenshots/settings-modules.png) |
 
 ## Tech stack
 
@@ -457,13 +464,19 @@ is logged as failed and retried the next time the threshold check runs
 (same retry semantics as email) — other enabled endpoints still receive
 the same event.
 
-## Native iOS app
+## Native iOS and Android apps
 
-There's a thin native iOS wrapper in `ios/` (built with
-[Capacitor](https://capacitorjs.com)) that points at your self-hosted server
-and adds camera permissions and client-certificate import for mTLS setups.
-See [README-ios.md](README-ios.md) — note that it's written but not yet
-built/tested in Xcode.
+There are thin native wrappers — `ios/` and `android/` — built with
+[Capacitor](https://capacitorjs.com). Each wrapper points at your self-hosted
+server URL (entered at first launch), adds camera permissions for barcode
+scanning, and supports client-certificate import for mTLS setups so the
+WebView can authenticate with your nginx reverse proxy automatically.
+
+See [README-ios.md](README-ios.md) for iOS build/run/submit instructions.
+For Android, open `android/` in Android Studio and run on a device or
+emulator — the app targets API 24+ (Android 7.0). Note that neither wrapper
+has been submitted to its respective store yet; they are ready to build
+locally from source.
 
 ## Configuration
 
