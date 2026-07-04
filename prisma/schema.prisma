@@ -78,6 +78,17 @@ enum BackupStatus {
 enum ModuleKey {
   TRAVEL
   HOME
+  VEHICLES
+}
+
+enum VehicleItemType {
+  SERVICE
+  REPAIR
+  REGISTRATION
+  INSURANCE
+  ROADWORTHY
+  MODIFICATION
+  OTHER
 }
 
 enum TripSegmentType {
@@ -110,6 +121,7 @@ model User {
   trips             Trip[]
   properties        Property[]
   passkeys          PasskeyCredential[]
+  vehicles          Vehicle[]
 
   @@map("users")
 }
@@ -468,4 +480,76 @@ model HomeItemDocument {
   uploadedAt DateTime @default(now())
 
   @@map("home_item_documents")
+}
+
+model Vehicle {
+  id                 String    @id @default(cuid())
+  label              String
+  make               String?
+  model              String?
+  year               Int?
+  colour             String?
+  licensePlate       String?
+  vin                String?
+  regoExpiry         DateTime?
+  insuranceExpiry    DateTime?
+  reminderDaysBefore String?   @default("30,14,7,1")
+  notes              String?
+
+  createdById        String
+  createdBy          User      @relation(fields: [createdById], references: [id])
+
+  items              VehicleItem[]
+  notificationLogs   VehicleNotificationLog[]
+
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@map("vehicles")
+}
+
+model VehicleItem {
+  id          String          @id @default(cuid())
+  vehicleId   String
+  vehicle     Vehicle         @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  type        VehicleItemType
+  title       String
+  provider    String?
+  date        DateTime?
+  cost        Float?
+  currency    String          @default("AUD")
+  notes       String?
+
+  documents   VehicleItemDocument[]
+
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@map("vehicle_items")
+}
+
+model VehicleItemDocument {
+  id            String      @id @default(cuid())
+  vehicleItemId String
+  vehicleItem   VehicleItem @relation(fields: [vehicleItemId], references: [id], onDelete: Cascade)
+  filename      String
+  storedName    String
+  mimeType      String
+  size          Int
+  uploadedAt    DateTime    @default(now())
+
+  @@map("vehicle_item_documents")
+}
+
+model VehicleNotificationLog {
+  id            String   @id @default(cuid())
+  vehicleId     String
+  vehicle       Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  channel       String
+  thresholdDays Int
+  field         String
+  sentAt        DateTime @default(now())
+
+  @@unique([vehicleId, channel, thresholdDays, field])
+  @@map("vehicle_notification_logs")
 }

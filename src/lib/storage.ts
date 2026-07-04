@@ -148,6 +148,37 @@ export async function deleteHomeItemDir(homeItemId: string) {
   await fs.rm(homeItemDir(homeItemId), { recursive: true, force: true });
 }
 
+function vehicleItemDir(vehicleItemId: string) {
+  return path.join(path.resolve(env.uploadsDir), "vehicle-items", path.basename(vehicleItemId));
+}
+
+export async function saveVehicleItemDocument(vehicleItemId: string, file: File) {
+  const dir = vehicleItemDir(vehicleItemId);
+  await fs.mkdir(dir, { recursive: true });
+
+  const storedName = `${randomUUID()}${safeExtension(file.name)}`;
+  const fullPath = path.join(dir, storedName);
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  await fs.writeFile(fullPath, buffer);
+
+  return { storedName, size: buffer.byteLength };
+}
+
+export async function readVehicleItemDocument(vehicleItemId: string, storedName: string) {
+  const fullPath = path.join(vehicleItemDir(vehicleItemId), storedName);
+  return fs.readFile(fullPath);
+}
+
+export async function deleteVehicleItemDocument(vehicleItemId: string, storedName: string) {
+  const fullPath = path.join(vehicleItemDir(vehicleItemId), storedName);
+  await fs.rm(fullPath, { force: true });
+}
+
+export async function deleteVehicleItemDir(vehicleItemId: string) {
+  await fs.rm(vehicleItemDir(vehicleItemId), { recursive: true, force: true });
+}
+
 function rentalStatementDir(statementId: string) {
   return path.join(
     path.resolve(env.uploadsDir),
