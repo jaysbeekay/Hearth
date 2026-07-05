@@ -4,6 +4,7 @@ export async function register() {
   const globalForCron = globalThis as unknown as {
     __reminderCronStarted?: boolean;
     __backupCronStarted?: boolean;
+    __priceCronStarted?: boolean;
   };
 
   const cron = await import("node-cron");
@@ -37,5 +38,19 @@ export async function register() {
     });
 
     console.log(`[backup] scheduler started (cron: "${backupCron}")`);
+  }
+
+  if (!globalForCron.__priceCronStarted) {
+    globalForCron.__priceCronStarted = true;
+
+    const { refreshAllPortfolioPrices } = await import("@/lib/prices");
+    // Every 15 minutes — refreshAllPortfolioPrices skips tickers whose cache is still fresh
+    cron.schedule("*/15 * * * *", () => {
+      refreshAllPortfolioPrices().catch((error) => {
+        console.error("[prices] scheduled refresh failed:", error);
+      });
+    });
+
+    console.log("[prices] price refresh scheduler started (every 15 min)");
   }
 }

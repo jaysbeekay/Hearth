@@ -80,6 +80,23 @@ enum ModuleKey {
   HOME
   VEHICLES
   INVENTORY
+  WEALTH
+}
+
+enum AssetClass {
+  SHARE
+  ETF
+  MANAGED_FUND
+  CRYPTO
+  CASH
+  OTHER
+}
+
+enum TradeType {
+  BUY
+  SELL
+  DIVIDEND
+  SPLIT
 }
 
 enum InventoryItemCategory {
@@ -137,6 +154,7 @@ model User {
   passkeys          PasskeyCredential[]
   vehicles          Vehicle[]
   inventoryItems    InventoryItem[]
+  portfolios        Portfolio[]
 
   @@map("users")
 }
@@ -407,6 +425,7 @@ model Property {
   items             HomeItem[]
   rentalAgreements  RentalAgreement[]
   rentalStatements  RentalStatement[]
+  valuations        PropertyValuation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -605,4 +624,91 @@ model InventoryItemDocument {
   uploadedAt      DateTime      @default(now())
 
   @@map("inventory_item_documents")
+}
+
+model Portfolio {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  currency    String    @default("AUD")
+  createdById String
+  createdBy   User      @relation(fields: [createdById], references: [id])
+  holdings    Holding[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("portfolios")
+}
+
+model Holding {
+  id          String     @id @default(cuid())
+  portfolioId String
+  portfolio   Portfolio  @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  ticker      String
+  name        String?
+  assetClass  AssetClass @default(SHARE)
+  exchange    String?
+  trades      Trade[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@unique([portfolioId, ticker])
+  @@map("holdings")
+}
+
+model Trade {
+  id           String          @id @default(cuid())
+  holdingId    String
+  holding      Holding         @relation(fields: [holdingId], references: [id], onDelete: Cascade)
+  type         TradeType
+  date         DateTime
+  units        Float
+  pricePerUnit Float
+  fees         Float?
+  currency     String          @default("AUD")
+  fxRate       Float?
+  notes        String?
+  documents    TradeDocument[]
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@map("trades")
+}
+
+model TradeDocument {
+  id         String   @id @default(cuid())
+  tradeId    String
+  trade      Trade    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  filename   String
+  storedName String
+  mimeType   String
+  size       Int
+  uploadedAt DateTime @default(now())
+
+  @@map("trade_documents")
+}
+
+model PriceCache {
+  ticker    String   @id
+  price     Float
+  currency  String   @default("AUD")
+  changePct Float?
+  source    String
+  cachedAt  DateTime
+
+  @@map("price_cache")
+}
+
+model PropertyValuation {
+  id         String   @id @default(cuid())
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  valuedAt   DateTime
+  value      Float
+  currency   String   @default("AUD")
+  source     String?
+  notes      String?
+  createdAt  DateTime @default(now())
+
+  @@map("property_valuations")
 }

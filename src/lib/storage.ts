@@ -248,3 +248,34 @@ export async function deleteInventoryItemDocument(inventoryItemId: string, store
 export async function deleteInventoryItemDir(inventoryItemId: string) {
   await fs.rm(inventoryItemDir(inventoryItemId), { recursive: true, force: true });
 }
+
+function tradeDir(tradeId: string) {
+  return path.join(path.resolve(env.uploadsDir), "trades", path.basename(tradeId));
+}
+
+export async function saveTradeDocument(tradeId: string, file: File) {
+  const dir = tradeDir(tradeId);
+  await fs.mkdir(dir, { recursive: true });
+
+  const storedName = `${randomUUID()}${safeExtension(file.name)}`;
+  const fullPath = path.join(dir, storedName);
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  await fs.writeFile(fullPath, buffer);
+
+  return { storedName, size: buffer.byteLength };
+}
+
+export async function readTradeDocument(tradeId: string, storedName: string) {
+  const fullPath = path.join(tradeDir(tradeId), storedName);
+  return fs.readFile(fullPath);
+}
+
+export async function deleteTradeDocument(tradeId: string, storedName: string) {
+  const fullPath = path.join(tradeDir(tradeId), storedName);
+  await fs.rm(fullPath, { force: true });
+}
+
+export async function deleteTradeDir(tradeId: string) {
+  await fs.rm(tradeDir(tradeId), { recursive: true, force: true });
+}

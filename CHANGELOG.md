@@ -7,6 +7,33 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-05
+
+### Added
+
+- **Wealth module** — opt-in portfolio tracker and net worth dashboard. Track
+  share, ETF, and crypto portfolios; add holdings and record buy/sell/split
+  trades with attached documents. Live price feeds via Yahoo Finance (equities:
+  ASX, NYSE, NASDAQ, LSE, TSX, etc.) and CoinGecko (crypto), cached with
+  15-min/5-min TTLs and auto-refreshed every 15 minutes by a background cron.
+  FIFO cost basis — BUY accumulates units and cost (including fees), SELL
+  reduces proportionally, SPLIT adds units only — with unrealised gain/loss
+  and gain% shown per holding and per portfolio.
+- **CSV broker import** — upload a brokerage export and the app auto-detects
+  CommSec, SelfWealth, Stake, or generic format, shows a preview of parsed
+  rows, and imports on confirm. CommSec tickers get `.AX` suffix automatically;
+  SelfWealth and Stake use the exchange/market field.
+- **Net worth dashboard** — `/wealth` combines portfolio market value,
+  property valuations (HOME module), and inventory items at purchase price
+  (INVENTORY module) into a unified net worth figure with an inline SVG donut
+  breakdown by asset class and a top-holdings grid.
+- **Property valuations** — new section on each HOME property detail page to
+  record estimated values (date, amount, currency, source, notes). An amber
+  warning appears when no valuation exists or the latest is over 12 months old,
+  and the most recent valuation feeds into the net worth calculation.
+- **Wealth export** — download all portfolio trades as CSV or PDF from
+  `/api/export/wealth`.
+
 ## [0.4.0] - 2026-07-04
 
 ### Added

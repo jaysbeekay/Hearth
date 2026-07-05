@@ -11,7 +11,7 @@ const nextConfig: NextConfig = {
   output: "standalone",
   // ssh2 (used by the SFTP backup destination) ships a non-ESM asset that
   // Turbopack can't bundle into server chunks — load it natively instead.
-  serverExternalPackages: ["ssh2", "ssh2-sftp-client"],
+  serverExternalPackages: ["ssh2", "ssh2-sftp-client", "yahoo-finance2"],
   experimental: {
     // Document/photo uploads go through Server Actions and are validated
     // against MAX_UPLOAD_BYTES (15MB) in application code. Next's own

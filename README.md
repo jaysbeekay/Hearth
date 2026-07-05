@@ -27,6 +27,14 @@ with optional reminders before anything expires.
 - Attach receipts/invoices and record costs, providers, and dates
 - Manage rental agreements and track rental income statements per property
 
+**Wealth** *(opt-in module)*
+- Track share, ETF, and crypto portfolios — full CRUD for portfolios, holdings, and trades with document attachments
+- Live price feeds via Yahoo Finance (equities — ASX, NYSE, NASDAQ, LSE, TSX, etc.) and CoinGecko (crypto); prices are cached and auto-refreshed every 15 minutes
+- FIFO cost basis calculation; unrealised gain/loss and gain% shown per holding and per portfolio
+- Import trades from a broker CSV — auto-detects CommSec, SelfWealth, Stake, and generic formats; preview before confirming
+- Net worth dashboard combining portfolio value, property valuations (HOME module), and inventory items (INVENTORY module) with a live donut breakdown
+- Property valuations: record estimated values against each HOME property; staleness warning after 12 months
+
 **Vehicles** *(opt-in module)*
 - Track cars with make, model, year, licence plate, VIN, and registration/insurance expiry dates
 - Log service history, repairs, registration, roadworthy checks, and modifications against each vehicle
@@ -50,7 +58,7 @@ with optional reminders before anything expires.
 - Mobile-friendly responsive UI, installable as a PWA ("Add to Home Screen")
 - **Offline read cache** — a service worker caches previously-visited pages so they're still browsable when your home server is unreachable; an amber banner appears and writes are queued locally and synced automatically when you reconnect
 - SQLite storage — a single file, easy to back up, no separate database service
-- Opt-in modules: enable Travel, Home, and/or Vehicles at first-run setup, or toggle from Settings later
+- Opt-in modules: enable Travel, Home, Vehicles, Inventory, and/or Wealth at first-run setup, or toggle from Settings later
 
 ## Screenshots
 
