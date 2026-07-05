@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Pencil, Trash2, Plus, Wrench, Sparkles, Hammer, Tag, Home } from "lucide-react";
+import { Pencil, Trash2, Plus, Wrench, Sparkles, Hammer, Tag, Home, TrendingUp, AlertTriangle } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { deleteProperty, deleteHomeItem, addItemDocument } from "@/lib/actions/home";
+import { addPropertyValuation, deletePropertyValuation } from "@/lib/actions/wealth";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { HomeItemDocumentList } from "@/components/HomeItemDocumentList";
@@ -30,9 +31,15 @@ export default async function PropertyDetailPage({
     include: {
       createdBy: true,
       items: { include: { documents: { orderBy: { uploadedAt: "desc" } } } },
+      valuations: { orderBy: { valuedAt: "desc" } },
     },
   });
   if (!property) notFound();
+
+  const latestValuation = property.valuations[0] ?? null;
+  const valuationStale =
+    !latestValuation ||
+    Date.now() - latestValuation.valuedAt.getTime() > 365 * 24 * 60 * 60 * 1000;
 
   const items = [...property.items].sort((a, b) => {
     if (!a.date && !b.date) return 0;
@@ -170,6 +177,119 @@ export default async function PropertyDetailPage({
             })}
           </div>
         )}
+      </div>
+
+      {/* Property valuations */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <TrendingUp size={18} className="text-foreground/50" />
+            <h2 className="font-medium">Property valuations</h2>
+          </div>
+        </div>
+
+        {valuationStale && (
+          <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+            <AlertTriangle size={16} className="shrink-0" />
+            {latestValuation
+              ? "Valuation is over 12 months old — consider updating."
+              : "No valuation recorded yet — add one to include this property in your net worth."}
+          </div>
+        )}
+
+        {property.valuations.length > 0 && (
+          <div className="rounded-xl border border-border bg-surface divide-y divide-border">
+            {property.valuations.map((v) => (
+              <div key={v.id} className="flex items-center justify-between gap-4 p-4">
+                <div>
+                  <p className="font-medium tabular-nums">{formatCurrency(v.value, v.currency)}</p>
+                  <p className="text-xs text-foreground/50">
+                    {formatDate(v.valuedAt)}{v.source ? ` · ${v.source}` : ""}
+                  </p>
+                  {v.notes && <p className="mt-0.5 text-xs text-foreground/60">{v.notes}</p>}
+                </div>
+                <ConfirmForm
+                  action={deletePropertyValuation.bind(null, property.id, v.id)}
+                  confirmText="Remove this valuation?"
+                  className="rounded-lg border border-border p-2 text-danger hover:bg-danger/10"
+                >
+                  <Trash2 size={14} />
+                </ConfirmForm>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+          <h3 className="mb-3 text-sm font-medium">Add valuation</h3>
+          <form action={addPropertyValuation.bind(null, property.id)} className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-xs text-foreground/60">Date</label>
+                <input
+                  type="date"
+                  name="valuedAt"
+                  required
+                  defaultValue={new Date().toISOString().slice(0, 10)}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-foreground/60">Estimated value</label>
+                <input
+                  type="number"
+                  name="value"
+                  required
+                  step="1"
+                  min="0"
+                  placeholder="e.g. 750000"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-xs text-foreground/60">Currency</label>
+                <select
+                  name="currency"
+                  defaultValue="AUD"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                >
+                  <option value="AUD">AUD</option>
+                  <option value="USD">USD</option>
+                  <option value="GBP">GBP</option>
+                  <option value="EUR">EUR</option>
+                  <option value="NZD">NZD</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-foreground/60">Source (optional)</label>
+                <input
+                  type="text"
+                  name="source"
+                  placeholder="e.g. CoreLogic, agent appraisal"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-foreground/60">Notes (optional)</label>
+              <input
+                type="text"
+                name="notes"
+                placeholder="Any additional context"
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+              />
+            </div>
+            <button
+              type="submit"
+              className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+            >
+              <Plus size={16} />
+              Save valuation
+            </button>
+          </form>
+        </div>
       </div>
 
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
