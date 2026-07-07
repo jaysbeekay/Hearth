@@ -472,20 +472,6 @@ is logged as failed and retried the next time the threshold check runs
 (same retry semantics as email) — other enabled endpoints still receive
 the same event.
 
-## Native iOS and Android apps
-
-There are thin native wrappers — `ios/` and `android/` — built with
-[Capacitor](https://capacitorjs.com). Each wrapper points at your self-hosted
-server URL (entered at first launch), adds camera permissions for barcode
-scanning, and supports client-certificate import for mTLS setups so the
-WebView can authenticate with your nginx reverse proxy automatically.
-
-See [README-ios.md](README-ios.md) for iOS build/run/submit instructions.
-For Android, open `android/` in Android Studio and run on a device or
-emulator — the app targets API 24+ (Android 7.0). Note that neither wrapper
-has been submitted to its respective store yet; they are ready to build
-locally from source.
-
 ## Configuration
 
 All configuration is via environment variables — see [`.env.example`](.env.example)
