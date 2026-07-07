@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState, useEffect, useRef } from "react";
 import type { TradeModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -17,13 +17,53 @@ function toDateInputValue(date: Date | null | undefined) {
 export function TradeForm({
   action,
   trade,
+  ticker,
   defaultCurrency,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   trade?: TradeModel;
+  ticker?: string;
   defaultCurrency?: string;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+
+  const [selectedDate, setSelectedDate] = useState(
+    state?.values?.date ?? toDateInputValue(trade?.date) ?? "",
+  );
+  const [marketPrice, setMarketPrice] = useState<number | null>(null);
+  const [priceHintLoading, setPriceHintLoading] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const priceInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!ticker || !selectedDate) {
+      setMarketPrice(null);
+      return;
+    }
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      setPriceHintLoading(true);
+      try {
+        const res = await fetch(
+          `/api/wealth/price?ticker=${encodeURIComponent(ticker)}&date=${encodeURIComponent(selectedDate)}`,
+        );
+        const data = (await res.json()) as { price: number | null };
+        setMarketPrice(data.price ?? null);
+      } catch {
+        setMarketPrice(null);
+      } finally {
+        setPriceHintLoading(false);
+      }
+    }, 600);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [ticker, selectedDate]);
+
+  function applyMarketPrice() {
+    if (marketPrice == null || !priceInputRef.current) return;
+    priceInputRef.current.value = marketPrice.toFixed(4);
+  }
 
   return (
     <form action={formAction} className="space-y-5">
@@ -51,7 +91,8 @@ export function TradeForm({
             name="date"
             type="date"
             required
-            defaultValue={state?.values?.date ?? toDateInputValue(trade?.date)}
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
             className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
           />
         </div>
@@ -74,8 +115,11 @@ export function TradeForm({
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1" htmlFor="pricePerUnit">Price per unit <span className="text-danger">*</span></label>
+          <label className="block text-sm font-medium mb-1" htmlFor="pricePerUnit">
+            Price per unit <span className="text-danger">*</span>
+          </label>
           <input
+            ref={priceInputRef}
             id="pricePerUnit"
             name="pricePerUnit"
             type="number"
@@ -86,6 +130,24 @@ export function TradeForm({
             placeholder="e.g. 98.50"
             className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
           />
+          {ticker && selectedDate && (
+            <div className="mt-1 flex items-center gap-2 text-xs text-foreground/50">
+              {priceHintLoading ? (
+                <span>Fetching market price…</span>
+              ) : marketPrice != null ? (
+                <>
+                  <span>Market close {selectedDate}: {marketPrice.toFixed(4)}</span>
+                  <button
+                    type="button"
+                    onClick={applyMarketPrice}
+                    className="text-accent hover:underline"
+                  >
+                    Use
+                  </button>
+                </>
+              ) : null}
+            </div>
+          )}
         </div>
       </div>
 

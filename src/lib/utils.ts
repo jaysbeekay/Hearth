@@ -10,12 +10,17 @@ export function formatDate(date: Date | string | null | undefined) {
   return d.toLocaleDateString("en-AU", { year: "numeric", month: "short", day: "numeric" });
 }
 
-export function formatCurrency(amount: number | null | undefined, currency: string) {
+export function formatCurrency(amount: number | null | undefined, currency: string, fractionDigits?: number) {
   if (amount == null) return "—";
   try {
-    return new Intl.NumberFormat("en-AU", { style: "currency", currency }).format(amount);
+    const opts: Intl.NumberFormatOptions = { style: "currency", currency };
+    if (fractionDigits !== undefined) {
+      opts.minimumFractionDigits = fractionDigits;
+      opts.maximumFractionDigits = fractionDigits;
+    }
+    return new Intl.NumberFormat("en-AU", opts).format(amount);
   } catch {
-    return `${currency} ${amount.toFixed(2)}`;
+    return `${currency} ${amount.toFixed(fractionDigits ?? 2)}`;
   }
 }
 

@@ -42,7 +42,7 @@ export default async function EditTradePage({
         <h1 className="mt-1 text-2xl font-semibold">Edit trade</h1>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
-        <TradeForm action={action} trade={trade} defaultCurrency={trade.holding.portfolio.currency} />
+        <TradeForm action={action} trade={trade} ticker={trade.holding.ticker} defaultCurrency={trade.holding.portfolio.currency} />
       </div>
     </div>
   );

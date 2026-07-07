@@ -17,6 +17,7 @@ import {
   deleteTradeDocument,
   deleteTradeDir,
 } from "@/lib/storage";
+import { fetchHistoricalPrice } from "@/lib/prices";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import { formDataToStringValues } from "@/lib/form-state";
 import type { ActionState } from "@/lib/actions/auth";
@@ -246,6 +247,17 @@ export async function createTrade(
 
   if (file instanceof File && file.size > 0) {
     await attachTradeDocument(trade.id, file);
+  }
+
+  // Back-fill market price on trade date (non-blocking — don't fail the trade if fetch errors)
+  if (holding.exchange !== "CRYPTO") {
+    fetchHistoricalPrice(holding.ticker, parsed.data.date)
+      .then((marketPrice) => {
+        if (marketPrice != null) {
+          return prisma.trade.update({ where: { id: trade.id }, data: { marketPriceOnDate: marketPrice } });
+        }
+      })
+      .catch(() => {});
   }
 
   revalidatePath(`/wealth/portfolios/${holding.portfolioId}/holdings/${holdingId}`);
@@ -490,7 +502,7 @@ export async function importTrades(
     });
     if (existing) { skipped++; continue; }
 
-    await prisma.trade.create({
+    const newTrade = await prisma.trade.create({
       data: {
         holdingId: holding.id,
         type: row.type as "BUY" | "SELL" | "DIVIDEND" | "SPLIT",
@@ -501,6 +513,18 @@ export async function importTrades(
         currency: row.currency,
       },
     });
+
+    // Fetch market price for this trade date (non-blocking)
+    if (row.currency !== "CRYPTO") {
+      fetchHistoricalPrice(row.ticker, date)
+        .then((marketPrice) => {
+          if (marketPrice != null) {
+            return prisma.trade.update({ where: { id: newTrade.id }, data: { marketPriceOnDate: marketPrice } });
+          }
+        })
+        .catch(() => {});
+    }
+
     imported++;
   }
 
