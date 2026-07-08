@@ -10,6 +10,7 @@ const ENCRYPTED_KEYS = new Set([
   "backup.s3.secretAccessKey",
   "backup.sftp.password",
   "backup.sftp.privateKey",
+  "aviationstack.apiKey",
 ]);
 
 async function readSetting(key: string): Promise<string | null> {
@@ -249,6 +250,16 @@ export async function getReminderConfig() {
     cron: s["reminder.cron"] || "0 8 * * *",
     defaultDays: s["reminder.defaultDays"] || "30,14,7,1",
   };
+}
+
+export async function getAviationStackConfig() {
+  const apiKey = await readSetting("aviationstack.apiKey") ?? "";
+  return { apiKey };
+}
+
+export async function isAviationStackConfigured(): Promise<boolean> {
+  const { apiKey } = await getAviationStackConfig();
+  return Boolean(apiKey);
 }
 
 export async function isBackupConfigured(): Promise<boolean> {

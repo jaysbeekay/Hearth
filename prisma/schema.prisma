@@ -391,6 +391,23 @@ model TripSegment {
   currency         String                @default("AUD")
   notes            String?
 
+  // Flight-specific fields (populated from AviationStack when type=FLIGHT)
+  flightNumber     String?
+  departureIata    String?
+  arrivalIata      String?
+  flightStatus     String?
+  scheduledDep     DateTime?
+  scheduledArr     DateTime?
+  estimatedDep     DateTime?
+  estimatedArr     DateTime?
+  actualDep        DateTime?
+  actualArr        DateTime?
+  depTerminal      String?
+  depGate          String?
+  arrTerminal      String?
+  arrGate          String?
+  flightStatusAt   DateTime?
+
   documents        TripSegmentDocument[]
 
   createdAt        DateTime              @default(now())

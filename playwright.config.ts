@@ -22,8 +22,8 @@ export default defineConfig({
   webServer: {
     command: "npx next dev",
     url: BASE_URL,
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
+    reuseExistingServer: false,
+    timeout: 240_000,
     env: {
       DATABASE_URL,
       UPLOADS_DIR,

@@ -11,7 +11,7 @@ export const VEHICLE_ITEM_TYPES = [
 ] as const;
 
 const emptyToUndefined = (val: unknown) =>
-  typeof val === "string" && val.trim() === "" ? undefined : val;
+  val == null || (typeof val === "string" && val.trim() === "") ? undefined : val;
 
 export const vehicleSchema = z.object({
   label: z.string().trim().min(1, "Label is required").max(200),

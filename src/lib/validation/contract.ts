@@ -28,7 +28,7 @@ export const BILLING_FREQUENCIES = [
 export const CONTRACT_STATUSES = ["ACTIVE", "CANCELLED"] as const;
 
 const emptyToUndefined = (val: unknown) =>
-  typeof val === "string" && val.trim() === "" ? undefined : val;
+  val == null || (typeof val === "string" && val.trim() === "") ? undefined : val;
 
 export const contractSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(200),

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 const emptyToUndefined = (val: unknown) =>
-  typeof val === "string" && val.trim() === "" ? undefined : val;
+  val == null || (typeof val === "string" && val.trim() === "") ? undefined : val;
 
 export const productSchema = z.object({
   name: z.string().trim().min(1, "Product name is required").max(200),

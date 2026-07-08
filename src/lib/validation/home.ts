@@ -3,7 +3,7 @@ import { z } from "zod";
 export const HOME_ITEM_TYPES = ["MAINTENANCE", "IMPROVEMENT", "REPAIR", "OTHER"] as const;
 
 const emptyToUndefined = (val: unknown) =>
-  typeof val === "string" && val.trim() === "" ? undefined : val;
+  val == null || (typeof val === "string" && val.trim() === "") ? undefined : val;
 
 export const propertySchema = z.object({
   label: z.string().trim().min(1, "Label is required").max(200),

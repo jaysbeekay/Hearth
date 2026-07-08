@@ -29,6 +29,9 @@ const TRIP_SEGMENT_FORM_FIELDS = [
   "cost",
   "currency",
   "notes",
+  "flightNumber",
+  "departureIata",
+  "arrivalIata",
 ];
 
 function firstIssueMessage(error: { issues: { message: string }[] }) {
@@ -86,6 +89,9 @@ function formToTripSegmentInput(formData: FormData) {
     cost: formData.get("cost"),
     currency: formData.get("currency") || "AUD",
     notes: formData.get("notes"),
+    flightNumber: formData.get("flightNumber"),
+    departureIata: formData.get("departureIata"),
+    arrivalIata: formData.get("arrivalIata"),
   };
 }
 
@@ -272,4 +278,22 @@ export async function deleteSegmentDocumentAction(
 
   if (segment) revalidatePath(`/travel/${segment.tripId}`);
   return { success: "Document removed." };
+}
+
+export async function refreshFlightStatusAction(
+  segmentId: string,
+  tripId: string,
+): Promise<ActionState> {
+  await requireUser();
+
+  const segment = await prisma.tripSegment.findUnique({ where: { id: segmentId } });
+  if (!segment || segment.tripId !== tripId) return { error: "Segment not found." };
+  if (segment.type !== "FLIGHT") return { error: "Not a flight segment." };
+  if (!segment.flightNumber) return { error: "No flight number set." };
+
+  const { refreshFlightStatus } = await import("@/lib/integrations/flightStatus");
+  await refreshFlightStatus(segmentId);
+
+  revalidatePath(`/travel/${tripId}`);
+  return { success: "Flight status refreshed." };
 }
