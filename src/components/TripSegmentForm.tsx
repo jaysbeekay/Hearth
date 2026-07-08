@@ -10,6 +10,8 @@ import { FormMessage } from "@/components/FormMessage";
 import { TRIP_SEGMENT_TYPES } from "@/lib/validation/travel";
 import { TRIP_SEGMENT_TYPE_LABELS } from "@/lib/utils";
 
+type SegmentType = (typeof TRIP_SEGMENT_TYPES)[number];
+
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
   return new Date(date).toISOString().slice(0, 10);
@@ -17,7 +19,17 @@ function toDateInputValue(date: Date | null | undefined) {
 
 type ExtractedFields = Partial<
   Record<
-    "type" | "title" | "provider" | "confirmationCode" | "startDate" | "endDate" | "location" | "cost",
+    | "type"
+    | "title"
+    | "provider"
+    | "confirmationCode"
+    | "startDate"
+    | "endDate"
+    | "location"
+    | "cost"
+    | "flightNumber"
+    | "departureIata"
+    | "arrivalIata",
     string
   >
 >;
@@ -29,9 +41,14 @@ export function TripSegmentForm({
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   segment?: TripSegmentModel;
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
   const [scanning, setScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
+
+  const [selectedType, setSelectedType] = useState<SegmentType>(
+    segment?.type ?? TRIP_SEGMENT_TYPES[0],
+  );
+
+  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
 
   const typeRef = useRef<HTMLSelectElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
@@ -41,9 +58,15 @@ export function TripSegmentForm({
   const endDateRef = useRef<HTMLInputElement>(null);
   const locationRef = useRef<HTMLInputElement>(null);
   const costRef = useRef<HTMLInputElement>(null);
+  const flightNumberRef = useRef<HTMLInputElement>(null);
+  const departureIataRef = useRef<HTMLInputElement>(null);
+  const arrivalIataRef = useRef<HTMLInputElement>(null);
 
   function applyExtractedFields(fields: ExtractedFields) {
-    if (fields.type && typeRef.current) typeRef.current.value = fields.type;
+    if (fields.type && typeRef.current) {
+      typeRef.current.value = fields.type;
+      setSelectedType(fields.type as SegmentType);
+    }
     if (fields.title && titleRef.current && !titleRef.current.value) {
       titleRef.current.value = fields.title;
     }
@@ -55,6 +78,12 @@ export function TripSegmentForm({
     if (fields.endDate && endDateRef.current) endDateRef.current.value = fields.endDate;
     if (fields.location && locationRef.current) locationRef.current.value = fields.location;
     if (fields.cost && costRef.current) costRef.current.value = fields.cost;
+    if (fields.flightNumber && flightNumberRef.current)
+      flightNumberRef.current.value = fields.flightNumber;
+    if (fields.departureIata && departureIataRef.current)
+      departureIataRef.current.value = fields.departureIata;
+    if (fields.arrivalIata && arrivalIataRef.current)
+      arrivalIataRef.current.value = fields.arrivalIata;
   }
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -112,8 +141,8 @@ export function TripSegmentForm({
             ref={typeRef}
             id="type"
             name="type"
-            required
-            defaultValue={state?.values?.type ?? segment?.type ?? TRIP_SEGMENT_TYPES[0]}
+            defaultValue={selectedType}
+            onChange={(e) => setSelectedType(e.target.value as SegmentType)}
             className={inputClass}
           >
             {TRIP_SEGMENT_TYPES.map((value) => (
@@ -212,6 +241,45 @@ export function TripSegmentForm({
             className={inputClass}
           />
         </Field>
+
+        {selectedType === "FLIGHT" && (
+          <>
+            <Field label="Flight number" htmlFor="flightNumber">
+              <input
+                ref={flightNumberRef}
+                id="flightNumber"
+                name="flightNumber"
+                defaultValue={state?.values?.flightNumber ?? segment?.flightNumber ?? ""}
+                placeholder="e.g. QF12"
+                className={inputClass}
+              />
+            </Field>
+
+            <Field label="Departure airport (IATA)" htmlFor="departureIata">
+              <input
+                ref={departureIataRef}
+                id="departureIata"
+                name="departureIata"
+                defaultValue={state?.values?.departureIata ?? segment?.departureIata ?? ""}
+                placeholder="e.g. SYD"
+                maxLength={4}
+                className={inputClass}
+              />
+            </Field>
+
+            <Field label="Arrival airport (IATA)" htmlFor="arrivalIata">
+              <input
+                ref={arrivalIataRef}
+                id="arrivalIata"
+                name="arrivalIata"
+                defaultValue={state?.values?.arrivalIata ?? segment?.arrivalIata ?? ""}
+                placeholder="e.g. NRT"
+                maxLength={4}
+                className={inputClass}
+              />
+            </Field>
+          </>
+        )}
       </div>
 
       <Field label="Notes" htmlFor="notes">

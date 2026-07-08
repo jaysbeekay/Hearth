@@ -322,3 +322,30 @@ export function ScheduleForm({
     </form>
   );
 }
+
+// ─── AviationStack ────────────────────────────────────────────────────────────
+
+export function AviationStackForm({
+  action,
+  isKeySet,
+}: {
+  action: (s: ActionState, f: FormData) => Promise<ActionState>;
+  isKeySet: boolean;
+}) {
+  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  return (
+    <form action={formAction} className="space-y-4">
+      <Field
+        label="API key"
+        htmlFor="aviationstackApiKey"
+        hint="Free plan uses HTTP endpoints only (100 req/month). Basic plan ($9.99/mo) enables HTTPS and 1 000 req/month — recommended for use behind a reverse proxy."
+      >
+        <SensitiveField id="aviationstackApiKey" name="aviationstackApiKey" isSet={isKeySet} />
+      </Field>
+      <FormMessage error={state?.error} success={state?.success} />
+      <div className="flex justify-end">
+        <SubmitButton>Save</SubmitButton>
+      </div>
+    </form>
+  );
+}

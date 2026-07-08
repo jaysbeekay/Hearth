@@ -4,11 +4,13 @@ import { Pencil, Trash2, Plus, Plane, BedDouble, Ticket } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
-import { deleteTrip, deleteTripSegment, addSegmentDocument } from "@/lib/actions/trips";
+import { deleteTrip, deleteTripSegment, addSegmentDocument, refreshFlightStatusAction } from "@/lib/actions/trips";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { TripSegmentDocumentList } from "@/components/TripSegmentDocumentList";
 import { TRIP_SEGMENT_TYPE_LABELS, formatCurrency, formatDate } from "@/lib/utils";
+import { shouldAutoRefresh, FLIGHT_STATUS_LABELS, flightStatusColour, refreshFlightStatus } from "@/lib/integrations/flightStatus";
+import { FlightRefreshForm } from "@/components/FlightRefreshForm";
 
 const SEGMENT_ICONS: Record<string, LucideIcon> = {
   FLIGHT: Plane,
@@ -39,6 +41,32 @@ export default async function TripDetailPage({
     if (!b.startDate) return -1;
     return a.startDate.getTime() - b.startDate.getTime();
   });
+
+  // Auto-refresh stale flight status for segments in the tracking window
+  await Promise.all(
+    segments
+      .filter((s) => shouldAutoRefresh(s))
+      .map((s) => refreshFlightStatus(s.id)),
+  );
+
+  // Re-fetch segments if any were refreshed so we display current data
+  const refreshedAny = segments.some((s) => shouldAutoRefresh(s));
+  const displaySegments = refreshedAny
+    ? await prisma.tripSegment
+        .findMany({
+          where: { tripId: id },
+          include: { documents: { orderBy: { uploadedAt: "desc" } } },
+          orderBy: { startDate: "asc" },
+        })
+        .then((rows) =>
+          rows.sort((a, b) => {
+            if (!a.startDate && !b.startDate) return 0;
+            if (!a.startDate) return 1;
+            if (!b.startDate) return -1;
+            return a.startDate.getTime() - b.startDate.getTime();
+          }),
+        )
+    : segments;
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -96,13 +124,13 @@ export default async function TripDetailPage({
           </Link>
         </div>
 
-        {segments.length === 0 ? (
+        {displaySegments.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-foreground/60">
             No segments yet. Add a flight, lodging, or activity to build the itinerary.
           </p>
         ) : (
           <div className="space-y-3">
-            {segments.map((segment) => {
+            {displaySegments.map((segment) => {
               const Icon = SEGMENT_ICONS[segment.type] ?? Ticket;
               return (
                 <div
@@ -152,7 +180,87 @@ export default async function TripDetailPage({
                         segment.cost != null ? formatCurrency(segment.cost, segment.currency) : "—"
                       }
                     />
+                    {segment.type === "FLIGHT" && segment.flightNumber && (
+                      <Detail label="Flight" value={segment.flightNumber} />
+                    )}
+                    {segment.type === "FLIGHT" &&
+                      segment.departureIata &&
+                      segment.arrivalIata && (
+                        <Detail
+                          label="Route"
+                          value={`${segment.departureIata} → ${segment.arrivalIata}`}
+                        />
+                      )}
                   </dl>
+
+                  {segment.type === "FLIGHT" && segment.flightStatus && (
+                    <div className="mt-4 rounded-lg border border-border p-3 space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${flightStatusColour(segment.flightStatus)}`}
+                          >
+                            {FLIGHT_STATUS_LABELS[segment.flightStatus] ?? segment.flightStatus}
+                          </span>
+                          {segment.flightStatusAt && (
+                            <span className="text-xs text-foreground/50">
+                              Updated {formatDate(segment.flightStatusAt)}
+                            </span>
+                          )}
+                        </div>
+                        <FlightRefreshForm
+                          action={refreshFlightStatusAction.bind(null, segment.id, id)}
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                        {segment.depTerminal && (
+                          <FlightDetail label="Dep terminal" value={segment.depTerminal} />
+                        )}
+                        {segment.depGate && (
+                          <FlightDetail label="Dep gate" value={segment.depGate} />
+                        )}
+                        {segment.arrTerminal && (
+                          <FlightDetail label="Arr terminal" value={segment.arrTerminal} />
+                        )}
+                        {segment.arrGate && (
+                          <FlightDetail label="Arr gate" value={segment.arrGate} />
+                        )}
+                        {segment.estimatedDep && (
+                          <FlightDetail
+                            label="Est. departure"
+                            value={formatDateTime(segment.estimatedDep)}
+                          />
+                        )}
+                        {segment.estimatedArr && (
+                          <FlightDetail
+                            label="Est. arrival"
+                            value={formatDateTime(segment.estimatedArr)}
+                          />
+                        )}
+                        {segment.actualDep && (
+                          <FlightDetail
+                            label="Actual departure"
+                            value={formatDateTime(segment.actualDep)}
+                          />
+                        )}
+                        {segment.actualArr && (
+                          <FlightDetail
+                            label="Actual arrival"
+                            value={formatDateTime(segment.actualArr)}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {segment.type === "FLIGHT" && segment.flightNumber && !segment.flightStatus && (
+                    <div className="mt-4 flex items-center justify-between rounded-lg border border-border p-3">
+                      <p className="text-xs text-foreground/50">No flight status data yet.</p>
+                      <FlightRefreshForm
+                        action={refreshFlightStatusAction.bind(null, segment.id, id)}
+                      />
+                    </div>
+                  )}
 
                   {segment.notes && (
                     <p className="mt-4 whitespace-pre-wrap text-sm text-foreground/80">
@@ -188,4 +296,21 @@ function Detail({ label, value }: { label: string; value: string }) {
       <dd className="text-sm font-medium">{value}</dd>
     </div>
   );
+}
+
+function FlightDetail({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-xs text-foreground/50">{label}</dt>
+      <dd className="text-sm font-medium">{value}</dd>
+    </div>
+  );
+}
+
+function formatDateTime(date: Date | null | undefined): string {
+  if (!date) return "—";
+  return new Date(date).toLocaleString(undefined, {
+    dateStyle: "short",
+    timeStyle: "short",
+  });
 }

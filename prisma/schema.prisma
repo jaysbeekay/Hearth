@@ -391,6 +391,23 @@ model TripSegment {
   currency         String                @default("AUD")
   notes            String?
 
+  // Flight-specific fields (populated from AviationStack when type=FLIGHT)
+  flightNumber     String?
+  departureIata    String?
+  arrivalIata      String?
+  flightStatus     String?
+  scheduledDep     DateTime?
+  scheduledArr     DateTime?
+  estimatedDep     DateTime?
+  estimatedArr     DateTime?
+  actualDep        DateTime?
+  actualArr        DateTime?
+  depTerminal      String?
+  depGate          String?
+  arrTerminal      String?
+  arrGate          String?
+  flightStatusAt   DateTime?
+
   documents        TripSegmentDocument[]
 
   createdAt        DateTime              @default(now())
@@ -657,20 +674,21 @@ model Holding {
 }
 
 model Trade {
-  id           String          @id @default(cuid())
-  holdingId    String
-  holding      Holding         @relation(fields: [holdingId], references: [id], onDelete: Cascade)
-  type         TradeType
-  date         DateTime
-  units        Float
-  pricePerUnit Float
-  fees         Float?
-  currency     String          @default("AUD")
-  fxRate       Float?
-  notes        String?
-  documents    TradeDocument[]
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
+  id                 String          @id @default(cuid())
+  holdingId          String
+  holding            Holding         @relation(fields: [holdingId], references: [id], onDelete: Cascade)
+  type               TradeType
+  date               DateTime
+  units              Float
+  pricePerUnit       Float
+  marketPriceOnDate  Float?
+  fees               Float?
+  currency           String          @default("AUD")
+  fxRate             Float?
+  notes              String?
+  documents          TradeDocument[]
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
 
   @@map("trades")
 }
@@ -697,6 +715,18 @@ model PriceCache {
   cachedAt  DateTime
 
   @@map("price_cache")
+}
+
+model PriceHistory {
+  id       String   @id @default(cuid())
+  ticker   String
+  date     DateTime
+  close    Float
+  adjClose Float?
+  source   String
+
+  @@unique([ticker, date])
+  @@map("price_history")
 }
 
 model PropertyValuation {

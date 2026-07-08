@@ -20,6 +20,7 @@ import {
   saveS3Settings,
   saveSftpSettings,
   saveScheduleSettings,
+  saveAviationStackSettings,
 } from "@/lib/actions/app-settings";
 import {
   SmtpForm,
@@ -29,6 +30,7 @@ import {
   S3Form,
   SftpForm,
   ScheduleForm,
+  AviationStackForm,
 } from "@/components/AppSettingsForms";
 
 export const metadata: Metadata = { title: "System settings" };
@@ -52,6 +54,7 @@ export default async function AppSettingsPage() {
     s3SecretIsSet,
     sftpPasswordIsSet,
     sftpPrivateKeyIsSet,
+    aviationKeyIsSet,
   ] = await Promise.all([
     getSmtpConfig(),
     getNtfyConfig(),
@@ -67,6 +70,7 @@ export default async function AppSettingsPage() {
     isAppSettingSet("backup.s3.secretAccessKey"),
     isAppSettingSet("backup.sftp.password"),
     isAppSettingSet("backup.sftp.privateKey"),
+    isAppSettingSet("aviationstack.apiKey"),
   ]);
 
   return (
@@ -172,6 +176,24 @@ export default async function AppSettingsPage() {
             privateKeyIsSet: sftpPrivateKeyIsSet,
           }}
         />
+      </section>
+
+      <section className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
+        <div>
+          <h2 className="font-medium">Flight status (AviationStack)</h2>
+          <p className="text-xs text-foreground/50 mt-0.5">
+            Real-time flight status, gate, and delay data for Travel module flights.{" "}
+            <a
+              href="https://aviationstack.com/signup/free"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-accent hover:underline"
+            >
+              Get a free API key at aviationstack.com
+            </a>
+          </p>
+        </div>
+        <AviationStackForm action={saveAviationStackSettings} isKeySet={aviationKeyIsSet} />
       </section>
 
       <section className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">

@@ -123,3 +123,97 @@ export async function getPriceMap(tickers: string[]): Promise<Map<string, { pric
   const rows = await prisma.priceCache.findMany({ where: { ticker: { in: tickers } } });
   return new Map(rows.map((r) => [r.ticker, { price: r.price, currency: r.currency, changePct: r.changePct }]));
 }
+
+// ── Historical price functions ───────────────────────────────────────────────
+
+function normaliseDate(d: Date): Date {
+  const out = new Date(d);
+  out.setUTCHours(0, 0, 0, 0);
+  return out;
+}
+
+/** Fetch the closing price for a single ticker on or just before a given date. */
+export async function fetchHistoricalPrice(ticker: string, date: Date): Promise<number | null> {
+  try {
+    const yahooFinance = (await import("yahoo-finance2")).default;
+    // widen the window by 5 days before to handle weekends/holidays
+    const period1 = new Date(date.getTime() - 5 * 24 * 60 * 60 * 1000);
+    const period2 = new Date(date.getTime() + 2 * 24 * 60 * 60 * 1000);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rows = (await yahooFinance.historical(ticker, { period1, period2, interval: "1d" }, { validateResult: false })) as any[];
+    if (!rows?.length) return null;
+    const target = date.getTime();
+    const eligible = rows.filter((r) => r.date && new Date(r.date).getTime() <= target + 24 * 60 * 60 * 1000);
+    if (!eligible.length) return null;
+    const row = eligible[eligible.length - 1];
+    return (row.adjClose ?? row.close ?? null) as number | null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fetch and persist daily closing prices for a ticker from `fromDate` to today.
+ * Skips crypto (no Yahoo Finance historical). Only re-fetches from the last stored
+ * date to avoid redundant API calls.
+ */
+export async function fetchAndStorePriceHistory(
+  ticker: string,
+  exchange: string | null,
+  fromDate: Date,
+): Promise<void> {
+  if (exchange === "CRYPTO") return;
+
+  // Find the most recent stored date to avoid re-fetching the whole history
+  const latest = await prisma.priceHistory.findFirst({
+    where: { ticker },
+    orderBy: { date: "desc" },
+    select: { date: true },
+  });
+
+  const now = new Date();
+  const oneDayMs = 24 * 60 * 60 * 1000;
+
+  // If latest price is from today or yesterday (allowing for market hours), nothing to do
+  if (latest && now.getTime() - latest.date.getTime() < 2 * oneDayMs) return;
+
+  // Fetch from 2 days before latest (overlap handles late-arriving data) or fromDate if no history
+  const fetchFrom = latest
+    ? new Date(latest.date.getTime() - 2 * oneDayMs)
+    : fromDate;
+
+  try {
+    const yahooFinance = (await import("yahoo-finance2")).default;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rows = (await yahooFinance.historical(ticker, { period1: fetchFrom, period2: now, interval: "1d" }, { validateResult: false })) as any[];
+    if (!rows?.length) return;
+
+    for (const row of rows) {
+      if (!row.date || row.close == null) continue;
+      const date = normaliseDate(new Date(row.date));
+      const close = row.close as number;
+      const adjClose = (row.adjClose ?? null) as number | null;
+      await prisma.priceHistory.upsert({
+        where: { ticker_date: { ticker, date } },
+        create: { ticker, date, close, adjClose, source: "yahoo" },
+        update: { close, adjClose },
+      });
+    }
+  } catch {
+    // best-effort — don't break the page if historical fetch fails
+  }
+}
+
+export interface PricePoint {
+  date: Date;
+  price: number;
+}
+
+/** Return stored daily prices for a ticker from fromDate onwards, sorted ascending. */
+export async function getPriceHistory(ticker: string, fromDate: Date): Promise<PricePoint[]> {
+  const rows = await prisma.priceHistory.findMany({
+    where: { ticker, date: { gte: fromDate } },
+    orderBy: { date: "asc" },
+  });
+  return rows.map((r) => ({ date: r.date, price: r.adjClose ?? r.close }));
+}

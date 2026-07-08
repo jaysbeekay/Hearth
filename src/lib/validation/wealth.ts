@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 const emptyToUndefined = (val: unknown) =>
-  typeof val === "string" && val.trim() === "" ? undefined : val;
+  val == null || (typeof val === "string" && val.trim() === "") ? undefined : val;
 
 export const ASSET_CLASSES = ["SHARE", "ETF", "MANAGED_FUND", "CRYPTO", "CASH", "OTHER"] as const;
 export const TRADE_TYPES = ["BUY", "SELL", "DIVIDEND", "SPLIT"] as const;

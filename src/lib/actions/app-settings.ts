@@ -149,10 +149,24 @@ export async function clearAppSetting(key: string): Promise<ActionState> {
     "backup.s3.secretAccessKey",
     "backup.sftp.password",
     "backup.sftp.privateKey",
+    "aviationstack.apiKey",
   ]);
   if (!CLEARABLE.has(key)) return { error: "Cannot clear that setting." };
 
   await setAppSetting(key, ""); // empty string → deletes the row
   revalidatePath("/settings/app");
   return { success: "Setting cleared." };
+}
+
+export async function saveAviationStackSettings(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  await requireAdmin();
+
+  const newKey = (formData.get("aviationstackApiKey") as string) || "";
+  if (newKey) await setAppSetting("aviationstack.apiKey", newKey);
+
+  revalidatePath("/settings/app");
+  return { success: "Flight status settings saved." };
 }
