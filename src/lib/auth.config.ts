@@ -23,6 +23,7 @@ type AppJwt = { role?: Role; sub?: string };
 const PUBLIC_PATHS = ["/login", "/setup", "/api/cron", "/api/mcp"];
 
 export const authConfig: NextAuthConfig = {
+  trustHost: true,
   session: { strategy: "jwt" },
   pages: { signIn: "/login" },
   providers: [],
