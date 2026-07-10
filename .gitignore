@@ -52,6 +52,9 @@ next-env.d.ts
 # local self-hosted data (sqlite file + uploaded documents)
 /data
 
+# TLS certificates (self-signed or real) — never commit private keys
+/certs
+
 # e2e test suite: ephemeral DB/uploads/auth state regenerated on every run
 /e2e/.data
 /playwright-report

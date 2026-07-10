@@ -1,0 +1,69 @@
+# HTTPS deployment with a self-signed (or your own) TLS certificate via nginx.
+#
+# Quick start:
+#   1. Generate a self-signed cert:
+#        ./scripts/generate-cert.sh 192.168.x.x   # replace with your server's IP or hostname
+#   2. Set required env vars (copy .env.example to .env and fill in):
+#        AUTH_SECRET, APP_URL (must be https://…), ENCRYPTION_KEY
+#   3. Start:
+#        docker compose -f docker-compose.https.yml up -d
+#
+# Bring your own cert: drop cert.pem and key.pem into ./certs/ and skip step 1.
+
+services:
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      - app
+    restart: unless-stopped
+
+  app:
+    image: jaysbeekay/hearth:latest
+    expose:
+      - "3000"
+    environment:
+      DATABASE_URL: file:./data/app.db
+      UPLOADS_DIR: ./data/uploads
+      AUTH_SECRET: ${AUTH_SECRET}
+      APP_URL: ${APP_URL:-https://localhost}
+      REMINDER_DEFAULT_DAYS: ${REMINDER_DEFAULT_DAYS:-30,14,7,1}
+      REMINDER_CRON_SCHEDULE: ${REMINDER_CRON_SCHEDULE:-0 8 * * *}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-Hearth <no-reply@localhost>}
+      NTFY_URL: ${NTFY_URL:-https://ntfy.sh}
+      NTFY_TOPIC: ${NTFY_TOPIC:-}
+      NTFY_TOKEN: ${NTFY_TOKEN:-}
+      CRON_SECRET: ${CRON_SECRET:-}
+      MCP_TOKEN: ${MCP_TOKEN:-}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-}
+      BARCODE_LOOKUP_ENABLED: ${BARCODE_LOOKUP_ENABLED:-}
+      BARCODE_LOOKUP_API_KEY: ${BARCODE_LOOKUP_API_KEY:-}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      BACKUP_CRON_SCHEDULE: ${BACKUP_CRON_SCHEDULE:-0 3 * * *}
+      BACKUP_RETENTION_COUNT: ${BACKUP_RETENTION_COUNT:-7}
+      BACKUP_S3_ENDPOINT: ${BACKUP_S3_ENDPOINT:-}
+      BACKUP_S3_REGION: ${BACKUP_S3_REGION:-auto}
+      BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-}
+      BACKUP_S3_ACCESS_KEY_ID: ${BACKUP_S3_ACCESS_KEY_ID:-}
+      BACKUP_S3_SECRET_ACCESS_KEY: ${BACKUP_S3_SECRET_ACCESS_KEY:-}
+      BACKUP_S3_FORCE_PATH_STYLE: ${BACKUP_S3_FORCE_PATH_STYLE:-false}
+      BACKUP_SFTP_HOST: ${BACKUP_SFTP_HOST:-}
+      BACKUP_SFTP_PORT: ${BACKUP_SFTP_PORT:-22}
+      BACKUP_SFTP_USERNAME: ${BACKUP_SFTP_USERNAME:-}
+      BACKUP_SFTP_PASSWORD: ${BACKUP_SFTP_PASSWORD:-}
+      BACKUP_SFTP_PRIVATE_KEY: ${BACKUP_SFTP_PRIVATE_KEY:-}
+      BACKUP_SFTP_REMOTE_PATH: ${BACKUP_SFTP_REMOTE_PATH:-/backups}
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
