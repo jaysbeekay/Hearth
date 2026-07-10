@@ -28,7 +28,7 @@ export function Sidebar({
     <aside className="hidden w-60 flex-col border-r border-border bg-surface md:flex">
       <div className="flex items-center gap-2 px-6 py-5">
         <FileSignature size={22} className="text-accent" />
-        <span className="text-lg font-semibold">Contracts</span>
+        <span className="text-lg font-semibold">Hearth</span>
       </div>
 
       <nav className="flex-1 space-y-1 px-3">

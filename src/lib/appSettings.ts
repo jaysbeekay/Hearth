@@ -104,7 +104,7 @@ export async function getSmtpConfig() {
     secure: s["smtp.secure"] === "true",
     user: s["smtp.user"],
     pass: s["smtp.password"],
-    from: s["smtp.from"] || "Contracts <no-reply@localhost>",
+    from: s["smtp.from"] || "Hearth <no-reply@localhost>",
   };
 }
 

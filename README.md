@@ -194,7 +194,7 @@ anyone without an issued certificate is rejected before the request ever
 reaches the app — there's no app-level login page to even attack.
 
 An example nginx server block is in
-[`deploy/nginx/contracts-mtls.conf.example`](deploy/nginx/contracts-mtls.conf.example).
+[`deploy/nginx/hearth-mtls.conf.example`](deploy/nginx/hearth-mtls.conf.example).
 It expects the app reachable at `127.0.0.1:3000`, so bind the container's
 port to localhost only in `docker-compose.yml` rather than publishing it
 on all interfaces:

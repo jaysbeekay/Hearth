@@ -56,7 +56,7 @@ async function connect(url) {
 }
 
 // On launch: if a server URL is already stored (set here previously, or via
-// iOS Settings > Contracts), skip straight to it instead of showing the form.
+// iOS Settings > Hearth), skip straight to it instead of showing the form.
 //
 // If we land back here within RETRY_DEBOUNCE_MS of attempting that same URL,
 // the navigation must have failed (server.errorPath bounced us back) —

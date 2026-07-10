@@ -6,7 +6,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 // ios-shell/www/app.js and README-ios.md.
 const config: CapacitorConfig = {
   appId: "com.jaysbeekay.contracts",
-  appName: "Contracts",
+  appName: "Hearth",
   webDir: "ios-shell/www",
   server: {
     iosScheme: "capacitor",

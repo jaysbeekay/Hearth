@@ -13,7 +13,7 @@ export const env = {
     secure: optional("SMTP_SECURE", "false") === "true",
     user: optional("SMTP_USER"),
     pass: optional("SMTP_PASSWORD"),
-    from: optional("SMTP_FROM", "Contracts <no-reply@localhost>"),
+    from: optional("SMTP_FROM", "Hearth <no-reply@localhost>"),
   },
   ntfy: {
     url: optional("NTFY_URL", "https://ntfy.sh"),

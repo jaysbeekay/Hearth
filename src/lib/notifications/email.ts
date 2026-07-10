@@ -41,10 +41,10 @@ export async function sendReminderEmail(opts: {
     from: smtp.from,
     to: opts.to,
     subject,
-    text: `Your ${opts.kind} "${opts.title}" (${opts.detail}) expires on ${formattedDate} (${opts.daysRemaining} day(s) from now).\n\nLog in to your contracts app to review it.`,
+    text: `Your ${opts.kind} "${opts.title}" (${opts.detail}) expires on ${formattedDate} (${opts.daysRemaining} day(s) from now).\n\nLog in to Hearth to review it.`,
     html: `<p>Your ${opts.kind} <strong>${escapeHtml(opts.title)}</strong> (${escapeHtml(
       opts.detail,
-    )}) expires on <strong>${formattedDate}</strong> (${opts.daysRemaining} day(s) from now).</p><p>Log in to your contracts app to review it.</p>`,
+    )}) expires on <strong>${formattedDate}</strong> (${opts.daysRemaining} day(s) from now).</p><p>Log in to Hearth to review it.</p>`,
   });
 }
 
