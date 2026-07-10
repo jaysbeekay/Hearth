@@ -12,6 +12,7 @@ import {
   CATEGORY_LABELS,
   RENEWAL_LABELS,
 } from "@/lib/utils";
+import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 import { enqueueOperation, serializeFormData } from "@/lib/offlineQueue";
 
 function toDateInputValue(date: Date | null | undefined) {
@@ -163,19 +164,21 @@ export function ContractForm({
         </Field>
 
         <Field label="Category" htmlFor="category">
-          <select
-            id="category"
-            name="category"
-            required
-            defaultValue={state?.values?.category ?? contract?.category ?? "OTHER"}
-            className={inputClass}
-          >
-            {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
+          <SelectWrapper>
+            <select
+              id="category"
+              name="category"
+              required
+              defaultValue={state?.values?.category ?? contract?.category ?? "OTHER"}
+              className={selectClass}
+            >
+              {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </SelectWrapper>
         </Field>
 
         <Field label="Provider / Company" htmlFor="provider">
@@ -223,18 +226,20 @@ export function ContractForm({
         </Field>
 
         <Field label="Renewal type" htmlFor="renewalType">
-          <select
-            id="renewalType"
-            name="renewalType"
-            defaultValue={state?.values?.renewalType ?? contract?.renewalType ?? "MANUAL_RENEWAL"}
-            className={inputClass}
-          >
-            {Object.entries(RENEWAL_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
+          <SelectWrapper>
+            <select
+              id="renewalType"
+              name="renewalType"
+              defaultValue={state?.values?.renewalType ?? contract?.renewalType ?? "MANUAL_RENEWAL"}
+              className={selectClass}
+            >
+              {Object.entries(RENEWAL_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </SelectWrapper>
         </Field>
 
         <Field label="Notice period (days)" htmlFor="noticePeriodDays">
@@ -273,33 +278,37 @@ export function ContractForm({
         </Field>
 
         <Field label="Billing frequency" htmlFor="billingFrequency">
-          <select
-            ref={billingFrequencyRef}
-            id="billingFrequency"
-            name="billingFrequency"
-            defaultValue={state?.values?.billingFrequency ?? contract?.billingFrequency ?? ""}
-            className={inputClass}
-          >
-            <option value="">Not set</option>
-            {Object.entries(BILLING_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
+          <SelectWrapper>
+            <select
+              ref={billingFrequencyRef}
+              id="billingFrequency"
+              name="billingFrequency"
+              defaultValue={state?.values?.billingFrequency ?? contract?.billingFrequency ?? ""}
+              className={selectClass}
+            >
+              <option value="">Not set</option>
+              {Object.entries(BILLING_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </SelectWrapper>
         </Field>
 
         {contract && (
           <Field label="Status" htmlFor="status">
-            <select
-              id="status"
-              name="status"
-              defaultValue={state?.values?.status ?? contract.status}
-              className={inputClass}
-            >
-              <option value="ACTIVE">Active</option>
-              <option value="CANCELLED">Cancelled</option>
-            </select>
+            <SelectWrapper>
+              <select
+                id="status"
+                name="status"
+                defaultValue={state?.values?.status ?? contract.status}
+                className={selectClass}
+              >
+                <option value="ACTIVE">Active</option>
+                <option value="CANCELLED">Cancelled</option>
+              </select>
+            </SelectWrapper>
           </Field>
         )}
       </div>

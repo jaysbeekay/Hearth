@@ -5,6 +5,7 @@ import type { PortfolioModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
+import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 
 const COMMON_CURRENCIES = ["AUD", "USD", "EUR", "GBP", "JPY", "NZD", "CAD", "HKD", "SGD"];
 
@@ -48,14 +49,16 @@ export function PortfolioForm({
 
       <div>
         <label className="block text-sm font-medium mb-1" htmlFor="currency">Base currency</label>
-        <select
-          id="currency"
-          name="currency"
-          defaultValue={state?.values?.currency ?? portfolio?.currency ?? "AUD"}
-          className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
-        >
-          {COMMON_CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
+        <SelectWrapper>
+          <select
+            id="currency"
+            name="currency"
+            defaultValue={state?.values?.currency ?? portfolio?.currency ?? "AUD"}
+            className={selectClass}
+          >
+            {COMMON_CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </SelectWrapper>
       </div>
 
       <SubmitButton>{portfolio ? "Save changes" : "Create portfolio"}</SubmitButton>

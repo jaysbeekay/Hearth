@@ -9,6 +9,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { HOME_ITEM_TYPES } from "@/lib/validation/home";
 import { HOME_ITEM_TYPE_LABELS } from "@/lib/utils";
+import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -95,20 +96,22 @@ export function HomeItemForm({
 
       <div className="grid gap-4 md:grid-cols-2">
         <Field label="Type" htmlFor="type">
-          <select
-            ref={typeRef}
-            id="type"
-            name="type"
-            required
-            defaultValue={state?.values?.type ?? item?.type ?? HOME_ITEM_TYPES[0]}
-            className={inputClass}
-          >
-            {HOME_ITEM_TYPES.map((value) => (
-              <option key={value} value={value}>
-                {HOME_ITEM_TYPE_LABELS[value]}
-              </option>
-            ))}
-          </select>
+          <SelectWrapper>
+            <select
+              ref={typeRef}
+              id="type"
+              name="type"
+              required
+              defaultValue={state?.values?.type ?? item?.type ?? HOME_ITEM_TYPES[0]}
+              className={selectClass}
+            >
+              {HOME_ITEM_TYPES.map((value) => (
+                <option key={value} value={value}>
+                  {HOME_ITEM_TYPE_LABELS[value]}
+                </option>
+              ))}
+            </select>
+          </SelectWrapper>
         </Field>
 
         <Field label="Title" htmlFor="title">

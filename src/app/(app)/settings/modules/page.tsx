@@ -32,10 +32,7 @@ export default async function ModulesPage() {
                 <div className="min-w-0">
                   <p className="flex items-center gap-2 text-sm font-medium">
                     <Icon size={16} />
-                    {label}{" "}
-                    <span className={enabled ? "text-success" : "text-foreground/50"}>
-                      · {enabled ? "Enabled" : "Disabled"}
-                    </span>
+                    {label}
                   </p>
                   <p className="text-xs text-foreground/50">{description}</p>
                 </div>

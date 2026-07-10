@@ -8,6 +8,7 @@ import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { INVENTORY_ITEM_CATEGORIES } from "@/lib/validation/inventory";
+import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 
 const CATEGORY_LABELS: Record<string, string> = {
   APPLIANCE: "Appliance",
@@ -119,19 +120,21 @@ export function InventoryItemForm({
       </Field>
 
       <Field label="Category" htmlFor="category">
-        <select
-          ref={categoryRef}
-          id="category"
-          name="category"
-          defaultValue={state?.values?.category ?? item?.category ?? "OTHER"}
-          className={inputClass}
-        >
-          {INVENTORY_ITEM_CATEGORIES.map((cat) => (
-            <option key={cat} value={cat}>
-              {CATEGORY_LABELS[cat] ?? cat}
-            </option>
-          ))}
-        </select>
+        <SelectWrapper>
+          <select
+            ref={categoryRef}
+            id="category"
+            name="category"
+            defaultValue={state?.values?.category ?? item?.category ?? "OTHER"}
+            className={selectClass}
+          >
+            {INVENTORY_ITEM_CATEGORIES.map((cat) => (
+              <option key={cat} value={cat}>
+                {CATEGORY_LABELS[cat] ?? cat}
+              </option>
+            ))}
+          </select>
+        </SelectWrapper>
       </Field>
 
       <div className="grid grid-cols-2 gap-4">

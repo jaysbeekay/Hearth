@@ -4,6 +4,23 @@ A self-hostable household management app. Track contracts and warranties, plan
 trips, log home maintenance, and manage rental properties — all in one place,
 with optional reminders before anything expires.
 
+## Quick start
+
+```bash
+docker compose up -d
+```
+
+Open `http://localhost:3000` — you'll be sent to `/setup` to create the first admin account.
+
+**Minimum required environment variables:**
+
+| Variable | Description |
+|---|---|
+| `DATABASE_URL` | SQLite path — defaults to `file:/data/app.db` inside the container |
+| `AUTH_SECRET` | Session signing key — generate with `openssl rand -base64 32` |
+
+Everything else is optional. Set `SMTP_*` to enable email reminders, `NTFY_*` for push notifications, `OLLAMA_BASE_URL` for local AI extraction, and `S3_*` / `SFTP_*` for offsite backups. See the full reference below and `.env.example` for all available variables.
+
 ## Features
 
 **Contracts & warranties**

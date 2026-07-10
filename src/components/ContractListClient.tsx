@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Plus, ChevronDown } from "lucide-react";
+import { SelectWrapper } from "@/components/SelectWrapper";
 import { ContractCard } from "@/components/ContractCard";
 import type { ContractModel } from "@/generated/prisma/models";
 import { CATEGORY_LABELS } from "@/lib/utils";
@@ -68,27 +69,31 @@ export function ContractListClient({ contracts, q, category, status }: Props) {
           placeholder="Search by title, provider, or number…"
           className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
         />
-        <select
-          name="category"
-          defaultValue={category ?? ""}
-          className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
-        >
-          <option value="">All categories</option>
-          {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <select
-          name="status"
-          defaultValue={status ?? ""}
-          className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
-        >
-          <option value="">All statuses</option>
-          <option value="ACTIVE">Active</option>
-          <option value="CANCELLED">Cancelled</option>
-        </select>
+        <SelectWrapper>
+          <select
+            name="category"
+            defaultValue={category ?? ""}
+            className="rounded-lg border border-border bg-background px-3 h-9 text-sm outline-none focus:border-accent appearance-none pr-8"
+          >
+            <option value="">All categories</option>
+            {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </SelectWrapper>
+        <SelectWrapper>
+          <select
+            name="status"
+            defaultValue={status ?? ""}
+            className="rounded-lg border border-border bg-background px-3 h-9 text-sm outline-none focus:border-accent appearance-none pr-8"
+          >
+            <option value="">All statuses</option>
+            <option value="ACTIVE">Active</option>
+            <option value="CANCELLED">Cancelled</option>
+          </select>
+        </SelectWrapper>
         <button
           type="submit"
           className="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"

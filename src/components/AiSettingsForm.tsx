@@ -7,6 +7,7 @@ import { AI_PROVIDER_DEFAULT_MODELS, AI_PROVIDER_LABELS, type AiProviderId } fro
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { ConfirmForm } from "@/components/ConfirmForm";
+import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 
 const inputClass =
   "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent";
@@ -29,13 +30,15 @@ export function AiSettingsForm({
           <label htmlFor="provider" className="text-sm font-medium">
             Provider
           </label>
-          <select id="provider" name="provider" defaultValue={selected} className={inputClass}>
-            {Object.entries(AI_PROVIDER_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
+          <SelectWrapper>
+            <select id="provider" name="provider" defaultValue={selected} className={selectClass}>
+              {Object.entries(AI_PROVIDER_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </SelectWrapper>
         </div>
 
         <div className="space-y-1">

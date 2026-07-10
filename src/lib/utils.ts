@@ -51,7 +51,6 @@ export const CATEGORY_LABELS: Record<string, string> = {
   TELECOM: "Telecom",
   SUBSCRIPTION: "Subscription",
   LOAN: "Loan",
-  WARRANTY: "Warranty",
   OTHER: "Other",
 };
 

@@ -9,6 +9,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { TRIP_SEGMENT_TYPES } from "@/lib/validation/travel";
 import { TRIP_SEGMENT_TYPE_LABELS } from "@/lib/utils";
+import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 
 type SegmentType = (typeof TRIP_SEGMENT_TYPES)[number];
 
@@ -137,20 +138,22 @@ export function TripSegmentForm({
 
       <div className="grid gap-4 md:grid-cols-2">
         <Field label="Type" htmlFor="type">
-          <select
-            ref={typeRef}
-            id="type"
-            name="type"
-            defaultValue={selectedType}
-            onChange={(e) => setSelectedType(e.target.value as SegmentType)}
-            className={inputClass}
-          >
-            {TRIP_SEGMENT_TYPES.map((value) => (
-              <option key={value} value={value}>
-                {TRIP_SEGMENT_TYPE_LABELS[value]}
-              </option>
-            ))}
-          </select>
+          <SelectWrapper>
+            <select
+              ref={typeRef}
+              id="type"
+              name="type"
+              defaultValue={selectedType}
+              onChange={(e) => setSelectedType(e.target.value as SegmentType)}
+              className={selectClass}
+            >
+              {TRIP_SEGMENT_TYPES.map((value) => (
+                <option key={value} value={value}>
+                  {TRIP_SEGMENT_TYPE_LABELS[value]}
+                </option>
+              ))}
+            </select>
+          </SelectWrapper>
         </Field>
 
         <Field label="Title" htmlFor="title">

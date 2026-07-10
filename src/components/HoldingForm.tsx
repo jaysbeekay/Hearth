@@ -6,6 +6,7 @@ import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { ASSET_CLASSES, ASSET_CLASS_LABELS } from "@/lib/validation/wealth";
+import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 
 const COMMON_EXCHANGES = ["ASX", "NYSE", "NASDAQ", "LSE", "TSX", "CRYPTO", "OTHER"];
 
@@ -55,29 +56,33 @@ export function HoldingForm({
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium mb-1" htmlFor="assetClass">Asset class</label>
-          <select
-            id="assetClass"
-            name="assetClass"
-            defaultValue={state?.values?.assetClass ?? holding?.assetClass ?? "SHARE"}
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
-          >
-            {ASSET_CLASSES.map((c) => (
-              <option key={c} value={c}>{ASSET_CLASS_LABELS[c]}</option>
-            ))}
-          </select>
+          <SelectWrapper>
+            <select
+              id="assetClass"
+              name="assetClass"
+              defaultValue={state?.values?.assetClass ?? holding?.assetClass ?? "SHARE"}
+              className={selectClass}
+            >
+              {ASSET_CLASSES.map((c) => (
+                <option key={c} value={c}>{ASSET_CLASS_LABELS[c]}</option>
+              ))}
+            </select>
+          </SelectWrapper>
         </div>
 
         <div>
           <label className="block text-sm font-medium mb-1" htmlFor="exchange">Exchange</label>
-          <select
-            id="exchange"
-            name="exchange"
-            defaultValue={state?.values?.exchange ?? holding?.exchange ?? "ASX"}
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
-          >
-            <option value="">— Select —</option>
-            {COMMON_EXCHANGES.map((e) => <option key={e} value={e}>{e}</option>)}
-          </select>
+          <SelectWrapper>
+            <select
+              id="exchange"
+              name="exchange"
+              defaultValue={state?.values?.exchange ?? holding?.exchange ?? "ASX"}
+              className={selectClass}
+            >
+              <option value="">— Select —</option>
+              {COMMON_EXCHANGES.map((e) => <option key={e} value={e}>{e}</option>)}
+            </select>
+          </SelectWrapper>
         </div>
       </div>
 

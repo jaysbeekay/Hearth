@@ -9,6 +9,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { VEHICLE_ITEM_TYPES } from "@/lib/validation/vehicles";
 import { VEHICLE_ITEM_TYPE_LABELS } from "@/lib/utils";
+import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 import { enqueueOperation, serializeFormData } from "@/lib/offlineQueue";
 
 function toDateInputValue(date: Date | null | undefined) {
@@ -119,20 +120,22 @@ export function VehicleItemForm({
 
       <div className="grid gap-4 md:grid-cols-2">
         <Field label="Type" htmlFor="type">
-          <select
-            ref={typeRef}
-            id="type"
-            name="type"
-            required
-            defaultValue={state?.values?.type ?? item?.type ?? VEHICLE_ITEM_TYPES[0]}
-            className={inputClass}
-          >
-            {VEHICLE_ITEM_TYPES.map((value) => (
-              <option key={value} value={value}>
-                {VEHICLE_ITEM_TYPE_LABELS[value]}
-              </option>
-            ))}
-          </select>
+          <SelectWrapper>
+            <select
+              ref={typeRef}
+              id="type"
+              name="type"
+              required
+              defaultValue={state?.values?.type ?? item?.type ?? VEHICLE_ITEM_TYPES[0]}
+              className={selectClass}
+            >
+              {VEHICLE_ITEM_TYPES.map((value) => (
+                <option key={value} value={value}>
+                  {VEHICLE_ITEM_TYPE_LABELS[value]}
+                </option>
+              ))}
+            </select>
+          </SelectWrapper>
         </Field>
 
         <Field label="Title" htmlFor="title">

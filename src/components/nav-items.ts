@@ -1,4 +1,4 @@
-import { LayoutDashboard, FileText, Package, CalendarDays, TrendingUp, Settings, type LucideIcon } from "lucide-react";
+import { LayoutDashboard, FileText, Package, CalendarDays, TrendingUp, type LucideIcon } from "lucide-react";
 import { MODULE_REGISTRY, type ModuleKey } from "@/lib/modules/registry";
 
 export interface NavItem {
@@ -20,5 +20,5 @@ export function getNavItems(enabledModules: Set<ModuleKey>): NavItem[] {
     .filter((module) => enabledModules.has(module.key))
     .map(({ href, label, icon }) => ({ href, label, icon }));
 
-  return [...BASE_NAV_ITEMS, ...moduleItems, { href: "/settings", label: "Settings", icon: Settings }];
+  return [...BASE_NAV_ITEMS, ...moduleItems];
 }
