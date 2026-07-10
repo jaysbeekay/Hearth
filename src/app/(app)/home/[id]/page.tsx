@@ -10,7 +10,7 @@ import { ConfirmForm } from "@/components/ConfirmForm";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { HomeItemDocumentList } from "@/components/HomeItemDocumentList";
 import { HOME_ITEM_TYPE_LABELS, formatCurrency, formatDate } from "@/lib/utils";
-import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
+import { CurrencySelect } from "@/components/CurrencySelect";
 
 const ITEM_ICONS: Record<string, LucideIcon> = {
   MAINTENANCE: Wrench,
@@ -251,19 +251,7 @@ export default async function PropertyDetailPage({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-1 block text-xs text-foreground/60">Currency</label>
-                <SelectWrapper>
-                  <select
-                    name="currency"
-                    defaultValue="AUD"
-                    className={selectClass}
-                  >
-                    <option value="AUD">AUD</option>
-                    <option value="USD">USD</option>
-                    <option value="GBP">GBP</option>
-                    <option value="EUR">EUR</option>
-                    <option value="NZD">NZD</option>
-                  </select>
-                </SelectWrapper>
+                <CurrencySelect name="currency" defaultValue="AUD" />
               </div>
               <div>
                 <label className="mb-1 block text-xs text-foreground/60">Source (optional)</label>

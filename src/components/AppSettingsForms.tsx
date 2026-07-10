@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState, useTransition } from "react";
+import { testSmtpSettings, testNtfySettings, testOllamaConnection } from "@/lib/actions/app-settings";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
@@ -8,6 +9,30 @@ import { FormMessage } from "@/components/FormMessage";
 const inputClass =
   "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent";
 const checkboxClass = "size-4 rounded border-border accent-accent";
+const testButtonClass =
+  "rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-60 disabled:cursor-not-allowed";
+
+// Uses a plain button (not a nested <form>) since this renders inside the
+// section's outer save <form> — nested forms are invalid HTML and cause the
+// browser to submit the wrong one.
+function TestConnectionButton({ action, label }: { action: () => Promise<ActionState>; label: string }) {
+  const [result, setResult] = useState<ActionState>(null);
+  const [pending, startTransition] = useTransition();
+
+  return (
+    <div className="flex flex-col items-start gap-1.5">
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() => startTransition(async () => setResult(await action()))}
+        className={testButtonClass}
+      >
+        {pending ? "Testing…" : label}
+      </button>
+      <FormMessage error={result?.error} success={result?.success} />
+    </div>
+  );
+}
 
 function Field({
   label,
@@ -87,7 +112,12 @@ export function SmtpForm({
         </Field>
       </div>
       <FormMessage error={state?.error} success={state?.success} />
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between">
+        {current.host && current.user ? (
+          <TestConnectionButton action={testSmtpSettings} label="Send test email" />
+        ) : (
+          <span />
+        )}
         <SubmitButton>Save email settings</SubmitButton>
       </div>
     </form>
@@ -118,7 +148,12 @@ export function NtfyForm({
         </Field>
       </div>
       <FormMessage error={state?.error} success={state?.success} />
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between">
+        {current.url && current.topic ? (
+          <TestConnectionButton action={testNtfySettings} label="Send test notification" />
+        ) : (
+          <span />
+        )}
         <SubmitButton>Save ntfy settings</SubmitButton>
       </div>
     </form>
@@ -146,7 +181,12 @@ export function OllamaForm({
         </Field>
       </div>
       <FormMessage error={state?.error} success={state?.success} />
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between">
+        {current.baseUrl ? (
+          <TestConnectionButton action={testOllamaConnection} label="Test connection" />
+        ) : (
+          <span />
+        )}
         <SubmitButton>Save Ollama settings</SubmitButton>
       </div>
     </form>

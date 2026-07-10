@@ -10,6 +10,7 @@ import { FormMessage } from "@/components/FormMessage";
 import { VEHICLE_ITEM_TYPES } from "@/lib/validation/vehicles";
 import { VEHICLE_ITEM_TYPE_LABELS } from "@/lib/utils";
 import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
+import { CurrencySelect } from "@/components/CurrencySelect";
 import { enqueueOperation, serializeFormData } from "@/lib/offlineQueue";
 
 function toDateInputValue(date: Date | null | undefined) {
@@ -186,13 +187,7 @@ export function VehicleItemForm({
         </Field>
 
         <Field label="Currency" htmlFor="currency">
-          <input
-            id="currency"
-            name="currency"
-            defaultValue={state?.values?.currency ?? item?.currency ?? "AUD"}
-            maxLength={10}
-            className={inputClass}
-          />
+          <CurrencySelect name="currency" defaultValue={state?.values?.currency ?? item?.currency} />
         </Field>
       </div>
 

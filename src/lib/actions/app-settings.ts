@@ -3,12 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { setAppSetting, isAppSettingSet } from "@/lib/appSettings";
+import { setAppSetting, isAppSettingSet, getOllamaConfig, isSmtpConfigured, isNtfyConfigured } from "@/lib/appSettings";
+import { sendTestEmail } from "@/lib/notifications/email";
+import { sendTestNtfy } from "@/lib/notifications/ntfy";
 import type { ActionState } from "@/lib/actions/auth";
 
 async function requireAdmin() {
   const session = await auth();
   if (session?.user.role !== "ADMIN") redirect("/settings");
+  return session;
 }
 
 export async function saveSmtpSettings(
@@ -169,4 +172,66 @@ export async function saveAviationStackSettings(
 
   revalidatePath("/settings/app");
   return { success: "Flight status settings saved." };
+}
+
+export async function testSmtpSettings(): Promise<ActionState> {
+  const session = await requireAdmin();
+  if (!session?.user.email) {
+    return { error: "Your account has no email address to send a test to." };
+  }
+  if (!(await isSmtpConfigured())) {
+    return { error: "SMTP isn't configured yet — save settings first." };
+  }
+
+  try {
+    await sendTestEmail(session.user.email);
+    return { success: `Test email sent to ${session.user.email}.` };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Failed to send test email." };
+  }
+}
+
+export async function testNtfySettings(): Promise<ActionState> {
+  await requireAdmin();
+  if (!(await isNtfyConfigured())) {
+    return { error: "ntfy isn't configured yet — save settings first." };
+  }
+
+  try {
+    await sendTestNtfy();
+    return { success: "Test notification sent." };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Failed to send test notification." };
+  }
+}
+
+export async function testOllamaConnection(): Promise<ActionState> {
+  await requireAdmin();
+
+  const ollama = await getOllamaConfig();
+  if (!ollama.baseUrl) return { error: "No Ollama base URL configured." };
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  try {
+    const res = await fetch(`${ollama.baseUrl.replace(/\/$/, "")}/api/tags`, {
+      signal: controller.signal,
+    });
+    if (!res.ok) return { error: `Ollama responded with HTTP ${res.status}.` };
+
+    const data = (await res.json()) as { models?: { name: string }[] };
+    const names = data.models?.map((m) => m.name) ?? [];
+    if (ollama.model && names.length > 0 && !names.some((n) => n === ollama.model || n.startsWith(`${ollama.model}:`))) {
+      return {
+        success: `Connected, but model "${ollama.model}" wasn't found. Available: ${
+          names.slice(0, 5).join(", ") || "none"
+        }.`,
+      };
+    }
+    return { success: `Connected — ${names.length} model${names.length === 1 ? "" : "s"} available.` };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Connection failed." };
+  } finally {
+    clearTimeout(timeout);
+  }
 }

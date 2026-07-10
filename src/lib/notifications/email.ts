@@ -1,6 +1,26 @@
 import nodemailer from "nodemailer";
 import { getSmtpConfig, isSmtpConfigured } from "@/lib/appSettings";
 
+export async function sendTestEmail(to: string) {
+  if (!(await isSmtpConfigured())) throw new Error("SMTP is not configured.");
+
+  const smtp = await getSmtpConfig();
+  const transporter = nodemailer.createTransport({
+    host: smtp.host,
+    port: smtp.port,
+    secure: smtp.secure,
+    auth: smtp.user ? { user: smtp.user, pass: smtp.pass } : undefined,
+  });
+
+  await transporter.sendMail({
+    from: smtp.from,
+    to,
+    subject: "Hearth test email",
+    text: "This is a test email from Hearth to confirm your SMTP settings are working.",
+    html: "<p>This is a test email from Hearth to confirm your SMTP settings are working.</p>",
+  });
+}
+
 // Header values must never contain raw newlines, regardless of nodemailer's
 // own escaping, to defend against header/CRLF injection from contract titles.
 function stripNewlines(value: string) {

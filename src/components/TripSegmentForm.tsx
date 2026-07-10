@@ -10,6 +10,7 @@ import { FormMessage } from "@/components/FormMessage";
 import { TRIP_SEGMENT_TYPES } from "@/lib/validation/travel";
 import { TRIP_SEGMENT_TYPE_LABELS } from "@/lib/utils";
 import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
+import { CurrencySelect } from "@/components/CurrencySelect";
 
 type SegmentType = (typeof TRIP_SEGMENT_TYPES)[number];
 
@@ -236,13 +237,7 @@ export function TripSegmentForm({
         </Field>
 
         <Field label="Currency" htmlFor="currency">
-          <input
-            id="currency"
-            name="currency"
-            defaultValue={state?.values?.currency ?? segment?.currency ?? "AUD"}
-            maxLength={10}
-            className={inputClass}
-          />
+          <CurrencySelect name="currency" defaultValue={state?.values?.currency ?? segment?.currency} />
         </Field>
 
         {selectedType === "FLIGHT" && (

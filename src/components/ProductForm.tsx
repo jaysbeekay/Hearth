@@ -8,6 +8,7 @@ import type { ActionState } from "@/lib/actions/products";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
+import { CurrencySelect } from "@/components/CurrencySelect";
 import { enqueueOperation, serializeFormData } from "@/lib/offlineQueue";
 
 function toDateInputValue(date: Date | null | undefined) {
@@ -293,13 +294,7 @@ export function ProductForm({
         </Field>
 
         <Field label="Currency" htmlFor="currency">
-          <input
-            id="currency"
-            name="currency"
-            defaultValue={state?.values?.currency ?? product?.currency ?? "AUD"}
-            maxLength={10}
-            className={inputClass}
-          />
+          <CurrencySelect name="currency" defaultValue={state?.values?.currency ?? product?.currency} />
         </Field>
       </div>
 

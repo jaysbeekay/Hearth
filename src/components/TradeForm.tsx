@@ -7,8 +7,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { TRADE_TYPES, TRADE_TYPE_LABELS } from "@/lib/validation/wealth";
 import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
-
-const COMMON_CURRENCIES = ["AUD", "USD", "EUR", "GBP", "JPY", "NZD", "CAD", "HKD", "SGD"];
+import { CurrencySelect } from "@/components/CurrencySelect";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -171,16 +170,10 @@ export function TradeForm({
 
         <div>
           <label className="block text-sm font-medium mb-1" htmlFor="currency">Currency</label>
-          <SelectWrapper>
-            <select
-              id="currency"
-              name="currency"
-              defaultValue={state?.values?.currency ?? trade?.currency ?? defaultCurrency ?? "AUD"}
-              className={selectClass}
-            >
-              {COMMON_CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </SelectWrapper>
+          <CurrencySelect
+            name="currency"
+            defaultValue={state?.values?.currency ?? trade?.currency ?? defaultCurrency}
+          />
         </div>
       </div>
 
