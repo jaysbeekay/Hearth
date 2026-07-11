@@ -156,8 +156,8 @@ export function ImportClient() {
         }`}
       >
         <Upload size={22} className="text-muted" />
-        <p className="text-sm font-medium">Drag multiple files here or click to browse</p>
-        <p className="text-xs text-muted">Each one is scanned and added to the queue below</p>
+        <p className="text-sm font-medium">Drag a file here or click to browse</p>
+        <p className="text-xs text-muted">Drop in more than one at a time if you have several — each is scanned and added to the queue below</p>
         <input
           ref={inputRef}
           id={inputId}
