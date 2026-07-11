@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { addProductDocument, deleteProduct } from "@/lib/actions/products";
 import { ExpiryBadge } from "@/components/ExpiryBadge";
 import { ConfirmForm } from "@/components/ConfirmForm";
+import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { ProductDocumentUploadForm } from "@/components/ProductDocumentUploadForm";
 import { ProductDocumentList } from "@/components/ProductDocumentList";
 import { daysUntil, formatCurrency, formatDate } from "@/lib/utils";
@@ -56,14 +57,16 @@ export default async function ProductDetailPage({
             <Pencil size={16} />
             Edit
           </Link>
-          <ConfirmForm
-            action={deleteProduct.bind(null, product.id)}
-            confirmText="Delete this product and all its documents? This cannot be undone."
-            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
-          >
-            <Trash2 size={16} />
-            Delete
-          </ConfirmForm>
+          <DetailOverflowMenu>
+            <ConfirmForm
+              action={deleteProduct.bind(null, product.id)}
+              confirmText="Delete this product and all its documents? This cannot be undone."
+              className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
+            >
+              <Trash2 size={16} />
+              Delete
+            </ConfirmForm>
+          </DetailOverflowMenu>
         </div>
       </div>
 

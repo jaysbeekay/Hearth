@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { deleteInventoryItem, addInventoryItemDocument } from "@/lib/actions/inventory";
 import { ConfirmForm } from "@/components/ConfirmForm";
+import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { InventoryItemDocumentList } from "@/components/InventoryItemDocumentList";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -69,14 +70,16 @@ export default async function InventoryItemPage({
             <Pencil size={14} />
             Edit
           </Link>
-          <ConfirmForm
-            action={deleteInventoryItem.bind(null, id)}
-            confirmText="Delete this item and all its documents?"
-            className="flex items-center gap-1.5 rounded-lg border border-danger/40 px-3 py-1.5 text-sm text-danger hover:bg-danger/5"
-          >
-            <Trash2 size={14} />
-            Delete
-          </ConfirmForm>
+          <DetailOverflowMenu>
+            <ConfirmForm
+              action={deleteInventoryItem.bind(null, id)}
+              confirmText="Delete this item and all its documents? This can't be undone."
+              className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
+            >
+              <Trash2 size={16} />
+              Delete
+            </ConfirmForm>
+          </DetailOverflowMenu>
         </div>
       </div>
 

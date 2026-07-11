@@ -7,6 +7,7 @@ import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { deleteProperty, deleteHomeItem, addItemDocument } from "@/lib/actions/home";
 import { addPropertyValuation, deletePropertyValuation } from "@/lib/actions/wealth";
 import { ConfirmForm } from "@/components/ConfirmForm";
+import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { HomeItemDocumentList } from "@/components/HomeItemDocumentList";
 import { PropertyMap } from "@/components/PropertyMap";
@@ -75,14 +76,16 @@ export default async function PropertyDetailPage({
             <Pencil size={16} />
             Edit
           </Link>
-          <ConfirmForm
-            action={deleteProperty.bind(null, property.id)}
-            confirmText="Delete this property and all its items and documents? This cannot be undone."
-            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
-          >
-            <Trash2 size={16} />
-            Delete
-          </ConfirmForm>
+          <DetailOverflowMenu>
+            <ConfirmForm
+              action={deleteProperty.bind(null, property.id)}
+              confirmText="Delete this property and all its items and documents? This cannot be undone."
+              className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
+            >
+              <Trash2 size={16} />
+              Delete
+            </ConfirmForm>
+          </DetailOverflowMenu>
         </div>
       </div>
 

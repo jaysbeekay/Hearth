@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileSignature, Settings, Search } from "lucide-react";
+import { Flame, Settings, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getNavItems } from "@/components/nav-items";
 import type { ModuleKey } from "@/lib/modules/registry";
@@ -28,7 +28,7 @@ export function Sidebar({
   return (
     <aside className="hidden w-60 flex-col border-r border-border bg-surface md:flex">
       <div className="flex items-center gap-2 px-6 py-5">
-        <FileSignature size={22} className="text-accent" />
+        <Flame size={22} className="text-accent" />
         <span className="text-lg font-semibold">Hearth</span>
       </div>
 
