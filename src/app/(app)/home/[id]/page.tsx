@@ -11,6 +11,7 @@ import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { HomeItemDocumentList } from "@/components/HomeItemDocumentList";
 import { HOME_ITEM_TYPE_LABELS, formatCurrency, formatDate } from "@/lib/utils";
 import { CurrencySelect } from "@/components/CurrencySelect";
+import { getUserPreferences } from "@/lib/userPreferences";
 
 const ITEM_ICONS: Record<string, LucideIcon> = {
   MAINTENANCE: Wrench,
@@ -27,14 +28,17 @@ export default async function PropertyDetailPage({
   await requireModuleEnabled("HOME");
 
   const { id } = await params;
-  const property = await prisma.property.findUnique({
-    where: { id },
-    include: {
-      createdBy: true,
-      items: { include: { documents: { orderBy: { uploadedAt: "desc" } } } },
-      valuations: { orderBy: { valuedAt: "desc" } },
-    },
-  });
+  const [property, { dateFormat, preferredCurrency }] = await Promise.all([
+    prisma.property.findUnique({
+      where: { id },
+      include: {
+        createdBy: true,
+        items: { include: { documents: { orderBy: { uploadedAt: "desc" } } } },
+        valuations: { orderBy: { valuedAt: "desc" } },
+      },
+    }),
+    getUserPreferences(),
+  ]);
   if (!property) notFound();
 
   const latestValuation = property.valuations[0] ?? null;
@@ -153,7 +157,7 @@ export default async function PropertyDetailPage({
                   </div>
 
                   <dl className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3">
-                    <Detail label="Date" value={formatDate(item.date)} />
+                    <Detail label="Date" value={formatDate(item.date, dateFormat)} />
                     <Detail
                       label="Cost"
                       value={item.cost != null ? formatCurrency(item.cost, item.currency) : "—"}
@@ -168,7 +172,7 @@ export default async function PropertyDetailPage({
 
                   <div className="mt-4 border-t border-border pt-4">
                     <h3 className="mb-2 text-sm font-medium">Documents</h3>
-                    <HomeItemDocumentList documents={item.documents} />
+                    <HomeItemDocumentList documents={item.documents} dateFormat={dateFormat} />
                     <div className="mt-3">
                       <DocumentUploadForm action={addItemDocument.bind(null, item.id)} />
                     </div>
@@ -205,7 +209,7 @@ export default async function PropertyDetailPage({
                 <div>
                   <p className="font-medium tabular-nums">{formatCurrency(v.value, v.currency)}</p>
                   <p className="text-xs text-foreground/50">
-                    {formatDate(v.valuedAt)}{v.source ? ` · ${v.source}` : ""}
+                    {formatDate(v.valuedAt, dateFormat)}{v.source ? ` · ${v.source}` : ""}
                   </p>
                   {v.notes && <p className="mt-0.5 text-xs text-foreground/60">{v.notes}</p>}
                 </div>
@@ -251,7 +255,7 @@ export default async function PropertyDetailPage({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-1 block text-xs text-foreground/60">Currency</label>
-                <CurrencySelect name="currency" defaultValue="AUD" />
+                <CurrencySelect name="currency" defaultValue={preferredCurrency} />
               </div>
               <div>
                 <label className="mb-1 block text-xs text-foreground/60">Source (optional)</label>
@@ -313,7 +317,7 @@ export default async function PropertyDetailPage({
       </div>
 
       <p className="text-xs text-foreground/40">
-        Added by {property.createdBy.name} on {formatDate(property.createdAt)}
+        Added by {property.createdBy.name} on {formatDate(property.createdAt, dateFormat)}
       </p>
     </div>
   );

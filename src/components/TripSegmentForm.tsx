@@ -39,9 +39,11 @@ type ExtractedFields = Partial<
 export function TripSegmentForm({
   action,
   segment,
+  defaultCurrency,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   segment?: TripSegmentModel;
+  defaultCurrency?: string;
 }) {
   const [scanning, setScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
@@ -237,7 +239,10 @@ export function TripSegmentForm({
         </Field>
 
         <Field label="Currency" htmlFor="currency">
-          <CurrencySelect name="currency" defaultValue={state?.values?.currency ?? segment?.currency} />
+          <CurrencySelect
+            name="currency"
+            defaultValue={state?.values?.currency ?? segment?.currency ?? defaultCurrency}
+          />
         </Field>
 
         {selectedType === "FLIGHT" && (

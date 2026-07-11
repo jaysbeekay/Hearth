@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { createRentalAgreement } from "@/lib/actions/home";
 import { RentalAgreementForm } from "@/components/RentalAgreementForm";
+import { getUserPreferences } from "@/lib/userPreferences";
 
 export default async function NewRentalAgreementPage({
   params,
@@ -13,7 +14,10 @@ export default async function NewRentalAgreementPage({
   await requireModuleEnabled("HOME");
 
   const { id } = await params;
-  const property = await prisma.property.findUnique({ where: { id } });
+  const [property, { preferredCurrency }] = await Promise.all([
+    prisma.property.findUnique({ where: { id } }),
+    getUserPreferences(),
+  ]);
   if (!property) notFound();
 
   const boundAction = createRentalAgreement.bind(null, property.id);
@@ -39,7 +43,7 @@ export default async function NewRentalAgreementPage({
       </div>
 
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
-        <RentalAgreementForm action={boundAction} />
+        <RentalAgreementForm action={boundAction} defaultCurrency={preferredCurrency} />
       </div>
     </div>
   );

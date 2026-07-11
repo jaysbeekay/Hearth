@@ -11,7 +11,13 @@ const KIND_LABELS: Record<string, string> = {
   OTHER: "Other",
 };
 
-export function ProductDocumentList({ documents }: { documents: ProductDocumentModel[] }) {
+export function ProductDocumentList({
+  documents,
+  dateFormat,
+}: {
+  documents: ProductDocumentModel[];
+  dateFormat?: string;
+}) {
   if (documents.length === 0) {
     return <p className="text-sm text-foreground/60">No documents uploaded yet.</p>;
   }
@@ -37,7 +43,7 @@ export function ProductDocumentList({ documents }: { documents: ProductDocumentM
             <span className="min-w-0 truncate">{doc.filename}</span>
             <span className="shrink-0 text-foreground/50">
               {KIND_LABELS[doc.kind] ?? doc.kind} · {humanFileSize(doc.size)} ·{" "}
-              {formatDate(doc.uploadedAt)}
+              {formatDate(doc.uploadedAt, dateFormat)}
             </span>
           </a>
           <ConfirmForm

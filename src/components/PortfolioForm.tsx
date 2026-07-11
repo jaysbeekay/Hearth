@@ -10,9 +10,11 @@ import { CurrencySelect } from "@/components/CurrencySelect";
 export function PortfolioForm({
   action,
   portfolio,
+  defaultCurrency,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   portfolio?: PortfolioModel;
+  defaultCurrency?: string;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(action, null);
 
@@ -47,7 +49,10 @@ export function PortfolioForm({
 
       <div>
         <label className="block text-sm font-medium mb-1" htmlFor="currency">Base currency</label>
-        <CurrencySelect name="currency" defaultValue={state?.values?.currency ?? portfolio?.currency} />
+        <CurrencySelect
+          name="currency"
+          defaultValue={state?.values?.currency ?? portfolio?.currency ?? defaultCurrency}
+        />
       </div>
 
       <SubmitButton>{portfolio ? "Save changes" : "Create portfolio"}</SubmitButton>

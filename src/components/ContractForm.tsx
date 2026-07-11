@@ -40,9 +40,11 @@ type ExtractedFields = Partial<
 export function ContractForm({
   action,
   contract,
+  defaultCurrency,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   contract?: ContractModel;
+  defaultCurrency?: string;
 }) {
   const offlineAwareAction = async (
     prevState: ActionState,
@@ -269,7 +271,10 @@ export function ContractForm({
         </Field>
 
         <Field label="Currency" htmlFor="currency">
-          <CurrencySelect name="currency" defaultValue={state?.values?.currency ?? contract?.currency} />
+          <CurrencySelect
+            name="currency"
+            defaultValue={state?.values?.currency ?? contract?.currency ?? defaultCurrency}
+          />
         </Field>
 
         <Field label="Billing frequency" htmlFor="billingFrequency">

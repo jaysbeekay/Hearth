@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { addTripSegment } from "@/lib/actions/trips";
 import { TripSegmentForm } from "@/components/TripSegmentForm";
+import { getUserPreferences } from "@/lib/userPreferences";
 
 export default async function NewTripSegmentPage({
   params,
@@ -12,7 +13,10 @@ export default async function NewTripSegmentPage({
   await requireModuleEnabled("TRAVEL");
 
   const { id } = await params;
-  const trip = await prisma.trip.findUnique({ where: { id } });
+  const [trip, { preferredCurrency }] = await Promise.all([
+    prisma.trip.findUnique({ where: { id } }),
+    getUserPreferences(),
+  ]);
   if (!trip) notFound();
 
   const boundAction = addTripSegment.bind(null, trip.id);
@@ -24,7 +28,7 @@ export default async function NewTripSegmentPage({
         <p className="text-sm text-foreground/60">{trip.title}</p>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
-        <TripSegmentForm action={boundAction} />
+        <TripSegmentForm action={boundAction} defaultCurrency={preferredCurrency} />
       </div>
     </div>
   );

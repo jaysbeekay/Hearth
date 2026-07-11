@@ -14,9 +14,10 @@ interface Props {
   q?: string;
   category?: string;
   status?: string;
+  dateFormat?: string;
 }
 
-export function ContractListClient({ contracts, q, category, status }: Props) {
+export function ContractListClient({ contracts, q, category, status, dateFormat }: Props) {
   const [online, setOnline] = useState(true);
 
   useEffect(() => {
@@ -111,7 +112,7 @@ export function ContractListClient({ contracts, q, category, status }: Props) {
       ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {contracts.map((contract) => (
-            <ContractCard key={contract.id} contract={contract} />
+            <ContractCard key={contract.id} contract={contract} dateFormat={dateFormat} />
           ))}
         </div>
       )}

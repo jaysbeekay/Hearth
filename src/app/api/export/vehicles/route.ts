@@ -5,6 +5,7 @@ import PDFDocument from "pdfkit";
 import { stringify } from "csv-stringify/sync";
 import { formatDate, formatCurrency, VEHICLE_ITEM_TYPE_LABELS } from "@/lib/utils";
 import { isModuleEnabled } from "@/lib/modules/enablement";
+import { getUserPreferences } from "@/lib/userPreferences";
 
 export async function GET(request: NextRequest) {
   const session = await auth();
@@ -13,10 +14,13 @@ export async function GET(request: NextRequest) {
 
   const format = request.nextUrl.searchParams.get("format") ?? "csv";
 
-  const vehicles = await prisma.vehicle.findMany({
-    where: { createdById: session.user.id },
-    include: { items: { orderBy: { date: "desc" } } },
-  });
+  const [vehicles, { dateFormat }] = await Promise.all([
+    prisma.vehicle.findMany({
+      where: { createdById: session.user.id },
+      include: { items: { orderBy: { date: "desc" } } },
+    }),
+    getUserPreferences(),
+  ]);
 
   const allItems = vehicles.flatMap((v) =>
     v.items.map((item) => ({ ...item, vehicleLabel: v.label })),
@@ -36,7 +40,7 @@ export async function GET(request: NextRequest) {
       doc.fontSize(11).fillColor("#000").text(item.title);
       doc.fontSize(9).fillColor("#444")
         .text(`Vehicle: ${item.vehicleLabel}   Type: ${VEHICLE_ITEM_TYPE_LABELS[item.type] ?? item.type}`)
-        .text(`Provider: ${item.provider ?? "—"}   Date: ${formatDate(item.date)}`)
+        .text(`Provider: ${item.provider ?? "—"}   Date: ${formatDate(item.date, dateFormat)}`)
         .text(`Cost: ${formatCurrency(item.cost, item.currency)}`);
       doc.moveDown(0.5);
     }
@@ -58,7 +62,7 @@ export async function GET(request: NextRequest) {
     VEHICLE_ITEM_TYPE_LABELS[item.type] ?? item.type,
     item.title,
     item.provider ?? "",
-    formatDate(item.date),
+    formatDate(item.date, dateFormat),
     item.cost ?? "",
     item.currency,
   ]);

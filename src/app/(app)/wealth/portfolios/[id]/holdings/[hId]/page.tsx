@@ -11,6 +11,7 @@ import { deleteHolding, deleteTrade, addTradeDocument, deleteTradeDocumentAction
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { ASSET_CLASS_LABELS, TRADE_TYPE_LABELS } from "@/lib/validation/wealth";
+import { getUserPreferences } from "@/lib/userPreferences";
 
 export const metadata: Metadata = { title: "Holding" };
 
@@ -50,9 +51,10 @@ function unitsAtTime(
 interface SvgChartProps {
   points: { date: Date; value: number }[];
   currency: string;
+  dateFormat?: string;
 }
 
-function PerformanceChart({ points, currency }: SvgChartProps) {
+function PerformanceChart({ points, currency, dateFormat }: SvgChartProps) {
   if (points.length < 2) return null;
 
   const W = 600;
@@ -97,9 +99,9 @@ function PerformanceChart({ points, currency }: SvgChartProps) {
 
   // X-axis labels (first + last + any year boundary in between)
   const xLabels: { label: string; x: number }[] = [];
-  xLabels.push({ label: formatDate(firstPoint.date).slice(0, 7), x: PAD.left });
+  xLabels.push({ label: formatDate(firstPoint.date, dateFormat).slice(0, 7), x: PAD.left });
   xLabels.push({
-    label: formatDate(lastPoint.date).slice(0, 7),
+    label: formatDate(lastPoint.date, dateFormat).slice(0, 7),
     x: PAD.left + innerW,
   });
 
@@ -194,16 +196,19 @@ export default async function HoldingPage({
   const session = await auth();
   const { id: portfolioId, hId: holdingId } = await params;
 
-  const holding = await prisma.holding.findUnique({
-    where: { id: holdingId },
-    include: {
-      portfolio: true,
-      trades: {
-        include: { documents: { orderBy: { uploadedAt: "desc" } } },
-        orderBy: { date: "asc" },
+  const [holding, { dateFormat }] = await Promise.all([
+    prisma.holding.findUnique({
+      where: { id: holdingId },
+      include: {
+        portfolio: true,
+        trades: {
+          include: { documents: { orderBy: { uploadedAt: "desc" } } },
+          orderBy: { date: "asc" },
+        },
       },
-    },
-  });
+    }),
+    getUserPreferences(),
+  ]);
   if (!holding || holding.portfolio.createdById !== session!.user.id || holding.portfolioId !== portfolioId) {
     notFound();
   }
@@ -335,7 +340,7 @@ export default async function HoldingPage({
       {chartPoints.length >= 2 && (
         <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-4 font-medium">Performance since first purchase</h2>
-          <PerformanceChart points={chartPoints} currency={currency} />
+          <PerformanceChart points={chartPoints} currency={currency} dateFormat={dateFormat} />
         </section>
       )}
 
@@ -380,12 +385,12 @@ export default async function HoldingPage({
                           {trade.units.toLocaleString("en-AU", { maximumFractionDigits: 6 })} units @ {formatCurrency(trade.pricePerUnit, trade.currency)}
                         </p>
                         <p className="text-xs text-foreground/50">
-                          {formatDate(trade.date)}
+                          {formatDate(trade.date, dateFormat)}
                           {trade.fees != null && ` · fees ${formatCurrency(trade.fees, trade.currency)}`}
                         </p>
                         {trade.marketPriceOnDate != null && (
                           <p className="mt-0.5 text-xs text-foreground/40">
-                            Market close {formatDate(trade.date)}: {formatCurrency(trade.marketPriceOnDate, trade.currency)}
+                            Market close {formatDate(trade.date, dateFormat)}: {formatCurrency(trade.marketPriceOnDate, trade.currency)}
                             {slippage != null && (
                               <span className={`ml-1 ${Math.abs(slippage) < 0.5 ? "text-foreground/40" : slippage > 0 ? "text-danger" : "text-success"}`}>
                                 ({slippage > 0 ? "+" : ""}{slippage.toFixed(2)}% vs close)

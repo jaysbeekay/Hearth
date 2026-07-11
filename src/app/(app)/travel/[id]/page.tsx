@@ -9,6 +9,7 @@ import { ConfirmForm } from "@/components/ConfirmForm";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { TripSegmentDocumentList } from "@/components/TripSegmentDocumentList";
 import { TRIP_SEGMENT_TYPE_LABELS, formatCurrency, formatDate } from "@/lib/utils";
+import { getUserPreferences } from "@/lib/userPreferences";
 import { shouldAutoRefresh, FLIGHT_STATUS_LABELS, flightStatusColour, refreshFlightStatus } from "@/lib/integrations/flightStatus";
 import { FlightRefreshForm } from "@/components/FlightRefreshForm";
 
@@ -26,13 +27,16 @@ export default async function TripDetailPage({
   await requireModuleEnabled("TRAVEL");
 
   const { id } = await params;
-  const trip = await prisma.trip.findUnique({
-    where: { id },
-    include: {
-      createdBy: true,
-      segments: { include: { documents: { orderBy: { uploadedAt: "desc" } } } },
-    },
-  });
+  const [trip, { dateFormat }] = await Promise.all([
+    prisma.trip.findUnique({
+      where: { id },
+      include: {
+        createdBy: true,
+        segments: { include: { documents: { orderBy: { uploadedAt: "desc" } } } },
+      },
+    }),
+    getUserPreferences(),
+  ]);
   if (!trip) notFound();
 
   const segments = [...trip.segments].sort((a, b) => {
@@ -82,7 +86,7 @@ export default async function TripDetailPage({
           <h1 className="text-2xl font-semibold">{trip.title}</h1>
           <p className="text-foreground/70">
             {trip.startDate || trip.endDate
-              ? `${formatDate(trip.startDate)} – ${formatDate(trip.endDate)}`
+              ? `${formatDate(trip.startDate, dateFormat)} – ${formatDate(trip.endDate, dateFormat)}`
               : "No dates set"}
           </p>
         </div>
@@ -171,8 +175,8 @@ export default async function TripDetailPage({
 
                   <dl className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3">
                     <Detail label="Confirmation code" value={segment.confirmationCode ?? "—"} />
-                    <Detail label="Start" value={formatDate(segment.startDate)} />
-                    <Detail label="End" value={formatDate(segment.endDate)} />
+                    <Detail label="Start" value={formatDate(segment.startDate, dateFormat)} />
+                    <Detail label="End" value={formatDate(segment.endDate, dateFormat)} />
                     <Detail label="Location" value={segment.location ?? "—"} />
                     <Detail
                       label="Cost"
@@ -204,7 +208,7 @@ export default async function TripDetailPage({
                           </span>
                           {segment.flightStatusAt && (
                             <span className="text-xs text-foreground/50">
-                              Updated {formatDate(segment.flightStatusAt)}
+                              Updated {formatDate(segment.flightStatusAt, dateFormat)}
                             </span>
                           )}
                         </div>
@@ -270,7 +274,10 @@ export default async function TripDetailPage({
 
                   <div className="mt-4 border-t border-border pt-4">
                     <h3 className="mb-2 text-sm font-medium">Documents</h3>
-                    <TripSegmentDocumentList documents={segment.documents} />
+                    <TripSegmentDocumentList
+                      documents={segment.documents}
+                      dateFormat={dateFormat}
+                    />
                     <div className="mt-3">
                       <DocumentUploadForm action={addSegmentDocument.bind(null, segment.id)} />
                     </div>
@@ -283,7 +290,7 @@ export default async function TripDetailPage({
       </div>
 
       <p className="text-xs text-foreground/40">
-        Added by {trip.createdBy.name} on {formatDate(trip.createdAt)}
+        Added by {trip.createdBy.name} on {formatDate(trip.createdAt, dateFormat)}
       </p>
     </div>
   );

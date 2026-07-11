@@ -9,6 +9,7 @@ import { ConfirmForm } from "@/components/ConfirmForm";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { InventoryItemDocumentList } from "@/components/InventoryItemDocumentList";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { getUserPreferences } from "@/lib/userPreferences";
 
 export const metadata: Metadata = { title: "Inventory Item" };
 
@@ -32,13 +33,16 @@ export default async function InventoryItemPage({
   await requireModuleEnabled("INVENTORY");
 
   const { id } = await params;
-  const item = await prisma.inventoryItem.findUnique({
-    where: { id },
-    include: {
-      createdBy: true,
-      documents: { orderBy: { uploadedAt: "desc" } },
-    },
-  });
+  const [item, { dateFormat }] = await Promise.all([
+    prisma.inventoryItem.findUnique({
+      where: { id },
+      include: {
+        createdBy: true,
+        documents: { orderBy: { uploadedAt: "desc" } },
+      },
+    }),
+    getUserPreferences(),
+  ]);
   if (!item) notFound();
 
   return (
@@ -93,7 +97,7 @@ export default async function InventoryItemPage({
           {item.purchaseDate && (
             <div>
               <dt className="text-xs text-muted">Purchased</dt>
-              <dd className="font-medium">{formatDate(item.purchaseDate)}</dd>
+              <dd className="font-medium">{formatDate(item.purchaseDate, dateFormat)}</dd>
             </div>
           )}
           {item.purchasePrice != null && (
@@ -110,7 +114,7 @@ export default async function InventoryItemPage({
 
       <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <h2 className="mb-3 font-medium">Documents</h2>
-        <InventoryItemDocumentList documents={item.documents} />
+        <InventoryItemDocumentList documents={item.documents} dateFormat={dateFormat} />
         <div className="mt-4 border-t border-border pt-4">
           <DocumentUploadForm action={addInventoryItemDocument.bind(null, id)} />
         </div>

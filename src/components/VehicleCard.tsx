@@ -21,8 +21,10 @@ function ExpiryWarning({ label, date }: { label: string; date: Date | null | und
 
 export function VehicleCard({
   vehicle,
+  dateFormat,
 }: {
   vehicle: VehicleModel & { _count?: { items: number } };
+  dateFormat?: string;
 }) {
   const subtitle = [vehicle.make, vehicle.model, vehicle.year, vehicle.licensePlate]
     .filter(Boolean)
@@ -54,10 +56,12 @@ export function VehicleCard({
       {(vehicle.regoExpiry || vehicle.insuranceExpiry) && (
         <div className="mt-2 flex flex-wrap gap-4">
           {vehicle.regoExpiry && (
-            <p className="text-xs text-muted">Rego: {formatDate(vehicle.regoExpiry)}</p>
+            <p className="text-xs text-muted">Rego: {formatDate(vehicle.regoExpiry, dateFormat)}</p>
           )}
           {vehicle.insuranceExpiry && (
-            <p className="text-xs text-muted">Insurance: {formatDate(vehicle.insuranceExpiry)}</p>
+            <p className="text-xs text-muted">
+              Insurance: {formatDate(vehicle.insuranceExpiry, dateFormat)}
+            </p>
           )}
         </div>
       )}

@@ -4,7 +4,13 @@ import { deleteDocumentAction } from "@/lib/actions/contracts";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { formatDate, humanFileSize } from "@/lib/utils";
 
-export function DocumentList({ documents }: { documents: DocumentModel[] }) {
+export function DocumentList({
+  documents,
+  dateFormat,
+}: {
+  documents: DocumentModel[];
+  dateFormat?: string;
+}) {
   if (documents.length === 0) {
     return <p className="text-sm text-foreground/60">No documents uploaded yet.</p>;
   }
@@ -20,7 +26,7 @@ export function DocumentList({ documents }: { documents: DocumentModel[] }) {
             <FileText size={18} className="shrink-0 text-foreground/50" />
             <span className="min-w-0 truncate">{doc.filename}</span>
             <span className="shrink-0 text-foreground/50">
-              {humanFileSize(doc.size)} · {formatDate(doc.uploadedAt)}
+              {humanFileSize(doc.size)} · {formatDate(doc.uploadedAt, dateFormat)}
             </span>
           </a>
           <ConfirmForm

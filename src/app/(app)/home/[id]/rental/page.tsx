@@ -13,6 +13,7 @@ import { ConfirmForm } from "@/components/ConfirmForm";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { RentalStatementDocumentList } from "@/components/RentalStatementDocumentList";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { getUserPreferences } from "@/lib/userPreferences";
 
 function reconcile(
   periodStart: Date | null,
@@ -67,16 +68,19 @@ export default async function RentalOverviewPage({
   await requireModuleEnabled("HOME");
 
   const { id } = await params;
-  const property = await prisma.property.findUnique({
-    where: { id },
-    include: {
-      rentalAgreements: { orderBy: { createdAt: "desc" } },
-      rentalStatements: {
-        include: { documents: { orderBy: { uploadedAt: "desc" } } },
-        orderBy: { periodStart: "desc" },
+  const [property, { dateFormat }] = await Promise.all([
+    prisma.property.findUnique({
+      where: { id },
+      include: {
+        rentalAgreements: { orderBy: { createdAt: "desc" } },
+        rentalStatements: {
+          include: { documents: { orderBy: { uploadedAt: "desc" } } },
+          orderBy: { periodStart: "desc" },
+        },
       },
-    },
-  });
+    }),
+    getUserPreferences(),
+  ]);
   if (!property) notFound();
 
   const agreements = property.rentalAgreements;
@@ -190,11 +194,11 @@ export default async function RentalOverviewPage({
                       label="Lease period"
                       value={
                         ag.leaseStart || ag.leaseEnd
-                          ? `${formatDate(ag.leaseStart)} – ${formatDate(ag.leaseEnd)}`
+                          ? `${formatDate(ag.leaseStart, dateFormat)} – ${formatDate(ag.leaseEnd, dateFormat)}`
                           : "—"
                       }
                     />
-                    <Detail label="Added" value={formatDate(ag.createdAt)} />
+                    <Detail label="Added" value={formatDate(ag.createdAt, dateFormat)} />
                   </dl>
                   {ag.notes && (
                     <p className="mt-3 text-sm text-foreground/70">{ag.notes}</p>
@@ -251,12 +255,12 @@ export default async function RentalOverviewPage({
                       <div>
                         <p className="font-medium">
                           {stmt.periodStart && stmt.periodEnd
-                            ? `${formatDate(stmt.periodStart)} – ${formatDate(stmt.periodEnd)}`
+                            ? `${formatDate(stmt.periodStart, dateFormat)} – ${formatDate(stmt.periodEnd, dateFormat)}`
                             : "Period not set"}
                         </p>
                         {stmt.statementDate && (
                           <p className="text-sm text-foreground/60">
-                            Statement date: {formatDate(stmt.statementDate)}
+                            Statement date: {formatDate(stmt.statementDate, dateFormat)}
                           </p>
                         )}
                       </div>
@@ -317,7 +321,10 @@ export default async function RentalOverviewPage({
                         <FileText size={14} className="text-foreground/50" />
                         Documents
                       </div>
-                      <RentalStatementDocumentList documents={stmt.documents} />
+                      <RentalStatementDocumentList
+                        documents={stmt.documents}
+                        dateFormat={dateFormat}
+                      />
                       <div className="mt-3">
                         <DocumentUploadForm
                           action={addRentalStatementDocument.bind(null, stmt.id)}

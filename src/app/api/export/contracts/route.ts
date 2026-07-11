@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import PDFDocument from "pdfkit";
 import { stringify } from "csv-stringify/sync";
 import { formatDate, formatCurrency, CATEGORY_LABELS, BILLING_LABELS } from "@/lib/utils";
+import { getUserPreferences } from "@/lib/userPreferences";
 
 export async function GET(request: NextRequest) {
   const session = await auth();
@@ -11,10 +12,13 @@ export async function GET(request: NextRequest) {
 
   const format = request.nextUrl.searchParams.get("format") ?? "csv";
 
-  const contracts = await prisma.contract.findMany({
-    where: { createdById: session.user.id },
-    orderBy: { endDate: "asc" },
-  });
+  const [contracts, { dateFormat }] = await Promise.all([
+    prisma.contract.findMany({
+      where: { createdById: session.user.id },
+      orderBy: { endDate: "asc" },
+    }),
+    getUserPreferences(),
+  ]);
 
   if (format === "pdf") {
     const doc = new PDFDocument({ margin: 40, size: "A4" });
@@ -30,7 +34,7 @@ export async function GET(request: NextRequest) {
       doc.fontSize(11).fillColor("#000").text(c.title, { continued: false });
       doc.fontSize(9).fillColor("#444")
         .text(`Provider: ${c.provider}   Category: ${CATEGORY_LABELS[c.category] ?? c.category}`)
-        .text(`Period: ${formatDate(c.startDate)} – ${formatDate(c.endDate)}`)
+        .text(`Period: ${formatDate(c.startDate, dateFormat)} – ${formatDate(c.endDate, dateFormat)}`)
         .text(`Cost: ${formatCurrency(c.cost, c.currency)}${c.billingFrequency ? ` (${BILLING_LABELS[c.billingFrequency] ?? c.billingFrequency})` : ""}`)
         .text(`Tax deductible: ${c.isTaxDeductible ? "Yes" : "No"}`);
       doc.moveDown(0.5);
@@ -53,8 +57,8 @@ export async function GET(request: NextRequest) {
     c.title,
     c.provider,
     CATEGORY_LABELS[c.category] ?? c.category,
-    formatDate(c.startDate),
-    formatDate(c.endDate),
+    formatDate(c.startDate, dateFormat),
+    formatDate(c.endDate, dateFormat),
     c.cost ?? "",
     c.billingFrequency ? (BILLING_LABELS[c.billingFrequency] ?? c.billingFrequency) : "",
     c.currency,

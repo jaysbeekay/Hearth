@@ -1,7 +1,10 @@
 import { createProduct } from "@/lib/actions/products";
 import { ProductForm } from "@/components/ProductForm";
+import { getUserPreferences } from "@/lib/userPreferences";
 
-export default function NewProductPage() {
+export default async function NewProductPage() {
+  const { preferredCurrency } = await getUserPreferences();
+
   return (
     <div className="max-w-3xl space-y-6">
       <div>
@@ -11,7 +14,7 @@ export default function NewProductPage() {
         </p>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
-        <ProductForm action={createProduct} />
+        <ProductForm action={createProduct} defaultCurrency={preferredCurrency} />
       </div>
     </div>
   );

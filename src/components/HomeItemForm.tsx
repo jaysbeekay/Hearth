@@ -22,9 +22,11 @@ type ExtractedFields = Partial<Record<"type" | "title" | "provider" | "date" | "
 export function HomeItemForm({
   action,
   item,
+  defaultCurrency,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   item?: HomeItemModel;
+  defaultCurrency?: string;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(action, null);
   const [scanning, setScanning] = useState(false);
@@ -163,7 +165,10 @@ export function HomeItemForm({
         </Field>
 
         <Field label="Currency" htmlFor="currency">
-          <CurrencySelect name="currency" defaultValue={state?.values?.currency ?? item?.currency} />
+          <CurrencySelect
+            name="currency"
+            defaultValue={state?.values?.currency ?? item?.currency ?? defaultCurrency}
+          />
         </Field>
       </div>
 

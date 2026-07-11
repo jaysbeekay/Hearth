@@ -23,9 +23,11 @@ type ExtractedFields = Partial<
 export function ProductForm({
   action,
   product,
+  defaultCurrency,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   product?: ProductModel;
+  defaultCurrency?: string;
 }) {
   const offlineAwareAction = async (
     prevState: ActionState,
@@ -294,7 +296,10 @@ export function ProductForm({
         </Field>
 
         <Field label="Currency" htmlFor="currency">
-          <CurrencySelect name="currency" defaultValue={state?.values?.currency ?? product?.currency} />
+          <CurrencySelect
+            name="currency"
+            defaultValue={state?.values?.currency ?? product?.currency ?? defaultCurrency}
+          />
         </Field>
       </div>
 

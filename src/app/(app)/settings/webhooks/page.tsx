@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { CreateWebhookForm } from "@/components/CreateWebhookForm";
 import { WebhookActions } from "@/components/WebhookActions";
 import { formatDate } from "@/lib/utils";
+import { getUserPreferences } from "@/lib/userPreferences";
 
 export const metadata: Metadata = { title: "Webhooks" };
 
@@ -14,12 +15,15 @@ export default async function WebhooksPage() {
     redirect("/settings");
   }
 
-  const endpoints = await prisma.webhookEndpoint.findMany({ orderBy: { createdAt: "asc" } });
-  const logs = await prisma.webhookLog.findMany({
-    orderBy: { sentAt: "desc" },
-    take: 10,
-    include: { endpoint: { select: { name: true } } },
-  });
+  const [endpoints, logs, { dateFormat }] = await Promise.all([
+    prisma.webhookEndpoint.findMany({ orderBy: { createdAt: "asc" } }),
+    prisma.webhookLog.findMany({
+      orderBy: { sentAt: "desc" },
+      take: 10,
+      include: { endpoint: { select: { name: true } } },
+    }),
+    getUserPreferences(),
+  ]);
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -79,7 +83,7 @@ export default async function WebhooksPage() {
                     </span>
                   </p>
                   <p className="text-xs text-foreground/50">
-                    {formatDate(log.sentAt)}
+                    {formatDate(log.sentAt, dateFormat)}
                     {log.statusCode ? ` · HTTP ${log.statusCode}` : ""}
                     {log.message ? ` · ${log.message}` : ""}
                   </p>

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
+import { getUserPreferences } from "@/lib/userPreferences";
 import { ProductListClient } from "@/components/ProductListClient";
 import type { Prisma } from "@/generated/prisma/client";
 
@@ -23,10 +24,13 @@ export default async function ProductsPage({
     ];
   }
 
-  const products = await prisma.product.findMany({
-    where,
-    orderBy: [{ warrantyEndDate: "asc" }],
-  });
+  const [products, { dateFormat }] = await Promise.all([
+    prisma.product.findMany({
+      where,
+      orderBy: [{ warrantyEndDate: "asc" }],
+    }),
+    getUserPreferences(),
+  ]);
 
-  return <ProductListClient products={products} q={q} />;
+  return <ProductListClient products={products} q={q} dateFormat={dateFormat} />;
 }

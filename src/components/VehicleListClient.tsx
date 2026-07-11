@@ -11,9 +11,10 @@ type VehicleWithCount = VehicleModel & { _count: { items: number } };
 
 interface Props {
   vehicles: VehicleWithCount[];
+  dateFormat?: string;
 }
 
-export function VehicleListClient({ vehicles }: Props) {
+export function VehicleListClient({ vehicles, dateFormat }: Props) {
   const [online, setOnline] = useState(true);
 
   useEffect(() => {
@@ -65,7 +66,7 @@ export function VehicleListClient({ vehicles }: Props) {
       ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {vehicles.map((vehicle) => (
-            <VehicleCard key={vehicle.id} vehicle={vehicle} />
+            <VehicleCard key={vehicle.id} vehicle={vehicle} dateFormat={dateFormat} />
           ))}
         </div>
       )}

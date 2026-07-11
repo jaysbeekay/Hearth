@@ -11,9 +11,10 @@ type TripWithCount = TripModel & { _count: { segments: number } };
 
 interface Props {
   trips: TripWithCount[];
+  dateFormat?: string;
 }
 
-export function TravelListClient({ trips }: Props) {
+export function TravelListClient({ trips, dateFormat }: Props) {
   const [online, setOnline] = useState(true);
 
   useEffect(() => {
@@ -65,7 +66,7 @@ export function TravelListClient({ trips }: Props) {
       ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {trips.map((trip) => (
-            <TripCard key={trip.id} trip={trip} />
+            <TripCard key={trip.id} trip={trip} dateFormat={dateFormat} />
           ))}
         </div>
       )}

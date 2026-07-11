@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { stringify } from "csv-stringify/sync";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import { formatDate } from "@/lib/utils";
+import { getUserPreferences } from "@/lib/userPreferences";
 
 export async function GET(request: NextRequest) {
   const session = await auth();
@@ -12,15 +13,18 @@ export async function GET(request: NextRequest) {
 
   const format = request.nextUrl.searchParams.get("format") ?? "csv";
 
-  const portfolios = await prisma.portfolio.findMany({
-    where: { createdById: session.user.id },
-    include: {
-      holdings: {
-        include: { trades: { orderBy: { date: "asc" } } },
+  const [portfolios, { dateFormat }] = await Promise.all([
+    prisma.portfolio.findMany({
+      where: { createdById: session.user.id },
+      include: {
+        holdings: {
+          include: { trades: { orderBy: { date: "asc" } } },
+        },
       },
-    },
-    orderBy: { name: "asc" },
-  });
+      orderBy: { name: "asc" },
+    }),
+    getUserPreferences(),
+  ]);
 
   const rows: (string | number)[][] = [];
   for (const portfolio of portfolios) {
@@ -32,7 +36,7 @@ export async function GET(request: NextRequest) {
           holding.name ?? "",
           holding.assetClass,
           trade.type,
-          formatDate(trade.date),
+          formatDate(trade.date, dateFormat),
           trade.units,
           trade.pricePerUnit,
           trade.fees ?? "",
@@ -61,7 +65,7 @@ export async function GET(request: NextRequest) {
         doc.fontSize(10).fillColor("#333").text(`  ${holding.ticker}${holding.name ? ` — ${holding.name}` : ""}`);
         for (const trade of holding.trades) {
           doc.fontSize(8).fillColor("#555")
-            .text(`    ${trade.type}  ${formatDate(trade.date)}  ${trade.units} @ ${trade.pricePerUnit} ${trade.currency}${trade.fees ? `  fees: ${trade.fees}` : ""}`);
+            .text(`    ${trade.type}  ${formatDate(trade.date, dateFormat)}  ${trade.units} @ ${trade.pricePerUnit} ${trade.currency}${trade.fees ? `  fees: ${trade.fees}` : ""}`);
         }
       }
       doc.moveDown(0.5);

@@ -7,6 +7,7 @@ import { deleteUser } from "@/lib/actions/auth";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { CreateUserForm } from "@/components/CreateUserForm";
 import { formatDate } from "@/lib/utils";
+import { getUserPreferences } from "@/lib/userPreferences";
 
 export const metadata: Metadata = { title: "Household members" };
 
@@ -16,7 +17,10 @@ export default async function ManageUsersPage() {
     redirect("/settings");
   }
 
-  const users = await prisma.user.findMany({ orderBy: { createdAt: "asc" } });
+  const [users, { dateFormat }] = await Promise.all([
+    prisma.user.findMany({ orderBy: { createdAt: "asc" } }),
+    getUserPreferences(),
+  ]);
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -31,7 +35,7 @@ export default async function ManageUsersPage() {
                   {user.name} <span className="text-foreground/50">· {user.role}</span>
                 </p>
                 <p className="text-xs text-foreground/50">
-                  {user.email} · joined {formatDate(user.createdAt)}
+                  {user.email} · joined {formatDate(user.createdAt, dateFormat)}
                 </p>
               </div>
               {user.id !== session.user.id && (

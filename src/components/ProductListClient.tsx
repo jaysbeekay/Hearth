@@ -10,9 +10,10 @@ import { cachePageData } from "@/lib/offlineCache";
 interface Props {
   products: ProductModel[];
   q?: string;
+  dateFormat?: string;
 }
 
-export function ProductListClient({ products, q }: Props) {
+export function ProductListClient({ products, q, dateFormat }: Props) {
   const [online, setOnline] = useState(true);
 
   useEffect(() => {
@@ -82,7 +83,7 @@ export function ProductListClient({ products, q }: Props) {
       ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {products.map((product) => (
-            <ProductCard key={product.id} product={product} />
+            <ProductCard key={product.id} product={product} dateFormat={dateFormat} />
           ))}
         </div>
       )}

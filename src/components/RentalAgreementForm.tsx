@@ -21,9 +21,11 @@ type ExtractedFields = Partial<
 export function RentalAgreementForm({
   action,
   agreement,
+  defaultCurrency,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   agreement?: RentalAgreementModel;
+  defaultCurrency?: string;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(action, null);
   const [scanning, setScanning] = useState(false);
@@ -171,7 +173,10 @@ export function RentalAgreementForm({
         </Field>
 
         <Field label="Currency" htmlFor="currency">
-          <CurrencySelect name="currency" defaultValue={state?.values?.currency ?? agreement?.currency} />
+          <CurrencySelect
+            name="currency"
+            defaultValue={state?.values?.currency ?? agreement?.currency ?? defaultCurrency}
+          />
         </Field>
       </div>
 

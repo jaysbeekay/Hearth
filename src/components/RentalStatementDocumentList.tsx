@@ -6,8 +6,10 @@ import { formatDate, humanFileSize } from "@/lib/utils";
 
 export function RentalStatementDocumentList({
   documents,
+  dateFormat,
 }: {
   documents: RentalStatementDocumentModel[];
+  dateFormat?: string;
 }) {
   if (documents.length === 0) {
     return <p className="text-sm text-foreground/60">No documents uploaded yet.</p>;
@@ -24,7 +26,7 @@ export function RentalStatementDocumentList({
             <FileText size={18} className="shrink-0 text-foreground/50" />
             <span className="min-w-0 truncate">{doc.filename}</span>
             <span className="shrink-0 text-foreground/50">
-              {humanFileSize(doc.size)} · {formatDate(doc.uploadedAt)}
+              {humanFileSize(doc.size)} · {formatDate(doc.uploadedAt, dateFormat)}
             </span>
           </a>
           <ConfirmForm

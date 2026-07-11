@@ -24,10 +24,12 @@ export function VehicleItemForm({
   action,
   item,
   vehicleId,
+  defaultCurrency,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   item?: VehicleItemModel;
   vehicleId?: string;
+  defaultCurrency?: string;
 }) {
   const offlineAwareAction = async (
     prevState: ActionState,
@@ -187,7 +189,10 @@ export function VehicleItemForm({
         </Field>
 
         <Field label="Currency" htmlFor="currency">
-          <CurrencySelect name="currency" defaultValue={state?.values?.currency ?? item?.currency} />
+          <CurrencySelect
+            name="currency"
+            defaultValue={state?.values?.currency ?? item?.currency ?? defaultCurrency}
+          />
         </Field>
       </div>
 

@@ -8,6 +8,7 @@ import { ConfirmForm } from "@/components/ConfirmForm";
 import { ProductDocumentUploadForm } from "@/components/ProductDocumentUploadForm";
 import { ProductDocumentList } from "@/components/ProductDocumentList";
 import { daysUntil, formatCurrency, formatDate } from "@/lib/utils";
+import { getUserPreferences } from "@/lib/userPreferences";
 
 export default async function ProductDetailPage({
   params,
@@ -15,10 +16,13 @@ export default async function ProductDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const product = await prisma.product.findUnique({
-    where: { id },
-    include: { documents: { orderBy: { uploadedAt: "desc" } }, createdBy: true },
-  });
+  const [product, { dateFormat }] = await Promise.all([
+    prisma.product.findUnique({
+      where: { id },
+      include: { documents: { orderBy: { uploadedAt: "desc" } }, createdBy: true },
+    }),
+    getUserPreferences(),
+  ]);
   if (!product) notFound();
 
   const days = daysUntil(product.warrantyEndDate);
@@ -78,8 +82,8 @@ export default async function ProductDetailPage({
           <Detail label="Vendor / retailer" value={product.vendor ?? "—"} />
           <Detail label="Serial number" value={product.serialNumber ?? "—"} />
           <Detail label="Barcode" value={product.barcode ?? "—"} />
-          <Detail label="Purchase date" value={formatDate(product.purchaseDate)} />
-          <Detail label="Warranty end date" value={formatDate(product.warrantyEndDate)} />
+          <Detail label="Purchase date" value={formatDate(product.purchaseDate, dateFormat)} />
+          <Detail label="Warranty end date" value={formatDate(product.warrantyEndDate, dateFormat)} />
           <Detail
             label="Price"
             value={product.price != null ? formatCurrency(product.price, product.currency) : "—"}
@@ -96,14 +100,14 @@ export default async function ProductDetailPage({
 
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <h2 className="mb-3 font-medium">Documents</h2>
-        <ProductDocumentList documents={product.documents} />
+        <ProductDocumentList documents={product.documents} dateFormat={dateFormat} />
         <div className="mt-4 border-t border-border pt-4">
           <ProductDocumentUploadForm action={boundUpload} />
         </div>
       </div>
 
       <p className="text-xs text-foreground/40">
-        Added by {product.createdBy.name} on {formatDate(product.createdAt)}
+        Added by {product.createdBy.name} on {formatDate(product.createdAt, dateFormat)}
       </p>
     </div>
   );

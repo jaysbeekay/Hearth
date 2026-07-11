@@ -145,6 +145,9 @@ model User {
   aiApiKeyEncrypted String?
   aiModel           String?
   icalToken         String?    @unique
+  dateFormat        String     @default("DD/MM/YYYY")
+  preferredCurrency String     @default("AUD")
+  timezone          String     @default("UTC")
   createdAt         DateTime   @default(now())
   contracts         Contract[]
   products          Product[]

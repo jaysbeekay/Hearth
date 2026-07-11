@@ -3,13 +3,17 @@ import Link from "next/link";
 import { DatabaseBackup, KeyRound, LayoutGrid, Settings2, Users, Webhook } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { updateNotificationPreferences } from "@/lib/actions/auth";
+import { updateNotificationPreferences, updateUserPreferences } from "@/lib/actions/auth";
 import { isEncryptionConfigured } from "@/lib/env";
 import { env } from "@/lib/env";
 import { isSmtpConfigured, isNtfyConfigured } from "@/lib/appSettings";
+import { DATE_FORMAT_OPTIONS, DATE_FORMAT_LABELS } from "@/lib/utils";
+import { TIMEZONE_OPTIONS } from "@/lib/userPreferences";
 import { ChangePasswordForm } from "@/components/ChangePasswordForm";
 import { AiSettingsForm } from "@/components/AiSettingsForm";
 import { IcalTokenSection } from "@/components/IcalTokenSection";
+import { CurrencySelect } from "@/components/CurrencySelect";
+import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -111,6 +115,72 @@ export default async function SettingsPage() {
           >
             Save
           </button>
+        </form>
+      </section>
+
+      <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+        <h2 className="mb-3 font-medium">Preferences</h2>
+        <p className="mb-3 text-sm text-foreground/60">
+          Localisation used throughout the app — dates, default currency for new records, and
+          your timezone.
+        </p>
+        <form action={updateUserPreferences} className="grid gap-4 sm:grid-cols-3">
+          <div className="space-y-1">
+            <label htmlFor="dateFormat" className="text-sm font-medium">
+              Date format
+            </label>
+            <SelectWrapper>
+              <select
+                id="dateFormat"
+                name="dateFormat"
+                defaultValue={user.dateFormat}
+                className={selectClass}
+              >
+                {DATE_FORMAT_OPTIONS.map((value) => (
+                  <option key={value} value={value}>
+                    {DATE_FORMAT_LABELS[value]}
+                  </option>
+                ))}
+              </select>
+            </SelectWrapper>
+          </div>
+          <div className="space-y-1">
+            <label htmlFor="preferredCurrency" className="text-sm font-medium">
+              Default currency
+            </label>
+            <CurrencySelect
+              id="preferredCurrency"
+              name="preferredCurrency"
+              defaultValue={user.preferredCurrency}
+            />
+          </div>
+          <div className="space-y-1">
+            <label htmlFor="timezone" className="text-sm font-medium">
+              Timezone
+            </label>
+            <SelectWrapper>
+              <select
+                id="timezone"
+                name="timezone"
+                defaultValue={user.timezone}
+                className={selectClass}
+              >
+                {TIMEZONE_OPTIONS.map((tz) => (
+                  <option key={tz} value={tz}>
+                    {tz}
+                  </option>
+                ))}
+              </select>
+            </SelectWrapper>
+          </div>
+          <div className="sm:col-span-3">
+            <button
+              type="submit"
+              className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
+            >
+              Save preferences
+            </button>
+          </div>
         </form>
       </section>
 
