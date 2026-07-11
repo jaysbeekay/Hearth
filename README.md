@@ -97,9 +97,25 @@ Everything else is optional. Set `SMTP_*` to enable email reminders, `NTFY_*` fo
 | --- | --- |
 | ![Vehicle detail](docs/screenshots/vehicle-detail.png) | ![Home list](docs/screenshots/home-list.png) |
 
-| Property detail | Settings — modules |
+| Property detail — map | Settings — modules |
 | --- | --- |
 | ![Property detail](docs/screenshots/property-detail.png) | ![Settings — modules](docs/screenshots/settings-modules.png) |
+
+| Spend — yearly view | Contract — linked rental agreement |
+| --- | --- |
+| ![Spend](docs/screenshots/spend.png) | ![Contract rental link](docs/screenshots/contract-rental-link.png) |
+
+| Settings — household members | Settings — AI provider |
+| --- | --- |
+| ![Settings — household](docs/screenshots/settings-household.png) | ![Settings — AI](docs/screenshots/settings-ai.png) |
+
+| Two-factor setup | Two-factor recovery codes |
+| --- | --- |
+| ![TOTP setup](docs/screenshots/settings-totp-setup.png) | ![TOTP recovery codes](docs/screenshots/settings-totp-codes.png) |
+
+| Forgot password |  |
+| --- | --- |
+| ![Forgot password](docs/screenshots/forgot-password.png) |  |
 
 ## Tech stack
 
