@@ -115,6 +115,12 @@ export const RENEWAL_LABELS: Record<string, string> = {
   FIXED_TERM: "Fixed term (ends, no renewal)",
 };
 
+export const ROLE_LABELS: Record<string, string> = {
+  ADMIN: "Admin",
+  MEMBER: "Member",
+  READONLY: "Read-only",
+};
+
 export const TRIP_SEGMENT_TYPE_LABELS: Record<string, string> = {
   FLIGHT: "Flight",
   LODGING: "Lodging",

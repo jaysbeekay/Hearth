@@ -179,7 +179,7 @@ export function ContractListClient({
         <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-foreground/60">
           {q || category || status
             ? "No contracts match your search or filters."
-            : "No contracts yet. Add your first contract to get started."}
+            : "No contracts yet. Add one manually, or upload a PDF and we'll fill in the details."}
         </p>
       ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">

@@ -64,7 +64,7 @@ export function VehicleListClient({ vehicles, dateFormat, canWrite = true }: Pro
 
       {vehicles.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-foreground/60">
-          No vehicles yet. Add your first vehicle to start tracking rego, insurance, and service history.
+          No vehicles yet. Add your first vehicle to start tracking registration, insurance, and service history.
         </p>
       ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">

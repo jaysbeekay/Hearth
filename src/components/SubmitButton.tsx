@@ -7,10 +7,12 @@ export function SubmitButton({
   children,
   className,
   variant = "primary",
+  pendingText = "Saving…",
 }: {
   children: React.ReactNode;
   className?: string;
   variant?: "primary" | "danger" | "secondary";
+  pendingText?: string;
 }) {
   const { pending } = useFormStatus();
 
@@ -30,7 +32,7 @@ export function SubmitButton({
         className,
       )}
     >
-      {pending ? "Saving…" : children}
+      {pending ? pendingText : children}
     </button>
   );
 }

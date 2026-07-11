@@ -16,7 +16,7 @@ export const MODULE_REGISTRY: Record<ModuleKey, ModuleDefinition> = {
   TRAVEL: {
     key: "TRAVEL",
     label: "Travel",
-    description: "Plan trips and track flights, lodging, and activities — like TripIt.",
+    description: "Plan trips and track flights, lodging, and activities.",
     icon: Plane,
     href: "/travel",
   },
@@ -30,7 +30,7 @@ export const MODULE_REGISTRY: Record<ModuleKey, ModuleDefinition> = {
   VEHICLES: {
     key: "VEHICLES",
     label: "Vehicles",
-    description: "Track cars, rego, insurance, and service history — with expiry reminders.",
+    description: "Track cars, registration, insurance, and service history — with expiry reminders.",
     icon: Car,
     href: "/vehicles",
   },

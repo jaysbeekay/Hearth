@@ -83,7 +83,9 @@ export function SetupForm() {
 
       <FormMessage error={state?.error} success={state?.success} />
 
-      <SubmitButton className="w-full">Create admin account</SubmitButton>
+      <SubmitButton className="w-full" pendingText="Creating account…">
+        Create admin account
+      </SubmitButton>
     </form>
   );
 }

@@ -10,7 +10,7 @@ export default async function NewVehiclePage() {
       <div>
         <h1 className="text-2xl font-semibold">Add a vehicle</h1>
         <p className="text-sm text-foreground/60">
-          Track rego, insurance, and service history for this vehicle.
+          Track registration, insurance, and service history for this vehicle.
         </p>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">

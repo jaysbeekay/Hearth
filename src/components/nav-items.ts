@@ -10,9 +10,9 @@ export interface NavItem {
 const BASE_NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/contracts", label: "Contracts", icon: FileText },
-  { href: "/products", label: "Products", icon: Package },
+  { href: "/products", label: "Warranties", icon: Package },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
-  { href: "/spend", label: "Spend", icon: TrendingUp },
+  { href: "/spend", label: "Spending", icon: TrendingUp },
 ];
 
 export function getNavItems(enabledModules: Set<ModuleKey>): NavItem[] {

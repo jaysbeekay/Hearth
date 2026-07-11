@@ -90,7 +90,9 @@ export function LoginForm({ smtpConfigured = false }: { smtpConfigured?: boolean
 
         <FormMessage error={state?.error} success={state?.success} />
 
-        <SubmitButton className="w-full">{totpRequired ? "Verify" : "Sign in"}</SubmitButton>
+        <SubmitButton className="w-full" pendingText={totpRequired ? "Verifying…" : "Signing in…"}>
+          {totpRequired ? "Verify" : "Sign in"}
+        </SubmitButton>
       </form>
 
       {!totpRequired && (
