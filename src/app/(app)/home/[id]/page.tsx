@@ -9,6 +9,7 @@ import { addPropertyValuation, deletePropertyValuation } from "@/lib/actions/wea
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { HomeItemDocumentList } from "@/components/HomeItemDocumentList";
+import { PropertyMap } from "@/components/PropertyMap";
 import { HOME_ITEM_TYPE_LABELS, formatCurrency, formatDate } from "@/lib/utils";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { getUserPreferences } from "@/lib/userPreferences";
@@ -84,6 +85,10 @@ export default async function PropertyDetailPage({
           </ConfirmForm>
         </div>
       </div>
+
+      {property.lat != null && property.lng != null && (
+        <PropertyMap lat={property.lat} lng={property.lng} label={property.label} />
+      )}
 
       {property.notes && (
         <div className="rounded-xl border border-border bg-surface p-4 md:p-6">

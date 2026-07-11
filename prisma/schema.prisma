@@ -439,6 +439,8 @@ model Property {
   id          String  @id @default(cuid())
   label       String
   address     String?
+  lat         Float?
+  lng         Float?
   notes       String?
   isRented    Boolean @default(false)
 

@@ -19,7 +19,7 @@ import { formDataToStringValues } from "@/lib/form-state";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import type { ActionState } from "@/lib/actions/auth";
 
-const PROPERTY_FORM_FIELDS = ["label", "address", "notes"];
+const PROPERTY_FORM_FIELDS = ["label", "address", "lat", "lng", "notes"];
 
 const RENTAL_AGREEMENT_FORM_FIELDS = [
   "tenantName",
@@ -90,6 +90,8 @@ function formToPropertyInput(formData: FormData) {
   return {
     label: formData.get("label"),
     address: formData.get("address"),
+    lat: formData.get("lat"),
+    lng: formData.get("lng"),
     notes: formData.get("notes"),
   };
 }

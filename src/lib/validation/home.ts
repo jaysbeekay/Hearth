@@ -8,6 +8,12 @@ const emptyToUndefined = (val: unknown) =>
 export const propertySchema = z.object({
   label: z.string().trim().min(1, "Label is required").max(200),
   address: z.preprocess(emptyToUndefined, z.string().trim().max(300).optional()),
+  lat: z
+    .preprocess(emptyToUndefined, z.coerce.number().min(-90).max(90).optional())
+    .transform((v) => v ?? null),
+  lng: z
+    .preprocess(emptyToUndefined, z.coerce.number().min(-180).max(180).optional())
+    .transform((v) => v ?? null),
   notes: z.preprocess(emptyToUndefined, z.string().trim().max(5000).optional()),
 });
 
