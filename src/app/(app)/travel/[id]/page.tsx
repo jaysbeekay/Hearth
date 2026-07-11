@@ -9,6 +9,7 @@ import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { TripSegmentDocumentList } from "@/components/TripSegmentDocumentList";
+import { RecordMeta } from "@/components/RecordMeta";
 import { TRIP_SEGMENT_TYPE_LABELS, formatCurrency, formatDate } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { shouldAutoRefresh, FLIGHT_STATUS_LABELS, flightStatusColour, refreshFlightStatus } from "@/lib/integrations/flightStatus";
@@ -292,9 +293,12 @@ export default async function TripDetailPage({
         )}
       </div>
 
-      <p className="text-xs text-foreground/40">
-        Added by {trip.createdBy.name} on {formatDate(trip.createdAt, dateFormat)}
-      </p>
+      <RecordMeta
+        createdByName={trip.createdBy.name}
+        createdAt={trip.createdAt}
+        updatedAt={trip.updatedAt}
+        dateFormat={dateFormat}
+      />
     </div>
   );
 }

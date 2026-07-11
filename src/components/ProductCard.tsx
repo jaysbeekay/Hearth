@@ -7,7 +7,7 @@ export function ProductCard({
   product,
   dateFormat,
 }: {
-  product: ProductModel;
+  product: ProductModel & { _count?: { documents: number } };
   dateFormat?: string;
 }) {
   const days = daysUntil(product.warrantyEndDate);
@@ -40,6 +40,12 @@ export function ProductCard({
           <span className="tabular-nums">{formatCurrency(product.price, product.currency)}</span>
         )}
       </div>
+
+      {product._count != null && product._count.documents > 0 && (
+        <p className="mt-1 text-xs text-muted tabular-nums">
+          {product._count.documents} {product._count.documents === 1 ? "doc" : "docs"}
+        </p>
+      )}
     </Link>
   );
 }

@@ -9,6 +9,7 @@ import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { VehicleItemDocumentList } from "@/components/VehicleItemDocumentList";
+import { RecordMeta } from "@/components/RecordMeta";
 import { VEHICLE_ITEM_TYPE_LABELS, formatCurrency, formatDate } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 
@@ -191,9 +192,12 @@ export default async function VehicleDetailPage({
         )}
       </div>
 
-      <p className="text-xs text-foreground/40">
-        Added by {vehicle.createdBy.name} on {formatDate(vehicle.createdAt, dateFormat)}
-      </p>
+      <RecordMeta
+        createdByName={vehicle.createdBy.name}
+        createdAt={vehicle.createdAt}
+        updatedAt={vehicle.updatedAt}
+        dateFormat={dateFormat}
+      />
     </div>
   );
 }

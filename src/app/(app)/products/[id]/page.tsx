@@ -8,6 +8,7 @@ import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { ProductDocumentUploadForm } from "@/components/ProductDocumentUploadForm";
 import { ProductDocumentList } from "@/components/ProductDocumentList";
+import { RecordMeta } from "@/components/RecordMeta";
 import { daysUntil, formatCurrency, formatDate } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 
@@ -109,9 +110,12 @@ export default async function ProductDetailPage({
         </div>
       </div>
 
-      <p className="text-xs text-foreground/40">
-        Added by {product.createdBy.name} on {formatDate(product.createdAt, dateFormat)}
-      </p>
+      <RecordMeta
+        createdByName={product.createdBy.name}
+        createdAt={product.createdAt}
+        updatedAt={product.updatedAt}
+        dateFormat={dateFormat}
+      />
     </div>
   );
 }

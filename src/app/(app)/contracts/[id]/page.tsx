@@ -8,6 +8,7 @@ import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { DocumentList } from "@/components/DocumentList";
+import { RecordMeta } from "@/components/RecordMeta";
 import {
   CATEGORY_LABELS,
   BILLING_LABELS,
@@ -186,9 +187,12 @@ export default async function ContractDetailPage({
         </div>
       </div>
 
-      <p className="text-xs text-foreground/40">
-        Added by {contract.createdBy.name} on {formatDate(contract.createdAt, dateFormat)}
-      </p>
+      <RecordMeta
+        createdByName={contract.createdBy.name}
+        createdAt={contract.createdAt}
+        updatedAt={contract.updatedAt}
+        dateFormat={dateFormat}
+      />
     </div>
   );
 }

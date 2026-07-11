@@ -148,7 +148,7 @@ export function ProductForm({
           <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
             <p className="flex items-center gap-2 text-sm font-medium">
               <Upload size={16} />
-              Upload an invoice to auto-fill fields (optional)
+              Save time: upload an invoice and Hearth fills in the details
             </p>
             <FileDropZone name="invoiceFile" onFileSelected={handleFileChange} />
             {scanning && (

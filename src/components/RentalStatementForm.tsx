@@ -98,7 +98,7 @@ export function RentalStatementForm({
         <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
           <p className="flex items-center gap-2 text-sm font-medium">
             <Upload size={16} />
-            Upload a rental statement or invoice to auto-fill fields (optional)
+            Save time: upload a rental statement or invoice and Hearth fills in the details
           </p>
           <FileDropZone name="file" onFileSelected={handleFileChange} />
           {scanning && (
