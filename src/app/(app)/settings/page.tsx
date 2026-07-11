@@ -93,7 +93,7 @@ export default async function SettingsPage() {
         <p className="mb-3 text-sm text-foreground/60">
           Expiry reminders are sent by email{ntfyConfigured ? " and push (ntfy)" : ""}.{" "}
           {!smtpConfigured && !ntfyConfigured && (
-            <span className="text-amber-600 dark:text-amber-400">
+            <span className="text-warning">
               No notification channel is configured yet — configure SMTP or ntfy in{" "}
               <Link href="/settings/app" className="underline">System settings</Link>.
             </span>
@@ -199,7 +199,7 @@ export default async function SettingsPage() {
             <AiSettingsForm provider={user.aiProvider} model={user.aiModel} />
           </>
         ) : (
-          <p className="text-sm text-amber-600 dark:text-amber-400">
+          <p className="text-sm text-warning">
             Set ENCRYPTION_KEY on the server to enable bringing your own AI provider key.
           </p>
         )}
@@ -222,7 +222,7 @@ export default async function SettingsPage() {
           {isEncryptionConfigured() ? (
             <TotpSection enabled={user.totpEnabled} />
           ) : (
-            <p className="text-sm text-amber-600 dark:text-amber-400">
+            <p className="text-sm text-warning">
               Set ENCRYPTION_KEY on the server to enable two-factor authentication.
             </p>
           )}

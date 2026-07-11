@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createContract } from "@/lib/actions/contracts";
 import { ContractForm } from "@/components/ContractForm";
 import { getUserPreferences } from "@/lib/userPreferences";
@@ -11,6 +12,14 @@ export default async function NewContractPage() {
         <h1 className="text-2xl font-semibold">Add a contract</h1>
         <p className="text-sm text-foreground/60">
           Capture the key details so you never miss a renewal or cancellation deadline.
+        </p>
+        <p className="mt-1 text-xs text-muted">
+          Contracts are ongoing agreements — leases, subscriptions, insurance. For a single
+          purchased item under warranty, try{" "}
+          <Link href="/products/new" className="text-accent hover:underline">
+            add a product
+          </Link>{" "}
+          instead.
         </p>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">

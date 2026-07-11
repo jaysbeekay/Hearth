@@ -16,7 +16,17 @@ export default async function NewInventoryItemPage() {
           ← Back to inventory
         </Link>
       </div>
-      <h1 className="text-2xl font-semibold">Add item</h1>
+      <div>
+        <h1 className="text-2xl font-semibold">Add item</h1>
+        <p className="mt-1 text-xs text-muted">
+          Inventory is a catalogue of what you own — no warranty tracking. Need to track a
+          warranty instead? Try{" "}
+          <Link href="/products/new" className="text-accent hover:underline">
+            add a product
+          </Link>
+          .
+        </p>
+      </div>
       <InventoryItemForm action={createInventoryItem} />
     </div>
   );

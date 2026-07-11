@@ -49,7 +49,8 @@ export function WebhookActions({
         <ConfirmForm
           action={deleteWebhookEndpoint.bind(null, endpointId)}
           confirmText={`Remove the "${name}" webhook?`}
-          className="text-foreground/50 hover:text-danger"
+          ariaLabel={`Remove webhook ${name}`}
+          className="rounded-md p-2 text-foreground/50 hover:text-danger"
         >
           <Trash2 size={16} />
         </ConfirmForm>

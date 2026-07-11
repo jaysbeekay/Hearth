@@ -1,4 +1,8 @@
+"use client";
+
+import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
+import { showToast } from "@/components/Toast";
 
 export function FormMessage({
   error,
@@ -7,6 +11,15 @@ export function FormMessage({
   error?: string | null;
   success?: string | null;
 }) {
+  const lastShown = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (success && success !== lastShown.current) {
+      showToast(success);
+      lastShown.current = success;
+    }
+  }, [success]);
+
   if (!error && !success) return null;
 
   return (

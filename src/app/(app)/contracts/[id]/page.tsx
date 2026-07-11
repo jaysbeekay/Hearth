@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { addDocument, deleteContract, setContractStatus } from "@/lib/actions/contracts";
 import { ExpiryBadge } from "@/components/ExpiryBadge";
 import { ConfirmForm } from "@/components/ConfirmForm";
+import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { DocumentList } from "@/components/DocumentList";
 import {
@@ -81,14 +82,16 @@ export default async function ContractDetailPage({
             {cancelled ? <RotateCcw size={16} /> : <Ban size={16} />}
             {cancelled ? "Reactivate" : "Cancel"}
           </ConfirmForm>
-          <ConfirmForm
-            action={deleteContract.bind(null, contract.id)}
-            confirmText="Delete this contract and all its documents? This cannot be undone."
-            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
-          >
-            <Trash2 size={16} />
-            Delete
-          </ConfirmForm>
+          <DetailOverflowMenu>
+            <ConfirmForm
+              action={deleteContract.bind(null, contract.id)}
+              confirmText="Delete this contract and all its documents? This cannot be undone."
+              className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
+            >
+              <Trash2 size={16} />
+              Delete
+            </ConfirmForm>
+          </DetailOverflowMenu>
         </div>
       </div>
 

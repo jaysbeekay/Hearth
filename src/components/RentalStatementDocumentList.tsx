@@ -31,8 +31,9 @@ export function RentalStatementDocumentList({
           </a>
           <ConfirmForm
             action={deleteRentalStatementDocumentAction.bind(null, doc.rentalStatementId, doc.id)}
-            confirmText={`Delete "${doc.filename}"?`}
-            className="text-foreground/50 hover:text-danger"
+            confirmText={`Delete ${doc.filename}? This can't be undone.`}
+            ariaLabel={`Delete ${doc.filename}`}
+            className="rounded-md p-2 text-foreground/50 hover:text-danger"
           >
             <Trash2 size={16} />
           </ConfirmForm>

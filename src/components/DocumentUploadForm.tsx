@@ -5,6 +5,7 @@ import { Upload } from "lucide-react";
 import type { ActionState } from "@/lib/actions/contracts";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
+import { FileDropZone } from "@/components/FileDropZone";
 
 export function DocumentUploadForm({
   action,
@@ -22,19 +23,11 @@ export function DocumentUploadForm({
 
   return (
     <form ref={formRef} action={formAction} className="space-y-3">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <input
-          type="file"
-          name="file"
-          required
-          accept=".pdf,.doc,.docx,image/*"
-          className="flex-1 text-sm"
-        />
-        <SubmitButton className="shrink-0">
-          <Upload size={16} className="mr-2" />
-          Upload
-        </SubmitButton>
-      </div>
+      <FileDropZone name="file" required />
+      <SubmitButton>
+        <Upload size={16} className="mr-2" />
+        Upload
+      </SubmitButton>
       <FormMessage error={state?.error} success={state?.success} />
     </form>
   );

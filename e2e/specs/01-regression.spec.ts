@@ -27,7 +27,9 @@ test("all nav items appear together on one page", async ({ page }) => {
   await page.goto("/dashboard");
   const body = page.locator("body");
   await expect(body).toContainText("Contracts");
-  await expect(body).toContainText("Products");
+  // Products' nav label reads "Warranties" (matches what users search for);
+  // the /products route, page heading, and data model are unchanged.
+  await expect(body).toContainText("Warranties");
   await expect(body).toContainText("Travel");
   await expect(body).toContainText("Settings");
 });

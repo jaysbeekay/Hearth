@@ -411,7 +411,8 @@ export default async function HoldingPage({
                       </Link>
                       <ConfirmForm
                         action={deleteTrade.bind(null, holdingId, trade.id)}
-                        confirmText="Delete this trade?"
+                        confirmText="Delete this trade? This can't be undone."
+                        ariaLabel={`Delete trade from ${formatDate(trade.date, dateFormat)}`}
                         className="rounded-lg border border-border p-2 text-danger hover:bg-danger/10"
                       >
                         <Trash2 size={14} />
@@ -433,8 +434,9 @@ export default async function HoldingPage({
                             </a>
                             <ConfirmForm
                               action={deleteTradeDocumentAction.bind(null, holdingId, trade.id, doc.id)}
-                              confirmText={`Remove "${doc.filename}"?`}
-                              className="text-danger hover:text-danger/70"
+                              confirmText={`Remove ${doc.filename}? This can't be undone.`}
+                              ariaLabel={`Remove ${doc.filename}`}
+                              className="rounded p-1 text-danger hover:text-danger/70"
                             >
                               <Trash2 size={12} />
                             </ConfirmForm>

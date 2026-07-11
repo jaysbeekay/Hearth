@@ -8,6 +8,7 @@ import { FormMessage } from "@/components/FormMessage";
 import { TRADE_TYPES, TRADE_TYPE_LABELS } from "@/lib/validation/wealth";
 import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 import { CurrencySelect } from "@/components/CurrencySelect";
+import { FileDropZone } from "@/components/FileDropZone";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -204,11 +205,8 @@ export function TradeForm({
       </div>
 
       <div>
-        <label className="block text-sm font-medium mb-1">Attach document (optional)</label>
-        <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2 text-sm text-foreground/60 hover:border-accent/50">
-          <span>Choose file…</span>
-          <input name="file" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" className="sr-only" />
-        </label>
+        <p className="block text-sm font-medium mb-1">Attach document (optional)</p>
+        <FileDropZone name="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" />
         <p className="mt-1 text-xs text-foreground/40">PDF, image, or Word — max 15MB</p>
       </div>
 

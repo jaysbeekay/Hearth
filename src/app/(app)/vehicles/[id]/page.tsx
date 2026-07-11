@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { deleteVehicle, deleteVehicleItem, addVehicleItemDocument } from "@/lib/actions/vehicles";
 import { ConfirmForm } from "@/components/ConfirmForm";
+import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { VehicleItemDocumentList } from "@/components/VehicleItemDocumentList";
 import { VEHICLE_ITEM_TYPE_LABELS, formatCurrency, formatDate } from "@/lib/utils";
@@ -73,14 +74,16 @@ export default async function VehicleDetailPage({
             <Pencil size={16} />
             Edit
           </Link>
-          <ConfirmForm
-            action={deleteVehicle.bind(null, vehicle.id)}
-            confirmText="Delete this vehicle and all its records and documents? This cannot be undone."
-            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
-          >
-            <Trash2 size={16} />
-            Delete
-          </ConfirmForm>
+          <DetailOverflowMenu>
+            <ConfirmForm
+              action={deleteVehicle.bind(null, vehicle.id)}
+              confirmText="Delete this vehicle and all its records and documents? This cannot be undone."
+              className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
+            >
+              <Trash2 size={16} />
+              Delete
+            </ConfirmForm>
+          </DetailOverflowMenu>
         </div>
       </div>
 

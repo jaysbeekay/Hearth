@@ -13,6 +13,7 @@ import {
   saveDocument,
 } from "@/lib/storage";
 import { formDataToStringValues } from "@/lib/form-state";
+import { formToContractInput } from "@/lib/formMappers";
 
 export type ActionState = {
   error?: string;
@@ -69,29 +70,6 @@ async function attachDocument(contractId: string, file: File): Promise<ActionSta
     },
   });
   return null;
-}
-
-function formToContractInput(formData: FormData) {
-  return {
-    title: formData.get("title"),
-    category: formData.get("category"),
-    provider: formData.get("provider"),
-    contractNumber: formData.get("contractNumber"),
-    startDate: formData.get("startDate"),
-    endDate: formData.get("endDate"),
-    renewalType: formData.get("renewalType"),
-    noticePeriodDays: formData.get("noticePeriodDays"),
-    cost: formData.get("cost"),
-    currency: formData.get("currency") || "AUD",
-    billingFrequency: formData.get("billingFrequency"),
-    status: formData.get("status") || "ACTIVE",
-    contactName: formData.get("contactName"),
-    contactPhone: formData.get("contactPhone"),
-    contactEmail: formData.get("contactEmail"),
-    notes: formData.get("notes"),
-    reminderDaysBefore: formData.get("reminderDaysBefore"),
-    isTaxDeductible: formData.get("isTaxDeductible") === "on",
-  };
 }
 
 export async function createContract(

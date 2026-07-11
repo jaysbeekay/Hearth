@@ -61,15 +61,16 @@ export function expiryLabel(days: number | null): string {
 
 export const CATEGORY_LABELS: Record<string, string> = {
   RENTAL: "Rental",
-  CAR_INSURANCE: "Car Insurance",
-  HOME_INSURANCE: "Home Insurance",
-  STRATA_INSURANCE: "Strata Insurance",
-  HEALTH_INSURANCE: "Health Insurance",
-  LIFE_INSURANCE: "Life Insurance",
+  CAR_INSURANCE: "Car insurance",
+  HOME_INSURANCE: "Home insurance",
+  STRATA_INSURANCE: "Strata insurance (body corporate / HOA)",
+  HEALTH_INSURANCE: "Health insurance",
+  LIFE_INSURANCE: "Life insurance",
   UTILITY: "Utility",
   TELECOM: "Telecom",
   SUBSCRIPTION: "Subscription",
   LOAN: "Loan",
+  WARRANTY: "Warranty",
   OTHER: "Other",
 };
 
@@ -113,6 +114,12 @@ export const RENEWAL_LABELS: Record<string, string> = {
   AUTO_RENEW: "Auto-renews",
   MANUAL_RENEWAL: "Manual renewal",
   FIXED_TERM: "Fixed term (ends, no renewal)",
+};
+
+export const ROLE_LABELS: Record<string, string> = {
+  ADMIN: "Admin",
+  MEMBER: "Member",
+  READONLY: "Read-only",
 };
 
 export const TRIP_SEGMENT_TYPE_LABELS: Record<string, string> = {

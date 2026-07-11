@@ -7,7 +7,7 @@ import { deleteUser } from "@/lib/actions/auth";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { CreateUserForm } from "@/components/CreateUserForm";
 import { MemberRoleForm } from "@/components/MemberRoleForm";
-import { formatDate } from "@/lib/utils";
+import { formatDate, ROLE_LABELS } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 
 export const metadata: Metadata = { title: "Household members" };
@@ -35,7 +35,7 @@ export default async function ManageUsersPage() {
                 <p className="text-sm font-medium">
                   {user.name}{" "}
                   {user.id === session.user.id && (
-                    <span className="text-foreground/50">· {user.role}</span>
+                    <span className="text-foreground/50">· {ROLE_LABELS[user.role] ?? user.role}</span>
                   )}
                 </p>
                 <p className="text-xs text-foreground/50">
@@ -48,7 +48,8 @@ export default async function ManageUsersPage() {
                   <ConfirmForm
                     action={deleteUser.bind(null, user.id)}
                     confirmText={`Remove ${user.name} from the household?`}
-                    className="text-foreground/50 hover:text-danger"
+                    ariaLabel={`Remove ${user.name} from the household`}
+                    className="rounded-md p-2 text-foreground/50 hover:text-danger"
                   >
                     <Trash2 size={16} />
                   </ConfirmForm>

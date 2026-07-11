@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Plus, ChevronDown } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Plus, ChevronDown, X } from "lucide-react";
 import { SelectWrapper } from "@/components/SelectWrapper";
 import { ContractCard } from "@/components/ContractCard";
 import type { ContractModel } from "@/generated/prisma/models";
 import { CATEGORY_LABELS } from "@/lib/utils";
 import { cachePageData } from "@/lib/offlineCache";
+
+const STATUS_LABELS: Record<string, string> = { ACTIVE: "Active", CANCELLED: "Cancelled" };
 
 interface Props {
   contracts: ContractModel[];
@@ -27,6 +30,17 @@ export function ContractListClient({
   canWrite = true,
 }: Props) {
   const [online, setOnline] = useState(true);
+  const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  function removeFilter(key: "q" | "category" | "status") {
+    const params = new URLSearchParams();
+    if (key !== "q" && q) params.set("q", q);
+    if (key !== "category" && category) params.set("category", category);
+    if (key !== "status" && status) params.set("status", status);
+    router.push(`/contracts${params.toString() ? `?${params.toString()}` : ""}`);
+  }
 
   useEffect(() => {
     setOnline(navigator.onLine);
@@ -72,18 +86,23 @@ export function ContractListClient({
         </div>
       </div>
 
-      <form className="flex flex-col gap-3 md:flex-row" method="GET">
+      <form ref={formRef} className="flex flex-col gap-3 md:flex-row" method="GET">
         <input
           type="search"
           name="q"
           defaultValue={q}
           placeholder="Search by title, provider, or number…"
+          onChange={() => {
+            clearTimeout(searchTimeout.current);
+            searchTimeout.current = setTimeout(() => formRef.current?.requestSubmit(), 400);
+          }}
           className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
         />
         <SelectWrapper>
           <select
             name="category"
             defaultValue={category ?? ""}
+            onChange={(e) => e.currentTarget.form?.requestSubmit()}
             className="rounded-lg border border-border bg-background px-3 h-9 text-sm outline-none focus:border-accent appearance-none pr-8"
           >
             <option value="">All categories</option>
@@ -98,6 +117,7 @@ export function ContractListClient({
           <select
             name="status"
             defaultValue={status ?? ""}
+            onChange={(e) => e.currentTarget.form?.requestSubmit()}
             className="rounded-lg border border-border bg-background px-3 h-9 text-sm outline-none focus:border-accent appearance-none pr-8"
           >
             <option value="">All statuses</option>
@@ -113,11 +133,53 @@ export function ContractListClient({
         </button>
       </form>
 
+      {(q || category || status) && (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-muted">
+            {contracts.length} {contracts.length === 1 ? "contract" : "contracts"}
+          </span>
+          {q && (
+            <button
+              type="button"
+              onClick={() => removeFilter("q")}
+              className="flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/5"
+            >
+              &quot;{q}&quot; <X size={12} />
+            </button>
+          )}
+          {category && (
+            <button
+              type="button"
+              onClick={() => removeFilter("category")}
+              className="flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/5"
+            >
+              {CATEGORY_LABELS[category] ?? category} <X size={12} />
+            </button>
+          )}
+          {status && (
+            <button
+              type="button"
+              onClick={() => removeFilter("status")}
+              className="flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/5"
+            >
+              {STATUS_LABELS[status] ?? status} <X size={12} />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => router.push("/contracts")}
+            className="text-xs text-muted underline hover:text-foreground"
+          >
+            Clear all
+          </button>
+        </div>
+      )}
+
       {contracts.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-foreground/60">
           {q || category || status
             ? "No contracts match your search or filters."
-            : "No contracts yet. Add your first contract to get started."}
+            : "No contracts yet. Add one manually, or upload a PDF and we'll fill in the details."}
         </p>
       ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
