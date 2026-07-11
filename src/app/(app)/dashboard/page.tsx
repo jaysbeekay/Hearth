@@ -7,6 +7,7 @@ import { ProductCard } from "@/components/ProductCard";
 import { VehicleCard } from "@/components/VehicleCard";
 import { TripCard } from "@/components/TripCard";
 import { StatCard } from "@/components/StatCard";
+import { AddEntryPicker } from "@/components/AddEntryPicker";
 import { daysUntil, monthlyEquivalent, formatCurrency } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
@@ -128,22 +129,7 @@ export default async function DashboardPage() {
             What&apos;s expiring, what it costs, and what needs attention.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Link
-            href="/contracts/new"
-            className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
-          >
-            <Plus size={16} />
-            Add contract
-          </Link>
-          <Link
-            href="/products/new"
-            className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
-          >
-            <Plus size={16} />
-            Add product
-          </Link>
-        </div>
+        <AddEntryPicker enabledModules={[...enabledModules]} />
       </div>
 
       {isEmpty ? (

@@ -26,6 +26,10 @@ export default async function NewHomeItemPage({
       <div>
         <h1 className="text-2xl font-semibold">Add an item</h1>
         <p className="text-sm text-foreground/60">{property.label}</p>
+        <p className="mt-1 text-xs text-muted">
+          Log a repair, maintenance visit, or improvement for this property, with receipts
+          attached.
+        </p>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <HomeItemForm action={boundAction} defaultCurrency={preferredCurrency} />
