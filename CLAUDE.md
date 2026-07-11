@@ -24,3 +24,21 @@ the affected screenshot(s) before considering the change complete:
 
 Skip this for changes that don't affect page appearance (pure backend logic,
 copy-only tweaks with no layout impact, etc.) — use judgement.
+
+## Issue logging
+
+When I give you raw feedback, classify it as `type:bug` or `type:enhancement`,
+then create it:
+
+```
+gh issue create -R jaysbeekay/jaysbeekay -t "<title>" --label "type:bug" -b "<body>"
+```
+
+Body template:
+- **Bug**: Description / Steps to Reproduce / Expected vs Actual / Affected
+  component
+- **Enhancement**: Motivation / Proposed Behavior / Acceptance Criteria
+
+Don't add the issue to the project board manually — "Auto-add to project" and
+"Item added to project → set Status" board workflows handle that automatically
+on creation.
