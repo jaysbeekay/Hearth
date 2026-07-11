@@ -11,7 +11,7 @@ export function StatCard({
 }) {
   const toneClasses = {
     default: "text-foreground",
-    warning: "text-amber-600 dark:text-amber-400",
+    warning: "text-warning",
     danger: "text-danger",
   };
 

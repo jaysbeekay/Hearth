@@ -329,7 +329,7 @@ export function ScheduleForm({
           <input id="retentionCount" name="retentionCount" type="number" min={1} defaultValue={current.retentionCount} className={inputClass} />
         </Field>
       </div>
-      <p className="text-xs text-amber-600 dark:text-amber-400">
+      <p className="text-xs text-warning">
         Cron schedule changes take effect after the next server restart.
       </p>
       <FormMessage error={state?.error} success={state?.success} />

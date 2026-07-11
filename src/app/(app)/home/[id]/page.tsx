@@ -221,6 +221,7 @@ export default async function PropertyDetailPage({
                 <ConfirmForm
                   action={deletePropertyValuation.bind(null, property.id, v.id)}
                   confirmText="Remove this valuation?"
+                  ariaLabel={`Remove valuation from ${formatDate(v.valuedAt, dateFormat)}`}
                   className="rounded-lg border border-border p-2 text-danger hover:bg-danger/10"
                 >
                   <Trash2 size={14} />

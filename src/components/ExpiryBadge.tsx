@@ -16,7 +16,7 @@ export function ExpiryBadge({
         : days <= 7
           ? "bg-danger/10 text-danger"
           : days <= 30
-            ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+            ? "bg-amber-500/10 text-warning"
             : "bg-success/10 text-success";
 
   return (

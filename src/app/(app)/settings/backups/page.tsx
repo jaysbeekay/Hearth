@@ -48,7 +48,7 @@ export default async function BackupsPage() {
         </ul>
 
         {!backupOk && (
-          <p className="mt-3 text-sm text-amber-600 dark:text-amber-400">
+          <p className="mt-3 text-sm text-warning">
             {isEncryptionConfigured()
               ? "Configure S3 or SFTP in System settings to enable offsite backups."
               : "Set ENCRYPTION_KEY, then configure S3 or SFTP in System settings to enable offsite backups. Backups are never sent unencrypted."}

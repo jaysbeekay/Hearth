@@ -48,7 +48,8 @@ export default async function ManageUsersPage() {
                   <ConfirmForm
                     action={deleteUser.bind(null, user.id)}
                     confirmText={`Remove ${user.name} from the household?`}
-                    className="text-foreground/50 hover:text-danger"
+                    ariaLabel={`Remove ${user.name} from the household`}
+                    className="rounded-md p-2 text-foreground/50 hover:text-danger"
                   >
                     <Trash2 size={16} />
                   </ConfirmForm>

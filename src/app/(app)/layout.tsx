@@ -21,6 +21,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-screen">
+      <a href="#main" className="sr-only-focusable">
+        Skip to content
+      </a>
       <Sidebar
         userName={session.user.name ?? ""}
         userEmail={session.user.email ?? ""}
@@ -30,7 +33,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <TopBar />
         <OfflineSyncManager />
         <OfflineBanner />
-        <main className="flex-1 px-4 py-6 pb-24 md:px-8 md:py-8 md:pb-8">{children}</main>
+        <main id="main" className="flex-1 px-4 py-6 pb-24 md:px-8 md:py-8 md:pb-8">
+          {children}
+        </main>
       </div>
       <BottomNav enabledModules={enabledModules} />
       <GlobalSearch />

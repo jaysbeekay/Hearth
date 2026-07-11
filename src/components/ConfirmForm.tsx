@@ -5,11 +5,13 @@ export function ConfirmForm({
   confirmText,
   children,
   className,
+  ariaLabel,
 }: {
   action: () => Promise<unknown>;
   confirmText: string;
   children: React.ReactNode;
   className?: string;
+  ariaLabel?: string;
 }) {
   return (
     <form
@@ -22,7 +24,7 @@ export function ConfirmForm({
         }
       }}
     >
-      <button type="submit" className={className}>
+      <button type="submit" className={className} aria-label={ariaLabel}>
         {children}
       </button>
     </form>

@@ -32,7 +32,8 @@ export function InventoryItemDocumentList({
           <ConfirmForm
             action={deleteInventoryItemDocumentAction.bind(null, doc.inventoryItemId, doc.id)}
             confirmText={`Delete "${doc.filename}"?`}
-            className="text-foreground/50 hover:text-danger"
+            ariaLabel={`Delete ${doc.filename}`}
+            className="rounded-md p-2 text-foreground/50 hover:text-danger"
           >
             <Trash2 size={16} />
           </ConfirmForm>
