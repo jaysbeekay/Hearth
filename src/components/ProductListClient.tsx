@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Plus, ChevronDown } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Plus, ChevronDown, X } from "lucide-react";
 import { ProductCard } from "@/components/ProductCard";
 import type { ProductModel } from "@/generated/prisma/models";
 import { cachePageData } from "@/lib/offlineCache";
@@ -16,6 +17,9 @@ interface Props {
 
 export function ProductListClient({ products, q, dateFormat, canWrite = true }: Props) {
   const [online, setOnline] = useState(true);
+  const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     setOnline(navigator.onLine);
@@ -61,12 +65,16 @@ export function ProductListClient({ products, q, dateFormat, canWrite = true }: 
         </div>
       </div>
 
-      <form className="flex flex-col gap-3 md:flex-row" method="GET">
+      <form ref={formRef} className="flex flex-col gap-3 md:flex-row" method="GET">
         <input
           type="search"
           name="q"
           defaultValue={q}
           placeholder="Search by name, manufacturer, vendor, serial number, or barcode…"
+          onChange={() => {
+            clearTimeout(searchTimeout.current);
+            searchTimeout.current = setTimeout(() => formRef.current?.requestSubmit(), 400);
+          }}
           className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
         />
         <button
@@ -76,6 +84,21 @@ export function ProductListClient({ products, q, dateFormat, canWrite = true }: 
           Filter
         </button>
       </form>
+
+      {q && (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-muted">
+            {products.length} {products.length === 1 ? "product" : "products"}
+          </span>
+          <button
+            type="button"
+            onClick={() => router.push("/products")}
+            className="flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/5"
+          >
+            &quot;{q}&quot; <X size={12} />
+          </button>
+        </div>
+      )}
 
       {products.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-foreground/60">
