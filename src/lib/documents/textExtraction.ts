@@ -95,3 +95,21 @@ export async function extractText(buffer: Buffer, mimeType: string): Promise<str
     return "";
   });
 }
+
+const MAX_SEARCHABLE_TEXT_LENGTH = 20_000;
+
+// Best-effort: called at save time so a document's full text is searchable
+// later, not just its filename. A failed/slow extraction (missing OCR
+// binaries, a corrupt file, an unsupported layout) must never block saving
+// the document itself, so every failure mode collapses to null here.
+export async function extractSearchableText(
+  buffer: Buffer,
+  mimeType: string,
+): Promise<string | null> {
+  try {
+    const text = (await extractText(buffer, mimeType)).trim();
+    return text ? text.slice(0, MAX_SEARCHABLE_TEXT_LENGTH) : null;
+  } catch {
+    return null;
+  }
+}

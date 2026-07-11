@@ -15,6 +15,7 @@ import {
 import { ProductDocumentKind } from "@/generated/prisma/enums";
 import { formDataToStringValues } from "@/lib/form-state";
 import { formToProductInput } from "@/lib/formMappers";
+import { extractSearchableText } from "@/lib/documents/textExtraction";
 
 export type ActionState = {
   error?: string;
@@ -65,6 +66,11 @@ async function attachProductDocument(
   }
 
   const { storedName, size } = await saveProductDocument(productId, file);
+  // Only invoices carry meaningful text; skip OCR on plain product photos.
+  const extractedText =
+    kind === ProductDocumentKind.INVOICE
+      ? await extractSearchableText(Buffer.from(await file.arrayBuffer()), file.type)
+      : null;
   await prisma.productDocument.create({
     data: {
       productId,
@@ -73,6 +79,7 @@ async function attachProductDocument(
       mimeType: file.type,
       size,
       kind,
+      extractedText,
     },
   });
   return null;
