@@ -7,6 +7,53 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-11
+
+### Added
+
+- **Two-factor authentication (TOTP)** — optional authenticator-app-based 2FA,
+  gated on `ENCRYPTION_KEY` being configured. Settings > Security walks through
+  QR-code setup, confirms with a 6-digit code, and shows 8 one-time recovery
+  codes for account recovery. Login prompts for a code (or a recovery code)
+  after the password step when enabled.
+- **Password reset via email** — "Forgot your password?" on the login page
+  (shown only when SMTP is configured) sends a single-use, 1-hour link.
+  Responses are identical whether or not the email matches an account, to
+  avoid leaking which addresses have accounts.
+- **Property address autocomplete + map** — property addresses now autocomplete
+  against OpenStreetMap (via a server-side proxy), and the property detail page
+  shows a Leaflet map when a location has been picked.
+- **Link rental agreements to contracts** — a Rental-category contract can be
+  linked to a property's rental agreement, surfacing tenant, lease dates, and
+  rent on both records.
+- **Ollama and OpenRouter as BYOK AI providers** — alongside Anthropic, Gemini,
+  and OpenAI, for document field extraction. Ollama uses the existing
+  system-wide connection instead of a per-user API key.
+- **Read-only household role** — a third role (alongside Admin and Member)
+  that can view all data but is blocked from creating, editing, or deleting
+  records; admins manage member roles from Settings > Household members.
+- **Yearly spend view + category breakdown** — the Spend page gains a
+  Monthly/Yearly toggle and a per-category spend breakdown.
+- **Currency dropdown** — currency fields across all forms are now a searchable
+  dropdown of ~20 common currencies instead of free text.
+- **Connection test buttons** — SMTP, ntfy, and Ollama settings each get a
+  "test connection" button that reports success or failure inline.
+- **Per-user preferences** — date format, default currency, and timezone are
+  now configurable per user and applied throughout the app (lists, detail
+  pages, exports).
+
+### Changed
+
+- Settings moved to the bottom of the sidebar, alongside sign-out.
+- The `WARRANTY` contract category was removed from the "add contract" form
+  (existing warranty contracts are unaffected).
+
+### Fixed
+
+- A blocked mutation (e.g. a read-only user attempting to save) no longer
+  crashes to a raw browser error page — it now shows a friendly in-app message
+  with a way back to the dashboard.
+
 ## [0.5.0] - 2026-07-05
 
 ### Added
