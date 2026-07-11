@@ -63,6 +63,8 @@ enum AiProvider {
   ANTHROPIC
   GEMINI
   OPENAI
+  OLLAMA
+  OPENROUTER
 }
 
 enum BackupDestination {
