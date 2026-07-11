@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { Plus, Sparkles } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { ContractCard } from "@/components/ContractCard";
 import { ProductCard } from "@/components/ProductCard";
@@ -9,59 +7,14 @@ import { TripCard } from "@/components/TripCard";
 import { StatCard } from "@/components/StatCard";
 import { AddEntryPicker } from "@/components/AddEntryPicker";
 import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
+import { OnboardingChecklist } from "@/components/OnboardingChecklist";
 import { daysUntil, monthlyEquivalent, formatCurrency } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
-import { MODULE_REGISTRY } from "@/lib/modules/registry";
 import { auth } from "@/lib/auth";
 import { isSmtpConfigured, isNtfyConfigured } from "@/lib/appSettings";
 
 export const metadata: Metadata = { title: "Dashboard" };
-
-function OnboardingHero({ enabledModules }: { enabledModules: Set<string> }) {
-  return (
-    <section className="space-y-4 rounded-xl border border-dashed border-accent/40 bg-accent/5 p-6 text-center md:p-10">
-      <Sparkles className="mx-auto text-accent" size={28} />
-      <div className="space-y-1">
-        <h2 className="text-lg font-semibold">Add your first document</h2>
-        <p className="mx-auto max-w-md text-sm text-muted">
-          Drop in a PDF and Hearth fills in the details for you — review and save in seconds.
-        </p>
-      </div>
-      <div className="flex flex-wrap items-center justify-center gap-2">
-        <Link
-          href="/contracts/new"
-          className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
-        >
-          <Plus size={16} />
-          Add a contract
-        </Link>
-        <Link
-          href="/products/new"
-          className="flex items-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
-        >
-          <Plus size={16} />
-          Add a warranty
-        </Link>
-        {[...enabledModules].map((key) => {
-          const mod = MODULE_REGISTRY[key as keyof typeof MODULE_REGISTRY];
-          if (!mod) return null;
-          const Icon = mod.icon;
-          return (
-            <Link
-              key={key}
-              href={mod.href}
-              className="flex items-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
-            >
-              <Icon size={16} />
-              {mod.label}
-            </Link>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
 
 export default async function DashboardPage() {
   const [enabledModules, { preferredCurrency }, session, smtpConfigured, ntfyConfigured] =
@@ -75,7 +28,7 @@ export default async function DashboardPage() {
   const showNotificationNudge =
     session?.user.role === "ADMIN" && !smtpConfigured && !ntfyConfigured;
 
-  const [contracts, products, vehicles, trips] = await Promise.all([
+  const [contracts, products, vehicles, trips, memberCount] = await Promise.all([
     prisma.contract.findMany({ orderBy: { endDate: "asc" } }),
     prisma.product.findMany({ orderBy: { warrantyEndDate: "asc" } }),
     enabledModules.has("VEHICLES") ? prisma.vehicle.findMany({ orderBy: { createdAt: "desc" } }) : [],
@@ -85,6 +38,7 @@ export default async function DashboardPage() {
           include: { _count: { select: { segments: true } } },
         })
       : [],
+    prisma.user.count(),
   ]);
 
   const active = contracts.filter((c) => c.status === "ACTIVE");
@@ -144,7 +98,11 @@ export default async function DashboardPage() {
       {showNotificationNudge && <NotificationNudgeBanner />}
 
       {isEmpty ? (
-        <OnboardingHero enabledModules={enabledModules} />
+        <OnboardingChecklist
+          enabledModules={[...enabledModules]}
+          memberCount={memberCount}
+          remindersConfigured={smtpConfigured || ntfyConfigured}
+        />
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
