@@ -1,5 +1,6 @@
-import { FileSignature } from "lucide-react";
+import { FileSignature, Search } from "lucide-react";
 import { SignOutButton } from "@/components/SignOutButton";
+import { openGlobalSearch } from "@/components/GlobalSearch";
 
 export function TopBar() {
   return (
@@ -8,7 +9,17 @@ export function TopBar() {
         <FileSignature size={20} className="text-accent" />
         <span className="font-semibold">Hearth</span>
       </div>
-      <SignOutButton />
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={openGlobalSearch}
+          aria-label="Search"
+          className="rounded-full p-2 text-muted hover:bg-black/5 dark:hover:bg-white/5"
+        >
+          <Search size={18} />
+        </button>
+        <SignOutButton />
+      </div>
     </header>
   );
 }

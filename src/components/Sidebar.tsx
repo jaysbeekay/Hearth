@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileSignature, Settings } from "lucide-react";
+import { FileSignature, Settings, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getNavItems } from "@/components/nav-items";
 import type { ModuleKey } from "@/lib/modules/registry";
 import { SignOutButton } from "@/components/SignOutButton";
+import { openGlobalSearch } from "@/components/GlobalSearch";
 
 function isActive(href: string, pathname: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -29,6 +30,18 @@ export function Sidebar({
       <div className="flex items-center gap-2 px-6 py-5">
         <FileSignature size={22} className="text-accent" />
         <span className="text-lg font-semibold">Hearth</span>
+      </div>
+
+      <div className="px-3 pb-3">
+        <button
+          type="button"
+          onClick={openGlobalSearch}
+          className="flex w-full items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-muted hover:bg-black/5 dark:hover:bg-white/5"
+        >
+          <Search size={16} />
+          <span className="flex-1 text-left">Search</span>
+          <kbd className="rounded border border-border px-1.5 py-0.5 text-[10px]">⌘K</kbd>
+        </button>
       </div>
 
       <nav className="flex-1 space-y-1 px-3">
