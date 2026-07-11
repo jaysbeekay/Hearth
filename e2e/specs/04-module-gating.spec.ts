@@ -7,7 +7,7 @@ test.describe.serial("module-toggle gating", () => {
   test("disabling Travel hides the nav item and redirects /travel", async ({ page }) => {
     await page.goto("/settings/modules");
     await page.locator('button:has-text("Disable")').first().click();
-    await expect(page.locator("body")).toContainText("Disabled");
+    await expect(page.locator("body")).toContainText("Module disabled.");
 
     await page.goto("/dashboard");
     await expect(page.locator("body")).not.toContainText("Travel");
@@ -21,7 +21,7 @@ test.describe.serial("module-toggle gating", () => {
   test("re-enabling Travel restores the nav item and route access", async ({ page }) => {
     await page.goto("/settings/modules");
     await page.locator('button:has-text("Enable")').first().click();
-    await expect(page.locator("body")).toContainText("Enabled");
+    await expect(page.locator("body")).toContainText("Module enabled.");
 
     await page.goto("/dashboard");
     await expect(page.locator("body")).toContainText("Travel");

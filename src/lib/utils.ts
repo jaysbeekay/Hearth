@@ -4,10 +4,29 @@ export function cn(...inputs: ClassValue[]) {
   return clsx(...inputs);
 }
 
-export function formatDate(date: Date | string | null | undefined) {
+export const DATE_FORMAT_OPTIONS = ["DD/MM/YYYY", "MM/DD/YYYY", "YYYY-MM-DD"] as const;
+export type DateFormat = (typeof DATE_FORMAT_OPTIONS)[number];
+
+export const DATE_FORMAT_LABELS: Record<DateFormat, string> = {
+  "DD/MM/YYYY": "DD/MM/YYYY (e.g. 10 Jul 2026)",
+  "MM/DD/YYYY": "MM/DD/YYYY (e.g. Jul 10, 2026)",
+  "YYYY-MM-DD": "YYYY-MM-DD (e.g. 2026-07-10)",
+};
+
+export function formatDate(
+  date: Date | string | null | undefined,
+  dateFormat?: string | null,
+) {
   if (!date) return "—";
   const d = typeof date === "string" ? new Date(date) : date;
-  return d.toLocaleDateString("en-AU", { year: "numeric", month: "short", day: "numeric" });
+  switch (dateFormat) {
+    case "MM/DD/YYYY":
+      return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+    case "YYYY-MM-DD":
+      return d.toISOString().slice(0, 10);
+    default:
+      return d.toLocaleDateString("en-AU", { year: "numeric", month: "short", day: "numeric" });
+  }
 }
 
 export function formatCurrency(amount: number | null | undefined, currency: string, fractionDigits?: number) {
@@ -51,7 +70,6 @@ export const CATEGORY_LABELS: Record<string, string> = {
   TELECOM: "Telecom",
   SUBSCRIPTION: "Subscription",
   LOAN: "Loan",
-  WARRANTY: "Warranty",
   OTHER: "Other",
 };
 

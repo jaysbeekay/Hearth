@@ -10,9 +10,11 @@ import { cachePageData } from "@/lib/offlineCache";
 interface Props {
   products: ProductModel[];
   q?: string;
+  dateFormat?: string;
+  canWrite?: boolean;
 }
 
-export function ProductListClient({ products, q }: Props) {
+export function ProductListClient({ products, q, dateFormat, canWrite = true }: Props) {
   const [online, setOnline] = useState(true);
 
   useEffect(() => {
@@ -45,15 +47,17 @@ export function ProductListClient({ products, q }: Props) {
               <a href="/api/export/products?format=pdf" download className="block px-4 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/5">PDF</a>
             </div>
           </details>
-          <Link
-            href="/products/new"
-            aria-disabled={!online}
-            tabIndex={!online ? -1 : undefined}
-            className={`flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90${!online ? " pointer-events-none opacity-40" : ""}`}
-          >
-            <Plus size={16} />
-            Add product
-          </Link>
+          {canWrite && (
+            <Link
+              href="/products/new"
+              aria-disabled={!online}
+              tabIndex={!online ? -1 : undefined}
+              className={`flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90${!online ? " pointer-events-none opacity-40" : ""}`}
+            >
+              <Plus size={16} />
+              Add product
+            </Link>
+          )}
         </div>
       </div>
 
@@ -82,7 +86,7 @@ export function ProductListClient({ products, q }: Props) {
       ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {products.map((product) => (
-            <ProductCard key={product.id} product={product} />
+            <ProductCard key={product.id} product={product} dateFormat={dateFormat} />
           ))}
         </div>
       )}

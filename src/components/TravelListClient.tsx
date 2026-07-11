@@ -11,9 +11,11 @@ type TripWithCount = TripModel & { _count: { segments: number } };
 
 interface Props {
   trips: TripWithCount[];
+  dateFormat?: string;
+  canWrite?: boolean;
 }
 
-export function TravelListClient({ trips }: Props) {
+export function TravelListClient({ trips, dateFormat, canWrite = true }: Props) {
   const [online, setOnline] = useState(true);
 
   useEffect(() => {
@@ -46,15 +48,17 @@ export function TravelListClient({ trips }: Props) {
               <a href="/api/export/travel?format=pdf" download className="block px-4 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/5">PDF</a>
             </div>
           </details>
-          <Link
-            href="/travel/new"
-            aria-disabled={!online}
-            tabIndex={!online ? -1 : undefined}
-            className={`flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90${!online ? " pointer-events-none opacity-40" : ""}`}
-          >
-            <Plus size={16} />
-            Add trip
-          </Link>
+          {canWrite && (
+            <Link
+              href="/travel/new"
+              aria-disabled={!online}
+              tabIndex={!online ? -1 : undefined}
+              className={`flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90${!online ? " pointer-events-none opacity-40" : ""}`}
+            >
+              <Plus size={16} />
+              Add trip
+            </Link>
+          )}
         </div>
       </div>
 
@@ -65,7 +69,7 @@ export function TravelListClient({ trips }: Props) {
       ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {trips.map((trip) => (
-            <TripCard key={trip.id} trip={trip} />
+            <TripCard key={trip.id} trip={trip} dateFormat={dateFormat} />
           ))}
         </div>
       )}

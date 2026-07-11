@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>Contracts</string>
+        <string>Hearth</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -25,9 +25,9 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Contracts uses the camera to scan barcodes on products and to attach photos to contracts and documents.</string>
+	<string>Hearth uses the camera to scan barcodes on products and to attach photos to contracts and documents.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Contracts needs access to your photo library so you can attach existing photos to contracts and documents.</string>
+	<string>Hearth needs access to your photo library so you can attach existing photos to contracts and documents.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

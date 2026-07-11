@@ -10,6 +10,7 @@ datasource db {
 enum Role {
   ADMIN
   MEMBER
+  READONLY
 }
 
 enum ContractCategory {
@@ -63,6 +64,8 @@ enum AiProvider {
   ANTHROPIC
   GEMINI
   OPENAI
+  OLLAMA
+  OPENROUTER
 }
 
 enum BackupDestination {
@@ -145,6 +148,9 @@ model User {
   aiApiKeyEncrypted String?
   aiModel           String?
   icalToken         String?    @unique
+  dateFormat        String     @default("DD/MM/YYYY")
+  preferredCurrency String     @default("AUD")
+  timezone          String     @default("UTC")
   createdAt         DateTime   @default(now())
   contracts         Contract[]
   products          Product[]
@@ -155,8 +161,25 @@ model User {
   vehicles          Vehicle[]
   inventoryItems    InventoryItem[]
   portfolios        Portfolio[]
+  passwordResetTokens PasswordResetToken[]
+  totpSecret          String?
+  totpEnabled         Boolean   @default(false)
+  totpRecoveryCodes   String?
 
   @@map("users")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@map("password_reset_tokens")
 }
 
 model PasskeyCredential {
@@ -212,6 +235,7 @@ model Contract {
 
   documents         Document[]
   notifications     NotificationLog[]
+  rentalAgreement   RentalAgreement?
 
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
@@ -433,6 +457,8 @@ model Property {
   id          String  @id @default(cuid())
   label       String
   address     String?
+  lat         Float?
+  lng         Float?
   notes       String?
   isRented    Boolean @default(false)
 
@@ -454,6 +480,8 @@ model RentalAgreement {
   id                   String    @id @default(cuid())
   propertyId           String
   property             Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  contractId           String?   @unique
+  contract             Contract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
   tenantName           String?
   weeklyRent           Float
   managementFeePercent Float?

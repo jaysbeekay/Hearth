@@ -8,6 +8,7 @@ import type { ActionState } from "@/lib/actions/products";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
+import { CurrencySelect } from "@/components/CurrencySelect";
 import { enqueueOperation, serializeFormData } from "@/lib/offlineQueue";
 
 function toDateInputValue(date: Date | null | undefined) {
@@ -22,9 +23,11 @@ type ExtractedFields = Partial<
 export function ProductForm({
   action,
   product,
+  defaultCurrency,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   product?: ProductModel;
+  defaultCurrency?: string;
 }) {
   const offlineAwareAction = async (
     prevState: ActionState,
@@ -293,12 +296,9 @@ export function ProductForm({
         </Field>
 
         <Field label="Currency" htmlFor="currency">
-          <input
-            id="currency"
+          <CurrencySelect
             name="currency"
-            defaultValue={state?.values?.currency ?? product?.currency ?? "AUD"}
-            maxLength={10}
-            className={inputClass}
+            defaultValue={state?.values?.currency ?? product?.currency ?? defaultCurrency}
           />
         </Field>
       </div>

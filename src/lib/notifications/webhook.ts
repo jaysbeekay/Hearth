@@ -83,7 +83,7 @@ export async function sendExpiryWebhooks(opts: {
 export async function sendTestWebhook(endpoint: Endpoint) {
   const body = JSON.stringify({
     event: "webhook.test",
-    message: "This is a test notification from your Contracts app.",
+    message: "This is a test notification from Hearth.",
     sentAt: new Date().toISOString(),
   });
   return deliver(endpoint, "webhook.test", body);

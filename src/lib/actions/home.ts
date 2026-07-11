@@ -19,7 +19,7 @@ import { formDataToStringValues } from "@/lib/form-state";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import type { ActionState } from "@/lib/actions/auth";
 
-const PROPERTY_FORM_FIELDS = ["label", "address", "notes"];
+const PROPERTY_FORM_FIELDS = ["label", "address", "lat", "lng", "notes"];
 
 const RENTAL_AGREEMENT_FORM_FIELDS = [
   "tenantName",
@@ -63,6 +63,7 @@ async function requireUser() {
   const session = await auth();
   if (!session?.user) throw new Error("Not signed in");
   if (!(await isModuleEnabled("HOME"))) throw new Error("Home module is disabled");
+  if (session.user.role === "READONLY") throw new Error("Your account has read-only access.");
   return session.user;
 }
 
@@ -89,6 +90,8 @@ function formToPropertyInput(formData: FormData) {
   return {
     label: formData.get("label"),
     address: formData.get("address"),
+    lat: formData.get("lat"),
+    lng: formData.get("lng"),
     notes: formData.get("notes"),
   };
 }
@@ -374,6 +377,47 @@ export async function deleteRentalAgreement(
   revalidatePath(`/home/${propertyId}`);
   revalidatePath(`/home/${propertyId}/rental`);
   return { success: "Agreement removed." };
+}
+
+async function setRentalAgreementContract(
+  propertyId: string,
+  agreementId: string,
+  formData: FormData,
+): Promise<ActionState> {
+  await requireUser();
+
+  const existing = await prisma.rentalAgreement.findUnique({ where: { id: agreementId } });
+  if (!existing || existing.propertyId !== propertyId) return { error: "Agreement not found." };
+
+  const contractId = formData.get("contractId");
+  let newContractId: string | null = null;
+  if (typeof contractId === "string" && contractId.trim() !== "") {
+    const contract = await prisma.contract.findUnique({ where: { id: contractId } });
+    if (!contract) return { error: "Contract not found." };
+    if (contract.category !== "RENTAL") {
+      return { error: "Only Rental-category contracts can be linked." };
+    }
+    newContractId = contract.id;
+  }
+
+  await prisma.rentalAgreement.update({
+    where: { id: agreementId },
+    data: { contractId: newContractId },
+  });
+
+  revalidatePath(`/home/${propertyId}/rental`);
+  revalidatePath("/contracts");
+  if (existing.contractId) revalidatePath(`/contracts/${existing.contractId}`);
+  if (newContractId) revalidatePath(`/contracts/${newContractId}`);
+  return { success: newContractId ? "Contract linked." : "Contract unlinked." };
+}
+
+export async function linkRentalAgreementContract(
+  propertyId: string,
+  agreementId: string,
+  formData: FormData,
+): Promise<void> {
+  await setRentalAgreementContract(propertyId, agreementId, formData);
 }
 
 export async function setPropertyRented(

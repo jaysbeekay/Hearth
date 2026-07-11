@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import PDFDocument from "pdfkit";
 import { stringify } from "csv-stringify/sync";
 import { formatDate, formatCurrency } from "@/lib/utils";
+import { getUserPreferences } from "@/lib/userPreferences";
 
 export async function GET(request: NextRequest) {
   const session = await auth();
@@ -11,10 +12,13 @@ export async function GET(request: NextRequest) {
 
   const format = request.nextUrl.searchParams.get("format") ?? "csv";
 
-  const products = await prisma.product.findMany({
-    where: { createdById: session.user.id },
-    orderBy: { warrantyEndDate: "asc" },
-  });
+  const [products, { dateFormat }] = await Promise.all([
+    prisma.product.findMany({
+      where: { createdById: session.user.id },
+      orderBy: { warrantyEndDate: "asc" },
+    }),
+    getUserPreferences(),
+  ]);
 
   if (format === "pdf") {
     const doc = new PDFDocument({ margin: 40, size: "A4" });
@@ -30,7 +34,7 @@ export async function GET(request: NextRequest) {
       doc.fontSize(11).fillColor("#000").text(p.name);
       doc.fontSize(9).fillColor("#444")
         .text(`Manufacturer: ${p.manufacturer ?? "—"}   Vendor: ${p.vendor ?? "—"}`)
-        .text(`Purchased: ${formatDate(p.purchaseDate)}   Warranty ends: ${formatDate(p.warrantyEndDate)}`)
+        .text(`Purchased: ${formatDate(p.purchaseDate, dateFormat)}   Warranty ends: ${formatDate(p.warrantyEndDate, dateFormat)}`)
         .text(`Price: ${formatCurrency(p.price, p.currency)}`);
       if (p.serialNumber) doc.text(`Serial: ${p.serialNumber}`);
       doc.moveDown(0.5);
@@ -52,8 +56,8 @@ export async function GET(request: NextRequest) {
     p.name,
     p.manufacturer ?? "",
     p.vendor ?? "",
-    formatDate(p.purchaseDate),
-    formatDate(p.warrantyEndDate),
+    formatDate(p.purchaseDate, dateFormat),
+    formatDate(p.warrantyEndDate, dateFormat),
     p.price ?? "",
     p.currency,
     p.serialNumber ?? "",

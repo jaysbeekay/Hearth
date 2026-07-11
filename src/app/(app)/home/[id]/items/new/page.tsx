@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { addHomeItem } from "@/lib/actions/home";
 import { HomeItemForm } from "@/components/HomeItemForm";
+import { getUserPreferences } from "@/lib/userPreferences";
 
 export default async function NewHomeItemPage({
   params,
@@ -12,7 +13,10 @@ export default async function NewHomeItemPage({
   await requireModuleEnabled("HOME");
 
   const { id } = await params;
-  const property = await prisma.property.findUnique({ where: { id } });
+  const [property, { preferredCurrency }] = await Promise.all([
+    prisma.property.findUnique({ where: { id } }),
+    getUserPreferences(),
+  ]);
   if (!property) notFound();
 
   const boundAction = addHomeItem.bind(null, property.id);
@@ -24,7 +28,7 @@ export default async function NewHomeItemPage({
         <p className="text-sm text-foreground/60">{property.label}</p>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
-        <HomeItemForm action={boundAction} />
+        <HomeItemForm action={boundAction} defaultCurrency={preferredCurrency} />
       </div>
     </div>
   );

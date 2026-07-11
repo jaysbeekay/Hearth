@@ -16,8 +16,10 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export function InventoryCard({
   item,
+  dateFormat,
 }: {
   item: InventoryItemModel & { _count?: { documents: number } };
+  dateFormat?: string;
 }) {
   const subtitle = [item.brand, item.model].filter(Boolean).join(" · ");
 
@@ -53,7 +55,7 @@ export function InventoryCard({
       {(item.purchaseDate || item.purchasePrice != null) && (
         <div className="mt-2 flex flex-wrap gap-4">
           {item.purchaseDate && (
-            <p className="text-xs text-muted">Purchased: {formatDate(item.purchaseDate)}</p>
+            <p className="text-xs text-muted">Purchased: {formatDate(item.purchaseDate, dateFormat)}</p>
           )}
           {item.purchasePrice != null && (
             <p className="text-xs text-muted">{formatCurrency(item.purchasePrice, item.currency)}</p>

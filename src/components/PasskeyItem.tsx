@@ -13,11 +13,13 @@ export function PasskeyItem({
   nickname,
   createdAt,
   lastUsedAt,
+  dateFormat,
 }: {
   credentialId: string;
   nickname: string | null;
   createdAt: Date;
   lastUsedAt: Date | null;
+  dateFormat?: string;
 }) {
   const [state] = useActionState<ActionState, FormData>(async () => null, null);
 
@@ -28,8 +30,8 @@ export function PasskeyItem({
           {nickname ?? "Passkey"}
         </p>
         <p className="text-xs text-foreground/50">
-          Added {formatDate(createdAt)}
-          {lastUsedAt ? ` · Last used ${formatDate(lastUsedAt)}` : ""}
+          Added {formatDate(createdAt, dateFormat)}
+          {lastUsedAt ? ` · Last used ${formatDate(lastUsedAt, dateFormat)}` : ""}
         </p>
         <FormMessage error={state?.error} success={state?.success} />
       </div>

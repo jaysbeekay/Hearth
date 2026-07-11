@@ -9,7 +9,13 @@ import {
   formatDate,
 } from "@/lib/utils";
 
-export function ContractCard({ contract }: { contract: ContractModel }) {
+export function ContractCard({
+  contract,
+  dateFormat,
+}: {
+  contract: ContractModel;
+  dateFormat?: string;
+}) {
   const days = daysUntil(contract.endDate);
   const cancelled = contract.status === "CANCELLED";
 
@@ -31,7 +37,7 @@ export function ContractCard({ contract }: { contract: ContractModel }) {
 
       <div className="mt-3 flex items-center justify-between text-sm text-muted">
         <span>
-          {contract.endDate ? `Ends ${formatDate(contract.endDate)}` : "No end date"}
+          {contract.endDate ? `Ends ${formatDate(contract.endDate, dateFormat)}` : "No end date"}
         </span>
         {contract.cost != null && (
           <span className="tabular-nums">

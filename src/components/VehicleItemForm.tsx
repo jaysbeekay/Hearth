@@ -9,6 +9,8 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { VEHICLE_ITEM_TYPES } from "@/lib/validation/vehicles";
 import { VEHICLE_ITEM_TYPE_LABELS } from "@/lib/utils";
+import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
+import { CurrencySelect } from "@/components/CurrencySelect";
 import { enqueueOperation, serializeFormData } from "@/lib/offlineQueue";
 
 function toDateInputValue(date: Date | null | undefined) {
@@ -22,10 +24,12 @@ export function VehicleItemForm({
   action,
   item,
   vehicleId,
+  defaultCurrency,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   item?: VehicleItemModel;
   vehicleId?: string;
+  defaultCurrency?: string;
 }) {
   const offlineAwareAction = async (
     prevState: ActionState,
@@ -119,20 +123,22 @@ export function VehicleItemForm({
 
       <div className="grid gap-4 md:grid-cols-2">
         <Field label="Type" htmlFor="type">
-          <select
-            ref={typeRef}
-            id="type"
-            name="type"
-            required
-            defaultValue={state?.values?.type ?? item?.type ?? VEHICLE_ITEM_TYPES[0]}
-            className={inputClass}
-          >
-            {VEHICLE_ITEM_TYPES.map((value) => (
-              <option key={value} value={value}>
-                {VEHICLE_ITEM_TYPE_LABELS[value]}
-              </option>
-            ))}
-          </select>
+          <SelectWrapper>
+            <select
+              ref={typeRef}
+              id="type"
+              name="type"
+              required
+              defaultValue={state?.values?.type ?? item?.type ?? VEHICLE_ITEM_TYPES[0]}
+              className={selectClass}
+            >
+              {VEHICLE_ITEM_TYPES.map((value) => (
+                <option key={value} value={value}>
+                  {VEHICLE_ITEM_TYPE_LABELS[value]}
+                </option>
+              ))}
+            </select>
+          </SelectWrapper>
         </Field>
 
         <Field label="Title" htmlFor="title">
@@ -183,12 +189,9 @@ export function VehicleItemForm({
         </Field>
 
         <Field label="Currency" htmlFor="currency">
-          <input
-            id="currency"
+          <CurrencySelect
             name="currency"
-            defaultValue={state?.values?.currency ?? item?.currency ?? "AUD"}
-            maxLength={10}
-            className={inputClass}
+            defaultValue={state?.values?.currency ?? item?.currency ?? defaultCurrency}
           />
         </Field>
       </div>

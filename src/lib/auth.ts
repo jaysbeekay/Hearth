@@ -1,4 +1,4 @@
-import NextAuth from "next-auth";
+import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { verifyAuthenticationResponse } from "@simplewebauthn/server";
@@ -9,6 +9,16 @@ import type {
 import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
 import { authConfig } from "@/lib/auth.config";
+import { decryptSecret, encryptSecret } from "@/lib/crypto";
+import { verifyTotpCode, consumeRecoveryCode } from "@/lib/totp";
+
+export class TotpRequiredSignin extends CredentialsSignin {
+  code = "totp_required";
+}
+
+export class InvalidTotpSignin extends CredentialsSignin {
+  code = "invalid_totp";
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -17,10 +27,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       credentials: {
         email: { label: "Email" },
         password: { label: "Password", type: "password" },
+        totpCode: { label: "Two-factor code" },
       },
       authorize: async (credentials) => {
         const email = credentials?.email;
         const password = credentials?.password;
+        const totpCode = credentials?.totpCode;
         if (typeof email !== "string" || typeof password !== "string") {
           return null;
         }
@@ -32,6 +44,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const valid = await bcrypt.compare(password, user.passwordHash);
         if (!valid) return null;
+
+        if (user.totpEnabled) {
+          const code = typeof totpCode === "string" ? totpCode.trim() : "";
+          if (!code) throw new TotpRequiredSignin();
+
+          const secret = user.totpSecret ? decryptSecret(user.totpSecret) : null;
+          let verified = secret ? verifyTotpCode(secret, code) : false;
+
+          if (!verified && user.totpRecoveryCodes) {
+            const hashesJson = decryptSecret(user.totpRecoveryCodes);
+            const remaining = await consumeRecoveryCode(code, hashesJson);
+            if (remaining !== null) {
+              verified = true;
+              await prisma.user.update({
+                where: { id: user.id },
+                data: { totpRecoveryCodes: encryptSecret(remaining) },
+              });
+            }
+          }
+
+          if (!verified) throw new InvalidTotpSignin();
+        }
 
         return {
           id: user.id,

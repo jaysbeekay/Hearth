@@ -11,9 +11,11 @@ type InventoryItemWithCount = InventoryItemModel & { _count: { documents: number
 
 interface Props {
   items: InventoryItemWithCount[];
+  dateFormat?: string;
+  canWrite?: boolean;
 }
 
-export function InventoryListClient({ items }: Props) {
+export function InventoryListClient({ items, dateFormat, canWrite = true }: Props) {
   const [online, setOnline] = useState(true);
 
   useEffect(() => {
@@ -36,15 +38,17 @@ export function InventoryListClient({ items }: Props) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Inventory</h1>
-        <Link
-          href="/inventory/new"
-          aria-disabled={!online}
-          tabIndex={!online ? -1 : undefined}
-          className={`flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90${!online ? " pointer-events-none opacity-40" : ""}`}
-        >
-          <Plus size={16} />
-          Add item
-        </Link>
+        {canWrite && (
+          <Link
+            href="/inventory/new"
+            aria-disabled={!online}
+            tabIndex={!online ? -1 : undefined}
+            className={`flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90${!online ? " pointer-events-none opacity-40" : ""}`}
+          >
+            <Plus size={16} />
+            Add item
+          </Link>
+        )}
       </div>
 
       {items.length === 0 ? (
@@ -54,7 +58,7 @@ export function InventoryListClient({ items }: Props) {
       ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {items.map((item) => (
-            <InventoryCard key={item.id} item={item} />
+            <InventoryCard key={item.id} item={item} dateFormat={dateFormat} />
           ))}
         </div>
       )}

@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { createUser, type ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
+import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 
 const inputClass =
   "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent";
@@ -55,15 +56,18 @@ export function CreateUserForm() {
         <label htmlFor="role" className="text-sm font-medium">
           Role
         </label>
-        <select
-          id="role"
-          name="role"
-          defaultValue={state?.values?.role ?? "MEMBER"}
-          className={inputClass}
-        >
-          <option value="MEMBER">Member</option>
-          <option value="ADMIN">Admin</option>
-        </select>
+        <SelectWrapper>
+          <select
+            id="role"
+            name="role"
+            defaultValue={state?.values?.role ?? "MEMBER"}
+            className={selectClass}
+          >
+            <option value="MEMBER">Member</option>
+            <option value="ADMIN">Admin</option>
+            <option value="READONLY">Read-only</option>
+          </select>
+        </SelectWrapper>
       </div>
       <div className="md:col-span-2">
         <FormMessage error={state?.error} success={state?.success} />

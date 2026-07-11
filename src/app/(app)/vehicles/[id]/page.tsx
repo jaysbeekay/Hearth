@@ -9,6 +9,7 @@ import { ConfirmForm } from "@/components/ConfirmForm";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { VehicleItemDocumentList } from "@/components/VehicleItemDocumentList";
 import { VEHICLE_ITEM_TYPE_LABELS, formatCurrency, formatDate } from "@/lib/utils";
+import { getUserPreferences } from "@/lib/userPreferences";
 
 const ITEM_ICONS: Record<string, LucideIcon> = {
   SERVICE: Wrench,
@@ -28,13 +29,16 @@ export default async function VehicleDetailPage({
   await requireModuleEnabled("VEHICLES");
 
   const { id } = await params;
-  const vehicle = await prisma.vehicle.findUnique({
-    where: { id },
-    include: {
-      createdBy: true,
-      items: { include: { documents: { orderBy: { uploadedAt: "desc" } } } },
-    },
-  });
+  const [vehicle, { dateFormat }] = await Promise.all([
+    prisma.vehicle.findUnique({
+      where: { id },
+      include: {
+        createdBy: true,
+        items: { include: { documents: { orderBy: { uploadedAt: "desc" } } } },
+      },
+    }),
+    getUserPreferences(),
+  ]);
   if (!vehicle) notFound();
 
   const items = [...vehicle.items].sort((a, b) => {
@@ -83,10 +87,13 @@ export default async function VehicleDetailPage({
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">
           {vehicle.regoExpiry && (
-            <Detail label="Rego expiry" value={formatDate(vehicle.regoExpiry)} />
+            <Detail label="Rego expiry" value={formatDate(vehicle.regoExpiry, dateFormat)} />
           )}
           {vehicle.insuranceExpiry && (
-            <Detail label="Insurance expiry" value={formatDate(vehicle.insuranceExpiry)} />
+            <Detail
+              label="Insurance expiry"
+              value={formatDate(vehicle.insuranceExpiry, dateFormat)}
+            />
           )}
           {vehicle.vin && <Detail label="VIN" value={vehicle.vin} />}
           {vehicle.colour && <Detail label="Colour" value={vehicle.colour} />}
@@ -154,7 +161,7 @@ export default async function VehicleDetailPage({
                   </div>
 
                   <dl className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3">
-                    <Detail label="Date" value={formatDate(item.date)} />
+                    <Detail label="Date" value={formatDate(item.date, dateFormat)} />
                     <Detail
                       label="Cost"
                       value={item.cost != null ? formatCurrency(item.cost, item.currency) : "—"}
@@ -169,7 +176,7 @@ export default async function VehicleDetailPage({
 
                   <div className="mt-4 border-t border-border pt-4">
                     <h3 className="mb-2 text-sm font-medium">Documents</h3>
-                    <VehicleItemDocumentList documents={item.documents} />
+                    <VehicleItemDocumentList documents={item.documents} dateFormat={dateFormat} />
                     <div className="mt-3">
                       <DocumentUploadForm action={addVehicleItemDocument.bind(null, item.id)} />
                     </div>
@@ -182,7 +189,7 @@ export default async function VehicleDetailPage({
       </div>
 
       <p className="text-xs text-foreground/40">
-        Added by {vehicle.createdBy.name} on {formatDate(vehicle.createdAt)}
+        Added by {vehicle.createdBy.name} on {formatDate(vehicle.createdAt, dateFormat)}
       </p>
     </div>
   );

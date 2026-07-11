@@ -13,7 +13,7 @@ public class ServerConfigPlugin: CAPPlugin, CAPBridgedPlugin {
     ]
 
     // Shared with Settings.bundle (root.plist) so the server address can also
-    // be changed from iOS Settings > Contracts, not just the in-app form.
+    // be changed from iOS Settings > Hearth, not just the in-app form.
     static let serverUrlDefaultsKey = "server_url"
 
     @objc func getServerUrl(_ call: CAPPluginCall) {

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getNavItems } from "@/components/nav-items";
 import type { ModuleKey } from "@/lib/modules/registry";
@@ -32,6 +33,16 @@ export function BottomNav({ enabledModules }: { enabledModules: ModuleKey[] }) {
           </Link>
         );
       })}
+      <Link
+        href="/settings"
+        className={cn(
+          "flex flex-1 flex-col items-center gap-1 py-2.5 text-xs font-medium",
+          isActive("/settings", pathname) ? "text-accent" : "text-foreground/60",
+        )}
+      >
+        <Settings size={20} />
+        Settings
+      </Link>
     </nav>
   );
 }

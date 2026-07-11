@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Pencil, Trash2, Ban, RotateCcw } from "lucide-react";
+import { Pencil, Trash2, Ban, RotateCcw, Home } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { addDocument, deleteContract, setContractStatus } from "@/lib/actions/contracts";
 import { ExpiryBadge } from "@/components/ExpiryBadge";
@@ -15,6 +15,7 @@ import {
   formatCurrency,
   formatDate,
 } from "@/lib/utils";
+import { getUserPreferences } from "@/lib/userPreferences";
 
 export default async function ContractDetailPage({
   params,
@@ -22,10 +23,17 @@ export default async function ContractDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const contract = await prisma.contract.findUnique({
-    where: { id },
-    include: { documents: { orderBy: { uploadedAt: "desc" } }, createdBy: true },
-  });
+  const [contract, { dateFormat }] = await Promise.all([
+    prisma.contract.findUnique({
+      where: { id },
+      include: {
+        documents: { orderBy: { uploadedAt: "desc" } },
+        createdBy: true,
+        rentalAgreement: { include: { property: true } },
+      },
+    }),
+    getUserPreferences(),
+  ]);
   if (!contract) notFound();
 
   const days = daysUntil(contract.endDate);
@@ -87,8 +95,8 @@ export default async function ContractDetailPage({
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">
           <Detail label="Contract / policy number" value={contract.contractNumber ?? "—"} />
-          <Detail label="Start date" value={formatDate(contract.startDate)} />
-          <Detail label="End date" value={formatDate(contract.endDate)} />
+          <Detail label="Start date" value={formatDate(contract.startDate, dateFormat)} />
+          <Detail label="End date" value={formatDate(contract.endDate, dateFormat)} />
           <Detail
             label="Renewal type"
             value={RENEWAL_LABELS[contract.renewalType] ?? contract.renewalType}
@@ -130,16 +138,53 @@ export default async function ContractDetailPage({
         </div>
       )}
 
+      {contract.category === "RENTAL" && contract.rentalAgreement && (
+        <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+          <div className="mb-3 flex items-center gap-2">
+            <Home size={18} className="text-foreground/50" />
+            <h2 className="font-medium">Linked rental agreement</h2>
+          </div>
+          <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">
+            <Detail
+              label="Property"
+              value={contract.rentalAgreement.property.label}
+            />
+            <Detail label="Tenant" value={contract.rentalAgreement.tenantName ?? "—"} />
+            <Detail
+              label="Weekly rent"
+              value={formatCurrency(
+                contract.rentalAgreement.weeklyRent,
+                contract.rentalAgreement.currency,
+              )}
+            />
+            <Detail
+              label="Lease period"
+              value={
+                contract.rentalAgreement.leaseStart || contract.rentalAgreement.leaseEnd
+                  ? `${formatDate(contract.rentalAgreement.leaseStart, dateFormat)} – ${formatDate(contract.rentalAgreement.leaseEnd, dateFormat)}`
+                  : "—"
+              }
+            />
+          </dl>
+          <Link
+            href={`/home/${contract.rentalAgreement.propertyId}/rental`}
+            className="mt-3 inline-block text-sm font-medium text-accent hover:underline"
+          >
+            View rental overview →
+          </Link>
+        </div>
+      )}
+
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <h2 className="mb-3 font-medium">Documents</h2>
-        <DocumentList documents={contract.documents} />
+        <DocumentList documents={contract.documents} dateFormat={dateFormat} />
         <div className="mt-4 border-t border-border pt-4">
           <DocumentUploadForm action={boundUpload} />
         </div>
       </div>
 
       <p className="text-xs text-foreground/40">
-        Added by {contract.createdBy.name} on {formatDate(contract.createdAt)}
+        Added by {contract.createdBy.name} on {formatDate(contract.createdAt, dateFormat)}
       </p>
     </div>
   );

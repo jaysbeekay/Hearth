@@ -1,10 +1,50 @@
 import nodemailer from "nodemailer";
 import { getSmtpConfig, isSmtpConfigured } from "@/lib/appSettings";
 
+export async function sendTestEmail(to: string) {
+  if (!(await isSmtpConfigured())) throw new Error("SMTP is not configured.");
+
+  const smtp = await getSmtpConfig();
+  const transporter = nodemailer.createTransport({
+    host: smtp.host,
+    port: smtp.port,
+    secure: smtp.secure,
+    auth: smtp.user ? { user: smtp.user, pass: smtp.pass } : undefined,
+  });
+
+  await transporter.sendMail({
+    from: smtp.from,
+    to,
+    subject: "Hearth test email",
+    text: "This is a test email from Hearth to confirm your SMTP settings are working.",
+    html: "<p>This is a test email from Hearth to confirm your SMTP settings are working.</p>",
+  });
+}
+
 // Header values must never contain raw newlines, regardless of nodemailer's
 // own escaping, to defend against header/CRLF injection from contract titles.
 function stripNewlines(value: string) {
   return value.replace(/[\r\n]+/g, " ").trim();
+}
+
+export async function sendPasswordResetEmail(to: string, resetUrl: string) {
+  if (!(await isSmtpConfigured())) return;
+
+  const smtp = await getSmtpConfig();
+  const transporter = nodemailer.createTransport({
+    host: smtp.host,
+    port: smtp.port,
+    secure: smtp.secure,
+    auth: smtp.user ? { user: smtp.user, pass: smtp.pass } : undefined,
+  });
+
+  await transporter.sendMail({
+    from: smtp.from,
+    to,
+    subject: "Reset your Hearth password",
+    text: `We received a request to reset your Hearth password. Follow this link to choose a new one (expires in 1 hour):\n\n${resetUrl}\n\nIf you didn't request this, you can ignore this email.`,
+    html: `<p>We received a request to reset your Hearth password.</p><p><a href="${resetUrl}">Choose a new password</a> (link expires in 1 hour).</p><p>If you didn't request this, you can ignore this email.</p>`,
+  });
 }
 
 export async function sendReminderEmail(opts: {
@@ -41,10 +81,10 @@ export async function sendReminderEmail(opts: {
     from: smtp.from,
     to: opts.to,
     subject,
-    text: `Your ${opts.kind} "${opts.title}" (${opts.detail}) expires on ${formattedDate} (${opts.daysRemaining} day(s) from now).\n\nLog in to your contracts app to review it.`,
+    text: `Your ${opts.kind} "${opts.title}" (${opts.detail}) expires on ${formattedDate} (${opts.daysRemaining} day(s) from now).\n\nLog in to Hearth to review it.`,
     html: `<p>Your ${opts.kind} <strong>${escapeHtml(opts.title)}</strong> (${escapeHtml(
       opts.detail,
-    )}) expires on <strong>${formattedDate}</strong> (${opts.daysRemaining} day(s) from now).</p><p>Log in to your contracts app to review it.</p>`,
+    )}) expires on <strong>${formattedDate}</strong> (${opts.daysRemaining} day(s) from now).</p><p>Log in to Hearth to review it.</p>`,
   });
 }
 

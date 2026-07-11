@@ -3,7 +3,13 @@ import type { ProductModel } from "@/generated/prisma/models";
 import { ExpiryBadge } from "@/components/ExpiryBadge";
 import { daysUntil, formatCurrency, formatDate } from "@/lib/utils";
 
-export function ProductCard({ product }: { product: ProductModel }) {
+export function ProductCard({
+  product,
+  dateFormat,
+}: {
+  product: ProductModel;
+  dateFormat?: string;
+}) {
   const days = daysUntil(product.warrantyEndDate);
 
   return (
@@ -27,7 +33,7 @@ export function ProductCard({ product }: { product: ProductModel }) {
       <div className="mt-3 flex items-center justify-between text-sm text-muted">
         <span>
           {product.warrantyEndDate
-            ? `Warranty ends ${formatDate(product.warrantyEndDate)}`
+            ? `Warranty ends ${formatDate(product.warrantyEndDate, dateFormat)}`
             : "No warranty end date"}
         </span>
         {product.price != null && (

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { addVehicleItem } from "@/lib/actions/vehicles";
 import { VehicleItemForm } from "@/components/VehicleItemForm";
+import { getUserPreferences } from "@/lib/userPreferences";
 
 export default async function NewVehicleItemPage({
   params,
@@ -12,7 +13,10 @@ export default async function NewVehicleItemPage({
   await requireModuleEnabled("VEHICLES");
 
   const { id } = await params;
-  const vehicle = await prisma.vehicle.findUnique({ where: { id } });
+  const [vehicle, { preferredCurrency }] = await Promise.all([
+    prisma.vehicle.findUnique({ where: { id } }),
+    getUserPreferences(),
+  ]);
   if (!vehicle) notFound();
 
   const boundAction = addVehicleItem.bind(null, vehicle.id);
@@ -24,7 +28,7 @@ export default async function NewVehicleItemPage({
         <p className="text-sm text-foreground/60">{vehicle.label}</p>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
-        <VehicleItemForm action={boundAction} vehicleId={vehicle.id} />
+        <VehicleItemForm action={boundAction} vehicleId={vehicle.id} defaultCurrency={preferredCurrency} />
       </div>
     </div>
   );

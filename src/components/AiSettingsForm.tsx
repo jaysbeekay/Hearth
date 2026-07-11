@@ -1,12 +1,20 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Trash2 } from "lucide-react";
 import { removeAiSettings, saveAiSettings, type ActionState } from "@/lib/actions/ai";
-import { AI_PROVIDER_DEFAULT_MODELS, AI_PROVIDER_LABELS, type AiProviderId } from "@/lib/ai/types";
+import { testOllamaConnection } from "@/lib/actions/app-settings";
+import {
+  AI_PROVIDER_DEFAULT_MODELS,
+  AI_PROVIDER_LABELS,
+  AI_PROVIDERS_WITHOUT_API_KEY,
+  type AiProviderId,
+} from "@/lib/ai/types";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { ConfirmForm } from "@/components/ConfirmForm";
+import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
+import { TestConnectionButton } from "@/components/TestConnectionButton";
 
 const inputClass =
   "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent";
@@ -20,7 +28,8 @@ export function AiSettingsForm({
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(saveAiSettings, null);
   const configured = Boolean(provider);
-  const selected = provider ?? "ANTHROPIC";
+  const [selected, setSelected] = useState<AiProviderId>(provider ?? "ANTHROPIC");
+  const needsApiKey = !AI_PROVIDERS_WITHOUT_API_KEY.includes(selected);
 
   return (
     <div className="space-y-4">
@@ -29,29 +38,47 @@ export function AiSettingsForm({
           <label htmlFor="provider" className="text-sm font-medium">
             Provider
           </label>
-          <select id="provider" name="provider" defaultValue={selected} className={inputClass}>
-            {Object.entries(AI_PROVIDER_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
+          <SelectWrapper>
+            <select
+              id="provider"
+              name="provider"
+              defaultValue={selected}
+              onChange={(e) => setSelected(e.target.value as AiProviderId)}
+              className={selectClass}
+            >
+              {Object.entries(AI_PROVIDER_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </SelectWrapper>
         </div>
 
-        <div className="space-y-1">
-          <label htmlFor="apiKey" className="text-sm font-medium">
-            API key
-          </label>
-          <input
-            id="apiKey"
-            name="apiKey"
-            type="password"
-            required
-            autoComplete="off"
-            placeholder={configured ? "Enter a new key to replace the saved one" : "sk-..."}
-            className={inputClass}
-          />
-        </div>
+        {needsApiKey ? (
+          <div className="space-y-1">
+            <label htmlFor="apiKey" className="text-sm font-medium">
+              API key
+            </label>
+            <input
+              id="apiKey"
+              name="apiKey"
+              type="password"
+              required
+              autoComplete="off"
+              placeholder={configured ? "Enter a new key to replace the saved one" : "sk-..."}
+              className={inputClass}
+            />
+          </div>
+        ) : (
+          <p className="text-xs text-foreground/50">
+            No API key needed — Ollama uses the base URL configured in{" "}
+            <a href="/settings/app" className="text-accent hover:underline">
+              System settings
+            </a>
+            .
+          </p>
+        )}
 
         <div className="space-y-1">
           <label htmlFor="model" className="text-sm font-medium">
@@ -67,17 +94,24 @@ export function AiSettingsForm({
         </div>
 
         <FormMessage error={state?.error} success={state?.success} />
-        <SubmitButton>{configured ? "Update key" : "Save key"}</SubmitButton>
+        <div className="flex items-center justify-between">
+          {selected === "OLLAMA" ? (
+            <TestConnectionButton action={testOllamaConnection} label="Test connection" />
+          ) : (
+            <span />
+          )}
+          <SubmitButton>{configured ? "Update" : "Save"}</SubmitButton>
+        </div>
       </form>
 
       {configured && (
         <ConfirmForm
           action={removeAiSettings}
-          confirmText="Remove your saved API key? Document extraction will fall back to local heuristics."
+          confirmText="Remove your saved AI provider settings? Document extraction will fall back to local heuristics."
           className="inline-flex items-center gap-2 text-sm text-foreground/50 hover:text-danger"
         >
           <Trash2 size={14} />
-          Remove key
+          Remove
         </ConfirmForm>
       )}
     </div>

@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { getCalendarEvents } from "@/lib/calendarEvents";
 import { formatDate } from "@/lib/utils";
+import { getUserPreferences } from "@/lib/userPreferences";
 import type { CalendarEvent } from "@/lib/calendarEvents";
 
 export const metadata: Metadata = { title: "Calendar" };
@@ -44,7 +45,10 @@ function monthLabel(key: string) {
 
 export default async function CalendarPage() {
   const session = await auth();
-  const enabledModules = await getEnabledModuleKeys();
+  const [enabledModules, { dateFormat }] = await Promise.all([
+    getEnabledModuleKeys(),
+    getUserPreferences(),
+  ]);
   const events = await getCalendarEvents(session!.user.id, enabledModules);
 
   // Group by year-month
@@ -89,7 +93,7 @@ export default async function CalendarPage() {
                       <p className="truncate text-sm text-muted">{event.subtitle}</p>
                     )}
                     {event.endDate && event.endDate.getTime() !== event.date.getTime() && (
-                      <p className="text-xs text-muted">until {formatDate(event.endDate)}</p>
+                      <p className="text-xs text-muted">until {formatDate(event.endDate, dateFormat)}</p>
                     )}
                   </div>
                   <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${KIND_COLORS[event.kind]}`}>

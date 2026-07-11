@@ -3,15 +3,19 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PasskeyItem } from "@/components/PasskeyItem";
 import { PasskeyRegisterButton } from "@/components/PasskeyRegisterButton";
+import { getUserPreferences } from "@/lib/userPreferences";
 
 export const metadata: Metadata = { title: "Passkeys" };
 
 export default async function PasskeysPage() {
   const session = await auth();
-  const passkeys = await prisma.passkeyCredential.findMany({
-    where: { userId: session!.user.id },
-    orderBy: { createdAt: "asc" },
-  });
+  const [passkeys, { dateFormat }] = await Promise.all([
+    prisma.passkeyCredential.findMany({
+      where: { userId: session!.user.id },
+      orderBy: { createdAt: "asc" },
+    }),
+    getUserPreferences(),
+  ]);
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -37,6 +41,7 @@ export default async function PasskeysPage() {
                 nickname={pk.nickname}
                 createdAt={pk.createdAt}
                 lastUsedAt={pk.lastUsedAt}
+                dateFormat={dateFormat}
               />
             ))}
           </ul>

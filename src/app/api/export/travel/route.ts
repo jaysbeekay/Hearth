@@ -5,6 +5,7 @@ import PDFDocument from "pdfkit";
 import { stringify } from "csv-stringify/sync";
 import { formatDate, TRIP_SEGMENT_TYPE_LABELS } from "@/lib/utils";
 import { isModuleEnabled } from "@/lib/modules/enablement";
+import { getUserPreferences } from "@/lib/userPreferences";
 
 export async function GET(request: NextRequest) {
   const session = await auth();
@@ -13,11 +14,14 @@ export async function GET(request: NextRequest) {
 
   const format = request.nextUrl.searchParams.get("format") ?? "csv";
 
-  const trips = await prisma.trip.findMany({
-    where: { createdById: session.user.id },
-    include: { segments: { orderBy: { startDate: "asc" } } },
-    orderBy: { startDate: "desc" },
-  });
+  const [trips, { dateFormat }] = await Promise.all([
+    prisma.trip.findMany({
+      where: { createdById: session.user.id },
+      include: { segments: { orderBy: { startDate: "asc" } } },
+      orderBy: { startDate: "desc" },
+    }),
+    getUserPreferences(),
+  ]);
 
   const allSegments = trips.flatMap((t) =>
     t.segments.map((s) => ({ ...s, tripTitle: t.title })),
@@ -37,7 +41,7 @@ export async function GET(request: NextRequest) {
       doc.fontSize(11).fillColor("#000").text(s.title);
       doc.fontSize(9).fillColor("#444")
         .text(`Trip: ${s.tripTitle}   Type: ${TRIP_SEGMENT_TYPE_LABELS[s.type] ?? s.type}`)
-        .text(`${formatDate(s.startDate)} – ${formatDate(s.endDate)}`);
+        .text(`${formatDate(s.startDate, dateFormat)} – ${formatDate(s.endDate, dateFormat)}`);
       if (s.provider) doc.text(`Provider: ${s.provider}`);
       doc.moveDown(0.5);
     }
@@ -59,8 +63,8 @@ export async function GET(request: NextRequest) {
     TRIP_SEGMENT_TYPE_LABELS[s.type] ?? s.type,
     s.title,
     s.provider ?? "",
-    formatDate(s.startDate),
-    formatDate(s.endDate),
+    formatDate(s.startDate, dateFormat),
+    formatDate(s.endDate, dateFormat),
   ]);
 
   const csv = stringify([

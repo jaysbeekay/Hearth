@@ -6,8 +6,8 @@ import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { TRADE_TYPES, TRADE_TYPE_LABELS } from "@/lib/validation/wealth";
-
-const COMMON_CURRENCIES = ["AUD", "USD", "EUR", "GBP", "JPY", "NZD", "CAD", "HKD", "SGD"];
+import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
+import { CurrencySelect } from "@/components/CurrencySelect";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -72,16 +72,18 @@ export function TradeForm({
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium mb-1" htmlFor="type">Type <span className="text-danger">*</span></label>
-          <select
-            id="type"
-            name="type"
-            defaultValue={state?.values?.type ?? trade?.type ?? "BUY"}
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
-          >
-            {TRADE_TYPES.map((t) => (
-              <option key={t} value={t}>{TRADE_TYPE_LABELS[t]}</option>
-            ))}
-          </select>
+          <SelectWrapper>
+            <select
+              id="type"
+              name="type"
+              defaultValue={state?.values?.type ?? trade?.type ?? "BUY"}
+              className={selectClass}
+            >
+              {TRADE_TYPES.map((t) => (
+                <option key={t} value={t}>{TRADE_TYPE_LABELS[t]}</option>
+              ))}
+            </select>
+          </SelectWrapper>
         </div>
 
         <div>
@@ -168,14 +170,10 @@ export function TradeForm({
 
         <div>
           <label className="block text-sm font-medium mb-1" htmlFor="currency">Currency</label>
-          <select
-            id="currency"
+          <CurrencySelect
             name="currency"
-            defaultValue={state?.values?.currency ?? trade?.currency ?? defaultCurrency ?? "AUD"}
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
-          >
-            {COMMON_CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
+            defaultValue={state?.values?.currency ?? trade?.currency ?? defaultCurrency}
+          />
         </div>
       </div>
 

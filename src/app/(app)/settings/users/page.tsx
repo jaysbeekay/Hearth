@@ -6,7 +6,9 @@ import { prisma } from "@/lib/prisma";
 import { deleteUser } from "@/lib/actions/auth";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { CreateUserForm } from "@/components/CreateUserForm";
+import { MemberRoleForm } from "@/components/MemberRoleForm";
 import { formatDate } from "@/lib/utils";
+import { getUserPreferences } from "@/lib/userPreferences";
 
 export const metadata: Metadata = { title: "Household members" };
 
@@ -16,7 +18,10 @@ export default async function ManageUsersPage() {
     redirect("/settings");
   }
 
-  const users = await prisma.user.findMany({ orderBy: { createdAt: "asc" } });
+  const [users, { dateFormat }] = await Promise.all([
+    prisma.user.findMany({ orderBy: { createdAt: "asc" } }),
+    getUserPreferences(),
+  ]);
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -26,22 +31,28 @@ export default async function ManageUsersPage() {
         <ul className="divide-y divide-border">
           {users.map((user) => (
             <li key={user.id} className="flex items-center justify-between gap-3 py-3">
-              <div>
+              <div className="min-w-0">
                 <p className="text-sm font-medium">
-                  {user.name} <span className="text-foreground/50">· {user.role}</span>
+                  {user.name}{" "}
+                  {user.id === session.user.id && (
+                    <span className="text-foreground/50">· {user.role}</span>
+                  )}
                 </p>
                 <p className="text-xs text-foreground/50">
-                  {user.email} · joined {formatDate(user.createdAt)}
+                  {user.email} · joined {formatDate(user.createdAt, dateFormat)}
                 </p>
               </div>
               {user.id !== session.user.id && (
-                <ConfirmForm
-                  action={deleteUser.bind(null, user.id)}
-                  confirmText={`Remove ${user.name} from the household?`}
-                  className="text-foreground/50 hover:text-danger"
-                >
-                  <Trash2 size={16} />
-                </ConfirmForm>
+                <div className="flex items-center gap-3">
+                  <MemberRoleForm userId={user.id} role={user.role} />
+                  <ConfirmForm
+                    action={deleteUser.bind(null, user.id)}
+                    confirmText={`Remove ${user.name} from the household?`}
+                    className="text-foreground/50 hover:text-danger"
+                  >
+                    <Trash2 size={16} />
+                  </ConfirmForm>
+                </div>
               )}
             </li>
           ))}

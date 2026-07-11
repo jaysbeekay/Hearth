@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { encryptSecret } from "@/lib/crypto";
 import { isEncryptionConfigured } from "@/lib/env";
 import { aiSettingsSchema } from "@/lib/validation/ai";
+import { AI_PROVIDERS_WITHOUT_API_KEY } from "@/lib/ai/types";
 
 export type ActionState = { error?: string; success?: string } | null;
 
@@ -16,30 +17,31 @@ export async function saveAiSettings(
   const session = await auth();
   if (!session?.user) return { error: "Not signed in." };
 
-  if (!isEncryptionConfigured()) {
-    return { error: "Set ENCRYPTION_KEY on the server before configuring an API key." };
-  }
-
   const parsed = aiSettingsSchema.safeParse({
     provider: formData.get("provider"),
-    apiKey: formData.get("apiKey"),
+    apiKey: formData.get("apiKey") || undefined,
     model: formData.get("model") || undefined,
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
 
+  const needsApiKey = !AI_PROVIDERS_WITHOUT_API_KEY.includes(parsed.data.provider);
+  if (needsApiKey && !isEncryptionConfigured()) {
+    return { error: "Set ENCRYPTION_KEY on the server before configuring an API key." };
+  }
+
   await prisma.user.update({
     where: { id: session.user.id },
     data: {
       aiProvider: parsed.data.provider,
-      aiApiKeyEncrypted: encryptSecret(parsed.data.apiKey),
+      aiApiKeyEncrypted: needsApiKey ? encryptSecret(parsed.data.apiKey!) : null,
       aiModel: parsed.data.model ?? null,
     },
   });
 
   revalidatePath("/settings");
-  return { success: "API key saved." };
+  return { success: needsApiKey ? "API key saved." : "Provider saved." };
 }
 
 export async function removeAiSettings(): Promise<ActionState> {

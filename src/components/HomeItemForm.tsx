@@ -9,6 +9,8 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { HOME_ITEM_TYPES } from "@/lib/validation/home";
 import { HOME_ITEM_TYPE_LABELS } from "@/lib/utils";
+import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
+import { CurrencySelect } from "@/components/CurrencySelect";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -20,9 +22,11 @@ type ExtractedFields = Partial<Record<"type" | "title" | "provider" | "date" | "
 export function HomeItemForm({
   action,
   item,
+  defaultCurrency,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   item?: HomeItemModel;
+  defaultCurrency?: string;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(action, null);
   const [scanning, setScanning] = useState(false);
@@ -95,20 +99,22 @@ export function HomeItemForm({
 
       <div className="grid gap-4 md:grid-cols-2">
         <Field label="Type" htmlFor="type">
-          <select
-            ref={typeRef}
-            id="type"
-            name="type"
-            required
-            defaultValue={state?.values?.type ?? item?.type ?? HOME_ITEM_TYPES[0]}
-            className={inputClass}
-          >
-            {HOME_ITEM_TYPES.map((value) => (
-              <option key={value} value={value}>
-                {HOME_ITEM_TYPE_LABELS[value]}
-              </option>
-            ))}
-          </select>
+          <SelectWrapper>
+            <select
+              ref={typeRef}
+              id="type"
+              name="type"
+              required
+              defaultValue={state?.values?.type ?? item?.type ?? HOME_ITEM_TYPES[0]}
+              className={selectClass}
+            >
+              {HOME_ITEM_TYPES.map((value) => (
+                <option key={value} value={value}>
+                  {HOME_ITEM_TYPE_LABELS[value]}
+                </option>
+              ))}
+            </select>
+          </SelectWrapper>
         </Field>
 
         <Field label="Title" htmlFor="title">
@@ -159,12 +165,9 @@ export function HomeItemForm({
         </Field>
 
         <Field label="Currency" htmlFor="currency">
-          <input
-            id="currency"
+          <CurrencySelect
             name="currency"
-            defaultValue={state?.values?.currency ?? item?.currency ?? "AUD"}
-            maxLength={10}
-            className={inputClass}
+            defaultValue={state?.values?.currency ?? item?.currency ?? defaultCurrency}
           />
         </Field>
       </div>

@@ -1,7 +1,10 @@
 import { createContract } from "@/lib/actions/contracts";
 import { ContractForm } from "@/components/ContractForm";
+import { getUserPreferences } from "@/lib/userPreferences";
 
-export default function NewContractPage() {
+export default async function NewContractPage() {
+  const { preferredCurrency } = await getUserPreferences();
+
   return (
     <div className="max-w-3xl space-y-6">
       <div>
@@ -11,7 +14,7 @@ export default function NewContractPage() {
         </p>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
-        <ContractForm action={createContract} />
+        <ContractForm action={createContract} defaultCurrency={preferredCurrency} />
       </div>
     </div>
   );

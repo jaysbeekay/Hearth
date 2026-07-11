@@ -11,6 +11,7 @@ import {
 } from "@/lib/appSettings";
 import { BackupNowForm } from "@/components/BackupNowForm";
 import { formatDate, humanFileSize } from "@/lib/utils";
+import { getUserPreferences } from "@/lib/userPreferences";
 
 export const metadata: Metadata = { title: "Backups" };
 
@@ -20,13 +21,15 @@ export default async function BackupsPage() {
     redirect("/settings");
   }
 
-  const [logs, s3Configured, sftpConfigured, backupOk, backupSchedule] = await Promise.all([
-    prisma.backupLog.findMany({ orderBy: { startedAt: "desc" }, take: 10 }),
-    isS3BackupConfigured(),
-    isSftpBackupConfigured(),
-    isBackupConfigured(),
-    getBackupScheduleConfig(),
-  ]);
+  const [logs, s3Configured, sftpConfigured, backupOk, backupSchedule, { dateFormat }] =
+    await Promise.all([
+      prisma.backupLog.findMany({ orderBy: { startedAt: "desc" }, take: 10 }),
+      isS3BackupConfigured(),
+      isSftpBackupConfigured(),
+      isBackupConfigured(),
+      getBackupScheduleConfig(),
+      getUserPreferences(),
+    ]);
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -81,7 +84,7 @@ export default async function BackupsPage() {
                     </span>
                   </p>
                   <p className="text-xs text-foreground/50">
-                    {formatDate(log.startedAt)}
+                    {formatDate(log.startedAt, dateFormat)}
                     {log.sizeBytes ? ` · ${humanFileSize(log.sizeBytes)}` : ""}
                     {log.message ? ` · ${log.message}` : ""}
                   </p>

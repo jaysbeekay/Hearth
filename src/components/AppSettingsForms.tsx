@@ -1,9 +1,11 @@
 "use client";
 
 import { useActionState } from "react";
+import { testSmtpSettings, testNtfySettings, testOllamaConnection } from "@/lib/actions/app-settings";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
+import { TestConnectionButton } from "@/components/TestConnectionButton";
 
 const inputClass =
   "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent";
@@ -87,7 +89,12 @@ export function SmtpForm({
         </Field>
       </div>
       <FormMessage error={state?.error} success={state?.success} />
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between">
+        {current.host && current.user ? (
+          <TestConnectionButton action={testSmtpSettings} label="Send test email" />
+        ) : (
+          <span />
+        )}
         <SubmitButton>Save email settings</SubmitButton>
       </div>
     </form>
@@ -118,7 +125,12 @@ export function NtfyForm({
         </Field>
       </div>
       <FormMessage error={state?.error} success={state?.success} />
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between">
+        {current.url && current.topic ? (
+          <TestConnectionButton action={testNtfySettings} label="Send test notification" />
+        ) : (
+          <span />
+        )}
         <SubmitButton>Save ntfy settings</SubmitButton>
       </div>
     </form>
@@ -146,7 +158,12 @@ export function OllamaForm({
         </Field>
       </div>
       <FormMessage error={state?.error} success={state?.success} />
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between">
+        {current.baseUrl ? (
+          <TestConnectionButton action={testOllamaConnection} label="Test connection" />
+        ) : (
+          <span />
+        )}
         <SubmitButton>Save Ollama settings</SubmitButton>
       </div>
     </form>

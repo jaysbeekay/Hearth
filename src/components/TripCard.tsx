@@ -4,8 +4,10 @@ import { formatDate } from "@/lib/utils";
 
 export function TripCard({
   trip,
+  dateFormat,
 }: {
   trip: TripModel & { _count?: { segments: number } };
+  dateFormat?: string;
 }) {
   return (
     <Link
@@ -20,7 +22,7 @@ export function TripCard({
       <div className="mt-3 flex items-center justify-between text-sm text-muted">
         <span>
           {trip.startDate || trip.endDate
-            ? `${formatDate(trip.startDate)} – ${formatDate(trip.endDate)}`
+            ? `${formatDate(trip.startDate, dateFormat)} – ${formatDate(trip.endDate, dateFormat)}`
             : "No dates set"}
         </span>
         {trip._count != null && (

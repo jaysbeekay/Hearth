@@ -7,6 +7,7 @@ import type { RentalAgreementModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
+import { CurrencySelect } from "@/components/CurrencySelect";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -20,9 +21,11 @@ type ExtractedFields = Partial<
 export function RentalAgreementForm({
   action,
   agreement,
+  defaultCurrency,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   agreement?: RentalAgreementModel;
+  defaultCurrency?: string;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(action, null);
   const [scanning, setScanning] = useState(false);
@@ -170,12 +173,9 @@ export function RentalAgreementForm({
         </Field>
 
         <Field label="Currency" htmlFor="currency">
-          <input
-            id="currency"
+          <CurrencySelect
             name="currency"
-            defaultValue={state?.values?.currency ?? agreement?.currency ?? "AUD"}
-            maxLength={10}
-            className={inputClass}
+            defaultValue={state?.values?.currency ?? agreement?.currency ?? defaultCurrency}
           />
         </Field>
       </div>

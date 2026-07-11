@@ -5,15 +5,16 @@ import type { PortfolioModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
-
-const COMMON_CURRENCIES = ["AUD", "USD", "EUR", "GBP", "JPY", "NZD", "CAD", "HKD", "SGD"];
+import { CurrencySelect } from "@/components/CurrencySelect";
 
 export function PortfolioForm({
   action,
   portfolio,
+  defaultCurrency,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   portfolio?: PortfolioModel;
+  defaultCurrency?: string;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(action, null);
 
@@ -48,14 +49,10 @@ export function PortfolioForm({
 
       <div>
         <label className="block text-sm font-medium mb-1" htmlFor="currency">Base currency</label>
-        <select
-          id="currency"
+        <CurrencySelect
           name="currency"
-          defaultValue={state?.values?.currency ?? portfolio?.currency ?? "AUD"}
-          className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
-        >
-          {COMMON_CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
+          defaultValue={state?.values?.currency ?? portfolio?.currency ?? defaultCurrency}
+        />
       </div>
 
       <SubmitButton>{portfolio ? "Save changes" : "Create portfolio"}</SubmitButton>
