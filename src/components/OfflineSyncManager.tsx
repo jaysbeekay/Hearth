@@ -8,6 +8,7 @@ import {
   clearDoneOperations,
   type QueuedOperation,
 } from "@/lib/offlineQueue";
+import { showToast } from "@/components/Toast";
 
 type SyncState = "idle" | "syncing" | "done" | "error";
 
@@ -71,9 +72,9 @@ export function OfflineSyncManager() {
 
       if (failCount === 0) {
         setSyncState("done");
-        setMessage(
-          `${successCount} ${successCount === 1 ? "change" : "changes"} synced successfully.`,
-        );
+        const doneMessage = `${successCount} ${successCount === 1 ? "change" : "changes"} synced successfully.`;
+        setMessage(doneMessage);
+        showToast(doneMessage);
         setTimeout(() => {
           setSyncState("idle");
           setMessage(null);
@@ -117,7 +118,10 @@ export function OfflineSyncManager() {
 
   // Listen for queue additions from forms (custom event)
   useEffect(() => {
-    const onQueued = () => refreshCount().catch(() => {});
+    const onQueued = () => {
+      refreshCount().catch(() => {});
+      showToast("Saved offline — will sync when reconnected.", "info");
+    };
     window.addEventListener("offline-queued", onQueued);
     return () => window.removeEventListener("offline-queued", onQueued);
   }, [refreshCount]);
