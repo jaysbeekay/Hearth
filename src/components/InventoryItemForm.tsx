@@ -9,6 +9,7 @@ import { FormMessage } from "@/components/FormMessage";
 import { INVENTORY_ITEM_CATEGORIES } from "@/lib/validation/inventory";
 import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 import { FileDropZone } from "@/components/FileDropZone";
+import { markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 
 const CATEGORY_LABELS: Record<string, string> = {
   APPLIANCE: "Appliance",
@@ -49,15 +50,34 @@ export function InventoryItemForm({
   const purchasePriceRef = useRef<HTMLInputElement>(null);
 
   function applyExtractedFields(fields: ExtractedFields) {
-    if (fields.category && categoryRef.current) categoryRef.current.value = fields.category;
+    if (fields.category && categoryRef.current) {
+      categoryRef.current.value = fields.category;
+      markAutoFilled(categoryRef.current);
+    }
     if (fields.label && labelRef.current && !labelRef.current.value) {
       labelRef.current.value = fields.label;
+      markAutoFilled(labelRef.current);
     }
-    if (fields.brand && brandRef.current) brandRef.current.value = fields.brand;
-    if (fields.model && modelRef.current) modelRef.current.value = fields.model;
-    if (fields.serialNumber && serialNumberRef.current) serialNumberRef.current.value = fields.serialNumber;
-    if (fields.purchaseDate && purchaseDateRef.current) purchaseDateRef.current.value = fields.purchaseDate;
-    if (fields.purchasePrice && purchasePriceRef.current) purchasePriceRef.current.value = fields.purchasePrice;
+    if (fields.brand && brandRef.current) {
+      brandRef.current.value = fields.brand;
+      markAutoFilled(brandRef.current);
+    }
+    if (fields.model && modelRef.current) {
+      modelRef.current.value = fields.model;
+      markAutoFilled(modelRef.current);
+    }
+    if (fields.serialNumber && serialNumberRef.current) {
+      serialNumberRef.current.value = fields.serialNumber;
+      markAutoFilled(serialNumberRef.current);
+    }
+    if (fields.purchaseDate && purchaseDateRef.current) {
+      purchaseDateRef.current.value = fields.purchaseDate;
+      markAutoFilled(purchaseDateRef.current);
+    }
+    if (fields.purchasePrice && purchasePriceRef.current) {
+      purchasePriceRef.current.value = fields.purchasePrice;
+      markAutoFilled(purchasePriceRef.current);
+    }
   }
 
   async function handleFileChange(file: File | null) {
@@ -71,13 +91,13 @@ export function InventoryItemForm({
       const res = await fetch("/api/inventory/extract", { method: "POST", body });
       if (!res.ok) throw new Error("Extraction failed");
 
-      const { fields } = (await res.json()) as { fields: ExtractedFields };
-      if (Object.keys(fields).length === 0) {
-        setScanMessage("Couldn't detect any fields from this document — fill them in manually.");
-      } else {
-        applyExtractedFields(fields);
-        setScanMessage("Fields populated from the document — review before saving.");
-      }
+      const { fields, source } = (await res.json()) as {
+        fields: ExtractedFields;
+        source: "byok" | "heuristic" | "llm" | "none";
+      };
+      const filledCount = Object.keys(fields).length;
+      if (filledCount > 0) applyExtractedFields(fields);
+      setScanMessage(extractionMessage(source, filledCount));
     } catch {
       setScanMessage("Couldn't scan this document. You can still attach it and fill in fields manually.");
     } finally {

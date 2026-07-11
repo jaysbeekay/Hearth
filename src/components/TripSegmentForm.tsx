@@ -11,6 +11,7 @@ import { TRIP_SEGMENT_TYPE_LABELS } from "@/lib/utils";
 import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
+import { markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 
 type SegmentType = (typeof TRIP_SEGMENT_TYPES)[number];
 
@@ -70,24 +71,48 @@ export function TripSegmentForm({
     if (fields.type && typeRef.current) {
       typeRef.current.value = fields.type;
       setSelectedType(fields.type as SegmentType);
+      markAutoFilled(typeRef.current);
     }
     if (fields.title && titleRef.current && !titleRef.current.value) {
       titleRef.current.value = fields.title;
+      markAutoFilled(titleRef.current);
     }
-    if (fields.provider && providerRef.current) providerRef.current.value = fields.provider;
+    if (fields.provider && providerRef.current) {
+      providerRef.current.value = fields.provider;
+      markAutoFilled(providerRef.current);
+    }
     if (fields.confirmationCode && confirmationCodeRef.current) {
       confirmationCodeRef.current.value = fields.confirmationCode;
+      markAutoFilled(confirmationCodeRef.current);
     }
-    if (fields.startDate && startDateRef.current) startDateRef.current.value = fields.startDate;
-    if (fields.endDate && endDateRef.current) endDateRef.current.value = fields.endDate;
-    if (fields.location && locationRef.current) locationRef.current.value = fields.location;
-    if (fields.cost && costRef.current) costRef.current.value = fields.cost;
-    if (fields.flightNumber && flightNumberRef.current)
+    if (fields.startDate && startDateRef.current) {
+      startDateRef.current.value = fields.startDate;
+      markAutoFilled(startDateRef.current);
+    }
+    if (fields.endDate && endDateRef.current) {
+      endDateRef.current.value = fields.endDate;
+      markAutoFilled(endDateRef.current);
+    }
+    if (fields.location && locationRef.current) {
+      locationRef.current.value = fields.location;
+      markAutoFilled(locationRef.current);
+    }
+    if (fields.cost && costRef.current) {
+      costRef.current.value = fields.cost;
+      markAutoFilled(costRef.current);
+    }
+    if (fields.flightNumber && flightNumberRef.current) {
       flightNumberRef.current.value = fields.flightNumber;
-    if (fields.departureIata && departureIataRef.current)
+      markAutoFilled(flightNumberRef.current);
+    }
+    if (fields.departureIata && departureIataRef.current) {
       departureIataRef.current.value = fields.departureIata;
-    if (fields.arrivalIata && arrivalIataRef.current)
+      markAutoFilled(departureIataRef.current);
+    }
+    if (fields.arrivalIata && arrivalIataRef.current) {
       arrivalIataRef.current.value = fields.arrivalIata;
+      markAutoFilled(arrivalIataRef.current);
+    }
   }
 
   async function handleFileChange(file: File | null) {
@@ -101,13 +126,13 @@ export function TripSegmentForm({
       const res = await fetch("/api/travel/extract", { method: "POST", body });
       if (!res.ok) throw new Error("Extraction failed");
 
-      const { fields } = (await res.json()) as { fields: ExtractedFields };
-      if (Object.keys(fields).length === 0) {
-        setScanMessage("Couldn't detect any fields from this document — fill them in manually.");
-      } else {
-        applyExtractedFields(fields);
-        setScanMessage("Fields populated from the document — review before saving.");
-      }
+      const { fields, source } = (await res.json()) as {
+        fields: ExtractedFields;
+        source: "byok" | "heuristic" | "llm" | "none";
+      };
+      const filledCount = Object.keys(fields).length;
+      if (filledCount > 0) applyExtractedFields(fields);
+      setScanMessage(extractionMessage(source, filledCount));
     } catch {
       setScanMessage("Couldn't scan this document. You can still attach it and fill in fields manually.");
     } finally {

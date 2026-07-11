@@ -8,6 +8,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
+import { markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -49,20 +50,34 @@ export function RentalStatementForm({
   const netAmountRef = useRef<HTMLInputElement>(null);
 
   function applyExtractedFields(fields: ExtractedFields) {
-    if (fields.periodStart && periodStartRef.current)
+    if (fields.periodStart && periodStartRef.current) {
       periodStartRef.current.value = fields.periodStart;
-    if (fields.periodEnd && periodEndRef.current)
+      markAutoFilled(periodStartRef.current);
+    }
+    if (fields.periodEnd && periodEndRef.current) {
       periodEndRef.current.value = fields.periodEnd;
-    if (fields.statementDate && statementDateRef.current)
+      markAutoFilled(periodEndRef.current);
+    }
+    if (fields.statementDate && statementDateRef.current) {
       statementDateRef.current.value = fields.statementDate;
-    if (fields.grossRent && grossRentRef.current)
+      markAutoFilled(statementDateRef.current);
+    }
+    if (fields.grossRent && grossRentRef.current) {
       grossRentRef.current.value = fields.grossRent;
-    if (fields.managementFee && managementFeeRef.current)
+      markAutoFilled(grossRentRef.current);
+    }
+    if (fields.managementFee && managementFeeRef.current) {
       managementFeeRef.current.value = fields.managementFee;
-    if (fields.otherDeductions && otherDeductionsRef.current)
+      markAutoFilled(managementFeeRef.current);
+    }
+    if (fields.otherDeductions && otherDeductionsRef.current) {
       otherDeductionsRef.current.value = fields.otherDeductions;
-    if (fields.netAmount && netAmountRef.current)
+      markAutoFilled(otherDeductionsRef.current);
+    }
+    if (fields.netAmount && netAmountRef.current) {
       netAmountRef.current.value = fields.netAmount;
+      markAutoFilled(netAmountRef.current);
+    }
   }
 
   async function handleFileChange(file: File | null) {
@@ -76,13 +91,13 @@ export function RentalStatementForm({
       const res = await fetch("/api/home/rental-extract", { method: "POST", body });
       if (!res.ok) throw new Error("Extraction failed");
 
-      const { fields } = (await res.json()) as { fields: ExtractedFields };
-      if (Object.keys(fields).length === 0) {
-        setScanMessage("Couldn't detect any fields from this document — fill them in manually.");
-      } else {
-        applyExtractedFields(fields);
-        setScanMessage("Fields populated from the document — review before saving.");
-      }
+      const { fields, source } = (await res.json()) as {
+        fields: ExtractedFields;
+        source: "byok" | "heuristic" | "llm" | "none";
+      };
+      const filledCount = Object.keys(fields).length;
+      if (filledCount > 0) applyExtractedFields(fields);
+      setScanMessage(extractionMessage(source, filledCount));
     } catch {
       setScanMessage(
         "Couldn't scan this document. You can still attach it and fill in fields manually.",
