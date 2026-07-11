@@ -12,6 +12,7 @@ import { TIMEZONE_OPTIONS } from "@/lib/userPreferences";
 import { ChangePasswordForm } from "@/components/ChangePasswordForm";
 import { AiSettingsForm } from "@/components/AiSettingsForm";
 import { IcalTokenSection } from "@/components/IcalTokenSection";
+import { TotpSection } from "@/components/TotpSection";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 
@@ -214,6 +215,17 @@ export default async function SettingsPage() {
             <KeyRound size={16} />
             Manage passkeys
           </Link>
+        </div>
+
+        <div className="mt-4 border-t border-border pt-4">
+          <h3 className="mb-2 text-sm font-medium">Two-factor authentication</h3>
+          {isEncryptionConfigured() ? (
+            <TotpSection enabled={user.totpEnabled} />
+          ) : (
+            <p className="text-sm text-amber-600 dark:text-amber-400">
+              Set ENCRYPTION_KEY on the server to enable two-factor authentication.
+            </p>
+          )}
         </div>
       </section>
 

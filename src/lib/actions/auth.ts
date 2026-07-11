@@ -2,7 +2,7 @@
 
 import bcrypt from "bcryptjs";
 import { randomUUID } from "crypto";
-import { AuthError } from "next-auth";
+import { AuthError, CredentialsSignin } from "next-auth";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { auth, signIn, signOut } from "@/lib/auth";
@@ -28,6 +28,7 @@ export type ActionState = {
   error?: string;
   success?: string;
   values?: Record<string, string>;
+  totpRequired?: boolean;
 } | null;
 
 // Password is intentionally excluded — never echo it back to the form.
@@ -100,13 +101,33 @@ export async function login(
     return { error: "Enter a valid email and password." };
   }
 
+  const totpCodeRaw = formData.get("totpCode");
+  const totpCode = typeof totpCodeRaw === "string" ? totpCodeRaw.trim() : "";
+
   try {
     await signIn("credentials", {
       email: parsed.data.email,
       password: parsed.data.password,
+      // Omitted (rather than passed as undefined) when empty: signIn() builds
+      // a URLSearchParams from this object, which stringifies `undefined` to
+      // the literal text "undefined" — a truthy value the server would then
+      // try (and fail) to verify as a real code instead of treating it as
+      // absent.
+      ...(totpCode ? { totpCode } : {}),
       redirectTo: "/dashboard",
     });
   } catch (error) {
+    if (error instanceof CredentialsSignin) {
+      if (error.code === "totp_required") {
+        return { totpRequired: true };
+      }
+      if (error.code === "invalid_totp") {
+        return {
+          totpRequired: true,
+          error: "Invalid code. Check your authenticator app or use a recovery code.",
+        };
+      }
+    }
     if (error instanceof AuthError) {
       return { error: "Invalid email or password." };
     }
@@ -285,6 +306,33 @@ export async function changePassword(
   });
 
   return { success: "Password updated." };
+}
+
+export async function disableTotp(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const session = await auth();
+  if (!session?.user) return { error: "Not signed in." };
+
+  const password = formData.get("password");
+  if (typeof password !== "string" || password.length === 0) {
+    return { error: "Enter your password to confirm." };
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: session.user.id } });
+  if (!user) return { error: "User not found." };
+
+  const valid = await bcrypt.compare(password, user.passwordHash);
+  if (!valid) return { error: "Incorrect password." };
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { totpSecret: null, totpEnabled: false, totpRecoveryCodes: null },
+  });
+
+  revalidatePath("/settings");
+  return { success: "Two-factor authentication disabled." };
 }
 
 const GENERIC_RESET_MESSAGE = "If that email exists, we've sent a password reset link.";

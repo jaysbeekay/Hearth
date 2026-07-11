@@ -162,6 +162,9 @@ model User {
   inventoryItems    InventoryItem[]
   portfolios        Portfolio[]
   passwordResetTokens PasswordResetToken[]
+  totpSecret          String?
+  totpEnabled         Boolean   @default(false)
+  totpRecoveryCodes   String?
 
   @@map("users")
 }
