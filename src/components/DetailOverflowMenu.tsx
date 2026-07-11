@@ -29,7 +29,6 @@ export function DetailOverflowMenu({ children }: { children: React.ReactNode }) 
       </button>
       {open && (
         <div
-          onClick={() => setOpen(false)}
           className="absolute right-0 z-10 mt-1 w-48 overflow-hidden rounded-lg border border-border bg-surface shadow-md"
         >
           {children}
