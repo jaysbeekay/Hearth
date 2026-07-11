@@ -218,6 +218,7 @@ model Contract {
 
   documents         Document[]
   notifications     NotificationLog[]
+  rentalAgreement   RentalAgreement?
 
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
@@ -462,6 +463,8 @@ model RentalAgreement {
   id                   String    @id @default(cuid())
   propertyId           String
   property             Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  contractId           String?   @unique
+  contract             Contract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
   tenantName           String?
   weeklyRent           Float
   managementFeePercent Float?

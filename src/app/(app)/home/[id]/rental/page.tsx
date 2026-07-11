@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Pencil, Trash2, Plus, FileText } from "lucide-react";
+import { Pencil, Trash2, Plus, FileText, Link2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import {
@@ -8,10 +8,12 @@ import {
   setPropertyRented,
   deleteRentalStatement,
   addRentalStatementDocument,
+  linkRentalAgreementContract,
 } from "@/lib/actions/home";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { RentalStatementDocumentList } from "@/components/RentalStatementDocumentList";
+import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 
@@ -68,16 +70,21 @@ export default async function RentalOverviewPage({
   await requireModuleEnabled("HOME");
 
   const { id } = await params;
-  const [property, { dateFormat }] = await Promise.all([
+  const [property, rentalContracts, { dateFormat }] = await Promise.all([
     prisma.property.findUnique({
       where: { id },
       include: {
-        rentalAgreements: { orderBy: { createdAt: "desc" } },
+        rentalAgreements: { include: { contract: true }, orderBy: { createdAt: "desc" } },
         rentalStatements: {
           include: { documents: { orderBy: { uploadedAt: "desc" } } },
           orderBy: { periodStart: "desc" },
         },
       },
+    }),
+    prisma.contract.findMany({
+      where: { category: "RENTAL" },
+      select: { id: true, title: true, provider: true },
+      orderBy: { title: "asc" },
     }),
     getUserPreferences(),
   ]);
@@ -203,6 +210,65 @@ export default async function RentalOverviewPage({
                   {ag.notes && (
                     <p className="mt-3 text-sm text-foreground/70">{ag.notes}</p>
                   )}
+
+                  <div className="mt-4 border-t border-border pt-4">
+                    <div className="mb-2 flex items-center gap-2 text-sm font-medium">
+                      <Link2 size={14} className="text-foreground/50" />
+                      Linked contract
+                    </div>
+                    {ag.contract ? (
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <Link
+                            href={`/contracts/${ag.contract.id}`}
+                            className="text-sm font-medium text-accent hover:underline"
+                          >
+                            {ag.contract.title}
+                          </Link>
+                          <p className="text-xs text-foreground/50">
+                            {ag.contract.provider}
+                            {ag.contract.cost != null &&
+                              ` · ${formatCurrency(ag.contract.cost, ag.contract.currency)}`}
+                          </p>
+                        </div>
+                        <form action={linkRentalAgreementContract.bind(null, property.id, ag.id)}>
+                          <input type="hidden" name="contractId" value="" />
+                          <button
+                            type="submit"
+                            className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium hover:bg-black/5 dark:hover:bg-white/5"
+                          >
+                            Unlink
+                          </button>
+                        </form>
+                      </div>
+                    ) : rentalContracts.length === 0 ? (
+                      <p className="text-sm text-foreground/60">
+                        No Rental-category contracts to link yet.
+                      </p>
+                    ) : (
+                      <form
+                        action={linkRentalAgreementContract.bind(null, property.id, ag.id)}
+                        className="flex items-center gap-2"
+                      >
+                        <SelectWrapper>
+                          <select name="contractId" defaultValue="" className={selectClass}>
+                            <option value="">Not linked</option>
+                            {rentalContracts.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.title} ({c.provider})
+                              </option>
+                            ))}
+                          </select>
+                        </SelectWrapper>
+                        <button
+                          type="submit"
+                          className="rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
+                        >
+                          Link
+                        </button>
+                      </form>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

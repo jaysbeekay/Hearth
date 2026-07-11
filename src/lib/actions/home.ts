@@ -379,6 +379,47 @@ export async function deleteRentalAgreement(
   return { success: "Agreement removed." };
 }
 
+async function setRentalAgreementContract(
+  propertyId: string,
+  agreementId: string,
+  formData: FormData,
+): Promise<ActionState> {
+  await requireUser();
+
+  const existing = await prisma.rentalAgreement.findUnique({ where: { id: agreementId } });
+  if (!existing || existing.propertyId !== propertyId) return { error: "Agreement not found." };
+
+  const contractId = formData.get("contractId");
+  let newContractId: string | null = null;
+  if (typeof contractId === "string" && contractId.trim() !== "") {
+    const contract = await prisma.contract.findUnique({ where: { id: contractId } });
+    if (!contract) return { error: "Contract not found." };
+    if (contract.category !== "RENTAL") {
+      return { error: "Only Rental-category contracts can be linked." };
+    }
+    newContractId = contract.id;
+  }
+
+  await prisma.rentalAgreement.update({
+    where: { id: agreementId },
+    data: { contractId: newContractId },
+  });
+
+  revalidatePath(`/home/${propertyId}/rental`);
+  revalidatePath("/contracts");
+  if (existing.contractId) revalidatePath(`/contracts/${existing.contractId}`);
+  if (newContractId) revalidatePath(`/contracts/${newContractId}`);
+  return { success: newContractId ? "Contract linked." : "Contract unlinked." };
+}
+
+export async function linkRentalAgreementContract(
+  propertyId: string,
+  agreementId: string,
+  formData: FormData,
+): Promise<void> {
+  await setRentalAgreementContract(propertyId, agreementId, formData);
+}
+
 export async function setPropertyRented(
   propertyId: string,
   isRented: boolean,
