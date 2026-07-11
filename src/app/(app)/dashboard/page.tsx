@@ -8,10 +8,13 @@ import { VehicleCard } from "@/components/VehicleCard";
 import { TripCard } from "@/components/TripCard";
 import { StatCard } from "@/components/StatCard";
 import { AddEntryPicker } from "@/components/AddEntryPicker";
+import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { daysUntil, monthlyEquivalent, formatCurrency } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
+import { auth } from "@/lib/auth";
+import { isSmtpConfigured, isNtfyConfigured } from "@/lib/appSettings";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -61,10 +64,16 @@ function OnboardingHero({ enabledModules }: { enabledModules: Set<string> }) {
 }
 
 export default async function DashboardPage() {
-  const [enabledModules, { preferredCurrency }] = await Promise.all([
-    getEnabledModuleKeys(),
-    getUserPreferences(),
-  ]);
+  const [enabledModules, { preferredCurrency }, session, smtpConfigured, ntfyConfigured] =
+    await Promise.all([
+      getEnabledModuleKeys(),
+      getUserPreferences(),
+      auth(),
+      isSmtpConfigured(),
+      isNtfyConfigured(),
+    ]);
+  const showNotificationNudge =
+    session?.user.role === "ADMIN" && !smtpConfigured && !ntfyConfigured;
 
   const [contracts, products, vehicles, trips] = await Promise.all([
     prisma.contract.findMany({ orderBy: { endDate: "asc" } }),
@@ -131,6 +140,8 @@ export default async function DashboardPage() {
         </div>
         <AddEntryPicker enabledModules={[...enabledModules]} />
       </div>
+
+      {showNotificationNudge && <NotificationNudgeBanner />}
 
       {isEmpty ? (
         <OnboardingHero enabledModules={enabledModules} />
