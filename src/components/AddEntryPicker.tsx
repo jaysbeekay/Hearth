@@ -16,6 +16,12 @@ export function AddEntryPicker({ enabledModules }: { enabledModules: string[] })
 
   const options: Option[] = [
     {
+      label: "Not sure? Just upload it",
+      description: "Drop in a document — Hearth scans it and you confirm what it is.",
+      href: "/import",
+      icon: Files,
+    },
+    {
       label: "A bill or subscription",
       description: "Ongoing agreements — leases, subscriptions, insurance.",
       href: "/contracts/new",
@@ -46,13 +52,6 @@ export function AddEntryPicker({ enabledModules }: { enabledModules: string[] })
       icon: HomeIcon,
     });
   }
-
-  options.push({
-    label: "Multiple documents at once",
-    description: "Migrating existing paperwork? Bulk-import several PDFs in one go.",
-    href: "/import",
-    icon: Files,
-  });
 
   return (
     <>

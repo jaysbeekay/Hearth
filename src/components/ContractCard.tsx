@@ -13,7 +13,7 @@ export function ContractCard({
   contract,
   dateFormat,
 }: {
-  contract: ContractModel;
+  contract: ContractModel & { _count?: { documents: number } };
   dateFormat?: string;
 }) {
   const days = daysUntil(contract.endDate);
@@ -46,6 +46,12 @@ export function ContractCard({
           </span>
         )}
       </div>
+
+      {contract._count != null && contract._count.documents > 0 && (
+        <p className="mt-1 text-xs text-muted tabular-nums">
+          {contract._count.documents} {contract._count.documents === 1 ? "doc" : "docs"}
+        </p>
+      )}
     </Link>
   );
 }

@@ -10,6 +10,7 @@ import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
 import { enqueueOperation, serializeFormData } from "@/lib/offlineQueue";
+import { markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -65,18 +66,28 @@ export function ProductForm({
   function applyExtractedFields(fields: ExtractedFields) {
     if (fields.name && nameRef.current && !nameRef.current.value) {
       nameRef.current.value = fields.name;
+      markAutoFilled(nameRef.current);
     }
     if (fields.manufacturer && manufacturerRef.current) {
       manufacturerRef.current.value = fields.manufacturer;
+      markAutoFilled(manufacturerRef.current);
     }
-    if (fields.vendor && vendorRef.current) vendorRef.current.value = fields.vendor;
+    if (fields.vendor && vendorRef.current) {
+      vendorRef.current.value = fields.vendor;
+      markAutoFilled(vendorRef.current);
+    }
     if (fields.serialNumber && serialNumberRef.current) {
       serialNumberRef.current.value = fields.serialNumber;
+      markAutoFilled(serialNumberRef.current);
     }
     if (fields.purchaseDate && purchaseDateRef.current) {
       purchaseDateRef.current.value = fields.purchaseDate;
+      markAutoFilled(purchaseDateRef.current);
     }
-    if (fields.price && priceRef.current) priceRef.current.value = fields.price;
+    if (fields.price && priceRef.current) {
+      priceRef.current.value = fields.price;
+      markAutoFilled(priceRef.current);
+    }
   }
 
   async function handleFileChange(file: File | null) {
@@ -90,13 +101,13 @@ export function ProductForm({
       const res = await fetch("/api/products/extract", { method: "POST", body });
       if (!res.ok) throw new Error("Extraction failed");
 
-      const { fields } = (await res.json()) as { fields: ExtractedFields };
-      if (Object.keys(fields).length === 0) {
-        setScanMessage("Couldn't detect any fields from this invoice — fill them in manually.");
-      } else {
-        applyExtractedFields(fields);
-        setScanMessage("Fields populated from the invoice — review before saving.");
-      }
+      const { fields, source } = (await res.json()) as {
+        fields: ExtractedFields;
+        source: "byok" | "heuristic" | "llm" | "none";
+      };
+      const filledCount = Object.keys(fields).length;
+      if (filledCount > 0) applyExtractedFields(fields);
+      setScanMessage(extractionMessage(source, filledCount));
     } catch {
       setScanMessage("Couldn't scan this invoice. You can still attach it and fill in fields manually.");
     } finally {
@@ -148,7 +159,7 @@ export function ProductForm({
           <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
             <p className="flex items-center gap-2 text-sm font-medium">
               <Upload size={16} />
-              Upload an invoice to auto-fill fields (optional)
+              Save time: upload an invoice and Hearth fills in the details
             </p>
             <FileDropZone name="invoiceFile" onFileSelected={handleFileChange} />
             {scanning && (

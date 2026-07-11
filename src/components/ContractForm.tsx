@@ -15,6 +15,7 @@ import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
 import { enqueueOperation, serializeFormData } from "@/lib/offlineQueue";
+import { markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -82,25 +83,43 @@ export function ContractForm({
   function applyExtractedFields(fields: ExtractedFields) {
     if (fields.title && titleRef.current && !titleRef.current.value) {
       titleRef.current.value = fields.title;
+      markAutoFilled(titleRef.current);
     }
-    if (fields.provider && providerRef.current) providerRef.current.value = fields.provider;
+    if (fields.provider && providerRef.current) {
+      providerRef.current.value = fields.provider;
+      markAutoFilled(providerRef.current);
+    }
     if (fields.contractNumber && contractNumberRef.current) {
       contractNumberRef.current.value = fields.contractNumber;
+      markAutoFilled(contractNumberRef.current);
     }
-    if (fields.startDate && startDateRef.current) startDateRef.current.value = fields.startDate;
-    if (fields.endDate && endDateRef.current) endDateRef.current.value = fields.endDate;
-    if (fields.cost && costRef.current) costRef.current.value = fields.cost;
+    if (fields.startDate && startDateRef.current) {
+      startDateRef.current.value = fields.startDate;
+      markAutoFilled(startDateRef.current);
+    }
+    if (fields.endDate && endDateRef.current) {
+      endDateRef.current.value = fields.endDate;
+      markAutoFilled(endDateRef.current);
+    }
+    if (fields.cost && costRef.current) {
+      costRef.current.value = fields.cost;
+      markAutoFilled(costRef.current);
+    }
     if (fields.billingFrequency && billingFrequencyRef.current) {
       billingFrequencyRef.current.value = fields.billingFrequency;
+      markAutoFilled(billingFrequencyRef.current);
     }
     if (fields.contactName && contactNameRef.current) {
       contactNameRef.current.value = fields.contactName;
+      markAutoFilled(contactNameRef.current);
     }
     if (fields.contactPhone && contactPhoneRef.current) {
       contactPhoneRef.current.value = fields.contactPhone;
+      markAutoFilled(contactPhoneRef.current);
     }
     if (fields.contactEmail && contactEmailRef.current) {
       contactEmailRef.current.value = fields.contactEmail;
+      markAutoFilled(contactEmailRef.current);
     }
   }
 
@@ -115,13 +134,13 @@ export function ContractForm({
       const res = await fetch("/api/documents/extract", { method: "POST", body });
       if (!res.ok) throw new Error("Extraction failed");
 
-      const { fields } = (await res.json()) as { fields: ExtractedFields };
-      if (Object.keys(fields).length === 0) {
-        setScanMessage("Couldn't detect any fields from this document — fill them in manually.");
-      } else {
-        applyExtractedFields(fields);
-        setScanMessage("Fields populated from the document — review before saving.");
-      }
+      const { fields, source } = (await res.json()) as {
+        fields: ExtractedFields;
+        source: "byok" | "heuristic" | "llm" | "none";
+      };
+      const filledCount = Object.keys(fields).length;
+      if (filledCount > 0) applyExtractedFields(fields);
+      setScanMessage(extractionMessage(source, filledCount));
     } catch {
       setScanMessage("Couldn't scan this document. You can still attach it and fill in fields manually.");
     } finally {

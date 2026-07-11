@@ -55,7 +55,7 @@ export function SetupForm() {
       </div>
 
       <fieldset className="space-y-2">
-        <legend className="text-sm font-medium">Optional modules</legend>
+        <legend className="text-sm font-medium">What would you like to track?</legend>
         <p className="text-xs text-foreground/60">
           Enable any extra modules now, or turn them on later from Settings.
         </p>

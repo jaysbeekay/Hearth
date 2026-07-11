@@ -28,6 +28,7 @@ export default async function ProductsPage({
   const [products, { dateFormat }, session] = await Promise.all([
     prisma.product.findMany({
       where,
+      include: { _count: { select: { documents: true } } },
       orderBy: [{ warrantyEndDate: "asc" }],
     }),
     getUserPreferences(),

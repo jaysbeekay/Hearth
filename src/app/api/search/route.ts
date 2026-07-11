@@ -31,7 +31,13 @@ export async function GET(request: NextRequest) {
   queries.push(
     prisma.contract
       .findMany({
-        where: { OR: [{ title: contains }, { provider: contains }] },
+        where: {
+          OR: [
+            { title: contains },
+            { provider: contains },
+            { documents: { some: { extractedText: contains } } },
+          ],
+        },
         select: { id: true, title: true, provider: true },
         take: LIMIT,
       })
@@ -49,7 +55,14 @@ export async function GET(request: NextRequest) {
   queries.push(
     prisma.product
       .findMany({
-        where: { OR: [{ name: contains }, { manufacturer: contains }, { vendor: contains }] },
+        where: {
+          OR: [
+            { name: contains },
+            { manufacturer: contains },
+            { vendor: contains },
+            { documents: { some: { extractedText: contains } } },
+          ],
+        },
         select: { id: true, name: true, manufacturer: true },
         take: LIMIT,
       })
@@ -67,7 +80,7 @@ export async function GET(request: NextRequest) {
   queries.push(
     prisma.document
       .findMany({
-        where: { filename: contains },
+        where: { OR: [{ filename: contains }, { extractedText: contains }] },
         select: { id: true, filename: true, contract: { select: { id: true, title: true } } },
         take: LIMIT,
       })
@@ -85,7 +98,7 @@ export async function GET(request: NextRequest) {
   queries.push(
     prisma.productDocument
       .findMany({
-        where: { filename: contains },
+        where: { OR: [{ filename: contains }, { extractedText: contains }] },
         select: { id: true, filename: true, product: { select: { id: true, name: true } } },
         take: LIMIT,
       })

@@ -10,6 +10,7 @@ import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { HomeItemDocumentList } from "@/components/HomeItemDocumentList";
+import { RecordMeta } from "@/components/RecordMeta";
 import { PropertyMap } from "@/components/PropertyMap";
 import { HOME_ITEM_TYPE_LABELS, formatCurrency, formatDate } from "@/lib/utils";
 import { CurrencySelect } from "@/components/CurrencySelect";
@@ -325,9 +326,12 @@ export default async function PropertyDetailPage({
         )}
       </div>
 
-      <p className="text-xs text-foreground/40">
-        Added by {property.createdBy.name} on {formatDate(property.createdAt, dateFormat)}
-      </p>
+      <RecordMeta
+        createdByName={property.createdBy.name}
+        createdAt={property.createdAt}
+        updatedAt={property.updatedAt}
+        dateFormat={dateFormat}
+      />
     </div>
   );
 }

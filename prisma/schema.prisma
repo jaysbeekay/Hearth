@@ -244,14 +244,15 @@ model Contract {
 }
 
 model Document {
-  id         String   @id @default(cuid())
-  contractId String
-  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  filename   String
-  storedName String
-  mimeType   String
-  size       Int
-  uploadedAt DateTime @default(now())
+  id            String   @id @default(cuid())
+  contractId    String
+  contract      Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  filename      String
+  storedName    String
+  mimeType      String
+  size          Int
+  extractedText String?
+  uploadedAt    DateTime @default(now())
 
   @@map("documents")
 }
@@ -295,15 +296,16 @@ model Product {
 }
 
 model ProductDocument {
-  id         String              @id @default(cuid())
-  productId  String
-  product    Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
-  filename   String
-  storedName String
-  mimeType   String
-  size       Int
-  kind       ProductDocumentKind @default(OTHER)
-  uploadedAt DateTime            @default(now())
+  id            String              @id @default(cuid())
+  productId     String
+  product       Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  filename      String
+  storedName    String
+  mimeType      String
+  size          Int
+  kind          ProductDocumentKind @default(OTHER)
+  extractedText String?
+  uploadedAt    DateTime            @default(now())
 
   @@map("product_documents")
 }

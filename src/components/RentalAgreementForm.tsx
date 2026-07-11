@@ -8,6 +8,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
+import { markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -38,11 +39,26 @@ export function RentalAgreementForm({
   const bondAmountRef = useRef<HTMLInputElement>(null);
 
   function applyExtractedFields(fields: ExtractedFields) {
-    if (fields.weeklyRent && weeklyRentRef.current) weeklyRentRef.current.value = fields.weeklyRent;
-    if (fields.tenantName && tenantNameRef.current) tenantNameRef.current.value = fields.tenantName;
-    if (fields.leaseStart && leaseStartRef.current) leaseStartRef.current.value = fields.leaseStart;
-    if (fields.leaseEnd && leaseEndRef.current) leaseEndRef.current.value = fields.leaseEnd;
-    if (fields.bondAmount && bondAmountRef.current) bondAmountRef.current.value = fields.bondAmount;
+    if (fields.weeklyRent && weeklyRentRef.current) {
+      weeklyRentRef.current.value = fields.weeklyRent;
+      markAutoFilled(weeklyRentRef.current);
+    }
+    if (fields.tenantName && tenantNameRef.current) {
+      tenantNameRef.current.value = fields.tenantName;
+      markAutoFilled(tenantNameRef.current);
+    }
+    if (fields.leaseStart && leaseStartRef.current) {
+      leaseStartRef.current.value = fields.leaseStart;
+      markAutoFilled(leaseStartRef.current);
+    }
+    if (fields.leaseEnd && leaseEndRef.current) {
+      leaseEndRef.current.value = fields.leaseEnd;
+      markAutoFilled(leaseEndRef.current);
+    }
+    if (fields.bondAmount && bondAmountRef.current) {
+      bondAmountRef.current.value = fields.bondAmount;
+      markAutoFilled(bondAmountRef.current);
+    }
   }
 
   async function handleFileChange(file: File | null) {
@@ -56,13 +72,13 @@ export function RentalAgreementForm({
       const res = await fetch("/api/home/lease-extract", { method: "POST", body });
       if (!res.ok) throw new Error("Extraction failed");
 
-      const { fields } = (await res.json()) as { fields: ExtractedFields };
-      if (Object.keys(fields).length === 0) {
-        setScanMessage("Couldn't detect any fields from this document — fill them in manually.");
-      } else {
-        applyExtractedFields(fields);
-        setScanMessage("Fields populated from the lease — review before saving.");
-      }
+      const { fields, source } = (await res.json()) as {
+        fields: ExtractedFields;
+        source: "byok" | "heuristic" | "llm" | "none";
+      };
+      const filledCount = Object.keys(fields).length;
+      if (filledCount > 0) applyExtractedFields(fields);
+      setScanMessage(extractionMessage(source, filledCount));
     } catch {
       setScanMessage("Couldn't scan this document. You can still fill in the fields manually.");
     } finally {
@@ -76,7 +92,7 @@ export function RentalAgreementForm({
         <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
           <p className="flex items-center gap-2 text-sm font-medium">
             <Upload size={16} />
-            Upload lease agreement to auto-fill fields (optional)
+            Save time: upload the lease agreement and Hearth fills in the details
           </p>
           <FileDropZone name="leaseFile" onFileSelected={handleFileChange} />
           {scanning && (

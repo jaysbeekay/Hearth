@@ -14,6 +14,7 @@ import {
 } from "@/lib/storage";
 import { formDataToStringValues } from "@/lib/form-state";
 import { formToContractInput } from "@/lib/formMappers";
+import { extractSearchableText } from "@/lib/documents/textExtraction";
 
 export type ActionState = {
   error?: string;
@@ -60,6 +61,7 @@ async function attachDocument(contractId: string, file: File): Promise<ActionSta
   }
 
   const { storedName, size } = await saveDocument(contractId, file);
+  const extractedText = await extractSearchableText(Buffer.from(await file.arrayBuffer()), file.type);
   await prisma.document.create({
     data: {
       contractId,
@@ -67,6 +69,7 @@ async function attachDocument(contractId: string, file: File): Promise<ActionSta
       storedName,
       mimeType: file.type,
       size,
+      extractedText,
     },
   });
   return null;

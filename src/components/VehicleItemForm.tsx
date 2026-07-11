@@ -12,6 +12,7 @@ import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
 import { enqueueOperation, serializeFormData } from "@/lib/offlineQueue";
+import { markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -61,13 +62,26 @@ export function VehicleItemForm({
   const costRef = useRef<HTMLInputElement>(null);
 
   function applyExtractedFields(fields: ExtractedFields) {
-    if (fields.type && typeRef.current) typeRef.current.value = fields.type;
+    if (fields.type && typeRef.current) {
+      typeRef.current.value = fields.type;
+      markAutoFilled(typeRef.current);
+    }
     if (fields.title && titleRef.current && !titleRef.current.value) {
       titleRef.current.value = fields.title;
+      markAutoFilled(titleRef.current);
     }
-    if (fields.provider && providerRef.current) providerRef.current.value = fields.provider;
-    if (fields.date && dateRef.current) dateRef.current.value = fields.date;
-    if (fields.cost && costRef.current) costRef.current.value = fields.cost;
+    if (fields.provider && providerRef.current) {
+      providerRef.current.value = fields.provider;
+      markAutoFilled(providerRef.current);
+    }
+    if (fields.date && dateRef.current) {
+      dateRef.current.value = fields.date;
+      markAutoFilled(dateRef.current);
+    }
+    if (fields.cost && costRef.current) {
+      costRef.current.value = fields.cost;
+      markAutoFilled(costRef.current);
+    }
   }
 
   async function handleFileChange(file: File | null) {
@@ -81,13 +95,13 @@ export function VehicleItemForm({
       const res = await fetch("/api/vehicles/extract", { method: "POST", body });
       if (!res.ok) throw new Error("Extraction failed");
 
-      const { fields } = (await res.json()) as { fields: ExtractedFields };
-      if (Object.keys(fields).length === 0) {
-        setScanMessage("Couldn't detect any fields from this document — fill them in manually.");
-      } else {
-        applyExtractedFields(fields);
-        setScanMessage("Fields populated from the document — review before saving.");
-      }
+      const { fields, source } = (await res.json()) as {
+        fields: ExtractedFields;
+        source: "byok" | "heuristic" | "llm" | "none";
+      };
+      const filledCount = Object.keys(fields).length;
+      if (filledCount > 0) applyExtractedFields(fields);
+      setScanMessage(extractionMessage(source, filledCount));
     } catch {
       setScanMessage(
         "Couldn't scan this document. You can still attach it and fill in fields manually.",
@@ -103,7 +117,7 @@ export function VehicleItemForm({
         <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
           <p className="flex items-center gap-2 text-sm font-medium">
             <Upload size={16} />
-            Upload a receipt or invoice to auto-fill fields (optional)
+            Save time: upload a receipt or invoice and Hearth fills in the details
           </p>
           <FileDropZone name="file" onFileSelected={handleFileChange} />
           {scanning && (
