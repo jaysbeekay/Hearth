@@ -14,6 +14,7 @@ import {
 } from "@/lib/storage";
 import { ProductDocumentKind } from "@/generated/prisma/enums";
 import { formDataToStringValues } from "@/lib/form-state";
+import { formToProductInput } from "@/lib/formMappers";
 
 export type ActionState = {
   error?: string;
@@ -75,22 +76,6 @@ async function attachProductDocument(
     },
   });
   return null;
-}
-
-function formToProductInput(formData: FormData) {
-  return {
-    name: formData.get("name"),
-    manufacturer: formData.get("manufacturer"),
-    vendor: formData.get("vendor"),
-    serialNumber: formData.get("serialNumber"),
-    barcode: formData.get("barcode"),
-    purchaseDate: formData.get("purchaseDate"),
-    warrantyEndDate: formData.get("warrantyEndDate"),
-    price: formData.get("price"),
-    currency: formData.get("currency") || "AUD",
-    notes: formData.get("notes"),
-    reminderDaysBefore: formData.get("reminderDaysBefore"),
-  };
 }
 
 export async function createProduct(

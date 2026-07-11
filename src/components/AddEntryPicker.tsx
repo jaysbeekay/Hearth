@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Plus, FileText, Package, Boxes, Home as HomeIcon, X } from "lucide-react";
+import { Plus, FileText, Package, Boxes, Home as HomeIcon, Files, X } from "lucide-react";
 
 interface Option {
   label: string;
@@ -46,6 +46,13 @@ export function AddEntryPicker({ enabledModules }: { enabledModules: string[] })
       icon: HomeIcon,
     });
   }
+
+  options.push({
+    label: "Multiple documents at once",
+    description: "Migrating existing paperwork? Bulk-import several PDFs in one go.",
+    href: "/import",
+    icon: Files,
+  });
 
   return (
     <>
