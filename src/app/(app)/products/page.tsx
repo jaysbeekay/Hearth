@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { ProductListClient } from "@/components/ProductListClient";
 import type { Prisma } from "@/generated/prisma/client";
@@ -24,13 +25,21 @@ export default async function ProductsPage({
     ];
   }
 
-  const [products, { dateFormat }] = await Promise.all([
+  const [products, { dateFormat }, session] = await Promise.all([
     prisma.product.findMany({
       where,
       orderBy: [{ warrantyEndDate: "asc" }],
     }),
     getUserPreferences(),
+    auth(),
   ]);
 
-  return <ProductListClient products={products} q={q} dateFormat={dateFormat} />;
+  return (
+    <ProductListClient
+      products={products}
+      q={q}
+      dateFormat={dateFormat}
+      canWrite={session?.user.role !== "READONLY"}
+    />
+  );
 }

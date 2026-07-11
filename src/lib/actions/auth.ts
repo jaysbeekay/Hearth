@@ -10,6 +10,7 @@ import {
   createUserSchema,
   loginSchema,
   setupSchema,
+  updateMemberRoleSchema,
 } from "@/lib/validation/auth";
 import { formDataToStringValues } from "@/lib/form-state";
 import { isKnownModuleKey } from "@/lib/modules/enablement";
@@ -178,6 +179,39 @@ export async function deleteUser(userId: string): Promise<ActionState> {
   await prisma.user.delete({ where: { id: userId } });
   revalidatePath("/settings/users");
   return { success: "User removed." };
+}
+
+export async function updateMemberRole(
+  userId: string,
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const session = await auth();
+  if (session?.user.role !== "ADMIN") {
+    return { error: "Only admins can change member roles." };
+  }
+  if (session.user.id === userId) {
+    return { error: "You can't change your own role." };
+  }
+
+  const parsed = updateMemberRoleSchema.safeParse({ role: formData.get("role") });
+  if (!parsed.success) {
+    return { error: firstIssueMessage(parsed.error) };
+  }
+
+  const target = await prisma.user.findUnique({ where: { id: userId } });
+  if (!target) return { error: "User not found." };
+
+  if (target.role === "ADMIN" && parsed.data.role !== "ADMIN") {
+    const adminCount = await prisma.user.count({ where: { role: "ADMIN" } });
+    if (adminCount <= 1) {
+      return { error: "At least one admin must remain." };
+    }
+  }
+
+  await prisma.user.update({ where: { id: userId }, data: { role: parsed.data.role } });
+  revalidatePath("/settings/users");
+  return { success: "Role updated." };
 }
 
 export async function updateNotificationPreferences(formData: FormData): Promise<void> {

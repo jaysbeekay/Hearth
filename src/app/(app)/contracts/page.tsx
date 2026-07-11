@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { ContractListClient } from "@/components/ContractListClient";
 import type { Prisma } from "@/generated/prisma/client";
@@ -21,12 +22,13 @@ export default async function ContractsPage({
     ];
   }
 
-  const [contracts, { dateFormat }] = await Promise.all([
+  const [contracts, { dateFormat }, session] = await Promise.all([
     prisma.contract.findMany({
       where,
       orderBy: [{ status: "asc" }, { endDate: "asc" }],
     }),
     getUserPreferences(),
+    auth(),
   ]);
 
   return (
@@ -36,6 +38,7 @@ export default async function ContractsPage({
       category={category}
       status={status}
       dateFormat={dateFormat}
+      canWrite={session?.user.role !== "READONLY"}
     />
   );
 }

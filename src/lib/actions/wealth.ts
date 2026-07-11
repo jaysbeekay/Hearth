@@ -36,6 +36,7 @@ async function requireUser() {
   const session = await auth();
   if (!session?.user) throw new Error("Not signed in");
   if (!(await isModuleEnabled("WEALTH"))) throw new Error("Wealth module is disabled");
+  if (session.user.role === "READONLY") throw new Error("Your account has read-only access.");
   return session.user;
 }
 
@@ -538,6 +539,7 @@ export async function importTrades(
 async function requireHomeEnabled() {
   const session = await auth();
   if (!session?.user) throw new Error("Not signed in");
+  if (session.user.role === "READONLY") throw new Error("Your account has read-only access.");
   return session.user;
 }
 

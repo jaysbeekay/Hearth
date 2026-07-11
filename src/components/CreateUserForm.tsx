@@ -65,6 +65,7 @@ export function CreateUserForm() {
           >
             <option value="MEMBER">Member</option>
             <option value="ADMIN">Admin</option>
+            <option value="READONLY">Read-only</option>
           </select>
         </SelectWrapper>
       </div>

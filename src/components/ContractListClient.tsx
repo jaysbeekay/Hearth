@@ -15,9 +15,17 @@ interface Props {
   category?: string;
   status?: string;
   dateFormat?: string;
+  canWrite?: boolean;
 }
 
-export function ContractListClient({ contracts, q, category, status, dateFormat }: Props) {
+export function ContractListClient({
+  contracts,
+  q,
+  category,
+  status,
+  dateFormat,
+  canWrite = true,
+}: Props) {
   const [online, setOnline] = useState(true);
 
   useEffect(() => {
@@ -50,15 +58,17 @@ export function ContractListClient({ contracts, q, category, status, dateFormat 
               <a href="/api/export/contracts?format=pdf" download className="block px-4 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/5">PDF</a>
             </div>
           </details>
-          <Link
-            href="/contracts/new"
-            aria-disabled={!online}
-            tabIndex={!online ? -1 : undefined}
-            className={`flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90${!online ? " pointer-events-none opacity-40" : ""}`}
-          >
-            <Plus size={16} />
-            Add contract
-          </Link>
+          {canWrite && (
+            <Link
+              href="/contracts/new"
+              aria-disabled={!online}
+              tabIndex={!online ? -1 : undefined}
+              className={`flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90${!online ? " pointer-events-none opacity-40" : ""}`}
+            >
+              <Plus size={16} />
+              Add contract
+            </Link>
+          )}
         </div>
       </div>
 

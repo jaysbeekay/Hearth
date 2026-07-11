@@ -11,7 +11,11 @@ export const setupSchema = z.object({
 });
 
 export const createUserSchema = setupSchema.extend({
-  role: z.enum(["ADMIN", "MEMBER"]).default("MEMBER"),
+  role: z.enum(["ADMIN", "MEMBER", "READONLY"]).default("MEMBER"),
+});
+
+export const updateMemberRoleSchema = z.object({
+  role: z.enum(["ADMIN", "MEMBER", "READONLY"]),
 });
 
 export const loginSchema = z.object({
