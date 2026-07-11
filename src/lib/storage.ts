@@ -3,7 +3,7 @@ import path from "path";
 import fs from "fs/promises";
 import { env } from "@/lib/env";
 
-export const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
+export { MAX_UPLOAD_BYTES } from "@/lib/uploadLimits";
 
 export const ALLOWED_MIME_TYPES = new Set([
   "application/pdf",

@@ -1,7 +1,6 @@
 "use client";
 
 import { useActionState, useRef, useState } from "react";
-import type { ChangeEvent } from "react";
 import { ScanBarcode, Upload } from "lucide-react";
 import type { ProductModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/products";
@@ -9,6 +8,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { CurrencySelect } from "@/components/CurrencySelect";
+import { FileDropZone } from "@/components/FileDropZone";
 import { enqueueOperation, serializeFormData } from "@/lib/offlineQueue";
 
 function toDateInputValue(date: Date | null | undefined) {
@@ -79,8 +79,7 @@ export function ProductForm({
     if (fields.price && priceRef.current) priceRef.current.value = fields.price;
   }
 
-  async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
+  async function handleFileChange(file: File | null) {
     if (!file) return;
 
     setScanning(true);
@@ -147,36 +146,29 @@ export function ProductForm({
       {!product && (
         <div className="space-y-4">
           <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
-            <label htmlFor="invoiceFile" className="flex items-center gap-2 text-sm font-medium">
+            <p className="flex items-center gap-2 text-sm font-medium">
               <Upload size={16} />
               Upload an invoice to auto-fill fields (optional)
-            </label>
-            <input
-              type="file"
-              id="invoiceFile"
-              name="invoiceFile"
-              accept=".pdf,.doc,.docx,image/*"
-              onChange={handleFileChange}
-              className="text-sm"
-            />
-            {scanning && <p className="text-sm text-foreground/60">Scanning invoice…</p>}
+            </p>
+            <FileDropZone name="invoiceFile" onFileSelected={handleFileChange} />
+            {scanning && (
+              <p role="status" aria-live="polite" className="text-sm text-foreground/60">
+                Scanning invoice…
+              </p>
+            )}
             {!scanning && scanMessage && (
-              <p className="text-sm text-foreground/60">{scanMessage}</p>
+              <p role="status" aria-live="polite" className="text-sm text-foreground/60">
+                {scanMessage}
+              </p>
             )}
           </div>
 
           <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
-            <label htmlFor="photoFile" className="flex items-center gap-2 text-sm font-medium">
+            <p className="flex items-center gap-2 text-sm font-medium">
               <Upload size={16} />
               Upload a photo of the product (optional)
-            </label>
-            <input
-              type="file"
-              id="photoFile"
-              name="photoFile"
-              accept="image/*"
-              className="text-sm"
-            />
+            </p>
+            <FileDropZone name="photoFile" accept="image/*" label="Drag a photo here or click to browse" hint="JPG, PNG, or WEBP — up to 15MB" />
           </div>
         </div>
       )}

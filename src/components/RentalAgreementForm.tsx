@@ -1,13 +1,13 @@
 "use client";
 
 import { useActionState, useRef, useState } from "react";
-import type { ChangeEvent } from "react";
 import { Upload } from "lucide-react";
 import type { RentalAgreementModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { CurrencySelect } from "@/components/CurrencySelect";
+import { FileDropZone } from "@/components/FileDropZone";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -45,8 +45,7 @@ export function RentalAgreementForm({
     if (fields.bondAmount && bondAmountRef.current) bondAmountRef.current.value = fields.bondAmount;
   }
 
-  async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
+  async function handleFileChange(file: File | null) {
     if (!file) return;
 
     setScanning(true);
@@ -75,20 +74,20 @@ export function RentalAgreementForm({
     <form action={formAction} className="space-y-6">
       {!agreement && (
         <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
-          <label htmlFor="leaseFile" className="flex items-center gap-2 text-sm font-medium">
+          <p className="flex items-center gap-2 text-sm font-medium">
             <Upload size={16} />
             Upload lease agreement to auto-fill fields (optional)
-          </label>
-          <input
-            type="file"
-            id="leaseFile"
-            accept=".pdf,.doc,.docx,image/*"
-            onChange={handleFileChange}
-            className="text-sm"
-          />
-          {scanning && <p className="text-sm text-foreground/60">Scanning lease document…</p>}
+          </p>
+          <FileDropZone name="leaseFile" onFileSelected={handleFileChange} />
+          {scanning && (
+            <p role="status" aria-live="polite" className="text-sm text-foreground/60">
+              Scanning lease document…
+            </p>
+          )}
           {!scanning && scanMessage && (
-            <p className="text-sm text-foreground/60">{scanMessage}</p>
+            <p role="status" aria-live="polite" className="text-sm text-foreground/60">
+              {scanMessage}
+            </p>
           )}
         </div>
       )}

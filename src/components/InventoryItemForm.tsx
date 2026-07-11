@@ -1,7 +1,6 @@
 "use client";
 
 import { useActionState, useRef, useState } from "react";
-import type { ChangeEvent } from "react";
 import { Upload } from "lucide-react";
 import type { InventoryItemModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
@@ -9,6 +8,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { INVENTORY_ITEM_CATEGORIES } from "@/lib/validation/inventory";
 import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
+import { FileDropZone } from "@/components/FileDropZone";
 
 const CATEGORY_LABELS: Record<string, string> = {
   APPLIANCE: "Appliance",
@@ -60,8 +60,7 @@ export function InventoryItemForm({
     if (fields.purchasePrice && purchasePriceRef.current) purchasePriceRef.current.value = fields.purchasePrice;
   }
 
-  async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
+  async function handleFileChange(file: File | null) {
     if (!file) return;
 
     setScanning(true);
@@ -90,20 +89,25 @@ export function InventoryItemForm({
     <form action={formAction} className="space-y-6">
       {!item && (
         <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
-          <label htmlFor="file" className="flex items-center gap-2 text-sm font-medium">
+          <p className="flex items-center gap-2 text-sm font-medium">
             <Upload size={16} />
             Upload a receipt or invoice to auto-fill fields (optional)
-          </label>
-          <input
-            id="file"
+          </p>
+          <FileDropZone
             name="file"
-            type="file"
             accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
-            onChange={handleFileChange}
-            className="w-full text-sm"
+            onFileSelected={handleFileChange}
           />
-          {scanning && <p className="text-xs text-muted animate-pulse">Scanning document…</p>}
-          {scanMessage && <p className="text-xs text-foreground/70">{scanMessage}</p>}
+          {scanning && (
+            <p role="status" aria-live="polite" className="text-xs text-muted animate-pulse">
+              Scanning document…
+            </p>
+          )}
+          {scanMessage && (
+            <p role="status" aria-live="polite" className="text-xs text-foreground/70">
+              {scanMessage}
+            </p>
+          )}
         </div>
       )}
 

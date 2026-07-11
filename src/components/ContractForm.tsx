@@ -1,7 +1,6 @@
 "use client";
 
 import { useActionState, useRef, useState } from "react";
-import type { ChangeEvent } from "react";
 import { Upload } from "lucide-react";
 import type { ContractModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/contracts";
@@ -14,6 +13,7 @@ import {
 } from "@/lib/utils";
 import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 import { CurrencySelect } from "@/components/CurrencySelect";
+import { FileDropZone } from "@/components/FileDropZone";
 import { enqueueOperation, serializeFormData } from "@/lib/offlineQueue";
 
 function toDateInputValue(date: Date | null | undefined) {
@@ -104,8 +104,7 @@ export function ContractForm({
     }
   }
 
-  async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
+  async function handleFileChange(file: File | null) {
     if (!file) return;
 
     setScanning(true);
@@ -134,21 +133,20 @@ export function ContractForm({
     <form action={formAction} className="space-y-6">
       {!contract && (
         <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
-          <label htmlFor="file" className="flex items-center gap-2 text-sm font-medium">
+          <p className="flex items-center gap-2 text-sm font-medium">
             <Upload size={16} />
-            Upload a document to auto-fill fields (optional)
-          </label>
-          <input
-            type="file"
-            id="file"
-            name="file"
-            accept=".pdf,.doc,.docx,image/*"
-            onChange={handleFileChange}
-            className="text-sm"
-          />
-          {scanning && <p className="text-sm text-foreground/60">Scanning document…</p>}
+            Save time: drop in the contract PDF and Hearth fills the form for you
+          </p>
+          <FileDropZone name="file" onFileSelected={handleFileChange} />
+          {scanning && (
+            <p role="status" aria-live="polite" className="text-sm text-foreground/60">
+              Scanning document…
+            </p>
+          )}
           {!scanning && scanMessage && (
-            <p className="text-sm text-foreground/60">{scanMessage}</p>
+            <p role="status" aria-live="polite" className="text-sm text-foreground/60">
+              {scanMessage}
+            </p>
           )}
         </div>
       )}
