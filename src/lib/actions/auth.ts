@@ -1,6 +1,7 @@
 "use server";
 
 import bcrypt from "bcryptjs";
+import { randomUUID } from "crypto";
 import { AuthError } from "next-auth";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
@@ -8,7 +9,9 @@ import { auth, signIn, signOut } from "@/lib/auth";
 import {
   changePasswordSchema,
   createUserSchema,
+  forgotPasswordSchema,
   loginSchema,
+  resetPasswordSchema,
   setupSchema,
   updateMemberRoleSchema,
 } from "@/lib/validation/auth";
@@ -18,6 +21,8 @@ import type { ModuleKey } from "@/lib/modules/registry";
 import { DATE_FORMAT_OPTIONS } from "@/lib/utils";
 import { TIMEZONE_OPTIONS } from "@/lib/userPreferences";
 import { POPULAR_CURRENCIES } from "@/components/CurrencySelect";
+import { env } from "@/lib/env";
+import { sendPasswordResetEmail } from "@/lib/notifications/email";
 
 export type ActionState = {
   error?: string;
@@ -280,6 +285,69 @@ export async function changePassword(
   });
 
   return { success: "Password updated." };
+}
+
+const GENERIC_RESET_MESSAGE = "If that email exists, we've sent a password reset link.";
+
+export async function requestPasswordReset(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const parsed = forgotPasswordSchema.safeParse({ email: formData.get("email") });
+  if (!parsed.success) {
+    return { error: firstIssueMessage(parsed.error) };
+  }
+
+  const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
+  if (user) {
+    const token = randomUUID();
+    await prisma.passwordResetToken.create({
+      data: {
+        token,
+        userId: user.id,
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      },
+    });
+    try {
+      await sendPasswordResetEmail(user.email, `${env.appUrl}/reset-password/${token}`);
+    } catch {
+      // Swallowed: the response must stay identical whether or not the
+      // account exists, and regardless of transient SMTP failures.
+    }
+  }
+
+  return { success: GENERIC_RESET_MESSAGE };
+}
+
+export async function resetPassword(
+  token: string,
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const parsed = resetPasswordSchema.safeParse({ password: formData.get("password") });
+  if (!parsed.success) {
+    return { error: firstIssueMessage(parsed.error) };
+  }
+
+  const resetToken = await prisma.passwordResetToken.findUnique({ where: { token } });
+  if (
+    !resetToken ||
+    resetToken.usedAt ||
+    resetToken.expiresAt.getTime() < Date.now()
+  ) {
+    return { error: "This reset link is invalid or has expired." };
+  }
+
+  const passwordHash = await bcrypt.hash(parsed.data.password, 12);
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: resetToken.userId }, data: { passwordHash } }),
+    prisma.passwordResetToken.updateMany({
+      where: { userId: resetToken.userId, usedAt: null },
+      data: { usedAt: new Date() },
+    }),
+  ]);
+
+  return { success: "Password updated. You can now sign in." };
 }
 
 export async function logout() {

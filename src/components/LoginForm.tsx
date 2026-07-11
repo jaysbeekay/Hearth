@@ -1,12 +1,13 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import { login, type ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { PasskeySignInButton } from "@/components/PasskeySignInButton";
 
-export function LoginForm() {
+export function LoginForm({ smtpConfigured = false }: { smtpConfigured?: boolean }) {
   const [state, formAction] = useActionState<ActionState, FormData>(login, null);
 
   return (
@@ -27,9 +28,19 @@ export function LoginForm() {
         </div>
 
         <div className="space-y-1">
-          <label htmlFor="password" className="text-sm font-medium">
-            Password
-          </label>
+          <div className="flex items-center justify-between">
+            <label htmlFor="password" className="text-sm font-medium">
+              Password
+            </label>
+            {smtpConfigured && (
+              <Link
+                href="/forgot-password"
+                className="text-xs text-accent hover:underline"
+              >
+                Forgot your password?
+              </Link>
+            )}
+          </div>
           <input
             id="password"
             name="password"

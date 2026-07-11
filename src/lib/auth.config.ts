@@ -20,7 +20,14 @@ declare module "next-auth" {
 // local type instead of global augmentation.
 type AppJwt = { role?: Role; sub?: string };
 
-const PUBLIC_PATHS = ["/login", "/setup", "/api/cron", "/api/mcp"];
+const PUBLIC_PATHS = [
+  "/login",
+  "/setup",
+  "/forgot-password",
+  "/reset-password",
+  "/api/cron",
+  "/api/mcp",
+];
 
 export const authConfig: NextAuthConfig = {
   trustHost: true,

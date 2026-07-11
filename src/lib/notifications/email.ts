@@ -27,6 +27,26 @@ function stripNewlines(value: string) {
   return value.replace(/[\r\n]+/g, " ").trim();
 }
 
+export async function sendPasswordResetEmail(to: string, resetUrl: string) {
+  if (!(await isSmtpConfigured())) return;
+
+  const smtp = await getSmtpConfig();
+  const transporter = nodemailer.createTransport({
+    host: smtp.host,
+    port: smtp.port,
+    secure: smtp.secure,
+    auth: smtp.user ? { user: smtp.user, pass: smtp.pass } : undefined,
+  });
+
+  await transporter.sendMail({
+    from: smtp.from,
+    to,
+    subject: "Reset your Hearth password",
+    text: `We received a request to reset your Hearth password. Follow this link to choose a new one (expires in 1 hour):\n\n${resetUrl}\n\nIf you didn't request this, you can ignore this email.`,
+    html: `<p>We received a request to reset your Hearth password.</p><p><a href="${resetUrl}">Choose a new password</a> (link expires in 1 hour).</p><p>If you didn't request this, you can ignore this email.</p>`,
+  });
+}
+
 export async function sendReminderEmail(opts: {
   to: string;
   kind: "contract" | "warranty";

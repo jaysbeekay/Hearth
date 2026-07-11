@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { FileSignature } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { isSmtpConfigured } from "@/lib/appSettings";
 import { LoginForm } from "@/components/LoginForm";
 
 export const metadata: Metadata = { title: "Sign in" };
@@ -19,6 +20,8 @@ export default async function LoginPage() {
     redirect("/dashboard");
   }
 
+  const smtpConfigured = await isSmtpConfigured();
+
   return (
     <div className="flex flex-1 items-center justify-center px-4 py-12">
       <div className="w-full max-w-sm space-y-6">
@@ -28,7 +31,7 @@ export default async function LoginPage() {
           <p className="text-sm text-foreground/60">Sign in to your household hub.</p>
         </div>
         <div className="rounded-xl border border-border bg-surface p-6">
-          <LoginForm />
+          <LoginForm smtpConfigured={smtpConfigured} />
         </div>
       </div>
     </div>
