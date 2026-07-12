@@ -116,13 +116,14 @@ export default async function DashboardPage() {
           <StatCard
             label="Uploaded this week"
             value={String(documentStats.uploadedThisWeek)}
+            tone="info"
           />
           <StatCard
             label="Needs review"
             value={String(documentStats.needsReview)}
             tone={documentStats.needsReview > 0 ? "warning" : "default"}
           />
-          <StatCard label="Total documents" value={String(documentStats.total)} />
+          <StatCard label="Total documents" value={String(documentStats.total)} tone="info" />
         </div>
       </section>
 

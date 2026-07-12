@@ -145,7 +145,11 @@ export function DocumentsExplorer({
                         <span className="truncate">{doc.filename}</span>
                       </a>
                     </td>
-                    <td className="px-4 py-2 text-muted">{doc.type}</td>
+                    <td className="px-4 py-2">
+                      <span className="rounded-full bg-info/10 px-2 py-0.5 text-xs font-medium text-info">
+                        {doc.type}
+                      </span>
+                    </td>
                     <td className="max-w-xs px-4 py-2">
                       <Link href={doc.parentHref} className="truncate text-accent hover:underline">
                         {doc.parentTitle}
@@ -199,7 +203,9 @@ export function DocumentsExplorer({
                   )}
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
-                  <span>{doc.type}</span>
+                  <span className="rounded-full bg-info/10 px-2 py-0.5 font-medium text-info">
+                    {doc.type}
+                  </span>
                   <Link href={doc.parentHref} className="text-accent hover:underline">
                     {doc.parentTitle}
                   </Link>
