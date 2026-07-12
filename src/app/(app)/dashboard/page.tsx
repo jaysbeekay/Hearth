@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { Upload } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { ContractCard } from "@/components/ContractCard";
 import { ProductCard } from "@/components/ProductCard";
@@ -92,7 +94,16 @@ export default async function DashboardPage() {
             What&apos;s expiring, what it costs, and what needs attention.
           </p>
         </div>
-        <AddEntryPicker enabledModules={[...enabledModules]} />
+        <div className="flex items-center gap-2">
+          <Link
+            href="/import"
+            className="flex items-center gap-2 rounded-lg border border-accent/40 px-4 py-2 text-sm font-medium text-accent hover:bg-accent/5"
+          >
+            <Upload size={16} />
+            Upload a document
+          </Link>
+          <AddEntryPicker enabledModules={[...enabledModules]} />
+        </div>
       </div>
 
       {showNotificationNudge && <NotificationNudgeBanner />}
