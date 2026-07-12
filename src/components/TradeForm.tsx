@@ -38,7 +38,6 @@ export function TradeForm({
 
   useEffect(() => {
     if (!ticker || !selectedDate) {
-      setMarketPrice(null);
       return;
     }
     if (debounceRef.current) clearTimeout(debounceRef.current);

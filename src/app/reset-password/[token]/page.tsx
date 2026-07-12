@@ -7,6 +7,10 @@ import { ResetPasswordForm } from "@/components/ResetPasswordForm";
 export const metadata: Metadata = { title: "Reset password" };
 export const dynamic = "force-dynamic";
 
+function isTokenValid(resetToken: { usedAt: Date | null; expiresAt: Date } | null) {
+  return Boolean(resetToken && !resetToken.usedAt && resetToken.expiresAt.getTime() > Date.now());
+}
+
 export default async function ResetPasswordPage({
   params,
 }: {
@@ -15,7 +19,7 @@ export default async function ResetPasswordPage({
   const { token } = await params;
 
   const resetToken = await prisma.passwordResetToken.findUnique({ where: { token } });
-  const valid = Boolean(resetToken && !resetToken.usedAt && resetToken.expiresAt.getTime() > Date.now());
+  const valid = isTokenValid(resetToken);
 
   return (
     <div className="flex flex-1 items-center justify-center px-4 py-12">

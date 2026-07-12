@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
 import { Plus, ChevronDown } from "lucide-react";
 import { VehicleCard } from "@/components/VehicleCard";
 import type { VehicleModel } from "@/generated/prisma/models";
 import { cachePageData } from "@/lib/offlineCache";
+import { useOnlineStatus } from "@/lib/useOnlineStatus";
 
 type VehicleWithCount = VehicleModel & { _count: { items: number } };
 
@@ -16,19 +17,7 @@ interface Props {
 }
 
 export function VehicleListClient({ vehicles, dateFormat, canWrite = true }: Props) {
-  const [online, setOnline] = useState(true);
-
-  useEffect(() => {
-    setOnline(navigator.onLine);
-    const onOnline = () => setOnline(true);
-    const onOffline = () => setOnline(false);
-    window.addEventListener("online", onOnline);
-    window.addEventListener("offline", onOffline);
-    return () => {
-      window.removeEventListener("online", onOnline);
-      window.removeEventListener("offline", onOffline);
-    };
-  }, []);
+  const online = useOnlineStatus();
 
   useEffect(() => {
     cachePageData("vehicles:list", vehicles).catch(() => {});

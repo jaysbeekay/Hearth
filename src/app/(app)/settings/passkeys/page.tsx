@@ -51,7 +51,7 @@ export default async function PasskeysPage() {
       <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <h2 className="mb-3 font-medium">Register a new passkey</h2>
         <p className="mb-4 text-sm text-foreground/60">
-          Give it an optional nickname so you can identify it later (e.g. "iPhone 16 Face ID").
+          Give it an optional nickname so you can identify it later (e.g. &quot;iPhone 16 Face ID&quot;).
         </p>
         <PasskeyRegisterButton />
       </section>

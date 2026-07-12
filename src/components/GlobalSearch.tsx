@@ -20,27 +20,29 @@ export function GlobalSearch() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    const openSearch = () => {
+      setQuery("");
+      setGroups({});
+      setOpen(true);
+    };
     const onKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setOpen(true);
+        openSearch();
       } else if (e.key === "Escape") {
         setOpen(false);
       }
     };
-    const onOpenEvent = () => setOpen(true);
     document.addEventListener("keydown", onKeyDown);
-    window.addEventListener(OPEN_EVENT, onOpenEvent);
+    window.addEventListener(OPEN_EVENT, openSearch);
     return () => {
       document.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener(OPEN_EVENT, onOpenEvent);
+      window.removeEventListener(OPEN_EVENT, openSearch);
     };
   }, []);
 
   useEffect(() => {
     if (open) {
-      setQuery("");
-      setGroups({});
       // Focus after the overlay has mounted.
       requestAnimationFrame(() => inputRef.current?.focus());
     }
@@ -48,11 +50,10 @@ export function GlobalSearch() {
 
   useEffect(() => {
     if (!open || query.trim().length < 2) {
-      setGroups({});
       return;
     }
-    setLoading(true);
     const timeout = setTimeout(() => {
+      setLoading(true);
       fetch(`/api/search?q=${encodeURIComponent(query.trim())}`)
         .then((res) => res.json())
         .then((data) => setGroups(data.groups ?? {}))
@@ -63,7 +64,7 @@ export function GlobalSearch() {
 
   if (!open) return null;
 
-  const groupEntries = Object.entries(groups);
+  const groupEntries = query.trim().length >= 2 ? Object.entries(groups) : [];
   const hasResults = groupEntries.length > 0;
   const showEmpty = !loading && query.trim().length >= 2 && !hasResults;
 

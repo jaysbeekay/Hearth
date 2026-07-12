@@ -22,6 +22,13 @@ export function BottomNav({ enabledModules }: { enabledModules: ModuleKey[] }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const items = getNavItems(new Set(enabledModules));
 
+  // Close automatically on route change (link click).
+  const [prevPathname, setPrevPathname] = useState(pathname);
+  if (pathname !== prevPathname) {
+    setPrevPathname(pathname);
+    setMoreOpen(false);
+  }
+
   useEffect(() => {
     if (!moreOpen) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -30,11 +37,6 @@ export function BottomNav({ enabledModules }: { enabledModules: ModuleKey[] }) {
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [moreOpen]);
-
-  // Close automatically on route change (link click).
-  useEffect(() => {
-    setMoreOpen(false);
-  }, [pathname]);
 
   const primary = PRIMARY_HREFS.map((href) => items.find((i) => i.href === href)).filter(
     (i): i is NonNullable<typeof i> => i != null,

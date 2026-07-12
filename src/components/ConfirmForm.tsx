@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { showToast } from "@/components/Toast";
+import { useHasMounted } from "@/lib/useHasMounted";
 
 export function ConfirmForm({
   action,
@@ -21,9 +22,7 @@ export function ConfirmForm({
 }) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => setMounted(true), []);
+  const mounted = useHasMounted();
 
   useEffect(() => {
     if (!open) return;

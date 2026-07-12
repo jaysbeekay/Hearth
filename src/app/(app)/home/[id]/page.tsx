@@ -23,6 +23,12 @@ const ITEM_ICONS: Record<string, LucideIcon> = {
   OTHER: Tag,
 };
 
+const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+
+function isValuationStale(valuedAt: Date) {
+  return Date.now() - valuedAt.getTime() > ONE_YEAR_MS;
+}
+
 export default async function PropertyDetailPage({
   params,
 }: {
@@ -45,9 +51,7 @@ export default async function PropertyDetailPage({
   if (!property) notFound();
 
   const latestValuation = property.valuations[0] ?? null;
-  const valuationStale =
-    !latestValuation ||
-    Date.now() - latestValuation.valuedAt.getTime() > 365 * 24 * 60 * 60 * 1000;
+  const valuationStale = !latestValuation || isValuationStale(latestValuation.valuedAt);
 
   const items = [...property.items].sort((a, b) => {
     if (!a.date && !b.date) return 0;

@@ -102,8 +102,10 @@ export function OfflineSyncManager() {
 
   // Poll count on mount and after operations
   useEffect(() => {
-    refreshCount().catch(() => {});
-  }, [refreshCount]);
+    getPendingOperations()
+      .then((ops) => setPendingCount(ops.length))
+      .catch(() => {});
+  }, []);
 
   // Auto-sync on network restore
   useEffect(() => {

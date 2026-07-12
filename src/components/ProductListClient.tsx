@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, ChevronDown, X } from "lucide-react";
 import { ProductCard } from "@/components/ProductCard";
 import type { ProductModel } from "@/generated/prisma/models";
 import { cachePageData } from "@/lib/offlineCache";
+import { useOnlineStatus } from "@/lib/useOnlineStatus";
 
 interface Props {
   products: ProductModel[];
@@ -16,22 +17,10 @@ interface Props {
 }
 
 export function ProductListClient({ products, q, dateFormat, canWrite = true }: Props) {
-  const [online, setOnline] = useState(true);
+  const online = useOnlineStatus();
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-
-  useEffect(() => {
-    setOnline(navigator.onLine);
-    const onOnline = () => setOnline(true);
-    const onOffline = () => setOnline(false);
-    window.addEventListener("online", onOnline);
-    window.addEventListener("offline", onOffline);
-    return () => {
-      window.removeEventListener("online", onOnline);
-      window.removeEventListener("offline", onOffline);
-    };
-  }, []);
 
   useEffect(() => {
     cachePageData("products:list", products).catch(() => {});

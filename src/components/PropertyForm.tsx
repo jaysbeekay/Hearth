@@ -38,7 +38,6 @@ export function PropertyForm({
     }
 
     if (address.trim().length < 3) {
-      setSuggestions([]);
       return;
     }
 
@@ -74,6 +73,8 @@ export function PropertyForm({
     setLng(null);
   }
 
+  const visibleSuggestions = address.trim().length >= 3 ? suggestions : [];
+
   return (
     <form action={formAction} className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2">
@@ -103,9 +104,9 @@ export function PropertyForm({
             />
             <input type="hidden" name="lat" value={lat ?? ""} />
             <input type="hidden" name="lng" value={lng ?? ""} />
-            {showSuggestions && suggestions.length > 0 && (
+            {showSuggestions && visibleSuggestions.length > 0 && (
               <ul className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-border bg-surface shadow-md">
-                {suggestions.map((s) => (
+                {visibleSuggestions.map((s) => (
                   <li key={`${s.lat},${s.lng}`}>
                     <button
                       type="button"

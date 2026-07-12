@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Check, Circle, Plus, Sparkles, X } from "lucide-react";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
+import { useDismissible } from "@/lib/useDismissible";
 
 const DISMISS_KEY = "hearth:onboarding-checklist-dismissed";
 
@@ -16,11 +16,7 @@ export function OnboardingChecklist({
   memberCount: number;
   remindersConfigured: boolean;
 }) {
-  const [dismissed, setDismissed] = useState(true);
-
-  useEffect(() => {
-    setDismissed(localStorage.getItem(DISMISS_KEY) === "1");
-  }, []);
+  const [dismissed, dismiss] = useDismissible(DISMISS_KEY);
 
   if (dismissed) return null;
 
@@ -35,10 +31,7 @@ export function OnboardingChecklist({
       <button
         type="button"
         aria-label="Dismiss getting-started checklist"
-        onClick={() => {
-          localStorage.setItem(DISMISS_KEY, "1");
-          setDismissed(true);
-        }}
+        onClick={dismiss}
         className="absolute right-3 top-3 rounded-md p-1 text-muted hover:bg-black/5 dark:hover:bg-white/5"
       >
         <X size={14} />

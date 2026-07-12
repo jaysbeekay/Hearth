@@ -9,8 +9,8 @@ export default function ImportPage() {
       <div>
         <h1 className="text-2xl font-semibold">Upload documents</h1>
         <p className="text-sm text-muted">
-          Drop in a document — or several at once if you're migrating existing paperwork.
-          Hearth scans each one, you confirm whether it's a contract or product, review the
+          Drop in a document — or several at once if you&apos;re migrating existing paperwork.
+          Hearth scans each one, you confirm whether it&apos;s a contract or product, review the
           details, and save.
         </p>
       </div>
