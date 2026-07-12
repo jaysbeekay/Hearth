@@ -5,14 +5,30 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { contractSchema } from "@/lib/validation/contract";
 import { productSchema } from "@/lib/validation/product";
+import { inventoryItemSchema } from "@/lib/validation/inventory";
 import { formToContractInput, formToProductInput } from "@/lib/formMappers";
 import {
   ALLOWED_MIME_TYPES,
   MAX_UPLOAD_BYTES,
   saveDocument,
   saveProductDocument,
+  saveInventoryItemDocument,
+  saveInboxDocument,
+  readInboxDocument,
+  deleteInboxDocument,
 } from "@/lib/storage";
 import { ProductDocumentKind } from "@/generated/prisma/enums";
+import { isModuleEnabled } from "@/lib/modules/enablement";
+import { extractSearchableText } from "@/lib/documents/textExtraction";
+
+function formToInventoryItemInput(formData: FormData) {
+  return {
+    label: formData.get("label"),
+    category: formData.get("category") || "OTHER",
+    brand: formData.get("brand"),
+    purchasePrice: formData.get("purchasePrice"),
+  };
+}
 
 export interface ImportResult {
   success?: string;
@@ -107,4 +123,119 @@ export async function importProduct(formData: FormData): Promise<ImportResult> {
   revalidatePath("/products");
   revalidatePath("/dashboard");
   return { success: "Saved", id: product.id, href: `/products/${product.id}` };
+}
+
+export async function importInventoryItem(formData: FormData): Promise<ImportResult> {
+  const user = await requireUser();
+  if (!(await isModuleEnabled("INVENTORY"))) return { error: "Inventory module is disabled." };
+
+  const parsed = inventoryItemSchema.safeParse(formToInventoryItemInput(formData));
+  if (!parsed.success) return { error: firstIssueMessage(parsed.error) };
+
+  const file = formData.get("file");
+  if (file instanceof File && file.size > 0) {
+    if (file.size > MAX_UPLOAD_BYTES) return { error: "File is too large (15MB max)." };
+    if (!ALLOWED_MIME_TYPES.has(file.type)) {
+      return { error: "Unsupported file type. Use PDF, Word, or image files." };
+    }
+  }
+
+  const item = await prisma.inventoryItem.create({
+    data: { ...parsed.data, createdById: user.id },
+  });
+
+  if (file instanceof File && file.size > 0) {
+    const { storedName, size } = await saveInventoryItemDocument(item.id, file);
+    await prisma.inventoryItemDocument.create({
+      data: {
+        inventoryItemId: item.id,
+        filename: file.name.slice(0, 255),
+        storedName,
+        mimeType: file.type,
+        size,
+      },
+    });
+  }
+
+  revalidatePath("/inventory");
+  revalidatePath("/dashboard");
+  return { success: "Saved", id: item.id, href: `/inventory/${item.id}` };
+}
+
+// The "Not sure yet" path: save the file with no destination chosen. Classify
+// or discard it later from the Needs review queue.
+export async function saveToInbox(formData: FormData): Promise<ImportResult> {
+  const user = await requireUser();
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) return { error: "Choose a file to upload." };
+  if (file.size > MAX_UPLOAD_BYTES) return { error: "File is too large (15MB max)." };
+  if (!ALLOWED_MIME_TYPES.has(file.type)) {
+    return { error: "Unsupported file type. Use PDF, Word, or image files." };
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const { storedName, size } = await saveInboxDocument(file);
+  const extractedText = await extractSearchableText(buffer, file.type);
+
+  const doc = await prisma.inboxDocument.create({
+    data: {
+      filename: file.name.slice(0, 255),
+      storedName,
+      mimeType: file.type,
+      size,
+      extractedText,
+      uploadedById: user.id,
+    },
+  });
+
+  revalidatePath("/documents/inbox");
+  revalidatePath("/documents");
+  return { success: "Saved to inbox.", id: doc.id, href: "/documents/inbox" };
+}
+
+// Files an inbox document as a Contract/Product/Inventory item using the
+// same import* actions above, then removes it from the inbox on success.
+export async function classifyInboxDocument(
+  inboxId: string,
+  targetType: "CONTRACT" | "PRODUCT" | "INVENTORY",
+  fields: FormData,
+): Promise<ImportResult> {
+  await requireUser();
+
+  const doc = await prisma.inboxDocument.findUnique({ where: { id: inboxId } });
+  if (!doc) return { error: "Document not found." };
+
+  const buffer = await readInboxDocument(doc.storedName);
+  fields.set("file", new File([buffer], doc.filename, { type: doc.mimeType }));
+
+  const result =
+    targetType === "CONTRACT"
+      ? await importContract(fields)
+      : targetType === "PRODUCT"
+        ? await importProduct(fields)
+        : await importInventoryItem(fields);
+
+  if (!result.error) {
+    await deleteInboxDocument(doc.storedName);
+    await prisma.inboxDocument.delete({ where: { id: inboxId } });
+    revalidatePath("/documents/inbox");
+    revalidatePath("/documents");
+  }
+
+  return result;
+}
+
+export async function discardInboxDocument(inboxId: string): Promise<ImportResult> {
+  await requireUser();
+
+  const doc = await prisma.inboxDocument.findUnique({ where: { id: inboxId } });
+  if (!doc) return { error: "Document not found." };
+
+  await deleteInboxDocument(doc.storedName);
+  await prisma.inboxDocument.delete({ where: { id: inboxId } });
+
+  revalidatePath("/documents/inbox");
+  revalidatePath("/documents");
+  return { success: "Discarded." };
 }

@@ -1,17 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { BellOff, X } from "lucide-react";
+import { useDismissible } from "@/lib/useDismissible";
 
 const DISMISS_KEY = "hearth:notification-nudge-dismissed";
 
 export function NotificationNudgeBanner() {
-  const [dismissed, setDismissed] = useState(true);
-
-  useEffect(() => {
-    setDismissed(localStorage.getItem(DISMISS_KEY) === "1");
-  }, []);
+  const [dismissed, dismiss] = useDismissible(DISMISS_KEY);
 
   if (dismissed) return null;
 
@@ -27,10 +23,7 @@ export function NotificationNudgeBanner() {
       <button
         type="button"
         aria-label="Dismiss"
-        onClick={() => {
-          localStorage.setItem(DISMISS_KEY, "1");
-          setDismissed(true);
-        }}
+        onClick={dismiss}
         className="shrink-0 rounded-md p-1 text-muted hover:bg-black/5 dark:hover:bg-white/5"
       >
         <X size={14} />

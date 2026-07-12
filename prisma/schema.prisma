@@ -161,6 +161,7 @@ model User {
   vehicles          Vehicle[]
   inventoryItems    InventoryItem[]
   portfolios        Portfolio[]
+  inboxDocuments    InboxDocument[]
   passwordResetTokens PasswordResetToken[]
   totpSecret          String?
   totpEnabled         Boolean   @default(false)
@@ -255,6 +256,26 @@ model Document {
   uploadedAt    DateTime @default(now())
 
   @@map("documents")
+}
+
+// Holds a document saved before its destination (Contract, Product, ...) is
+// known — the "Not sure yet" import path. Classifying one creates the real
+// row in the matching per-entity document table and deletes this one; it is
+// never a permanent home for a file, only a queue.
+model InboxDocument {
+  id            String   @id @default(cuid())
+  filename      String
+  storedName    String
+  mimeType      String
+  size          Int
+  extractedText String?
+
+  uploadedById  String
+  uploadedBy    User     @relation(fields: [uploadedById], references: [id])
+
+  uploadedAt    DateTime @default(now())
+
+  @@map("inbox_documents")
 }
 
 model NotificationLog {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, ChevronDown, X } from "lucide-react";
@@ -9,6 +9,7 @@ import { ContractCard } from "@/components/ContractCard";
 import type { ContractModel } from "@/generated/prisma/models";
 import { CATEGORY_LABELS } from "@/lib/utils";
 import { cachePageData } from "@/lib/offlineCache";
+import { useOnlineStatus } from "@/lib/useOnlineStatus";
 
 const STATUS_LABELS: Record<string, string> = { ACTIVE: "Active", CANCELLED: "Cancelled" };
 
@@ -29,7 +30,7 @@ export function ContractListClient({
   dateFormat,
   canWrite = true,
 }: Props) {
-  const [online, setOnline] = useState(true);
+  const online = useOnlineStatus();
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -41,18 +42,6 @@ export function ContractListClient({
     if (key !== "status" && status) params.set("status", status);
     router.push(`/contracts${params.toString() ? `?${params.toString()}` : ""}`);
   }
-
-  useEffect(() => {
-    setOnline(navigator.onLine);
-    const onOnline = () => setOnline(true);
-    const onOffline = () => setOnline(false);
-    window.addEventListener("online", onOnline);
-    window.addEventListener("offline", onOffline);
-    return () => {
-      window.removeEventListener("online", onOnline);
-      window.removeEventListener("offline", onOffline);
-    };
-  }, []);
 
   useEffect(() => {
     cachePageData("contracts:list", contracts).catch(() => {});

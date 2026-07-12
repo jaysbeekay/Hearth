@@ -249,6 +249,33 @@ export async function deleteInventoryItemDir(inventoryItemId: string) {
   await fs.rm(inventoryItemDir(inventoryItemId), { recursive: true, force: true });
 }
 
+function inboxDir() {
+  return path.join(path.resolve(env.uploadsDir), "inbox");
+}
+
+export async function saveInboxDocument(file: File) {
+  const dir = inboxDir();
+  await fs.mkdir(dir, { recursive: true });
+
+  const storedName = `${randomUUID()}${safeExtension(file.name)}`;
+  const fullPath = path.join(dir, storedName);
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  await fs.writeFile(fullPath, buffer);
+
+  return { storedName, size: buffer.byteLength };
+}
+
+export async function readInboxDocument(storedName: string) {
+  const fullPath = path.join(inboxDir(), path.basename(storedName));
+  return fs.readFile(fullPath);
+}
+
+export async function deleteInboxDocument(storedName: string) {
+  const fullPath = path.join(inboxDir(), path.basename(storedName));
+  await fs.rm(fullPath, { force: true });
+}
+
 function tradeDir(tradeId: string) {
   return path.join(path.resolve(env.uploadsDir), "trades", path.basename(tradeId));
 }

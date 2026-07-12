@@ -113,9 +113,13 @@ Everything else is optional. Set `SMTP_*` to enable email reminders, `NTFY_*` fo
 | --- | --- |
 | ![TOTP setup](docs/screenshots/settings-totp-setup.png) | ![TOTP recovery codes](docs/screenshots/settings-totp-codes.png) |
 
-| Forgot password | Bulk import |
+| Forgot password | Upload documents |
 | --- | --- |
-| ![Forgot password](docs/screenshots/forgot-password.png) | ![Bulk import](docs/screenshots/import.png) |
+| ![Forgot password](docs/screenshots/forgot-password.png) | ![Upload documents](docs/screenshots/import.png) |
+
+| Documents |
+| --- |
+| ![Documents](docs/screenshots/documents.png) |
 
 ## Tech stack
 

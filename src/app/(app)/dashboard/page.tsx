@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { Upload } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { ContractCard } from "@/components/ContractCard";
 import { ProductCard } from "@/components/ProductCard";
@@ -13,6 +15,7 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { auth } from "@/lib/auth";
 import { isSmtpConfigured, isNtfyConfigured } from "@/lib/appSettings";
+import { getDocumentStats } from "@/lib/documents/stats";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -28,7 +31,7 @@ export default async function DashboardPage() {
   const showNotificationNudge =
     session?.user.role === "ADMIN" && !smtpConfigured && !ntfyConfigured;
 
-  const [contracts, products, vehicles, trips, memberCount] = await Promise.all([
+  const [contracts, products, vehicles, trips, memberCount, documentStats] = await Promise.all([
     prisma.contract.findMany({ orderBy: { endDate: "asc" } }),
     prisma.product.findMany({ orderBy: { warrantyEndDate: "asc" } }),
     enabledModules.has("VEHICLES") ? prisma.vehicle.findMany({ orderBy: { createdAt: "desc" } }) : [],
@@ -39,6 +42,7 @@ export default async function DashboardPage() {
         })
       : [],
     prisma.user.count(),
+    getDocumentStats(enabledModules),
   ]);
 
   const active = contracts.filter((c) => c.status === "ACTIVE");
@@ -92,10 +96,35 @@ export default async function DashboardPage() {
             What&apos;s expiring, what it costs, and what needs attention.
           </p>
         </div>
-        <AddEntryPicker enabledModules={[...enabledModules]} />
+        <div className="flex items-center gap-2">
+          <Link
+            href="/import"
+            className="flex items-center gap-2 rounded-lg border border-accent/40 px-4 py-2 text-sm font-medium text-accent hover:bg-accent/5"
+          >
+            <Upload size={16} />
+            Upload a document
+          </Link>
+          <AddEntryPicker enabledModules={[...enabledModules]} />
+        </div>
       </div>
 
       {showNotificationNudge && <NotificationNudgeBanner />}
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold">Documents</h2>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <StatCard
+            label="Uploaded this week"
+            value={String(documentStats.uploadedThisWeek)}
+          />
+          <StatCard
+            label="Needs review"
+            value={String(documentStats.needsReview)}
+            tone={documentStats.needsReview > 0 ? "warning" : "default"}
+          />
+          <StatCard label="Total documents" value={String(documentStats.total)} />
+        </div>
+      </section>
 
       {isEmpty ? (
         <OnboardingChecklist

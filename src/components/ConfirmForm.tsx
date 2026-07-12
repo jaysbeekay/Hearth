@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { showToast } from "@/components/Toast";
+import { useHasMounted } from "@/lib/useHasMounted";
 
 export function ConfirmForm({
   action,
@@ -21,14 +22,21 @@ export function ConfirmForm({
 }) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useHasMounted();
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
-  useEffect(() => setMounted(true), []);
+  function close() {
+    setOpen(false);
+    triggerRef.current?.focus();
+  }
 
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !pending) setOpen(false);
+      if (e.key === "Escape" && !pending) {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
@@ -36,7 +44,13 @@ export function ConfirmForm({
 
   return (
     <>
-      <button type="button" className={className} aria-label={ariaLabel} onClick={() => setOpen(true)}>
+      <button
+        ref={triggerRef}
+        type="button"
+        className={className}
+        aria-label={ariaLabel}
+        onClick={() => setOpen(true)}
+      >
         {children}
       </button>
       {mounted &&
@@ -44,7 +58,7 @@ export function ConfirmForm({
         createPortal(
           <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-            onClick={() => !pending && setOpen(false)}
+            onClick={() => !pending && close()}
           >
             <div
               role="alertdialog"
@@ -60,7 +74,7 @@ export function ConfirmForm({
                 <button
                   type="button"
                   disabled={pending}
-                  onClick={() => setOpen(false)}
+                  onClick={close}
                   className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium hover:bg-black/5 disabled:opacity-50 dark:hover:bg-white/5"
                 >
                   Cancel
@@ -74,7 +88,7 @@ export function ConfirmForm({
                     try {
                       await action();
                       if (successMessage) showToast(successMessage);
-                      setOpen(false);
+                      close();
                     } catch (err) {
                       // Server actions that redirect() throw a special signal
                       // Next.js's router handles itself — anything else is a

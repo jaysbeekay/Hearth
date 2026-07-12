@@ -1,23 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useOnlineStatus } from "@/lib/useOnlineStatus";
 
 export function OfflineBanner() {
-  const [offline, setOffline] = useState(false);
+  const online = useOnlineStatus();
 
-  useEffect(() => {
-    setOffline(!navigator.onLine);
-    const onOnline = () => setOffline(false);
-    const onOffline = () => setOffline(true);
-    window.addEventListener("online", onOnline);
-    window.addEventListener("offline", onOffline);
-    return () => {
-      window.removeEventListener("online", onOnline);
-      window.removeEventListener("offline", onOffline);
-    };
-  }, []);
-
-  if (!offline) return null;
+  if (online) return null;
 
   return (
     <div className="sticky top-0 z-50 bg-amber-500/90 px-4 py-2 text-center text-sm font-medium text-white backdrop-blur-sm">
