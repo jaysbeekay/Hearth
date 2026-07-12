@@ -5,9 +5,11 @@ import { Upload, FileText, X, Check, Loader2 } from "lucide-react";
 import { importContract, importProduct } from "@/lib/actions/import";
 import { CATEGORY_LABELS } from "@/lib/utils";
 import { showToast } from "@/components/Toast";
+import { extractionMessage } from "@/lib/autoFillHighlight";
 
 type EntityType = "CONTRACT" | "PRODUCT";
 type RowStatus = "scanning" | "ready" | "saving" | "saved" | "error";
+type ExtractionSource = "byok" | "heuristic" | "llm" | "none";
 
 interface ContractFields {
   title: string;
@@ -29,8 +31,11 @@ interface Row {
   status: RowStatus;
   error?: string;
   href?: string;
+  scanMessage?: string;
   contract: ContractFields;
   product: ProductFields;
+  contractAutoFilled: Partial<Record<keyof ContractFields, boolean>>;
+  productAutoFilled: Partial<Record<keyof ProductFields, boolean>>;
 }
 
 let nextId = 0;
@@ -40,9 +45,15 @@ async function extract(type: EntityType, file: File) {
   body.append("file", file);
   const url = type === "CONTRACT" ? "/api/documents/extract" : "/api/products/extract";
   const res = await fetch(url, { method: "POST", body });
-  if (!res.ok) return {};
-  const { fields } = (await res.json()) as { fields: Record<string, string> };
-  return fields;
+  if (!res.ok) return { fields: {} as Record<string, string>, source: "none" as ExtractionSource };
+  const data = (await res.json()) as { fields: Record<string, string>; source?: ExtractionSource };
+  return { fields: data.fields, source: data.source ?? "none" };
+}
+
+function fieldClass(autoFilled?: boolean) {
+  return `rounded-md border px-2 py-1.5 text-sm outline-none focus:border-accent ${
+    autoFilled ? "border-accent/40 bg-accent/5 ring-1 ring-accent/40" : "border-border bg-background"
+  }`;
 }
 
 export function ImportClient() {
@@ -57,24 +68,38 @@ export function ImportClient() {
 
   async function scanRow(id: string, type: EntityType, file: File) {
     updateRow(id, { status: "scanning" });
-    const fields = await extract(type, file);
+    const { fields, source } = await extract(type, file);
+    const filledCount = Object.keys(fields).length;
+    const scanMessage = extractionMessage(source, filledCount);
     if (type === "CONTRACT") {
       updateRow(id, {
         status: "ready",
+        scanMessage,
         contract: {
           title: fields.title ?? file.name.replace(/\.[^.]+$/, ""),
           provider: fields.provider ?? "",
           category: "OTHER",
           cost: fields.cost ?? "",
         },
+        contractAutoFilled: {
+          title: Boolean(fields.title),
+          provider: Boolean(fields.provider),
+          cost: Boolean(fields.cost),
+        },
       });
     } else {
       updateRow(id, {
         status: "ready",
+        scanMessage,
         product: {
           name: fields.name ?? file.name.replace(/\.[^.]+$/, ""),
           manufacturer: fields.manufacturer ?? "",
           price: fields.price ?? "",
+        },
+        productAutoFilled: {
+          name: Boolean(fields.name),
+          manufacturer: Boolean(fields.manufacturer),
+          price: Boolean(fields.price),
         },
       });
     }
@@ -90,6 +115,8 @@ export function ImportClient() {
         status: "scanning",
         contract: { title: "", provider: "", category: "OTHER", cost: "" },
         product: { name: "", manufacturer: "", price: "" },
+        contractAutoFilled: {},
+        productAutoFilled: {},
       };
       setRows((prev) => [...prev, row]);
       scanRow(id, "CONTRACT", file);
@@ -236,91 +263,126 @@ export function ImportClient() {
                   </p>
                 )}
 
+                {row.scanMessage && row.status !== "scanning" && (
+                  <p role="status" aria-live="polite" className="mb-2 text-xs text-muted">
+                    {row.scanMessage}
+                  </p>
+                )}
+
                 {(row.status === "ready" || row.status === "saving" || row.status === "error") &&
                   row.type === "CONTRACT" && (
                     <div className="grid gap-2 sm:grid-cols-2">
-                      <input
-                        value={row.contract.title}
-                        disabled={row.status === "saving"}
-                        onChange={(e) =>
-                          updateRow(row.id, { contract: { ...row.contract, title: e.target.value } })
-                        }
-                        placeholder="Title"
-                        className="rounded-md border border-border bg-background px-2 py-1.5 text-sm outline-none focus:border-accent"
-                      />
-                      <input
-                        value={row.contract.provider}
-                        disabled={row.status === "saving"}
-                        onChange={(e) =>
-                          updateRow(row.id, {
-                            contract: { ...row.contract, provider: e.target.value },
-                          })
-                        }
-                        placeholder="Provider"
-                        className="rounded-md border border-border bg-background px-2 py-1.5 text-sm outline-none focus:border-accent"
-                      />
-                      <select
-                        value={row.contract.category}
-                        disabled={row.status === "saving"}
-                        onChange={(e) =>
-                          updateRow(row.id, {
-                            contract: { ...row.contract, category: e.target.value },
-                          })
-                        }
-                        className="rounded-md border border-border bg-background px-2 py-1.5 text-sm outline-none focus:border-accent"
-                      >
-                        {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
-                          <option key={value} value={value}>
-                            {label}
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        value={row.contract.cost}
-                        disabled={row.status === "saving"}
-                        onChange={(e) =>
-                          updateRow(row.id, { contract: { ...row.contract, cost: e.target.value } })
-                        }
-                        placeholder="Cost"
-                        inputMode="decimal"
-                        className="rounded-md border border-border bg-background px-2 py-1.5 text-sm outline-none focus:border-accent"
-                      />
+                      <RowField label="Title" htmlFor={`${row.id}-title`}>
+                        <input
+                          id={`${row.id}-title`}
+                          value={row.contract.title}
+                          disabled={row.status === "saving"}
+                          onChange={(e) =>
+                            updateRow(row.id, {
+                              contract: { ...row.contract, title: e.target.value },
+                              contractAutoFilled: { ...row.contractAutoFilled, title: false },
+                            })
+                          }
+                          className={fieldClass(row.contractAutoFilled.title)}
+                        />
+                      </RowField>
+                      <RowField label="Provider" htmlFor={`${row.id}-provider`}>
+                        <input
+                          id={`${row.id}-provider`}
+                          value={row.contract.provider}
+                          disabled={row.status === "saving"}
+                          onChange={(e) =>
+                            updateRow(row.id, {
+                              contract: { ...row.contract, provider: e.target.value },
+                              contractAutoFilled: { ...row.contractAutoFilled, provider: false },
+                            })
+                          }
+                          className={fieldClass(row.contractAutoFilled.provider)}
+                        />
+                      </RowField>
+                      <RowField label="Category" htmlFor={`${row.id}-category`}>
+                        <select
+                          id={`${row.id}-category`}
+                          value={row.contract.category}
+                          disabled={row.status === "saving"}
+                          onChange={(e) =>
+                            updateRow(row.id, {
+                              contract: { ...row.contract, category: e.target.value },
+                            })
+                          }
+                          className={fieldClass(false)}
+                        >
+                          {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
+                            <option key={value} value={value}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                      </RowField>
+                      <RowField label="Cost" htmlFor={`${row.id}-cost`}>
+                        <input
+                          id={`${row.id}-cost`}
+                          value={row.contract.cost}
+                          disabled={row.status === "saving"}
+                          onChange={(e) =>
+                            updateRow(row.id, {
+                              contract: { ...row.contract, cost: e.target.value },
+                              contractAutoFilled: { ...row.contractAutoFilled, cost: false },
+                            })
+                          }
+                          inputMode="decimal"
+                          className={fieldClass(row.contractAutoFilled.cost)}
+                        />
+                      </RowField>
                     </div>
                   )}
 
                 {(row.status === "ready" || row.status === "saving" || row.status === "error") &&
                   row.type === "PRODUCT" && (
                     <div className="grid gap-2 sm:grid-cols-3">
-                      <input
-                        value={row.product.name}
-                        disabled={row.status === "saving"}
-                        onChange={(e) =>
-                          updateRow(row.id, { product: { ...row.product, name: e.target.value } })
-                        }
-                        placeholder="Name"
-                        className="rounded-md border border-border bg-background px-2 py-1.5 text-sm outline-none focus:border-accent"
-                      />
-                      <input
-                        value={row.product.manufacturer}
-                        disabled={row.status === "saving"}
-                        onChange={(e) =>
-                          updateRow(row.id, {
-                            product: { ...row.product, manufacturer: e.target.value },
-                          })
-                        }
-                        placeholder="Manufacturer"
-                        className="rounded-md border border-border bg-background px-2 py-1.5 text-sm outline-none focus:border-accent"
-                      />
-                      <input
-                        value={row.product.price}
-                        disabled={row.status === "saving"}
-                        onChange={(e) =>
-                          updateRow(row.id, { product: { ...row.product, price: e.target.value } })
-                        }
-                        placeholder="Price"
-                        inputMode="decimal"
-                        className="rounded-md border border-border bg-background px-2 py-1.5 text-sm outline-none focus:border-accent"
-                      />
+                      <RowField label="Name" htmlFor={`${row.id}-name`}>
+                        <input
+                          id={`${row.id}-name`}
+                          value={row.product.name}
+                          disabled={row.status === "saving"}
+                          onChange={(e) =>
+                            updateRow(row.id, {
+                              product: { ...row.product, name: e.target.value },
+                              productAutoFilled: { ...row.productAutoFilled, name: false },
+                            })
+                          }
+                          className={fieldClass(row.productAutoFilled.name)}
+                        />
+                      </RowField>
+                      <RowField label="Manufacturer" htmlFor={`${row.id}-manufacturer`}>
+                        <input
+                          id={`${row.id}-manufacturer`}
+                          value={row.product.manufacturer}
+                          disabled={row.status === "saving"}
+                          onChange={(e) =>
+                            updateRow(row.id, {
+                              product: { ...row.product, manufacturer: e.target.value },
+                              productAutoFilled: { ...row.productAutoFilled, manufacturer: false },
+                            })
+                          }
+                          className={fieldClass(row.productAutoFilled.manufacturer)}
+                        />
+                      </RowField>
+                      <RowField label="Price" htmlFor={`${row.id}-price`}>
+                        <input
+                          id={`${row.id}-price`}
+                          value={row.product.price}
+                          disabled={row.status === "saving"}
+                          onChange={(e) =>
+                            updateRow(row.id, {
+                              product: { ...row.product, price: e.target.value },
+                              productAutoFilled: { ...row.productAutoFilled, price: false },
+                            })
+                          }
+                          inputMode="decimal"
+                          className={fieldClass(row.productAutoFilled.price)}
+                        />
+                      </RowField>
                     </div>
                   )}
 
@@ -345,6 +407,25 @@ export function ImportClient() {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+function RowField({
+  label,
+  htmlFor,
+  children,
+}: {
+  label: string;
+  htmlFor: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-0.5">
+      <label htmlFor={htmlFor} className="block text-[11px] font-medium text-muted">
+        {label}
+      </label>
+      {children}
     </div>
   );
 }
