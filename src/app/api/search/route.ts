@@ -9,9 +9,19 @@ export interface SearchResult {
   subtitle?: string;
   href: string;
   group: string;
+  // True when the query only matched text inside an attached document, not
+  // any of the record's own fields — surfaced in the UI so a Contract and
+  // one of its Documents both showing up for the same query reads as
+  // intentional, not duplicated.
+  matchedInDocument?: boolean;
 }
 
 const LIMIT = 8;
+
+function matchedViaFields(q: string, fields: (string | null | undefined)[]) {
+  const needle = q.toLowerCase();
+  return fields.some((f) => f?.toLowerCase().includes(needle));
+}
 
 export async function GET(request: NextRequest) {
   const session = await auth();
@@ -48,6 +58,7 @@ export async function GET(request: NextRequest) {
           subtitle: r.provider,
           href: `/contracts/${r.id}`,
           group: "Contracts",
+          matchedInDocument: !matchedViaFields(q, [r.title, r.provider]),
         })),
       ),
   );
@@ -63,7 +74,7 @@ export async function GET(request: NextRequest) {
             { documents: { some: { extractedText: contains } } },
           ],
         },
-        select: { id: true, name: true, manufacturer: true },
+        select: { id: true, name: true, manufacturer: true, vendor: true },
         take: LIMIT,
       })
       .then((rows) =>
@@ -73,6 +84,7 @@ export async function GET(request: NextRequest) {
           subtitle: r.manufacturer ?? undefined,
           href: `/products/${r.id}`,
           group: "Products",
+          matchedInDocument: !matchedViaFields(q, [r.name, r.manufacturer, r.vendor]),
         })),
       ),
   );
