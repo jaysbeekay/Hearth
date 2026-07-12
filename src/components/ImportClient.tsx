@@ -2,12 +2,25 @@
 
 import { useId, useRef, useState } from "react";
 import { Upload, FileText, X, Check, Loader2 } from "lucide-react";
-import { importContract, importProduct } from "@/lib/actions/import";
+import { importContract, importProduct, importInventoryItem } from "@/lib/actions/import";
 import { CATEGORY_LABELS } from "@/lib/utils";
+import { INVENTORY_ITEM_CATEGORIES } from "@/lib/validation/inventory";
 import { showToast } from "@/components/Toast";
 import { extractionMessage } from "@/lib/autoFillHighlight";
 
-type EntityType = "CONTRACT" | "PRODUCT";
+const INVENTORY_CATEGORY_LABELS: Record<string, string> = {
+  APPLIANCE: "Appliance",
+  ELECTRONICS: "Electronics",
+  FURNITURE: "Furniture",
+  TOOL: "Tool",
+  CLOTHING: "Clothing",
+  SPORTING: "Sporting",
+  BOOK: "Book",
+  MEDIA: "Media",
+  OTHER: "Other",
+};
+
+type EntityType = "CONTRACT" | "PRODUCT" | "INVENTORY";
 type RowStatus = "scanning" | "ready" | "saving" | "saved" | "error";
 type ExtractionSource = "byok" | "heuristic" | "llm" | "none";
 
@@ -24,6 +37,13 @@ interface ProductFields {
   price: string;
 }
 
+interface InventoryFields {
+  label: string;
+  category: string;
+  brand: string;
+  purchasePrice: string;
+}
+
 interface Row {
   id: string;
   file: File;
@@ -34,17 +54,24 @@ interface Row {
   scanMessage?: string;
   contract: ContractFields;
   product: ProductFields;
+  inventory: InventoryFields;
   contractAutoFilled: Partial<Record<keyof ContractFields, boolean>>;
   productAutoFilled: Partial<Record<keyof ProductFields, boolean>>;
+  inventoryAutoFilled: Partial<Record<keyof InventoryFields, boolean>>;
 }
+
+const EXTRACT_URLS: Record<EntityType, string> = {
+  CONTRACT: "/api/documents/extract",
+  PRODUCT: "/api/products/extract",
+  INVENTORY: "/api/inventory/extract",
+};
 
 let nextId = 0;
 
 async function extract(type: EntityType, file: File) {
   const body = new FormData();
   body.append("file", file);
-  const url = type === "CONTRACT" ? "/api/documents/extract" : "/api/products/extract";
-  const res = await fetch(url, { method: "POST", body });
+  const res = await fetch(EXTRACT_URLS[type], { method: "POST", body });
   if (!res.ok) return { fields: {} as Record<string, string>, source: "none" as ExtractionSource };
   const data = (await res.json()) as { fields: Record<string, string>; source?: ExtractionSource };
   return { fields: data.fields, source: data.source ?? "none" };
@@ -56,11 +83,12 @@ function fieldClass(autoFilled?: boolean) {
   }`;
 }
 
-export function ImportClient() {
+export function ImportClient({ enabledModules = [] }: { enabledModules?: string[] }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
+  const inventoryEnabled = enabledModules.includes("INVENTORY");
 
   function updateRow(id: string, patch: Partial<Row>) {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
@@ -87,7 +115,7 @@ export function ImportClient() {
           cost: Boolean(fields.cost),
         },
       });
-    } else {
+    } else if (type === "PRODUCT") {
       updateRow(id, {
         status: "ready",
         scanMessage,
@@ -100,6 +128,23 @@ export function ImportClient() {
           name: Boolean(fields.name),
           manufacturer: Boolean(fields.manufacturer),
           price: Boolean(fields.price),
+        },
+      });
+    } else {
+      updateRow(id, {
+        status: "ready",
+        scanMessage,
+        inventory: {
+          label: fields.label ?? file.name.replace(/\.[^.]+$/, ""),
+          category: fields.category ?? "OTHER",
+          brand: fields.brand ?? "",
+          purchasePrice: fields.purchasePrice ?? "",
+        },
+        inventoryAutoFilled: {
+          label: Boolean(fields.label),
+          category: Boolean(fields.category),
+          brand: Boolean(fields.brand),
+          purchasePrice: Boolean(fields.purchasePrice),
         },
       });
     }
@@ -115,8 +160,10 @@ export function ImportClient() {
         status: "scanning",
         contract: { title: "", provider: "", category: "OTHER", cost: "" },
         product: { name: "", manufacturer: "", price: "" },
+        inventory: { label: "", category: "OTHER", brand: "", purchasePrice: "" },
         contractAutoFilled: {},
         productAutoFilled: {},
+        inventoryAutoFilled: {},
       };
       setRows((prev) => [...prev, row]);
       scanRow(id, "CONTRACT", file);
@@ -139,11 +186,17 @@ export function ImportClient() {
       formData.append("renewalType", "MANUAL_RENEWAL");
       formData.append("cost", row.contract.cost);
       result = await importContract(formData);
-    } else {
+    } else if (row.type === "PRODUCT") {
       formData.append("name", row.product.name);
       formData.append("manufacturer", row.product.manufacturer);
       formData.append("price", row.product.price);
       result = await importProduct(formData);
+    } else {
+      formData.append("label", row.inventory.label);
+      formData.append("category", row.inventory.category);
+      formData.append("brand", row.inventory.brand);
+      formData.append("purchasePrice", row.inventory.purchasePrice);
+      result = await importInventoryItem(formData);
     }
     if (result.error) {
       updateRow(row.id, { status: "error", error: result.error });
@@ -243,6 +296,7 @@ export function ImportClient() {
                         >
                           <option value="CONTRACT">Contract</option>
                           <option value="PRODUCT">Product</option>
+                          {inventoryEnabled && <option value="INVENTORY">Inventory item</option>}
                         </select>
                         <button
                           type="button"
@@ -381,6 +435,75 @@ export function ImportClient() {
                           }
                           inputMode="decimal"
                           className={fieldClass(row.productAutoFilled.price)}
+                        />
+                      </RowField>
+                    </div>
+                  )}
+
+                {(row.status === "ready" || row.status === "saving" || row.status === "error") &&
+                  row.type === "INVENTORY" && (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <RowField label="Label" htmlFor={`${row.id}-label`}>
+                        <input
+                          id={`${row.id}-label`}
+                          value={row.inventory.label}
+                          disabled={row.status === "saving"}
+                          onChange={(e) =>
+                            updateRow(row.id, {
+                              inventory: { ...row.inventory, label: e.target.value },
+                              inventoryAutoFilled: { ...row.inventoryAutoFilled, label: false },
+                            })
+                          }
+                          className={fieldClass(row.inventoryAutoFilled.label)}
+                        />
+                      </RowField>
+                      <RowField label="Brand" htmlFor={`${row.id}-brand`}>
+                        <input
+                          id={`${row.id}-brand`}
+                          value={row.inventory.brand}
+                          disabled={row.status === "saving"}
+                          onChange={(e) =>
+                            updateRow(row.id, {
+                              inventory: { ...row.inventory, brand: e.target.value },
+                              inventoryAutoFilled: { ...row.inventoryAutoFilled, brand: false },
+                            })
+                          }
+                          className={fieldClass(row.inventoryAutoFilled.brand)}
+                        />
+                      </RowField>
+                      <RowField label="Category" htmlFor={`${row.id}-inv-category`}>
+                        <select
+                          id={`${row.id}-inv-category`}
+                          value={row.inventory.category}
+                          disabled={row.status === "saving"}
+                          onChange={(e) =>
+                            updateRow(row.id, {
+                              inventory: { ...row.inventory, category: e.target.value },
+                              inventoryAutoFilled: { ...row.inventoryAutoFilled, category: false },
+                            })
+                          }
+                          className={fieldClass(row.inventoryAutoFilled.category)}
+                        >
+                          {INVENTORY_ITEM_CATEGORIES.map((cat) => (
+                            <option key={cat} value={cat}>
+                              {INVENTORY_CATEGORY_LABELS[cat] ?? cat}
+                            </option>
+                          ))}
+                        </select>
+                      </RowField>
+                      <RowField label="Purchase price" htmlFor={`${row.id}-purchasePrice`}>
+                        <input
+                          id={`${row.id}-purchasePrice`}
+                          value={row.inventory.purchasePrice}
+                          disabled={row.status === "saving"}
+                          onChange={(e) =>
+                            updateRow(row.id, {
+                              inventory: { ...row.inventory, purchasePrice: e.target.value },
+                              inventoryAutoFilled: { ...row.inventoryAutoFilled, purchasePrice: false },
+                            })
+                          }
+                          inputMode="decimal"
+                          className={fieldClass(row.inventoryAutoFilled.purchasePrice)}
                         />
                       </RowField>
                     </div>
