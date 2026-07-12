@@ -2,7 +2,7 @@
 
 import { useId, useRef, useState } from "react";
 import { Upload, FileText, X, Check, Loader2 } from "lucide-react";
-import { importContract, importProduct, importInventoryItem } from "@/lib/actions/import";
+import { importContract, importProduct, importInventoryItem, saveToInbox } from "@/lib/actions/import";
 import { CATEGORY_LABELS } from "@/lib/utils";
 import { INVENTORY_ITEM_CATEGORIES } from "@/lib/validation/inventory";
 import { showToast } from "@/components/Toast";
@@ -20,7 +20,7 @@ const INVENTORY_CATEGORY_LABELS: Record<string, string> = {
   OTHER: "Other",
 };
 
-type EntityType = "CONTRACT" | "PRODUCT" | "INVENTORY";
+type EntityType = "CONTRACT" | "PRODUCT" | "INVENTORY" | "INBOX";
 type RowStatus = "scanning" | "ready" | "saving" | "saved" | "error";
 type ExtractionSource = "byok" | "heuristic" | "llm" | "none";
 
@@ -60,7 +60,7 @@ interface Row {
   inventoryAutoFilled: Partial<Record<keyof InventoryFields, boolean>>;
 }
 
-const EXTRACT_URLS: Record<EntityType, string> = {
+const EXTRACT_URLS: Partial<Record<EntityType, string>> = {
   CONTRACT: "/api/documents/extract",
   PRODUCT: "/api/products/extract",
   INVENTORY: "/api/inventory/extract",
@@ -69,9 +69,11 @@ const EXTRACT_URLS: Record<EntityType, string> = {
 let nextId = 0;
 
 async function extract(type: EntityType, file: File) {
+  const url = EXTRACT_URLS[type];
+  if (!url) return { fields: {} as Record<string, string>, source: "none" as ExtractionSource };
   const body = new FormData();
   body.append("file", file);
-  const res = await fetch(EXTRACT_URLS[type], { method: "POST", body });
+  const res = await fetch(url, { method: "POST", body });
   if (!res.ok) return { fields: {} as Record<string, string>, source: "none" as ExtractionSource };
   const data = (await res.json()) as { fields: Record<string, string>; source?: ExtractionSource };
   return { fields: data.fields, source: data.source ?? "none" };
@@ -95,6 +97,10 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
   }
 
   async function scanRow(id: string, type: EntityType, file: File) {
+    if (type === "INBOX") {
+      updateRow(id, { status: "ready", scanMessage: undefined });
+      return;
+    }
     updateRow(id, { status: "scanning" });
     const { fields, source } = await extract(type, file);
     const filledCount = Object.keys(fields).length;
@@ -191,12 +197,14 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
       formData.append("manufacturer", row.product.manufacturer);
       formData.append("price", row.product.price);
       result = await importProduct(formData);
-    } else {
+    } else if (row.type === "INVENTORY") {
       formData.append("label", row.inventory.label);
       formData.append("category", row.inventory.category);
       formData.append("brand", row.inventory.brand);
       formData.append("purchasePrice", row.inventory.purchasePrice);
       result = await importInventoryItem(formData);
+    } else {
+      result = await saveToInbox(formData);
     }
     if (result.error) {
       updateRow(row.id, { status: "error", error: result.error });
@@ -297,6 +305,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                           <option value="CONTRACT">Contract</option>
                           <option value="PRODUCT">Product</option>
                           {inventoryEnabled && <option value="INVENTORY">Inventory item</option>}
+                          <option value="INBOX">Not sure yet</option>
                         </select>
                         <button
                           type="button"
@@ -507,6 +516,18 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                         />
                       </RowField>
                     </div>
+                  )}
+
+                {(row.status === "ready" || row.status === "saving" || row.status === "error") &&
+                  row.type === "INBOX" && (
+                    <p className="text-sm text-muted">
+                      Saved to your inbox as-is — classify it as a contract, product, or other
+                      record later from{" "}
+                      <a href="/documents/inbox" className="text-accent hover:underline">
+                        Needs review
+                      </a>
+                      .
+                    </p>
                   )}
 
                 {row.error && <p className="mt-2 text-xs text-danger">{row.error}</p>}

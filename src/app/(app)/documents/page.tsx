@@ -21,9 +21,10 @@ export default async function DocumentsPage({
   searchParams: Promise<{ type?: string }>;
 }) {
   const { type } = await searchParams;
-  const [enabledModules, { dateFormat }] = await Promise.all([
+  const [enabledModules, { dateFormat }, inboxCount] = await Promise.all([
     getEnabledModuleKeys(),
     getUserPreferences(),
+    prisma.inboxDocument.count(),
   ]);
 
   const queries: Promise<DocRow[]>[] = [];
@@ -248,9 +249,19 @@ export default async function DocumentsPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Documents</h1>
-        <p className="text-sm text-muted">Every file you&apos;ve uploaded, in one place.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">Documents</h1>
+          <p className="text-sm text-muted">Every file you&apos;ve uploaded, in one place.</p>
+        </div>
+        {inboxCount > 0 && (
+          <Link
+            href="/documents/inbox"
+            className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm font-medium text-warning hover:bg-warning/20"
+          >
+            Needs review ({inboxCount})
+          </Link>
+        )}
       </div>
 
       {allDocs.length > 0 && (
