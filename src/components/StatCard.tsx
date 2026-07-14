@@ -7,12 +7,13 @@ export function StatCard({
 }: {
   label: string;
   value: string;
-  tone?: "default" | "warning" | "danger";
+  tone?: "default" | "warning" | "danger" | "info";
 }) {
   const toneClasses = {
     default: "text-foreground",
     warning: "text-warning",
     danger: "text-danger",
+    info: "text-info",
   };
 
   return (

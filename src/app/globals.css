@@ -6,16 +6,19 @@
  * blue-tinted layered shadows instead of background tinting for depth.
  */
 :root {
-  --background: #f6f8fb;
+  /* Warm oat/stone neutrals rather than a cool blue-grey — the accent and
+     state colors below are unchanged, only the backdrop is warmer. */
+  --background: #f7f4ee;
   --foreground: #061b31;
-  --muted: #57657f;
-  --surface: #ffffff;
-  --border: #e5edf5;
+  --muted: #6e6455;
+  --surface: #fffdf9;
+  --border: #e9e1d2;
   --accent: #533afd;
   --accent-foreground: #ffffff;
   --success: #0b7a36;
   --danger: #ea2261;
   --warning: #92400e;
+  --info: #0f6fb0;
 }
 
 @theme inline {
@@ -29,6 +32,7 @@
   --color-success: var(--success);
   --color-danger: var(--danger);
   --color-warning: var(--warning);
+  --color-info: var(--info);
   --font-sans: var(--font-inter-sans);
   --font-mono: var(--font-source-code-pro);
   --shadow-stripe: 0px 7px 14px rgba(50, 50, 93, 0.1), 0px 3px 6px rgba(0, 0, 0, 0.08);
@@ -36,16 +40,19 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
+    /* Dark mode's indigo already reads distinctive rather than corporate,
+       so only the border/muted get a light warm touch. */
     --background: #1c1e54;
     --foreground: #eef0fa;
-    --muted: #a9a8d6;
+    --muted: #b3ac9f;
     --surface: #242760;
-    --border: #2f3270;
+    --border: #39334a;
     --accent: #8f7afe;
     --accent-foreground: #1c1e54;
     --success: #15be53;
     --danger: #ea2261;
     --warning: #fbbf24;
+    --info: #38bdf8;
   }
 }
 

@@ -54,7 +54,9 @@
     "zod": "^4.4.3"
   },
   "overrides": {
-    "nodemailer": "^9.0.1"
+    "nodemailer": "^9.0.1",
+    "@hono/node-server": "1.19.14",
+    "postcss": "8.5.15"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.4.1",
