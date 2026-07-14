@@ -1,0 +1,68 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch: {}
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Sync Capacitor Android project
+        run: npx cap sync android
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+        working-directory: android
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --no-daemon
+        working-directory: android
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hearth-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Attach APK to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          # release.yml also triggers on this tag push and creates the
+          # GitHub Release; wait for it to exist before uploading to it.
+          for i in $(seq 1 30); do
+            if gh release view "${{ github.ref_name }}" >/dev/null 2>&1; then
+              gh release upload "${{ github.ref_name }}" android/app/build/outputs/apk/debug/app-debug.apk --clobber
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Release ${{ github.ref_name }} never appeared; skipping upload." >&2
+          exit 1
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
