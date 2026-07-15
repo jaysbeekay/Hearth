@@ -23,8 +23,10 @@ export function ConfirmForm({
   successMessage?: string;
   // When provided, offline confirmation queues a delete instead of calling
   // `action` (which would fail with no connection) — only wire this up for
-  // top-level entities with an offline sync handler (see entityHandlers.ts).
-  offline?: { entity: string; entityId: string; label: string };
+  // entities with an offline sync handler (see entityHandlers.ts). parentId
+  // is needed for entities scoped under a parent record, e.g. a document
+  // delete needs its owning contract/product/item id for the ownership check.
+  offline?: { entity: string; entityId: string; label: string; parentId?: string };
 }) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
@@ -98,6 +100,7 @@ export function ConfirmForm({
                           entity: offline.entity,
                           operation: "delete",
                           entityId: offline.entityId,
+                          parentId: offline.parentId,
                         });
                         window.dispatchEvent(new Event("offline-queued"));
                         showToast("Delete queued — will sync when you reconnect.");

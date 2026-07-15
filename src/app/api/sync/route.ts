@@ -100,11 +100,13 @@ async function processOperation(
     return;
   }
 
+  if (!config.schema) throw new Error(`${op.entity} doesn't support this offline`);
   const parsed = config.schema.safeParse(op.formValues ?? {});
   if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid data");
 
   let recordId: string;
   if (op.operation === "create") {
+    if (!config.create) throw new Error(`${op.entity} can't be created offline`);
     recordId = (await config.create(parsed.data, ctx)).id;
   } else if (op.operation === "update") {
     if (!op.entityId) throw new Error("Missing record to update");

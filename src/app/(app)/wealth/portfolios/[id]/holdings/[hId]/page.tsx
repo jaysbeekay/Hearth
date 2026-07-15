@@ -440,6 +440,12 @@ export default async function HoldingPage({
                               confirmText={`Remove ${doc.filename}? This can't be undone.`}
                               ariaLabel={`Remove ${doc.filename}`}
                               className="rounded p-1 text-danger hover:text-danger/70"
+                              offline={{
+                                entity: "tradeDocument",
+                                entityId: doc.id,
+                                parentId: holdingId,
+                                label: `Delete document: ${doc.filename}`,
+                              }}
                             >
                               <Trash2 size={12} />
                             </ConfirmForm>

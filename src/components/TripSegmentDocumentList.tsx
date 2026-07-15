@@ -38,6 +38,12 @@ export function TripSegmentDocumentList({
             confirmText={`Delete ${doc.filename}? This can't be undone.`}
             ariaLabel={`Delete ${doc.filename}`}
             className="rounded-md p-2 text-foreground/50 hover:text-danger"
+            offline={{
+              entity: "tripSegmentDocument",
+              entityId: doc.id,
+              parentId: doc.tripSegmentId,
+              label: `Delete document: ${doc.filename}`,
+            }}
           >
             <Trash2 size={16} />
           </ConfirmForm>

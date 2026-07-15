@@ -33,6 +33,14 @@ import {
   saveInventoryItemDocument,
   saveTradeDocument,
   saveRentalStatementDocument,
+  deleteDocument as deleteContractDocument,
+  deleteProductDocument,
+  deleteHomeItemDocument,
+  deleteRentalStatementDocument,
+  deleteTripSegmentDocument,
+  deleteVehicleItemDocument,
+  deleteInventoryItemDocument,
+  deleteTradeDocument,
   deleteContractDir,
   deleteProductDir,
   deleteTripSegmentDir,
@@ -49,14 +57,22 @@ export interface SyncContext {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export interface EntitySyncConfig<T = any> {
-  schema: ZodTypeAny;
+  // Omitted for delete-only entities (the 8 document* entities below) — the
+  // sync route never validates formValues for a "delete" op, so no schema
+  // is needed there.
+  schema?: ZodTypeAny;
   requiresModule?: ModuleKey;
-  create: (data: T, ctx: SyncContext) => Promise<{ id: string }>;
-  // Entities with no online "edit" flow (e.g. PropertyValuation) omit update —
-  // an offline "update" op for them is rejected as unsupported.
+  // Omitted for delete-only entities — an offline "create" for one of those
+  // is rejected as unsupported (there's no such flow: documents are only
+  // ever attached as part of their parent record's own create/update).
+  create?: (data: T, ctx: SyncContext) => Promise<{ id: string }>;
+  // Entities with no online "edit" flow (e.g. PropertyValuation, and every
+  // document* entity) omit update — an offline "update" op for them is
+  // rejected as unsupported.
   update?: (id: string, data: T, ctx: SyncContext) => Promise<void>;
-  // Only wired up for top-level entities with a ConfirmForm `offline` prop
-  // (see ConfirmForm.tsx) — child-record and document deletes are deferred.
+  // `id` is the record's own id (a document's id for document* entities);
+  // ctx.parentId carries the owning record's id where the live action needs
+  // it for the ownership/scoping check (e.g. a document's contractId).
   remove?: (id: string, ctx: SyncContext) => Promise<void>;
   // Only present for entities whose create/update form can carry a file —
   // reuses the same storage.ts save*Document function the live server
@@ -541,6 +557,113 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       const valuation = await prisma.propertyValuation.create({ data: { ...data, propertyId } });
       revalidatePath(`/home/${propertyId}`);
       return { id: valuation.id };
+    },
+  }),
+
+  // ── Document deletes (remove-only — a document you can delete is always
+  // already-synced, since it's rendered from server data, so there's no
+  // pending-record problem like offline-created entities have) ─────────────
+  contractDocument: defineEntity({
+    remove: async (documentId, ctx) => {
+      const contractId = requireParentId(ctx);
+      const doc = await prisma.document.findUnique({ where: { id: documentId } });
+      if (!doc || doc.contractId !== contractId) throw new Error("Document not found");
+      await prisma.document.delete({ where: { id: documentId } });
+      await deleteContractDocument(contractId, doc.storedName);
+      revalidatePath(`/contracts/${contractId}`);
+    },
+  }),
+
+  productDocument: defineEntity({
+    remove: async (documentId, ctx) => {
+      const productId = requireParentId(ctx);
+      const doc = await prisma.productDocument.findUnique({ where: { id: documentId } });
+      if (!doc || doc.productId !== productId) throw new Error("Document not found");
+      await prisma.productDocument.delete({ where: { id: documentId } });
+      await deleteProductDocument(productId, doc.storedName);
+      revalidatePath(`/products/${productId}`);
+    },
+  }),
+
+  homeItemDocument: defineEntity({
+    remove: async (documentId, ctx) => {
+      const homeItemId = requireParentId(ctx);
+      const doc = await prisma.homeItemDocument.findUnique({ where: { id: documentId } });
+      if (!doc || doc.homeItemId !== homeItemId) throw new Error("Document not found");
+      const item = await prisma.homeItem.findUnique({ where: { id: homeItemId } });
+      await prisma.homeItemDocument.delete({ where: { id: documentId } });
+      await deleteHomeItemDocument(homeItemId, doc.storedName);
+      if (item) revalidatePath(`/home/${item.propertyId}`);
+    },
+  }),
+
+  rentalStatementDocument: defineEntity({
+    remove: async (documentId, ctx) => {
+      const statementId = requireParentId(ctx);
+      const doc = await prisma.rentalStatementDocument.findUnique({ where: { id: documentId } });
+      if (!doc || doc.rentalStatementId !== statementId) throw new Error("Document not found");
+      const statement = await prisma.rentalStatement.findUnique({ where: { id: statementId } });
+      await prisma.rentalStatementDocument.delete({ where: { id: documentId } });
+      await deleteRentalStatementDocument(statementId, doc.storedName);
+      if (statement) revalidatePath(`/home/${statement.propertyId}/rental`);
+    },
+  }),
+
+  tripSegmentDocument: defineEntity({
+    remove: async (documentId, ctx) => {
+      const segmentId = requireParentId(ctx);
+      const doc = await prisma.tripSegmentDocument.findUnique({ where: { id: documentId } });
+      if (!doc || doc.tripSegmentId !== segmentId) throw new Error("Document not found");
+      const segment = await prisma.tripSegment.findUnique({ where: { id: segmentId } });
+      await prisma.tripSegmentDocument.delete({ where: { id: documentId } });
+      await deleteTripSegmentDocument(segmentId, doc.storedName);
+      if (segment) revalidatePath(`/travel/${segment.tripId}`);
+    },
+  }),
+
+  vehicleItemDocument: defineEntity({
+    remove: async (documentId, ctx) => {
+      const vehicleItemId = requireParentId(ctx);
+      const doc = await prisma.vehicleItemDocument.findUnique({ where: { id: documentId } });
+      if (!doc || doc.vehicleItemId !== vehicleItemId) throw new Error("Document not found");
+      const item = await prisma.vehicleItem.findUnique({ where: { id: vehicleItemId } });
+      await prisma.vehicleItemDocument.delete({ where: { id: documentId } });
+      await deleteVehicleItemDocument(vehicleItemId, doc.storedName);
+      if (item) revalidatePath(`/vehicles/${item.vehicleId}`);
+    },
+  }),
+
+  inventoryItemDocument: defineEntity({
+    remove: async (documentId, ctx) => {
+      const itemId = requireParentId(ctx);
+      const doc = await prisma.inventoryItemDocument.findUnique({ where: { id: documentId } });
+      if (!doc || doc.inventoryItemId !== itemId) throw new Error("Document not found");
+      const item = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
+      if (!item || item.createdById !== ctx.userId) throw new Error("Item not found");
+      await prisma.inventoryItemDocument.delete({ where: { id: documentId } });
+      await deleteInventoryItemDocument(itemId, doc.storedName);
+      revalidatePath(`/inventory/${itemId}`);
+    },
+  }),
+
+  // ctx.parentId is the holdingId — the document's own tradeId (once fetched)
+  // is sufficient to resolve which trade/holding/portfolio it belongs to, so
+  // unlike the live action this doesn't need a separate tradeId param.
+  tradeDocument: defineEntity({
+    remove: async (documentId, ctx) => {
+      const holdingId = requireParentId(ctx);
+      const doc = await prisma.tradeDocument.findUnique({ where: { id: documentId } });
+      if (!doc) throw new Error("Document not found");
+      const holding = await prisma.holding.findUnique({
+        where: { id: holdingId },
+        include: { portfolio: true },
+      });
+      if (!holding || holding.portfolio.createdById !== ctx.userId) throw new Error("Holding not found");
+      const trade = await prisma.trade.findUnique({ where: { id: doc.tradeId } });
+      if (!trade || trade.holdingId !== holdingId) throw new Error("Document not found");
+      await prisma.tradeDocument.delete({ where: { id: documentId } });
+      await deleteTradeDocument(doc.tradeId, doc.storedName);
+      revalidatePath(`/wealth/portfolios/${holding.portfolioId}/holdings/${holdingId}`);
     },
   }),
 };

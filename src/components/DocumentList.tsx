@@ -38,6 +38,12 @@ export function DocumentList({
             confirmText={`Delete ${doc.filename}? This can't be undone.`}
             ariaLabel={`Delete ${doc.filename}`}
             className="rounded-md p-2 text-foreground/50 hover:text-danger"
+            offline={{
+              entity: "contractDocument",
+              entityId: doc.id,
+              parentId: doc.contractId,
+              label: `Delete document: ${doc.filename}`,
+            }}
           >
             <Trash2 size={16} />
           </ConfirmForm>

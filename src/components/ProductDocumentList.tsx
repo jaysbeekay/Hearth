@@ -3,6 +3,7 @@ import type { ProductDocumentModel } from "@/generated/prisma/models";
 import { deleteProductDocumentAction } from "@/lib/actions/products";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DocumentLink } from "@/components/DocumentLink";
+import { ProductDocumentThumbnail } from "@/components/ProductDocumentThumbnail";
 import { formatDate, humanFileSize } from "@/lib/utils";
 
 const KIND_LABELS: Record<string, string> = {
@@ -35,11 +36,9 @@ export function ProductDocumentList({
             className="flex min-w-0 items-center gap-3 text-sm hover:text-accent"
           >
             {doc.kind === "PHOTO" && doc.mimeType.startsWith("image/") ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={`/api/products/documents/${doc.id}`}
-                alt={doc.filename}
-                className="h-10 w-10 shrink-0 rounded-md object-cover"
+              <ProductDocumentThumbnail
+                href={`/api/products/documents/${doc.id}`}
+                filename={doc.filename}
               />
             ) : (
               <FileText size={18} className="shrink-0 text-foreground/50" />
@@ -55,6 +54,12 @@ export function ProductDocumentList({
             confirmText={`Delete ${doc.filename}? This can't be undone.`}
             ariaLabel={`Delete ${doc.filename}`}
             className="rounded-md p-2 text-foreground/50 hover:text-danger"
+            offline={{
+              entity: "productDocument",
+              entityId: doc.id,
+              parentId: doc.productId,
+              label: `Delete document: ${doc.filename}`,
+            }}
           >
             <Trash2 size={16} />
           </ConfirmForm>
