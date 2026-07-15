@@ -54,6 +54,7 @@ export function ContractForm({
       entity: "contract",
       operation: contract ? "update" : "create",
       entityId: contract?.id,
+      baseUpdatedAt: contract?.updatedAt?.toISOString(),
     }),
     { success: "Saved offline — will sync when you reconnect." },
   );

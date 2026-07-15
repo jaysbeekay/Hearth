@@ -27,6 +27,7 @@ export function PropertyForm({
       entity: "property",
       operation: property ? "update" : "create",
       entityId: property?.id,
+      baseUpdatedAt: property?.updatedAt?.toISOString(),
     }),
     { success: "Saved offline — will sync when you reconnect." },
   );

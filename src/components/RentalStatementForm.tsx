@@ -48,6 +48,7 @@ export function RentalStatementForm({
       operation: statement ? "update" : "create",
       entityId: statement?.id,
       parentId: statement?.propertyId ?? propertyId,
+      baseUpdatedAt: statement?.updatedAt?.toISOString(),
     }),
     { success: "Saved offline — will sync when you reconnect." },
   );

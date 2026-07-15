@@ -64,6 +64,7 @@ export function TripSegmentForm({
       operation: segment ? "update" : "create",
       entityId: segment?.id,
       parentId: segment?.tripId ?? tripId,
+      baseUpdatedAt: segment?.updatedAt?.toISOString(),
     }),
     { success: "Saved offline — will sync when you reconnect." },
   );

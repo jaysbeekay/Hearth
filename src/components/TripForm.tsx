@@ -26,6 +26,7 @@ export function TripForm({
       entity: "trip",
       operation: trip ? "update" : "create",
       entityId: trip?.id,
+      baseUpdatedAt: trip?.updatedAt?.toISOString(),
     }),
     { success: "Saved offline — will sync when you reconnect." },
   );

@@ -40,6 +40,7 @@ export function HomeItemForm({
       operation: item ? "update" : "create",
       entityId: item?.id,
       parentId: item?.propertyId ?? propertyId,
+      baseUpdatedAt: item?.updatedAt?.toISOString(),
     }),
     { success: "Saved offline — will sync when you reconnect." },
   );

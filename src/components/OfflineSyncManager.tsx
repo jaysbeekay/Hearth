@@ -119,6 +119,14 @@ export function OfflineSyncManager() {
       .catch(() => {});
   }, []);
 
+  // Ask the browser not to evict this origin's storage under pressure —
+  // losing queued-but-unsynced operations or staged files would be silent
+  // data loss, unlike the (unused) `pages` read cache. Grant heuristics are
+  // out of app control; this just asks once per session.
+  useEffect(() => {
+    navigator.storage?.persist?.().catch(() => {});
+  }, []);
+
   // Auto-sync on network restore
   useEffect(() => {
     const onOnline = () => {

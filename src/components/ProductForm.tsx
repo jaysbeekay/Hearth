@@ -37,6 +37,7 @@ export function ProductForm({
       entity: "product",
       operation: product ? "update" : "create",
       entityId: product?.id,
+      baseUpdatedAt: product?.updatedAt?.toISOString(),
     }),
     { success: "Saved offline — will sync when you reconnect." },
   );

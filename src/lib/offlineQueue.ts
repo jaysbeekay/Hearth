@@ -12,6 +12,11 @@ export interface QueuedOperation {
   entityId?: string;     // for update / delete
   parentId?: string;     // e.g. vehicleId when creating a vehicleItem
   formValues?: Record<string, string>; // omitted for delete ops
+  // The record's server updatedAt at the moment it was opened for editing —
+  // captured for "update" ops so the sync handler can detect (not merge) a
+  // conflicting edit that landed elsewhere in the meantime. Omitted for
+  // entities without an updatedAt column (currently just RentalAgreement).
+  baseUpdatedAt?: string;
   status: QueuedOpStatus;
   error?: string;
 }
@@ -147,7 +152,7 @@ export function makeOfflineAwareAction<S extends { error?: string; success?: str
   action: (state: S, formData: FormData) => Promise<S>,
   describe: (formData: FormData) => Pick<
     QueuedOperation,
-    "label" | "entity" | "operation" | "entityId" | "parentId"
+    "label" | "entity" | "operation" | "entityId" | "parentId" | "baseUpdatedAt"
   >,
   offlineSuccess: S,
 ): (state: S, formData: FormData) => Promise<S> {

@@ -37,6 +37,7 @@ export function TradeForm({
       operation: trade ? "update" : "create",
       entityId: trade?.id,
       parentId: trade?.holdingId ?? holdingId,
+      baseUpdatedAt: trade?.updatedAt?.toISOString(),
     }),
     { success: "Saved offline — will sync when you reconnect." },
   );

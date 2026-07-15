@@ -1,22 +1,43 @@
-import { useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
+import { Capacitor } from "@capacitor/core";
+import { Network } from "@capacitor/network";
 
-function subscribe(callback: () => void) {
-  window.addEventListener("online", callback);
-  window.addEventListener("offline", callback);
-  return () => {
-    window.removeEventListener("online", callback);
-    window.removeEventListener("offline", callback);
-  };
-}
+// `navigator.onLine` in a WebView is known to false-positive (e.g. connected
+// to Wi-Fi with no real internet, captive portals) — inside the native
+// Android/iOS shell, prefer @capacitor/network's actual connectivity check.
+// Falls back to the standard browser online/offline events everywhere else
+// (plain web/PWA), where @capacitor/core's isNativePlatform() is just false.
+export function useOnlineStatus(): boolean {
+  // Always starts true, matching SSR output (no `navigator` there) — corrected
+  // in the effect below, which only runs post-hydration, so the first client
+  // render still matches the server-rendered HTML (avoids a hydration warning
+  // if the client happens to be offline on first paint).
+  const [online, setOnline] = useState(true);
 
-function getSnapshot() {
-  return navigator.onLine;
-}
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      let cancelled = false;
+      Network.getStatus().then((status) => {
+        if (!cancelled) setOnline(status.connected);
+      });
+      const listenerPromise = Network.addListener("networkStatusChange", (status) => {
+        setOnline(status.connected);
+      });
+      return () => {
+        cancelled = true;
+        listenerPromise.then((listener) => listener.remove());
+      };
+    }
 
-function getServerSnapshot() {
-  return true;
-}
+    queueMicrotask(() => setOnline(navigator.onLine));
+    const update = () => setOnline(navigator.onLine);
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => {
+      window.removeEventListener("online", update);
+      window.removeEventListener("offline", update);
+    };
+  }, []);
 
-export function useOnlineStatus() {
-  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  return online;
 }

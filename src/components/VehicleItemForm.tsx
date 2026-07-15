@@ -40,6 +40,7 @@ export function VehicleItemForm({
       operation: item ? "update" : "create",
       entityId: item?.id,
       parentId: item?.vehicleId ?? vehicleId,
+      baseUpdatedAt: item?.updatedAt?.toISOString(),
     }),
     { success: "Saved offline — will sync when you reconnect." },
   );

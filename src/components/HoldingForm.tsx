@@ -28,6 +28,7 @@ export function HoldingForm({
       operation: holding ? "update" : "create",
       entityId: holding?.id,
       parentId: holding?.portfolioId ?? portfolioId,
+      baseUpdatedAt: holding?.updatedAt?.toISOString(),
     }),
     { success: "Saved offline — will sync when you reconnect." },
   );

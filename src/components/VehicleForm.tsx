@@ -26,6 +26,7 @@ export function VehicleForm({
       entity: "vehicle",
       operation: vehicle ? "update" : "create",
       entityId: vehicle?.id,
+      baseUpdatedAt: vehicle?.updatedAt?.toISOString(),
     }),
     { success: "Saved offline — will sync when you reconnect." },
   );

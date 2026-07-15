@@ -44,6 +44,7 @@ import {
 export interface SyncContext {
   userId: string;
   parentId?: string;
+  baseUpdatedAt?: string;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -57,9 +58,9 @@ export interface EntitySyncConfig<T = any> {
   // Only wired up for top-level entities with a ConfirmForm `offline` prop
   // (see ConfirmForm.tsx) — child-record and document deletes are deferred.
   remove?: (id: string, ctx: SyncContext) => Promise<void>;
-  // Only present for entities whose create/update form can carry a file
-  // (see FILE_FIELD_NAMES below) — reuses the same storage.ts save*Document
-  // function the live server action calls, so the on-disk path is identical.
+  // Only present for entities whose create/update form can carry a file —
+  // reuses the same storage.ts save*Document function the live server
+  // action calls, so the on-disk path is identical.
   saveFile?: (entityId: string, file: File, fieldName: string) => Promise<void>;
 }
 
@@ -79,6 +80,18 @@ function validateFile(file: File) {
   }
 }
 
+// Detects (doesn't merge) a conflicting edit: if the record's updatedAt has
+// moved on from what the client had loaded when it made this offline edit,
+// don't silently overwrite — surface it as a sync failure instead. Skipped
+// when the client didn't send a baseUpdatedAt (e.g. RentalAgreement, which
+// has no updatedAt column) or online writes made before this feature shipped.
+function assertNotStale(existing: { updatedAt: Date }, ctx: SyncContext) {
+  if (!ctx.baseUpdatedAt) return;
+  if (existing.updatedAt.toISOString() !== ctx.baseUpdatedAt) {
+    throw new Error("This record was changed elsewhere since you edited it — review before retrying.");
+  }
+}
+
 export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
   // ── Contracts (always-on, per-user ownership) ──────────────────────────────
   contract: defineEntity({
@@ -88,9 +101,10 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       revalidatePath("/contracts");
       return { id: contract.id };
     },
-    update: async (id, data, { userId }) => {
+    update: async (id, data, ctx) => {
       const existing = await prisma.contract.findUnique({ where: { id } });
-      if (!existing || existing.createdById !== userId) throw new Error("Contract not found");
+      if (!existing || existing.createdById !== ctx.userId) throw new Error("Contract not found");
+      assertNotStale(existing, ctx);
       await prisma.contract.update({ where: { id }, data });
       revalidatePath("/contracts");
       revalidatePath(`/contracts/${id}`);
@@ -121,9 +135,10 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       revalidatePath("/products");
       return { id: product.id };
     },
-    update: async (id, data, { userId }) => {
+    update: async (id, data, ctx) => {
       const existing = await prisma.product.findUnique({ where: { id } });
-      if (!existing || existing.createdById !== userId) throw new Error("Product not found");
+      if (!existing || existing.createdById !== ctx.userId) throw new Error("Product not found");
+      assertNotStale(existing, ctx);
       await prisma.product.update({ where: { id }, data });
       revalidatePath("/products");
       revalidatePath(`/products/${id}`);
@@ -161,9 +176,10 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       revalidatePath("/vehicles");
       return { id: vehicle.id };
     },
-    update: async (id, data) => {
+    update: async (id, data, ctx) => {
       const existing = await prisma.vehicle.findUnique({ where: { id } });
       if (!existing) throw new Error("Vehicle not found");
+      assertNotStale(existing, ctx);
       await prisma.vehicle.update({ where: { id }, data });
       revalidatePath("/vehicles");
       revalidatePath(`/vehicles/${id}`);
@@ -197,6 +213,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       const vehicleId = requireParentId(ctx);
       const existing = await prisma.vehicleItem.findUnique({ where: { id } });
       if (!existing || existing.vehicleId !== vehicleId) throw new Error("Item not found");
+      assertNotStale(existing, ctx);
       await prisma.vehicleItem.update({ where: { id }, data });
       revalidatePath(`/vehicles/${vehicleId}`);
     },
@@ -218,9 +235,10 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       revalidatePath("/travel");
       return { id: trip.id };
     },
-    update: async (id, data) => {
+    update: async (id, data, ctx) => {
       const existing = await prisma.trip.findUnique({ where: { id } });
       if (!existing) throw new Error("Trip not found");
+      assertNotStale(existing, ctx);
       await prisma.trip.update({ where: { id }, data });
       revalidatePath("/travel");
       revalidatePath(`/travel/${id}`);
@@ -254,6 +272,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       const tripId = requireParentId(ctx);
       const existing = await prisma.tripSegment.findUnique({ where: { id } });
       if (!existing || existing.tripId !== tripId) throw new Error("Segment not found");
+      assertNotStale(existing, ctx);
       await prisma.tripSegment.update({ where: { id }, data });
       revalidatePath(`/travel/${tripId}`);
     },
@@ -275,9 +294,10 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       revalidatePath("/home");
       return { id: property.id };
     },
-    update: async (id, data) => {
+    update: async (id, data, ctx) => {
       const existing = await prisma.property.findUnique({ where: { id } });
       if (!existing) throw new Error("Property not found");
+      assertNotStale(existing, ctx);
       await prisma.property.update({ where: { id }, data });
       revalidatePath("/home");
       revalidatePath(`/home/${id}`);
@@ -311,6 +331,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       const propertyId = requireParentId(ctx);
       const existing = await prisma.homeItem.findUnique({ where: { id } });
       if (!existing || existing.propertyId !== propertyId) throw new Error("Item not found");
+      assertNotStale(existing, ctx);
       await prisma.homeItem.update({ where: { id }, data });
       revalidatePath(`/home/${propertyId}`);
     },
@@ -365,6 +386,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       const propertyId = requireParentId(ctx);
       const existing = await prisma.rentalStatement.findUnique({ where: { id } });
       if (!existing || existing.propertyId !== propertyId) throw new Error("Statement not found");
+      assertNotStale(existing, ctx);
       await prisma.rentalStatement.update({ where: { id }, data });
       revalidatePath(`/home/${propertyId}/rental`);
     },
@@ -386,9 +408,10 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       revalidatePath("/inventory");
       return { id: item.id };
     },
-    update: async (id, data, { userId }) => {
+    update: async (id, data, ctx) => {
       const existing = await prisma.inventoryItem.findUnique({ where: { id } });
-      if (!existing || existing.createdById !== userId) throw new Error("Item not found");
+      if (!existing || existing.createdById !== ctx.userId) throw new Error("Item not found");
+      assertNotStale(existing, ctx);
       await prisma.inventoryItem.update({ where: { id }, data });
       revalidatePath("/inventory");
       revalidatePath(`/inventory/${id}`);
@@ -418,9 +441,10 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       revalidatePath("/wealth");
       return { id: portfolio.id };
     },
-    update: async (id, data, { userId }) => {
+    update: async (id, data, ctx) => {
       const existing = await prisma.portfolio.findUnique({ where: { id } });
-      if (!existing || existing.createdById !== userId) throw new Error("Portfolio not found");
+      if (!existing || existing.createdById !== ctx.userId) throw new Error("Portfolio not found");
+      assertNotStale(existing, ctx);
       await prisma.portfolio.update({ where: { id }, data });
       revalidatePath("/wealth");
       revalidatePath(`/wealth/portfolios/${id}`);
@@ -454,6 +478,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
         include: { portfolio: true },
       });
       if (!holding || holding.portfolio.createdById !== ctx.userId) throw new Error("Holding not found");
+      assertNotStale(holding, ctx);
       await prisma.holding.update({ where: { id }, data });
       revalidatePath(`/wealth/portfolios/${holding.portfolioId}/holdings/${id}`);
     },
@@ -491,6 +516,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       if (!holding || holding.portfolio.createdById !== ctx.userId) throw new Error("Holding not found");
       const trade = await prisma.trade.findUnique({ where: { id } });
       if (!trade || trade.holdingId !== holdingId) throw new Error("Trade not found");
+      assertNotStale(trade, ctx);
       await prisma.trade.update({ where: { id }, data });
       revalidatePath(`/wealth/portfolios/${holding.portfolioId}/holdings/${holdingId}`);
     },

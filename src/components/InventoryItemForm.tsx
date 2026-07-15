@@ -45,6 +45,7 @@ export function InventoryItemForm({
       entity: "inventoryItem",
       operation: item ? "update" : "create",
       entityId: item?.id,
+      baseUpdatedAt: item?.updatedAt?.toISOString(),
     }),
     { success: "Saved offline — will sync when you reconnect." },
   );

@@ -24,6 +24,7 @@ export function PortfolioForm({
       entity: "portfolio",
       operation: portfolio ? "update" : "create",
       entityId: portfolio?.id,
+      baseUpdatedAt: portfolio?.updatedAt?.toISOString(),
     }),
     { success: "Saved offline — will sync when you reconnect." },
   );

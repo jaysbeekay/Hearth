@@ -11,6 +11,7 @@ interface SyncOperation {
   entityId?: string;
   parentId?: string; // parent record ID (e.g. vehicleId for vehicleItem)
   formValues?: Record<string, string>;
+  baseUpdatedAt?: string;
 }
 
 interface SyncResult {
@@ -90,7 +91,7 @@ async function processOperation(
     throw new Error(`${MODULE_REGISTRY[config.requiresModule].label} module is disabled`);
   }
 
-  const ctx = { userId, parentId: op.parentId };
+  const ctx = { userId, parentId: op.parentId, baseUpdatedAt: op.baseUpdatedAt };
 
   if (op.operation === "delete") {
     if (!op.entityId) throw new Error("Missing record to delete");
