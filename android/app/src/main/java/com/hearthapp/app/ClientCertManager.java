@@ -1,4 +1,4 @@
-package com.hearth.app;
+package com.hearthapp.app;
 
 import android.content.Context;
 import android.util.Log;

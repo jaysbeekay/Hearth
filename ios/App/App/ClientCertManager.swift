@@ -26,7 +26,7 @@ enum ClientCertError: LocalizedError {
 final class ClientCertManager: NSObject {
     static let shared = ClientCertManager()
 
-    private static let identityTag = "com.hearth.app.clientIdentity".data(using: .utf8)!
+    private static let identityTag = "com.hearthapp.app.clientIdentity".data(using: .utf8)!
 
     private var pendingCompletion: ((Result<String, Error>) -> Void)?
 
