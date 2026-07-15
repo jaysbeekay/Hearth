@@ -7,6 +7,46 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-15
+
+### Added
+
+- **Full offline support across every module** — offline entry, editing, and
+  deletion now work for every household record type (previously only
+  Contracts, Products, and Vehicles), including file/photo attachments
+  staged locally and synced automatically on reconnect. Documents can also
+  be explicitly downloaded for offline viewing (and deleted while offline),
+  with a Settings panel to review and manage what's stored on-device.
+- Conflict detection for offline edits — if a record changed elsewhere
+  while you were editing it offline, the sync is flagged for review instead
+  of silently overwriting the newer change.
+- A unified Documents view across all modules, with search, filtering, and
+  inline preview.
+- Search now matches document content (extracted/OCR'd text), not just
+  filenames and titles.
+- AI-extraction confidence indicators and auto-filled-field highlighting
+  when a document's fields are pre-filled.
+- A first-run activation checklist and upload-first entry flow for new
+  households.
+- Document-count and last-updated metadata on list cards and detail pages.
+- `PRIVACY.md`, documenting what data the app handles and exactly what each
+  optional integration sends and where.
+- CI now builds a signed Android App Bundle (`.aab`) for Play Store
+  submission, alongside the existing debug/release APKs.
+
+### Changed
+
+- Warmer household color palette (new `info` token, warm-neutral retint).
+- The Android and iOS app identifiers both changed to `com.hearth.app`
+  (from `com.jaysbeekay.contracts`) for consistency between platforms.
+
+### Fixed
+
+- A corrupted iOS Xcode project reference that could crash project loading.
+- A wrong `Certificate` import in the Android mTLS client-cert manager that
+  broke compilation.
+- Several moderate-severity transitive dependency vulnerabilities.
+
 ## [0.6.0] - 2026-07-11
 
 ### Added
