@@ -5,7 +5,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 // self-hosted server, then hands the WebView off to it — see
 // ios-shell/www/app.js and README-ios.md.
 const config: CapacitorConfig = {
-  appId: "com.jaysbeekay.contracts",
+  appId: "com.hearth.app",
   appName: "Hearth",
   webDir: "ios-shell/www",
   server: {

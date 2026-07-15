@@ -1,4 +1,4 @@
-package com.jaysbeekay.contracts;
+package com.hearth.app;
 
 import android.app.Activity;
 import android.app.AlertDialog;

@@ -1,4 +1,4 @@
-package com.jaysbeekay.contracts;
+package com.hearth.app;
 
 import android.content.SharedPreferences;
 import android.os.Bundle;

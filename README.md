@@ -556,6 +556,9 @@ threshold.
   user-supplied name, to prevent path traversal.
 - Email/ntfy reminder text is sanitized against header injection.
 
+See [`PRIVACY.md`](PRIVACY.md) for what data the app handles and where it
+goes for each optional integration.
+
 ## Releasing
 
 Releases follow [Semantic Versioning](https://semver.org/), starting at

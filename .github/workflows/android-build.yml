@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Android APK/AAB
 
 on:
   workflow_dispatch: {}
@@ -36,6 +36,20 @@ jobs:
 
       - name: Sync Capacitor Android project
         run: npx cap sync android
+
+      - name: Set version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          # versionName is the human-facing "x.y.z" from the tag; versionCode
+          # is Play Store's required strictly-increasing integer, derived as
+          # major*10000 + minor*100 + patch (assumes minor/patch stay < 100,
+          # true for this project's semver history).
+          VERSION="${GITHUB_REF_NAME#v}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          CODE=$((MAJOR * 10000 + MINOR * 100 + PATCH))
+          sed -i "s/versionCode [0-9]\+/versionCode $CODE/" android/app/build.gradle
+          sed -i "s/versionName \"[^\"]*\"/versionName \"$VERSION\"/" android/app/build.gradle
+          echo "versionCode=$CODE versionName=$VERSION"
 
       - name: Make gradlew executable
         run: chmod +x gradlew
@@ -76,18 +90,41 @@ jobs:
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
-      - name: Attach APK to release
+      # The Play Store requires an .aab (App Bundle), not the .apk above —
+      # that one's for direct sideload / GitHub Releases only.
+      - name: Build signed release AAB (Play Store)
+        if: ${{ env.HAS_SIGNING == 'true' }}
+        run: ./gradlew bundleRelease --no-daemon
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/hearth-release.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: Upload release AAB artifact
+        if: ${{ env.HAS_SIGNING == 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: hearth-release-aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+
+      - name: Attach APK/AAB to release
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           # release.yml also triggers on this tag push and creates the
           # GitHub Release; wait for it to exist before uploading to it.
           apk="android/app/build/outputs/apk/debug/app-debug.apk"
+          assets=()
           if [ "$HAS_SIGNING" = "true" ]; then
             apk="android/app/build/outputs/apk/release/app-release.apk"
+            assets+=("android/app/build/outputs/bundle/release/app-release.aab")
           fi
+          assets+=("$apk")
           for i in $(seq 1 30); do
             if gh release view "${{ github.ref_name }}" >/dev/null 2>&1; then
-              gh release upload "${{ github.ref_name }}" "$apk" --clobber
+              gh release upload "${{ github.ref_name }}" "${assets[@]}" --clobber
               exit 0
             fi
             sleep 10
