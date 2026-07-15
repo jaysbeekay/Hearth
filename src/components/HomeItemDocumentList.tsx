@@ -2,6 +2,7 @@ import { FileText, Trash2 } from "lucide-react";
 import type { HomeItemDocumentModel } from "@/generated/prisma/models";
 import { deleteItemDocumentAction } from "@/lib/actions/home";
 import { ConfirmForm } from "@/components/ConfirmForm";
+import { DocumentLink } from "@/components/DocumentLink";
 import { formatDate, humanFileSize } from "@/lib/utils";
 
 export function HomeItemDocumentList({
@@ -19,8 +20,11 @@ export function HomeItemDocumentList({
     <ul className="divide-y divide-border">
       {documents.map((doc) => (
         <li key={doc.id} className="flex items-center justify-between gap-3 py-3">
-          <a
+          <DocumentLink
             href={`/api/home/documents/${doc.id}`}
+            filename={doc.filename}
+            mimeType={doc.mimeType}
+            size={doc.size}
             className="flex min-w-0 items-center gap-2 text-sm hover:text-accent"
           >
             <FileText size={18} className="shrink-0 text-foreground/50" />
@@ -28,7 +32,7 @@ export function HomeItemDocumentList({
             <span className="shrink-0 text-foreground/50">
               {humanFileSize(doc.size)} · {formatDate(doc.uploadedAt, dateFormat)}
             </span>
-          </a>
+          </DocumentLink>
           <ConfirmForm
             action={deleteItemDocumentAction.bind(null, doc.homeItemId, doc.id)}
             confirmText={`Delete ${doc.filename}? This can't be undone.`}

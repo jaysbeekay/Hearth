@@ -2,6 +2,7 @@ import { FileText, Trash2 } from "lucide-react";
 import type { ProductDocumentModel } from "@/generated/prisma/models";
 import { deleteProductDocumentAction } from "@/lib/actions/products";
 import { ConfirmForm } from "@/components/ConfirmForm";
+import { DocumentLink } from "@/components/DocumentLink";
 import { formatDate, humanFileSize } from "@/lib/utils";
 
 const KIND_LABELS: Record<string, string> = {
@@ -26,8 +27,11 @@ export function ProductDocumentList({
     <ul className="divide-y divide-border">
       {documents.map((doc) => (
         <li key={doc.id} className="flex items-center justify-between gap-3 py-3">
-          <a
+          <DocumentLink
             href={`/api/products/documents/${doc.id}`}
+            filename={doc.filename}
+            mimeType={doc.mimeType}
+            size={doc.size}
             className="flex min-w-0 items-center gap-3 text-sm hover:text-accent"
           >
             {doc.kind === "PHOTO" && doc.mimeType.startsWith("image/") ? (
@@ -45,7 +49,7 @@ export function ProductDocumentList({
               {KIND_LABELS[doc.kind] ?? doc.kind} · {humanFileSize(doc.size)} ·{" "}
               {formatDate(doc.uploadedAt, dateFormat)}
             </span>
-          </a>
+          </DocumentLink>
           <ConfirmForm
             action={deleteProductDocumentAction.bind(null, doc.productId, doc.id)}
             confirmText={`Delete ${doc.filename}? This can't be undone.`}

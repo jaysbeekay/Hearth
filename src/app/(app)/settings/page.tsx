@@ -15,6 +15,7 @@ import { IcalTokenSection } from "@/components/IcalTokenSection";
 import { TotpSection } from "@/components/TotpSection";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
+import { OfflineDocumentsPanel } from "@/components/OfflineDocumentsPanel";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -230,6 +231,8 @@ export default async function SettingsPage() {
       </section>
 
       <IcalTokenSection token={user.icalToken ?? null} appUrl={appUrl} />
+
+      <OfflineDocumentsPanel />
 
       <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <h2 className="mb-3 font-medium">Change password</h2>

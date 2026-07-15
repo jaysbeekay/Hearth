@@ -10,6 +10,7 @@ import { refreshPricesForTickers, getPriceMap, fetchAndStorePriceHistory, getPri
 import { deleteHolding, deleteTrade, addTradeDocument, deleteTradeDocumentAction } from "@/lib/actions/wealth";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
+import { DocumentLink } from "@/components/DocumentLink";
 import { ASSET_CLASS_LABELS, TRADE_TYPE_LABELS } from "@/lib/validation/wealth";
 import { getUserPreferences } from "@/lib/userPreferences";
 
@@ -425,13 +426,15 @@ export default async function HoldingPage({
                       <div className="mb-2 flex flex-wrap gap-2">
                         {trade.documents.map((doc) => (
                           <div key={doc.id} className="flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-xs">
-                            <a
+                            <DocumentLink
                               href={`/api/wealth/trade-documents/${doc.id}`}
-                              download
+                              filename={doc.filename}
+                              mimeType={doc.mimeType}
+                              size={doc.size}
                               className="text-accent hover:underline truncate max-w-40"
                             >
                               {doc.filename}
-                            </a>
+                            </DocumentLink>
                             <ConfirmForm
                               action={deleteTradeDocumentAction.bind(null, holdingId, trade.id, doc.id)}
                               confirmText={`Remove ${doc.filename}? This can't be undone.`}
