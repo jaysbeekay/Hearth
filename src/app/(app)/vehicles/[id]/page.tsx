@@ -80,6 +80,7 @@ export default async function VehicleDetailPage({
               action={deleteVehicle.bind(null, vehicle.id)}
               confirmText="Delete this vehicle and all its records and documents? This cannot be undone."
               className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
+              offline={{ entity: "vehicle", entityId: vehicle.id, label: `Delete vehicle: ${vehicle.label}` }}
             >
               <Trash2 size={16} />
               Delete

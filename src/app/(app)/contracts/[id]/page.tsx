@@ -88,6 +88,7 @@ export default async function ContractDetailPage({
               action={deleteContract.bind(null, contract.id)}
               confirmText="Delete this contract and all its documents? This cannot be undone."
               className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
+              offline={{ entity: "contract", entityId: contract.id, label: `Delete contract: ${contract.title}` }}
             >
               <Trash2 size={16} />
               Delete

@@ -10,7 +10,7 @@ interface SyncOperation {
   operation: "create" | "update" | "delete";
   entityId?: string;
   parentId?: string; // parent record ID (e.g. vehicleId for vehicleItem)
-  formValues: Record<string, string>;
+  formValues?: Record<string, string>;
 }
 
 interface SyncResult {
@@ -65,10 +65,17 @@ async function processOperation(op: SyncOperation, userId: string): Promise<void
     throw new Error(`${MODULE_REGISTRY[config.requiresModule].label} module is disabled`);
   }
 
-  const parsed = config.schema.safeParse(op.formValues);
-  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid data");
-
   const ctx = { userId, parentId: op.parentId };
+
+  if (op.operation === "delete") {
+    if (!op.entityId) throw new Error("Missing record to delete");
+    if (!config.remove) throw new Error(`${op.entity} can't be deleted offline`);
+    await config.remove(op.entityId, ctx);
+    return;
+  }
+
+  const parsed = config.schema.safeParse(op.formValues ?? {});
+  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid data");
 
   if (op.operation === "create") {
     await config.create(parsed.data, ctx);

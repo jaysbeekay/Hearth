@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { showToast } from "@/components/Toast";
 import { useHasMounted } from "@/lib/useHasMounted";
+import { enqueueOperation } from "@/lib/offlineQueue";
 
 export function ConfirmForm({
   action,
@@ -12,6 +13,7 @@ export function ConfirmForm({
   className,
   ariaLabel,
   successMessage = "Removed.",
+  offline,
 }: {
   action: () => Promise<unknown>;
   confirmText: string;
@@ -19,6 +21,10 @@ export function ConfirmForm({
   className?: string;
   ariaLabel?: string;
   successMessage?: string;
+  // When provided, offline confirmation queues a delete instead of calling
+  // `action` (which would fail with no connection) — only wire this up for
+  // top-level entities with an offline sync handler (see entityHandlers.ts).
+  offline?: { entity: string; entityId: string; label: string };
 }) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
@@ -86,6 +92,18 @@ export function ConfirmForm({
                   onClick={async () => {
                     setPending(true);
                     try {
+                      if (offline && typeof navigator !== "undefined" && !navigator.onLine) {
+                        await enqueueOperation({
+                          label: offline.label,
+                          entity: offline.entity,
+                          operation: "delete",
+                          entityId: offline.entityId,
+                        });
+                        window.dispatchEvent(new Event("offline-queued"));
+                        showToast("Delete queued — will sync when you reconnect.");
+                        close();
+                        return;
+                      }
                       await action();
                       if (successMessage) showToast(successMessage);
                       close();

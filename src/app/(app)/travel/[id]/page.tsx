@@ -105,6 +105,7 @@ export default async function TripDetailPage({
               action={deleteTrip.bind(null, trip.id)}
               confirmText="Delete this trip and all its segments and documents? This cannot be undone."
               className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
+              offline={{ entity: "trip", entityId: trip.id, label: `Delete trip: ${trip.title}` }}
             >
               <Trash2 size={16} />
               Delete

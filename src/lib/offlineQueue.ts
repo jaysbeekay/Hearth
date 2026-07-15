@@ -12,7 +12,7 @@ export interface QueuedOperation {
   operation: "create" | "update" | "delete";
   entityId?: string;     // for update / delete
   parentId?: string;     // e.g. vehicleId when creating a vehicleItem
-  formValues: Record<string, string>;
+  formValues?: Record<string, string>; // omitted for delete ops
   status: QueuedOpStatus;
   error?: string;
 }

@@ -86,6 +86,7 @@ export default async function PropertyDetailPage({
               action={deleteProperty.bind(null, property.id)}
               confirmText="Delete this property and all its items and documents? This cannot be undone."
               className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
+              offline={{ entity: "property", entityId: property.id, label: `Delete property: ${property.label}` }}
             >
               <Trash2 size={16} />
               Delete

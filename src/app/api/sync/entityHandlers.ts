@@ -20,6 +20,14 @@ import {
   propertyValuationSchema,
 } from "@/lib/validation/wealth";
 import { fetchHistoricalPrice } from "@/lib/prices";
+import {
+  deleteContractDir,
+  deleteProductDir,
+  deleteTripSegmentDir,
+  deleteHomeItemDir,
+  deleteInventoryItemDir,
+  deleteVehicleItemDir,
+} from "@/lib/storage";
 
 export interface SyncContext {
   userId: string;
@@ -34,6 +42,9 @@ export interface EntitySyncConfig<T = any> {
   // Entities with no online "edit" flow (e.g. PropertyValuation) omit update —
   // an offline "update" op for them is rejected as unsupported.
   update?: (id: string, data: T, ctx: SyncContext) => Promise<void>;
+  // Only wired up for top-level entities with a ConfirmForm `offline` prop
+  // (see ConfirmForm.tsx) — child-record and document deletes are deferred.
+  remove?: (id: string, ctx: SyncContext) => Promise<void>;
 }
 
 function defineEntity<T>(config: EntitySyncConfig<T>): EntitySyncConfig<T> {
@@ -60,6 +71,14 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       revalidatePath("/contracts");
       revalidatePath(`/contracts/${id}`);
     },
+    remove: async (id) => {
+      const existing = await prisma.contract.findUnique({ where: { id } });
+      if (!existing) throw new Error("Contract not found");
+      await prisma.contract.delete({ where: { id } });
+      await deleteContractDir(id);
+      revalidatePath("/contracts");
+      revalidatePath("/dashboard");
+    },
   }),
 
   // ── Products (always-on, per-user ownership) ───────────────────────────────
@@ -75,6 +94,14 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       await prisma.product.update({ where: { id }, data });
       revalidatePath("/products");
       revalidatePath(`/products/${id}`);
+    },
+    remove: async (id) => {
+      const existing = await prisma.product.findUnique({ where: { id } });
+      if (!existing) throw new Error("Product not found");
+      await prisma.product.delete({ where: { id } });
+      await deleteProductDir(id);
+      revalidatePath("/products");
+      revalidatePath("/dashboard");
     },
   }),
 
@@ -92,6 +119,18 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       await prisma.vehicle.update({ where: { id }, data });
       revalidatePath("/vehicles");
       revalidatePath(`/vehicles/${id}`);
+    },
+    remove: async (id) => {
+      const existing = await prisma.vehicle.findUnique({
+        where: { id },
+        include: { items: { select: { id: true } } },
+      });
+      if (!existing) throw new Error("Vehicle not found");
+      for (const item of existing.items) {
+        await deleteVehicleItemDir(item.id);
+      }
+      await prisma.vehicle.delete({ where: { id } });
+      revalidatePath("/vehicles");
     },
   }),
 
@@ -129,6 +168,18 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       revalidatePath("/travel");
       revalidatePath(`/travel/${id}`);
     },
+    remove: async (id) => {
+      const existing = await prisma.trip.findUnique({
+        where: { id },
+        include: { segments: { select: { id: true } } },
+      });
+      if (!existing) throw new Error("Trip not found");
+      for (const segment of existing.segments) {
+        await deleteTripSegmentDir(segment.id);
+      }
+      await prisma.trip.delete({ where: { id } });
+      revalidatePath("/travel");
+    },
   }),
 
   tripSegment: defineEntity({
@@ -164,6 +215,18 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       await prisma.property.update({ where: { id }, data });
       revalidatePath("/home");
       revalidatePath(`/home/${id}`);
+    },
+    remove: async (id) => {
+      const existing = await prisma.property.findUnique({
+        where: { id },
+        include: { items: { select: { id: true } } },
+      });
+      if (!existing) throw new Error("Property not found");
+      for (const item of existing.items) {
+        await deleteHomeItemDir(item.id);
+      }
+      await prisma.property.delete({ where: { id } });
+      revalidatePath("/home");
     },
   }),
 
@@ -246,6 +309,13 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       revalidatePath("/inventory");
       revalidatePath(`/inventory/${id}`);
     },
+    remove: async (id, { userId }) => {
+      const existing = await prisma.inventoryItem.findUnique({ where: { id } });
+      if (!existing || existing.createdById !== userId) throw new Error("Item not found");
+      await deleteInventoryItemDir(id);
+      await prisma.inventoryItem.delete({ where: { id } });
+      revalidatePath("/inventory");
+    },
   }),
 
   // ── Wealth (per-user ownership via portfolio.createdById) ──────────────────
@@ -262,6 +332,12 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       await prisma.portfolio.update({ where: { id }, data });
       revalidatePath("/wealth");
       revalidatePath(`/wealth/portfolios/${id}`);
+    },
+    remove: async (id, { userId }) => {
+      const existing = await prisma.portfolio.findUnique({ where: { id } });
+      if (!existing || existing.createdById !== userId) throw new Error("Portfolio not found");
+      await prisma.portfolio.delete({ where: { id } });
+      revalidatePath("/wealth");
     },
   }),
 
