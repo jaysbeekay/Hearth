@@ -4,6 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { FileText, Image as ImageIcon, Eye, X, Upload } from "lucide-react";
 import { SelectWrapper } from "@/components/SelectWrapper";
+import { DocumentLink } from "@/components/DocumentLink";
+import { getOfflineDocument } from "@/lib/offlineDocuments";
+import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { formatDate, humanFileSize } from "@/lib/utils";
 
 export interface DocRow {
@@ -140,10 +143,16 @@ export function DocumentsExplorer({
                 {visible.map((doc) => (
                   <tr key={`${doc.type}-${doc.id}`} className="border-b border-border last:border-0">
                     <td className="max-w-xs px-4 py-2">
-                      <a href={doc.downloadHref} className="flex items-center gap-2 hover:underline">
+                      <DocumentLink
+                        href={doc.downloadHref}
+                        filename={doc.filename}
+                        mimeType={doc.mimeType}
+                        size={doc.size}
+                        className="flex items-center gap-2 hover:underline"
+                      >
                         <FileIcon mimeType={doc.mimeType} />
                         <span className="truncate">{doc.filename}</span>
-                      </a>
+                      </DocumentLink>
                     </td>
                     <td className="px-4 py-2">
                       <span className="rounded-full bg-info/10 px-2 py-0.5 text-xs font-medium text-info">
@@ -187,10 +196,16 @@ export function DocumentsExplorer({
                 className="rounded-xl border border-border bg-surface p-3"
               >
                 <div className="flex items-start justify-between gap-2">
-                  <a href={doc.downloadHref} className="flex min-w-0 items-center gap-2 hover:underline">
+                  <DocumentLink
+                    href={doc.downloadHref}
+                    filename={doc.filename}
+                    mimeType={doc.mimeType}
+                    size={doc.size}
+                    className="flex min-w-0 items-center gap-2 hover:underline"
+                  >
                     <FileIcon mimeType={doc.mimeType} />
                     <span className="truncate text-sm font-medium">{doc.filename}</span>
-                  </a>
+                  </DocumentLink>
                   {isPreviewable(doc.mimeType) && (
                     <button
                       type="button"
@@ -229,25 +244,47 @@ function FileIcon({ mimeType }: { mimeType: string }) {
 }
 
 function PreviewModal({ doc, onClose }: { doc: DocRow; onClose: () => void }) {
+  const online = useOnlineStatus();
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
   const [error, setError] = useState(false);
 
   useEffect(() => {
     let url: string | null = null;
-    fetch(doc.downloadHref)
-      .then((res) => {
+    let cancelled = false;
+
+    async function load() {
+      // Offline: only the explicitly-downloaded blob is available — there's
+      // no network fallback to try.
+      if (!online) {
+        const cached = await getOfflineDocument(doc.downloadHref);
+        if (cancelled) return;
+        if (!cached) {
+          setError(true);
+          return;
+        }
+        url = URL.createObjectURL(cached.blob);
+        setObjectUrl(url);
+        return;
+      }
+
+      try {
+        const res = await fetch(doc.downloadHref);
         if (!res.ok) throw new Error("Failed to load preview");
-        return res.blob();
-      })
-      .then((blob) => {
+        const blob = await res.blob();
+        if (cancelled) return;
         url = URL.createObjectURL(blob);
         setObjectUrl(url);
-      })
-      .catch(() => setError(true));
+      } catch {
+        if (!cancelled) setError(true);
+      }
+    }
+
+    load();
     return () => {
+      cancelled = true;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [doc.downloadHref]);
+  }, [doc.downloadHref, online]);
 
   return (
     <div
