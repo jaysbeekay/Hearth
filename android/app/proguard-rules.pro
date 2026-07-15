@@ -19,3 +19,15 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# Capacitor's bridge discovers and calls plugin methods via reflection
+# (@CapacitorPlugin / @PluginMethod), which R8 would otherwise rename or
+# strip as apparently-unused. This app's own ServerConfigPlugin (the
+# bootstrap URL/mTLS-cert bridge every WebView load depends on) needs the
+# same protection Capacitor's own plugins get.
+-keep class com.getcapacitor.** { *; }
+-keep @com.getcapacitor.annotation.CapacitorPlugin class * { *; }
+-keepclassmembers class * extends com.getcapacitor.Plugin {
+    @com.getcapacitor.PluginMethod public *;
+}
+-keep class org.apache.cordova.** { *; }
