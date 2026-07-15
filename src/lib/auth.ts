@@ -7,10 +7,11 @@ import type {
   AuthenticatorTransportFuture,
 } from "@simplewebauthn/types";
 import { prisma } from "@/lib/prisma";
-import { env } from "@/lib/env";
+import { env, isDemoMode } from "@/lib/env";
 import { authConfig } from "@/lib/auth.config";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import { verifyTotpCode, consumeRecoveryCode } from "@/lib/totp";
+import { DEMO_USER_ID } from "@/lib/demo/constants";
 
 export class TotpRequiredSignin extends CredentialsSignin {
   code = "totp_required";
@@ -158,6 +159,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           name: passkeyCredential.user.name,
           email: passkeyCredential.user.email,
           role: passkeyCredential.user.role,
+        };
+      },
+    }),
+
+    // Signs a visitor straight into the fixed, shared demo account with no
+    // password — only reachable via demoLogin() (src/lib/actions/demo.ts),
+    // and inert (returns null) if DEMO_MODE isn't set, even if someone
+    // crafts a raw signIn("demo", ...) call directly.
+    Credentials({
+      id: "demo",
+      credentials: {},
+      authorize: async () => {
+        if (!isDemoMode()) return null;
+
+        const user = await prisma.user.findUnique({ where: { id: DEMO_USER_ID } });
+        if (!user) return null;
+
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
         };
       },
     }),

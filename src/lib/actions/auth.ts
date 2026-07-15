@@ -21,7 +21,7 @@ import type { ModuleKey } from "@/lib/modules/registry";
 import { DATE_FORMAT_OPTIONS } from "@/lib/utils";
 import { TIMEZONE_OPTIONS } from "@/lib/userPreferences";
 import { POPULAR_CURRENCIES } from "@/components/CurrencySelect";
-import { env } from "@/lib/env";
+import { env, isDemoMode } from "@/lib/env";
 import { sendPasswordResetEmail } from "@/lib/notifications/email";
 
 export type ActionState = {
@@ -341,6 +341,10 @@ export async function requestPasswordReset(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  // Same success message as the real flow below — no observable difference,
+  // just skips ever creating a token or sending mail.
+  if (isDemoMode()) return { success: GENERIC_RESET_MESSAGE };
+
   const parsed = forgotPasswordSchema.safeParse({ email: formData.get("email") });
   if (!parsed.success) {
     return { error: firstIssueMessage(parsed.error) };

@@ -222,6 +222,65 @@ overview, so the two stay in sync. To build from source instead of
 pulling, run `docker build -t jaysbeekay/hearth:local .` and change
 `image:` in `docker-compose.yml` to that tag.
 
+## Running a public demo instance
+
+Want visitors to try Hearth on your own website before they self-host it?
+`docker-compose.demo.yml` runs a **second, fully separate instance** —
+its own `./data-demo` volume, its own port, no shared state with your real
+instance — with `DEMO_MODE=true`, which changes app behaviour in a few
+specific ways:
+
+- **One shared account, no signup.** Every visitor lands on a "Continue to
+  demo" button and is signed straight into a single fixed account — there's
+  no per-visitor data isolation (Hearth's schema doesn't have
+  tenant/household scoping), so visitors share whatever state is currently
+  in the demo and can see/change each other's entries. You may occasionally
+  see a stale reference or an error if your action lands right as the
+  hourly reset fires — refresh and it's gone.
+- **Resets every hour.** All data and uploaded files are wiped and
+  reseeded with realistic sample data (contracts, products, a vehicle, a
+  trip, a rental property, inventory items, a share portfolio) on the hour,
+  automatically — no manual step needed, including on first boot.
+- **Outbound integrations are disabled.** The demo account is a `MEMBER`,
+  so Settings > Users/Modules/System/Webhooks/Backups (all `ADMIN`-only)
+  are unreachable — which also closes off webhook SSRF, the Ollama
+  base-URL setting, and S3 backup credentials. The one gap `MEMBER` alone
+  doesn't close — bring-your-own AI API keys, which any signed-in user can
+  normally set — is explicitly disabled in demo mode. Password reset
+  requests are accepted but never actually sent.
+- **Upload storage is capped** (200MB total) as a backstop against a single
+  visitor filling the disk within an hour, on top of the hourly wipe.
+
+There's no rate-limiting or bot-protection in the app itself (nothing in
+Hearth has this today) — put the demo behind a reverse proxy or CDN
+(Cloudflare, or Caddy/nginx rate-limiting) if you're worried about abusive
+traffic, rather than expecting the app to handle it.
+
+```bash
+cp .env.demo.example .env.demo
+# edit .env.demo: set DEMO_AUTH_SECRET (a *different* secret from your real
+# instance's AUTH_SECRET) and DEMO_APP_URL
+docker compose -f docker-compose.demo.yml --env-file .env.demo up -d
+```
+
+The container listens on `127.0.0.1:3001` only — put a reverse proxy in
+front to expose it publicly with TLS. A minimal
+[Caddy](https://caddyserver.com) example
+([`deploy/caddy/Caddyfile.demo.example`](deploy/caddy/Caddyfile.demo.example)),
+picked here specifically because it's the opposite concern from the
+mTLS nginx setup below (that one *restricts* access; this one needs to be
+wide open):
+
+```
+demo.example.com {
+    reverse_proxy 127.0.0.1:3001
+}
+```
+
+DNS, TLS certificates, and exposing a port on your server are your own
+responsibility — this repo only ships the app changes and config
+templates above.
+
 ## Locking down access with nginx + mTLS
 
 Since this app stores sensitive personal/financial data, you can put it

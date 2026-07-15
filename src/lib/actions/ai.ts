@@ -4,16 +4,20 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { encryptSecret } from "@/lib/crypto";
-import { isEncryptionConfigured } from "@/lib/env";
+import { isEncryptionConfigured, isDemoMode } from "@/lib/env";
 import { aiSettingsSchema } from "@/lib/validation/ai";
 import { AI_PROVIDERS_WITHOUT_API_KEY } from "@/lib/ai/types";
 
 export type ActionState = { error?: string; success?: string } | null;
 
+const DEMO_DISABLED_MESSAGE = "AI integration is disabled in this public demo.";
+
 export async function saveAiSettings(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  if (isDemoMode()) return { error: DEMO_DISABLED_MESSAGE };
+
   const session = await auth();
   if (!session?.user) return { error: "Not signed in." };
 
@@ -45,6 +49,8 @@ export async function saveAiSettings(
 }
 
 export async function removeAiSettings(): Promise<ActionState> {
+  if (isDemoMode()) return { error: DEMO_DISABLED_MESSAGE };
+
   const session = await auth();
   if (!session?.user) return { error: "Not signed in." };
 

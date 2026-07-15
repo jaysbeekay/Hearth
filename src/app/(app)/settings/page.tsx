@@ -4,7 +4,7 @@ import { DatabaseBackup, KeyRound, LayoutGrid, Settings2, Users, Webhook } from 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { updateNotificationPreferences, updateUserPreferences } from "@/lib/actions/auth";
-import { isEncryptionConfigured } from "@/lib/env";
+import { isEncryptionConfigured, isDemoMode } from "@/lib/env";
 import { env } from "@/lib/env";
 import { isSmtpConfigured, isNtfyConfigured } from "@/lib/appSettings";
 import { DATE_FORMAT_OPTIONS, DATE_FORMAT_LABELS } from "@/lib/utils";
@@ -188,7 +188,12 @@ export default async function SettingsPage() {
 
       <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <h2 className="mb-3 font-medium">AI document extraction</h2>
-        {isEncryptionConfigured() ? (
+        {isDemoMode() ? (
+          <p className="text-sm text-foreground/60">
+            Disabled in this public demo — bringing your own API key would let a visitor spend
+            it via this server.
+          </p>
+        ) : isEncryptionConfigured() ? (
           <>
             <p className="mb-3 text-sm text-foreground/60">
               Bring your own API key to send uploaded documents to a cloud AI provider for
