@@ -6,21 +6,27 @@ import {
   getPendingOperations,
   updateOperationStatus,
   clearDoneOperations,
+  getFilesForOp,
+  getPendingFilesTotalSize,
+  PENDING_FILES_WARN_BYTES,
   type QueuedOperation,
 } from "@/lib/offlineQueue";
 import { showToast } from "@/components/Toast";
+import { humanFileSize } from "@/lib/utils";
 
 type SyncState = "idle" | "syncing" | "done" | "error";
 
 export function OfflineSyncManager() {
   const [pendingCount, setPendingCount] = useState(0);
+  const [filesInfo, setFilesInfo] = useState({ count: 0, bytes: 0 });
   const [syncState, setSyncState] = useState<SyncState>("idle");
   const [message, setMessage] = useState<string | null>(null);
   const syncingRef = useRef(false);
 
   const refreshCount = useCallback(async () => {
-    const ops = await getPendingOperations();
+    const [ops, files] = await Promise.all([getPendingOperations(), getPendingFilesTotalSize()]);
     setPendingCount(ops.length);
+    setFilesInfo(files);
   }, []);
 
   const runSync = useCallback(async () => {
@@ -40,11 +46,14 @@ export function OfflineSyncManager() {
         pending.map((op) => updateOperationStatus(op.id, "syncing")),
       );
 
-      const res = await fetch("/api/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ operations: pending }),
-      });
+      const body = new FormData();
+      body.append("operations", JSON.stringify(pending));
+      for (const op of pending) {
+        const files = await getFilesForOp(op.id);
+        for (const f of files) body.append(`file:${op.id}:${f.fieldName}`, f.blob, f.filename);
+      }
+
+      const res = await fetch("/api/sync", { method: "POST", body });
 
       if (!res.ok) throw new Error("Sync request failed");
 
@@ -102,8 +111,11 @@ export function OfflineSyncManager() {
 
   // Poll count on mount and after operations
   useEffect(() => {
-    getPendingOperations()
-      .then((ops) => setPendingCount(ops.length))
+    Promise.all([getPendingOperations(), getPendingFilesTotalSize()])
+      .then(([ops, files]) => {
+        setPendingCount(ops.length);
+        setFilesInfo(files);
+      })
       .catch(() => {});
   }, []);
 
@@ -121,7 +133,17 @@ export function OfflineSyncManager() {
   // Listen for queue additions from forms (custom event)
   useEffect(() => {
     const onQueued = () => {
-      refreshCount().catch(() => {});
+      refreshCount()
+        .then(async () => {
+          const { bytes } = await getPendingFilesTotalSize();
+          if (bytes > PENDING_FILES_WARN_BYTES) {
+            showToast(
+              `${humanFileSize(bytes)} of files queued offline — sync soon to free up space on this device.`,
+              "info",
+            );
+          }
+        })
+        .catch(() => {});
       showToast("Saved offline — will sync when reconnected.", "info");
     };
     window.addEventListener("offline-queued", onQueued);
@@ -153,7 +175,11 @@ export function OfflineSyncManager() {
         {message ??
           (syncState === "syncing"
             ? "Syncing changes…"
-            : `${pendingCount} ${pendingCount === 1 ? "change" : "changes"} waiting to sync`)}
+            : `${pendingCount} ${pendingCount === 1 ? "change" : "changes"} waiting to sync${
+                filesInfo.count > 0
+                  ? ` (${filesInfo.count} ${filesInfo.count === 1 ? "file" : "files"}, ${humanFileSize(filesInfo.bytes)})`
+                  : ""
+              }`)}
       </span>
 
       {syncState === "idle" && pendingCount > 0 && navigator?.onLine && (

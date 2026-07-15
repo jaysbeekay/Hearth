@@ -3,9 +3,10 @@ import { openDB } from "idb";
 const DB_NAME = "hearth-cache";
 const STORE_NAME = "pages";
 export const QUEUE_STORE = "offline-queue";
+export const FILES_STORE = "pending-files";
 
 export function getDb() {
-  return openDB(DB_NAME, 2, {
+  return openDB(DB_NAME, 3, {
     upgrade(db, oldVersion) {
       if (oldVersion < 1) {
         db.createObjectStore(STORE_NAME);
@@ -13,6 +14,12 @@ export function getDb() {
       if (oldVersion < 2) {
         const store = db.createObjectStore(QUEUE_STORE, { keyPath: "id" });
         store.createIndex("by-timestamp", "timestamp");
+      }
+      if (oldVersion < 3) {
+        // File bytes staged for a queued create/update op, keyed by their
+        // own id — indexed by the owning QueuedOperation.id for lookup/cleanup.
+        const store = db.createObjectStore(FILES_STORE, { keyPath: "id" });
+        store.createIndex("by-op", "queueOpId");
       }
     },
   });

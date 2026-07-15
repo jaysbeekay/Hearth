@@ -28,22 +28,32 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Your account has read-only access." }, { status: 403 });
   }
 
-  let body: { operations: SyncOperation[] };
+  // Always multipart: the client sends a JSON "operations" field alongside
+  // any staged file parts, keyed "file:<opId>:<fieldName>" (see
+  // OfflineSyncManager.tsx) — files can't ride along in a JSON body.
+  let formData: FormData;
   try {
-    body = await request.json();
+    formData = await request.formData();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  if (!Array.isArray(body?.operations)) {
+  let operations: SyncOperation[];
+  try {
+    operations = JSON.parse(String(formData.get("operations") ?? "[]"));
+  } catch {
+    return NextResponse.json({ error: "Invalid operations JSON" }, { status: 400 });
+  }
+  if (!Array.isArray(operations)) {
     return NextResponse.json({ error: "operations must be an array" }, { status: 400 });
   }
 
   const results: SyncResult[] = [];
 
-  for (const op of body.operations) {
+  for (const op of operations) {
     try {
-      await processOperation(op, session.user.id);
+      const files = filesForOp(formData, op.id);
+      await processOperation(op, session.user.id, files);
       results.push({ id: op.id, success: true });
     } catch (err) {
       results.push({
@@ -57,7 +67,22 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ results });
 }
 
-async function processOperation(op: SyncOperation, userId: string): Promise<void> {
+function filesForOp(formData: FormData, opId: string): { fieldName: string; file: File }[] {
+  const files: { fieldName: string; file: File }[] = [];
+  const prefix = `file:${opId}:`;
+  for (const [key, value] of formData.entries()) {
+    if (key.startsWith(prefix) && value instanceof File) {
+      files.push({ fieldName: key.slice(prefix.length), file: value });
+    }
+  }
+  return files;
+}
+
+async function processOperation(
+  op: SyncOperation,
+  userId: string,
+  files: { fieldName: string; file: File }[],
+): Promise<void> {
   const config = ENTITY_SYNC_CONFIGS[op.entity];
   if (!config) throw new Error(`Unsupported entity: ${op.entity}`);
 
@@ -77,13 +102,21 @@ async function processOperation(op: SyncOperation, userId: string): Promise<void
   const parsed = config.schema.safeParse(op.formValues ?? {});
   if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid data");
 
+  let recordId: string;
   if (op.operation === "create") {
-    await config.create(parsed.data, ctx);
+    recordId = (await config.create(parsed.data, ctx)).id;
   } else if (op.operation === "update") {
     if (!op.entityId) throw new Error("Missing record to update");
     if (!config.update) throw new Error(`${op.entity} can't be edited offline`);
     await config.update(op.entityId, parsed.data, ctx);
+    recordId = op.entityId;
   } else {
     throw new Error(`Unsupported operation: ${op.operation}`);
+  }
+
+  if (files.length > 0 && config.saveFile) {
+    for (const { fieldName, file } of files) {
+      await config.saveFile(recordId, file, fieldName);
+    }
   }
 }

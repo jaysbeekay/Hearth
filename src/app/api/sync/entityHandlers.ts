@@ -20,7 +20,19 @@ import {
   propertyValuationSchema,
 } from "@/lib/validation/wealth";
 import { fetchHistoricalPrice } from "@/lib/prices";
+import { extractSearchableText } from "@/lib/documents/textExtraction";
+import { ProductDocumentKind } from "@/generated/prisma/enums";
 import {
+  ALLOWED_MIME_TYPES,
+  MAX_UPLOAD_BYTES,
+  saveDocument,
+  saveProductDocument,
+  saveHomeItemDocument,
+  saveTripSegmentDocument,
+  saveVehicleItemDocument,
+  saveInventoryItemDocument,
+  saveTradeDocument,
+  saveRentalStatementDocument,
   deleteContractDir,
   deleteProductDir,
   deleteTripSegmentDir,
@@ -38,13 +50,17 @@ export interface SyncContext {
 export interface EntitySyncConfig<T = any> {
   schema: ZodTypeAny;
   requiresModule?: ModuleKey;
-  create: (data: T, ctx: SyncContext) => Promise<void>;
+  create: (data: T, ctx: SyncContext) => Promise<{ id: string }>;
   // Entities with no online "edit" flow (e.g. PropertyValuation) omit update —
   // an offline "update" op for them is rejected as unsupported.
   update?: (id: string, data: T, ctx: SyncContext) => Promise<void>;
   // Only wired up for top-level entities with a ConfirmForm `offline` prop
   // (see ConfirmForm.tsx) — child-record and document deletes are deferred.
   remove?: (id: string, ctx: SyncContext) => Promise<void>;
+  // Only present for entities whose create/update form can carry a file
+  // (see FILE_FIELD_NAMES below) — reuses the same storage.ts save*Document
+  // function the live server action calls, so the on-disk path is identical.
+  saveFile?: (entityId: string, file: File, fieldName: string) => Promise<void>;
 }
 
 function defineEntity<T>(config: EntitySyncConfig<T>): EntitySyncConfig<T> {
@@ -56,13 +72,21 @@ function requireParentId(ctx: SyncContext): string {
   return ctx.parentId;
 }
 
+function validateFile(file: File) {
+  if (file.size > MAX_UPLOAD_BYTES) throw new Error("File is too large (15MB max).");
+  if (!ALLOWED_MIME_TYPES.has(file.type)) {
+    throw new Error("Unsupported file type. Use PDF, Word, or image files.");
+  }
+}
+
 export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
   // ── Contracts (always-on, per-user ownership) ──────────────────────────────
   contract: defineEntity({
     schema: contractSchema,
     create: async (data, { userId }) => {
-      await prisma.contract.create({ data: { ...data, createdById: userId } });
+      const contract = await prisma.contract.create({ data: { ...data, createdById: userId } });
       revalidatePath("/contracts");
+      return { id: contract.id };
     },
     update: async (id, data, { userId }) => {
       const existing = await prisma.contract.findUnique({ where: { id } });
@@ -79,14 +103,23 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       revalidatePath("/contracts");
       revalidatePath("/dashboard");
     },
+    saveFile: async (contractId, file) => {
+      validateFile(file);
+      const { storedName, size } = await saveDocument(contractId, file);
+      const extractedText = await extractSearchableText(Buffer.from(await file.arrayBuffer()), file.type);
+      await prisma.document.create({
+        data: { contractId, filename: file.name.slice(0, 255), storedName, mimeType: file.type, size, extractedText },
+      });
+    },
   }),
 
   // ── Products (always-on, per-user ownership) ───────────────────────────────
   product: defineEntity({
     schema: productSchema,
     create: async (data, { userId }) => {
-      await prisma.product.create({ data: { ...data, createdById: userId } });
+      const product = await prisma.product.create({ data: { ...data, createdById: userId } });
       revalidatePath("/products");
+      return { id: product.id };
     },
     update: async (id, data, { userId }) => {
       const existing = await prisma.product.findUnique({ where: { id } });
@@ -103,6 +136,20 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       revalidatePath("/products");
       revalidatePath("/dashboard");
     },
+    // Products carry two independent file fields (invoiceFile / photoFile);
+    // only invoices are OCR'd for search, matching attachProductDocument().
+    saveFile: async (productId, file, fieldName) => {
+      validateFile(file);
+      const kind = fieldName === "photoFile" ? ProductDocumentKind.PHOTO : ProductDocumentKind.INVOICE;
+      const { storedName, size } = await saveProductDocument(productId, file);
+      const extractedText =
+        kind === ProductDocumentKind.INVOICE
+          ? await extractSearchableText(Buffer.from(await file.arrayBuffer()), file.type)
+          : null;
+      await prisma.productDocument.create({
+        data: { productId, filename: file.name.slice(0, 255), storedName, mimeType: file.type, size, kind, extractedText },
+      });
+    },
   }),
 
   // ── Vehicles (household-shared — no ownership check, matches the live action) ─
@@ -110,8 +157,9 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     schema: vehicleSchema,
     requiresModule: "VEHICLES",
     create: async (data, { userId }) => {
-      await prisma.vehicle.create({ data: { ...data, createdById: userId } });
+      const vehicle = await prisma.vehicle.create({ data: { ...data, createdById: userId } });
       revalidatePath("/vehicles");
+      return { id: vehicle.id };
     },
     update: async (id, data) => {
       const existing = await prisma.vehicle.findUnique({ where: { id } });
@@ -141,8 +189,9 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       const vehicleId = requireParentId(ctx);
       const vehicle = await prisma.vehicle.findUnique({ where: { id: vehicleId } });
       if (!vehicle) throw new Error("Vehicle not found");
-      await prisma.vehicleItem.create({ data: { ...data, vehicleId } });
+      const item = await prisma.vehicleItem.create({ data: { ...data, vehicleId } });
       revalidatePath(`/vehicles/${vehicleId}`);
+      return { id: item.id };
     },
     update: async (id, data, ctx) => {
       const vehicleId = requireParentId(ctx);
@@ -151,6 +200,13 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       await prisma.vehicleItem.update({ where: { id }, data });
       revalidatePath(`/vehicles/${vehicleId}`);
     },
+    saveFile: async (vehicleItemId, file) => {
+      validateFile(file);
+      const { storedName, size } = await saveVehicleItemDocument(vehicleItemId, file);
+      await prisma.vehicleItemDocument.create({
+        data: { vehicleItemId, filename: file.name.slice(0, 255), storedName, mimeType: file.type, size },
+      });
+    },
   }),
 
   // ── Travel (household-shared) ──────────────────────────────────────────────
@@ -158,8 +214,9 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     schema: tripSchema,
     requiresModule: "TRAVEL",
     create: async (data, { userId }) => {
-      await prisma.trip.create({ data: { ...data, createdById: userId } });
+      const trip = await prisma.trip.create({ data: { ...data, createdById: userId } });
       revalidatePath("/travel");
+      return { id: trip.id };
     },
     update: async (id, data) => {
       const existing = await prisma.trip.findUnique({ where: { id } });
@@ -189,8 +246,9 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       const tripId = requireParentId(ctx);
       const trip = await prisma.trip.findUnique({ where: { id: tripId } });
       if (!trip) throw new Error("Trip not found");
-      await prisma.tripSegment.create({ data: { ...data, tripId } });
+      const segment = await prisma.tripSegment.create({ data: { ...data, tripId } });
       revalidatePath(`/travel/${tripId}`);
+      return { id: segment.id };
     },
     update: async (id, data, ctx) => {
       const tripId = requireParentId(ctx);
@@ -199,6 +257,13 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       await prisma.tripSegment.update({ where: { id }, data });
       revalidatePath(`/travel/${tripId}`);
     },
+    saveFile: async (segmentId, file) => {
+      validateFile(file);
+      const { storedName, size } = await saveTripSegmentDocument(segmentId, file);
+      await prisma.tripSegmentDocument.create({
+        data: { tripSegmentId: segmentId, filename: file.name.slice(0, 255), storedName, mimeType: file.type, size },
+      });
+    },
   }),
 
   // ── Home (household-shared) ────────────────────────────────────────────────
@@ -206,8 +271,9 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     schema: propertySchema,
     requiresModule: "HOME",
     create: async (data, { userId }) => {
-      await prisma.property.create({ data: { ...data, createdById: userId } });
+      const property = await prisma.property.create({ data: { ...data, createdById: userId } });
       revalidatePath("/home");
+      return { id: property.id };
     },
     update: async (id, data) => {
       const existing = await prisma.property.findUnique({ where: { id } });
@@ -237,8 +303,9 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       const propertyId = requireParentId(ctx);
       const property = await prisma.property.findUnique({ where: { id: propertyId } });
       if (!property) throw new Error("Property not found");
-      await prisma.homeItem.create({ data: { ...data, propertyId } });
+      const item = await prisma.homeItem.create({ data: { ...data, propertyId } });
       revalidatePath(`/home/${propertyId}`);
+      return { id: item.id };
     },
     update: async (id, data, ctx) => {
       const propertyId = requireParentId(ctx);
@@ -246,6 +313,13 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       if (!existing || existing.propertyId !== propertyId) throw new Error("Item not found");
       await prisma.homeItem.update({ where: { id }, data });
       revalidatePath(`/home/${propertyId}`);
+    },
+    saveFile: async (homeItemId, file) => {
+      validateFile(file);
+      const { storedName, size } = await saveHomeItemDocument(homeItemId, file);
+      await prisma.homeItemDocument.create({
+        data: { homeItemId, filename: file.name.slice(0, 255), storedName, mimeType: file.type, size },
+      });
     },
   }),
 
@@ -258,12 +332,13 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       const propertyId = requireParentId(ctx);
       const property = await prisma.property.findUnique({ where: { id: propertyId } });
       if (!property) throw new Error("Property not found");
-      await prisma.$transaction([
+      const [agreement] = await prisma.$transaction([
         prisma.rentalAgreement.create({ data: { ...data, propertyId } }),
         prisma.property.update({ where: { id: propertyId }, data: { isRented: true } }),
       ]);
       revalidatePath(`/home/${propertyId}`);
       revalidatePath(`/home/${propertyId}/rental`);
+      return { id: agreement.id };
     },
     update: async (id, data, ctx) => {
       const propertyId = requireParentId(ctx);
@@ -282,8 +357,9 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       const propertyId = requireParentId(ctx);
       const property = await prisma.property.findUnique({ where: { id: propertyId } });
       if (!property) throw new Error("Property not found");
-      await prisma.rentalStatement.create({ data: { ...data, propertyId } });
+      const statement = await prisma.rentalStatement.create({ data: { ...data, propertyId } });
       revalidatePath(`/home/${propertyId}/rental`);
+      return { id: statement.id };
     },
     update: async (id, data, ctx) => {
       const propertyId = requireParentId(ctx);
@@ -292,6 +368,13 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       await prisma.rentalStatement.update({ where: { id }, data });
       revalidatePath(`/home/${propertyId}/rental`);
     },
+    saveFile: async (statementId, file) => {
+      validateFile(file);
+      const { storedName, size } = await saveRentalStatementDocument(statementId, file);
+      await prisma.rentalStatementDocument.create({
+        data: { rentalStatementId: statementId, filename: file.name.slice(0, 255), storedName, mimeType: file.type, size },
+      });
+    },
   }),
 
   // ── Inventory (per-user ownership) ─────────────────────────────────────────
@@ -299,8 +382,9 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     schema: inventoryItemSchema,
     requiresModule: "INVENTORY",
     create: async (data, { userId }) => {
-      await prisma.inventoryItem.create({ data: { ...data, createdById: userId } });
+      const item = await prisma.inventoryItem.create({ data: { ...data, createdById: userId } });
       revalidatePath("/inventory");
+      return { id: item.id };
     },
     update: async (id, data, { userId }) => {
       const existing = await prisma.inventoryItem.findUnique({ where: { id } });
@@ -316,6 +400,13 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       await prisma.inventoryItem.delete({ where: { id } });
       revalidatePath("/inventory");
     },
+    saveFile: async (itemId, file) => {
+      validateFile(file);
+      const { storedName, size } = await saveInventoryItemDocument(itemId, file);
+      await prisma.inventoryItemDocument.create({
+        data: { inventoryItemId: itemId, filename: file.name.slice(0, 255), storedName, mimeType: file.type, size },
+      });
+    },
   }),
 
   // ── Wealth (per-user ownership via portfolio.createdById) ──────────────────
@@ -323,8 +414,9 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     schema: portfolioSchema,
     requiresModule: "WEALTH",
     create: async (data, { userId }) => {
-      await prisma.portfolio.create({ data: { ...data, createdById: userId } });
+      const portfolio = await prisma.portfolio.create({ data: { ...data, createdById: userId } });
       revalidatePath("/wealth");
+      return { id: portfolio.id };
     },
     update: async (id, data, { userId }) => {
       const existing = await prisma.portfolio.findUnique({ where: { id } });
@@ -352,8 +444,9 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
         where: { portfolioId_ticker: { portfolioId, ticker: data.ticker } },
       });
       if (existing) throw new Error(`${data.ticker} is already in this portfolio.`);
-      await prisma.holding.create({ data: { ...data, portfolioId } });
+      const holding = await prisma.holding.create({ data: { ...data, portfolioId } });
       revalidatePath(`/wealth/portfolios/${portfolioId}`);
+      return { id: holding.id };
     },
     update: async (id, data, ctx) => {
       const holding = await prisma.holding.findUnique({
@@ -387,6 +480,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
           .catch(() => {});
       }
       revalidatePath(`/wealth/portfolios/${holding.portfolioId}/holdings/${holdingId}`);
+      return { id: trade.id };
     },
     update: async (id, data, ctx) => {
       const holdingId = requireParentId(ctx);
@@ -400,6 +494,13 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       await prisma.trade.update({ where: { id }, data });
       revalidatePath(`/wealth/portfolios/${holding.portfolioId}/holdings/${holdingId}`);
     },
+    saveFile: async (tradeId, file) => {
+      validateFile(file);
+      const { storedName, size } = await saveTradeDocument(tradeId, file);
+      await prisma.tradeDocument.create({
+        data: { tradeId, filename: file.name.slice(0, 255), storedName, mimeType: file.type, size },
+      });
+    },
   }),
 
   // No update action exists for PropertyValuation in the live app (create + delete
@@ -411,8 +512,9 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       const propertyId = requireParentId(ctx);
       const property = await prisma.property.findUnique({ where: { id: propertyId } });
       if (!property || property.createdById !== ctx.userId) throw new Error("Property not found");
-      await prisma.propertyValuation.create({ data: { ...data, propertyId } });
+      const valuation = await prisma.propertyValuation.create({ data: { ...data, propertyId } });
       revalidatePath(`/home/${propertyId}`);
+      return { id: valuation.id };
     },
   }),
 };
