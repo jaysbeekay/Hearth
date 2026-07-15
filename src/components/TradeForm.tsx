@@ -9,6 +9,7 @@ import { TRADE_TYPES, TRADE_TYPE_LABELS } from "@/lib/validation/wealth";
 import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
+import { makeOfflineAwareAction } from "@/lib/offlineQueue";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -19,14 +20,28 @@ export function TradeForm({
   action,
   trade,
   ticker,
+  holdingId,
   defaultCurrency,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   trade?: TradeModel;
   ticker?: string;
+  holdingId?: string;
   defaultCurrency?: string;
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  const offlineAwareAction = makeOfflineAwareAction(
+    action,
+    () => ({
+      label: trade ? `Update trade: ${ticker ?? ""}` : `Add trade: ${ticker ?? ""}`,
+      entity: "trade",
+      operation: trade ? "update" : "create",
+      entityId: trade?.id,
+      parentId: trade?.holdingId ?? holdingId,
+    }),
+    { success: "Saved offline — will sync when you reconnect." },
+  );
+
+  const [state, formAction] = useActionState<ActionState, FormData>(offlineAwareAction, null);
 
   const [selectedDate, setSelectedDate] = useState(
     state?.values?.date ?? toDateInputValue(trade?.date) ?? "",

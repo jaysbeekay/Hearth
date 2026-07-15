@@ -37,7 +37,12 @@ export default async function NewTradePage({
         <h1 className="mt-1 text-2xl font-semibold">Add trade</h1>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
-        <TradeForm action={action} ticker={holding.ticker} defaultCurrency={holding.portfolio.currency} />
+        <TradeForm
+          action={action}
+          holdingId={holdingId}
+          ticker={holding.ticker}
+          defaultCurrency={holding.portfolio.currency}
+        />
       </div>
     </div>
   );

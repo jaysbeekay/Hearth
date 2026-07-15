@@ -12,6 +12,7 @@ import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
 import { markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
+import { makeOfflineAwareAction } from "@/lib/offlineQueue";
 
 type SegmentType = (typeof TRIP_SEGMENT_TYPES)[number];
 
@@ -40,10 +41,12 @@ type ExtractedFields = Partial<
 export function TripSegmentForm({
   action,
   segment,
+  tripId,
   defaultCurrency,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   segment?: TripSegmentModel;
+  tripId?: string;
   defaultCurrency?: string;
 }) {
   const [scanning, setScanning] = useState(false);
@@ -53,7 +56,19 @@ export function TripSegmentForm({
     segment?.type ?? TRIP_SEGMENT_TYPES[0],
   );
 
-  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  const offlineAwareAction = makeOfflineAwareAction(
+    action,
+    () => ({
+      label: segment ? `Update segment: ${segment.title}` : "Add trip segment",
+      entity: "tripSegment",
+      operation: segment ? "update" : "create",
+      entityId: segment?.id,
+      parentId: segment?.tripId ?? tripId,
+    }),
+    { success: "Saved offline — will sync when you reconnect." },
+  );
+
+  const [state, formAction] = useActionState<ActionState, FormData>(offlineAwareAction, null);
 
   const typeRef = useRef<HTMLSelectElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);

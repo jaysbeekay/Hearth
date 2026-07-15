@@ -79,3 +79,26 @@ export async function getPendingCount(): Promise<number> {
   const ops = await getPendingOperations();
   return ops.length;
 }
+
+// Wraps a server action so that, when offline, the submission is queued
+// instead of sent — used by every offline-aware form (`useActionState(makeOfflineAwareAction(...), null)`).
+export function makeOfflineAwareAction<S extends { error?: string; success?: string; values?: Record<string, string> } | null>(
+  action: (state: S, formData: FormData) => Promise<S>,
+  describe: (formData: FormData) => Pick<
+    QueuedOperation,
+    "label" | "entity" | "operation" | "entityId" | "parentId"
+  >,
+  offlineSuccess: S,
+): (state: S, formData: FormData) => Promise<S> {
+  return async (prevState: S, formData: FormData): Promise<S> => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      await enqueueOperation({
+        ...describe(formData),
+        formValues: serializeFormData(formData),
+      });
+      window.dispatchEvent(new Event("offline-queued"));
+      return offlineSuccess;
+    }
+    return action(prevState, formData);
+  };
+}

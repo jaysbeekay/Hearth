@@ -11,7 +11,7 @@ import { VEHICLE_ITEM_TYPE_LABELS } from "@/lib/utils";
 import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
-import { enqueueOperation, serializeFormData } from "@/lib/offlineQueue";
+import { makeOfflineAwareAction } from "@/lib/offlineQueue";
 import { markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 
 function toDateInputValue(date: Date | null | undefined) {
@@ -32,24 +32,17 @@ export function VehicleItemForm({
   vehicleId?: string;
   defaultCurrency?: string;
 }) {
-  const offlineAwareAction = async (
-    prevState: ActionState,
-    formData: FormData,
-  ): Promise<ActionState> => {
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      await enqueueOperation({
-        label: item ? `Update record: ${item.title}` : "Add vehicle record",
-        entity: "vehicleItem",
-        operation: item ? "update" : "create",
-        entityId: item?.id,
-        parentId: item?.vehicleId ?? vehicleId,
-        formValues: serializeFormData(formData),
-      });
-      window.dispatchEvent(new Event("offline-queued"));
-      return { success: "Saved offline — will sync when you reconnect." };
-    }
-    return action(prevState, formData);
-  };
+  const offlineAwareAction = makeOfflineAwareAction(
+    action,
+    () => ({
+      label: item ? `Update record: ${item.title}` : "Add vehicle record",
+      entity: "vehicleItem",
+      operation: item ? "update" : "create",
+      entityId: item?.id,
+      parentId: item?.vehicleId ?? vehicleId,
+    }),
+    { success: "Saved offline — will sync when you reconnect." },
+  );
 
   const [state, formAction] = useActionState<ActionState, FormData>(offlineAwareAction, null);
   const [scanning, setScanning] = useState(false);

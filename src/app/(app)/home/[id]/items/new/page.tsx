@@ -32,7 +32,7 @@ export default async function NewHomeItemPage({
         </p>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
-        <HomeItemForm action={boundAction} defaultCurrency={preferredCurrency} />
+        <HomeItemForm action={boundAction} propertyId={property.id} defaultCurrency={preferredCurrency} />
       </div>
     </div>
   );

@@ -14,7 +14,7 @@ import {
 import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
-import { enqueueOperation, serializeFormData } from "@/lib/offlineQueue";
+import { makeOfflineAwareAction } from "@/lib/offlineQueue";
 import { markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 
 function toDateInputValue(date: Date | null | undefined) {
@@ -47,23 +47,16 @@ export function ContractForm({
   contract?: ContractModel;
   defaultCurrency?: string;
 }) {
-  const offlineAwareAction = async (
-    prevState: ActionState,
-    formData: FormData,
-  ): Promise<ActionState> => {
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      await enqueueOperation({
-        label: contract ? `Update contract: ${contract.title}` : "Add contract",
-        entity: "contract",
-        operation: contract ? "update" : "create",
-        entityId: contract?.id,
-        formValues: serializeFormData(formData),
-      });
-      window.dispatchEvent(new Event("offline-queued"));
-      return { success: "Saved offline — will sync when you reconnect." };
-    }
-    return action(prevState, formData);
-  };
+  const offlineAwareAction = makeOfflineAwareAction(
+    action,
+    () => ({
+      label: contract ? `Update contract: ${contract.title}` : "Add contract",
+      entity: "contract",
+      operation: contract ? "update" : "create",
+      entityId: contract?.id,
+    }),
+    { success: "Saved offline — will sync when you reconnect." },
+  );
 
   const [state, formAction] = useActionState<ActionState, FormData>(offlineAwareAction, null);
   const [scanning, setScanning] = useState(false);

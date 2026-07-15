@@ -7,17 +7,32 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { ASSET_CLASSES, ASSET_CLASS_LABELS } from "@/lib/validation/wealth";
 import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
+import { makeOfflineAwareAction } from "@/lib/offlineQueue";
 
 const COMMON_EXCHANGES = ["ASX", "NYSE", "NASDAQ", "LSE", "TSX", "CRYPTO", "OTHER"];
 
 export function HoldingForm({
   action,
   holding,
+  portfolioId,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   holding?: HoldingModel;
+  portfolioId?: string;
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  const offlineAwareAction = makeOfflineAwareAction(
+    action,
+    () => ({
+      label: holding ? `Update holding: ${holding.ticker}` : "Add holding",
+      entity: "holding",
+      operation: holding ? "update" : "create",
+      entityId: holding?.id,
+      parentId: holding?.portfolioId ?? portfolioId,
+    }),
+    { success: "Saved offline — will sync when you reconnect." },
+  );
+
+  const [state, formAction] = useActionState<ActionState, FormData>(offlineAwareAction, null);
 
   return (
     <form action={formAction} className="space-y-5">

@@ -6,6 +6,7 @@ import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { CurrencySelect } from "@/components/CurrencySelect";
+import { makeOfflineAwareAction } from "@/lib/offlineQueue";
 
 export function PortfolioForm({
   action,
@@ -16,7 +17,18 @@ export function PortfolioForm({
   portfolio?: PortfolioModel;
   defaultCurrency?: string;
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  const offlineAwareAction = makeOfflineAwareAction(
+    action,
+    () => ({
+      label: portfolio ? `Update portfolio: ${portfolio.name}` : "Add portfolio",
+      entity: "portfolio",
+      operation: portfolio ? "update" : "create",
+      entityId: portfolio?.id,
+    }),
+    { success: "Saved offline — will sync when you reconnect." },
+  );
+
+  const [state, formAction] = useActionState<ActionState, FormData>(offlineAwareAction, null);
 
   return (
     <form action={formAction} className="space-y-5">

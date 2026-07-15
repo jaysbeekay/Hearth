@@ -43,7 +43,11 @@ export default async function NewRentalAgreementPage({
       </div>
 
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
-        <RentalAgreementForm action={boundAction} defaultCurrency={preferredCurrency} />
+        <RentalAgreementForm
+          action={boundAction}
+          propertyId={property.id}
+          defaultCurrency={preferredCurrency}
+        />
       </div>
     </div>
   );

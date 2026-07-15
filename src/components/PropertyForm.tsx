@@ -5,6 +5,7 @@ import type { PropertyModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
+import { makeOfflineAwareAction } from "@/lib/offlineQueue";
 
 interface GeocodeSuggestion {
   display_name: string;
@@ -19,7 +20,18 @@ export function PropertyForm({
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   property?: PropertyModel;
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  const offlineAwareAction = makeOfflineAwareAction(
+    action,
+    () => ({
+      label: property ? `Update property: ${property.label}` : "Add property",
+      entity: "property",
+      operation: property ? "update" : "create",
+      entityId: property?.id,
+    }),
+    { success: "Saved offline — will sync when you reconnect." },
+  );
+
+  const [state, formAction] = useActionState<ActionState, FormData>(offlineAwareAction, null);
 
   const [address, setAddress] = useState(state?.values?.address ?? property?.address ?? "");
   const [lat, setLat] = useState<number | null>(property?.lat ?? null);

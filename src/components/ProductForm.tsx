@@ -9,7 +9,7 @@ import { FormMessage } from "@/components/FormMessage";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
-import { enqueueOperation, serializeFormData } from "@/lib/offlineQueue";
+import { makeOfflineAwareAction } from "@/lib/offlineQueue";
 import { markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 
 function toDateInputValue(date: Date | null | undefined) {
@@ -30,23 +30,16 @@ export function ProductForm({
   product?: ProductModel;
   defaultCurrency?: string;
 }) {
-  const offlineAwareAction = async (
-    prevState: ActionState,
-    formData: FormData,
-  ): Promise<ActionState> => {
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      await enqueueOperation({
-        label: product ? `Update product: ${product.name}` : "Add product",
-        entity: "product",
-        operation: product ? "update" : "create",
-        entityId: product?.id,
-        formValues: serializeFormData(formData),
-      });
-      window.dispatchEvent(new Event("offline-queued"));
-      return { success: "Saved offline — will sync when you reconnect." };
-    }
-    return action(prevState, formData);
-  };
+  const offlineAwareAction = makeOfflineAwareAction(
+    action,
+    () => ({
+      label: product ? `Update product: ${product.name}` : "Add product",
+      entity: "product",
+      operation: product ? "update" : "create",
+      entityId: product?.id,
+    }),
+    { success: "Saved offline — will sync when you reconnect." },
+  );
 
   const [state, formAction] = useActionState<ActionState, FormData>(offlineAwareAction, null);
   const [scanning, setScanning] = useState(false);

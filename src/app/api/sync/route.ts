@@ -1,18 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { vehicleSchema, vehicleItemSchema } from "@/lib/validation/vehicles";
-import { contractSchema } from "@/lib/validation/contract";
-import { productSchema } from "@/lib/validation/product";
 import { isModuleEnabled } from "@/lib/modules/enablement";
+import { MODULE_REGISTRY } from "@/lib/modules/registry";
+import { ENTITY_SYNC_CONFIGS } from "@/app/api/sync/entityHandlers";
 
 interface SyncOperation {
   id: string;
   entity: string;
   operation: "create" | "update" | "delete";
   entityId?: string;
-  parentId?: string;  // parent record ID (e.g. vehicleId for vehicleItem)
+  parentId?: string; // parent record ID (e.g. vehicleId for vehicleItem)
   formValues: Record<string, string>;
 }
 
@@ -26,6 +23,9 @@ export async function POST(request: NextRequest) {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (session.user.role === "READONLY") {
+    return NextResponse.json({ error: "Your account has read-only access." }, { status: 403 });
   }
 
   let body: { operations: SyncOperation[] };
@@ -58,97 +58,25 @@ export async function POST(request: NextRequest) {
 }
 
 async function processOperation(op: SyncOperation, userId: string): Promise<void> {
-  switch (op.entity) {
-    case "vehicle":
-      return processVehicle(op, userId);
-    case "vehicleItem":
-      return processVehicleItem(op, userId);
-    case "contract":
-      return processContract(op, userId);
-    case "product":
-      return processProduct(op, userId);
-    default:
-      throw new Error(`Unsupported entity: ${op.entity}`);
+  const config = ENTITY_SYNC_CONFIGS[op.entity];
+  if (!config) throw new Error(`Unsupported entity: ${op.entity}`);
+
+  if (config.requiresModule && !(await isModuleEnabled(config.requiresModule))) {
+    throw new Error(`${MODULE_REGISTRY[config.requiresModule].label} module is disabled`);
   }
-}
 
-// ─── Vehicles ────────────────────────────────────────────────────────────────
+  const parsed = config.schema.safeParse(op.formValues);
+  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid data");
 
-async function processVehicle(op: SyncOperation, userId: string): Promise<void> {
-  if (!(await isModuleEnabled("VEHICLES"))) throw new Error("Vehicles module is disabled");
+  const ctx = { userId, parentId: op.parentId };
 
   if (op.operation === "create") {
-    const parsed = vehicleSchema.safeParse(op.formValues);
-    if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid data");
-    await prisma.vehicle.create({ data: { ...parsed.data, createdById: userId } });
-    revalidatePath("/vehicles");
-  } else if (op.operation === "update" && op.entityId) {
-    const existing = await prisma.vehicle.findUnique({ where: { id: op.entityId } });
-    if (!existing || existing.createdById !== userId) throw new Error("Vehicle not found");
-    const parsed = vehicleSchema.safeParse(op.formValues);
-    if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid data");
-    await prisma.vehicle.update({ where: { id: op.entityId }, data: parsed.data });
-    revalidatePath("/vehicles");
-    revalidatePath(`/vehicles/${op.entityId}`);
-  }
-}
-
-async function processVehicleItem(op: SyncOperation, userId: string): Promise<void> {
-  if (!(await isModuleEnabled("VEHICLES"))) throw new Error("Vehicles module is disabled");
-
-  if (op.operation === "create" && op.parentId) {
-    const vehicle = await prisma.vehicle.findUnique({ where: { id: op.parentId } });
-    if (!vehicle || vehicle.createdById !== userId) throw new Error("Vehicle not found");
-    const parsed = vehicleItemSchema.safeParse(op.formValues);
-    if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid data");
-    await prisma.vehicleItem.create({ data: { ...parsed.data, vehicleId: op.parentId } });
-    revalidatePath(`/vehicles/${op.parentId}`);
-  } else if (op.operation === "update" && op.entityId && op.parentId) {
-    const item = await prisma.vehicleItem.findUnique({ where: { id: op.entityId } });
-    if (!item || item.vehicleId !== op.parentId) throw new Error("Item not found");
-    const vehicle = await prisma.vehicle.findUnique({ where: { id: op.parentId } });
-    if (!vehicle || vehicle.createdById !== userId) throw new Error("Vehicle not found");
-    const parsed = vehicleItemSchema.safeParse(op.formValues);
-    if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid data");
-    await prisma.vehicleItem.update({ where: { id: op.entityId }, data: parsed.data });
-    revalidatePath(`/vehicles/${op.parentId}`);
-  }
-}
-
-// ─── Contracts ───────────────────────────────────────────────────────────────
-
-async function processContract(op: SyncOperation, userId: string): Promise<void> {
-  if (op.operation === "create") {
-    const parsed = contractSchema.safeParse(op.formValues);
-    if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid data");
-    await prisma.contract.create({ data: { ...parsed.data, createdById: userId } });
-    revalidatePath("/contracts");
-  } else if (op.operation === "update" && op.entityId) {
-    const existing = await prisma.contract.findUnique({ where: { id: op.entityId } });
-    if (!existing || existing.createdById !== userId) throw new Error("Contract not found");
-    const parsed = contractSchema.safeParse(op.formValues);
-    if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid data");
-    await prisma.contract.update({ where: { id: op.entityId }, data: parsed.data });
-    revalidatePath("/contracts");
-    revalidatePath(`/contracts/${op.entityId}`);
-  }
-}
-
-// ─── Products ────────────────────────────────────────────────────────────────
-
-async function processProduct(op: SyncOperation, userId: string): Promise<void> {
-  if (op.operation === "create") {
-    const parsed = productSchema.safeParse(op.formValues);
-    if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid data");
-    await prisma.product.create({ data: { ...parsed.data, createdById: userId } });
-    revalidatePath("/products");
-  } else if (op.operation === "update" && op.entityId) {
-    const existing = await prisma.product.findUnique({ where: { id: op.entityId } });
-    if (!existing || existing.createdById !== userId) throw new Error("Product not found");
-    const parsed = productSchema.safeParse(op.formValues);
-    if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid data");
-    await prisma.product.update({ where: { id: op.entityId }, data: parsed.data });
-    revalidatePath("/products");
-    revalidatePath(`/products/${op.entityId}`);
+    await config.create(parsed.data, ctx);
+  } else if (op.operation === "update") {
+    if (!op.entityId) throw new Error("Missing record to update");
+    if (!config.update) throw new Error(`${op.entity} can't be edited offline`);
+    await config.update(op.entityId, parsed.data, ctx);
+  } else {
+    throw new Error(`Unsupported operation: ${op.operation}`);
   }
 }

@@ -5,7 +5,7 @@ import type { VehicleModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
-import { enqueueOperation, serializeFormData } from "@/lib/offlineQueue";
+import { makeOfflineAwareAction } from "@/lib/offlineQueue";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -19,23 +19,16 @@ export function VehicleForm({
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   vehicle?: VehicleModel;
 }) {
-  const offlineAwareAction = async (
-    prevState: ActionState,
-    formData: FormData,
-  ): Promise<ActionState> => {
-    if (typeof navigator !== "undefined" && !navigator.onLine) {
-      await enqueueOperation({
-        label: vehicle ? `Update vehicle: ${vehicle.label}` : "Add vehicle",
-        entity: "vehicle",
-        operation: vehicle ? "update" : "create",
-        entityId: vehicle?.id,
-        formValues: serializeFormData(formData),
-      });
-      window.dispatchEvent(new Event("offline-queued"));
-      return { success: "Saved offline — will sync when you reconnect." };
-    }
-    return action(prevState, formData);
-  };
+  const offlineAwareAction = makeOfflineAwareAction(
+    action,
+    () => ({
+      label: vehicle ? `Update vehicle: ${vehicle.label}` : "Add vehicle",
+      entity: "vehicle",
+      operation: vehicle ? "update" : "create",
+      entityId: vehicle?.id,
+    }),
+    { success: "Saved offline — will sync when you reconnect." },
+  );
 
   const [state, formAction] = useActionState<ActionState, FormData>(offlineAwareAction, null);
 

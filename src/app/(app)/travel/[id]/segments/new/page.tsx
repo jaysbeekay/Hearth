@@ -28,7 +28,7 @@ export default async function NewTripSegmentPage({
         <p className="text-sm text-foreground/60">{trip.title}</p>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
-        <TripSegmentForm action={boundAction} defaultCurrency={preferredCurrency} />
+        <TripSegmentForm action={boundAction} tripId={trip.id} defaultCurrency={preferredCurrency} />
       </div>
     </div>
   );

@@ -10,6 +10,7 @@ import { INVENTORY_ITEM_CATEGORIES } from "@/lib/validation/inventory";
 import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 import { FileDropZone } from "@/components/FileDropZone";
 import { markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
+import { makeOfflineAwareAction } from "@/lib/offlineQueue";
 
 const CATEGORY_LABELS: Record<string, string> = {
   APPLIANCE: "Appliance",
@@ -37,7 +38,18 @@ export function InventoryItemForm({
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   item?: InventoryItemModel;
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  const offlineAwareAction = makeOfflineAwareAction(
+    action,
+    () => ({
+      label: item ? `Update item: ${item.label}` : "Add inventory item",
+      entity: "inventoryItem",
+      operation: item ? "update" : "create",
+      entityId: item?.id,
+    }),
+    { success: "Saved offline — will sync when you reconnect." },
+  );
+
+  const [state, formAction] = useActionState<ActionState, FormData>(offlineAwareAction, null);
   const [scanning, setScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
 

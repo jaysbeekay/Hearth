@@ -30,7 +30,7 @@ export default async function NewHoldingPage({
         <h1 className="mt-1 text-2xl font-semibold">Add holding</h1>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
-        <HoldingForm action={action} />
+        <HoldingForm action={action} portfolioId={id} />
       </div>
     </div>
   );

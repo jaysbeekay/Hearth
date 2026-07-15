@@ -5,6 +5,7 @@ import type { TripModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
+import { makeOfflineAwareAction } from "@/lib/offlineQueue";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -18,7 +19,18 @@ export function TripForm({
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   trip?: TripModel;
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  const offlineAwareAction = makeOfflineAwareAction(
+    action,
+    () => ({
+      label: trip ? `Update trip: ${trip.title}` : "Add trip",
+      entity: "trip",
+      operation: trip ? "update" : "create",
+      entityId: trip?.id,
+    }),
+    { success: "Saved offline — will sync when you reconnect." },
+  );
+
+  const [state, formAction] = useActionState<ActionState, FormData>(offlineAwareAction, null);
 
   return (
     <form action={formAction} className="space-y-6">

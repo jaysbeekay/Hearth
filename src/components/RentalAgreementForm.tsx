@@ -9,6 +9,7 @@ import { FormMessage } from "@/components/FormMessage";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
 import { markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
+import { makeOfflineAwareAction } from "@/lib/offlineQueue";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -22,13 +23,27 @@ type ExtractedFields = Partial<
 export function RentalAgreementForm({
   action,
   agreement,
+  propertyId,
   defaultCurrency,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   agreement?: RentalAgreementModel;
+  propertyId?: string;
   defaultCurrency?: string;
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  const offlineAwareAction = makeOfflineAwareAction(
+    action,
+    () => ({
+      label: agreement ? "Update rental agreement" : "Add rental agreement",
+      entity: "rentalAgreement",
+      operation: agreement ? "update" : "create",
+      entityId: agreement?.id,
+      parentId: agreement?.propertyId ?? propertyId,
+    }),
+    { success: "Saved offline — will sync when you reconnect." },
+  );
+
+  const [state, formAction] = useActionState<ActionState, FormData>(offlineAwareAction, null);
   const [scanning, setScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
 

@@ -12,6 +12,7 @@ import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
 import { markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
+import { makeOfflineAwareAction } from "@/lib/offlineQueue";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -23,13 +24,27 @@ type ExtractedFields = Partial<Record<"type" | "title" | "provider" | "date" | "
 export function HomeItemForm({
   action,
   item,
+  propertyId,
   defaultCurrency,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   item?: HomeItemModel;
+  propertyId?: string;
   defaultCurrency?: string;
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  const offlineAwareAction = makeOfflineAwareAction(
+    action,
+    () => ({
+      label: item ? `Update item: ${item.title}` : "Add home item",
+      entity: "homeItem",
+      operation: item ? "update" : "create",
+      entityId: item?.id,
+      parentId: item?.propertyId ?? propertyId,
+    }),
+    { success: "Saved offline — will sync when you reconnect." },
+  );
+
+  const [state, formAction] = useActionState<ActionState, FormData>(offlineAwareAction, null);
   const [scanning, setScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
 
