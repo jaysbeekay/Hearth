@@ -11,6 +11,7 @@ import { DATE_FORMAT_OPTIONS, DATE_FORMAT_LABELS } from "@/lib/utils";
 import { TIMEZONE_OPTIONS } from "@/lib/userPreferences";
 import { ChangePasswordForm } from "@/components/ChangePasswordForm";
 import { AiSettingsForm } from "@/components/AiSettingsForm";
+import { ChatSettingsForm } from "@/components/ChatSettingsForm";
 import { IcalTokenSection } from "@/components/IcalTokenSection";
 import { TotpSection } from "@/components/TotpSection";
 import { CurrencySelect } from "@/components/CurrencySelect";
@@ -207,6 +208,31 @@ export default async function SettingsPage() {
         ) : (
           <p className="text-sm text-warning">
             Set ENCRYPTION_KEY on the server to enable bringing your own AI provider key.
+          </p>
+        )}
+      </section>
+
+      <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+        <h2 className="mb-3 font-medium">AI Assistant</h2>
+        {isDemoMode() ? (
+          <p className="text-sm text-foreground/60">
+            Disabled in this public demo — bringing your own API key would let a visitor spend
+            it via this server.
+          </p>
+        ) : isEncryptionConfigured() ? (
+          <>
+            <p className="mb-3 text-sm text-foreground/60">
+              Bring your own API key to chat with an assistant that can answer questions using
+              your household&apos;s own data — contracts, warranties, trips, vehicles, home,
+              inventory, and wealth. It&apos;s read-only: it can look things up, but never
+              creates, edits, or deletes anything. Configure a different provider/model here than
+              document extraction if you like — the two are independent.
+            </p>
+            <ChatSettingsForm provider={user.chatProvider} model={user.chatModel} />
+          </>
+        ) : (
+          <p className="text-sm text-warning">
+            Set ENCRYPTION_KEY on the server to enable the AI assistant.
           </p>
         )}
       </section>
