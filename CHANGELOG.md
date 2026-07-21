@@ -7,6 +7,23 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-07-21
+
+### Added
+
+- **AI chat assistant** — a new "Assistant" section where a household member
+  can ask natural-language questions about their own contracts, warranties,
+  trips, vehicles, home, inventory, and wealth, backed by their choice of
+  Anthropic, OpenAI, Google Gemini, OpenRouter, or a local Ollama endpoint.
+  It's read-only (it can look things up, but never creates, edits, or
+  deletes anything) and uses its own independent BYOK provider/key/model
+  settings, separate from the existing document-extraction AI settings.
+- **Public demo mode** (`DEMO_MODE=true`) for running a separate, publicly
+  reachable instance that lets visitors try the app with a single shared
+  account (no signup) and realistic sample data, reset automatically every
+  hour. Ships with its own `docker-compose.demo.yml` and a Caddy
+  reverse-proxy example for running it alongside a real instance.
+
 ## [0.7.0] - 2026-07-15
 
 ### Added

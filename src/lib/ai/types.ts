@@ -31,3 +31,17 @@ export interface ByokUser {
 export type ConfiguredByokUser = ByokUser & {
   aiProvider: AiProviderId;
 };
+
+// Same shape as ByokUser, but for the chat assistant's own independent
+// provider/key/model triple (User.chatProvider etc) — kept separate so a
+// household member can use a different provider/model for chat than for
+// document-extraction BYOK.
+export interface ChatUser {
+  chatProvider: AiProviderId | null;
+  chatApiKeyEncrypted: string | null;
+  chatModel: string | null;
+}
+
+export type ConfiguredChatUser = ChatUser & {
+  chatProvider: AiProviderId;
+};

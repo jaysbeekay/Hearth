@@ -5,14 +5,14 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { encryptSecret } from "@/lib/crypto";
 import { isEncryptionConfigured, isDemoMode } from "@/lib/env";
-import { aiSettingsSchema } from "@/lib/validation/ai";
+import { chatSettingsSchema } from "@/lib/validation/chat";
 import { AI_PROVIDERS_WITHOUT_API_KEY } from "@/lib/ai/types";
 
 export type ActionState = { error?: string; success?: string } | null;
 
-const DEMO_DISABLED_MESSAGE = "AI integration is disabled in this public demo.";
+const DEMO_DISABLED_MESSAGE = "The AI assistant is disabled in this public demo.";
 
-export async function saveAiSettings(
+export async function saveChatSettings(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
@@ -21,7 +21,7 @@ export async function saveAiSettings(
   const session = await auth();
   if (!session?.user) return { error: "Not signed in." };
 
-  const parsed = aiSettingsSchema.safeParse({
+  const parsed = chatSettingsSchema.safeParse({
     provider: formData.get("provider"),
     apiKey: formData.get("apiKey") || undefined,
     model: formData.get("model") || undefined,
@@ -38,9 +38,9 @@ export async function saveAiSettings(
   await prisma.user.update({
     where: { id: session.user.id },
     data: {
-      aiProvider: parsed.data.provider,
-      aiApiKeyEncrypted: needsApiKey ? encryptSecret(parsed.data.apiKey!) : null,
-      aiModel: parsed.data.model ?? null,
+      chatProvider: parsed.data.provider,
+      chatApiKeyEncrypted: needsApiKey ? encryptSecret(parsed.data.apiKey!) : null,
+      chatModel: parsed.data.model ?? null,
     },
   });
 
@@ -48,7 +48,7 @@ export async function saveAiSettings(
   return { success: needsApiKey ? "API key saved." : "Provider saved." };
 }
 
-export async function removeAiSettings(): Promise<ActionState> {
+export async function removeChatSettings(): Promise<ActionState> {
   if (isDemoMode()) return { error: DEMO_DISABLED_MESSAGE };
 
   const session = await auth();
@@ -56,7 +56,7 @@ export async function removeAiSettings(): Promise<ActionState> {
 
   await prisma.user.update({
     where: { id: session.user.id },
-    data: { aiProvider: null, aiApiKeyEncrypted: null, aiModel: null },
+    data: { chatProvider: null, chatApiKeyEncrypted: null, chatModel: null },
   });
 
   revalidatePath("/settings");

@@ -1,4 +1,4 @@
-import { LayoutDashboard, FileText, Package, CalendarDays, TrendingUp, Files, type LucideIcon } from "lucide-react";
+import { LayoutDashboard, FileText, Package, CalendarDays, TrendingUp, Files, Bot, type LucideIcon } from "lucide-react";
 import { MODULE_REGISTRY, type ModuleKey } from "@/lib/modules/registry";
 
 export interface NavItem {
@@ -12,6 +12,7 @@ const BASE_NAV_ITEMS: NavItem[] = [
   { href: "/contracts", label: "Contracts", icon: FileText },
   { href: "/products", label: "Warranties", icon: Package },
   { href: "/documents", label: "Documents", icon: Files },
+  { href: "/assistant", label: "Assistant", icon: Bot },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/spend", label: "Spending", icon: TrendingUp },
 ];
