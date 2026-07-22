@@ -7,13 +7,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { PasskeySignInButton } from "@/components/PasskeySignInButton";
 
-export function LoginForm({
-  smtpConfigured = false,
-  isDemo = false,
-}: {
-  smtpConfigured?: boolean;
-  isDemo?: boolean;
-}) {
+export function LoginForm({ smtpConfigured = false }: { smtpConfigured?: boolean }) {
   const [state, formAction] = useActionState<ActionState, FormData>(login, null);
   const totpRequired = Boolean(state?.totpRequired);
 
@@ -50,7 +44,7 @@ export function LoginForm({
             <label htmlFor="password" className="text-sm font-medium">
               Password
             </label>
-            {smtpConfigured && !isDemo && (
+            {smtpConfigured && (
               <Link
                 href="/forgot-password"
                 className="text-xs text-accent hover:underline"

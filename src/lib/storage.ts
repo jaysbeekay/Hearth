@@ -1,40 +1,7 @@
 import { randomUUID } from "crypto";
 import path from "path";
 import fs from "fs/promises";
-import { env, isDemoMode } from "@/lib/env";
-
-// The hourly demo reset bounds long-term disk usage, but a single visitor
-// could still fill the disk *within* an hour without a cap. 200MB is
-// generous for a demo (way more than the realistic seed data + a handful
-// of manual uploads) while still bounding worst case.
-const DEMO_UPLOAD_QUOTA_BYTES = 200 * 1024 * 1024;
-
-async function directorySize(dir: string): Promise<number> {
-  let entries;
-  try {
-    entries = await fs.readdir(dir, { withFileTypes: true });
-  } catch {
-    return 0;
-  }
-  let total = 0;
-  for (const entry of entries) {
-    const fullPath = path.join(dir, entry.name);
-    total += entry.isDirectory()
-      ? await directorySize(fullPath)
-      : (await fs.stat(fullPath)).size;
-  }
-  return total;
-}
-
-async function assertDemoUploadQuota() {
-  if (!isDemoMode()) return;
-  const total = await directorySize(path.resolve(env.uploadsDir));
-  if (total >= DEMO_UPLOAD_QUOTA_BYTES) {
-    throw new Error(
-      "This public demo has reached its storage limit for this hour — try again after the next reset.",
-    );
-  }
-}
+import { env } from "@/lib/env";
 
 export { MAX_UPLOAD_BYTES } from "@/lib/uploadLimits";
 
@@ -74,7 +41,6 @@ function safeExtension(filename: string) {
 }
 
 export async function saveDocument(contractId: string, file: File) {
-  await assertDemoUploadQuota();
   const dir = contractDir(contractId);
   await fs.mkdir(dir, { recursive: true });
 
@@ -102,7 +68,6 @@ export async function deleteContractDir(contractId: string) {
 }
 
 export async function saveProductDocument(productId: string, file: File) {
-  await assertDemoUploadQuota();
   const dir = productDir(productId);
   await fs.mkdir(dir, { recursive: true });
 
@@ -130,7 +95,6 @@ export async function deleteProductDir(productId: string) {
 }
 
 export async function saveTripSegmentDocument(tripSegmentId: string, file: File) {
-  await assertDemoUploadQuota();
   const dir = tripSegmentDir(tripSegmentId);
   await fs.mkdir(dir, { recursive: true });
 
@@ -158,7 +122,6 @@ export async function deleteTripSegmentDir(tripSegmentId: string) {
 }
 
 export async function saveHomeItemDocument(homeItemId: string, file: File) {
-  await assertDemoUploadQuota();
   const dir = homeItemDir(homeItemId);
   await fs.mkdir(dir, { recursive: true });
 
@@ -190,7 +153,6 @@ function vehicleItemDir(vehicleItemId: string) {
 }
 
 export async function saveVehicleItemDocument(vehicleItemId: string, file: File) {
-  await assertDemoUploadQuota();
   const dir = vehicleItemDir(vehicleItemId);
   await fs.mkdir(dir, { recursive: true });
 
@@ -226,7 +188,6 @@ function rentalStatementDir(statementId: string) {
 }
 
 export async function saveRentalStatementDocument(statementId: string, file: File) {
-  await assertDemoUploadQuota();
   const dir = rentalStatementDir(statementId);
   await fs.mkdir(dir, { recursive: true });
 
@@ -262,7 +223,6 @@ function inventoryItemDir(inventoryItemId: string) {
 }
 
 export async function saveInventoryItemDocument(inventoryItemId: string, file: File) {
-  await assertDemoUploadQuota();
   const dir = inventoryItemDir(inventoryItemId);
   await fs.mkdir(dir, { recursive: true });
 
@@ -294,7 +254,6 @@ function inboxDir() {
 }
 
 export async function saveInboxDocument(file: File) {
-  await assertDemoUploadQuota();
   const dir = inboxDir();
   await fs.mkdir(dir, { recursive: true });
 
@@ -322,7 +281,6 @@ function tradeDir(tradeId: string) {
 }
 
 export async function saveTradeDocument(tradeId: string, file: File) {
-  await assertDemoUploadQuota();
   const dir = tradeDir(tradeId);
   await fs.mkdir(dir, { recursive: true });
 

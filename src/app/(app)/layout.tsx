@@ -4,7 +4,6 @@ import { Sidebar } from "@/components/Sidebar";
 import { TopBar } from "@/components/TopBar";
 import { BottomNav } from "@/components/BottomNav";
 import { OfflineBanner } from "@/components/OfflineBanner";
-import { DemoBanner } from "@/components/DemoBanner";
 import { OfflineSyncManager } from "@/components/OfflineSyncManager";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { ToastContainer } from "@/components/Toast";
@@ -36,8 +35,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <OfflineSyncManager />
         <OfflineBanner />
         <main id="main" className="flex-1 px-4 py-6 pb-24 md:px-8 md:py-8 md:pb-8">
-          <DemoBanner />
-          <div className="mt-4 first:mt-0">{children}</div>
+          {children}
         </main>
       </div>
       <BottomNav enabledModules={enabledModules} />

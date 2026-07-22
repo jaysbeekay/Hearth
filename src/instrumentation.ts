@@ -5,14 +5,12 @@ export async function register() {
     __reminderCronStarted?: boolean;
     __backupCronStarted?: boolean;
     __priceCronStarted?: boolean;
-    __demoCronStarted?: boolean;
   };
 
   const cron = await import("node-cron");
   const { getReminderConfig, isBackupConfigured, getBackupScheduleConfig } = await import(
     "@/lib/appSettings"
   );
-  const { isDemoMode } = await import("@/lib/env");
 
   if (!globalForCron.__reminderCronStarted) {
     globalForCron.__reminderCronStarted = true;
@@ -54,27 +52,5 @@ export async function register() {
     });
 
     console.log("[prices] price refresh scheduler started (every 15 min)");
-  }
-
-  if (!globalForCron.__demoCronStarted && isDemoMode()) {
-    globalForCron.__demoCronStarted = true;
-
-    const { resetDemoData } = await import("@/lib/demo/reset");
-
-    // The DB is empty on first boot — the hourly tick below won't fire for
-    // up to an hour, so seed immediately. resetDemoData() is a full
-    // wipe-then-seed, so calling it unconditionally here is safe/idempotent
-    // even if the DB already has data from a previous run.
-    resetDemoData().catch((error) => {
-      console.error("[demo] initial seed failed:", error);
-    });
-
-    cron.schedule("0 * * * *", () => {
-      resetDemoData().catch((error) => {
-        console.error("[demo] scheduled reset failed:", error);
-      });
-    });
-
-    console.log("[demo] reset scheduler started (hourly, plus immediate initial seed)");
   }
 }

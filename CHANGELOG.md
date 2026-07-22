@@ -7,6 +7,17 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-07-21
+
+### Removed
+
+- **Public demo mode**, added in 0.8.0. It was only ever intended for
+  personal use running a sample instance on a personal website, not as a
+  general self-hosting feature — since `DEMO_MODE` was a runtime toggle,
+  anyone pulling the published Docker image could have turned it on
+  themselves. Removed entirely rather than just left undocumented, so the
+  capability doesn't exist in the image at all.
+
 ## [0.8.0] - 2026-07-21
 
 ### Added
