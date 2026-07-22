@@ -29,7 +29,6 @@ export const env = {
     apiKey: optional("BARCODE_LOOKUP_API_KEY"),
   },
   encryptionKey: optional("ENCRYPTION_KEY"),
-  demoMode: optional("DEMO_MODE", "false") === "true",
   backup: {
     cron: optional("BACKUP_CRON_SCHEDULE", "0 3 * * *"),
     retentionCount: Number(optional("BACKUP_RETENTION_COUNT", "7")),
@@ -57,7 +56,6 @@ export const isNtfyConfigured = () => Boolean(env.ntfy.url && env.ntfy.topic);
 export const isOllamaConfigured = () => Boolean(env.ollama.baseUrl && env.ollama.model);
 export const isBarcodeLookupConfigured = () => env.barcodeLookup.enabled;
 export const isEncryptionConfigured = () => env.encryptionKey.length > 0;
-export const isDemoMode = () => env.demoMode;
 
 export const isS3BackupConfigured = () =>
   Boolean(env.backup.s3.bucket && env.backup.s3.accessKeyId && env.backup.s3.secretAccessKey);
