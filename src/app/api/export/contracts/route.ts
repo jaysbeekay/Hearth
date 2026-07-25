@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
 
   const format = request.nextUrl.searchParams.get("format") ?? "csv";
 
-  const [contracts, { dateFormat }] = await Promise.all([
+  const [contracts, { dateFormat, region }] = await Promise.all([
     prisma.contract.findMany({
       where: { createdById: session.user.id },
       orderBy: { endDate: "asc" },
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
       doc.fontSize(9).fillColor("#444")
         .text(`Provider: ${c.provider}   Category: ${CATEGORY_LABELS[c.category] ?? c.category}`)
         .text(`Period: ${formatDate(c.startDate, dateFormat)} – ${formatDate(c.endDate, dateFormat)}`)
-        .text(`Cost: ${formatCurrency(c.cost, c.currency)}${c.billingFrequency ? ` (${BILLING_LABELS[c.billingFrequency] ?? c.billingFrequency})` : ""}`)
+        .text(`Cost: ${formatCurrency(c.cost, c.currency, undefined, region)}${c.billingFrequency ? ` (${BILLING_LABELS[c.billingFrequency] ?? c.billingFrequency})` : ""}`)
         .text(`Tax deductible: ${c.isTaxDeductible ? "Yes" : "No"}`);
       doc.moveDown(0.5);
     }

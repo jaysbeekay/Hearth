@@ -7,7 +7,7 @@ import { updateNotificationPreferences, updateUserPreferences } from "@/lib/acti
 import { isEncryptionConfigured } from "@/lib/env";
 import { env } from "@/lib/env";
 import { isSmtpConfigured, isNtfyConfigured } from "@/lib/appSettings";
-import { DATE_FORMAT_OPTIONS, DATE_FORMAT_LABELS } from "@/lib/utils";
+import { DATE_FORMAT_OPTIONS, DATE_FORMAT_LABELS, REGION_OPTIONS, REGION_LABELS } from "@/lib/utils";
 import { TIMEZONE_OPTIONS } from "@/lib/userPreferences";
 import { ChangePasswordForm } from "@/components/ChangePasswordForm";
 import { AiSettingsForm } from "@/components/AiSettingsForm";
@@ -124,10 +124,11 @@ export default async function SettingsPage() {
       <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <h2 className="mb-3 font-medium">Preferences</h2>
         <p className="mb-3 text-sm text-foreground/60">
-          Localisation used throughout the app — dates, default currency for new records, and
-          your timezone.
+          Localisation used throughout the app — dates, default currency for new records, your
+          timezone, and the region convention used for number formatting (decimal/thousands
+          separators). This doesn&apos;t change the app&apos;s display language.
         </p>
-        <form action={updateUserPreferences} className="grid gap-4 sm:grid-cols-3">
+        <form action={updateUserPreferences} className="grid gap-4 sm:grid-cols-4">
           <div className="space-y-1">
             <label htmlFor="dateFormat" className="text-sm font-medium">
               Date format
@@ -176,7 +177,26 @@ export default async function SettingsPage() {
               </select>
             </SelectWrapper>
           </div>
-          <div className="sm:col-span-3">
+          <div className="space-y-1">
+            <label htmlFor="region" className="text-sm font-medium">
+              Region
+            </label>
+            <SelectWrapper>
+              <select
+                id="region"
+                name="region"
+                defaultValue={user.region}
+                className={selectClass}
+              >
+                {REGION_OPTIONS.map((value) => (
+                  <option key={value} value={value}>
+                    {REGION_LABELS[value]}
+                  </option>
+                ))}
+              </select>
+            </SelectWrapper>
+          </div>
+          <div className="sm:col-span-4">
             <button
               type="submit"
               className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"

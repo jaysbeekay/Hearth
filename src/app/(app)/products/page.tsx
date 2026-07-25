@@ -25,7 +25,7 @@ export default async function ProductsPage({
     ];
   }
 
-  const [products, { dateFormat }, session] = await Promise.all([
+  const [products, { dateFormat, region }, session] = await Promise.all([
     prisma.product.findMany({
       where,
       include: { _count: { select: { documents: true } } },
@@ -40,6 +40,7 @@ export default async function ProductsPage({
       products={products}
       q={q}
       dateFormat={dateFormat}
+      region={region}
       canWrite={session?.user.role !== "READONLY"}
     />
   );

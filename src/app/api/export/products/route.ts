@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
 
   const format = request.nextUrl.searchParams.get("format") ?? "csv";
 
-  const [products, { dateFormat }] = await Promise.all([
+  const [products, { dateFormat, region }] = await Promise.all([
     prisma.product.findMany({
       where: { createdById: session.user.id },
       orderBy: { warrantyEndDate: "asc" },
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
       doc.fontSize(9).fillColor("#444")
         .text(`Manufacturer: ${p.manufacturer ?? "—"}   Vendor: ${p.vendor ?? "—"}`)
         .text(`Purchased: ${formatDate(p.purchaseDate, dateFormat)}   Warranty ends: ${formatDate(p.warrantyEndDate, dateFormat)}`)
-        .text(`Price: ${formatCurrency(p.price, p.currency)}`);
+        .text(`Price: ${formatCurrency(p.price, p.currency, undefined, region)}`);
       if (p.serialNumber) doc.text(`Serial: ${p.serialNumber}`);
       doc.moveDown(0.5);
     }

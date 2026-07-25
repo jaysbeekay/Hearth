@@ -31,7 +31,7 @@ export default async function VehicleDetailPage({
   await requireModuleEnabled("VEHICLES");
 
   const { id } = await params;
-  const [vehicle, { dateFormat }] = await Promise.all([
+  const [vehicle, { dateFormat, region }] = await Promise.all([
     prisma.vehicle.findUnique({
       where: { id },
       include: {
@@ -169,7 +169,7 @@ export default async function VehicleDetailPage({
                     <Detail label="Date" value={formatDate(item.date, dateFormat)} />
                     <Detail
                       label="Cost"
-                      value={item.cost != null ? formatCurrency(item.cost, item.currency) : "—"}
+                      value={item.cost != null ? formatCurrency(item.cost, item.currency, undefined, region) : "—"}
                     />
                   </dl>
 

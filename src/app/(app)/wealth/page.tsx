@@ -7,6 +7,7 @@ import { getNetWorth } from "@/lib/wealth";
 import { refreshPricesForTickers } from "@/lib/prices";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency } from "@/lib/utils";
+import { getUserPreferences } from "@/lib/userPreferences";
 import { HoldingCard } from "@/components/HoldingCard";
 import type { ModuleKey } from "@/lib/modules/registry";
 
@@ -15,6 +16,7 @@ export const metadata: Metadata = { title: "Wealth" };
 export default async function WealthPage() {
   await requireModuleEnabled("WEALTH");
   const enabledModules = await getEnabledModuleKeys();
+  const { region } = await getUserPreferences();
 
   // Warm up prices in background before rendering
   const holdings = await prisma.holding.findMany({
@@ -105,15 +107,15 @@ export default async function WealthPage() {
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div className="col-span-2 rounded-xl border border-border bg-surface p-4">
           <p className="text-xs text-foreground/50">Total net worth</p>
-          <p className="mt-1 text-3xl font-bold tabular-nums">{formatCurrency(data.totalNetWorth, "AUD")}</p>
+          <p className="mt-1 text-3xl font-bold tabular-nums">{formatCurrency(data.totalNetWorth, "AUD", undefined, region)}</p>
         </div>
         <div className="rounded-xl border border-border bg-surface p-4">
           <p className="text-xs text-foreground/50">Shares / ETFs</p>
-          <p className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(data.sharesValue, "AUD")}</p>
+          <p className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(data.sharesValue, "AUD", undefined, region)}</p>
         </div>
         <div className="rounded-xl border border-border bg-surface p-4">
           <p className="text-xs text-foreground/50">Property</p>
-          <p className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(data.propertyValue, "AUD")}</p>
+          <p className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(data.propertyValue, "AUD", undefined, region)}</p>
         </div>
       </div>
 
@@ -140,7 +142,7 @@ export default async function WealthPage() {
                 </div>
                 <div className="flex items-center gap-3 tabular-nums text-sm">
                   <span className="text-foreground/60">{((seg.value / total) * 100).toFixed(0)}%</span>
-                  <span className="font-medium">{formatCurrency(seg.value, "AUD")}</span>
+                  <span className="font-medium">{formatCurrency(seg.value, "AUD", undefined, region)}</span>
                 </div>
               </div>
             ))}
@@ -168,7 +170,7 @@ export default async function WealthPage() {
               const portfolio = data.portfolios.find((p) =>
                 p.holdings.some((ph) => ph.holdingId === h.holdingId),
               )!;
-              return <HoldingCard key={h.holdingId} holding={h} portfolioId={portfolio.portfolioId} />;
+              return <HoldingCard key={h.holdingId} holding={h} portfolioId={portfolio.portfolioId} region={region} />;
             })}
           </div>
           {allHoldings.length > 6 && (

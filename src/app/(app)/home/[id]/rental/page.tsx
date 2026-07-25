@@ -70,7 +70,7 @@ export default async function RentalOverviewPage({
   await requireModuleEnabled("HOME");
 
   const { id } = await params;
-  const [property, rentalContracts, { dateFormat }] = await Promise.all([
+  const [property, rentalContracts, { dateFormat, region }] = await Promise.all([
     prisma.property.findUnique({
       where: { id },
       include: {
@@ -161,7 +161,7 @@ export default async function RentalOverviewPage({
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
                       <p className="font-medium">
-                        {formatCurrency(ag.weeklyRent, ag.currency)}/wk
+                        {formatCurrency(ag.weeklyRent, ag.currency, undefined, region)}/wk
                         {ag.managementFeePercent != null && (
                           <span className="ml-2 text-sm font-normal text-foreground/60">
                             · {ag.managementFeePercent}% management fee
@@ -228,7 +228,7 @@ export default async function RentalOverviewPage({
                           <p className="text-xs text-foreground/50">
                             {ag.contract.provider}
                             {ag.contract.cost != null &&
-                              ` · ${formatCurrency(ag.contract.cost, ag.contract.currency)}`}
+                              ` · ${formatCurrency(ag.contract.cost, ag.contract.currency, undefined, region)}`}
                           </p>
                         </div>
                         <form action={linkRentalAgreementContract.bind(null, property.id, ag.id)}>
@@ -356,18 +356,21 @@ export default async function RentalOverviewPage({
                         actual={stmt.grossRent}
                         expected={expected?.expectedGross ?? null}
                         currency={currency}
+                        region={region}
                       />
                       <AmountCell
                         label="Management fee"
                         actual={stmt.managementFee}
                         expected={expected?.expectedFee ?? null}
                         currency={currency}
+                        region={region}
                       />
                       <AmountCell
                         label="Other deductions"
                         actual={stmt.otherDeductions}
                         expected={null}
                         currency={currency}
+                        region={region}
                       />
                       <AmountCell
                         label="Net to owner"
@@ -375,6 +378,7 @@ export default async function RentalOverviewPage({
                         expected={expected?.expectedNet ?? null}
                         currency={currency}
                         highlight
+                        region={region}
                       />
                     </div>
 
@@ -423,12 +427,14 @@ function AmountCell({
   expected,
   currency,
   highlight,
+  region,
 }: {
   label: string;
   actual: number | null;
   expected: number | null;
   currency: string;
   highlight?: boolean;
+  region?: string;
 }) {
   const diff = actual != null && expected != null ? actual - expected : null;
   const diffOk = diff != null && Math.abs(diff) < 0.01;
@@ -438,7 +444,7 @@ function AmountCell({
     <div>
       <dt className="text-xs text-foreground/50">{label}</dt>
       <dd className={`text-sm font-medium ${highlight ? "text-base" : ""}`}>
-        {actual != null ? formatCurrency(actual, currency) : "—"}
+        {actual != null ? formatCurrency(actual, currency, undefined, region) : "—"}
       </dd>
       {expected != null && actual != null && (
         <dd
@@ -449,13 +455,13 @@ function AmountCell({
           {diffOk
             ? "✓ matches"
             : diff != null
-              ? `${diff > 0 ? "+" : ""}${formatCurrency(diff, currency)} vs expected`
+              ? `${diff > 0 ? "+" : ""}${formatCurrency(diff, currency, undefined, region)} vs expected`
               : ""}
         </dd>
       )}
       {expected != null && actual == null && (
         <dd className="mt-0.5 text-xs text-foreground/40">
-          expected {formatCurrency(expected, currency)}
+          expected {formatCurrency(expected, currency, undefined, region)}
         </dd>
       )}
     </div>

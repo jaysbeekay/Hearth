@@ -18,7 +18,7 @@ import {
 import { formDataToStringValues } from "@/lib/form-state";
 import { isKnownModuleKey } from "@/lib/modules/enablement";
 import type { ModuleKey } from "@/lib/modules/registry";
-import { DATE_FORMAT_OPTIONS } from "@/lib/utils";
+import { DATE_FORMAT_OPTIONS, REGION_OPTIONS } from "@/lib/utils";
 import { TIMEZONE_OPTIONS } from "@/lib/userPreferences";
 import { POPULAR_CURRENCIES } from "@/components/CurrencySelect";
 import { env } from "@/lib/env";
@@ -258,21 +258,24 @@ export async function updateUserPreferences(formData: FormData): Promise<void> {
   const dateFormat = formData.get("dateFormat");
   const preferredCurrency = formData.get("preferredCurrency");
   const timezone = formData.get("timezone");
+  const region = formData.get("region");
 
   if (
     typeof dateFormat !== "string" ||
     typeof preferredCurrency !== "string" ||
     typeof timezone !== "string" ||
+    typeof region !== "string" ||
     !DATE_FORMAT_OPTIONS.includes(dateFormat as (typeof DATE_FORMAT_OPTIONS)[number]) ||
     !POPULAR_CURRENCIES.includes(preferredCurrency as (typeof POPULAR_CURRENCIES)[number]) ||
-    !TIMEZONE_OPTIONS.includes(timezone as (typeof TIMEZONE_OPTIONS)[number])
+    !TIMEZONE_OPTIONS.includes(timezone as (typeof TIMEZONE_OPTIONS)[number]) ||
+    !REGION_OPTIONS.includes(region as (typeof REGION_OPTIONS)[number])
   ) {
     return;
   }
 
   await prisma.user.update({
     where: { id: session.user.id },
-    data: { dateFormat, preferredCurrency, timezone },
+    data: { dateFormat, preferredCurrency, timezone, region },
   });
   revalidatePath("/settings");
   revalidatePath("/", "layout");

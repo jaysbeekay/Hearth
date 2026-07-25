@@ -34,7 +34,7 @@ export default async function InventoryItemPage({
   await requireModuleEnabled("INVENTORY");
 
   const { id } = await params;
-  const [item, { dateFormat }] = await Promise.all([
+  const [item, { dateFormat, region }] = await Promise.all([
     prisma.inventoryItem.findUnique({
       where: { id },
       include: {
@@ -107,7 +107,7 @@ export default async function InventoryItemPage({
           {item.purchasePrice != null && (
             <div>
               <dt className="text-xs text-muted">Purchase price</dt>
-              <dd className="font-medium">{formatCurrency(item.purchasePrice, item.currency)}</dd>
+              <dd className="font-medium">{formatCurrency(item.purchasePrice, item.currency, undefined, region)}</dd>
             </div>
           )}
         </dl>

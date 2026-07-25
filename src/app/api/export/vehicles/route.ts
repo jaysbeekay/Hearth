@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
 
   const format = request.nextUrl.searchParams.get("format") ?? "csv";
 
-  const [vehicles, { dateFormat }] = await Promise.all([
+  const [vehicles, { dateFormat, region }] = await Promise.all([
     prisma.vehicle.findMany({
       where: { createdById: session.user.id },
       include: { items: { orderBy: { date: "desc" } } },
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
       doc.fontSize(9).fillColor("#444")
         .text(`Vehicle: ${item.vehicleLabel}   Type: ${VEHICLE_ITEM_TYPE_LABELS[item.type] ?? item.type}`)
         .text(`Provider: ${item.provider ?? "—"}   Date: ${formatDate(item.date, dateFormat)}`)
-        .text(`Cost: ${formatCurrency(item.cost, item.currency)}`);
+        .text(`Cost: ${formatCurrency(item.cost, item.currency, undefined, region)}`);
       doc.moveDown(0.5);
     }
 

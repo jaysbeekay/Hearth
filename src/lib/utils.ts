@@ -13,6 +13,48 @@ export const DATE_FORMAT_LABELS: Record<DateFormat, string> = {
   "YYYY-MM-DD": "YYYY-MM-DD (e.g. 2026-07-10)",
 };
 
+// Locale tags used purely for number-formatting conventions (decimal/thousands
+// separators, currency symbol placement) — not a language switch. Date/month
+// names elsewhere in the app stay in English regardless of region; only
+// DATE_FORMAT_OPTIONS above controls date field order.
+export const REGION_OPTIONS = [
+  "en-AU",
+  "en-US",
+  "en-GB",
+  "en-CA",
+  "en-NZ",
+  "en-IN",
+  "de-DE",
+  "fr-FR",
+  "es-ES",
+  "it-IT",
+  "pt-BR",
+  "nl-NL",
+  "sv-SE",
+  "ja-JP",
+  "zh-CN",
+] as const;
+export type Region = (typeof REGION_OPTIONS)[number];
+export const DEFAULT_REGION: Region = "en-AU";
+
+export const REGION_LABELS: Record<Region, string> = {
+  "en-AU": "Australia (1,234.56)",
+  "en-US": "United States (1,234.56)",
+  "en-GB": "United Kingdom (1,234.56)",
+  "en-CA": "Canada (1,234.56)",
+  "en-NZ": "New Zealand (1,234.56)",
+  "en-IN": "India (1,23,456.78)",
+  "de-DE": "Germany (1.234,56)",
+  "fr-FR": "France (1 234,56)",
+  "es-ES": "Spain (1.234,56)",
+  "it-IT": "Italy (1.234,56)",
+  "pt-BR": "Brazil (1.234,56)",
+  "nl-NL": "Netherlands (1.234,56)",
+  "sv-SE": "Sweden (1 234,56)",
+  "ja-JP": "Japan (1,234.56)",
+  "zh-CN": "China (1,234.56)",
+};
+
 export function formatDate(
   date: Date | string | null | undefined,
   dateFormat?: string | null,
@@ -29,7 +71,12 @@ export function formatDate(
   }
 }
 
-export function formatCurrency(amount: number | null | undefined, currency: string, fractionDigits?: number) {
+export function formatCurrency(
+  amount: number | null | undefined,
+  currency: string,
+  fractionDigits?: number,
+  region: string = DEFAULT_REGION,
+) {
   if (amount == null) return "—";
   try {
     const opts: Intl.NumberFormatOptions = { style: "currency", currency };
@@ -37,10 +84,14 @@ export function formatCurrency(amount: number | null | undefined, currency: stri
       opts.minimumFractionDigits = fractionDigits;
       opts.maximumFractionDigits = fractionDigits;
     }
-    return new Intl.NumberFormat("en-AU", opts).format(amount);
+    return new Intl.NumberFormat(region, opts).format(amount);
   } catch {
     return `${currency} ${amount.toFixed(fractionDigits ?? 2)}`;
   }
+}
+
+export function formatNumber(value: number, region: string = DEFAULT_REGION, maximumFractionDigits = 6) {
+  return value.toLocaleString(region, { maximumFractionDigits });
 }
 
 export function daysUntil(date: Date | string | null | undefined): number | null {

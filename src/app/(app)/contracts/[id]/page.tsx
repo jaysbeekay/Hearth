@@ -25,7 +25,7 @@ export default async function ContractDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [contract, { dateFormat }] = await Promise.all([
+  const [contract, { dateFormat, region }] = await Promise.all([
     prisma.contract.findUnique({
       where: { id },
       include: {
@@ -114,7 +114,7 @@ export default async function ContractDetailPage({
             label="Cost"
             value={
               contract.cost != null
-                ? `${formatCurrency(contract.cost, contract.currency)}${
+                ? `${formatCurrency(contract.cost, contract.currency, undefined, region)}${
                     contract.billingFrequency
                       ? ` / ${BILLING_LABELS[contract.billingFrequency]?.toLowerCase()}`
                       : ""
@@ -160,6 +160,8 @@ export default async function ContractDetailPage({
               value={formatCurrency(
                 contract.rentalAgreement.weeklyRent,
                 contract.rentalAgreement.currency,
+                undefined,
+                region,
               )}
             />
             <Detail

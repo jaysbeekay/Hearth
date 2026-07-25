@@ -20,9 +20,10 @@ interface TaxSummaryEntry {
 interface Props {
   properties: PropertyWithCount[];
   taxDeductibleSummary: TaxSummaryEntry[];
+  region?: string;
 }
 
-export function HomeListClient({ properties, taxDeductibleSummary }: Props) {
+export function HomeListClient({ properties, taxDeductibleSummary, region }: Props) {
   const online = useOnlineStatus();
 
   useEffect(() => {
@@ -62,7 +63,7 @@ export function HomeListClient({ properties, taxDeductibleSummary }: Props) {
             {taxDeductibleSummary.map(({ label, amount, currency }) => (
               <div key={`${label}|${currency}`}>
                 <dt className="text-xs text-foreground/50">{label}</dt>
-                <dd className="text-sm font-medium">{formatCurrency(amount, currency)}</dd>
+                <dd className="text-sm font-medium">{formatCurrency(amount, currency, undefined, region)}</dd>
               </div>
             ))}
           </dl>
