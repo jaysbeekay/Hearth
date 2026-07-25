@@ -40,7 +40,7 @@
     "leaflet": "^1.9.4",
     "lucide-react": "^1.21.0",
     "next": "16.2.9",
-    "next-auth": "^5.0.0-beta.31",
+    "next-auth": "^5.0.0-beta.32",
     "node-cron": "^4.4.1",
     "nodemailer": "^9.0.1",
     "otpauth": "^9.5.1",
