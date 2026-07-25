@@ -22,7 +22,7 @@ export default async function ContractsPage({
     ];
   }
 
-  const [contracts, { dateFormat }, session] = await Promise.all([
+  const [contracts, { dateFormat, region }, session] = await Promise.all([
     prisma.contract.findMany({
       where,
       include: { _count: { select: { documents: true } } },
@@ -39,6 +39,7 @@ export default async function ContractsPage({
       category={category}
       status={status}
       dateFormat={dateFormat}
+      region={region}
       canWrite={session?.user.role !== "READONLY"}
     />
   );

@@ -6,9 +6,11 @@ import { daysUntil, formatCurrency, formatDate } from "@/lib/utils";
 export function ProductCard({
   product,
   dateFormat,
+  region,
 }: {
   product: ProductModel & { _count?: { documents: number } };
   dateFormat?: string;
+  region?: string;
 }) {
   const days = daysUntil(product.warrantyEndDate);
 
@@ -37,7 +39,7 @@ export function ProductCard({
             : "No warranty end date"}
         </span>
         {product.price != null && (
-          <span className="tabular-nums">{formatCurrency(product.price, product.currency)}</span>
+          <span className="tabular-nums">{formatCurrency(product.price, product.currency, undefined, region)}</span>
         )}
       </div>
 

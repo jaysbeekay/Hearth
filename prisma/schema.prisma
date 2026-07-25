@@ -160,6 +160,7 @@ model User {
   dateFormat        String     @default("DD/MM/YYYY")
   preferredCurrency String     @default("AUD")
   timezone          String     @default("UTC")
+  region            String     @default("en-AU")
   createdAt         DateTime   @default(now())
   contracts         Contract[]
   products          Product[]

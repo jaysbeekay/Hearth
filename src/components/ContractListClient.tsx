@@ -19,6 +19,7 @@ interface Props {
   category?: string;
   status?: string;
   dateFormat?: string;
+  region?: string;
   canWrite?: boolean;
 }
 
@@ -28,6 +29,7 @@ export function ContractListClient({
   category,
   status,
   dateFormat,
+  region,
   canWrite = true,
 }: Props) {
   const online = useOnlineStatus();
@@ -173,7 +175,7 @@ export function ContractListClient({
       ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {contracts.map((contract) => (
-            <ContractCard key={contract.id} contract={contract} dateFormat={dateFormat} />
+            <ContractCard key={contract.id} contract={contract} dateFormat={dateFormat} region={region} />
           ))}
         </div>
       )}

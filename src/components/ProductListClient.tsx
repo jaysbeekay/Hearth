@@ -13,10 +13,11 @@ interface Props {
   products: ProductModel[];
   q?: string;
   dateFormat?: string;
+  region?: string;
   canWrite?: boolean;
 }
 
-export function ProductListClient({ products, q, dateFormat, canWrite = true }: Props) {
+export function ProductListClient({ products, q, dateFormat, region, canWrite = true }: Props) {
   const online = useOnlineStatus();
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -98,7 +99,7 @@ export function ProductListClient({ products, q, dateFormat, canWrite = true }: 
       ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {products.map((product) => (
-            <ProductCard key={product.id} product={product} dateFormat={dateFormat} />
+            <ProductCard key={product.id} product={product} dateFormat={dateFormat} region={region} />
           ))}
         </div>
       )}

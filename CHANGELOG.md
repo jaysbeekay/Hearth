@@ -7,6 +7,19 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-07-25
+
+### Added
+
+- **Region setting** (Settings > Preferences) — a new per-user "Region" field
+  controls number formatting conventions (decimal/thousands separators,
+  currency symbol placement) throughout the app, independent of the existing
+  date format, default currency, and timezone fields. This is a
+  regionalisation-only change (part of #81); it does not add a language
+  picker or translate any UI text — English strings are unchanged regardless
+  of region. Defaults to the existing Australian convention, so behavior is
+  unchanged for anyone who doesn't touch the new setting.
+
 ## [0.8.2] - 2026-07-25
 
 ### Fixed

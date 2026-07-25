@@ -20,7 +20,7 @@ import { getDocumentStats } from "@/lib/documents/stats";
 export const metadata: Metadata = { title: "Dashboard" };
 
 export default async function DashboardPage() {
-  const [enabledModules, { preferredCurrency }, session, smtpConfigured, ntfyConfigured] =
+  const [enabledModules, { preferredCurrency, region }, session, smtpConfigured, ntfyConfigured] =
     await Promise.all([
       getEnabledModuleKeys(),
       getUserPreferences(),
@@ -150,7 +150,8 @@ export default async function DashboardPage() {
             <StatCard
               label="Est. monthly spend"
               value={
-                formatCurrency(monthlySpend, preferredCurrency) + (otherCurrencyCount > 0 ? "*" : "")
+                formatCurrency(monthlySpend, preferredCurrency, undefined, region) +
+                (otherCurrencyCount > 0 ? "*" : "")
               }
             />
           </div>
@@ -193,7 +194,7 @@ export default async function DashboardPage() {
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
             {expiringSoon.map(({ contract }) => (
-              <ContractCard key={contract.id} contract={contract} />
+              <ContractCard key={contract.id} contract={contract} region={region} />
             ))}
           </div>
         )}
@@ -204,7 +205,7 @@ export default async function DashboardPage() {
           <h2 className="text-lg font-semibold">Contracts expired</h2>
           <div className="grid gap-3 md:grid-cols-2">
             {expired.map(({ contract }) => (
-              <ContractCard key={contract.id} contract={contract} />
+              <ContractCard key={contract.id} contract={contract} region={region} />
             ))}
           </div>
         </section>
@@ -219,7 +220,7 @@ export default async function DashboardPage() {
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
             {warrantiesExpiringSoon.map(({ product }) => (
-              <ProductCard key={product.id} product={product} />
+              <ProductCard key={product.id} product={product} region={region} />
             ))}
           </div>
         )}
@@ -230,7 +231,7 @@ export default async function DashboardPage() {
           <h2 className="text-lg font-semibold">Warranties expired</h2>
           <div className="grid gap-3 md:grid-cols-2">
             {warrantiesExpired.map(({ product }) => (
-              <ProductCard key={product.id} product={product} />
+              <ProductCard key={product.id} product={product} region={region} />
             ))}
           </div>
         </section>

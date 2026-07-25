@@ -13,10 +13,11 @@ type InventoryItemWithCount = InventoryItemModel & { _count: { documents: number
 interface Props {
   items: InventoryItemWithCount[];
   dateFormat?: string;
+  region?: string;
   canWrite?: boolean;
 }
 
-export function InventoryListClient({ items, dateFormat, canWrite = true }: Props) {
+export function InventoryListClient({ items, dateFormat, region, canWrite = true }: Props) {
   const online = useOnlineStatus();
 
   useEffect(() => {
@@ -47,7 +48,7 @@ export function InventoryListClient({ items, dateFormat, canWrite = true }: Prop
       ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {items.map((item) => (
-            <InventoryCard key={item.id} item={item} dateFormat={dateFormat} />
+            <InventoryCard key={item.id} item={item} dateFormat={dateFormat} region={region} />
           ))}
         </div>
       )}

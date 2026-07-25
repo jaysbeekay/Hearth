@@ -37,7 +37,7 @@ export default async function PropertyDetailPage({
   await requireModuleEnabled("HOME");
 
   const { id } = await params;
-  const [property, { dateFormat, preferredCurrency }] = await Promise.all([
+  const [property, { dateFormat, preferredCurrency, region }] = await Promise.all([
     prisma.property.findUnique({
       where: { id },
       include: {
@@ -174,7 +174,7 @@ export default async function PropertyDetailPage({
                     <Detail label="Date" value={formatDate(item.date, dateFormat)} />
                     <Detail
                       label="Cost"
-                      value={item.cost != null ? formatCurrency(item.cost, item.currency) : "—"}
+                      value={item.cost != null ? formatCurrency(item.cost, item.currency, undefined, region) : "—"}
                     />
                   </dl>
 
@@ -221,7 +221,7 @@ export default async function PropertyDetailPage({
             {property.valuations.map((v) => (
               <div key={v.id} className="flex items-center justify-between gap-4 p-4">
                 <div>
-                  <p className="font-medium tabular-nums">{formatCurrency(v.value, v.currency)}</p>
+                  <p className="font-medium tabular-nums">{formatCurrency(v.value, v.currency, undefined, region)}</p>
                   <p className="text-xs text-foreground/50">
                     {formatDate(v.valuedAt, dateFormat)}{v.source ? ` · ${v.source}` : ""}
                   </p>

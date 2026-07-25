@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { Pencil, Trash2, Plus } from "lucide-react";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { prisma } from "@/lib/prisma";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, formatNumber } from "@/lib/utils";
 import { refreshPricesForTickers, getPriceMap, fetchAndStorePriceHistory, getPriceHistory } from "@/lib/prices";
 import { deleteHolding, deleteTrade, addTradeDocument, deleteTradeDocumentAction } from "@/lib/actions/wealth";
 import { ConfirmForm } from "@/components/ConfirmForm";
@@ -52,9 +52,10 @@ interface SvgChartProps {
   points: { date: Date; value: number }[];
   currency: string;
   dateFormat?: string;
+  region?: string;
 }
 
-function PerformanceChart({ points, currency, dateFormat }: SvgChartProps) {
+function PerformanceChart({ points, currency, dateFormat, region }: SvgChartProps) {
   if (points.length < 2) return null;
 
   const W = 600;
@@ -165,7 +166,7 @@ function PerformanceChart({ points, currency, dateFormat }: SvgChartProps) {
           fill="currentColor"
           fillOpacity="0.45"
         >
-          {formatCurrency(t.value, currency, 0)}
+          {formatCurrency(t.value, currency, 0, region)}
         </text>
       ))}
 
@@ -195,7 +196,7 @@ export default async function HoldingPage({
   await requireModuleEnabled("WEALTH");
   const { id: portfolioId, hId: holdingId } = await params;
 
-  const [holding, { dateFormat }] = await Promise.all([
+  const [holding, { dateFormat, region }] = await Promise.all([
     prisma.holding.findUnique({
       where: { id: holdingId },
       include: {
@@ -283,13 +284,13 @@ export default async function HoldingPage({
         <div className="rounded-xl border border-border bg-surface p-4">
           <p className="text-xs text-foreground/50">Units held</p>
           <p className="mt-1 text-lg font-semibold tabular-nums">
-            {units.toLocaleString("en-AU", { maximumFractionDigits: 6 })}
+            {formatNumber(units, region)}
           </p>
         </div>
         <div className="rounded-xl border border-border bg-surface p-4">
           <p className="text-xs text-foreground/50">Current price</p>
           <p className="mt-1 text-lg font-semibold tabular-nums">
-            {currentPrice != null ? formatCurrency(currentPrice, currency) : "—"}
+            {currentPrice != null ? formatCurrency(currentPrice, currency, undefined, region) : "—"}
           </p>
           {priceEntry?.changePct != null && (
             <p className={`text-xs tabular-nums ${priceEntry.changePct >= 0 ? "text-success" : "text-danger"}`}>
@@ -300,14 +301,14 @@ export default async function HoldingPage({
         <div className="rounded-xl border border-border bg-surface p-4">
           <p className="text-xs text-foreground/50">Market value</p>
           <p className="mt-1 text-lg font-semibold tabular-nums">
-            {currentValue != null ? formatCurrency(currentValue, currency) : "—"}
+            {currentValue != null ? formatCurrency(currentValue, currency, undefined, region) : "—"}
           </p>
         </div>
         <div className="rounded-xl border border-border bg-surface p-4">
           <p className="text-xs text-foreground/50">Unrealised gain/loss</p>
           <p className={`mt-1 text-lg font-semibold tabular-nums ${gainLoss == null ? "" : gainLoss >= 0 ? "text-success" : "text-danger"}`}>
             {gainLoss != null
-              ? `${gainLoss >= 0 ? "+" : ""}${formatCurrency(gainLoss, currency)}`
+              ? `${gainLoss >= 0 ? "+" : ""}${formatCurrency(gainLoss, currency, undefined, region)}`
               : "—"}
           </p>
           {gainLossPct != null && (
@@ -321,12 +322,12 @@ export default async function HoldingPage({
       <dl className="grid grid-cols-2 gap-4 rounded-xl border border-border bg-surface p-4 md:p-6 sm:grid-cols-3">
         <div>
           <dt className="text-xs text-foreground/50">Cost basis</dt>
-          <dd className="text-sm font-medium tabular-nums">{formatCurrency(cost, currency)}</dd>
+          <dd className="text-sm font-medium tabular-nums">{formatCurrency(cost, currency, undefined, region)}</dd>
         </div>
         <div>
           <dt className="text-xs text-foreground/50">Avg cost / unit</dt>
           <dd className="text-sm font-medium tabular-nums">
-            {units > 0 && cost > 0 ? formatCurrency(cost / units, currency) : "—"}
+            {units > 0 && cost > 0 ? formatCurrency(cost / units, currency, undefined, region) : "—"}
           </dd>
         </div>
         <div>
@@ -339,7 +340,7 @@ export default async function HoldingPage({
       {chartPoints.length >= 2 && (
         <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-4 font-medium">Performance since first purchase</h2>
-          <PerformanceChart points={chartPoints} currency={currency} dateFormat={dateFormat} />
+          <PerformanceChart points={chartPoints} currency={currency} dateFormat={dateFormat} region={region} />
         </section>
       )}
 
@@ -381,15 +382,15 @@ export default async function HoldingPage({
                       </span>
                       <div>
                         <p className="text-sm font-medium tabular-nums">
-                          {trade.units.toLocaleString("en-AU", { maximumFractionDigits: 6 })} units @ {formatCurrency(trade.pricePerUnit, trade.currency)}
+                          {formatNumber(trade.units, region)} units @ {formatCurrency(trade.pricePerUnit, trade.currency, undefined, region)}
                         </p>
                         <p className="text-xs text-foreground/50">
                           {formatDate(trade.date, dateFormat)}
-                          {trade.fees != null && ` · fees ${formatCurrency(trade.fees, trade.currency)}`}
+                          {trade.fees != null && ` · fees ${formatCurrency(trade.fees, trade.currency, undefined, region)}`}
                         </p>
                         {trade.marketPriceOnDate != null && (
                           <p className="mt-0.5 text-xs text-foreground/40">
-                            Market close {formatDate(trade.date, dateFormat)}: {formatCurrency(trade.marketPriceOnDate, trade.currency)}
+                            Market close {formatDate(trade.date, dateFormat)}: {formatCurrency(trade.marketPriceOnDate, trade.currency, undefined, region)}
                             {slippage != null && (
                               <span className={`ml-1 ${Math.abs(slippage) < 0.5 ? "text-foreground/40" : slippage > 0 ? "text-danger" : "text-success"}`}>
                                 ({slippage > 0 ? "+" : ""}{slippage.toFixed(2)}% vs close)

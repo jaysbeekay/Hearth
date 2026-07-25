@@ -8,6 +8,7 @@ import { formatCurrency } from "@/lib/utils";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { getNetWorth } from "@/lib/wealth";
 import { refreshPricesForTickers } from "@/lib/prices";
+import { getUserPreferences } from "@/lib/userPreferences";
 import { HoldingCard } from "@/components/HoldingCard";
 import type { ModuleKey } from "@/lib/modules/registry";
 
@@ -32,7 +33,10 @@ export default async function PortfolioPage({
     await refreshPricesForTickers(holdingTickers).catch(() => {});
   }
 
-  const enabledModules = await getEnabledModuleKeys();
+  const [enabledModules, { region }] = await Promise.all([
+    getEnabledModuleKeys(),
+    getUserPreferences(),
+  ]);
   const netWorth = await getNetWorth(enabledModules as Set<ModuleKey>);
   const portfolioValue = netWorth.portfolios.find((p) => p.portfolioId === id);
 
@@ -59,16 +63,16 @@ export default async function PortfolioPage({
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           <div className="rounded-xl border border-border bg-surface p-4">
             <p className="text-xs text-foreground/50">Market value</p>
-            <p className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(portfolioValue.totalValue, portfolio.currency)}</p>
+            <p className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(portfolioValue.totalValue, portfolio.currency, undefined, region)}</p>
           </div>
           <div className="rounded-xl border border-border bg-surface p-4">
             <p className="text-xs text-foreground/50">Cost basis</p>
-            <p className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(portfolioValue.totalCost, portfolio.currency)}</p>
+            <p className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(portfolioValue.totalCost, portfolio.currency, undefined, region)}</p>
           </div>
           <div className="rounded-xl border border-border bg-surface p-4">
             <p className="text-xs text-foreground/50">Total gain / loss</p>
             <p className={`mt-1 text-xl font-semibold tabular-nums ${(portfolioValue.totalValue - portfolioValue.totalCost) >= 0 ? "text-success" : "text-danger"}`}>
-              {formatCurrency(portfolioValue.totalValue - portfolioValue.totalCost, portfolio.currency)}
+              {formatCurrency(portfolioValue.totalValue - portfolioValue.totalCost, portfolio.currency, undefined, region)}
             </p>
           </div>
         </div>
@@ -102,7 +106,7 @@ export default async function PortfolioPage({
         ) : (
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
             {portfolioValue.holdings.map((h) => (
-              <HoldingCard key={h.holdingId} holding={h} portfolioId={id} />
+              <HoldingCard key={h.holdingId} holding={h} portfolioId={id} region={region} />
             ))}
           </div>
         )}

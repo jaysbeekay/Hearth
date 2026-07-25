@@ -18,7 +18,7 @@ export default async function ProductDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [product, { dateFormat }] = await Promise.all([
+  const [product, { dateFormat, region }] = await Promise.all([
     prisma.product.findUnique({
       where: { id },
       include: { documents: { orderBy: { uploadedAt: "desc" } }, createdBy: true },
@@ -91,7 +91,7 @@ export default async function ProductDetailPage({
           <Detail label="Warranty end date" value={formatDate(product.warrantyEndDate, dateFormat)} />
           <Detail
             label="Price"
-            value={product.price != null ? formatCurrency(product.price, product.currency) : "—"}
+            value={product.price != null ? formatCurrency(product.price, product.currency, undefined, region) : "—"}
           />
         </dl>
       </div>

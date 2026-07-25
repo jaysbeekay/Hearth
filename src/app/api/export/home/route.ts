@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
 
   const format = request.nextUrl.searchParams.get("format") ?? "csv";
 
-  const [properties, { dateFormat }] = await Promise.all([
+  const [properties, { dateFormat, region }] = await Promise.all([
     prisma.property.findMany({
       where: { createdById: session.user.id },
       include: { items: { orderBy: { date: "desc" } } },
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
       doc.fontSize(9).fillColor("#444")
         .text(`Property: ${item.propertyLabel}   Type: ${HOME_ITEM_TYPE_LABELS[item.type] ?? item.type}`)
         .text(`Provider: ${item.provider ?? "—"}   Date: ${formatDate(item.date, dateFormat)}`)
-        .text(`Cost: ${formatCurrency(item.cost, item.currency)}   Tax deductible: ${item.isTaxDeductible ? "Yes" : "No"}`);
+        .text(`Cost: ${formatCurrency(item.cost, item.currency, undefined, region)}   Tax deductible: ${item.isTaxDeductible ? "Yes" : "No"}`);
       doc.moveDown(0.5);
     }
 

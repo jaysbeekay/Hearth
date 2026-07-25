@@ -29,7 +29,7 @@ export default async function TripDetailPage({
   await requireModuleEnabled("TRAVEL");
 
   const { id } = await params;
-  const [trip, { dateFormat }] = await Promise.all([
+  const [trip, { dateFormat, region }] = await Promise.all([
     prisma.trip.findUnique({
       where: { id },
       include: {
@@ -186,7 +186,7 @@ export default async function TripDetailPage({
                     <Detail
                       label="Cost"
                       value={
-                        segment.cost != null ? formatCurrency(segment.cost, segment.currency) : "—"
+                        segment.cost != null ? formatCurrency(segment.cost, segment.currency, undefined, region) : "—"
                       }
                     />
                     {segment.type === "FLIGHT" && segment.flightNumber && (

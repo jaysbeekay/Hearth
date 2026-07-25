@@ -7,7 +7,7 @@ import { InventoryListClient } from "@/components/InventoryListClient";
 export default async function InventoryPage() {
   await requireModuleEnabled("INVENTORY");
 
-  const [items, { dateFormat }, session] = await Promise.all([
+  const [items, { dateFormat, region }, session] = await Promise.all([
     prisma.inventoryItem.findMany({
       include: { _count: { select: { documents: true } } },
       orderBy: { createdAt: "desc" },
@@ -20,6 +20,7 @@ export default async function InventoryPage() {
     <InventoryListClient
       items={items}
       dateFormat={dateFormat}
+      region={region}
       canWrite={session?.user.role !== "READONLY"}
     />
   );

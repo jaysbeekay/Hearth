@@ -12,9 +12,11 @@ import {
 export function ContractCard({
   contract,
   dateFormat,
+  region,
 }: {
   contract: ContractModel & { _count?: { documents: number } };
   dateFormat?: string;
+  region?: string;
 }) {
   const days = daysUntil(contract.endDate);
   const cancelled = contract.status === "CANCELLED";
@@ -41,7 +43,7 @@ export function ContractCard({
         </span>
         {contract.cost != null && (
           <span className="tabular-nums">
-            {formatCurrency(contract.cost, contract.currency)}
+            {formatCurrency(contract.cost, contract.currency, undefined, region)}
             {contract.billingFrequency ? ` / ${BILLING_LABELS[contract.billingFrequency]?.toLowerCase()}` : ""}
           </span>
         )}
