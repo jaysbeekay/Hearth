@@ -70,7 +70,7 @@ export async function updatePortfolio(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const user = await requireUser();
+  await requireUser();
   const parsed = portfolioSchema.safeParse({
     name: formData.get("name"),
     description: formData.get("description"),
@@ -83,7 +83,7 @@ export async function updatePortfolio(
     };
   }
   const existing = await prisma.portfolio.findUnique({ where: { id: portfolioId } });
-  if (!existing || existing.createdById !== user.id) return { error: "Portfolio not found." };
+  if (!existing) return { error: "Portfolio not found." };
 
   await prisma.portfolio.update({ where: { id: portfolioId }, data: parsed.data });
   revalidatePath("/wealth");
@@ -92,9 +92,9 @@ export async function updatePortfolio(
 }
 
 export async function deletePortfolio(portfolioId: string): Promise<ActionState> {
-  const user = await requireUser();
+  await requireUser();
   const existing = await prisma.portfolio.findUnique({ where: { id: portfolioId } });
-  if (!existing || existing.createdById !== user.id) return { error: "Portfolio not found." };
+  if (!existing) return { error: "Portfolio not found." };
 
   await prisma.portfolio.delete({ where: { id: portfolioId } });
   revalidatePath("/wealth");
@@ -108,7 +108,7 @@ export async function createHolding(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const user = await requireUser();
+  await requireUser();
   const parsed = holdingSchema.safeParse({
     ticker: formData.get("ticker"),
     name: formData.get("name"),
@@ -123,7 +123,7 @@ export async function createHolding(
   }
 
   const portfolio = await prisma.portfolio.findUnique({ where: { id: portfolioId } });
-  if (!portfolio || portfolio.createdById !== user.id) return { error: "Portfolio not found." };
+  if (!portfolio) return { error: "Portfolio not found." };
 
   const existing = await prisma.holding.findUnique({
     where: { portfolioId_ticker: { portfolioId, ticker: parsed.data.ticker } },
@@ -143,7 +143,7 @@ export async function updateHolding(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const user = await requireUser();
+  await requireUser();
   const parsed = holdingSchema.safeParse({
     ticker: formData.get("ticker"),
     name: formData.get("name"),
@@ -157,11 +157,8 @@ export async function updateHolding(
     };
   }
 
-  const holding = await prisma.holding.findUnique({
-    where: { id: holdingId },
-    include: { portfolio: true },
-  });
-  if (!holding || holding.portfolio.createdById !== user.id) return { error: "Holding not found." };
+  const holding = await prisma.holding.findUnique({ where: { id: holdingId } });
+  if (!holding) return { error: "Holding not found." };
 
   await prisma.holding.update({ where: { id: holdingId }, data: parsed.data });
   revalidatePath(`/wealth/portfolios/${portfolioId}/holdings/${holdingId}`);
@@ -169,12 +166,9 @@ export async function updateHolding(
 }
 
 export async function deleteHolding(portfolioId: string, holdingId: string): Promise<ActionState> {
-  const user = await requireUser();
-  const holding = await prisma.holding.findUnique({
-    where: { id: holdingId },
-    include: { portfolio: true },
-  });
-  if (!holding || holding.portfolio.createdById !== user.id) return { error: "Holding not found." };
+  await requireUser();
+  const holding = await prisma.holding.findUnique({ where: { id: holdingId } });
+  if (!holding) return { error: "Holding not found." };
 
   await prisma.holding.delete({ where: { id: holdingId } });
   revalidatePath(`/wealth/portfolios/${portfolioId}`);
@@ -183,13 +177,8 @@ export async function deleteHolding(portfolioId: string, holdingId: string): Pro
 
 // ── Trades ──────────────────────────────────────────────────────────────────
 
-async function requireHoldingOwner(holdingId: string, userId: string) {
-  const holding = await prisma.holding.findUnique({
-    where: { id: holdingId },
-    include: { portfolio: true },
-  });
-  if (!holding || holding.portfolio.createdById !== userId) return null;
-  return holding;
+async function requireHolding(holdingId: string) {
+  return prisma.holding.findUnique({ where: { id: holdingId } });
 }
 
 async function attachTradeDocument(tradeId: string, file: File): Promise<ActionState | null> {
@@ -215,8 +204,8 @@ export async function createTrade(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const user = await requireUser();
-  const holding = await requireHoldingOwner(holdingId, user.id);
+  await requireUser();
+  const holding = await requireHolding(holdingId);
   if (!holding) return { error: "Holding not found." };
 
   const parsed = tradeSchema.safeParse({
@@ -271,8 +260,8 @@ export async function updateTrade(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const user = await requireUser();
-  const holding = await requireHoldingOwner(holdingId, user.id);
+  await requireUser();
+  const holding = await requireHolding(holdingId);
   if (!holding) return { error: "Holding not found." };
 
   const trade = await prisma.trade.findUnique({ where: { id: tradeId } });
@@ -301,8 +290,8 @@ export async function updateTrade(
 }
 
 export async function deleteTrade(holdingId: string, tradeId: string): Promise<ActionState> {
-  const user = await requireUser();
-  const holding = await requireHoldingOwner(holdingId, user.id);
+  await requireUser();
+  const holding = await requireHolding(holdingId);
   if (!holding) return { error: "Holding not found." };
 
   const trade = await prisma.trade.findUnique({ where: { id: tradeId } });
@@ -320,8 +309,8 @@ export async function addTradeDocument(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const user = await requireUser();
-  const holding = await requireHoldingOwner(holdingId, user.id);
+  await requireUser();
+  const holding = await requireHolding(holdingId);
   if (!holding) return { error: "Holding not found." };
 
   const file = formData.get("file");
@@ -342,8 +331,8 @@ export async function deleteTradeDocumentAction(
   tradeId: string,
   documentId: string,
 ): Promise<ActionState> {
-  const user = await requireUser();
-  const holding = await requireHoldingOwner(holdingId, user.id);
+  await requireUser();
+  const holding = await requireHolding(holdingId);
   if (!holding) return { error: "Holding not found." };
 
   const doc = await prisma.tradeDocument.findUnique({ where: { id: documentId } });
@@ -381,9 +370,9 @@ export async function parseTradesCsv(
   portfolioId: string,
   formData: FormData,
 ): Promise<{ rows: ParsedTrade[]; error?: string }> {
-  const user = await requireUser();
+  await requireUser();
   const portfolio = await prisma.portfolio.findUnique({ where: { id: portfolioId } });
-  if (!portfolio || portfolio.createdById !== user.id) return { rows: [], error: "Portfolio not found." };
+  if (!portfolio) return { rows: [], error: "Portfolio not found." };
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) return { rows: [], error: "Choose a CSV file." };
@@ -474,9 +463,9 @@ export async function importTrades(
   portfolioId: string,
   rows: ParsedTrade[],
 ): Promise<ActionState> {
-  const user = await requireUser();
+  await requireUser();
   const portfolio = await prisma.portfolio.findUnique({ where: { id: portfolioId } });
-  if (!portfolio || portfolio.createdById !== user.id) return { error: "Portfolio not found." };
+  if (!portfolio) return { error: "Portfolio not found." };
 
   let imported = 0;
   let skipped = 0;
@@ -548,7 +537,7 @@ export async function createPropertyValuation(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const user = await requireHomeEnabled();
+  await requireHomeEnabled();
   const parsed = propertyValuationSchema.safeParse({
     valuedAt: formData.get("valuedAt"),
     value: formData.get("value"),
@@ -564,7 +553,7 @@ export async function createPropertyValuation(
   }
 
   const property = await prisma.property.findUnique({ where: { id: propertyId } });
-  if (!property || property.createdById !== user.id) return { error: "Property not found." };
+  if (!property) return { error: "Property not found." };
 
   await prisma.propertyValuation.create({ data: { ...parsed.data, propertyId } });
   revalidatePath(`/home/${propertyId}`);
@@ -575,12 +564,12 @@ export async function deletePropertyValuation(
   propertyId: string,
   valuationId: string,
 ): Promise<ActionState> {
-  const user = await requireHomeEnabled();
+  await requireHomeEnabled();
   const valuation = await prisma.propertyValuation.findUnique({ where: { id: valuationId } });
   if (!valuation || valuation.propertyId !== propertyId) return { error: "Valuation not found." };
 
   const property = await prisma.property.findUnique({ where: { id: propertyId } });
-  if (!property || property.createdById !== user.id) return { error: "Property not found." };
+  if (!property) return { error: "Property not found." };
 
   await prisma.propertyValuation.delete({ where: { id: valuationId } });
   revalidatePath(`/home/${propertyId}`);

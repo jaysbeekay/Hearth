@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { auth } from "@/lib/auth";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { prisma } from "@/lib/prisma";
 import { updateTrade } from "@/lib/actions/wealth";
@@ -15,7 +14,6 @@ export default async function EditTradePage({
   params: Promise<{ id: string; hId: string; tradeId: string }>;
 }) {
   await requireModuleEnabled("WEALTH");
-  const session = await auth();
   const { id: portfolioId, hId: holdingId, tradeId } = await params;
 
   const trade = await prisma.trade.findUnique({
@@ -25,8 +23,7 @@ export default async function EditTradePage({
   if (
     !trade ||
     trade.holdingId !== holdingId ||
-    trade.holding.portfolioId !== portfolioId ||
-    trade.holding.portfolio.createdById !== session!.user.id
+    trade.holding.portfolioId !== portfolioId
   ) {
     notFound();
   }

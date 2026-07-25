@@ -7,6 +7,19 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-07-25
+
+### Fixed
+
+- **Wealth module was scoped to whoever created each record, not the whole
+  household** — a household member could only see the portfolios, holdings,
+  and net worth they personally added, unlike every other module (Contracts,
+  Trips, Vehicles, Home) which is already shared household-wide. Portfolios,
+  holdings, trades, property valuations, and the `/spend` page's contract and
+  home/vehicle spend totals are now visible and editable by every household
+  member, matching the app's documented "household-wide, not per-user"
+  data model.
+
 ## [0.8.1] - 2026-07-21
 
 ### Removed

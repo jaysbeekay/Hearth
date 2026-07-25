@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import {
@@ -23,7 +22,6 @@ export default async function SpendPage({
   const { view: rawView } = await searchParams;
   const view = rawView === "yearly" ? "yearly" : "monthly";
 
-  const session = await auth();
   const [enabledModules, { preferredCurrency }] = await Promise.all([
     getEnabledModuleKeys(),
     getUserPreferences(),
@@ -31,7 +29,7 @@ export default async function SpendPage({
 
   const [contracts, homeItems, vehicleItems] = await Promise.all([
     prisma.contract.findMany({
-      where: { createdById: session!.user.id, status: "ACTIVE" },
+      where: { status: "ACTIVE" },
       select: {
         category: true,
         cost: true,
@@ -44,13 +42,11 @@ export default async function SpendPage({
     }),
     enabledModules.has("HOME")
       ? prisma.homeItem.findMany({
-          where: { property: { createdById: session!.user.id } },
           select: { cost: true, date: true, currency: true, isTaxDeductible: true },
         })
       : [],
     enabledModules.has("VEHICLES")
       ? prisma.vehicleItem.findMany({
-          where: { vehicle: { createdById: session!.user.id } },
           select: { cost: true, date: true, currency: true },
         })
       : [],

@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Plus, Upload, Pencil } from "lucide-react";
-import { auth } from "@/lib/auth";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency } from "@/lib/utils";
@@ -20,14 +19,13 @@ export default async function PortfolioPage({
   params: Promise<{ id: string }>;
 }) {
   await requireModuleEnabled("WEALTH");
-  const session = await auth();
   const { id } = await params;
 
   const portfolio = await prisma.portfolio.findUnique({
     where: { id },
     include: { holdings: { include: { _count: { select: { trades: true } } } } },
   });
-  if (!portfolio || portfolio.createdById !== session!.user.id) notFound();
+  if (!portfolio) notFound();
 
   const holdingTickers = portfolio.holdings.map((h) => ({ ticker: h.ticker, exchange: h.exchange }));
   if (holdingTickers.length) {
@@ -35,7 +33,7 @@ export default async function PortfolioPage({
   }
 
   const enabledModules = await getEnabledModuleKeys();
-  const netWorth = await getNetWorth(session!.user.id, enabledModules as Set<ModuleKey>);
+  const netWorth = await getNetWorth(enabledModules as Set<ModuleKey>);
   const portfolioValue = netWorth.portfolios.find((p) => p.portfolioId === id);
 
   return (
