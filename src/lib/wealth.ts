@@ -58,13 +58,9 @@ function holdingUnitsAndCost(trades: { type: string; units: number; pricePerUnit
   return { units, cost };
 }
 
-export async function getNetWorth(
-  userId: string,
-  enabledModules: Set<ModuleKey>,
-): Promise<NetWorthData> {
+export async function getNetWorth(enabledModules: Set<ModuleKey>): Promise<NetWorthData> {
   const [portfolios, properties, inventoryItems] = await Promise.all([
     prisma.portfolio.findMany({
-      where: { createdById: userId },
       include: {
         holdings: {
           include: { trades: { orderBy: { date: "asc" } } },
@@ -73,13 +69,11 @@ export async function getNetWorth(
     }),
     enabledModules.has("HOME")
       ? prisma.property.findMany({
-          where: { createdById: userId },
           include: { valuations: { orderBy: { valuedAt: "desc" }, take: 1 } },
         })
       : [],
     enabledModules.has("INVENTORY")
       ? prisma.inventoryItem.findMany({
-          where: { createdById: userId },
           select: { purchasePrice: true },
         })
       : [],

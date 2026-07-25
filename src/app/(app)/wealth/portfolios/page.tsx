@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Plus, Pencil, Trash2 } from "lucide-react";
-import { auth } from "@/lib/auth";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency } from "@/lib/utils";
@@ -12,10 +11,8 @@ export const metadata: Metadata = { title: "Portfolios" };
 
 export default async function PortfoliosPage() {
   await requireModuleEnabled("WEALTH");
-  const session = await auth();
 
   const portfolios = await prisma.portfolio.findMany({
-    where: { createdById: session!.user.id },
     include: { holdings: { include: { _count: { select: { trades: true } } } } },
     orderBy: { name: "asc" },
   });

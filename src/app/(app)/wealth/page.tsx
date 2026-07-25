@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Plus, ChevronDown, AlertTriangle } from "lucide-react";
-import { auth } from "@/lib/auth";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { getNetWorth } from "@/lib/wealth";
@@ -15,12 +14,10 @@ export const metadata: Metadata = { title: "Wealth" };
 
 export default async function WealthPage() {
   await requireModuleEnabled("WEALTH");
-  const session = await auth();
   const enabledModules = await getEnabledModuleKeys();
 
   // Warm up prices in background before rendering
   const holdings = await prisma.holding.findMany({
-    where: { portfolio: { createdById: session!.user.id } },
     distinct: ["ticker"],
     select: { ticker: true, exchange: true },
   });
@@ -28,7 +25,7 @@ export default async function WealthPage() {
     await refreshPricesForTickers(holdings).catch(() => {});
   }
 
-  const data = await getNetWorth(session!.user.id, enabledModules as Set<ModuleKey>);
+  const data = await getNetWorth(enabledModules as Set<ModuleKey>);
   const hasPortfolios = data.portfolios.length > 0;
   const allHoldings = data.portfolios.flatMap((p) => p.holdings);
   const topHoldings = [...allHoldings]

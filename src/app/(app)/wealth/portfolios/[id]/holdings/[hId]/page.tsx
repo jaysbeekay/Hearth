@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Pencil, Trash2, Plus } from "lucide-react";
-import { auth } from "@/lib/auth";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -194,7 +193,6 @@ export default async function HoldingPage({
   params: Promise<{ id: string; hId: string }>;
 }) {
   await requireModuleEnabled("WEALTH");
-  const session = await auth();
   const { id: portfolioId, hId: holdingId } = await params;
 
   const [holding, { dateFormat }] = await Promise.all([
@@ -210,7 +208,7 @@ export default async function HoldingPage({
     }),
     getUserPreferences(),
   ]);
-  if (!holding || holding.portfolio.createdById !== session!.user.id || holding.portfolioId !== portfolioId) {
+  if (!holding || holding.portfolioId !== portfolioId) {
     notFound();
   }
 

@@ -412,20 +412,14 @@ const listInventoryItemsTool = defineTool({
 });
 
 // ─── Wealth (module: WEALTH) ─────────────────────────────────────────────────
-// Unlike every tool above, getNetWorth() is inherently scoped to one user's
-// own portfolios/properties/inventory (matching the /wealth page today,
-// see src/lib/wealth.ts) rather than the household-wide model everything
-// else here follows — kept that way deliberately rather than silently
-// diverging from what a user already sees on their own /wealth page.
-// Making net worth household-wide is tracked as a backlog item.
 const netWorthTool = defineTool({
   name: "net_worth",
   description:
-    "The current household member's net worth: share/crypto portfolio value, property value, and inventory value, with per-holding gain/loss. Scoped to the person asking, same as the Wealth page.",
+    "The household's net worth: share/crypto portfolio value, property value, and inventory value, with per-holding gain/loss.",
   moduleKey: "WEALTH",
   inputSchema: { type: "object", properties: {} },
   schema: z.object({}),
-  run: async (_input, ctx) => getNetWorth(ctx.userId, ctx.enabledModules),
+  run: async (_input, ctx) => getNetWorth(ctx.enabledModules),
 });
 
 const ALL_TOOLS: RegisteredTool[] = [
