@@ -87,27 +87,27 @@ export default async function InventoryItemPage({
       <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <dl className="grid grid-cols-2 gap-4 text-sm">
           {item.serialNumber && (
-            <div>
+            <div className="min-w-0">
               <dt className="text-xs text-muted">Serial number</dt>
-              <dd className="font-medium font-mono">{item.serialNumber}</dd>
+              <dd className="font-medium font-mono break-words">{item.serialNumber}</dd>
             </div>
           )}
           {item.location && (
-            <div>
+            <div className="min-w-0">
               <dt className="text-xs text-muted">Location</dt>
-              <dd className="font-medium">{item.location}</dd>
+              <dd className="font-medium break-words">{item.location}</dd>
             </div>
           )}
           {item.purchaseDate && (
-            <div>
+            <div className="min-w-0">
               <dt className="text-xs text-muted">Purchased</dt>
-              <dd className="font-medium">{formatDate(item.purchaseDate, dateFormat)}</dd>
+              <dd className="font-medium break-words">{formatDate(item.purchaseDate, dateFormat)}</dd>
             </div>
           )}
           {item.purchasePrice != null && (
-            <div>
+            <div className="min-w-0">
               <dt className="text-xs text-muted">Purchase price</dt>
-              <dd className="font-medium">{formatCurrency(item.purchasePrice, item.currency, undefined, region)}</dd>
+              <dd className="font-medium break-words">{formatCurrency(item.purchasePrice, item.currency, undefined, region)}</dd>
             </div>
           )}
         </dl>

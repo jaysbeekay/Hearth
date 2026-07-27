@@ -291,9 +291,9 @@ export default async function PropertyDetailPage({
 
 function Detail({ label, value }: { label: string; value: string }) {
   return (
-    <div>
+    <div className="min-w-0">
       <dt className="text-xs text-foreground/50">{label}</dt>
-      <dd className="text-sm font-medium">{value}</dd>
+      <dd className="text-sm font-medium break-words">{value}</dd>
     </div>
   );
 }

@@ -243,44 +243,46 @@ export default async function SpendPage({
       {actualsByYear.length > 0 && (
         <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-3 font-medium">Actuals by financial year</h2>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-xs text-muted">
-                <th className="pb-2">Year</th>
-                {homeActuals.length > 0 && (
-                  <>
-                    <th className="pb-2 text-right">Home</th>
-                    <th className="pb-2 text-right">Home tax deductible</th>
-                  </>
-                )}
-                {vehicleActuals.length > 0 && <th className="pb-2 text-right">Vehicle</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {actualsByYear.map((row) => (
-                <tr key={`${row.label}|${row.currency}`} className="border-b border-border/50">
-                  <td className="py-2">{row.label}</td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs text-muted">
+                  <th className="pb-2">Year</th>
                   {homeActuals.length > 0 && (
                     <>
-                      <td className="py-2 text-right tabular-nums">
-                        {row.home ? formatCurrency(row.home.amount, row.currency, undefined, region) : "—"}
-                      </td>
-                      <td className="py-2 text-right tabular-nums">
-                        {row.homeDeductible
-                          ? formatCurrency(row.homeDeductible.amount, row.currency, undefined, region)
-                          : "—"}
-                      </td>
+                      <th className="pb-2 text-right">Home</th>
+                      <th className="pb-2 text-right">Home tax deductible</th>
                     </>
                   )}
-                  {vehicleActuals.length > 0 && (
-                    <td className="py-2 text-right tabular-nums">
-                      {row.vehicle ? formatCurrency(row.vehicle.amount, row.currency, undefined, region) : "—"}
-                    </td>
-                  )}
+                  {vehicleActuals.length > 0 && <th className="pb-2 text-right">Vehicle</th>}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {actualsByYear.map((row) => (
+                  <tr key={`${row.label}|${row.currency}`} className="border-b border-border/50">
+                    <td className="py-2">{row.label}</td>
+                    {homeActuals.length > 0 && (
+                      <>
+                        <td className="py-2 text-right tabular-nums">
+                          {row.home ? formatCurrency(row.home.amount, row.currency, undefined, region) : "—"}
+                        </td>
+                        <td className="py-2 text-right tabular-nums">
+                          {row.homeDeductible
+                            ? formatCurrency(row.homeDeductible.amount, row.currency, undefined, region)
+                            : "—"}
+                        </td>
+                      </>
+                    )}
+                    {vehicleActuals.length > 0 && (
+                      <td className="py-2 text-right tabular-nums">
+                        {row.vehicle ? formatCurrency(row.vehicle.amount, row.currency, undefined, region) : "—"}
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
     </div>

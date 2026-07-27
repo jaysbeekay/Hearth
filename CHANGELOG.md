@@ -7,6 +7,19 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-07-27
+
+### Fixed
+
+- **Pages required horizontal scrolling on mobile phone screens.** Two
+  causes: the `/spend` page's "Actuals by financial year" table had no
+  `overflow-x-auto` wrapper, and the detail-field grid used on Contracts,
+  Products, Vehicles, Inventory, Home, Home rental, Travel, Wealth holdings,
+  and Settings (Profile) didn't let a long unbroken value (a long email
+  address, policy number, etc.) wrap or shrink, forcing the whole page wider
+  than the screen. Both fixed; content now wraps or scrolls within its own
+  container instead of the page.
+
 ## [0.10.0] - 2026-07-27
 
 ### Changed
