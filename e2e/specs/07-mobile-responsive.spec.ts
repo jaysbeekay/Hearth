@@ -33,3 +33,26 @@ test("/spend page doesn't overflow on a mobile viewport", async ({ page }) => {
   await page.goto("/spend");
   await expectNoHorizontalOverflow(page);
 });
+
+test("DetailOverflowMenu renders as a full-width bottom sheet on mobile", async ({ page }) => {
+  await page.goto("/contracts/new");
+  await page.locator("#title").fill("Overflow Menu Test Contract");
+  await page.locator("#provider").fill("Test Provider");
+  await page.locator("main button[type=submit]").click();
+  await page.waitForURL(/\/contracts\/[^/]+$/);
+
+  const trigger = page.locator('button[aria-label="More actions"]');
+  const triggerBox = await trigger.boundingBox();
+  expect(triggerBox?.width).toBeGreaterThanOrEqual(44);
+  expect(triggerBox?.height).toBeGreaterThanOrEqual(44);
+
+  await trigger.click();
+
+  const sheet = page.locator("div.fixed.inset-0.z-40");
+  await expect(sheet).toBeVisible();
+  const sheetPanel = sheet.locator("> div");
+  const panelBox = await sheetPanel.boundingBox();
+  expect(panelBox?.width).toBeGreaterThan(300);
+
+  await expect(sheet.getByText("Delete", { exact: true })).toBeVisible();
+});

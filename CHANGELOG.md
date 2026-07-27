@@ -7,6 +7,17 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+## [0.10.2] - 2026-07-27
+
+### Changed
+
+- **The overflow ("⋮") menu on detail pages (Contracts, Products, Vehicles,
+  Inventory, Home, Travel) now opens as a full-width bottom sheet on mobile**
+  instead of a small anchored dropdown, making its actions easier to hit with
+  a thumb. Desktop keeps the existing dropdown. The menu's trigger button, and
+  the mobile search/sign-out buttons in the top bar, were also enlarged to a
+  44×44px minimum touch target.
+
 ## [0.10.1] - 2026-07-27
 
 ### Fixed
