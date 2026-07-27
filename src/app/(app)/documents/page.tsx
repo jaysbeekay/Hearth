@@ -49,7 +49,7 @@ export default async function DocumentsPage({
 
   queries.push(
     prisma.productDocument
-      .findMany({ select: { id: true, filename: true, size: true, uploadedAt: true, mimeType: true, product: { select: { id: true, name: true } } } })
+      .findMany({ select: { id: true, filename: true, size: true, uploadedAt: true, mimeType: true, product: { select: { id: true, description: true } } } })
       .then((rows) =>
         rows.map((r) => ({
           id: r.id,
@@ -58,7 +58,7 @@ export default async function DocumentsPage({
           uploadedAt: r.uploadedAt,
           mimeType: r.mimeType,
           type: "Products",
-          parentTitle: r.product.name,
+          parentTitle: r.product.description,
           parentHref: `/products/${r.product.id}`,
           downloadHref: `/api/products/documents/${r.id}`,
         })),

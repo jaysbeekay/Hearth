@@ -7,7 +7,40 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
-## [0.9.0] - 2026-07-25
+## [0.10.0] - 2026-07-27
+
+### Changed
+
+- **Products now track Brand, Model, and Description separately**, matching
+  how most retail invoices itemise a purchase. The previous single "Product
+  name" field is now "Description" (e.g. "6kg Vented Dryer"); "Manufacturer"
+  is now labelled "Brand"; and there's a new "Model" field (e.g. a model
+  number/code). Existing products keep their data — the old name value
+  becomes the new description. Search, exports, calendar/iCal feeds,
+  warranty-reminder notifications, and the AI Assistant's product tool all
+  updated to match.
+
+## [0.9.1] - 2026-07-27
+
+### Fixed
+
+- **Spend and Wealth totals no longer silently sum different currencies as if
+  they were the same currency.** The `/spend` page's summary tiles and
+  monthly/yearly/category timelines, the dashboard's "Est. monthly spend"
+  stat, and `getNetWorth()`'s share/property/inventory totals now convert
+  amounts to a common currency using live exchange rates before aggregating,
+  instead of adding raw numbers together (or, for the dashboard, silently
+  excluding non-matching-currency contracts). Falls back to excluding an
+  amount (with a small caveat note) only if a live rate genuinely can't be
+  fetched.
+- **Live equity price fetching for the Wealth module was silently broken** —
+  `yahoo-finance2` v3 requires instantiating its default export
+  (`new YahooFinance()`) rather than calling methods on it directly, so every
+  price/historical-price request was failing and being swallowed by existing
+  error handling. Fixed in `src/lib/prices.ts` (and used correctly in the new
+  FX-rate module above).
+
+Bump to 0.9.1.
 
 ### Added
 

@@ -24,7 +24,7 @@ export function ProductCard({
           <p className="truncate text-sm text-muted">
             {product.manufacturer ?? product.vendor ?? "Product"}
           </p>
-          <p className="truncate font-medium">{product.name}</p>
+          <p className="truncate font-medium">{product.description}</p>
           {product.serialNumber && (
             <p className="truncate text-sm text-muted">S/N: {product.serialNumber}</p>
           )}

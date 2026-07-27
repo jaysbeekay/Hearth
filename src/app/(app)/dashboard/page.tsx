@@ -12,6 +12,7 @@ import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { OnboardingChecklist } from "@/components/OnboardingChecklist";
 import { daysUntil, monthlyEquivalent, formatCurrency } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
+import { refreshFxRates, getFxRateMap, convertAmount } from "@/lib/fx";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { auth } from "@/lib/auth";
 import { isSmtpConfigured, isNtfyConfigured } from "@/lib/appSettings";
@@ -54,14 +55,21 @@ export default async function DashboardPage() {
 
   const expired = withDays.filter((c) => c.days != null && c.days < 0);
 
-  // Only sum contracts in the user's preferred currency — summing raw numbers
-  // across different currencies would produce a meaningless total.
-  const matchingCurrency = active.filter((c) => c.currency === preferredCurrency);
-  const otherCurrencyCount = active.length - matchingCurrency.length;
-  const monthlySpend = matchingCurrency.reduce(
-    (sum, c) => sum + monthlyEquivalent(c.cost, c.billingFrequency),
-    0,
-  );
+  const activeCurrencies = [...new Set(active.map((c) => c.currency))];
+  const fxPairs = activeCurrencies.map((from) => ({ from, to: preferredCurrency }));
+  await refreshFxRates(fxPairs);
+  const rateMap = await getFxRateMap(fxPairs);
+
+  let hasUnconvertedSpend = false;
+  const monthlySpend = active.reduce((sum, c) => {
+    if (c.cost == null) return sum;
+    const converted = convertAmount(c.cost, c.currency, preferredCurrency, rateMap);
+    if (converted == null) {
+      hasUnconvertedSpend = true;
+      return sum;
+    }
+    return sum + monthlyEquivalent(converted, c.billingFrequency);
+  }, 0);
 
   const productsWithDays = products.map((p) => ({
     product: p,
@@ -151,14 +159,14 @@ export default async function DashboardPage() {
               label="Est. monthly spend"
               value={
                 formatCurrency(monthlySpend, preferredCurrency, undefined, region) +
-                (otherCurrencyCount > 0 ? "*" : "")
+                (hasUnconvertedSpend ? "*" : "")
               }
             />
           </div>
-          {otherCurrencyCount > 0 && (
+          {hasUnconvertedSpend && (
             <p className="text-xs text-muted">
-              * Excludes {otherCurrencyCount} contract{otherCurrencyCount === 1 ? "" : "s"} billed in a
-              different currency.
+              * Some contracts are billed in a currency that couldn&apos;t be converted right now —
+              excluded from this total.
             </p>
           )}
 

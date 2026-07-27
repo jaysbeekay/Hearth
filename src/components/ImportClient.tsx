@@ -32,7 +32,7 @@ interface ContractFields {
 }
 
 interface ProductFields {
-  name: string;
+  description: string;
   manufacturer: string;
   price: string;
 }
@@ -126,12 +126,12 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
         status: "ready",
         scanMessage,
         product: {
-          name: fields.name ?? file.name.replace(/\.[^.]+$/, ""),
+          description: fields.description ?? file.name.replace(/\.[^.]+$/, ""),
           manufacturer: fields.manufacturer ?? "",
           price: fields.price ?? "",
         },
         productAutoFilled: {
-          name: Boolean(fields.name),
+          description: Boolean(fields.description),
           manufacturer: Boolean(fields.manufacturer),
           price: Boolean(fields.price),
         },
@@ -165,7 +165,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
         type: "CONTRACT",
         status: "scanning",
         contract: { title: "", provider: "", category: "OTHER", cost: "" },
-        product: { name: "", manufacturer: "", price: "" },
+        product: { description: "", manufacturer: "", price: "" },
         inventory: { label: "", category: "OTHER", brand: "", purchasePrice: "" },
         contractAutoFilled: {},
         productAutoFilled: {},
@@ -193,7 +193,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
       formData.append("cost", row.contract.cost);
       result = await importContract(formData);
     } else if (row.type === "PRODUCT") {
-      formData.append("name", row.product.name);
+      formData.append("description", row.product.description);
       formData.append("manufacturer", row.product.manufacturer);
       formData.append("price", row.product.price);
       result = await importProduct(formData);
@@ -403,18 +403,18 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                 {(row.status === "ready" || row.status === "saving" || row.status === "error") &&
                   row.type === "PRODUCT" && (
                     <div className="grid gap-2 sm:grid-cols-3">
-                      <RowField label="Name" htmlFor={`${row.id}-name`}>
+                      <RowField label="Description" htmlFor={`${row.id}-description`}>
                         <input
-                          id={`${row.id}-name`}
-                          value={row.product.name}
+                          id={`${row.id}-description`}
+                          value={row.product.description}
                           disabled={row.status === "saving"}
                           onChange={(e) =>
                             updateRow(row.id, {
-                              product: { ...row.product, name: e.target.value },
-                              productAutoFilled: { ...row.productAutoFilled, name: false },
+                              product: { ...row.product, description: e.target.value },
+                              productAutoFilled: { ...row.productAutoFilled, description: false },
                             })
                           }
-                          className={fieldClass(row.productAutoFilled.name)}
+                          className={fieldClass(row.productAutoFilled.description)}
                         />
                       </RowField>
                       <RowField label="Manufacturer" htmlFor={`${row.id}-manufacturer`}>

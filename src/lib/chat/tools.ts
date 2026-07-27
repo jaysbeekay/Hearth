@@ -194,7 +194,7 @@ const spendSummaryTool = defineTool({
 const listProductsTool = defineTool({
   name: "list_products",
   description:
-    "List tracked products/purchases and their warranty status, optionally filtered by a search term over name/manufacturer/vendor.",
+    "List tracked products/purchases and their warranty status, optionally filtered by a search term over description/manufacturer/model/vendor.",
   inputSchema: {
     type: "object",
     properties: { query: { type: "string", description: "Optional search text." } },
@@ -205,16 +205,18 @@ const listProductsTool = defineTool({
       where: query
         ? {
             OR: [
-              { name: { contains: query } },
+              { description: { contains: query } },
               { manufacturer: { contains: query } },
+              { model: { contains: query } },
               { vendor: { contains: query } },
             ],
           }
         : undefined,
       select: {
         id: true,
-        name: true,
+        description: true,
         manufacturer: true,
+        model: true,
         vendor: true,
         purchaseDate: true,
         warrantyEndDate: true,

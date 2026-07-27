@@ -18,7 +18,7 @@ function toDateInputValue(date: Date | null | undefined) {
 }
 
 type ExtractedFields = Partial<
-  Record<"name" | "manufacturer" | "vendor" | "serialNumber" | "purchaseDate" | "price", string>
+  Record<"description" | "manufacturer" | "model" | "vendor" | "serialNumber" | "purchaseDate" | "price", string>
 >;
 
 export function ProductForm({
@@ -33,7 +33,7 @@ export function ProductForm({
   const offlineAwareAction = makeOfflineAwareAction(
     action,
     () => ({
-      label: product ? `Update product: ${product.name}` : "Add product",
+      label: product ? `Update product: ${product.description}` : "Add product",
       entity: "product",
       operation: product ? "update" : "create",
       entityId: product?.id,
@@ -49,8 +49,9 @@ export function ProductForm({
   const [lookingUp, setLookingUp] = useState(false);
   const [lookupMessage, setLookupMessage] = useState<string | null>(null);
 
-  const nameRef = useRef<HTMLInputElement>(null);
+  const descriptionRef = useRef<HTMLInputElement>(null);
   const manufacturerRef = useRef<HTMLInputElement>(null);
+  const modelRef = useRef<HTMLInputElement>(null);
   const vendorRef = useRef<HTMLInputElement>(null);
   const serialNumberRef = useRef<HTMLInputElement>(null);
   const barcodeRef = useRef<HTMLInputElement>(null);
@@ -58,13 +59,17 @@ export function ProductForm({
   const priceRef = useRef<HTMLInputElement>(null);
 
   function applyExtractedFields(fields: ExtractedFields) {
-    if (fields.name && nameRef.current && !nameRef.current.value) {
-      nameRef.current.value = fields.name;
-      markAutoFilled(nameRef.current);
+    if (fields.description && descriptionRef.current && !descriptionRef.current.value) {
+      descriptionRef.current.value = fields.description;
+      markAutoFilled(descriptionRef.current);
     }
     if (fields.manufacturer && manufacturerRef.current) {
       manufacturerRef.current.value = fields.manufacturer;
       markAutoFilled(manufacturerRef.current);
+    }
+    if (fields.model && modelRef.current) {
+      modelRef.current.value = fields.model;
+      markAutoFilled(modelRef.current);
     }
     if (fields.vendor && vendorRef.current) {
       vendorRef.current.value = fields.vendor;
@@ -179,25 +184,36 @@ export function ProductForm({
       )}
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Product name" htmlFor="name">
+        <Field label="Description" htmlFor="description">
           <input
-            ref={nameRef}
-            id="name"
-            name="name"
+            ref={descriptionRef}
+            id="description"
+            name="description"
             required
-            defaultValue={state?.values?.name ?? product?.name}
-            placeholder="e.g. Samsung 65-inch QLED TV"
+            defaultValue={state?.values?.description ?? product?.description}
+            placeholder="e.g. 65-inch QLED TV"
             className={inputClass}
           />
         </Field>
 
-        <Field label="Manufacturer" htmlFor="manufacturer">
+        <Field label="Brand" htmlFor="manufacturer">
           <input
             ref={manufacturerRef}
             id="manufacturer"
             name="manufacturer"
             defaultValue={state?.values?.manufacturer ?? product?.manufacturer ?? ""}
             placeholder="e.g. Samsung"
+            className={inputClass}
+          />
+        </Field>
+
+        <Field label="Model" htmlFor="model">
+          <input
+            ref={modelRef}
+            id="model"
+            name="model"
+            defaultValue={state?.values?.model ?? product?.model ?? ""}
+            placeholder="e.g. QN65Q80"
             className={inputClass}
           />
         </Field>

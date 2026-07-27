@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
   // Products
   const products = await prisma.product.findMany({
     where: { createdById: user.id, warrantyEndDate: { not: null } },
-    select: { id: true, name: true, manufacturer: true, warrantyEndDate: true },
+    select: { id: true, description: true, manufacturer: true, warrantyEndDate: true },
   });
   for (const p of products) {
     if (!p.warrantyEndDate) continue;
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
       start: p.warrantyEndDate,
       end: new Date(p.warrantyEndDate.getTime() + 86_400_000),
       allDay: true,
-      summary: `${p.name} warranty expires`,
+      summary: `${p.description} warranty expires`,
       description: p.manufacturer ?? undefined,
       url: `${appUrl}/products/${p.id}`,
     });

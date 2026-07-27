@@ -24,8 +24,9 @@ export type ActionState = {
 } | null;
 
 const PRODUCT_FORM_FIELDS = [
-  "name",
+  "description",
   "manufacturer",
+  "model",
   "vendor",
   "serialNumber",
   "barcode",
