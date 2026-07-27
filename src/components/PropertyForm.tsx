@@ -1,11 +1,18 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { PropertyModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
-import { makeOfflineAwareAction } from "@/lib/offlineQueue";
+import {
+  makeOfflineAwareAction,
+  getOperationById,
+  updateOperationFormValues,
+  serializeFormData,
+  type QueuedOperation,
+} from "@/lib/offlineQueue";
 
 interface GeocodeSuggestion {
   display_name: string;
@@ -34,9 +41,99 @@ export function PropertyForm({
 
   const [state, formAction] = useActionState<ActionState, FormData>(offlineAwareAction, null);
 
-  const [address, setAddress] = useState(state?.values?.address ?? property?.address ?? "");
-  const [lat, setLat] = useState<number | null>(property?.lat ?? null);
-  const [lng, setLng] = useState<number | null>(property?.lng ?? null);
+  const router = useRouter();
+  const pendingOpId = useSearchParams().get("pendingOpId");
+  const [pendingOp, setPendingOp] = useState<QueuedOperation | null | undefined>(
+    pendingOpId ? undefined : null,
+  );
+  useEffect(() => {
+    if (!pendingOpId) return;
+    getOperationById(pendingOpId).then((op) => setPendingOp(op ?? null));
+  }, [pendingOpId]);
+  const effectiveValues = state?.values ?? pendingOp?.formValues;
+
+  async function handlePendingSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!pendingOp) return;
+    const { values } = serializeFormData(new FormData(e.currentTarget));
+    await updateOperationFormValues(pendingOp.id, values);
+    router.push("/home");
+  }
+
+  if (pendingOp === undefined) {
+    return <p className="text-sm text-muted">Loading…</p>;
+  }
+
+  return (
+    <form
+      {...(pendingOp ? { onSubmit: handlePendingSubmit } : { action: formAction })}
+      className="space-y-6"
+    >
+      {pendingOp && (
+        <p className="rounded-lg border border-dashed border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-700 dark:text-amber-400">
+          Editing an offline entry that hasn&apos;t synced yet — saving updates it in place.
+        </p>
+      )}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Field label="Label" htmlFor="label">
+          <input
+            id="label"
+            name="label"
+            required
+            defaultValue={effectiveValues?.label ?? property?.label}
+            placeholder="e.g. Main residence"
+            className={inputClass}
+          />
+        </Field>
+
+        <Field label="Address" htmlFor="address">
+          <AddressField
+            initialAddress={effectiveValues?.address ?? property?.address ?? ""}
+            initialLat={
+              effectiveValues?.lat != null ? Number(effectiveValues.lat) : (property?.lat ?? null)
+            }
+            initialLng={
+              effectiveValues?.lng != null ? Number(effectiveValues.lng) : (property?.lng ?? null)
+            }
+          />
+        </Field>
+      </div>
+
+      <Field label="Notes" htmlFor="notes">
+        <textarea
+          id="notes"
+          name="notes"
+          rows={4}
+          defaultValue={effectiveValues?.notes ?? property?.notes ?? ""}
+          className={inputClass}
+        />
+      </Field>
+
+      <FormMessage error={state?.error} success={state?.success} />
+
+      <div className="flex justify-end gap-3">
+        <SubmitButton>{pendingOp || property ? "Save changes" : "Add property"}</SubmitButton>
+      </div>
+    </form>
+  );
+}
+
+// Split out so its address/lat/lng state initializes fresh from whatever the
+// parent already resolved (contract, in-progress edit, or a queued offline
+// op) — this component only mounts once that's known, so plain useState
+// initializers are correct without an extra effect to re-sync them later.
+function AddressField({
+  initialAddress,
+  initialLat,
+  initialLng,
+}: {
+  initialAddress: string;
+  initialLat: number | null;
+  initialLng: number | null;
+}) {
+  const [address, setAddress] = useState(initialAddress);
+  const [lat, setLat] = useState<number | null>(initialLat);
+  const [lng, setLng] = useState<number | null>(initialLng);
   const [suggestions, setSuggestions] = useState<GeocodeSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -89,70 +186,37 @@ export function PropertyForm({
   const visibleSuggestions = address.trim().length >= 3 ? suggestions : [];
 
   return (
-    <form action={formAction} className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Label" htmlFor="label">
-          <input
-            id="label"
-            name="label"
-            required
-            defaultValue={state?.values?.label ?? property?.label}
-            placeholder="e.g. Main residence"
-            className={inputClass}
-          />
-        </Field>
-
-        <Field label="Address" htmlFor="address">
-          <div className="relative">
-            <input
-              id="address"
-              name="address"
-              value={address}
-              onChange={(e) => handleAddressChange(e.target.value)}
-              onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
-              onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-              placeholder="e.g. 35C Clarence Street"
-              autoComplete="off"
-              className={inputClass}
-            />
-            <input type="hidden" name="lat" value={lat ?? ""} />
-            <input type="hidden" name="lng" value={lng ?? ""} />
-            {showSuggestions && visibleSuggestions.length > 0 && (
-              <ul className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-border bg-surface shadow-md">
-                {visibleSuggestions.map((s) => (
-                  <li key={`${s.lat},${s.lng}`}>
-                    <button
-                      type="button"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => selectSuggestion(s)}
-                      className="block w-full px-3 py-2 text-left text-sm hover:bg-black/5 dark:hover:bg-white/5"
-                    >
-                      {s.display_name}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </Field>
-      </div>
-
-      <Field label="Notes" htmlFor="notes">
-        <textarea
-          id="notes"
-          name="notes"
-          rows={4}
-          defaultValue={state?.values?.notes ?? property?.notes ?? ""}
-          className={inputClass}
-        />
-      </Field>
-
-      <FormMessage error={state?.error} success={state?.success} />
-
-      <div className="flex justify-end gap-3">
-        <SubmitButton>{property ? "Save changes" : "Add property"}</SubmitButton>
-      </div>
-    </form>
+    <div className="relative">
+      <input
+        id="address"
+        name="address"
+        value={address}
+        onChange={(e) => handleAddressChange(e.target.value)}
+        onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+        onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+        placeholder="e.g. 35C Clarence Street"
+        autoComplete="off"
+        className={inputClass}
+      />
+      <input type="hidden" name="lat" value={lat ?? ""} />
+      <input type="hidden" name="lng" value={lng ?? ""} />
+      {showSuggestions && visibleSuggestions.length > 0 && (
+        <ul className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-border bg-surface shadow-md">
+          {visibleSuggestions.map((s) => (
+            <li key={`${s.lat},${s.lng}`}>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => selectSuggestion(s)}
+                className="block w-full px-3 py-2 text-left text-sm hover:bg-black/5 dark:hover:bg-white/5"
+              >
+                {s.display_name}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

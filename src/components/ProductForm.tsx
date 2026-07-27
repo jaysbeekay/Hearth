@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ScanBarcode, Upload } from "lucide-react";
 import type { ProductModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/products";
@@ -9,7 +10,13 @@ import { FormMessage } from "@/components/FormMessage";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
-import { makeOfflineAwareAction } from "@/lib/offlineQueue";
+import {
+  makeOfflineAwareAction,
+  getOperationById,
+  updateOperationFormValues,
+  serializeFormData,
+  type QueuedOperation,
+} from "@/lib/offlineQueue";
 import { markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 
 function toDateInputValue(date: Date | null | undefined) {
@@ -48,6 +55,25 @@ export function ProductForm({
   const [scannerOpen, setScannerOpen] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
   const [lookupMessage, setLookupMessage] = useState<string | null>(null);
+
+  const router = useRouter();
+  const pendingOpId = useSearchParams().get("pendingOpId");
+  const [pendingOp, setPendingOp] = useState<QueuedOperation | null | undefined>(
+    pendingOpId ? undefined : null,
+  );
+  useEffect(() => {
+    if (!pendingOpId) return;
+    getOperationById(pendingOpId).then((op) => setPendingOp(op ?? null));
+  }, [pendingOpId]);
+  const effectiveValues = state?.values ?? pendingOp?.formValues;
+
+  async function handlePendingSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!pendingOp) return;
+    const { values } = serializeFormData(new FormData(e.currentTarget));
+    await updateOperationFormValues(pendingOp.id, values);
+    router.push("/products");
+  }
 
   const descriptionRef = useRef<HTMLInputElement>(null);
   const manufacturerRef = useRef<HTMLInputElement>(null);
@@ -151,8 +177,20 @@ export function ProductForm({
     if (!product) handleBarcodeLookup(code);
   }
 
+  if (pendingOp === undefined) {
+    return <p className="text-sm text-muted">Loading…</p>;
+  }
+
   return (
-    <form action={formAction} className="space-y-6">
+    <form
+      {...(pendingOp ? { onSubmit: handlePendingSubmit } : { action: formAction })}
+      className="space-y-6"
+    >
+      {pendingOp && (
+        <p className="rounded-lg border border-dashed border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-700 dark:text-amber-400">
+          Editing an offline entry that hasn&apos;t synced yet — saving updates it in place.
+        </p>
+      )}
       {!product && (
         <div className="space-y-4">
           <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
@@ -190,7 +228,7 @@ export function ProductForm({
             id="description"
             name="description"
             required
-            defaultValue={state?.values?.description ?? product?.description}
+            defaultValue={effectiveValues?.description ?? product?.description}
             placeholder="e.g. 65-inch QLED TV"
             className={inputClass}
           />
@@ -201,7 +239,7 @@ export function ProductForm({
             ref={manufacturerRef}
             id="manufacturer"
             name="manufacturer"
-            defaultValue={state?.values?.manufacturer ?? product?.manufacturer ?? ""}
+            defaultValue={effectiveValues?.manufacturer ?? product?.manufacturer ?? ""}
             placeholder="e.g. Samsung"
             className={inputClass}
           />
@@ -212,7 +250,7 @@ export function ProductForm({
             ref={modelRef}
             id="model"
             name="model"
-            defaultValue={state?.values?.model ?? product?.model ?? ""}
+            defaultValue={effectiveValues?.model ?? product?.model ?? ""}
             placeholder="e.g. QN65Q80"
             className={inputClass}
           />
@@ -223,7 +261,7 @@ export function ProductForm({
             ref={vendorRef}
             id="vendor"
             name="vendor"
-            defaultValue={state?.values?.vendor ?? product?.vendor ?? ""}
+            defaultValue={effectiveValues?.vendor ?? product?.vendor ?? ""}
             placeholder="e.g. JB Hi-Fi"
             className={inputClass}
           />
@@ -234,7 +272,7 @@ export function ProductForm({
             ref={serialNumberRef}
             id="serialNumber"
             name="serialNumber"
-            defaultValue={state?.values?.serialNumber ?? product?.serialNumber ?? ""}
+            defaultValue={effectiveValues?.serialNumber ?? product?.serialNumber ?? ""}
             className={inputClass}
           />
         </Field>
@@ -245,7 +283,7 @@ export function ProductForm({
               ref={barcodeRef}
               id="barcode"
               name="barcode"
-              defaultValue={state?.values?.barcode ?? product?.barcode ?? ""}
+              defaultValue={effectiveValues?.barcode ?? product?.barcode ?? ""}
               placeholder="e.g. 9310036001234"
               className={inputClass}
             />
@@ -278,7 +316,7 @@ export function ProductForm({
             id="purchaseDate"
             name="purchaseDate"
             type="date"
-            defaultValue={state?.values?.purchaseDate ?? toDateInputValue(product?.purchaseDate)}
+            defaultValue={effectiveValues?.purchaseDate ?? toDateInputValue(product?.purchaseDate)}
             className={inputClass}
           />
         </Field>
@@ -289,7 +327,7 @@ export function ProductForm({
             name="warrantyEndDate"
             type="date"
             defaultValue={
-              state?.values?.warrantyEndDate ?? toDateInputValue(product?.warrantyEndDate)
+              effectiveValues?.warrantyEndDate ?? toDateInputValue(product?.warrantyEndDate)
             }
             className={inputClass}
           />
@@ -303,7 +341,7 @@ export function ProductForm({
             type="number"
             min={0}
             step="0.01"
-            defaultValue={state?.values?.price ?? product?.price ?? ""}
+            defaultValue={effectiveValues?.price ?? product?.price ?? ""}
             className={inputClass}
           />
         </Field>
@@ -311,7 +349,7 @@ export function ProductForm({
         <Field label="Currency" htmlFor="currency">
           <CurrencySelect
             name="currency"
-            defaultValue={state?.values?.currency ?? product?.currency ?? defaultCurrency}
+            defaultValue={effectiveValues?.currency ?? product?.currency ?? defaultCurrency}
           />
         </Field>
       </div>
@@ -321,7 +359,7 @@ export function ProductForm({
           id="notes"
           name="notes"
           rows={4}
-          defaultValue={state?.values?.notes ?? product?.notes ?? ""}
+          defaultValue={effectiveValues?.notes ?? product?.notes ?? ""}
           className={inputClass}
         />
       </Field>
@@ -333,7 +371,7 @@ export function ProductForm({
         <input
           id="reminderDaysBefore"
           name="reminderDaysBefore"
-          defaultValue={state?.values?.reminderDaysBefore ?? product?.reminderDaysBefore ?? ""}
+          defaultValue={effectiveValues?.reminderDaysBefore ?? product?.reminderDaysBefore ?? ""}
           placeholder="30,14,7,1"
           className={inputClass}
         />
@@ -342,7 +380,7 @@ export function ProductForm({
       <FormMessage error={state?.error} success={state?.success} />
 
       <div className="flex justify-end gap-3">
-        <SubmitButton>{product ? "Save changes" : "Add product"}</SubmitButton>
+        <SubmitButton>{pendingOp || product ? "Save changes" : "Add product"}</SubmitButton>
       </div>
 
       {scannerOpen && (

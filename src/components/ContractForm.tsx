@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Upload } from "lucide-react";
 import type { ContractModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/contracts";
@@ -14,7 +15,13 @@ import {
 import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
-import { makeOfflineAwareAction } from "@/lib/offlineQueue";
+import {
+  makeOfflineAwareAction,
+  getOperationById,
+  updateOperationFormValues,
+  serializeFormData,
+  type QueuedOperation,
+} from "@/lib/offlineQueue";
 import { markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 
 function toDateInputValue(date: Date | null | undefined) {
@@ -62,6 +69,31 @@ export function ContractForm({
   const [state, formAction] = useActionState<ActionState, FormData>(offlineAwareAction, null);
   const [scanning, setScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
+
+  // Editing a record that was created offline and hasn't synced yet — there's
+  // no server-side row to update, so submitting rewrites the queued
+  // operation's formValues in place instead of calling the real action.
+  const router = useRouter();
+  const pendingOpId = useSearchParams().get("pendingOpId");
+  // undefined = still loading from IndexedDB (only relevant when pendingOpId
+  // is set) — the field defaultValues below must not mount until this
+  // resolves, since defaultValue only takes effect on an input's first mount.
+  const [pendingOp, setPendingOp] = useState<QueuedOperation | null | undefined>(
+    pendingOpId ? undefined : null,
+  );
+  useEffect(() => {
+    if (!pendingOpId) return;
+    getOperationById(pendingOpId).then((op) => setPendingOp(op ?? null));
+  }, [pendingOpId]);
+  const effectiveValues = state?.values ?? pendingOp?.formValues;
+
+  async function handlePendingSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!pendingOp) return;
+    const { values } = serializeFormData(new FormData(e.currentTarget));
+    await updateOperationFormValues(pendingOp.id, values);
+    router.push("/contracts");
+  }
 
   const titleRef = useRef<HTMLInputElement>(null);
   const providerRef = useRef<HTMLInputElement>(null);
@@ -142,8 +174,20 @@ export function ContractForm({
     }
   }
 
+  if (pendingOp === undefined) {
+    return <p className="text-sm text-muted">Loading…</p>;
+  }
+
   return (
-    <form action={formAction} className="space-y-6">
+    <form
+      {...(pendingOp ? { onSubmit: handlePendingSubmit } : { action: formAction })}
+      className="space-y-6"
+    >
+      {pendingOp && (
+        <p className="rounded-lg border border-dashed border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-700 dark:text-amber-400">
+          Editing an offline entry that hasn&apos;t synced yet — saving updates it in place.
+        </p>
+      )}
       {!contract && (
         <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
           <p className="flex items-center gap-2 text-sm font-medium">
@@ -171,7 +215,7 @@ export function ContractForm({
             id="title"
             name="title"
             required
-            defaultValue={state?.values?.title ?? contract?.title}
+            defaultValue={effectiveValues?.title ?? contract?.title}
             placeholder="e.g. Apartment lease - 12 Main St"
             className={inputClass}
           />
@@ -183,7 +227,7 @@ export function ContractForm({
               id="category"
               name="category"
               required
-              defaultValue={state?.values?.category ?? contract?.category ?? "OTHER"}
+              defaultValue={effectiveValues?.category ?? contract?.category ?? "OTHER"}
               className={selectClass}
             >
               {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
@@ -201,7 +245,7 @@ export function ContractForm({
             id="provider"
             name="provider"
             required
-            defaultValue={state?.values?.provider ?? contract?.provider}
+            defaultValue={effectiveValues?.provider ?? contract?.provider}
             placeholder="e.g. Allianz, Acme Realty"
             className={inputClass}
           />
@@ -212,7 +256,7 @@ export function ContractForm({
             ref={contractNumberRef}
             id="contractNumber"
             name="contractNumber"
-            defaultValue={state?.values?.contractNumber ?? contract?.contractNumber ?? ""}
+            defaultValue={effectiveValues?.contractNumber ?? contract?.contractNumber ?? ""}
             className={inputClass}
           />
         </Field>
@@ -223,7 +267,7 @@ export function ContractForm({
             id="startDate"
             name="startDate"
             type="date"
-            defaultValue={state?.values?.startDate ?? toDateInputValue(contract?.startDate)}
+            defaultValue={effectiveValues?.startDate ?? toDateInputValue(contract?.startDate)}
             className={inputClass}
           />
         </Field>
@@ -234,7 +278,7 @@ export function ContractForm({
             id="endDate"
             name="endDate"
             type="date"
-            defaultValue={state?.values?.endDate ?? toDateInputValue(contract?.endDate)}
+            defaultValue={effectiveValues?.endDate ?? toDateInputValue(contract?.endDate)}
             className={inputClass}
           />
         </Field>
@@ -244,7 +288,7 @@ export function ContractForm({
             <select
               id="renewalType"
               name="renewalType"
-              defaultValue={state?.values?.renewalType ?? contract?.renewalType ?? "MANUAL_RENEWAL"}
+              defaultValue={effectiveValues?.renewalType ?? contract?.renewalType ?? "MANUAL_RENEWAL"}
               className={selectClass}
             >
               {Object.entries(RENEWAL_LABELS).map(([value, label]) => (
@@ -262,7 +306,7 @@ export function ContractForm({
             name="noticePeriodDays"
             type="number"
             min={0}
-            defaultValue={state?.values?.noticePeriodDays ?? contract?.noticePeriodDays ?? ""}
+            defaultValue={effectiveValues?.noticePeriodDays ?? contract?.noticePeriodDays ?? ""}
             placeholder="e.g. 30"
             className={inputClass}
           />
@@ -276,7 +320,7 @@ export function ContractForm({
             type="number"
             min={0}
             step="0.01"
-            defaultValue={state?.values?.cost ?? contract?.cost ?? ""}
+            defaultValue={effectiveValues?.cost ?? contract?.cost ?? ""}
             className={inputClass}
           />
         </Field>
@@ -284,7 +328,7 @@ export function ContractForm({
         <Field label="Currency" htmlFor="currency">
           <CurrencySelect
             name="currency"
-            defaultValue={state?.values?.currency ?? contract?.currency ?? defaultCurrency}
+            defaultValue={effectiveValues?.currency ?? contract?.currency ?? defaultCurrency}
           />
         </Field>
 
@@ -294,7 +338,7 @@ export function ContractForm({
               ref={billingFrequencyRef}
               id="billingFrequency"
               name="billingFrequency"
-              defaultValue={state?.values?.billingFrequency ?? contract?.billingFrequency ?? ""}
+              defaultValue={effectiveValues?.billingFrequency ?? contract?.billingFrequency ?? ""}
               className={selectClass}
             >
               <option value="">Not set</option>
@@ -313,7 +357,7 @@ export function ContractForm({
               <select
                 id="status"
                 name="status"
-                defaultValue={state?.values?.status ?? contract.status}
+                defaultValue={effectiveValues?.status ?? contract.status}
                 className={selectClass}
               >
                 <option value="ACTIVE">Active</option>
@@ -334,7 +378,7 @@ export function ContractForm({
               ref={contactNameRef}
               id="contactName"
               name="contactName"
-              defaultValue={state?.values?.contactName ?? contract?.contactName ?? ""}
+              defaultValue={effectiveValues?.contactName ?? contract?.contactName ?? ""}
               className={inputClass}
             />
           </Field>
@@ -343,7 +387,7 @@ export function ContractForm({
               ref={contactPhoneRef}
               id="contactPhone"
               name="contactPhone"
-              defaultValue={state?.values?.contactPhone ?? contract?.contactPhone ?? ""}
+              defaultValue={effectiveValues?.contactPhone ?? contract?.contactPhone ?? ""}
               className={inputClass}
             />
           </Field>
@@ -353,7 +397,7 @@ export function ContractForm({
               id="contactEmail"
               name="contactEmail"
               type="email"
-              defaultValue={state?.values?.contactEmail ?? contract?.contactEmail ?? ""}
+              defaultValue={effectiveValues?.contactEmail ?? contract?.contactEmail ?? ""}
               className={inputClass}
             />
           </Field>
@@ -365,7 +409,7 @@ export function ContractForm({
           id="notes"
           name="notes"
           rows={4}
-          defaultValue={state?.values?.notes ?? contract?.notes ?? ""}
+          defaultValue={effectiveValues?.notes ?? contract?.notes ?? ""}
           className={inputClass}
         />
       </Field>
@@ -377,7 +421,7 @@ export function ContractForm({
         <input
           id="reminderDaysBefore"
           name="reminderDaysBefore"
-          defaultValue={state?.values?.reminderDaysBefore ?? contract?.reminderDaysBefore ?? ""}
+          defaultValue={effectiveValues?.reminderDaysBefore ?? contract?.reminderDaysBefore ?? ""}
           placeholder="30,14,7,1"
           className={inputClass}
         />
@@ -389,7 +433,7 @@ export function ContractForm({
           name="isTaxDeductible"
           type="checkbox"
           defaultChecked={
-            state?.values?.isTaxDeductible === "on"
+            effectiveValues?.isTaxDeductible === "on"
               ? true
               : contract?.isTaxDeductible ?? false
           }
@@ -403,7 +447,9 @@ export function ContractForm({
       <FormMessage error={state?.error} success={state?.success} />
 
       <div className="flex justify-end gap-3">
-        <SubmitButton>{contract ? "Save changes" : "Add contract"}</SubmitButton>
+        <SubmitButton>
+          {pendingOp ? "Save changes" : contract ? "Save changes" : "Add contract"}
+        </SubmitButton>
       </div>
     </form>
   );

@@ -78,6 +78,7 @@ export function OfflineSyncManager() {
 
       await clearDoneOperations();
       await refreshCount();
+      window.dispatchEvent(new Event("offline-sync-complete"));
 
       if (failCount === 0) {
         setSyncState("done");

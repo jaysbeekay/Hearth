@@ -47,6 +47,7 @@ export async function callChatCompletion(
   system: string,
   messages: ChatTurn[],
   tools: ToolDefinition[],
+  onDelta?: (text: string) => void,
 ): Promise<ChatProviderResult> {
   if (!isChatConfigured(user)) {
     return {
@@ -59,5 +60,5 @@ export async function callChatCompletion(
   const apiKey = user.chatApiKeyEncrypted ? decryptSecret(user.chatApiKeyEncrypted) : "";
   const model = user.chatModel || CHAT_PROVIDER_DEFAULT_MODELS[user.chatProvider];
   const call = PROVIDER_CALLS[user.chatProvider];
-  return call({ apiKey, model, system, messages, tools });
+  return call({ apiKey, model, system, messages, tools }, onDelta);
 }

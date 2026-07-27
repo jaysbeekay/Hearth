@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { ADMIN_AUTH_FILE } from "../env";
 
-test.use({ storageState: ADMIN_AUTH_FILE, viewport: { width: 375, height: 812 } });
+test.use({ storageState: ADMIN_AUTH_FILE, viewport: { width: 375, height: 812 }, hasTouch: true });
 
 async function expectNoHorizontalOverflow(page: import("@playwright/test").Page) {
   const { scrollWidth, clientWidth } = await page.evaluate(() => ({
@@ -55,4 +55,39 @@ test("DetailOverflowMenu renders as a full-width bottom sheet on mobile", async 
   expect(panelBox?.width).toBeGreaterThan(300);
 
   await expect(sheet.getByText("Delete", { exact: true })).toBeVisible();
+});
+
+test("swiping a contract card left reveals a delete action, which still uses the standard confirm dialog", async ({
+  page,
+}) => {
+  await page.goto("/contracts/new");
+  await page.locator("#title").fill("Swipe Test Contract");
+  await page.locator("#provider").fill("Swipe Provider");
+  await page.locator("main button[type=submit]").click();
+  await page.waitForURL(/\/contracts\/[^/]+$/);
+
+  await page.goto("/contracts");
+  const card = page.locator("a", { hasText: "Swipe Test Contract" }).first();
+  const box = await card.boundingBox();
+  if (!box) throw new Error("Contract card not found");
+
+  const startX = box.x + box.width - 10;
+  const startY = box.y + box.height / 2;
+  await card.dispatchEvent("pointerdown", { pointerType: "touch", clientX: startX, clientY: startY });
+  for (let i = 1; i <= 10; i++) {
+    await card.dispatchEvent("pointermove", {
+      pointerType: "touch",
+      clientX: startX - i * 12,
+      clientY: startY,
+    });
+  }
+  await card.dispatchEvent("pointerup", { pointerType: "touch", clientX: startX - 120, clientY: startY });
+
+  const deleteBtn = page.getByRole("button", { name: "Delete Swipe Test Contract" });
+  await expect(deleteBtn).toBeVisible();
+
+  await deleteBtn.click();
+  await expect(page.getByText("Delete this contract and all its documents")).toBeVisible();
+  await page.getByRole("button", { name: "Confirm" }).click();
+  await expect(page.getByText("Swipe Test Contract")).toHaveCount(0);
 });

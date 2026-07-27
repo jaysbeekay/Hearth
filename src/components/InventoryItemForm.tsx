@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Upload } from "lucide-react";
 import type { InventoryItemModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
@@ -10,7 +11,13 @@ import { INVENTORY_ITEM_CATEGORIES } from "@/lib/validation/inventory";
 import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 import { FileDropZone } from "@/components/FileDropZone";
 import { markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
-import { makeOfflineAwareAction } from "@/lib/offlineQueue";
+import {
+  makeOfflineAwareAction,
+  getOperationById,
+  updateOperationFormValues,
+  serializeFormData,
+  type QueuedOperation,
+} from "@/lib/offlineQueue";
 
 const CATEGORY_LABELS: Record<string, string> = {
   APPLIANCE: "Appliance",
@@ -53,6 +60,25 @@ export function InventoryItemForm({
   const [state, formAction] = useActionState<ActionState, FormData>(offlineAwareAction, null);
   const [scanning, setScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
+
+  const router = useRouter();
+  const pendingOpId = useSearchParams().get("pendingOpId");
+  const [pendingOp, setPendingOp] = useState<QueuedOperation | null | undefined>(
+    pendingOpId ? undefined : null,
+  );
+  useEffect(() => {
+    if (!pendingOpId) return;
+    getOperationById(pendingOpId).then((op) => setPendingOp(op ?? null));
+  }, [pendingOpId]);
+  const effectiveValues = state?.values ?? pendingOp?.formValues;
+
+  async function handlePendingSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!pendingOp) return;
+    const { values } = serializeFormData(new FormData(e.currentTarget));
+    await updateOperationFormValues(pendingOp.id, values);
+    router.push("/inventory");
+  }
 
   const categoryRef = useRef<HTMLSelectElement>(null);
   const labelRef = useRef<HTMLInputElement>(null);
@@ -118,8 +144,20 @@ export function InventoryItemForm({
     }
   }
 
+  if (pendingOp === undefined) {
+    return <p className="text-sm text-muted">Loading…</p>;
+  }
+
   return (
-    <form action={formAction} className="space-y-6">
+    <form
+      {...(pendingOp ? { onSubmit: handlePendingSubmit } : { action: formAction })}
+      className="space-y-6"
+    >
+      {pendingOp && (
+        <p className="rounded-lg border border-dashed border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-700 dark:text-amber-400">
+          Editing an offline entry that hasn&apos;t synced yet — saving updates it in place.
+        </p>
+      )}
       {!item && (
         <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
           <p className="flex items-center gap-2 text-sm font-medium">
@@ -150,7 +188,7 @@ export function InventoryItemForm({
           id="label"
           name="label"
           required
-          defaultValue={state?.values?.label ?? item?.label ?? ""}
+          defaultValue={effectiveValues?.label ?? item?.label ?? ""}
           placeholder="e.g. KitchenAid Stand Mixer"
           className={inputClass}
         />
@@ -162,7 +200,7 @@ export function InventoryItemForm({
             ref={categoryRef}
             id="category"
             name="category"
-            defaultValue={state?.values?.category ?? item?.category ?? "OTHER"}
+            defaultValue={effectiveValues?.category ?? item?.category ?? "OTHER"}
             className={selectClass}
           >
             {INVENTORY_ITEM_CATEGORIES.map((cat) => (
@@ -180,7 +218,7 @@ export function InventoryItemForm({
             ref={brandRef}
             id="brand"
             name="brand"
-            defaultValue={state?.values?.brand ?? item?.brand ?? ""}
+            defaultValue={effectiveValues?.brand ?? item?.brand ?? ""}
             className={inputClass}
           />
         </Field>
@@ -190,7 +228,7 @@ export function InventoryItemForm({
             ref={modelRef}
             id="model"
             name="model"
-            defaultValue={state?.values?.model ?? item?.model ?? ""}
+            defaultValue={effectiveValues?.model ?? item?.model ?? ""}
             className={inputClass}
           />
         </Field>
@@ -201,7 +239,7 @@ export function InventoryItemForm({
           ref={serialNumberRef}
           id="serialNumber"
           name="serialNumber"
-          defaultValue={state?.values?.serialNumber ?? item?.serialNumber ?? ""}
+          defaultValue={effectiveValues?.serialNumber ?? item?.serialNumber ?? ""}
           className={inputClass}
         />
       </Field>
@@ -213,7 +251,7 @@ export function InventoryItemForm({
             id="purchaseDate"
             name="purchaseDate"
             type="date"
-            defaultValue={state?.values?.purchaseDate ?? toDateInputValue(item?.purchaseDate)}
+            defaultValue={effectiveValues?.purchaseDate ?? toDateInputValue(item?.purchaseDate)}
             className={inputClass}
           />
         </Field>
@@ -226,7 +264,7 @@ export function InventoryItemForm({
             type="number"
             step="0.01"
             min="0"
-            defaultValue={state?.values?.purchasePrice ?? item?.purchasePrice?.toString() ?? ""}
+            defaultValue={effectiveValues?.purchasePrice ?? item?.purchasePrice?.toString() ?? ""}
             placeholder="0.00"
             className={inputClass}
           />
@@ -237,7 +275,7 @@ export function InventoryItemForm({
         <input
           id="location"
           name="location"
-          defaultValue={state?.values?.location ?? item?.location ?? ""}
+          defaultValue={effectiveValues?.location ?? item?.location ?? ""}
           placeholder="e.g. Kitchen, Garage"
           className={inputClass}
         />
@@ -248,7 +286,7 @@ export function InventoryItemForm({
           id="notes"
           name="notes"
           rows={3}
-          defaultValue={state?.values?.notes ?? item?.notes ?? ""}
+          defaultValue={effectiveValues?.notes ?? item?.notes ?? ""}
           className={inputClass}
         />
       </Field>
@@ -256,7 +294,7 @@ export function InventoryItemForm({
       <FormMessage error={state?.error} success={state?.success} />
 
       <div className="flex justify-end gap-3">
-        <SubmitButton>{item ? "Save changes" : "Add item"}</SubmitButton>
+        <SubmitButton>{pendingOp || item ? "Save changes" : "Add item"}</SubmitButton>
       </div>
     </form>
   );

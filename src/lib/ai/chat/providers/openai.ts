@@ -4,6 +4,7 @@ import {
   type ChatTurn,
   type ToolCallRequest,
 } from "@/lib/ai/chat/types";
+import { readSseStream } from "@/lib/ai/chat/streamParsing";
 
 // Chat Completions (not the Responses API the extraction provider uses) —
 // its tool-calling shape is the de facto standard OpenRouter also mirrors,
@@ -38,13 +39,22 @@ function errorKindForStatus(status: number): "auth" | "rate_limit" | "unknown" {
   return "unknown";
 }
 
+// One in-progress tool call, tracked by its position in the delta's
+// `tool_calls` array — id/name arrive once, `arguments` streams as
+// successive string fragments joined and parsed once the stream ends.
+interface StreamingToolCall {
+  id: string;
+  name: string;
+  arguments: string;
+}
+
 export const callOpenAiChat: ChatProviderCall = async ({
   apiKey,
   model,
   system,
   messages,
   tools,
-}) => {
+}, onDelta) => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), CHAT_PROVIDER_TIMEOUT_MS);
   try {
@@ -61,6 +71,7 @@ export const callOpenAiChat: ChatProviderCall = async ({
           type: "function",
           function: { name: t.name, description: t.description, parameters: t.inputSchema },
         })),
+        stream: true,
       }),
       signal: controller.signal,
     });
@@ -71,27 +82,58 @@ export const callOpenAiChat: ChatProviderCall = async ({
         (body as { error?: { message?: string } } | null)?.error?.message ?? res.statusText;
       return { ok: false, errorKind: errorKindForStatus(res.status), message };
     }
+    if (!res.body) {
+      return { ok: false, errorKind: "unknown", message: "OpenAI returned an empty stream." };
+    }
 
-    const json = (await res.json()) as {
-      choices?: {
-        message?: {
-          content?: string | null;
-          tool_calls?: { id: string; function: { name: string; arguments: string } }[];
-        };
-      }[];
-    };
-    const message = json.choices?.[0]?.message;
-    const toolCalls: ToolCallRequest[] = (message?.tool_calls ?? []).map((c) => {
-      let input: Record<string, unknown> = {};
+    let text = "";
+    const toolCalls = new Map<number, StreamingToolCall>();
+
+    await readSseStream(res.body, (data) => {
+      if (data === "[DONE]") return;
+      let chunk: {
+        choices?: {
+          delta?: {
+            content?: string;
+            tool_calls?: {
+              index: number;
+              id?: string;
+              function?: { name?: string; arguments?: string };
+            }[];
+          };
+        }[];
+      };
       try {
-        input = JSON.parse(c.function.arguments);
+        chunk = JSON.parse(data);
       } catch {
-        // malformed arguments — pass an empty object rather than failing the whole turn
+        return;
       }
-      return { id: c.id, name: c.function.name, input };
+
+      const delta = chunk.choices?.[0]?.delta;
+      if (delta?.content) {
+        text += delta.content;
+        onDelta?.(delta.content);
+      }
+      for (const tc of delta?.tool_calls ?? []) {
+        const existing = toolCalls.get(tc.index) ?? { id: "", name: "", arguments: "" };
+        if (tc.id) existing.id = tc.id;
+        if (tc.function?.name) existing.name = tc.function.name;
+        if (tc.function?.arguments) existing.arguments += tc.function.arguments;
+        toolCalls.set(tc.index, existing);
+      }
     });
 
-    return { ok: true, text: message?.content?.trim() || null, toolCalls };
+    const resolvedToolCalls: ToolCallRequest[] = Array.from(toolCalls.values()).map((c) => {
+      let input: Record<string, unknown> = {};
+      try {
+        input = c.arguments ? JSON.parse(c.arguments) : {};
+      } catch {
+        // malformed streamed arguments — pass an empty object rather than failing the whole turn
+      }
+      return { id: c.id, name: c.name, input };
+    });
+
+    return { ok: true, text: text.trim() || null, toolCalls: resolvedToolCalls };
   } catch (err) {
     const isAbort = err instanceof Error && err.name === "AbortError";
     return {

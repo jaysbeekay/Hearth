@@ -5,6 +5,7 @@ import {
   DATABASE_URL,
   UPLOADS_DIR,
   AUTH_SECRET,
+  ENCRYPTION_KEY,
 } from "./e2e/env";
 
 export default defineConfig({
@@ -28,6 +29,7 @@ export default defineConfig({
       DATABASE_URL,
       UPLOADS_DIR,
       AUTH_SECRET,
+      ENCRYPTION_KEY,
       APP_URL: BASE_URL,
       PORT: String(PORT),
     },

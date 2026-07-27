@@ -4,6 +4,7 @@ import {
   type ChatTurn,
   type ToolCallRequest,
 } from "@/lib/ai/chat/types";
+import { readSseStream } from "@/lib/ai/chat/streamParsing";
 
 interface AnthropicContentBlock {
   type: string;
@@ -41,13 +42,24 @@ function errorKindForStatus(status: number): "auth" | "rate_limit" | "unknown" {
   return "unknown";
 }
 
+// One in-progress content block, tracked by its Anthropic content index —
+// tool_use blocks stream their input as successive `partial_json` string
+// fragments, joined and parsed only once the block closes.
+interface StreamingBlock {
+  type: "text" | "tool_use";
+  id?: string;
+  name?: string;
+  text: string;
+  partialJson: string;
+}
+
 export const callAnthropicChat: ChatProviderCall = async ({
   apiKey,
   model,
   system,
   messages,
   tools,
-}) => {
+}, onDelta) => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), CHAT_PROVIDER_TIMEOUT_MS);
   try {
@@ -68,6 +80,7 @@ export const callAnthropicChat: ChatProviderCall = async ({
           description: t.description,
           input_schema: t.inputSchema,
         })),
+        stream: true,
       }),
       signal: controller.signal,
     });
@@ -78,19 +91,64 @@ export const callAnthropicChat: ChatProviderCall = async ({
         (body as { error?: { message?: string } } | null)?.error?.message ?? res.statusText;
       return { ok: false, errorKind: errorKindForStatus(res.status), message };
     }
+    if (!res.body) {
+      return { ok: false, errorKind: "unknown", message: "Anthropic returned an empty stream." };
+    }
 
-    const json = (await res.json()) as { content?: AnthropicContentBlock[] };
-    const blocks = json.content ?? [];
-    const text = blocks
-      .filter((b) => b.type === "text" && b.text)
-      .map((b) => b.text)
-      .join("\n")
-      .trim();
-    const toolCalls: ToolCallRequest[] = blocks
-      .filter((b) => b.type === "tool_use")
-      .map((b) => ({ id: b.id!, name: b.name!, input: b.input ?? {} }));
+    const blocks = new Map<number, StreamingBlock>();
 
-    return { ok: true, text: text || null, toolCalls };
+    await readSseStream(res.body, (data) => {
+      if (data === "[DONE]") return;
+      let event: {
+        type?: string;
+        index?: number;
+        content_block?: AnthropicContentBlock;
+        delta?: { type?: string; text?: string; partial_json?: string };
+      };
+      try {
+        event = JSON.parse(data);
+      } catch {
+        return;
+      }
+
+      if (event.type === "content_block_start" && event.index != null && event.content_block) {
+        const cb = event.content_block;
+        blocks.set(event.index, {
+          type: cb.type === "tool_use" ? "tool_use" : "text",
+          id: cb.id,
+          name: cb.name,
+          text: cb.text ?? "",
+          partialJson: "",
+        });
+      } else if (event.type === "content_block_delta" && event.index != null) {
+        const block = blocks.get(event.index);
+        if (!block) return;
+        if (event.delta?.type === "text_delta" && event.delta.text) {
+          block.text += event.delta.text;
+          onDelta?.(event.delta.text);
+        } else if (event.delta?.type === "input_json_delta" && event.delta.partial_json) {
+          block.partialJson += event.delta.partial_json;
+        }
+      }
+    });
+
+    let text = "";
+    const toolCalls: ToolCallRequest[] = [];
+    for (const block of blocks.values()) {
+      if (block.type === "text") {
+        text += block.text;
+      } else {
+        let input: Record<string, unknown> = {};
+        try {
+          input = block.partialJson ? JSON.parse(block.partialJson) : {};
+        } catch {
+          // malformed streamed arguments — pass an empty object rather than failing the turn
+        }
+        toolCalls.push({ id: block.id!, name: block.name!, input });
+      }
+    }
+
+    return { ok: true, text: text.trim() || null, toolCalls };
   } catch (err) {
     const isAbort = err instanceof Error && err.name === "AbortError";
     return {

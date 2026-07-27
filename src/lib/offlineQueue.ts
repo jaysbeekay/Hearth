@@ -112,6 +112,43 @@ export async function getPendingOperations(): Promise<QueuedOperation[]> {
   return all.filter((op) => op.status === "pending" || op.status === "failed");
 }
 
+// Records created while offline have no server-side row yet — list pages
+// merge these in as optimistic rows so they're reachable for edit/delete
+// before they've synced (see PendingRecordCard).
+export async function getPendingCreatesForEntity(entity: string): Promise<QueuedOperation[]> {
+  const pending = await getPendingOperations();
+  return pending.filter((op) => op.entity === entity && op.operation === "create");
+}
+
+export async function getOperationById(id: string): Promise<QueuedOperation | undefined> {
+  if (typeof window === "undefined") return undefined;
+  const db = await getDb();
+  return (await db.get(QUEUE_STORE, id)) as QueuedOperation | undefined;
+}
+
+// Edits a still-queued "create" in place instead of enqueueing a second,
+// conflicting operation — the record doesn't exist server-side yet, so
+// there's nothing to send an "update" against.
+export async function updateOperationFormValues(
+  id: string,
+  formValues: Record<string, string>,
+): Promise<void> {
+  if (typeof window === "undefined") return;
+  const db = await getDb();
+  const op = (await db.get(QUEUE_STORE, id)) as QueuedOperation | undefined;
+  if (!op) return;
+  await db.put(QUEUE_STORE, { ...op, formValues });
+}
+
+// Discards a still-queued operation (and any staged files) entirely — no
+// server request is ever sent, since the record never existed there.
+export async function deleteOperation(id: string): Promise<void> {
+  if (typeof window === "undefined") return;
+  const db = await getDb();
+  await db.delete(QUEUE_STORE, id);
+  await deleteFilesForOp(id);
+}
+
 export async function getAllOperations(): Promise<QueuedOperation[]> {
   if (typeof window === "undefined") return [];
   const db = await getDb();

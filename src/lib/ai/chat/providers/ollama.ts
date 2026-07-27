@@ -6,6 +6,7 @@ import {
   type ChatTurn,
   type ToolCallRequest,
 } from "@/lib/ai/chat/types";
+import { readNdjsonStream } from "@/lib/ai/chat/streamParsing";
 
 // Ollama's /api/chat mirrors OpenAI's chat shape closely, with two
 // differences: tool-call `arguments` are a plain object (not a JSON
@@ -36,7 +37,7 @@ function toOllamaMessages(system: string, messages: ChatTurn[]) {
 // the caller's chat-settings model over Settings > System's Ollama model,
 // since that system default is tuned for extraction's vision use case, not
 // chat's tool-calling/text use case.
-export const callOllamaChat: ChatProviderCall = async ({ model, system, messages, tools }) => {
+export const callOllamaChat: ChatProviderCall = async ({ model, system, messages, tools }, onDelta) => {
   const ollama = await getOllamaConfig();
   if (!ollama.baseUrl) {
     return {
@@ -61,7 +62,7 @@ export const callOllamaChat: ChatProviderCall = async ({ model, system, messages
               function: { name: t.name, description: t.description, parameters: t.inputSchema },
             }))
           : undefined,
-        stream: false,
+        stream: true,
       }),
       signal: controller.signal,
     });
@@ -71,20 +72,37 @@ export const callOllamaChat: ChatProviderCall = async ({ model, system, messages
       const message = (body as { error?: string } | null)?.error ?? res.statusText;
       return { ok: false, errorKind: "unknown", message };
     }
+    if (!res.body) {
+      return { ok: false, errorKind: "unknown", message: "Ollama returned an empty stream." };
+    }
 
-    const json = (await res.json()) as {
-      message?: {
-        content?: string;
-        tool_calls?: { function: { name: string; arguments: Record<string, unknown> } }[];
+    let text = "";
+    const toolCalls: ToolCallRequest[] = [];
+
+    await readNdjsonStream(res.body, (line) => {
+      let chunk: {
+        message?: {
+          content?: string;
+          tool_calls?: { function: { name: string; arguments: Record<string, unknown> } }[];
+        };
       };
-    };
-    const toolCalls: ToolCallRequest[] = (json.message?.tool_calls ?? []).map((c) => ({
-      id: randomUUID(),
-      name: c.function.name,
-      input: c.function.arguments ?? {},
-    }));
+      try {
+        chunk = JSON.parse(line);
+      } catch {
+        return;
+      }
 
-    return { ok: true, text: json.message?.content?.trim() || null, toolCalls };
+      const content = chunk.message?.content;
+      if (content) {
+        text += content;
+        onDelta?.(content);
+      }
+      for (const c of chunk.message?.tool_calls ?? []) {
+        toolCalls.push({ id: randomUUID(), name: c.function.name, input: c.function.arguments ?? {} });
+      }
+    });
+
+    return { ok: true, text: text.trim() || null, toolCalls };
   } catch (err) {
     const isAbort = err instanceof Error && err.name === "AbortError";
     return {

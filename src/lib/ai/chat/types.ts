@@ -45,7 +45,15 @@ export type ChatProviderResult =
   | { ok: true; text: string | null; toolCalls: ToolCallRequest[] }
   | { ok: false; errorKind: "auth" | "rate_limit" | "network" | "unknown"; message: string };
 
-export type ChatProviderCall = (params: ChatProviderCallParams) => Promise<ChatProviderResult>;
+// `onDelta` is called with each incremental text chunk as the provider's
+// streaming response arrives, in addition to the function's own returned
+// Promise resolving once the full response (text + any tool calls) is
+// known — every provider call now streams under the hood; callers that
+// don't need live updates can simply omit the callback.
+export type ChatProviderCall = (
+  params: ChatProviderCallParams,
+  onDelta?: (text: string) => void,
+) => Promise<ChatProviderResult>;
 
 // Longer than extraction's 45s single-shot timeout — this is per model call
 // within a tool-calling loop, but each call can involve more reasoning.

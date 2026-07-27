@@ -1,11 +1,18 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { TripModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
-import { makeOfflineAwareAction } from "@/lib/offlineQueue";
+import {
+  makeOfflineAwareAction,
+  getOperationById,
+  updateOperationFormValues,
+  serializeFormData,
+  type QueuedOperation,
+} from "@/lib/offlineQueue";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -33,15 +40,46 @@ export function TripForm({
 
   const [state, formAction] = useActionState<ActionState, FormData>(offlineAwareAction, null);
 
+  const router = useRouter();
+  const pendingOpId = useSearchParams().get("pendingOpId");
+  const [pendingOp, setPendingOp] = useState<QueuedOperation | null | undefined>(
+    pendingOpId ? undefined : null,
+  );
+  useEffect(() => {
+    if (!pendingOpId) return;
+    getOperationById(pendingOpId).then((op) => setPendingOp(op ?? null));
+  }, [pendingOpId]);
+  const effectiveValues = state?.values ?? pendingOp?.formValues;
+
+  async function handlePendingSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!pendingOp) return;
+    const { values } = serializeFormData(new FormData(e.currentTarget));
+    await updateOperationFormValues(pendingOp.id, values);
+    router.push("/travel");
+  }
+
+  if (pendingOp === undefined) {
+    return <p className="text-sm text-muted">Loading…</p>;
+  }
+
   return (
-    <form action={formAction} className="space-y-6">
+    <form
+      {...(pendingOp ? { onSubmit: handlePendingSubmit } : { action: formAction })}
+      className="space-y-6"
+    >
+      {pendingOp && (
+        <p className="rounded-lg border border-dashed border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-700 dark:text-amber-400">
+          Editing an offline entry that hasn&apos;t synced yet — saving updates it in place.
+        </p>
+      )}
       <div className="grid gap-4 md:grid-cols-2">
         <Field label="Title" htmlFor="title">
           <input
             id="title"
             name="title"
             required
-            defaultValue={state?.values?.title ?? trip?.title}
+            defaultValue={effectiveValues?.title ?? trip?.title}
             placeholder="e.g. Japan trip 2026"
             className={inputClass}
           />
@@ -51,7 +89,7 @@ export function TripForm({
           <input
             id="destination"
             name="destination"
-            defaultValue={state?.values?.destination ?? trip?.destination ?? ""}
+            defaultValue={effectiveValues?.destination ?? trip?.destination ?? ""}
             placeholder="e.g. Tokyo, Japan"
             className={inputClass}
           />
@@ -62,7 +100,7 @@ export function TripForm({
             id="startDate"
             name="startDate"
             type="date"
-            defaultValue={state?.values?.startDate ?? toDateInputValue(trip?.startDate)}
+            defaultValue={effectiveValues?.startDate ?? toDateInputValue(trip?.startDate)}
             className={inputClass}
           />
         </Field>
@@ -72,7 +110,7 @@ export function TripForm({
             id="endDate"
             name="endDate"
             type="date"
-            defaultValue={state?.values?.endDate ?? toDateInputValue(trip?.endDate)}
+            defaultValue={effectiveValues?.endDate ?? toDateInputValue(trip?.endDate)}
             className={inputClass}
           />
         </Field>
@@ -83,7 +121,7 @@ export function TripForm({
           id="notes"
           name="notes"
           rows={4}
-          defaultValue={state?.values?.notes ?? trip?.notes ?? ""}
+          defaultValue={effectiveValues?.notes ?? trip?.notes ?? ""}
           className={inputClass}
         />
       </Field>
@@ -91,7 +129,7 @@ export function TripForm({
       <FormMessage error={state?.error} success={state?.success} />
 
       <div className="flex justify-end gap-3">
-        <SubmitButton>{trip ? "Save changes" : "Add trip"}</SubmitButton>
+        <SubmitButton>{pendingOp || trip ? "Save changes" : "Add trip"}</SubmitButton>
       </div>
     </form>
   );
