@@ -10,8 +10,9 @@ import { parseJsonObject, whitelistFields } from "@/lib/ai/parseJson";
 import type { ByokUser } from "@/lib/ai/types";
 
 export interface ExtractedInvoiceFields {
-  name?: string;
+  description?: string;
   manufacturer?: string;
+  model?: string;
   vendor?: string;
   serialNumber?: string;
   purchaseDate?: string;
@@ -19,15 +20,16 @@ export interface ExtractedInvoiceFields {
 }
 
 const FIELD_KEYS = [
-  "name",
+  "description",
   "manufacturer",
+  "model",
   "vendor",
   "serialNumber",
   "purchaseDate",
   "price",
 ] as const;
 
-function findProductName(text: string): string | undefined {
+function findProductDescription(text: string): string | undefined {
   return findLabeledValue(
     text,
     /(product|item)\s*(name|description)?\s*[:#]/i,
@@ -43,10 +45,18 @@ function findManufacturer(text: string): string | undefined {
   );
 }
 
+function findModel(text: string): string | undefined {
+  return findLabeledValue(
+    text,
+    /model\s*(no\.?|number)?\s*[:#]/i,
+    /[:#]\s*([A-Za-z0-9-/]{2,40})\s*$/,
+  );
+}
+
 function findSerialNumber(text: string): string | undefined {
   return findLabeledValue(
     text,
-    /(serial|s\/n|imei|model\s*(no\.?|number))/i,
+    /(serial\s*(no\.?|number)?|s\/n|imei)/i,
     /[:#]?\s*([A-Za-z0-9-/]{4,40})\s*$/,
   );
 }
@@ -55,7 +65,8 @@ function heuristicExtract(text: string): ExtractedInvoiceFields {
   return {
     vendor: findCompanyLine(text),
     manufacturer: findManufacturer(text),
-    name: findProductName(text),
+    model: findModel(text),
+    description: findProductDescription(text),
     serialNumber: findSerialNumber(text),
     purchaseDate: findLabeledDate(
       text,
@@ -71,9 +82,10 @@ function countFound(fields: ExtractedInvoiceFields): number {
 
 const EXTRACTION_INSTRUCTIONS =
   "Extract product purchase details from this invoice or receipt as a single JSON object " +
-  "with these optional keys: name (product name), manufacturer (brand), vendor " +
-  "(retailer/seller), serialNumber, purchaseDate (YYYY-MM-DD), price (number only, no " +
-  "currency symbol). Omit keys you cannot determine. Respond with JSON only, no other text.";
+  "with these optional keys: description (what the product is, e.g. '6kg Vented Dryer'), " +
+  "manufacturer (brand), model (model number/code), vendor (retailer/seller), serialNumber, " +
+  "purchaseDate (YYYY-MM-DD), price (number only, no currency symbol). Omit keys you cannot " +
+  "determine. Respond with JSON only, no other text.";
 
 async function llmExtract(text: string): Promise<ExtractedInvoiceFields | null> {
   const ollama = await getOllamaConfig();

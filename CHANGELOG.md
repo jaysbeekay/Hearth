@@ -7,6 +7,19 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-07-27
+
+### Changed
+
+- **Products now track Brand, Model, and Description separately**, matching
+  how most retail invoices itemise a purchase. The previous single "Product
+  name" field is now "Description" (e.g. "6kg Vented Dryer"); "Manufacturer"
+  is now labelled "Brand"; and there's a new "Model" field (e.g. a model
+  number/code). Existing products keep their data — the old name value
+  becomes the new description. Search, exports, calendar/iCal feeds,
+  warranty-reminder notifications, and the AI Assistant's product tool all
+  updated to match.
+
 ## [0.9.1] - 2026-07-27
 
 ### Fixed

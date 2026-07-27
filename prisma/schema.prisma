@@ -303,8 +303,9 @@ model NotificationLog {
 
 model Product {
   id                 String    @id @default(cuid())
-  name               String
+  description        String
   manufacturer       String?
+  model              String?
   vendor             String?
   serialNumber       String?
   barcode            String?

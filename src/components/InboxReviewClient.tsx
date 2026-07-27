@@ -38,7 +38,7 @@ interface ContractFields {
   cost: string;
 }
 interface ProductFields {
-  name: string;
+  description: string;
   manufacturer: string;
   price: string;
 }
@@ -67,7 +67,7 @@ function emptyRowState(): RowState {
     status: "scanning",
     type: "CONTRACT",
     contract: { title: "", provider: "", category: "OTHER", cost: "" },
-    product: { name: "", manufacturer: "", price: "" },
+    product: { description: "", manufacturer: "", price: "" },
     inventory: { label: "", category: "OTHER", brand: "", purchasePrice: "" },
     contractAutoFilled: {},
     productAutoFilled: {},
@@ -166,12 +166,12 @@ export function InboxReviewClient({
         status: "ready",
         scanMessage,
         product: {
-          name: fields.name ?? filename.replace(/\.[^.]+$/, ""),
+          description: fields.description ?? filename.replace(/\.[^.]+$/, ""),
           manufacturer: fields.manufacturer ?? "",
           price: fields.price ?? "",
         },
         productAutoFilled: {
-          name: Boolean(fields.name),
+          description: Boolean(fields.description),
           manufacturer: Boolean(fields.manufacturer),
           price: Boolean(fields.price),
         },
@@ -207,7 +207,7 @@ export function InboxReviewClient({
       fields.append("renewalType", "MANUAL_RENEWAL");
       fields.append("cost", row.contract.cost);
     } else if (row.type === "PRODUCT") {
-      fields.append("name", row.product.name);
+      fields.append("description", row.product.description);
       fields.append("manufacturer", row.product.manufacturer);
       fields.append("price", row.product.price);
     } else {
@@ -371,18 +371,18 @@ export function InboxReviewClient({
             {(row.status === "ready" || row.status === "saving" || row.status === "error") &&
               row.type === "PRODUCT" && (
                 <div className="grid gap-2 sm:grid-cols-3">
-                  <RowField label="Name" htmlFor={`${doc.id}-name`}>
+                  <RowField label="Description" htmlFor={`${doc.id}-description`}>
                     <input
-                      id={`${doc.id}-name`}
-                      value={row.product.name}
+                      id={`${doc.id}-description`}
+                      value={row.product.description}
                       disabled={row.status === "saving"}
                       onChange={(e) =>
                         updateRow(doc.id, {
-                          product: { ...row.product, name: e.target.value },
-                          productAutoFilled: { ...row.productAutoFilled, name: false },
+                          product: { ...row.product, description: e.target.value },
+                          productAutoFilled: { ...row.productAutoFilled, description: false },
                         })
                       }
-                      className={fieldClass(row.productAutoFilled.name)}
+                      className={fieldClass(row.productAutoFilled.description)}
                     />
                   </RowField>
                   <RowField label="Manufacturer" htmlFor={`${doc.id}-manufacturer`}>

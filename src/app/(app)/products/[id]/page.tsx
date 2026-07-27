@@ -46,7 +46,7 @@ export default async function ProductDetailPage({
           <p className="text-sm text-foreground/60">
             {product.manufacturer ?? product.vendor ?? "Product"}
           </p>
-          <h1 className="text-2xl font-semibold">{product.name}</h1>
+          <h1 className="text-2xl font-semibold">{product.description}</h1>
           {product.vendor && <p className="text-foreground/70">{product.vendor}</p>}
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -63,7 +63,7 @@ export default async function ProductDetailPage({
               action={deleteProduct.bind(null, product.id)}
               confirmText="Delete this product and all its documents? This cannot be undone."
               className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
-              offline={{ entity: "product", entityId: product.id, label: `Delete product: ${product.name}` }}
+              offline={{ entity: "product", entityId: product.id, label: `Delete product: ${product.description}` }}
             >
               <Trash2 size={16} />
               Delete
@@ -76,14 +76,15 @@ export default async function ProductDetailPage({
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={`/api/products/documents/${photo.id}`}
-          alt={product.name}
+          alt={product.description}
           className="max-h-80 w-full rounded-xl border border-border object-contain"
         />
       )}
 
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">
-          <Detail label="Manufacturer" value={product.manufacturer ?? "—"} />
+          <Detail label="Brand" value={product.manufacturer ?? "—"} />
+          <Detail label="Model" value={product.model ?? "—"} />
           <Detail label="Vendor / retailer" value={product.vendor ?? "—"} />
           <Detail label="Serial number" value={product.serialNumber ?? "—"} />
           <Detail label="Barcode" value={product.barcode ?? "—"} />

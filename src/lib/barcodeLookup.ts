@@ -1,7 +1,7 @@
 import { getBarcodeConfig, isBarcodeLookupConfigured } from "@/lib/appSettings";
 
 export interface BarcodeProductInfo {
-  name?: string;
+  description?: string;
   manufacturer?: string;
 }
 
@@ -43,7 +43,7 @@ export async function lookupBarcode(code: string): Promise<BarcodeProductInfo | 
     if (!item) return null;
 
     const info: BarcodeProductInfo = {};
-    if (item.title) info.name = item.title;
+    if (item.title) info.description = item.title;
     if (item.brand) info.manufacturer = item.brand;
     return Object.keys(info).length > 0 ? info : null;
   } catch {

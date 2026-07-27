@@ -28,8 +28,9 @@ export function formToContractInput(formData: FormData) {
 
 export function formToProductInput(formData: FormData) {
   return {
-    name: formData.get("name"),
+    description: formData.get("description"),
     manufacturer: formData.get("manufacturer"),
+    model: formData.get("model"),
     vendor: formData.get("vendor"),
     serialNumber: formData.get("serialNumber"),
     barcode: formData.get("barcode"),
