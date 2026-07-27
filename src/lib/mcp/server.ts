@@ -3,6 +3,15 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { CONTRACT_CATEGORIES, CONTRACT_STATUSES } from "@/lib/validation/contract";
 import { CATEGORY_LABELS, daysUntil, monthlyEquivalent } from "@/lib/utils";
+import {
+  queryInventoryItems,
+  queryProducts,
+  queryProperties,
+  queryTrips,
+  queryVehicles,
+} from "@/lib/domainQueries";
+import { getEnabledModuleKeys } from "@/lib/modules/enablement";
+import { getNetWorth } from "@/lib/wealth";
 
 const CONTRACT_SELECT = {
   id: true,
@@ -53,15 +62,21 @@ function textResult(data: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
 }
 
-export function createMcpServer() {
+export async function createMcpServer() {
+  const enabledModules = await getEnabledModuleKeys();
+
   const server = new McpServer(
-    { name: "contracts", version: "1.0.0" },
+    { name: "hearth", version: "1.0.0" },
     {
       capabilities: { tools: {} },
       instructions:
         "Read-only tools over a household's tracked contracts (rentals, insurance, " +
-        "subscriptions, loans, etc). These never modify data and never expose " +
-        "account credentials or uploaded document contents.",
+        "subscriptions, loans, etc), products/warranties, and — depending on which " +
+        "optional modules this household has enabled — travel, vehicles, home/" +
+        "properties, inventory, and net worth. These never modify data and never " +
+        "expose account credentials or uploaded document contents. Only tools for " +
+        "enabled modules are listed; if a household disables a module later, the " +
+        "corresponding tool disappears on the next connection.",
     },
   );
 
@@ -194,6 +209,84 @@ export function createMcpServer() {
       });
     },
   );
+
+  server.registerTool(
+    "list_products",
+    {
+      title: "List products",
+      description:
+        "List tracked products/purchases and their warranty status, optionally filtered by " +
+        "a search term over description/manufacturer/model/vendor.",
+      inputSchema: { query: z.string().min(1).optional() },
+    },
+    async ({ query }) => textResult(await queryProducts(query)),
+  );
+
+  if (enabledModules.has("TRAVEL")) {
+    server.registerTool(
+      "list_trips",
+      {
+        title: "List trips",
+        description: "List trips with their segment count, optionally only ones that haven't ended yet.",
+        inputSchema: { upcomingOnly: z.boolean().optional() },
+      },
+      async ({ upcomingOnly }) => textResult(await queryTrips(upcomingOnly)),
+    );
+  }
+
+  if (enabledModules.has("VEHICLES")) {
+    server.registerTool(
+      "list_vehicles",
+      {
+        title: "List vehicles",
+        description:
+          "List vehicles with registration/insurance expiry, optionally only ones needing " +
+          "attention (expiring within 30 days or already expired).",
+        inputSchema: { attentionOnly: z.boolean().optional() },
+      },
+      async ({ attentionOnly }) => textResult(await queryVehicles(attentionOnly)),
+    );
+  }
+
+  if (enabledModules.has("HOME")) {
+    server.registerTool(
+      "list_properties",
+      {
+        title: "List properties",
+        description:
+          "List properties with rental status, the current tenant/weekly rent if rented, " +
+          "and the most recent valuation.",
+      },
+      async () => textResult(await queryProperties()),
+    );
+  }
+
+  if (enabledModules.has("INVENTORY")) {
+    server.registerTool(
+      "list_inventory_items",
+      {
+        title: "List inventory items",
+        description:
+          "List catalogued household items/valuables, optionally filtered by a search term " +
+          "over label/brand/model.",
+        inputSchema: { query: z.string().min(1).optional() },
+      },
+      async ({ query }) => textResult(await queryInventoryItems(query)),
+    );
+  }
+
+  if (enabledModules.has("WEALTH")) {
+    server.registerTool(
+      "net_worth",
+      {
+        title: "Net worth",
+        description:
+          "The household's net worth: share/crypto portfolio value, property value, and " +
+          "inventory value, with per-holding gain/loss.",
+      },
+      async () => textResult(await getNetWorth(enabledModules)),
+    );
+  }
 
   return server;
 }
