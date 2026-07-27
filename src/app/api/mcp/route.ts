@@ -27,7 +27,7 @@ async function handle(request: NextRequest) {
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
   });
-  await createMcpServer().connect(transport);
+  await (await createMcpServer()).connect(transport);
   return transport.handleRequest(request);
 }
 

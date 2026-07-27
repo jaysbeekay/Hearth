@@ -7,6 +7,26 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+## [0.10.3] - 2026-07-27
+
+### Added
+
+- **The external MCP server (`/api/mcp`) now exposes products, trips, vehicles,
+  properties, inventory, and net worth**, matching the breadth of read-only
+  data the in-app AI Assistant already has — previously it only covered
+  contracts. Six new tools: `list_products`, `list_trips`, `list_vehicles`,
+  `list_properties`, `list_inventory_items`, and `net_worth`. Module-gated
+  tools (everything but contracts/products) are only listed when the
+  corresponding optional module (Travel, Vehicles, Home, Inventory, Wealth) is
+  enabled for the household, mirroring the Assistant's behavior. Still
+  strictly read-only — no new write capability.
+
+### Changed
+
+- The Assistant's chat tools and the MCP server's tools now share the same
+  underlying Prisma query/serialization functions (`src/lib/domainQueries.ts`)
+  instead of each re-deriving the same queries independently.
+
 ## [0.10.2] - 2026-07-27
 
 ### Changed
