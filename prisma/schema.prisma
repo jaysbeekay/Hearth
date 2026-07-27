@@ -779,6 +779,17 @@ model PriceCache {
   @@map("price_cache")
 }
 
+// Cached from/to currency-pair conversion rates (e.g. "USD_AUD" -> how many
+// AUD per 1 USD), used to correctly aggregate amounts recorded in different
+// currencies (spend totals, net worth) rather than summing raw numbers.
+model FxRate {
+  pair     String   @id
+  rate     Float
+  cachedAt DateTime
+
+  @@map("fx_rates")
+}
+
 model PriceHistory {
   id       String   @id @default(cuid())
   ticker   String

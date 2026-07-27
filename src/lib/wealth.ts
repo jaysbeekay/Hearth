@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { getPriceMap } from "@/lib/prices";
+import { refreshFxRates, getFxRateMap, convertAmount } from "@/lib/fx";
 import type { ModuleKey } from "@/lib/modules/registry";
+
+const NET_WORTH_CURRENCY = "AUD";
 
 export interface HoldingValue {
   holdingId: string;
@@ -74,7 +77,7 @@ export async function getNetWorth(enabledModules: Set<ModuleKey>): Promise<NetWo
       : [],
     enabledModules.has("INVENTORY")
       ? prisma.inventoryItem.findMany({
-          select: { purchasePrice: true },
+          select: { purchasePrice: true, currency: true },
         })
       : [],
   ]);
@@ -125,7 +128,27 @@ export async function getNetWorth(enabledModules: Set<ModuleKey>): Promise<NetWo
     };
   });
 
-  const sharesValue = portfolioValues.reduce((s, p) => s + p.totalValue, 0);
+  // Convert each portfolio's total value (denominated in its own currency, as
+  // already shown on its own page) to a common currency before summing across
+  // portfolios — summing raw numbers across different portfolio currencies
+  // would produce a meaningless total. Same for property valuations and
+  // inventory purchase prices, which each carry their own currency field.
+  const portfolioCurrencies = portfolios.map((p) => p.currency);
+  const propertyCurrencies = properties
+    .map((p) => p.valuations[0]?.currency)
+    .filter((c): c is string => !!c);
+  const inventoryCurrencies = inventoryItems.map((i) => i.currency);
+  const allCurrencies = [
+    ...new Set([...portfolioCurrencies, ...propertyCurrencies, ...inventoryCurrencies]),
+  ];
+  const fxPairs = allCurrencies.map((from) => ({ from, to: NET_WORTH_CURRENCY }));
+  await refreshFxRates(fxPairs);
+  const rateMap = await getFxRateMap(fxPairs);
+
+  const sharesValue = portfolioValues.reduce((s, p, i) => {
+    const converted = convertAmount(p.totalValue, portfolios[i].currency, NET_WORTH_CURRENCY, rateMap);
+    return s + (converted ?? 0);
+  }, 0);
 
   // Property valuations
   const twelveMonthsAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
@@ -135,7 +158,8 @@ export async function getNetWorth(enabledModules: Set<ModuleKey>): Promise<NetWo
   for (const property of properties) {
     const latest = property.valuations[0];
     if (latest) {
-      propertyValue += latest.value;
+      const converted = convertAmount(latest.value, latest.currency, NET_WORTH_CURRENCY, rateMap);
+      propertyValue += converted ?? 0;
       if (latest.valuedAt < twelveMonthsAgo) propertyStale = true;
     } else {
       propertyStale = true;
@@ -143,7 +167,11 @@ export async function getNetWorth(enabledModules: Set<ModuleKey>): Promise<NetWo
   }
 
   // Inventory value
-  const inventoryValue = inventoryItems.reduce((s, i) => s + (i.purchasePrice ?? 0), 0);
+  const inventoryValue = inventoryItems.reduce((s, i) => {
+    if (i.purchasePrice == null) return s;
+    const converted = convertAmount(i.purchasePrice, i.currency, NET_WORTH_CURRENCY, rateMap);
+    return s + (converted ?? 0);
+  }, 0);
 
   return {
     sharesValue,
@@ -152,6 +180,6 @@ export async function getNetWorth(enabledModules: Set<ModuleKey>): Promise<NetWo
     totalNetWorth: sharesValue + propertyValue + inventoryValue,
     portfolios: portfolioValues,
     propertyStale,
-    currency: "AUD",
+    currency: NET_WORTH_CURRENCY,
   };
 }

@@ -3,6 +3,13 @@ import { prisma } from "@/lib/prisma";
 const EQUITY_TTL_MS = 15 * 60 * 1000; // 15 minutes
 const CRYPTO_TTL_MS = 5 * 60 * 1000;  // 5 minutes
 
+// yahoo-finance2 v3 requires instantiating the default export rather than
+// calling its methods directly (v2-style) — https://github.com/gadicc/yahoo-finance2/blob/dev/docs/UPGRADING.md
+async function getYahooFinance() {
+  const YahooFinance = (await import("yahoo-finance2")).default;
+  return new YahooFinance({ suppressNotices: ["yahooSurvey"] });
+}
+
 interface PriceResult {
   ticker: string;
   price: number;
@@ -14,7 +21,7 @@ interface PriceResult {
 export async function fetchEquityPrices(symbols: string[]): Promise<PriceResult[]> {
   if (!symbols.length) return [];
   try {
-    const yahooFinance = (await import("yahoo-finance2")).default;
+    const yahooFinance = await getYahooFinance();
     const results: PriceResult[] = [];
     for (const symbol of symbols) {
       try {
@@ -135,7 +142,7 @@ function normaliseDate(d: Date): Date {
 /** Fetch the closing price for a single ticker on or just before a given date. */
 export async function fetchHistoricalPrice(ticker: string, date: Date): Promise<number | null> {
   try {
-    const yahooFinance = (await import("yahoo-finance2")).default;
+    const yahooFinance = await getYahooFinance();
     // widen the window by 5 days before to handle weekends/holidays
     const period1 = new Date(date.getTime() - 5 * 24 * 60 * 60 * 1000);
     const period2 = new Date(date.getTime() + 2 * 24 * 60 * 60 * 1000);
@@ -183,7 +190,7 @@ export async function fetchAndStorePriceHistory(
     : fromDate;
 
   try {
-    const yahooFinance = (await import("yahoo-finance2")).default;
+    const yahooFinance = await getYahooFinance();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rows = (await yahooFinance.historical(ticker, { period1: fetchFrom, period2: now, interval: "1d" }, { validateResult: false })) as any[];
     if (!rows?.length) return;

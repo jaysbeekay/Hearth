@@ -1,4 +1,5 @@
 import { monthlyEquivalent } from "@/lib/utils";
+import { convertAmount } from "@/lib/fx";
 import { format } from "date-fns";
 
 export interface MonthBucket {
@@ -9,11 +10,14 @@ export interface MonthBucket {
 export function buildMonthlyTimeline(
   contracts: {
     cost: number | null;
+    currency: string;
     billingFrequency: string | null;
     startDate: Date | null;
     endDate: Date | null;
   }[],
   months: number,
+  targetCurrency: string,
+  rateMap: Map<string, number>,
 ): MonthBucket[] {
   const buckets: MonthBucket[] = [];
   const now = new Date();
@@ -27,7 +31,8 @@ export function buildMonthlyTimeline(
       const start = c.startDate ?? new Date(0);
       const end = c.endDate ?? new Date(9999, 0);
       if (d >= start && d <= end) {
-        total += monthlyEquivalent(c.cost, c.billingFrequency);
+        const converted = c.cost != null ? convertAmount(c.cost, c.currency, targetCurrency, rateMap) : null;
+        if (converted != null) total += monthlyEquivalent(converted, c.billingFrequency);
       }
     }
 
@@ -48,11 +53,14 @@ export interface YearBucket {
 export function buildYearlyTimeline(
   contracts: {
     cost: number | null;
+    currency: string;
     billingFrequency: string | null;
     startDate: Date | null;
     endDate: Date | null;
   }[],
   years: number,
+  targetCurrency: string,
+  rateMap: Map<string, number>,
 ): YearBucket[] {
   const buckets: YearBucket[] = [];
   const currentYear = new Date().getFullYear();
@@ -67,7 +75,8 @@ export function buildYearlyTimeline(
         const start = c.startDate ?? new Date(0);
         const end = c.endDate ?? new Date(9999, 0);
         if (d >= start && d <= end) {
-          total += monthlyEquivalent(c.cost, c.billingFrequency);
+          const converted = c.cost != null ? convertAmount(c.cost, c.currency, targetCurrency, rateMap) : null;
+          if (converted != null) total += monthlyEquivalent(converted, c.billingFrequency);
         }
       }
     }
@@ -85,12 +94,16 @@ export interface CategoryBucket {
 
 // Current recurring spend broken down by category, sorted highest first.
 export function buildCategoryBreakdown(
-  contracts: { category: string; cost: number | null; billingFrequency: string | null }[],
+  contracts: { category: string; cost: number | null; currency: string; billingFrequency: string | null }[],
+  targetCurrency: string,
+  rateMap: Map<string, number>,
 ): CategoryBucket[] {
   const totals = new Map<string, number>();
 
   for (const c of contracts) {
-    const amount = monthlyEquivalent(c.cost, c.billingFrequency);
+    const converted = c.cost != null ? convertAmount(c.cost, c.currency, targetCurrency, rateMap) : null;
+    if (converted == null) continue;
+    const amount = monthlyEquivalent(converted, c.billingFrequency);
     if (amount <= 0) continue;
     totals.set(c.category, (totals.get(c.category) ?? 0) + amount);
   }
