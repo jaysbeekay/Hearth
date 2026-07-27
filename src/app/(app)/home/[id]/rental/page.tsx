@@ -414,9 +414,9 @@ export default async function RentalOverviewPage({
 
 function Detail({ label, value }: { label: string; value: string }) {
   return (
-    <div>
+    <div className="min-w-0">
       <dt className="text-xs text-foreground/50">{label}</dt>
-      <dd className="text-sm font-medium">{value ?? "—"}</dd>
+      <dd className="text-sm font-medium break-words">{value ?? "—"}</dd>
     </div>
   );
 }
@@ -441,9 +441,9 @@ function AmountCell({
   const diffBad = diff != null && !diffOk;
 
   return (
-    <div>
+    <div className="min-w-0">
       <dt className="text-xs text-foreground/50">{label}</dt>
-      <dd className={`text-sm font-medium ${highlight ? "text-base" : ""}`}>
+      <dd className={`text-sm font-medium break-words ${highlight ? "text-base" : ""}`}>
         {actual != null ? formatCurrency(actual, currency, undefined, region) : "—"}
       </dd>
       {expected != null && actual != null && (

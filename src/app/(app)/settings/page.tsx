@@ -36,15 +36,15 @@ export default async function SettingsPage() {
       <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <h2 className="mb-3 font-medium">Profile</h2>
         <dl className="grid grid-cols-2 gap-4">
-          <div>
+          <div className="min-w-0">
             <dt className="text-xs text-foreground/50">Name</dt>
-            <dd className="text-sm font-medium">{user.name}</dd>
+            <dd className="text-sm font-medium break-words">{user.name}</dd>
           </div>
-          <div>
+          <div className="min-w-0">
             <dt className="text-xs text-foreground/50">Email</dt>
-            <dd className="text-sm font-medium">{user.email}</dd>
+            <dd className="text-sm font-medium break-words">{user.email}</dd>
           </div>
-          <div>
+          <div className="min-w-0">
             <dt className="text-xs text-foreground/50">Role</dt>
             <dd className="text-sm font-medium">{user.role}</dd>
           </div>
