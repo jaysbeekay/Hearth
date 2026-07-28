@@ -147,6 +147,59 @@ export async function updateContract(
   redirect(`/contracts/${contractId}`);
 }
 
+export type AssistantActionResult =
+  | { success: true; contractId: string }
+  | { success: false; error: string };
+
+// Counterparts to createContract/updateContract for the AI Assistant's
+// guarded-write flow (see src/lib/chat/tools.ts) — same requireUser() gate
+// and contractSchema validation as the real forms, but returns a plain
+// result instead of redirect()ing, since a chat reply shouldn't navigate the
+// user away from their conversation.
+export async function createContractFromAssistant(
+  data: Record<string, unknown>,
+): Promise<AssistantActionResult> {
+  const user = await requireUser();
+
+  const parsed = contractSchema.safeParse(data);
+  if (!parsed.success) return { success: false, error: firstIssueMessage(parsed.error) };
+
+  const contract = await prisma.contract.create({
+    data: { ...parsed.data, createdById: user.id },
+  });
+
+  revalidatePath("/contracts");
+  revalidatePath("/dashboard");
+  return { success: true, contractId: contract.id };
+}
+
+export async function updateContractFromAssistant(
+  contractId: string,
+  data: Record<string, unknown>,
+): Promise<AssistantActionResult> {
+  await requireUser();
+
+  const parsed = contractSchema.safeParse(data);
+  if (!parsed.success) return { success: false, error: firstIssueMessage(parsed.error) };
+
+  const existing = await prisma.contract.findUnique({ where: { id: contractId } });
+  if (!existing) return { success: false, error: "Contract not found." };
+
+  const endDateChanged = existing.endDate?.getTime() !== parsed.data.endDate?.getTime();
+
+  await prisma.$transaction([
+    prisma.contract.update({ where: { id: contractId }, data: parsed.data }),
+    ...(endDateChanged
+      ? [prisma.notificationLog.deleteMany({ where: { contractId } })]
+      : []),
+  ]);
+
+  revalidatePath("/contracts");
+  revalidatePath(`/contracts/${contractId}`);
+  revalidatePath("/dashboard");
+  return { success: true, contractId };
+}
+
 export async function deleteContract(contractId: string): Promise<ActionState> {
   await requireUser();
 

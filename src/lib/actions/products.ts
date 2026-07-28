@@ -164,6 +164,60 @@ export async function updateProduct(
   redirect(`/products/${productId}`);
 }
 
+export type AssistantActionResult =
+  | { success: true; productId: string }
+  | { success: false; error: string };
+
+// Counterparts to createProduct/updateProduct for the AI Assistant's
+// guarded-write flow (see src/lib/chat/tools.ts) — same requireUser() gate
+// and productSchema validation as the real forms, but returns a plain
+// result instead of redirect()ing, since a chat reply shouldn't navigate the
+// user away from their conversation.
+export async function createProductFromAssistant(
+  data: Record<string, unknown>,
+): Promise<AssistantActionResult> {
+  const user = await requireUser();
+
+  const parsed = productSchema.safeParse(data);
+  if (!parsed.success) return { success: false, error: firstIssueMessage(parsed.error) };
+
+  const product = await prisma.product.create({
+    data: { ...parsed.data, createdById: user.id },
+  });
+
+  revalidatePath("/products");
+  revalidatePath("/dashboard");
+  return { success: true, productId: product.id };
+}
+
+export async function updateProductFromAssistant(
+  productId: string,
+  data: Record<string, unknown>,
+): Promise<AssistantActionResult> {
+  await requireUser();
+
+  const parsed = productSchema.safeParse(data);
+  if (!parsed.success) return { success: false, error: firstIssueMessage(parsed.error) };
+
+  const existing = await prisma.product.findUnique({ where: { id: productId } });
+  if (!existing) return { success: false, error: "Product not found." };
+
+  const warrantyEndDateChanged =
+    existing.warrantyEndDate?.getTime() !== parsed.data.warrantyEndDate?.getTime();
+
+  await prisma.$transaction([
+    prisma.product.update({ where: { id: productId }, data: parsed.data }),
+    ...(warrantyEndDateChanged
+      ? [prisma.productNotificationLog.deleteMany({ where: { productId } })]
+      : []),
+  ]);
+
+  revalidatePath("/products");
+  revalidatePath(`/products/${productId}`);
+  revalidatePath("/dashboard");
+  return { success: true, productId };
+}
+
 export async function deleteProduct(productId: string): Promise<ActionState> {
   await requireUser();
 

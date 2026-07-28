@@ -4,13 +4,18 @@ import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { linkButtonClass, toolbarButtonClass, exportMenuItemClass } from "@/lib/buttonStyles";
 import { useRouter } from "next/navigation";
-import { Plus, ChevronDown, X } from "lucide-react";
+import { Plus, ChevronDown, X, Trash2 } from "lucide-react";
 import { SelectWrapper } from "@/components/SelectWrapper";
 import { ContractCard } from "@/components/ContractCard";
+import { PendingRecordCard } from "@/components/PendingRecordCard";
+import { SwipeableListItem } from "@/components/SwipeableListItem";
+import { ConfirmForm } from "@/components/ConfirmForm";
+import { deleteContract } from "@/lib/actions/contracts";
 import type { ContractModel } from "@/generated/prisma/models";
 import { CATEGORY_LABELS } from "@/lib/utils";
 import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
+import { usePendingCreates } from "@/lib/usePendingCreates";
 
 const STATUS_LABELS: Record<string, string> = { ACTIVE: "Active", CANCELLED: "Cancelled" };
 
@@ -37,6 +42,13 @@ export function ContractListClient({
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const { pendingOps, refresh: refreshPending } = usePendingCreates("contract");
+
+  useEffect(() => {
+    const onSyncComplete = () => router.refresh();
+    window.addEventListener("offline-sync-complete", onSyncComplete);
+    return () => window.removeEventListener("offline-sync-complete", onSyncComplete);
+  }, [router]);
 
   function removeFilter(key: "q" | "category" | "status") {
     const params = new URLSearchParams();
@@ -167,17 +179,54 @@ export function ContractListClient({
         </div>
       )}
 
+      {pendingOps.length > 0 && (
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          {pendingOps.map((op) => (
+            <PendingRecordCard
+              key={op.id}
+              op={op}
+              title={op.formValues?.title || "Untitled contract"}
+              subtitle={op.formValues?.provider}
+              editHref={`/contracts/new?pendingOpId=${op.id}`}
+              onDeleted={refreshPending}
+            />
+          ))}
+        </div>
+      )}
+
       {contracts.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-foreground/60">
-          {q || category || status
-            ? "No contracts match your search or filters."
-            : "No contracts yet. Add one manually, or upload a PDF and we'll fill in the details."}
-        </p>
+        pendingOps.length === 0 && (
+          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-foreground/60">
+            {q || category || status
+              ? "No contracts match your search or filters."
+              : "No contracts yet. Add one manually, or upload a PDF and we'll fill in the details."}
+          </p>
+        )
       ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          {contracts.map((contract) => (
-            <ContractCard key={contract.id} contract={contract} dateFormat={dateFormat} region={region} />
-          ))}
+          {contracts.map((contract) =>
+            canWrite ? (
+              <SwipeableListItem
+                key={contract.id}
+                revealAction={
+                  <ConfirmForm
+                    action={deleteContract.bind(null, contract.id)}
+                    confirmText={`Delete this contract and all its documents? This cannot be undone.`}
+                    ariaLabel={`Delete ${contract.title}`}
+                    className="flex h-full w-full flex-col items-center justify-center gap-1 bg-danger text-xs font-medium text-white"
+                    offline={{ entity: "contract", entityId: contract.id, label: `Delete contract: ${contract.title}` }}
+                  >
+                    <Trash2 size={18} />
+                    Delete
+                  </ConfirmForm>
+                }
+              >
+                <ContractCard contract={contract} dateFormat={dateFormat} region={region} />
+              </SwipeableListItem>
+            ) : (
+              <ContractCard key={contract.id} contract={contract} dateFormat={dateFormat} region={region} />
+            ),
+          )}
         </div>
       )}
     </div>

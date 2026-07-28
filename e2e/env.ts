@@ -16,6 +16,10 @@ export const FIXTURES_FILE = path.join(DATA_DIR, "fixtures.json");
 // destroys on every run — never used against real data.
 export const AUTH_SECRET = "e2e-suite-secret-not-for-production-0000000000";
 
+// Throwaway encryption key so the AI Assistant/BYOK settings sections (gated
+// on isEncryptionConfigured()) render during e2e runs.
+export const ENCRYPTION_KEY = "F0CiTt+ImWBEgZWCI0tjldALraXIJ5XDLAvTWQqrRmI=";
+
 export const ADMIN_EMAIL = "admin@e2e.local";
 export const ADMIN_PASSWORD = "E2eTestPassw0rd!23";
 export const MEMBER_EMAIL = "member@e2e.local";

@@ -73,7 +73,8 @@ Everything else is optional. Set `SMTP_*` to enable email reminders, `NTFY_*` fo
 - Multi-user/household accounts — everyone sees the same data
 - Admin-invite-only (no public sign-up) since this stores sensitive household data
 - Mobile-friendly responsive UI, installable as a PWA ("Add to Home Screen")
-- **Offline read cache** — a service worker caches previously-visited pages so they're still browsable when your home server is unreachable; an amber banner appears and writes are queued locally and synced automatically when you reconnect
+- **Offline read cache** — a service worker caches previously-visited pages so they're still browsable when your home server is unreachable; an amber banner appears and writes are queued locally and synced automatically when you reconnect. Records created offline show up immediately as a "Pending sync" card on their list page — editable or discardable before they've synced (Contracts, Products, Vehicles, Travel, Home, Inventory)
+- **AI Assistant** (bring-your-own-key chat) streams its replies as they're generated and can propose creating/updating a contract or product — you review and confirm before anything is saved
 - SQLite storage — a single file, easy to back up, no separate database service
 - Opt-in modules: enable Travel, Home, Vehicles, Inventory, and/or Wealth at first-run setup, or toggle from Settings later
 

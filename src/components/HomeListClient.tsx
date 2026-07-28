@@ -2,13 +2,16 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { linkButtonClass, toolbarButtonClass, exportMenuItemClass } from "@/lib/buttonStyles";
 import { Plus, ChevronDown } from "lucide-react";
 import { PropertyCard } from "@/components/PropertyCard";
+import { PendingRecordCard } from "@/components/PendingRecordCard";
 import type { PropertyModel } from "@/generated/prisma/models";
 import { formatCurrency } from "@/lib/utils";
 import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
+import { usePendingCreates } from "@/lib/usePendingCreates";
 
 type PropertyWithCount = PropertyModel & { _count: { items: number } };
 
@@ -26,10 +29,18 @@ interface Props {
 
 export function HomeListClient({ properties, taxDeductibleSummary, region }: Props) {
   const online = useOnlineStatus();
+  const router = useRouter();
+  const { pendingOps, refresh: refreshPending } = usePendingCreates("property");
 
   useEffect(() => {
     cachePageData("properties:list", properties).catch(() => {});
   }, [properties]);
+
+  useEffect(() => {
+    const onSyncComplete = () => router.refresh();
+    window.addEventListener("offline-sync-complete", onSyncComplete);
+    return () => window.removeEventListener("offline-sync-complete", onSyncComplete);
+  }, [router]);
 
   return (
     <div className="space-y-6">
@@ -71,10 +82,27 @@ export function HomeListClient({ properties, taxDeductibleSummary, region }: Pro
         </div>
       )}
 
+      {pendingOps.length > 0 && (
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          {pendingOps.map((op) => (
+            <PendingRecordCard
+              key={op.id}
+              op={op}
+              title={op.formValues?.label || "Untitled property"}
+              subtitle={op.formValues?.address}
+              editHref={`/home/new?pendingOpId=${op.id}`}
+              onDeleted={refreshPending}
+            />
+          ))}
+        </div>
+      )}
+
       {properties.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-foreground/60">
-          No properties yet. Add your first property to start tracking maintenance and improvements.
-        </p>
+        pendingOps.length === 0 && (
+          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-foreground/60">
+            No properties yet. Add your first property to start tracking maintenance and improvements.
+          </p>
+        )
       ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {properties.map((property) => (

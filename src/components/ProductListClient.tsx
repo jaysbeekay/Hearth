@@ -6,9 +6,11 @@ import { linkButtonClass, toolbarButtonClass, exportMenuItemClass } from "@/lib/
 import { useRouter } from "next/navigation";
 import { Plus, ChevronDown, X } from "lucide-react";
 import { ProductCard } from "@/components/ProductCard";
+import { PendingRecordCard } from "@/components/PendingRecordCard";
 import type { ProductModel } from "@/generated/prisma/models";
 import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
+import { usePendingCreates } from "@/lib/usePendingCreates";
 
 interface Props {
   products: ProductModel[];
@@ -23,10 +25,17 @@ export function ProductListClient({ products, q, dateFormat, region, canWrite = 
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const { pendingOps, refresh: refreshPending } = usePendingCreates("product");
 
   useEffect(() => {
     cachePageData("products:list", products).catch(() => {});
   }, [products]);
+
+  useEffect(() => {
+    const onSyncComplete = () => router.refresh();
+    window.addEventListener("offline-sync-complete", onSyncComplete);
+    return () => window.removeEventListener("offline-sync-complete", onSyncComplete);
+  }, [router]);
 
   return (
     <div className="space-y-6">
@@ -91,12 +100,29 @@ export function ProductListClient({ products, q, dateFormat, region, canWrite = 
         </div>
       )}
 
+      {pendingOps.length > 0 && (
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          {pendingOps.map((op) => (
+            <PendingRecordCard
+              key={op.id}
+              op={op}
+              title={op.formValues?.description || "Untitled product"}
+              subtitle={op.formValues?.manufacturer}
+              editHref={`/products/new?pendingOpId=${op.id}`}
+              onDeleted={refreshPending}
+            />
+          ))}
+        </div>
+      )}
+
       {products.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-foreground/60">
-          {q
-            ? "No products match your search."
-            : "No products yet. Add one manually, or upload an invoice and we'll fill in the details."}
-        </p>
+        pendingOps.length === 0 && (
+          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-foreground/60">
+            {q
+              ? "No products match your search."
+              : "No products yet. Add one manually, or upload an invoice and we'll fill in the details."}
+          </p>
+        )
       ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {products.map((product) => (

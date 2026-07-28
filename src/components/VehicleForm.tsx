@@ -1,13 +1,20 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { VehicleModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
+import {
+  makeOfflineAwareAction,
+  getOperationById,
+  updateOperationFormValues,
+  serializeFormData,
+  type QueuedOperation,
+} from "@/lib/offlineQueue";
 import { Field } from "@/components/FormField";
 import { inputClass } from "@/components/SelectWrapper";
-import { makeOfflineAwareAction } from "@/lib/offlineQueue";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -35,15 +42,46 @@ export function VehicleForm({
 
   const [state, formAction] = useActionState<ActionState, FormData>(offlineAwareAction, null);
 
+  const router = useRouter();
+  const pendingOpId = useSearchParams().get("pendingOpId");
+  const [pendingOp, setPendingOp] = useState<QueuedOperation | null | undefined>(
+    pendingOpId ? undefined : null,
+  );
+  useEffect(() => {
+    if (!pendingOpId) return;
+    getOperationById(pendingOpId).then((op) => setPendingOp(op ?? null));
+  }, [pendingOpId]);
+  const effectiveValues = state?.values ?? pendingOp?.formValues;
+
+  async function handlePendingSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!pendingOp) return;
+    const { values } = serializeFormData(new FormData(e.currentTarget));
+    await updateOperationFormValues(pendingOp.id, values);
+    router.push("/vehicles");
+  }
+
+  if (pendingOp === undefined) {
+    return <p className="text-sm text-muted">Loading…</p>;
+  }
+
   return (
-    <form action={formAction} className="space-y-6">
+    <form
+      {...(pendingOp ? { onSubmit: handlePendingSubmit } : { action: formAction })}
+      className="space-y-6"
+    >
+      {pendingOp && (
+        <p className="rounded-lg border border-dashed border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-700 dark:text-amber-400">
+          Editing an offline entry that hasn&apos;t synced yet — saving updates it in place.
+        </p>
+      )}
       <div className="grid gap-4 md:grid-cols-2">
         <Field label="Label" htmlFor="label" required>
           <input
             id="label"
             name="label"
             required
-            defaultValue={state?.values?.label ?? vehicle?.label}
+            defaultValue={effectiveValues?.label ?? vehicle?.label}
             placeholder="e.g. Family Corolla"
             className={inputClass}
           />
@@ -53,7 +91,7 @@ export function VehicleForm({
           <input
             id="licensePlate"
             name="licensePlate"
-            defaultValue={state?.values?.licensePlate ?? vehicle?.licensePlate ?? ""}
+            defaultValue={effectiveValues?.licensePlate ?? vehicle?.licensePlate ?? ""}
             placeholder="e.g. ABC123"
             className={inputClass}
           />
@@ -63,7 +101,7 @@ export function VehicleForm({
           <input
             id="make"
             name="make"
-            defaultValue={state?.values?.make ?? vehicle?.make ?? ""}
+            defaultValue={effectiveValues?.make ?? vehicle?.make ?? ""}
             placeholder="e.g. Toyota"
             className={inputClass}
           />
@@ -73,7 +111,7 @@ export function VehicleForm({
           <input
             id="model"
             name="model"
-            defaultValue={state?.values?.model ?? vehicle?.model ?? ""}
+            defaultValue={effectiveValues?.model ?? vehicle?.model ?? ""}
             placeholder="e.g. Corolla"
             className={inputClass}
           />
@@ -86,7 +124,7 @@ export function VehicleForm({
             type="number"
             min={1886}
             max={2100}
-            defaultValue={state?.values?.year ?? vehicle?.year ?? ""}
+            defaultValue={effectiveValues?.year ?? vehicle?.year ?? ""}
             placeholder="e.g. 2019"
             className={inputClass}
           />
@@ -96,7 +134,7 @@ export function VehicleForm({
           <input
             id="colour"
             name="colour"
-            defaultValue={state?.values?.colour ?? vehicle?.colour ?? ""}
+            defaultValue={effectiveValues?.colour ?? vehicle?.colour ?? ""}
             placeholder="e.g. White"
             className={inputClass}
           />
@@ -106,7 +144,7 @@ export function VehicleForm({
           <input
             id="vin"
             name="vin"
-            defaultValue={state?.values?.vin ?? vehicle?.vin ?? ""}
+            defaultValue={effectiveValues?.vin ?? vehicle?.vin ?? ""}
             placeholder="17-character vehicle identifier"
             className={inputClass}
           />
@@ -117,7 +155,7 @@ export function VehicleForm({
             id="regoExpiry"
             name="regoExpiry"
             type="date"
-            defaultValue={state?.values?.regoExpiry ?? toDateInputValue(vehicle?.regoExpiry)}
+            defaultValue={effectiveValues?.regoExpiry ?? toDateInputValue(vehicle?.regoExpiry)}
             className={inputClass}
           />
         </Field>
@@ -128,7 +166,7 @@ export function VehicleForm({
             name="insuranceExpiry"
             type="date"
             defaultValue={
-              state?.values?.insuranceExpiry ?? toDateInputValue(vehicle?.insuranceExpiry)
+              effectiveValues?.insuranceExpiry ?? toDateInputValue(vehicle?.insuranceExpiry)
             }
             className={inputClass}
           />
@@ -139,7 +177,7 @@ export function VehicleForm({
             id="reminderDaysBefore"
             name="reminderDaysBefore"
             defaultValue={
-              state?.values?.reminderDaysBefore ?? vehicle?.reminderDaysBefore ?? "30,14,7,1"
+              effectiveValues?.reminderDaysBefore ?? vehicle?.reminderDaysBefore ?? "30,14,7,1"
             }
             placeholder="e.g. 30,14,7,1"
             className={inputClass}
@@ -152,7 +190,7 @@ export function VehicleForm({
           id="notes"
           name="notes"
           rows={4}
-          defaultValue={state?.values?.notes ?? vehicle?.notes ?? ""}
+          defaultValue={effectiveValues?.notes ?? vehicle?.notes ?? ""}
           className={inputClass}
         />
       </Field>
@@ -160,7 +198,7 @@ export function VehicleForm({
       <FormMessage error={state?.error} success={state?.success} />
 
       <div className="flex justify-end gap-3">
-        <SubmitButton>{vehicle ? "Save changes" : "Add vehicle"}</SubmitButton>
+        <SubmitButton>{pendingOp || vehicle ? "Save changes" : "Add vehicle"}</SubmitButton>
       </div>
     </form>
   );

@@ -7,6 +7,50 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-07-27
+
+### Added
+
+- **Records created while offline can now be edited or discarded before they
+  sync** (#64). Contracts, Products, Vehicles, Travel, Home, and Inventory
+  list pages now show a "Pending sync" card for anything created while
+  offline — editing it updates the same queued entry in place instead of
+  creating a duplicate, and discarding it removes the queued entry (and any
+  staged files) entirely, with no server request ever sent. Wealth/portfolios
+  doesn't have an equivalent list-client wrapper yet, so it's not covered by
+  this pass.
+- **The AI Assistant now streams its replies token-by-token** instead of
+  waiting for the full answer (#67), across all five providers (Anthropic,
+  OpenAI, Gemini, Ollama, OpenRouter) — each now parses its own streaming
+  wire format (SSE or newline-delimited JSON) via a shared stream reader.
+  Tool-calling rounds now also surface a brief "Checking …" status while a
+  tool runs. Verified against each provider's documented wire format with
+  synthetic fixtures, and end-to-end against a local mock streaming server;
+  live testing against the real cloud providers wasn't possible in this
+  environment (no outbound access/API keys), so keep an eye out for
+  provider-specific streaming quirks in the wild.
+- **The AI Assistant can now propose creating or updating a contract or
+  product** (#68) — for Contracts and Products, the two always-on domains;
+  Trips/Vehicles/Properties/Inventory aren't covered yet, but the same
+  pattern (guarded `propose_*` tools + a confirm/cancel card) extends
+  directly. A proposal never writes anything by itself: the model calls a
+  `propose_create_*`/`propose_update_*` tool, which validates the fields
+  against the same Zod schema the real form uses and returns them for
+  display — the actual write only happens if the user explicitly confirms it
+  in a card shown under the assistant's reply, via the same validated,
+  `requireUser()`-gated action every form already uses. READONLY-role users
+  never see these tools offered at all, and a write attempt is rejected even
+  if one somehow reached them.
+- **The overflow ("⋮") menu's mobile bottom-sheet redesign now extends to
+  touch gestures** (#91 continued): contract cards on the Contracts list can
+  be swiped left to reveal a quick Delete action (still routed through the
+  same confirmation dialog used everywhere else) — a touch-only accelerator
+  alongside the existing tap-through-to-detail-page path, not a replacement
+  for it. Swipe-to-go-back wasn't added deliberately — modern mobile browsers
+  already provide it natively, and a custom implementation would conflict
+  with that. Other list pages don't have the swipe action yet; the pattern
+  (`SwipeableListItem`) is reusable for them as a follow-up.
+
 ## [0.10.3] - 2026-07-27
 
 ### Added

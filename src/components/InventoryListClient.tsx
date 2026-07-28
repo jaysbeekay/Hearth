@@ -2,12 +2,15 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { linkButtonClass } from "@/lib/buttonStyles";
 import { Plus } from "lucide-react";
 import { InventoryCard } from "@/components/InventoryCard";
+import { PendingRecordCard } from "@/components/PendingRecordCard";
 import type { InventoryItemModel } from "@/generated/prisma/models";
 import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
+import { usePendingCreates } from "@/lib/usePendingCreates";
 
 type InventoryItemWithCount = InventoryItemModel & { _count: { documents: number } };
 
@@ -20,10 +23,18 @@ interface Props {
 
 export function InventoryListClient({ items, dateFormat, region, canWrite = true }: Props) {
   const online = useOnlineStatus();
+  const router = useRouter();
+  const { pendingOps, refresh: refreshPending } = usePendingCreates("inventoryItem");
 
   useEffect(() => {
     cachePageData("inventory:list", items).catch(() => {});
   }, [items]);
+
+  useEffect(() => {
+    const onSyncComplete = () => router.refresh();
+    window.addEventListener("offline-sync-complete", onSyncComplete);
+    return () => window.removeEventListener("offline-sync-complete", onSyncComplete);
+  }, [router]);
 
   return (
     <div className="space-y-6">
@@ -42,10 +53,27 @@ export function InventoryListClient({ items, dateFormat, region, canWrite = true
         )}
       </div>
 
+      {pendingOps.length > 0 && (
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          {pendingOps.map((op) => (
+            <PendingRecordCard
+              key={op.id}
+              op={op}
+              title={op.formValues?.label || "Untitled item"}
+              subtitle={op.formValues?.brand}
+              editHref={`/inventory/new?pendingOpId=${op.id}`}
+              onDeleted={refreshPending}
+            />
+          ))}
+        </div>
+      )}
+
       {items.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-foreground/60">
-          No items yet. Add your first inventory item to start cataloguing your household.
-        </p>
+        pendingOps.length === 0 && (
+          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-foreground/60">
+            No items yet. Add your first inventory item to start cataloguing your household.
+          </p>
+        )
       ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {items.map((item) => (

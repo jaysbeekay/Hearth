@@ -2,12 +2,15 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { linkButtonClass, toolbarButtonClass, exportMenuItemClass } from "@/lib/buttonStyles";
 import { Plus, ChevronDown } from "lucide-react";
 import { TripCard } from "@/components/TripCard";
+import { PendingRecordCard } from "@/components/PendingRecordCard";
 import type { TripModel } from "@/generated/prisma/models";
 import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
+import { usePendingCreates } from "@/lib/usePendingCreates";
 
 type TripWithCount = TripModel & { _count: { segments: number } };
 
@@ -19,10 +22,18 @@ interface Props {
 
 export function TravelListClient({ trips, dateFormat, canWrite = true }: Props) {
   const online = useOnlineStatus();
+  const router = useRouter();
+  const { pendingOps, refresh: refreshPending } = usePendingCreates("trip");
 
   useEffect(() => {
     cachePageData("trips:list", trips).catch(() => {});
   }, [trips]);
+
+  useEffect(() => {
+    const onSyncComplete = () => router.refresh();
+    window.addEventListener("offline-sync-complete", onSyncComplete);
+    return () => window.removeEventListener("offline-sync-complete", onSyncComplete);
+  }, [router]);
 
   return (
     <div className="space-y-6">
@@ -52,10 +63,27 @@ export function TravelListClient({ trips, dateFormat, canWrite = true }: Props) 
         </div>
       </div>
 
+      {pendingOps.length > 0 && (
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          {pendingOps.map((op) => (
+            <PendingRecordCard
+              key={op.id}
+              op={op}
+              title={op.formValues?.title || "Untitled trip"}
+              subtitle={op.formValues?.destination}
+              editHref={`/travel/new?pendingOpId=${op.id}`}
+              onDeleted={refreshPending}
+            />
+          ))}
+        </div>
+      )}
+
       {trips.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-foreground/60">
-          No trips yet. Add your first trip to start building an itinerary.
-        </p>
+        pendingOps.length === 0 && (
+          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-foreground/60">
+            No trips yet. Add your first trip to start building an itinerary.
+          </p>
+        )
       ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {trips.map((trip) => (
