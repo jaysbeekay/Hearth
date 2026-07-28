@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { FileText, Image as ImageIcon, Eye, X, Upload } from "lucide-react";
-import { SelectWrapper } from "@/components/SelectWrapper";
+import { SelectWrapper, inputClass } from "@/components/SelectWrapper";
 import { DocumentLink } from "@/components/DocumentLink";
 import { getOfflineDocument } from "@/lib/offlineDocuments";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
@@ -103,7 +103,7 @@ export function DocumentsExplorer({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search by filename or record…"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent sm:max-w-xs"
+          className={`${inputClass} sm:max-w-xs`}
         />
         <SelectWrapper>
           <select

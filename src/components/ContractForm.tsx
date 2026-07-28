@@ -6,12 +6,13 @@ import type { ContractModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/contracts";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
+import { Field } from "@/components/FormField";
 import {
   BILLING_LABELS,
   CATEGORY_LABELS,
   RENEWAL_LABELS,
 } from "@/lib/utils";
-import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
+import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
@@ -165,7 +166,7 @@ export function ContractForm({
       )}
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Title" htmlFor="title">
+        <Field label="Title" htmlFor="title" required>
           <input
             ref={titleRef}
             id="title"
@@ -177,7 +178,7 @@ export function ContractForm({
           />
         </Field>
 
-        <Field label="Category" htmlFor="category">
+        <Field label="Category" htmlFor="category" required>
           <SelectWrapper>
             <select
               id="category"
@@ -195,7 +196,7 @@ export function ContractForm({
           </SelectWrapper>
         </Field>
 
-        <Field label="Provider / Company" htmlFor="provider">
+        <Field label="Provider / Company" htmlFor="provider" required>
           <input
             ref={providerRef}
             id="provider"
@@ -406,27 +407,5 @@ export function ContractForm({
         <SubmitButton>{contract ? "Save changes" : "Add contract"}</SubmitButton>
       </div>
     </form>
-  );
-}
-
-const inputClass =
-  "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent";
-
-function Field({
-  label,
-  htmlFor,
-  children,
-}: {
-  label: string;
-  htmlFor: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-1">
-      <label htmlFor={htmlFor} className="text-sm font-medium">
-        {label}
-      </label>
-      {children}
-    </div>
   );
 }

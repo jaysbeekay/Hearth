@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import Link from "next/link";
+import { linkButtonClass } from "@/components/SubmitButton";
 import { useRouter } from "next/navigation";
 import { Plus, ChevronDown, X } from "lucide-react";
 import { ProductCard } from "@/components/ProductCard";
@@ -46,7 +47,7 @@ export function ProductListClient({ products, q, dateFormat, region, canWrite = 
               href="/products/new"
               aria-disabled={!online}
               tabIndex={!online ? -1 : undefined}
-              className={`flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90${!online ? " pointer-events-none opacity-40" : ""}`}
+              className={linkButtonClass("primary", { online })}
             >
               <Plus size={16} />
               Add product

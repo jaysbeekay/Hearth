@@ -6,9 +6,10 @@ import type { VehicleItemModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
+import { Field } from "@/components/FormField";
 import { VEHICLE_ITEM_TYPES } from "@/lib/validation/vehicles";
 import { VEHICLE_ITEM_TYPE_LABELS } from "@/lib/utils";
-import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
+import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
@@ -128,7 +129,7 @@ export function VehicleItemForm({
       )}
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Type" htmlFor="type">
+        <Field label="Type" htmlFor="type" required>
           <SelectWrapper>
             <select
               ref={typeRef}
@@ -147,7 +148,7 @@ export function VehicleItemForm({
           </SelectWrapper>
         </Field>
 
-        <Field label="Title" htmlFor="title">
+        <Field label="Title" htmlFor="title" required>
           <input
             ref={titleRef}
             id="title"
@@ -218,27 +219,5 @@ export function VehicleItemForm({
         <SubmitButton>{item ? "Save changes" : "Add record"}</SubmitButton>
       </div>
     </form>
-  );
-}
-
-const inputClass =
-  "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent";
-
-function Field({
-  label,
-  htmlFor,
-  children,
-}: {
-  label: string;
-  htmlFor: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-1">
-      <label htmlFor={htmlFor} className="text-sm font-medium">
-        {label}
-      </label>
-      {children}
-    </div>
   );
 }

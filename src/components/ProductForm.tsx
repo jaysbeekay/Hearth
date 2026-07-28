@@ -6,6 +6,8 @@ import type { ProductModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/products";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
+import { Field } from "@/components/FormField";
+import { inputClass } from "@/components/SelectWrapper";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
@@ -179,7 +181,7 @@ export function ProductForm({
       )}
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Product name" htmlFor="name">
+        <Field label="Product name" htmlFor="name" required>
           <input
             ref={nameRef}
             id="name"
@@ -336,27 +338,5 @@ export function ProductForm({
         />
       )}
     </form>
-  );
-}
-
-const inputClass =
-  "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent";
-
-function Field({
-  label,
-  htmlFor,
-  children,
-}: {
-  label: string;
-  htmlFor: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-1">
-      <label htmlFor={htmlFor} className="text-sm font-medium">
-        {label}
-      </label>
-      {children}
-    </div>
   );
 }

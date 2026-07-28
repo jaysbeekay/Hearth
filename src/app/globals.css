@@ -16,7 +16,7 @@
   --accent: #533afd;
   --accent-foreground: #ffffff;
   --success: #0b7a36;
-  --danger: #ea2261;
+  --danger: #d91552;
   --warning: #92400e;
   --info: #0f6fb0;
 }
@@ -50,7 +50,7 @@
     --accent: #8f7afe;
     --accent-foreground: #1c1e54;
     --success: #15be53;
-    --danger: #ea2261;
+    --danger: #ef5a89;
     --warning: #fbbf24;
     --info: #38bdf8;
   }

@@ -4,6 +4,7 @@ import { useState, useActionState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { disableTotp, type ActionState } from "@/lib/actions/auth";
 import { FormMessage } from "@/components/FormMessage";
+import { inputClass } from "@/components/SelectWrapper";
 
 type SetupStep = "idle" | "scanning" | "recovery-codes";
 
@@ -103,7 +104,7 @@ export function TotpSection({ enabled }: { enabled: boolean }) {
           type="password"
           required
           autoComplete="current-password"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+          className={inputClass}
         />
         <div className="flex gap-2">
           <button
@@ -155,7 +156,7 @@ export function TotpSection({ enabled }: { enabled: boolean }) {
             onChange={(e) => setCode(e.target.value)}
             inputMode="numeric"
             placeholder="123456"
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+            className={inputClass}
           />
         </div>
         <div className="flex gap-2">

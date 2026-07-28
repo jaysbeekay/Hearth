@@ -5,6 +5,7 @@ import Link from "next/link";
 import { resetPassword, type ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
+import { inputClass } from "@/components/SelectWrapper";
 
 export function ResetPasswordForm({ token }: { token: string }) {
   const [state, formAction] = useActionState<ActionState, FormData>(
@@ -39,7 +40,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
           required
           minLength={8}
           autoComplete="new-password"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+          className={inputClass}
         />
       </div>
 

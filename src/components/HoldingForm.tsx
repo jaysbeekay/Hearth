@@ -6,7 +6,7 @@ import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { ASSET_CLASSES, ASSET_CLASS_LABELS } from "@/lib/validation/wealth";
-import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
+import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
 
 const COMMON_EXCHANGES = ["ASX", "NYSE", "NASDAQ", "LSE", "TSX", "CRYPTO", "OTHER"];
@@ -65,7 +65,7 @@ export function HoldingForm({
           type="text"
           defaultValue={state?.values?.name ?? holding?.name ?? ""}
           placeholder="e.g. Commonwealth Bank of Australia"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+          className={inputClass}
         />
       </div>
 

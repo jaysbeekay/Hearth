@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { linkButtonClass } from "@/components/SubmitButton";
 import { Plus, ChevronDown } from "lucide-react";
 import { TripCard } from "@/components/TripCard";
 import type { TripModel } from "@/generated/prisma/models";
@@ -42,7 +43,7 @@ export function TravelListClient({ trips, dateFormat, canWrite = true }: Props) 
               href="/travel/new"
               aria-disabled={!online}
               tabIndex={!online ? -1 : undefined}
-              className={`flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90${!online ? " pointer-events-none opacity-40" : ""}`}
+              className={linkButtonClass("primary", { online })}
             >
               <Plus size={16} />
               Add trip
