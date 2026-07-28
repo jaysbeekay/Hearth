@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Dark-mode counterparts, matching globals.css's
-         @media (prefers-color-scheme: dark) tokens (--accent, --background). -->
+         @media (prefers-color-scheme: dark) tokens (accent, background). -->
     <color name="colorPrimary">#8F7AFE</color>
     <color name="colorPrimaryDark">#1C1E54</color>
     <color name="colorAccent">#8F7AFE</color>
