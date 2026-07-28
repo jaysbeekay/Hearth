@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Overrides @capacitor/android's default indigo/pink theme with the
+         app's actual brand palette (src/app/globals.css :root tokens):
+         --accent and a status-bar-safe dark tone from the same family. -->
+    <color name="colorPrimary">#533AFD</color>
+    <color name="colorPrimaryDark">#3B2ADB</color>
+    <color name="colorAccent">#533AFD</color>
+</resources>
