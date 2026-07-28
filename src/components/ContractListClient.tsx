@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import Link from "next/link";
-import { linkButtonClass } from "@/components/SubmitButton";
+import { linkButtonClass, toolbarButtonClass, exportMenuItemClass } from "@/lib/buttonStyles";
 import { useRouter } from "next/navigation";
 import { Plus, ChevronDown, X } from "lucide-react";
 import { SelectWrapper } from "@/components/SelectWrapper";
@@ -56,12 +56,12 @@ export function ContractListClient({
         <h1 className="text-2xl font-semibold">Contracts</h1>
         <div className="flex items-center gap-2">
           <details className="relative">
-            <summary className="flex cursor-pointer list-none items-center gap-1 rounded-lg border border-border px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/5">
+            <summary className={toolbarButtonClass}>
               Export <ChevronDown size={14} />
             </summary>
             <div className="absolute right-0 z-10 mt-1 w-28 overflow-hidden rounded-lg border border-border bg-surface shadow-md">
-              <a href="/api/export/contracts?format=csv" download className="block px-4 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/5">CSV</a>
-              <a href="/api/export/contracts?format=pdf" download className="block px-4 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/5">PDF</a>
+              <a href="/api/export/contracts?format=csv" download className={exportMenuItemClass}>CSV</a>
+              <a href="/api/export/contracts?format=pdf" download className={exportMenuItemClass}>PDF</a>
             </div>
           </details>
           {canWrite && (
@@ -119,7 +119,7 @@ export function ContractListClient({
         </SelectWrapper>
         <button
           type="submit"
-          className="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
+          className={toolbarButtonClass}
         >
           Filter
         </button>

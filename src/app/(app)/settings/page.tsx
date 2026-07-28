@@ -18,8 +18,14 @@ import { CurrencySelect } from "@/components/CurrencySelect";
 import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 import { OfflineDocumentsPanel } from "@/components/OfflineDocumentsPanel";
 import { UnconfiguredNotice } from "@/components/UnconfiguredNotice";
+import { compactButtonClass } from "@/lib/buttonStyles";
 
 export const metadata: Metadata = { title: "Settings" };
+
+// min-h-11 (44px) keeps these comfortably tappable on mobile even though
+// they're plain text links, not buttons.
+const quickLinkClass =
+  "flex min-h-11 items-center gap-2 rounded-lg px-2 -mx-2 text-sm text-accent hover:bg-black/5 dark:hover:bg-white/5";
 
 export default async function SettingsPage() {
   const session = await auth();
@@ -52,39 +58,24 @@ export default async function SettingsPage() {
             </div>
           </dl>
           {user.role === "ADMIN" && (
-            <div className="mt-4 flex flex-col gap-2">
-              <Link
-                href="/settings/users"
-                className="inline-flex items-center gap-2 text-sm text-accent hover:underline"
-              >
+            <div className="mt-2 flex flex-col gap-1">
+              <Link href="/settings/users" className={quickLinkClass}>
                 <Users size={16} />
                 Manage household members
               </Link>
-              <Link
-                href="/settings/backups"
-                className="inline-flex items-center gap-2 text-sm text-accent hover:underline"
-              >
+              <Link href="/settings/backups" className={quickLinkClass}>
                 <DatabaseBackup size={16} />
                 Database backups
               </Link>
-              <Link
-                href="/settings/webhooks"
-                className="inline-flex items-center gap-2 text-sm text-accent hover:underline"
-              >
+              <Link href="/settings/webhooks" className={quickLinkClass}>
                 <Webhook size={16} />
                 Webhooks
               </Link>
-              <Link
-                href="/settings/modules"
-                className="inline-flex items-center gap-2 text-sm text-accent hover:underline"
-              >
+              <Link href="/settings/modules" className={quickLinkClass}>
                 <LayoutGrid size={16} />
                 Modules
               </Link>
-              <Link
-                href="/settings/app"
-                className="inline-flex items-center gap-2 text-sm text-accent hover:underline"
-              >
+              <Link href="/settings/app" className={quickLinkClass}>
                 <Settings2 size={16} />
                 System settings
               </Link>
@@ -116,7 +107,7 @@ export default async function SettingsPage() {
             </label>
             <button
               type="submit"
-              className="ml-auto rounded-lg border border-border px-3 py-1.5 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
+              className={`ml-auto ${compactButtonClass()}`}
             >
               Save
             </button>
@@ -201,7 +192,7 @@ export default async function SettingsPage() {
             <div className="sm:col-span-4">
               <button
                 type="submit"
-                className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
+                className={compactButtonClass()}
               >
                 Save preferences
               </button>
@@ -247,11 +238,8 @@ export default async function SettingsPage() {
 
         <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-3 font-medium">Security</h2>
-          <div className="flex flex-col gap-2">
-            <Link
-              href="/settings/passkeys"
-              className="inline-flex items-center gap-2 text-sm text-accent hover:underline"
-            >
+          <div className="flex flex-col gap-1">
+            <Link href="/settings/passkeys" className={quickLinkClass}>
               <KeyRound size={16} />
               Manage passkeys
             </Link>

@@ -7,6 +7,8 @@ import { CATEGORY_LABELS } from "@/lib/utils";
 import { INVENTORY_ITEM_CATEGORIES } from "@/lib/validation/inventory";
 import { showToast } from "@/components/Toast";
 import { extractionMessage } from "@/lib/autoFillHighlight";
+import { buttonVariants, compactButtonClass } from "@/lib/buttonStyles";
+import { cn } from "@/lib/utils";
 
 const INVENTORY_CATEGORY_LABELS: Record<string, string> = {
   APPLIANCE: "Appliance",
@@ -270,7 +272,10 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
               <button
                 type="button"
                 onClick={saveAll}
-                className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+                className={cn(
+                  "inline-flex min-h-11 items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition",
+                  buttonVariants.primary,
+                )}
               >
                 Save all ({readyCount})
               </button>
@@ -536,7 +541,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                   <button
                     type="button"
                     onClick={() => saveRow(row)}
-                    className="mt-3 rounded-lg border border-border px-3 py-1.5 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
+                    className={`mt-3 ${compactButtonClass()}`}
                   >
                     Save
                   </button>

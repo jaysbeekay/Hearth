@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { linkButtonClass } from "@/components/SubmitButton";
+import { linkButtonClass, toolbarButtonClass, exportMenuItemClass } from "@/lib/buttonStyles";
 import { Plus, ChevronDown } from "lucide-react";
 import { TripCard } from "@/components/TripCard";
 import type { TripModel } from "@/generated/prisma/models";
@@ -30,12 +30,12 @@ export function TravelListClient({ trips, dateFormat, canWrite = true }: Props) 
         <h1 className="text-2xl font-semibold">Travel</h1>
         <div className="flex items-center gap-2">
           <details className="relative">
-            <summary className="flex cursor-pointer list-none items-center gap-1 rounded-lg border border-border px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/5">
+            <summary className={toolbarButtonClass}>
               Export <ChevronDown size={14} />
             </summary>
             <div className="absolute right-0 z-10 mt-1 w-28 overflow-hidden rounded-lg border border-border bg-surface shadow-md">
-              <a href="/api/export/travel?format=csv" download className="block px-4 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/5">CSV</a>
-              <a href="/api/export/travel?format=pdf" download className="block px-4 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/5">PDF</a>
+              <a href="/api/export/travel?format=csv" download className={exportMenuItemClass}>CSV</a>
+              <a href="/api/export/travel?format=pdf" download className={exportMenuItemClass}>PDF</a>
             </div>
           </details>
           {canWrite && (

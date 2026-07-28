@@ -14,11 +14,11 @@ export function TopBar() {
           type="button"
           onClick={openGlobalSearch}
           aria-label="Search"
-          className="rounded-full p-2 text-muted hover:bg-black/5 dark:hover:bg-white/5"
+          className="flex size-11 items-center justify-center rounded-full text-muted hover:bg-black/5 dark:hover:bg-white/5"
         >
           <Search size={18} />
         </button>
-        <SignOutButton />
+        <SignOutButton className="flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm text-foreground/70 hover:bg-black/5 hover:text-foreground dark:hover:bg-white/5" />
       </div>
     </header>
   );

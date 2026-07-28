@@ -24,7 +24,7 @@ export function NotificationNudgeBanner() {
         type="button"
         aria-label="Dismiss"
         onClick={dismiss}
-        className="shrink-0 rounded-md p-1 text-muted hover:bg-black/5 dark:hover:bg-white/5"
+        className="flex size-11 shrink-0 items-center justify-center rounded-md text-muted hover:bg-black/5 dark:hover:bg-white/5"
       >
         <X size={14} />
       </button>

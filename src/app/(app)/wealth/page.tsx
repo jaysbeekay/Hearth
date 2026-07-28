@@ -10,6 +10,7 @@ import { formatCurrency } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { HoldingCard } from "@/components/HoldingCard";
 import type { ModuleKey } from "@/lib/modules/registry";
+import { linkButtonClass, toolbarButtonClass, exportMenuItemClass } from "@/lib/buttonStyles";
 
 export const metadata: Metadata = { title: "Wealth" };
 
@@ -34,11 +35,13 @@ export default async function WealthPage() {
     .sort((a, b) => (b.currentValue ?? 0) - (a.currentValue ?? 0))
     .slice(0, 6);
 
-  // SVG donut data
+  // SVG donut data — reuses the app's existing semantic tokens as chart
+  // colors rather than one-off hex, so the chart follows light/dark mode
+  // like everything else instead of staying fixed.
   const segments = [
-    { label: "Shares / ETFs / Crypto", value: data.sharesValue, color: "var(--color-accent, #4CA3D6)" },
-    { label: "Property", value: data.propertyValue, color: "#3CB87A" },
-    { label: "Inventory", value: data.inventoryValue, color: "#E0A040" },
+    { label: "Shares / ETFs / Crypto", value: data.sharesValue, color: "var(--color-accent)" },
+    { label: "Property", value: data.propertyValue, color: "var(--color-success)" },
+    { label: "Inventory", value: data.inventoryValue, color: "var(--color-warning)" },
   ].filter((s) => s.value > 0);
 
   const total = segments.reduce((s, seg) => s + seg.value, 0);
@@ -68,27 +71,21 @@ export default async function WealthPage() {
         <h1 className="text-2xl font-semibold">Wealth</h1>
         <div className="flex items-center gap-2">
           <details className="relative">
-            <summary className="flex cursor-pointer list-none items-center gap-1 rounded-lg border border-border px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/5">
+            <summary className={toolbarButtonClass}>
               Export <ChevronDown size={14} />
             </summary>
             <div className="absolute right-0 z-10 mt-1 w-28 overflow-hidden rounded-lg border border-border bg-surface shadow-md">
-              <a href="/api/export/wealth?format=csv" download className="block px-4 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/5">CSV</a>
-              <a href="/api/export/wealth?format=pdf" download className="block px-4 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/5">PDF</a>
+              <a href="/api/export/wealth?format=csv" download className={exportMenuItemClass}>CSV</a>
+              <a href="/api/export/wealth?format=pdf" download className={exportMenuItemClass}>PDF</a>
             </div>
           </details>
           {hasPortfolios && (
-            <Link
-              href="/wealth/portfolios"
-              className="rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
-            >
+            <Link href="/wealth/portfolios" className={toolbarButtonClass}>
               Manage portfolios
             </Link>
           )}
           {!hasPortfolios && (
-            <Link
-              href="/wealth/portfolios/new"
-              className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
-            >
+            <Link href="/wealth/portfolios/new" className={linkButtonClass("primary")}>
               <Plus size={16} />
               Add portfolio
             </Link>
@@ -97,7 +94,7 @@ export default async function WealthPage() {
       </div>
 
       {data.propertyStale && enabledModules.has("HOME") && (
-        <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-400">
+        <div className="flex items-start gap-3 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
           <AlertTriangle size={16} className="mt-0.5 shrink-0" />
           <span>One or more properties don&apos;t have a valuation in the last 12 months. <Link href="/home" className="underline">Update property valuations</Link> for a more accurate net worth.</span>
         </div>
@@ -129,7 +126,7 @@ export default async function WealthPage() {
               ) : (
                 slices.map((s, i) => <path key={i} d={s.d} fill={s.color} />)
               )}
-              <circle cx="80" cy="80" r="38" fill="var(--color-surface, #1B2435)" />
+              <circle cx="80" cy="80" r="38" fill="var(--color-surface)" />
             </svg>
           </div>
           <div className="flex-1 space-y-2">

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Plus, FileText, Package, Boxes, Home as HomeIcon, Files, X } from "lucide-react";
+import { linkButtonClass } from "@/lib/buttonStyles";
 
 interface Option {
   label: string;
@@ -58,7 +59,7 @@ export function AddEntryPicker({ enabledModules }: { enabledModules: string[] })
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+        className={linkButtonClass("primary")}
       >
         <Plus size={16} />
         Add

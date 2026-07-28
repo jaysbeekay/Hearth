@@ -4,8 +4,15 @@ import Link from "next/link";
 import { Check, Circle, Plus, Sparkles, X } from "lucide-react";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
 import { useDismissible } from "@/lib/useDismissible";
+import { linkButtonClass } from "@/lib/buttonStyles";
 
 const DISMISS_KEY = "hearth:onboarding-checklist-dismissed";
+
+// Solid bg-surface rather than the shared secondary variant's bg-transparent
+// — these buttons sit on this card's own bg-accent/5 tint, so a transparent
+// button would let that tint bleed through instead of reading as a button.
+const secondaryOnAccentClass =
+  "flex min-h-11 items-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5";
 
 export function OnboardingChecklist({
   enabledModules,
@@ -32,7 +39,7 @@ export function OnboardingChecklist({
         type="button"
         aria-label="Dismiss getting-started checklist"
         onClick={dismiss}
-        className="absolute right-3 top-3 rounded-md p-1 text-muted hover:bg-black/5 dark:hover:bg-white/5"
+        className="absolute right-1 top-1 flex size-11 items-center justify-center rounded-md text-muted hover:bg-black/5 dark:hover:bg-white/5"
       >
         <X size={14} />
       </button>
@@ -45,17 +52,11 @@ export function OnboardingChecklist({
         </p>
       </div>
       <div className="flex flex-wrap items-center justify-center gap-2">
-        <Link
-          href="/contracts/new"
-          className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
-        >
+        <Link href="/contracts/new" className={linkButtonClass("primary")}>
           <Plus size={16} />
           Add a contract
         </Link>
-        <Link
-          href="/products/new"
-          className="flex items-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
-        >
+        <Link href="/products/new" className={secondaryOnAccentClass}>
           <Plus size={16} />
           Add a warranty
         </Link>
@@ -64,11 +65,7 @@ export function OnboardingChecklist({
           if (!mod) return null;
           const Icon = mod.icon;
           return (
-            <Link
-              key={key}
-              href={mod.href}
-              className="flex items-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
-            >
+            <Link key={key} href={mod.href} className={secondaryOnAccentClass}>
               <Icon size={16} />
               {mod.label}
             </Link>
@@ -81,7 +78,7 @@ export function OnboardingChecklist({
           <li key={step.label}>
             <Link
               href={step.href}
-              className="flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm hover:border-accent/50"
+              className="flex min-h-11 items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm hover:border-accent/50"
             >
               {step.done ? (
                 <Check size={16} className="shrink-0 text-success" />

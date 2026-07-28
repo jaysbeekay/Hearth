@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { linkButtonClass } from "@/components/SubmitButton";
+import { linkButtonClass } from "@/lib/buttonStyles";
 import { Plus } from "lucide-react";
 import { InventoryCard } from "@/components/InventoryCard";
 import type { InventoryItemModel } from "@/generated/prisma/models";
