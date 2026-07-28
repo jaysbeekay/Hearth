@@ -7,7 +7,84 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
-## [0.9.0] - 2026-07-25
+## [0.10.3] - 2026-07-27
+
+### Added
+
+- **The external MCP server (`/api/mcp`) now exposes products, trips, vehicles,
+  properties, inventory, and net worth**, matching the breadth of read-only
+  data the in-app AI Assistant already has — previously it only covered
+  contracts. Six new tools: `list_products`, `list_trips`, `list_vehicles`,
+  `list_properties`, `list_inventory_items`, and `net_worth`. Module-gated
+  tools (everything but contracts/products) are only listed when the
+  corresponding optional module (Travel, Vehicles, Home, Inventory, Wealth) is
+  enabled for the household, mirroring the Assistant's behavior. Still
+  strictly read-only — no new write capability.
+
+### Changed
+
+- The Assistant's chat tools and the MCP server's tools now share the same
+  underlying Prisma query/serialization functions (`src/lib/domainQueries.ts`)
+  instead of each re-deriving the same queries independently.
+
+## [0.10.2] - 2026-07-27
+
+### Changed
+
+- **The overflow ("⋮") menu on detail pages (Contracts, Products, Vehicles,
+  Inventory, Home, Travel) now opens as a full-width bottom sheet on mobile**
+  instead of a small anchored dropdown, making its actions easier to hit with
+  a thumb. Desktop keeps the existing dropdown. The menu's trigger button, and
+  the mobile search/sign-out buttons in the top bar, were also enlarged to a
+  44×44px minimum touch target.
+
+## [0.10.1] - 2026-07-27
+
+### Fixed
+
+- **Pages required horizontal scrolling on mobile phone screens.** Two
+  causes: the `/spend` page's "Actuals by financial year" table had no
+  `overflow-x-auto` wrapper, and the detail-field grid used on Contracts,
+  Products, Vehicles, Inventory, Home, Home rental, Travel, Wealth holdings,
+  and Settings (Profile) didn't let a long unbroken value (a long email
+  address, policy number, etc.) wrap or shrink, forcing the whole page wider
+  than the screen. Both fixed; content now wraps or scrolls within its own
+  container instead of the page.
+
+## [0.10.0] - 2026-07-27
+
+### Changed
+
+- **Products now track Brand, Model, and Description separately**, matching
+  how most retail invoices itemise a purchase. The previous single "Product
+  name" field is now "Description" (e.g. "6kg Vented Dryer"); "Manufacturer"
+  is now labelled "Brand"; and there's a new "Model" field (e.g. a model
+  number/code). Existing products keep their data — the old name value
+  becomes the new description. Search, exports, calendar/iCal feeds,
+  warranty-reminder notifications, and the AI Assistant's product tool all
+  updated to match.
+
+## [0.9.1] - 2026-07-27
+
+### Fixed
+
+- **Spend and Wealth totals no longer silently sum different currencies as if
+  they were the same currency.** The `/spend` page's summary tiles and
+  monthly/yearly/category timelines, the dashboard's "Est. monthly spend"
+  stat, and `getNetWorth()`'s share/property/inventory totals now convert
+  amounts to a common currency using live exchange rates before aggregating,
+  instead of adding raw numbers together (or, for the dashboard, silently
+  excluding non-matching-currency contracts). Falls back to excluding an
+  amount (with a small caveat note) only if a live rate genuinely can't be
+  fetched.
+- **Live equity price fetching for the Wealth module was silently broken** —
+  `yahoo-finance2` v3 requires instantiating its default export
+  (`new YahooFinance()`) rather than calling methods on it directly, so every
+  price/historical-price request was failing and being swallowed by existing
+  error handling. Fixed in `src/lib/prices.ts` (and used correctly in the new
+  FX-rate module above).
+
+Bump to 0.9.1.
 
 ### Added
 

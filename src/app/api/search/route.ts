@@ -68,23 +68,24 @@ export async function GET(request: NextRequest) {
       .findMany({
         where: {
           OR: [
-            { name: contains },
+            { description: contains },
             { manufacturer: contains },
+            { model: contains },
             { vendor: contains },
             { documents: { some: { extractedText: contains } } },
           ],
         },
-        select: { id: true, name: true, manufacturer: true, vendor: true },
+        select: { id: true, description: true, manufacturer: true, vendor: true },
         take: LIMIT,
       })
       .then((rows) =>
         rows.map((r) => ({
           id: r.id,
-          title: r.name,
+          title: r.description,
           subtitle: r.manufacturer ?? undefined,
           href: `/products/${r.id}`,
           group: "Products",
-          matchedInDocument: !matchedViaFields(q, [r.name, r.manufacturer, r.vendor]),
+          matchedInDocument: !matchedViaFields(q, [r.description, r.manufacturer, r.vendor]),
         })),
       ),
   );
@@ -111,14 +112,14 @@ export async function GET(request: NextRequest) {
     prisma.productDocument
       .findMany({
         where: { OR: [{ filename: contains }, { extractedText: contains }] },
-        select: { id: true, filename: true, product: { select: { id: true, name: true } } },
+        select: { id: true, filename: true, product: { select: { id: true, description: true } } },
         take: LIMIT,
       })
       .then((rows) =>
         rows.map((r) => ({
           id: r.id,
           title: r.filename,
-          subtitle: r.product.name,
+          subtitle: r.product.description,
           href: `/products/${r.product.id}`,
           group: "Documents",
         })),

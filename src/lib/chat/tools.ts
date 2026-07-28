@@ -3,6 +3,14 @@ import { prisma } from "@/lib/prisma";
 import { CONTRACT_CATEGORIES, CONTRACT_STATUSES } from "@/lib/validation/contract";
 import { CATEGORY_LABELS, daysUntil, monthlyEquivalent } from "@/lib/utils";
 import { getNetWorth } from "@/lib/wealth";
+import {
+  iso,
+  queryInventoryItems,
+  queryProducts,
+  queryProperties,
+  queryTrips,
+  queryVehicles,
+} from "@/lib/domainQueries";
 import type { ModuleKey } from "@/lib/modules/registry";
 import type { ToolDefinition } from "@/lib/ai/chat/types";
 
@@ -37,10 +45,6 @@ function defineTool<T>(spec: {
     moduleKey: spec.moduleKey,
     run: async (rawInput, ctx) => spec.run(spec.schema.parse(rawInput ?? {}), ctx),
   };
-}
-
-function iso(date: Date | null | undefined): string | null {
-  return date ? date.toISOString() : null;
 }
 
 // ─── Contracts (always-on) ─────────────────────────────────────────────────
@@ -194,43 +198,13 @@ const spendSummaryTool = defineTool({
 const listProductsTool = defineTool({
   name: "list_products",
   description:
-    "List tracked products/purchases and their warranty status, optionally filtered by a search term over name/manufacturer/vendor.",
+    "List tracked products/purchases and their warranty status, optionally filtered by a search term over description/manufacturer/model/vendor.",
   inputSchema: {
     type: "object",
     properties: { query: { type: "string", description: "Optional search text." } },
   },
   schema: z.object({ query: z.string().min(1).optional() }),
-  run: async ({ query }) => {
-    const products = await prisma.product.findMany({
-      where: query
-        ? {
-            OR: [
-              { name: { contains: query } },
-              { manufacturer: { contains: query } },
-              { vendor: { contains: query } },
-            ],
-          }
-        : undefined,
-      select: {
-        id: true,
-        name: true,
-        manufacturer: true,
-        vendor: true,
-        purchaseDate: true,
-        warrantyEndDate: true,
-        price: true,
-        currency: true,
-        notes: true,
-      },
-      orderBy: { warrantyEndDate: "asc" },
-    });
-    return products.map((p) => ({
-      ...p,
-      purchaseDate: iso(p.purchaseDate),
-      warrantyEndDate: iso(p.warrantyEndDate),
-      daysUntilWarrantyEnd: daysUntil(p.warrantyEndDate),
-    }));
-  },
+  run: async ({ query }) => queryProducts(query),
 });
 
 // ─── Travel (module: TRAVEL) ────────────────────────────────────────────────
@@ -246,30 +220,7 @@ const listTripsTool = defineTool({
     },
   },
   schema: z.object({ upcomingOnly: z.boolean().optional() }),
-  run: async ({ upcomingOnly }) => {
-    const trips = await prisma.trip.findMany({
-      where: upcomingOnly ? { OR: [{ endDate: null }, { endDate: { gte: new Date() } }] } : undefined,
-      select: {
-        id: true,
-        title: true,
-        destination: true,
-        startDate: true,
-        endDate: true,
-        notes: true,
-        _count: { select: { segments: true } },
-      },
-      orderBy: { startDate: "asc" },
-    });
-    return trips.map((t) => ({
-      id: t.id,
-      title: t.title,
-      destination: t.destination,
-      startDate: iso(t.startDate),
-      endDate: iso(t.endDate),
-      notes: t.notes,
-      segmentCount: t._count.segments,
-    }));
-  },
+  run: async ({ upcomingOnly }) => queryTrips(upcomingOnly),
 });
 
 // ─── Vehicles (module: VEHICLES) ────────────────────────────────────────────
@@ -289,33 +240,7 @@ const listVehiclesTool = defineTool({
     },
   },
   schema: z.object({ attentionOnly: z.boolean().optional() }),
-  run: async ({ attentionOnly }) => {
-    const vehicles = await prisma.vehicle.findMany({
-      select: {
-        id: true,
-        label: true,
-        make: true,
-        model: true,
-        year: true,
-        licensePlate: true,
-        regoExpiry: true,
-        insuranceExpiry: true,
-        notes: true,
-      },
-    });
-    const withDays = vehicles.map((v) => ({
-      ...v,
-      regoExpiry: iso(v.regoExpiry),
-      insuranceExpiry: iso(v.insuranceExpiry),
-      daysUntilRegoExpiry: daysUntil(v.regoExpiry),
-      daysUntilInsuranceExpiry: daysUntil(v.insuranceExpiry),
-    }));
-    if (!attentionOnly) return withDays;
-    const needsAttention = (days: number | null) => days != null && days <= 30;
-    return withDays.filter(
-      (v) => needsAttention(v.daysUntilRegoExpiry) || needsAttention(v.daysUntilInsuranceExpiry),
-    );
-  },
+  run: async ({ attentionOnly }) => queryVehicles(attentionOnly),
 });
 
 // ─── Home (module: HOME) ────────────────────────────────────────────────────
@@ -327,48 +252,7 @@ const listPropertiesTool = defineTool({
   moduleKey: "HOME",
   inputSchema: { type: "object", properties: {} },
   schema: z.object({}),
-  run: async () => {
-    const properties = await prisma.property.findMany({
-      select: {
-        id: true,
-        label: true,
-        address: true,
-        isRented: true,
-        notes: true,
-        rentalAgreements: {
-          select: { tenantName: true, weeklyRent: true, leaseEnd: true },
-          orderBy: { createdAt: "desc" },
-          take: 1,
-        },
-        valuations: {
-          select: { value: true, currency: true, valuedAt: true },
-          orderBy: { valuedAt: "desc" },
-          take: 1,
-        },
-      },
-    });
-    return properties.map((p) => ({
-      id: p.id,
-      label: p.label,
-      address: p.address,
-      isRented: p.isRented,
-      notes: p.notes,
-      currentTenant: p.rentalAgreements[0]
-        ? {
-            tenantName: p.rentalAgreements[0].tenantName,
-            weeklyRent: p.rentalAgreements[0].weeklyRent,
-            leaseEnd: iso(p.rentalAgreements[0].leaseEnd),
-          }
-        : null,
-      latestValuation: p.valuations[0]
-        ? {
-            value: p.valuations[0].value,
-            currency: p.valuations[0].currency,
-            valuedAt: iso(p.valuations[0].valuedAt),
-          }
-        : null,
-    }));
-  },
+  run: async () => queryProperties(),
 });
 
 // ─── Inventory (module: INVENTORY) ──────────────────────────────────────────
@@ -383,32 +267,7 @@ const listInventoryItemsTool = defineTool({
     properties: { query: { type: "string", description: "Optional search text." } },
   },
   schema: z.object({ query: z.string().min(1).optional() }),
-  run: async ({ query }) => {
-    const items = await prisma.inventoryItem.findMany({
-      where: query
-        ? {
-            OR: [
-              { label: { contains: query } },
-              { brand: { contains: query } },
-              { model: { contains: query } },
-            ],
-          }
-        : undefined,
-      select: {
-        id: true,
-        label: true,
-        category: true,
-        brand: true,
-        model: true,
-        purchaseDate: true,
-        purchasePrice: true,
-        currency: true,
-        location: true,
-        notes: true,
-      },
-    });
-    return items.map((i) => ({ ...i, purchaseDate: iso(i.purchaseDate) }));
-  },
+  run: async ({ query }) => queryInventoryItems(query),
 });
 
 // ─── Wealth (module: WEALTH) ─────────────────────────────────────────────────

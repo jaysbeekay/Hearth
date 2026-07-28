@@ -33,7 +33,7 @@ export async function getCalendarEvents(
     }),
     prisma.product.findMany({
       where: { createdById: userId, warrantyEndDate: { not: null } },
-      select: { id: true, name: true, manufacturer: true, warrantyEndDate: true },
+      select: { id: true, description: true, manufacturer: true, warrantyEndDate: true },
     }),
   ]);
 
@@ -55,7 +55,7 @@ export async function getCalendarEvents(
     events.push({
       id: `product-${p.id}`,
       date: p.warrantyEndDate,
-      title: p.name,
+      title: p.description,
       subtitle: p.manufacturer ?? undefined,
       href: `/products/${p.id}`,
       kind: "product",

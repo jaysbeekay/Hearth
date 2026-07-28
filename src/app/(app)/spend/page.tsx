@@ -11,6 +11,7 @@ import {
 } from "@/lib/utils";
 import { buildMonthlyTimeline, buildYearlyTimeline, buildCategoryBreakdown } from "@/lib/spend";
 import { getUserPreferences } from "@/lib/userPreferences";
+import { refreshFxRates, getFxRateMap, convertAmount } from "@/lib/fx";
 
 export const metadata: Metadata = { title: "Spend" };
 
@@ -52,15 +53,32 @@ export default async function SpendPage({
       : [],
   ]);
 
-  const monthlyTotal = contracts.reduce(
-    (sum, c) => sum + monthlyEquivalent(c.cost, c.billingFrequency ?? null),
+  const contractCurrencies = [...new Set(contracts.map((c) => c.currency))];
+  const fxPairs = contractCurrencies.map((from) => ({ from, to: preferredCurrency }));
+  await refreshFxRates(fxPairs);
+  const rateMap = await getFxRateMap(fxPairs);
+
+  const convertedContracts = contracts.map((c) => ({
+    ...c,
+    convertedCost:
+      c.cost != null ? convertAmount(c.cost, c.currency, preferredCurrency, rateMap) : null,
+  }));
+  const hasUnconverted = convertedContracts.some((c) => c.cost != null && c.convertedCost == null);
+
+  const monthlyTotal = convertedContracts.reduce(
+    (sum, c) =>
+      c.convertedCost == null ? sum : sum + monthlyEquivalent(c.convertedCost, c.billingFrequency ?? null),
     0,
   );
   const annualTotal = monthlyTotal * 12;
 
-  const taxDeductibleMonthly = contracts
+  const taxDeductibleMonthly = convertedContracts
     .filter((c) => c.isTaxDeductible)
-    .reduce((sum, c) => sum + monthlyEquivalent(c.cost, c.billingFrequency ?? null), 0);
+    .reduce(
+      (sum, c) =>
+        c.convertedCost == null ? sum : sum + monthlyEquivalent(c.convertedCost, c.billingFrequency ?? null),
+      0,
+    );
 
   const homeActuals = sumByYear(
     homeItems.map((i) => ({ cost: i.cost, date: i.date, currency: i.currency })),
@@ -94,9 +112,9 @@ export default async function SpendPage({
     })
     .sort((a, b) => b.label.localeCompare(a.label));
 
-  const monthlyTimeline = buildMonthlyTimeline(contracts, 12);
-  const yearlyTimeline = buildYearlyTimeline(contracts, 5);
-  const categoryBreakdown = buildCategoryBreakdown(contracts);
+  const monthlyTimeline = buildMonthlyTimeline(contracts, 12, preferredCurrency, rateMap);
+  const yearlyTimeline = buildYearlyTimeline(contracts, 5, preferredCurrency, rateMap);
+  const categoryBreakdown = buildCategoryBreakdown(contracts, preferredCurrency, rateMap);
   const categoryTotal = categoryBreakdown.reduce((sum, b) => sum + b.monthlyTotal, 0);
 
   const timeline = view === "yearly" ? yearlyTimeline : monthlyTimeline;
@@ -105,6 +123,13 @@ export default async function SpendPage({
   return (
     <div className="max-w-3xl space-y-8">
       <h1 className="text-2xl font-semibold">Spend</h1>
+
+      {hasUnconverted && (
+        <p className="text-xs text-warning">
+          Some contracts are billed in a currency that couldn&apos;t be converted right now — totals
+          below may be incomplete until exchange rates are available.
+        </p>
+      )}
 
       {/* Summary tiles */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
@@ -218,44 +243,46 @@ export default async function SpendPage({
       {actualsByYear.length > 0 && (
         <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-3 font-medium">Actuals by financial year</h2>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-xs text-muted">
-                <th className="pb-2">Year</th>
-                {homeActuals.length > 0 && (
-                  <>
-                    <th className="pb-2 text-right">Home</th>
-                    <th className="pb-2 text-right">Home tax deductible</th>
-                  </>
-                )}
-                {vehicleActuals.length > 0 && <th className="pb-2 text-right">Vehicle</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {actualsByYear.map((row) => (
-                <tr key={`${row.label}|${row.currency}`} className="border-b border-border/50">
-                  <td className="py-2">{row.label}</td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs text-muted">
+                  <th className="pb-2">Year</th>
                   {homeActuals.length > 0 && (
                     <>
-                      <td className="py-2 text-right tabular-nums">
-                        {row.home ? formatCurrency(row.home.amount, row.currency, undefined, region) : "—"}
-                      </td>
-                      <td className="py-2 text-right tabular-nums">
-                        {row.homeDeductible
-                          ? formatCurrency(row.homeDeductible.amount, row.currency, undefined, region)
-                          : "—"}
-                      </td>
+                      <th className="pb-2 text-right">Home</th>
+                      <th className="pb-2 text-right">Home tax deductible</th>
                     </>
                   )}
-                  {vehicleActuals.length > 0 && (
-                    <td className="py-2 text-right tabular-nums">
-                      {row.vehicle ? formatCurrency(row.vehicle.amount, row.currency, undefined, region) : "—"}
-                    </td>
-                  )}
+                  {vehicleActuals.length > 0 && <th className="pb-2 text-right">Vehicle</th>}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {actualsByYear.map((row) => (
+                  <tr key={`${row.label}|${row.currency}`} className="border-b border-border/50">
+                    <td className="py-2">{row.label}</td>
+                    {homeActuals.length > 0 && (
+                      <>
+                        <td className="py-2 text-right tabular-nums">
+                          {row.home ? formatCurrency(row.home.amount, row.currency, undefined, region) : "—"}
+                        </td>
+                        <td className="py-2 text-right tabular-nums">
+                          {row.homeDeductible
+                            ? formatCurrency(row.homeDeductible.amount, row.currency, undefined, region)
+                            : "—"}
+                        </td>
+                      </>
+                    )}
+                    {vehicleActuals.length > 0 && (
+                      <td className="py-2 text-right tabular-nums">
+                        {row.vehicle ? formatCurrency(row.vehicle.amount, row.currency, undefined, region) : "—"}
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
     </div>

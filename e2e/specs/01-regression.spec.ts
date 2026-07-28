@@ -47,7 +47,7 @@ test("create a contract end-to-end", async ({ page }) => {
 
 test("create a product end-to-end", async ({ page }) => {
   await page.goto("/products/new");
-  await page.locator("#name").fill("Regression Test Product");
+  await page.locator("#description").fill("Regression Test Product");
   await page.locator("main button[type=submit]").click();
   await page.waitForURL(/\/products\/[^/]+$/);
   await expect(page.locator("body")).toContainText("Regression Test Product");

@@ -288,18 +288,21 @@ AUTH_TRUST_HOST=true   # required so NextAuth trusts the proxied Host header
 
 The app can expose a read-only [MCP](https://modelcontextprotocol.io) server
 at `/api/mcp` so a local LLM agent — e.g. [Ollama](https://ollama.com) running
-a tool-calling model like Hermes — can answer questions about your contracts
-in natural language ("what's renewing this month?", "how much am I spending
-on insurance?").
+a tool-calling model like Hermes — can answer questions about your household
+data in natural language ("what's renewing this month?", "how much am I
+spending on insurance?", "what's my net worth?").
 
 It's disabled by default. Set `MCP_TOKEN` in `.env` (any random string, e.g.
 from `openssl rand -base64 32`) to enable it — requests must send it as
 `Authorization: Bearer <token>`. Leaving it unset makes the endpoint 404,
 same as `CRON_SECRET`/`/api/cron`.
 
-The server exposes five tools, all read-only — they never modify data and
-never return account credentials or uploaded document file contents (only
-document metadata: filename, type, size):
+The server is read-only — no tool ever modifies data or returns account
+credentials or uploaded document file contents (only document metadata:
+filename, type, size). Contracts and products are always exposed; the rest
+mirror whichever optional modules (Travel, Vehicles, Home, Inventory, Wealth)
+this household has enabled, same as the in-app AI Assistant — disable a
+module and its tool disappears on the next connection.
 
 | Tool | Purpose |
 | --- | --- |
@@ -308,6 +311,12 @@ document metadata: filename, type, size):
 | `search_contracts` | Case-insensitive search across title, provider, contract number, and notes. |
 | `upcoming_renewals` | Active contracts ending within N days (default 30), soonest first. |
 | `spend_summary` | Estimated total and per-category monthly spend across active contracts. |
+| `list_products` | List tracked products/purchases and warranty status, optionally filtered by search text. |
+| `list_trips` *(Travel)* | List trips with segment count, optionally only ones that haven't ended yet. |
+| `list_vehicles` *(Vehicles)* | List vehicles with rego/insurance expiry, optionally only ones needing attention. |
+| `list_properties` *(Home)* | List properties with rental status, current tenant, and latest valuation. |
+| `list_inventory_items` *(Inventory)* | List catalogued household items, optionally filtered by search text. |
+| `net_worth` *(Wealth)* | Household net worth: share/crypto, property, and inventory value, with per-holding gain/loss. |
 
 Point your MCP client at `http://<host>:3000/api/mcp` with the bearer token.
 For a tool that speaks MCP-over-HTTP directly, a config block looks like:

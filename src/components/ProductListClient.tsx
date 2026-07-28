@@ -61,7 +61,7 @@ export function ProductListClient({ products, q, dateFormat, region, canWrite = 
           type="search"
           name="q"
           defaultValue={q}
-          placeholder="Search by name, manufacturer, vendor, serial number, or barcode…"
+          placeholder="Search by description, brand, model, vendor, serial number, or barcode…"
           onChange={() => {
             clearTimeout(searchTimeout.current);
             searchTimeout.current = setTimeout(() => formRef.current?.requestSubmit(), 400);

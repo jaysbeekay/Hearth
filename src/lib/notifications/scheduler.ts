@@ -149,7 +149,7 @@ export async function runExpirationCheck(now: Date = new Date()) {
               sendReminderEmail({
                 to,
                 kind: "warranty",
-                title: product.name,
+                title: product.description,
                 detail,
                 daysRemaining: remaining,
                 endDate: product.warrantyEndDate as Date,
@@ -159,7 +159,7 @@ export async function runExpirationCheck(now: Date = new Date()) {
         } else if (channel === "NTFY") {
           await sendNtfyReminder({
             kind: "warranty",
-            title: product.name,
+            title: product.description,
             detail,
             daysRemaining: remaining,
             endDate: product.warrantyEndDate,
@@ -168,7 +168,7 @@ export async function runExpirationCheck(now: Date = new Date()) {
           await sendExpiryWebhooks({
             kind: "warranty",
             id: product.id,
-            title: product.name,
+            title: product.description,
             detail,
             daysRemaining: remaining,
             endDate: product.warrantyEndDate as Date,

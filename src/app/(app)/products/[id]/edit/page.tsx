@@ -18,7 +18,7 @@ export default async function EditProductPage({
     <div className="max-w-3xl space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Edit product</h1>
-        <p className="text-sm text-foreground/60">{product.name}</p>
+        <p className="text-sm text-foreground/60">{product.description}</p>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <ProductForm action={boundAction} product={product} />

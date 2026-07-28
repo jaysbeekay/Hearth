@@ -320,17 +320,17 @@ export default async function HoldingPage({
       </div>
 
       <dl className="grid grid-cols-2 gap-4 rounded-xl border border-border bg-surface p-4 md:p-6 sm:grid-cols-3">
-        <div>
+        <div className="min-w-0">
           <dt className="text-xs text-foreground/50">Cost basis</dt>
-          <dd className="text-sm font-medium tabular-nums">{formatCurrency(cost, currency, undefined, region)}</dd>
+          <dd className="text-sm font-medium tabular-nums break-words">{formatCurrency(cost, currency, undefined, region)}</dd>
         </div>
-        <div>
+        <div className="min-w-0">
           <dt className="text-xs text-foreground/50">Avg cost / unit</dt>
-          <dd className="text-sm font-medium tabular-nums">
+          <dd className="text-sm font-medium tabular-nums break-words">
             {units > 0 && cost > 0 ? formatCurrency(cost / units, currency, undefined, region) : "—"}
           </dd>
         </div>
-        <div>
+        <div className="min-w-0">
           <dt className="text-xs text-foreground/50">Trades</dt>
           <dd className="text-sm font-medium">{holding.trades.length}</dd>
         </div>

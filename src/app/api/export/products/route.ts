@@ -31,9 +31,9 @@ export async function GET(request: NextRequest) {
     doc.moveDown();
 
     for (const p of products) {
-      doc.fontSize(11).fillColor("#000").text(p.name);
+      doc.fontSize(11).fillColor("#000").text(p.description);
       doc.fontSize(9).fillColor("#444")
-        .text(`Manufacturer: ${p.manufacturer ?? "—"}   Vendor: ${p.vendor ?? "—"}`)
+        .text(`Brand: ${p.manufacturer ?? "—"}   Model: ${p.model ?? "—"}   Vendor: ${p.vendor ?? "—"}`)
         .text(`Purchased: ${formatDate(p.purchaseDate, dateFormat)}   Warranty ends: ${formatDate(p.warrantyEndDate, dateFormat)}`)
         .text(`Price: ${formatCurrency(p.price, p.currency, undefined, region)}`);
       if (p.serialNumber) doc.text(`Serial: ${p.serialNumber}`);
@@ -53,8 +53,9 @@ export async function GET(request: NextRequest) {
   }
 
   const rows = products.map((p) => [
-    p.name,
+    p.description,
     p.manufacturer ?? "",
+    p.model ?? "",
     p.vendor ?? "",
     formatDate(p.purchaseDate, dateFormat),
     formatDate(p.warrantyEndDate, dateFormat),
@@ -64,7 +65,7 @@ export async function GET(request: NextRequest) {
   ]);
 
   const csv = stringify([
-    ["Name", "Manufacturer", "Vendor", "Purchase Date", "Warranty End", "Price", "Currency", "Serial Number"],
+    ["Description", "Brand", "Model", "Vendor", "Purchase Date", "Warranty End", "Price", "Currency", "Serial Number"],
     ...rows,
   ]);
 

@@ -17,8 +17,9 @@ export default async function ProductsPage({
   const where: Prisma.ProductWhereInput = {};
   if (q) {
     where.OR = [
-      { name: { contains: q } },
+      { description: { contains: q } },
       { manufacturer: { contains: q } },
+      { model: { contains: q } },
       { vendor: { contains: q } },
       { serialNumber: { contains: q } },
       { barcode: { contains: q } },
