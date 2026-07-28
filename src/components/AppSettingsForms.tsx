@@ -5,33 +5,11 @@ import { testSmtpSettings, testNtfySettings, testOllamaConnection } from "@/lib/
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
+import { Field } from "@/components/FormField";
+import { inputClass } from "@/components/SelectWrapper";
 import { TestConnectionButton } from "@/components/TestConnectionButton";
 
-const inputClass =
-  "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent";
 const checkboxClass = "size-4 rounded border-border accent-accent";
-
-function Field({
-  label,
-  htmlFor,
-  hint,
-  children,
-}: {
-  label: string;
-  htmlFor: string;
-  hint?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-1">
-      <label htmlFor={htmlFor} className="text-sm font-medium">
-        {label}
-      </label>
-      {children}
-      {hint && <p className="text-xs text-foreground/50">{hint}</p>}
-    </div>
-  );
-}
 
 function SensitiveField({ id, name, isSet }: { id: string; name: string; isSet: boolean }) {
   return (

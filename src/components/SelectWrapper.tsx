@@ -1,5 +1,8 @@
 import { ChevronDown } from "lucide-react";
 
+export const inputClass =
+  "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent";
+
 export const selectClass =
   "w-full rounded-lg border border-border bg-background px-3 h-9 text-sm outline-none focus:border-accent appearance-none pr-8";
 

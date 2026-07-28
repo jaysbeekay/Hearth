@@ -5,6 +5,8 @@ import type { VehicleModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
+import { Field } from "@/components/FormField";
+import { inputClass } from "@/components/SelectWrapper";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
 
 function toDateInputValue(date: Date | null | undefined) {
@@ -36,7 +38,7 @@ export function VehicleForm({
   return (
     <form action={formAction} className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Label *" htmlFor="label">
+        <Field label="Label" htmlFor="label" required>
           <input
             id="label"
             name="label"
@@ -161,27 +163,5 @@ export function VehicleForm({
         <SubmitButton>{vehicle ? "Save changes" : "Add vehicle"}</SubmitButton>
       </div>
     </form>
-  );
-}
-
-const inputClass =
-  "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent";
-
-function Field({
-  label,
-  htmlFor,
-  children,
-}: {
-  label: string;
-  htmlFor: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-1">
-      <label htmlFor={htmlFor} className="text-sm font-medium">
-        {label}
-      </label>
-      {children}
-    </div>
   );
 }

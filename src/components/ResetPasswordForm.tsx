@@ -4,7 +4,9 @@ import { useActionState } from "react";
 import Link from "next/link";
 import { resetPassword, type ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
+import { linkButtonClass } from "@/lib/buttonStyles";
 import { FormMessage } from "@/components/FormMessage";
+import { inputClass } from "@/components/SelectWrapper";
 
 export function ResetPasswordForm({ token }: { token: string }) {
   const [state, formAction] = useActionState<ActionState, FormData>(
@@ -18,7 +20,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
         <FormMessage success={state.success} />
         <Link
           href="/login"
-          className="inline-flex w-full items-center justify-center rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+          className={`${linkButtonClass("primary")} w-full justify-center`}
         >
           Continue to sign in
         </Link>
@@ -39,7 +41,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
           required
           minLength={8}
           autoComplete="new-password"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+          className={inputClass}
         />
       </div>
 

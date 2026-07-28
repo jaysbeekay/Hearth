@@ -4,6 +4,8 @@ import { useActionState, useRef } from "react";
 import { generateIcalToken, revokeIcalToken } from "@/lib/actions/ical";
 import { FormMessage } from "@/components/FormMessage";
 import type { ActionState } from "@/lib/actions/auth";
+import { SubmitButton } from "@/components/SubmitButton";
+import { compactButtonClass } from "@/lib/buttonStyles";
 
 interface Props {
   token: string | null;
@@ -43,7 +45,7 @@ export function IcalTokenSection({ token, appUrl }: Props) {
             <button
               type="button"
               onClick={copy}
-              className="shrink-0 rounded-lg border border-border px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/5"
+              className={`shrink-0 ${compactButtonClass()}`}
             >
               Copy
             </button>
@@ -51,7 +53,7 @@ export function IcalTokenSection({ token, appUrl }: Props) {
           <form action={revokeAction}>
             <button
               type="submit"
-              className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-danger hover:bg-danger/5"
+              className={compactButtonClass("danger")}
             >
               Revoke token
             </button>
@@ -61,12 +63,7 @@ export function IcalTokenSection({ token, appUrl }: Props) {
       ) : (
         <div className="space-y-2">
           <form action={genAction}>
-            <button
-              type="submit"
-              className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
-            >
-              Generate iCal token
-            </button>
+            <SubmitButton pendingText="Generating…">Generate iCal token</SubmitButton>
           </form>
           <FormMessage error={genState?.error} success={genState?.success} />
         </div>

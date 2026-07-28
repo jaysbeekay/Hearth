@@ -10,6 +10,8 @@ import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
+import { Field } from "@/components/FormField";
+import { inputClass } from "@/components/SelectWrapper";
 import { markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 
 function toDateInputValue(date: Date | null | undefined) {
@@ -184,7 +186,7 @@ export function ProductForm({
       )}
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Description" htmlFor="description">
+        <Field label="Description" htmlFor="description" required>
           <input
             ref={descriptionRef}
             id="description"
@@ -352,27 +354,5 @@ export function ProductForm({
         />
       )}
     </form>
-  );
-}
-
-const inputClass =
-  "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent";
-
-function Field({
-  label,
-  htmlFor,
-  children,
-}: {
-  label: string;
-  htmlFor: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-1">
-      <label htmlFor={htmlFor} className="text-sm font-medium">
-        {label}
-      </label>
-      {children}
-    </div>
   );
 }

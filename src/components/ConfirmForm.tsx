@@ -5,6 +5,8 @@ import { createPortal } from "react-dom";
 import { showToast } from "@/components/Toast";
 import { useHasMounted } from "@/lib/useHasMounted";
 import { enqueueOperation } from "@/lib/offlineQueue";
+import { buttonVariants, compactButtonClass } from "@/lib/buttonStyles";
+import { cn } from "@/lib/utils";
 
 export function ConfirmForm({
   action,
@@ -83,7 +85,7 @@ export function ConfirmForm({
                   type="button"
                   disabled={pending}
                   onClick={close}
-                  className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium hover:bg-black/5 disabled:opacity-50 dark:hover:bg-white/5"
+                  className={`${compactButtonClass()} disabled:opacity-50`}
                 >
                   Cancel
                 </button>
@@ -123,7 +125,10 @@ export function ConfirmForm({
                       setPending(false);
                     }
                   }}
-                  className="rounded-lg bg-danger px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                  className={cn(
+                    "inline-flex min-h-11 items-center justify-center rounded-lg px-3 text-sm font-medium disabled:opacity-50",
+                    buttonVariants.danger,
+                  )}
                 >
                   {pending ? "Working…" : "Confirm"}
                 </button>

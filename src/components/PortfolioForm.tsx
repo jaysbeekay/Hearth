@@ -5,6 +5,7 @@ import type { PortfolioModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
+import { inputClass } from "@/components/SelectWrapper";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
 
@@ -44,7 +45,7 @@ export function PortfolioForm({
           required
           defaultValue={state?.values?.name ?? portfolio?.name ?? ""}
           placeholder="e.g. CommSec Shares"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+          className={inputClass}
         />
       </div>
 
@@ -56,7 +57,7 @@ export function PortfolioForm({
           type="text"
           defaultValue={state?.values?.description ?? portfolio?.description ?? ""}
           placeholder="Optional description"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+          className={inputClass}
         />
       </div>
 

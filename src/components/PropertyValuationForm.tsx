@@ -5,6 +5,7 @@ import { Plus } from "lucide-react";
 import type { ActionState } from "@/lib/actions/auth";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FormMessage } from "@/components/FormMessage";
+import { SubmitButton } from "@/components/SubmitButton";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
 
 export function PropertyValuationForm({
@@ -83,13 +84,10 @@ export function PropertyValuationForm({
         />
       </div>
       <FormMessage error={state?.error} success={state?.success} />
-      <button
-        type="submit"
-        className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
-      >
+      <SubmitButton>
         <Plus size={16} />
         Save valuation
-      </button>
+      </SubmitButton>
     </form>
   );
 }

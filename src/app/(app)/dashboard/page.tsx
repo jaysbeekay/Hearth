@@ -107,7 +107,7 @@ export default async function DashboardPage() {
         <div className="flex items-center gap-2">
           <Link
             href="/import"
-            className="flex items-center gap-2 rounded-lg border border-accent/40 px-4 py-2 text-sm font-medium text-accent hover:bg-accent/5"
+            className="flex min-h-11 items-center gap-2 rounded-lg border border-accent/40 px-4 py-2 text-sm font-medium text-accent hover:bg-accent/5"
           >
             <Upload size={16} />
             Upload a document
