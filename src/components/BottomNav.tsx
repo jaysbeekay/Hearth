@@ -97,7 +97,7 @@ export function BottomNav({ enabledModules }: { enabledModules: ModuleKey[] }) {
                 type="button"
                 onClick={() => setMoreOpen(false)}
                 aria-label="Close"
-                className="rounded-full p-1.5 hover:bg-black/5 dark:hover:bg-white/5"
+                className="flex size-11 items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/5"
               >
                 <X size={18} />
               </button>

@@ -6,7 +6,7 @@ import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { TRADE_TYPES, TRADE_TYPE_LABELS } from "@/lib/validation/wealth";
-import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
+import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
@@ -111,7 +111,7 @@ export function TradeForm({
             required
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+            className={inputClass}
           />
         </div>
       </div>
@@ -128,7 +128,7 @@ export function TradeForm({
             required
             defaultValue={state?.values?.units ?? trade?.units ?? ""}
             placeholder="e.g. 100"
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+            className={inputClass}
           />
         </div>
 
@@ -146,7 +146,7 @@ export function TradeForm({
             required
             defaultValue={state?.values?.pricePerUnit ?? trade?.pricePerUnit ?? ""}
             placeholder="e.g. 98.50"
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+            className={inputClass}
           />
           {ticker && selectedDate && (
             <div className="mt-1 flex items-center gap-2 text-xs text-foreground/50">
@@ -180,7 +180,7 @@ export function TradeForm({
             min="0"
             defaultValue={state?.values?.fees ?? (trade?.fees != null ? String(trade.fees) : "")}
             placeholder="e.g. 9.99"
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+            className={inputClass}
           />
         </div>
 
@@ -203,7 +203,7 @@ export function TradeForm({
           min="0"
           defaultValue={state?.values?.fxRate ?? (trade?.fxRate != null ? String(trade.fxRate) : "")}
           placeholder="Leave blank for AUD trades"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+          className={inputClass}
         />
       </div>
 
@@ -215,7 +215,7 @@ export function TradeForm({
           rows={2}
           defaultValue={state?.values?.notes ?? trade?.notes ?? ""}
           placeholder="Optional notes"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+          className={inputClass}
         />
       </div>
 

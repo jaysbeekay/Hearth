@@ -7,8 +7,9 @@ import type { InventoryItemModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
+import { Field } from "@/components/FormField";
 import { INVENTORY_ITEM_CATEGORIES } from "@/lib/validation/inventory";
-import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
+import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 import { FileDropZone } from "@/components/FileDropZone";
 import { markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 import {
@@ -182,7 +183,7 @@ export function InventoryItemForm({
         </div>
       )}
 
-      <Field label="Label *" htmlFor="label">
+      <Field label="Label" htmlFor="label" required>
         <input
           ref={labelRef}
           id="label"
@@ -297,27 +298,5 @@ export function InventoryItemForm({
         <SubmitButton>{pendingOp || item ? "Save changes" : "Add item"}</SubmitButton>
       </div>
     </form>
-  );
-}
-
-const inputClass =
-  "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent";
-
-function Field({
-  label,
-  htmlFor,
-  children,
-}: {
-  label: string;
-  htmlFor: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-1">
-      <label htmlFor={htmlFor} className="text-sm font-medium">
-        {label}
-      </label>
-      {children}
-    </div>
   );
 }

@@ -5,9 +5,7 @@ import { createWebhookEndpoint } from "@/lib/actions/webhook";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
-
-const inputClass =
-  "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent";
+import { inputClass } from "@/components/SelectWrapper";
 
 export function CreateWebhookForm() {
   const [state, formAction] = useActionState<ActionState, FormData>(createWebhookEndpoint, null);

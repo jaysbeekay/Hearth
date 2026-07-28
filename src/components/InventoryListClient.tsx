@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { linkButtonClass } from "@/lib/buttonStyles";
 import { Plus } from "lucide-react";
 import { InventoryCard } from "@/components/InventoryCard";
 import { PendingRecordCard } from "@/components/PendingRecordCard";
@@ -44,7 +45,7 @@ export function InventoryListClient({ items, dateFormat, region, canWrite = true
             href="/inventory/new"
             aria-disabled={!online}
             tabIndex={!online ? -1 : undefined}
-            className={`flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90${!online ? " pointer-events-none opacity-40" : ""}`}
+            className={linkButtonClass("primary", { online })}
           >
             <Plus size={16} />
             Add item

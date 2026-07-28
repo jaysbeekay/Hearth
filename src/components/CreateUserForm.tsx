@@ -4,10 +4,7 @@ import { useActionState } from "react";
 import { createUser, type ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
-import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
-
-const inputClass =
-  "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent";
+import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 
 export function CreateUserForm() {
   const [state, formAction] = useActionState<ActionState, FormData>(createUser, null);

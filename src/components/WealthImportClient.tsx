@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Upload, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { parseTradesCsv, importTrades } from "@/lib/actions/wealth";
+import { linkButtonClass } from "@/lib/buttonStyles";
 
 interface ParsedRow {
   ticker: string;
@@ -94,7 +95,7 @@ export function WealthImportClient({ portfolioId }: Props) {
             <button
               onClick={handleImport}
               disabled={isImporting}
-              className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90 disabled:opacity-50"
+              className={`${linkButtonClass("primary")} disabled:opacity-50`}
             >
               {isImporting && <Loader2 size={14} className="animate-spin" />}
               Import {rows.length} trades

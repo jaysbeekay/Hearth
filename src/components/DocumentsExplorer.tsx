@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { FileText, Image as ImageIcon, Eye, X, Upload } from "lucide-react";
-import { SelectWrapper } from "@/components/SelectWrapper";
+import { SelectWrapper, inputClass } from "@/components/SelectWrapper";
+import { linkButtonClass } from "@/lib/buttonStyles";
 import { DocumentLink } from "@/components/DocumentLink";
 import { getOfflineDocument } from "@/lib/offlineDocuments";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
@@ -84,10 +85,7 @@ export function DocumentsExplorer({
     return (
       <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border p-10 text-center">
         <p className="text-sm text-muted">No documents uploaded yet.</p>
-        <Link
-          href="/import"
-          className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
-        >
+        <Link href="/import" className={linkButtonClass("primary")}>
           <Upload size={16} />
           Upload a document
         </Link>
@@ -103,7 +101,7 @@ export function DocumentsExplorer({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search by filename or record…"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent sm:max-w-xs"
+          className={`${inputClass} sm:max-w-xs`}
         />
         <SelectWrapper>
           <select

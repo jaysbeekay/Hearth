@@ -13,6 +13,8 @@ import {
   serializeFormData,
   type QueuedOperation,
 } from "@/lib/offlineQueue";
+import { Field } from "@/components/FormField";
+import { inputClass } from "@/components/SelectWrapper";
 
 interface GeocodeSuggestion {
   display_name: string;
@@ -75,7 +77,7 @@ export function PropertyForm({
         </p>
       )}
       <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Label" htmlFor="label">
+        <Field label="Label" htmlFor="label" required>
           <input
             id="label"
             name="label"
@@ -216,28 +218,6 @@ function AddressField({
           ))}
         </ul>
       )}
-    </div>
-  );
-}
-
-const inputClass =
-  "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent";
-
-function Field({
-  label,
-  htmlFor,
-  children,
-}: {
-  label: string;
-  htmlFor: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-1">
-      <label htmlFor={htmlFor} className="text-sm font-medium">
-        {label}
-      </label>
-      {children}
     </div>
   );
 }

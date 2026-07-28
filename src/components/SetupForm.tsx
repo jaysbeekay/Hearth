@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { setupAdmin, type ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
+import { inputClass } from "@/components/SelectWrapper";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
 
 export function SetupForm() {
@@ -20,7 +21,7 @@ export function SetupForm() {
           name="name"
           required
           autoComplete="name"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+          className={inputClass}
         />
       </div>
 
@@ -34,7 +35,7 @@ export function SetupForm() {
           type="email"
           required
           autoComplete="email"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+          className={inputClass}
         />
       </div>
 
@@ -49,7 +50,7 @@ export function SetupForm() {
           required
           minLength={8}
           autoComplete="new-password"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+          className={inputClass}
         />
         <p className="text-xs text-foreground/60">At least 8 characters.</p>
       </div>

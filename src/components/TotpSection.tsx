@@ -4,6 +4,9 @@ import { useState, useActionState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { disableTotp, type ActionState } from "@/lib/actions/auth";
 import { FormMessage } from "@/components/FormMessage";
+import { inputClass } from "@/components/SelectWrapper";
+import { buttonVariants, compactButtonClass } from "@/lib/buttonStyles";
+import { cn } from "@/lib/utils";
 
 type SetupStep = "idle" | "scanning" | "recovery-codes";
 
@@ -103,19 +106,19 @@ export function TotpSection({ enabled }: { enabled: boolean }) {
           type="password"
           required
           autoComplete="current-password"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+          className={inputClass}
         />
         <div className="flex gap-2">
           <button
             type="submit"
-            className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-danger hover:bg-danger/5"
+            className={compactButtonClass("danger")}
           >
             Disable
           </button>
           <button
             type="button"
             onClick={() => setShowDisableForm(false)}
-            className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
+            className={compactButtonClass()}
           >
             Cancel
           </button>
@@ -155,7 +158,7 @@ export function TotpSection({ enabled }: { enabled: boolean }) {
             onChange={(e) => setCode(e.target.value)}
             inputMode="numeric"
             placeholder="123456"
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+            className={inputClass}
           />
         </div>
         <div className="flex gap-2">
@@ -163,14 +166,17 @@ export function TotpSection({ enabled }: { enabled: boolean }) {
             type="button"
             disabled={pending || code.trim().length === 0}
             onClick={verifyCode}
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            className={cn(
+              "inline-flex min-h-11 items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60",
+              buttonVariants.primary,
+            )}
           >
             {pending ? "Verifying…" : "Verify & enable"}
           </button>
           <button
             type="button"
             onClick={cancelSetup}
-            className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
+            className={compactButtonClass()}
           >
             Cancel
           </button>
@@ -198,7 +204,10 @@ export function TotpSection({ enabled }: { enabled: boolean }) {
         <button
           type="button"
           onClick={finish}
-          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+          className={cn(
+            "inline-flex min-h-11 items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition",
+            buttonVariants.primary,
+          )}
         >
           Done
         </button>
@@ -212,7 +221,10 @@ export function TotpSection({ enabled }: { enabled: boolean }) {
         type="button"
         disabled={pending}
         onClick={startSetup}
-        className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+        className={cn(
+          "inline-flex min-h-11 items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60",
+          buttonVariants.primary,
+        )}
       >
         {pending ? "Starting…" : "Enable two-factor authentication"}
       </button>

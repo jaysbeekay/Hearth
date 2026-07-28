@@ -13,6 +13,8 @@ import {
   serializeFormData,
   type QueuedOperation,
 } from "@/lib/offlineQueue";
+import { Field } from "@/components/FormField";
+import { inputClass } from "@/components/SelectWrapper";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -74,7 +76,7 @@ export function TripForm({
         </p>
       )}
       <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Title" htmlFor="title">
+        <Field label="Title" htmlFor="title" required>
           <input
             id="title"
             name="title"
@@ -132,27 +134,5 @@ export function TripForm({
         <SubmitButton>{pendingOp || trip ? "Save changes" : "Add trip"}</SubmitButton>
       </div>
     </form>
-  );
-}
-
-const inputClass =
-  "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent";
-
-function Field({
-  label,
-  htmlFor,
-  children,
-}: {
-  label: string;
-  htmlFor: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-1">
-      <label htmlFor={htmlFor} className="text-sm font-medium">
-        {label}
-      </label>
-      {children}
-    </div>
   );
 }
