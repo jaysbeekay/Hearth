@@ -15,7 +15,6 @@ export async function GET(request: NextRequest) {
 
   const [portfolios, { dateFormat }] = await Promise.all([
     prisma.portfolio.findMany({
-      where: { createdById: session.user.id },
       include: {
         holdings: {
           include: { trades: { orderBy: { date: "asc" } } },

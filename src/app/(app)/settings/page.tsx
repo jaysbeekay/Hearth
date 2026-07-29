@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { DatabaseBackup, KeyRound, LayoutGrid, Settings2, Users, Webhook } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -30,10 +31,11 @@ const quickLinkClass =
 export default async function SettingsPage() {
   const session = await auth();
   const [user, smtpConfigured, ntfyConfigured] = await Promise.all([
-    prisma.user.findUniqueOrThrow({ where: { id: session!.user.id } }),
+    prisma.user.findUnique({ where: { id: session!.user.id } }),
     isSmtpConfigured(),
     isNtfyConfigured(),
   ]);
+  if (!user) redirect("/login");
   const appUrl = env.appUrl ?? "http://localhost:3000";
 
   return (

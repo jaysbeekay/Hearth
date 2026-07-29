@@ -16,7 +16,6 @@ export async function GET(request: NextRequest) {
 
   const [trips, { dateFormat }] = await Promise.all([
     prisma.trip.findMany({
-      where: { createdById: session.user.id },
       include: { segments: { orderBy: { startDate: "asc" } } },
       orderBy: { startDate: "desc" },
     }),
