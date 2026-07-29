@@ -106,6 +106,10 @@ Everything else is optional. Set `SMTP_*` to enable email reminders, `NTFY_*` fo
 | --- | --- |
 | ![Spend](docs/screenshots/spend.png) | ![Contract rental link](docs/screenshots/contract-rental-link.png) |
 
+| Settings — personal account | Settings — household & system |
+| --- | --- |
+| ![Settings — personal](docs/screenshots/settings-personal.png) | ![Settings — household & system](docs/screenshots/settings-household-system.png) |
+
 | Settings — household members | Settings — AI provider |
 | --- | --- |
 | ![Settings — household](docs/screenshots/settings-household.png) | ![Settings — AI](docs/screenshots/settings-ai.png) |

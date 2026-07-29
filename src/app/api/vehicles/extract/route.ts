@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { ALLOWED_MIME_TYPES, MAX_UPLOAD_BYTES } from "@/lib/storage";
 import { extractText } from "@/lib/documents/textExtraction";
 import { extractVehicleItemFields } from "@/lib/documents/vehicleItemFieldExtraction";
-import { getByokUser } from "@/lib/ai/extract";
+import { getByokConfig } from "@/lib/ai/extract";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 
 export async function POST(request: NextRequest) {
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
   const buffer = Buffer.from(await file.arrayBuffer());
   const [text, byokUser] = await Promise.all([
     extractText(buffer, file.type),
-    getByokUser(session.user.id),
+    getByokConfig(),
   ]);
   const { fields, source } = await extractVehicleItemFields(text, {
     buffer,

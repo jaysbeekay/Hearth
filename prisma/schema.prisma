@@ -148,12 +148,6 @@ model User {
   passwordHash      String
   role              Role       @default(MEMBER)
   emailReminders    Boolean    @default(true)
-  aiProvider        AiProvider?
-  aiApiKeyEncrypted String?
-  aiModel           String?
-  chatProvider        AiProvider?
-  chatApiKeyEncrypted String?
-  chatModel           String?
   icalToken         String?    @unique
   dateFormat        String     @default("DD/MM/YYYY")
   preferredCurrency String     @default("AUD")

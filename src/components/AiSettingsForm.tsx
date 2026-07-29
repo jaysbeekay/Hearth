@@ -19,9 +19,11 @@ import { TestConnectionButton } from "@/components/TestConnectionButton";
 export function AiSettingsForm({
   provider,
   model,
+  apiKeyIsSet,
 }: {
   provider: AiProviderId | null;
   model: string | null;
+  apiKeyIsSet: boolean;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(saveAiSettings, null);
   const configured = Boolean(provider);
@@ -61,9 +63,8 @@ export function AiSettingsForm({
               id="apiKey"
               name="apiKey"
               type="password"
-              required
               autoComplete="off"
-              placeholder={configured ? "Enter a new key to replace the saved one" : "sk-..."}
+              placeholder={apiKeyIsSet ? "Enter a new key to replace the saved one" : "sk-..."}
               className={inputClass}
             />
           </div>

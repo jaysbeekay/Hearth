@@ -11,6 +11,8 @@ const ENCRYPTED_KEYS = new Set([
   "backup.sftp.password",
   "backup.sftp.privateKey",
   "aviationstack.apiKey",
+  "ai.apiKey",
+  "chat.apiKey",
 ]);
 
 async function readSetting(key: string): Promise<string | null> {
@@ -34,6 +36,18 @@ async function readSetting(key: string): Promise<string | null> {
 export async function getAppSetting(key: string, fallback = ""): Promise<string> {
   const val = await readSetting(key);
   return val ?? fallback;
+}
+
+// Reads a setting's stored value without decrypting it — for callers that
+// need to pass a still-encrypted secret through to a decrypt-on-demand
+// consumer (e.g. BYOK AI provider keys, decrypted only at call time).
+export async function getAppSettingRaw(key: string): Promise<string | null> {
+  try {
+    const row = await prisma.appSetting.findUnique({ where: { key } });
+    return row?.value ?? null;
+  } catch {
+    return null;
+  }
 }
 
 // Batch-reads multiple settings in a single query.

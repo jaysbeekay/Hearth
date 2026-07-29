@@ -1,15 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { DatabaseBackup, KeyRound, LayoutGrid, Settings2, Users, Webhook } from "lucide-react";
+import { ArrowRight, KeyRound } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isEncryptionConfigured } from "@/lib/env";
 import { env } from "@/lib/env";
 import { isSmtpConfigured, isNtfyConfigured } from "@/lib/appSettings";
 import { ChangePasswordForm } from "@/components/ChangePasswordForm";
-import { AiSettingsForm } from "@/components/AiSettingsForm";
-import { ChatSettingsForm } from "@/components/ChatSettingsForm";
 import { IcalTokenSection } from "@/components/IcalTokenSection";
 import { TotpSection } from "@/components/TotpSection";
 import { NotificationPreferencesForm } from "@/components/NotificationPreferencesForm";
@@ -37,6 +35,9 @@ export default async function SettingsPage() {
   return (
     <div className="max-w-4xl space-y-6">
       <h1 className="text-2xl font-semibold">Settings</h1>
+      <p className="text-sm text-foreground/60">
+        These settings only affect your own account, not the rest of the household.
+      </p>
 
       <div className="grid gap-6 md:grid-cols-2">
         <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
@@ -55,38 +56,16 @@ export default async function SettingsPage() {
               <dd className="text-sm font-medium">{user.role}</dd>
             </div>
           </dl>
+          {user.role === "ADMIN" && (
+            <Link
+              href="/settings/household"
+              className="mt-3 flex min-h-11 items-center gap-2 rounded-lg px-2 -mx-2 text-sm text-accent hover:bg-black/5 dark:hover:bg-white/5"
+            >
+              <ArrowRight size={16} />
+              Household &amp; System settings
+            </Link>
+          )}
         </section>
-
-        {user.role === "ADMIN" && (
-          <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
-            <h2 className="mb-3 font-medium">Household &amp; System</h2>
-            <p className="mb-3 text-sm text-foreground/60">
-              Settings shared by the whole household, not just your own account.
-            </p>
-            <div className="flex flex-col gap-1">
-              <Link href="/settings/users" className={quickLinkClass}>
-                <Users size={16} />
-                Manage household members
-              </Link>
-              <Link href="/settings/backups" className={quickLinkClass}>
-                <DatabaseBackup size={16} />
-                Database backups
-              </Link>
-              <Link href="/settings/webhooks" className={quickLinkClass}>
-                <Webhook size={16} />
-                Webhooks
-              </Link>
-              <Link href="/settings/modules" className={quickLinkClass}>
-                <LayoutGrid size={16} />
-                Modules
-              </Link>
-              <Link href="/settings/app" className={quickLinkClass}>
-                <Settings2 size={16} />
-                System settings
-              </Link>
-            </div>
-          </section>
-        )}
 
         <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-3 font-medium">Notifications</h2>
@@ -94,8 +73,16 @@ export default async function SettingsPage() {
             Expiry reminders are sent by email{ntfyConfigured ? " and push (ntfy)" : ""}.{" "}
             {!smtpConfigured && !ntfyConfigured && (
               <span className="text-warning">
-                No notification channel is configured yet — configure SMTP or ntfy in{" "}
-                <Link href="/settings/app" className="underline">System settings</Link>.
+                No notification channel is configured yet
+                {user.role === "ADMIN" ? (
+                  <>
+                    {" "}
+                    — configure SMTP or ntfy in{" "}
+                    <Link href="/settings/app" className="underline">System settings</Link>.
+                  </>
+                ) : (
+                  " — ask an admin to configure SMTP or ntfy."
+                )}
               </span>
             )}
           </p>
@@ -115,43 +102,6 @@ export default async function SettingsPage() {
             timezone={user.timezone}
             region={user.region}
           />
-        </section>
-
-        <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
-          <h2 className="mb-3 font-medium">AI document extraction</h2>
-          {isEncryptionConfigured() ? (
-            <>
-              <p className="mb-3 text-sm text-foreground/60">
-                Bring your own API key to send uploaded documents to a cloud AI provider for
-                higher-accuracy field extraction. Documents are sent directly to your selected
-                provider using your key — nothing changes about how extracted fields are saved;
-                you still review them before submitting the form. Leave this unset to keep using
-                the built-in local extraction only.
-              </p>
-              <AiSettingsForm provider={user.aiProvider} model={user.aiModel} />
-            </>
-          ) : (
-            <UnconfiguredNotice feature="bringing your own AI provider key" />
-          )}
-        </section>
-
-        <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
-          <h2 className="mb-3 font-medium">AI Assistant</h2>
-          {isEncryptionConfigured() ? (
-            <>
-              <p className="mb-3 text-sm text-foreground/60">
-                Bring your own API key to chat with an assistant that can answer questions using
-                your household&apos;s own data — contracts, warranties, trips, vehicles, home,
-                inventory, and wealth. It can also propose creating or updating a contract or
-                product, but nothing is ever written without your explicit confirmation first.
-                Configure a different provider/model here than document extraction if you like —
-                the two are independent.
-              </p>
-              <ChatSettingsForm provider={user.chatProvider} model={user.chatModel} />
-            </>
-          ) : (
-            <UnconfiguredNotice feature="the AI assistant" />
-          )}
         </section>
 
         <section className="rounded-xl border border-border bg-surface p-4 md:p-6">

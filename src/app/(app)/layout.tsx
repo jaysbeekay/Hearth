@@ -9,7 +9,7 @@ import { OfflineSyncManager } from "@/components/OfflineSyncManager";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { ToastContainer } from "@/components/Toast";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
-import { getChatUser, isChatConfigured } from "@/lib/ai/chat/dispatch";
+import { getChatConfig, isChatConfigured } from "@/lib/ai/chat/dispatch";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
@@ -20,12 +20,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Icon components can't cross the server/client boundary as props, so we
   // only pass the enabled module keys down and let Sidebar/BottomNav build
   // their own nav item list (with icons) on the client.
-  const [enabledModulesSet, chatUser] = await Promise.all([
+  const [enabledModulesSet, chatConfig] = await Promise.all([
     getEnabledModuleKeys(),
-    getChatUser(session.user.id),
+    getChatConfig(),
   ]);
   const enabledModules = [...enabledModulesSet];
-  const chatConfigured = isChatConfigured(chatUser);
+  const chatConfigured = isChatConfigured(chatConfig);
 
   return (
     <div className="flex min-h-screen">

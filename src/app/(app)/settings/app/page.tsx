@@ -10,6 +10,7 @@ import {
   getSftpConfig,
   getBackupScheduleConfig,
   getReminderConfig,
+  getAppSetting,
   isAppSettingSet,
 } from "@/lib/appSettings";
 import {
@@ -32,6 +33,9 @@ import {
   ScheduleForm,
   AviationStackForm,
 } from "@/components/AppSettingsForms";
+import { AiSettingsForm } from "@/components/AiSettingsForm";
+import { ChatSettingsForm } from "@/components/ChatSettingsForm";
+import type { AiProviderId } from "@/lib/ai/types";
 
 export const metadata: Metadata = { title: "System settings" };
 
@@ -48,6 +52,10 @@ export default async function AppSettingsPage() {
     sftp,
     backupSchedule,
     reminder,
+    aiProvider,
+    aiModel,
+    chatProvider,
+    chatModel,
     smtpPasswordIsSet,
     ntfyTokenIsSet,
     barcodeApiKeyIsSet,
@@ -55,6 +63,8 @@ export default async function AppSettingsPage() {
     sftpPasswordIsSet,
     sftpPrivateKeyIsSet,
     aviationKeyIsSet,
+    aiApiKeyIsSet,
+    chatApiKeyIsSet,
   ] = await Promise.all([
     getSmtpConfig(),
     getNtfyConfig(),
@@ -64,6 +74,10 @@ export default async function AppSettingsPage() {
     getSftpConfig(),
     getBackupScheduleConfig(),
     getReminderConfig(),
+    getAppSetting("ai.provider"),
+    getAppSetting("ai.model"),
+    getAppSetting("chat.provider"),
+    getAppSetting("chat.model"),
     isAppSettingSet("smtp.password"),
     isAppSettingSet("ntfy.token"),
     isAppSettingSet("barcode.apiKey"),
@@ -71,6 +85,8 @@ export default async function AppSettingsPage() {
     isAppSettingSet("backup.sftp.password"),
     isAppSettingSet("backup.sftp.privateKey"),
     isAppSettingSet("aviationstack.apiKey"),
+    isAppSettingSet("ai.apiKey"),
+    isAppSettingSet("chat.apiKey"),
   ]);
 
   return (
@@ -125,6 +141,41 @@ export default async function AppSettingsPage() {
             baseUrl: ollama.baseUrl,
             model: ollama.model,
           }}
+        />
+      </section>
+
+      <section className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
+        <div>
+          <h2 className="font-medium">AI document extraction</h2>
+          <p className="text-xs text-foreground/50 mt-0.5">
+            Bring your own API key to send uploaded documents to a cloud AI provider for
+            higher-accuracy field extraction, shared by the whole household. Leave this unset to
+            keep using the built-in local extraction only.
+          </p>
+        </div>
+        <AiSettingsForm
+          provider={(aiProvider || null) as AiProviderId | null}
+          model={aiModel || null}
+          apiKeyIsSet={aiApiKeyIsSet}
+        />
+      </section>
+
+      <section className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
+        <div>
+          <h2 className="font-medium">AI Assistant</h2>
+          <p className="text-xs text-foreground/50 mt-0.5">
+            Bring your own API key to enable an assistant that can answer questions using the
+            household&apos;s own data — contracts, warranties, trips, vehicles, home, inventory,
+            and wealth. It can also propose creating or updating a contract or product, but
+            nothing is ever written without the requesting member&apos;s explicit confirmation
+            first. Configure a different provider/model here than document extraction if you like
+            — the two are independent.
+          </p>
+        </div>
+        <ChatSettingsForm
+          provider={(chatProvider || null) as AiProviderId | null}
+          model={chatModel || null}
+          apiKeyIsSet={chatApiKeyIsSet}
         />
       </section>
 

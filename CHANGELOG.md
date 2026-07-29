@@ -9,6 +9,17 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Breaking Changes
 
+- **AI document extraction and AI Assistant provider/API key/model are now
+  household-wide settings, not per-user.** Previously each household member
+  configured their own BYOK provider independently; now there is one shared
+  configuration for the whole household, managed on System settings
+  (`/settings/app`) by an admin, the same way SMTP/S3/Ollama/etc. already
+  work. A migration copies any existing per-user configuration into the new
+  household-wide setting (preferring an admin's config if more than one
+  member had configured one) before dropping the now-unused `User` columns
+  (`aiProvider`, `aiApiKeyEncrypted`, `aiModel`, `chatProvider`,
+  `chatApiKeyEncrypted`, `chatModel`). Non-admin members can no longer
+  configure their own provider/key — ask a household admin instead.
 - **`INSURANCE` and `REGISTRATION` removed as vehicle item types** (#144) —
   redundant now that a vehicle can link directly to an insurance Contract
   (#143), with proper renewal/billing/reminder tracking. Existing
@@ -33,13 +44,24 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 - A warning next to the SMTP/ntfy/Ollama "Test connection" buttons in
   System settings clarifying they test the currently *saved* settings, not
   unsaved form edits (#122).
+- A new **Household & System** page (`/settings/household`, admin-only)
+  gathering every household-wide settings entry point (Manage household
+  members, Database backups, Webhooks, Modules, System settings) in one
+  place, separate from the personal Settings page.
 
 ### Changed
 
-- The main Settings page now separates admin-only household/system links
-  (Manage household members, Database backups, Webhooks, Modules, System
-  settings) into their own "Household & System" card, distinct from the
-  personal "Profile" card they were previously nested inside (#121).
+- Settings is now clearly split into two screens: the main Settings page
+  (`/settings`) holds only settings that affect your own account —
+  Profile, Notifications, Preferences, Security, iCal feed, Change
+  password — while everything shared by the whole household lives on the
+  new Household & System page and its sub-pages (#121).
+- AI document extraction and AI Assistant settings moved from the personal
+  Settings page to System settings (`/settings/app`), reflecting that
+  they're now household-wide and admin-managed (see Breaking Changes
+  above). Saving no longer requires re-entering the API key on every
+  save — like every other secret in System settings, it's only
+  overwritten when a new value is actually submitted.
 - The AI document extraction and AI Assistant provider settings now show
   a persistent "Leave blank to use the default: `<model>`" hint under the
   Model field, instead of relying solely on a placeholder that disappears

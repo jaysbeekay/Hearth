@@ -8,7 +8,7 @@ import { sendTestEmail } from "@/lib/notifications/email";
 import { sendTestNtfy } from "@/lib/notifications/ntfy";
 import type { ActionState } from "@/lib/actions/auth";
 
-async function requireAdmin() {
+export async function requireAdmin() {
   const session = await auth();
   if (session?.user.role !== "ADMIN") redirect("/settings");
   return session;

@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { sendChatMessageSchema } from "@/lib/validation/chat";
-import { callChatCompletion, getChatUser, isChatConfigured } from "@/lib/ai/chat/dispatch";
+import { callChatCompletion, getChatConfig, isChatConfigured } from "@/lib/ai/chat/dispatch";
 import { MAX_TOOL_CALL_ROUNDS, type ChatTurn } from "@/lib/ai/chat/types";
 import { getAvailableTools, runTool, type ToolContext } from "@/lib/chat/tools";
 import type { ChatMessageModel } from "@/generated/prisma/models";
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Conversation not found." }, { status: 404 });
   }
 
-  const chatUser = await getChatUser(session.user.id);
+  const chatUser = await getChatConfig();
   if (!isChatConfigured(chatUser)) {
     return NextResponse.json({
       threadId: thread.id,

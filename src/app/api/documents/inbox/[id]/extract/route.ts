@@ -5,7 +5,7 @@ import { readInboxDocument } from "@/lib/storage";
 import { extractContractFields } from "@/lib/documents/fieldExtraction";
 import { extractInvoiceFields } from "@/lib/documents/invoiceFieldExtraction";
 import { extractInventoryItemFields } from "@/lib/documents/inventoryItemFieldExtraction";
-import { getByokUser } from "@/lib/ai/extract";
+import { getByokConfig } from "@/lib/ai/extract";
 
 // Previews auto-fill fields for a document already sitting in the inbox,
 // reusing the text extracted at upload time rather than re-running OCR.
@@ -31,7 +31,7 @@ export async function POST(
 
   const [buffer, byokUser] = await Promise.all([
     readInboxDocument(doc.storedName),
-    getByokUser(session.user.id),
+    getByokConfig(),
   ]);
   const text = doc.extractedText ?? "";
   const options = { buffer, mimeType: doc.mimeType, byokUser };
