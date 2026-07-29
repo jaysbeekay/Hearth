@@ -36,6 +36,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- Sidebar, mobile nav drawer, and bottom-nav "More" sheet now group nav
+  items into "Modules" (Contracts, Warranties, plus enabled optional
+  modules) and "Tools" (Documents, Assistant, Calendar, Spending)
+  sections, with Dashboard standing alone above both (#125). The
+  "Assistant" nav item is now hidden entirely for users who haven't
+  configured an AI provider, instead of linking to a page that can't do
+  anything (#135).
 - Vehicle detail page: make/model/year/license plate moved out of an
   unlabeled subtitle above the page heading into the same labeled details
   card as Colour/VIN/Rego expiry/Insurance expiry (#146).
