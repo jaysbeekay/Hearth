@@ -17,10 +17,16 @@ function isActive(href: string, pathname: string) {
 // never grows past 5 slots on small screens.
 const PRIMARY_HREFS = ["/dashboard", "/contracts", "/products", "/calendar"];
 
-export function BottomNav({ enabledModules }: { enabledModules: ModuleKey[] }) {
+export function BottomNav({
+  enabledModules,
+  chatConfigured,
+}: {
+  enabledModules: ModuleKey[];
+  chatConfigured: boolean;
+}) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
-  const items = getNavItems(new Set(enabledModules));
+  const items = getNavItems(new Set(enabledModules), chatConfigured);
 
   // Close automatically on route change (link click).
   const [prevPathname, setPrevPathname] = useState(pathname);
@@ -42,6 +48,8 @@ export function BottomNav({ enabledModules }: { enabledModules: ModuleKey[] }) {
     (i): i is NonNullable<typeof i> => i != null,
   );
   const overflow = items.filter((i) => !PRIMARY_HREFS.includes(i.href));
+  const overflowModules = overflow.filter((i) => i.group === "modules");
+  const overflowTools = overflow.filter((i) => i.group === "tools");
   const overflowActive =
     overflow.some((i) => isActive(i.href, pathname)) || isActive("/settings", pathname);
 
@@ -102,8 +110,36 @@ export function BottomNav({ enabledModules }: { enabledModules: ModuleKey[] }) {
                 <X size={18} />
               </button>
             </div>
+            {overflowModules.length > 0 && (
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-foreground/40">
+                Modules
+              </p>
+            )}
             <div className="grid grid-cols-3 gap-2">
-              {overflow.map(({ href, label, icon: Icon }) => (
+              {overflowModules.map(({ href, label, icon: Icon }) => (
+                <Link
+                  key={href}
+                  href={href}
+                  className={cn(
+                    "flex flex-col items-center gap-1.5 rounded-lg p-3 text-xs font-medium",
+                    isActive(href, pathname)
+                      ? "bg-accent/10 text-accent"
+                      : "text-foreground/70 hover:bg-black/5 dark:hover:bg-white/5",
+                  )}
+                >
+                  <Icon size={20} />
+                  {label}
+                </Link>
+              ))}
+            </div>
+
+            {overflowTools.length > 0 && (
+              <p className="mb-1.5 mt-3 text-xs font-semibold uppercase tracking-wide text-foreground/40">
+                Tools
+              </p>
+            )}
+            <div className="grid grid-cols-3 gap-2">
+              {overflowTools.map(({ href, label, icon: Icon }) => (
                 <Link
                   key={href}
                   href={href}

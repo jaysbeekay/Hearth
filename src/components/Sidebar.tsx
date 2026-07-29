@@ -17,13 +17,18 @@ export function Sidebar({
   userName,
   userEmail,
   enabledModules,
+  chatConfigured,
 }: {
   userName: string;
   userEmail: string;
   enabledModules: ModuleKey[];
+  chatConfigured: boolean;
 }) {
   const pathname = usePathname();
-  const items = getNavItems(new Set(enabledModules));
+  const items = getNavItems(new Set(enabledModules), chatConfigured);
+  const dashboardItems = items.filter((item) => item.group === "dashboard");
+  const moduleItems = items.filter((item) => item.group === "modules");
+  const toolItems = items.filter((item) => item.group === "tools");
 
   return (
     <aside className="hidden w-60 flex-col border-r border-border bg-surface md:flex">
@@ -45,7 +50,51 @@ export function Sidebar({
       </div>
 
       <nav className="flex-1 space-y-1 px-3">
-        {items.map(({ href, label, icon: Icon }) => {
+        {dashboardItems.map(({ href, label, icon: Icon }) => {
+          const active = isActive(href, pathname);
+          return (
+            <Link
+              key={href}
+              href={href}
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition",
+                active
+                  ? "bg-accent/10 text-accent"
+                  : "text-muted hover:bg-black/5 dark:hover:bg-white/5",
+              )}
+            >
+              <Icon size={18} />
+              {label}
+            </Link>
+          );
+        })}
+
+        <p className="mt-4 px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-foreground/40">
+          Modules
+        </p>
+        {moduleItems.map(({ href, label, icon: Icon }) => {
+          const active = isActive(href, pathname);
+          return (
+            <Link
+              key={href}
+              href={href}
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition",
+                active
+                  ? "bg-accent/10 text-accent"
+                  : "text-muted hover:bg-black/5 dark:hover:bg-white/5",
+              )}
+            >
+              <Icon size={18} />
+              {label}
+            </Link>
+          );
+        })}
+
+        <p className="mt-4 px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-foreground/40">
+          Tools
+        </p>
+        {toolItems.map(({ href, label, icon: Icon }) => {
           const active = isActive(href, pathname);
           return (
             <Link
