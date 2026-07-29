@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { addMonths } from "date-fns";
 import { ScanBarcode, Upload } from "lucide-react";
 import type { ProductModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/products";
@@ -86,7 +87,17 @@ export function ProductForm({
   const serialNumberRef = useRef<HTMLInputElement>(null);
   const barcodeRef = useRef<HTMLInputElement>(null);
   const purchaseDateRef = useRef<HTMLInputElement>(null);
+  const warrantyEndDateRef = useRef<HTMLInputElement>(null);
   const priceRef = useRef<HTMLInputElement>(null);
+
+  function suggestWarrantyEndDate() {
+    const warrantyEndDateInput = warrantyEndDateRef.current;
+    if (!purchaseDateRef.current?.value || !warrantyEndDateInput || warrantyEndDateInput.value) return;
+    const purchaseDate = new Date(purchaseDateRef.current.value);
+    if (Number.isNaN(purchaseDate.getTime())) return;
+    warrantyEndDateInput.value = toDateInputValue(addMonths(purchaseDate, 12));
+    markAutoFilled(warrantyEndDateInput);
+  }
 
   function applyExtractedFields(fields: ExtractedFields) {
     if (fields.description && descriptionRef.current && !descriptionRef.current.value) {
@@ -112,6 +123,7 @@ export function ProductForm({
     if (fields.purchaseDate && purchaseDateRef.current) {
       purchaseDateRef.current.value = fields.purchaseDate;
       markAutoFilled(purchaseDateRef.current);
+      suggestWarrantyEndDate();
     }
     if (fields.price && priceRef.current) {
       priceRef.current.value = fields.price;
@@ -161,10 +173,20 @@ export function ProductForm({
         return;
       }
 
-      const { fields, found } = (await res.json()) as { fields: ExtractedFields; found: boolean };
+      const { fields, found, reason } = (await res.json()) as {
+        fields: ExtractedFields;
+        found: boolean;
+        reason?: "not_found" | "rate_limited" | "network_error";
+      };
       if (found) {
         applyExtractedFields(fields);
         setLookupMessage("Fields populated from the barcode — review before saving.");
+      } else if (reason === "rate_limited") {
+        setLookupMessage(
+          "Barcode lookup is rate-limited right now — try again shortly, or fill in details manually.",
+        );
+      } else if (reason === "network_error") {
+        setLookupMessage("Couldn't reach the barcode lookup service. Fill in remaining details manually.");
       } else {
         setLookupMessage("No product info found for this barcode.");
       }
@@ -321,12 +343,14 @@ export function ProductForm({
             name="purchaseDate"
             type="date"
             defaultValue={effectiveValues?.purchaseDate ?? toDateInputValue(product?.purchaseDate)}
+            onChange={suggestWarrantyEndDate}
             className={inputClass}
           />
         </Field>
 
         <Field label="Warranty end date" htmlFor="warrantyEndDate">
           <input
+            ref={warrantyEndDateRef}
             id="warrantyEndDate"
             name="warrantyEndDate"
             type="date"

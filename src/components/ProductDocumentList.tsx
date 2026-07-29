@@ -1,8 +1,12 @@
-import { FileText, Trash2 } from "lucide-react";
+"use client";
+
+import { useState } from "react";
+import { Eye, FileText, Trash2 } from "lucide-react";
 import type { ProductDocumentModel } from "@/generated/prisma/models";
 import { deleteProductDocumentAction } from "@/lib/actions/products";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DocumentLink } from "@/components/DocumentLink";
+import { DocumentPreviewModal, isPreviewable } from "@/components/DocumentPreviewModal";
 import { ProductDocumentThumbnail } from "@/components/ProductDocumentThumbnail";
 import { formatDate, humanFileSize } from "@/lib/utils";
 
@@ -20,6 +24,8 @@ export function ProductDocumentList({
   documents: ProductDocumentModel[];
   dateFormat?: string;
 }) {
+  const [preview, setPreview] = useState<ProductDocumentModel | null>(null);
+
   if (documents.length === 0) {
     return <p className="text-sm text-foreground/60">No documents uploaded yet.</p>;
   }
@@ -49,22 +55,45 @@ export function ProductDocumentList({
               {formatDate(doc.uploadedAt, dateFormat)}
             </span>
           </DocumentLink>
-          <ConfirmForm
-            action={deleteProductDocumentAction.bind(null, doc.productId, doc.id)}
-            confirmText={`Delete ${doc.filename}? This can't be undone.`}
-            ariaLabel={`Delete ${doc.filename}`}
-            className="rounded-md p-2 text-foreground/50 hover:text-danger"
-            offline={{
-              entity: "productDocument",
-              entityId: doc.id,
-              parentId: doc.productId,
-              label: `Delete document: ${doc.filename}`,
-            }}
-          >
-            <Trash2 size={16} />
-          </ConfirmForm>
+          <div className="flex items-center gap-1">
+            {isPreviewable(doc.mimeType) && (
+              <button
+                type="button"
+                onClick={() => setPreview(doc)}
+                aria-label={`Preview ${doc.filename}`}
+                className="rounded-md p-2 text-foreground/50 hover:bg-black/5 dark:hover:bg-white/5"
+              >
+                <Eye size={16} />
+              </button>
+            )}
+            <ConfirmForm
+              action={deleteProductDocumentAction.bind(null, doc.productId, doc.id)}
+              confirmText={`Delete ${doc.filename}? This can't be undone.`}
+              ariaLabel={`Delete ${doc.filename}`}
+              className="rounded-md p-2 text-foreground/50 hover:text-danger"
+              offline={{
+                entity: "productDocument",
+                entityId: doc.id,
+                parentId: doc.productId,
+                label: `Delete document: ${doc.filename}`,
+              }}
+            >
+              <Trash2 size={16} />
+            </ConfirmForm>
+          </div>
         </li>
       ))}
+
+      {preview && (
+        <DocumentPreviewModal
+          doc={{
+            filename: preview.filename,
+            mimeType: preview.mimeType,
+            downloadHref: `/api/products/documents/${preview.id}`,
+          }}
+          onClose={() => setPreview(null)}
+        />
+      )}
     </ul>
   );
 }
