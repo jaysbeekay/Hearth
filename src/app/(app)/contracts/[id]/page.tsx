@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Pencil, Trash2, Ban, RotateCcw, Home } from "lucide-react";
+import { Pencil, Trash2, Ban, RotateCcw, Home, ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { addDocument, deleteContract, setContractStatus } from "@/lib/actions/contracts";
 import { ExpiryBadge } from "@/components/ExpiryBadge";
@@ -45,8 +45,12 @@ export default async function ContractDetailPage({
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <Link href="/contracts" className="text-sm text-foreground/60 hover:text-foreground">
-          ← Back to contracts
+        <Link
+          href="/contracts"
+          className="inline-flex items-center gap-1 text-sm text-foreground/60 hover:text-foreground"
+        >
+          <ArrowLeft size={16} />
+          Back to contracts
         </Link>
       </div>
 
@@ -76,12 +80,13 @@ export default async function ContractDetailPage({
             confirmText={
               cancelled
                 ? "Mark this contract as active again?"
-                : "Mark this contract as cancelled?"
+                : "Mark this contract as cancelled? This just changes its status — it won't delete the contract or its documents."
             }
+            ariaLabel={cancelled ? "Mark contract as active" : "Mark contract as cancelled"}
             className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
           >
             {cancelled ? <RotateCcw size={16} /> : <Ban size={16} />}
-            {cancelled ? "Reactivate" : "Cancel"}
+            {cancelled ? "Mark as active" : "Mark as cancelled"}
           </ConfirmForm>
           <DetailOverflowMenu>
             <ConfirmForm

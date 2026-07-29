@@ -91,3 +91,38 @@ test("swiping a contract card left reveals a delete action, which still uses the
   await page.getByRole("button", { name: "Confirm" }).click();
   await expect(page.getByText("Swipe Test Contract")).toHaveCount(0);
 });
+
+test("swiping from the left screen edge opens the navigation drawer, and the menu button does too", async ({
+  page,
+}) => {
+  await page.goto("/dashboard");
+
+  const body = page.locator("body");
+  await body.dispatchEvent("pointerdown", { pointerType: "touch", clientX: 5, clientY: 300 });
+  for (let i = 1; i <= 8; i++) {
+    await body.dispatchEvent("pointermove", { pointerType: "touch", clientX: 5 + i * 10, clientY: 300 });
+  }
+  await body.dispatchEvent("pointerup", { pointerType: "touch", clientX: 85, clientY: 300 });
+
+  const drawer = page.getByRole("dialog", { name: "Navigation menu" });
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByRole("link", { name: "Contracts" })).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await expect(drawer).toBeHidden();
+
+  // A swipe starting further from the edge (past EDGE_ZONE) must not open it.
+  await body.dispatchEvent("pointerdown", { pointerType: "touch", clientX: 120, clientY: 300 });
+  for (let i = 1; i <= 8; i++) {
+    await body.dispatchEvent("pointermove", { pointerType: "touch", clientX: 120 + i * 10, clientY: 300 });
+  }
+  await body.dispatchEvent("pointerup", { pointerType: "touch", clientX: 200, clientY: 300 });
+  await expect(drawer).toBeHidden();
+
+  // The visible menu button is the reliable fallback trigger.
+  await page.locator('button[aria-label="Open navigation menu"]').click();
+  await expect(drawer).toBeVisible();
+  await drawer.getByRole("link", { name: "Contracts" }).click();
+  await page.waitForURL(/\/contracts$/);
+  await expect(drawer).toBeHidden();
+});
