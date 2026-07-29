@@ -88,6 +88,9 @@ export function AiSettingsForm({
             placeholder={AI_PROVIDER_DEFAULT_MODELS[selected]}
             className={inputClass}
           />
+          <p className="text-xs text-foreground/50">
+            Leave blank to use the default: {AI_PROVIDER_DEFAULT_MODELS[selected]}
+          </p>
         </div>
 
         <FormMessage error={state?.error} success={state?.success} />

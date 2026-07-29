@@ -55,8 +55,15 @@ export default async function SettingsPage() {
               <dd className="text-sm font-medium">{user.role}</dd>
             </div>
           </dl>
-          {user.role === "ADMIN" && (
-            <div className="mt-2 flex flex-col gap-1">
+        </section>
+
+        {user.role === "ADMIN" && (
+          <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+            <h2 className="mb-3 font-medium">Household &amp; System</h2>
+            <p className="mb-3 text-sm text-foreground/60">
+              Settings shared by the whole household, not just your own account.
+            </p>
+            <div className="flex flex-col gap-1">
               <Link href="/settings/users" className={quickLinkClass}>
                 <Users size={16} />
                 Manage household members
@@ -78,8 +85,8 @@ export default async function SettingsPage() {
                 System settings
               </Link>
             </div>
-          )}
-        </section>
+          </section>
+        )}
 
         <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-3 font-medium">Notifications</h2>

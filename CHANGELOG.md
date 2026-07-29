@@ -36,6 +36,15 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- The main Settings page now separates admin-only household/system links
+  (Manage household members, Database backups, Webhooks, Modules, System
+  settings) into their own "Household & System" card, distinct from the
+  personal "Profile" card they were previously nested inside (#121).
+- The AI document extraction and AI Assistant provider settings now show
+  a persistent "Leave blank to use the default: `<model>`" hint under the
+  Model field, instead of relying solely on a placeholder that disappears
+  on focus and never confirms which model is actually in effect once
+  saved (#123).
 - Sidebar, mobile nav drawer, and bottom-nav "More" sheet now group nav
   items into "Modules" (Contracts, Warranties, plus enabled optional
   modules) and "Tools" (Documents, Assistant, Calendar, Spending)
