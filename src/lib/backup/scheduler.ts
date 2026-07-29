@@ -5,11 +5,13 @@ import {
   isBackupConfigured,
   isS3BackupConfigured,
   isSftpBackupConfigured,
+  isLocalBackupConfigured,
   getBackupScheduleConfig,
 } from "@/lib/appSettings";
 import { createSnapshot } from "@/lib/backup/snapshot";
 import { pruneS3, uploadToS3 } from "@/lib/backup/s3";
 import { pruneSftp, uploadToSftp } from "@/lib/backup/sftp";
+import { pruneLocal, uploadToLocal } from "@/lib/backup/local";
 import type { BackupDestination } from "@/generated/prisma/enums";
 
 type Destination = {
@@ -44,6 +46,13 @@ export async function runBackup(): Promise<{ attempted: number; succeeded: numbe
         name: "SFTP",
         upload: () => uploadToSftp(encrypted, fileName),
         prune: (n) => pruneSftp(n),
+      });
+    }
+    if (await isLocalBackupConfigured()) {
+      destinations.push({
+        name: "LOCAL",
+        upload: () => uploadToLocal(encrypted, fileName),
+        prune: (n) => pruneLocal(n),
       });
     }
 

@@ -241,6 +241,16 @@ export async function isSftpBackupConfigured(): Promise<boolean> {
   return Boolean(cfg.host && cfg.username && (cfg.password || cfg.privateKey));
 }
 
+export async function getLocalConfig() {
+  const s = await getAppSettings(["backup.local.path"], { "backup.local.path": env.backup.local.path });
+  return { path: s["backup.local.path"] };
+}
+
+export async function isLocalBackupConfigured(): Promise<boolean> {
+  const { path } = await getLocalConfig();
+  return Boolean(path);
+}
+
 export async function getBackupScheduleConfig() {
   const s = await getAppSettings(
     ["backup.cron", "backup.retentionCount"],
@@ -277,5 +287,8 @@ export async function isAviationStackConfigured(): Promise<boolean> {
 }
 
 export async function isBackupConfigured(): Promise<boolean> {
-  return isEncryptionConfigured() && (await isS3BackupConfigured() || await isSftpBackupConfigured());
+  return (
+    isEncryptionConfigured() &&
+    ((await isS3BackupConfigured()) || (await isSftpBackupConfigured()) || (await isLocalBackupConfigured()))
+  );
 }

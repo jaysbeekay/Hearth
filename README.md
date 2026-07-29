@@ -187,8 +187,14 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM: ${SMTP_FROM:-Hearth <no-reply@localhost>}
+      # Push notifications via ntfy.sh (or a self-hosted instance — see the
+      # commented-out "ntfy" service below). Topics on the public ntfy.sh
+      # instance are unauthenticated by default and guessable by anyone who
+      # knows the name, so pick something long/unguessable (e.g.
+      # "hearth-a1b2c3d4e5"), not something like "family-reminders". Set
+      # NTFY_TOKEN if your topic is access-controlled.
       NTFY_URL: ${NTFY_URL:-https://ntfy.sh}
-      NTFY_TOPIC: ${NTFY_TOPIC:-}
+      NTFY_TOPIC: ${NTFY_TOPIC:-hearth-changeme-a1b2c3}
       NTFY_TOKEN: ${NTFY_TOKEN:-}
       CRON_SECRET: ${CRON_SECRET:-}
       MCP_TOKEN: ${MCP_TOKEN:-}
@@ -211,9 +217,25 @@ services:
       BACKUP_SFTP_PASSWORD: ${BACKUP_SFTP_PASSWORD:-}
       BACKUP_SFTP_PRIVATE_KEY: ${BACKUP_SFTP_PRIVATE_KEY:-}
       BACKUP_SFTP_REMOTE_PATH: ${BACKUP_SFTP_REMOTE_PATH:-/backups}
+      # Local backups land inside ./data, which is already mounted below —
+      # no separate volume needed for this destination to be persisted.
+      BACKUP_LOCAL_PATH: ${BACKUP_LOCAL_PATH:-}
     volumes:
       - ./data:/app/data
     restart: unless-stopped
+
+  # Optional: self-host ntfy instead of relying on the public ntfy.sh
+  # instance. Uncomment this service, set NTFY_URL: http://ntfy:80 above,
+  # and subscribe to your topic in the ntfy app pointed at this server
+  # instead of ntfy.sh.
+  # ntfy:
+  #   image: binwiederhier/ntfy
+  #   command: serve
+  #   ports:
+  #     - "8080:80"
+  #   volumes:
+  #     - ./data/ntfy:/var/cache/ntfy
+  #   restart: unless-stopped
 ```
 
 Values not set in `.env` fall back to the defaults shown above (most
@@ -445,15 +467,17 @@ on a schedule. Each backup:
    the server.
 3. Uploads the encrypted file to whichever destination(s) you've
    configured — **S3-compatible object storage** (AWS S3, Backblaze B2,
-   Cloudflare R2, MinIO, etc.) and/or **SFTP**, independently enabled by
-   their own environment variables, and both run if both are configured.
+   Cloudflare R2, MinIO, etc.), **SFTP**, and/or a **local filesystem
+   path** — independently enabled by their own environment variables (or
+   from Settings → System settings), with every configured destination
+   receiving every backup, for redundancy.
 4. Prunes older backups at each destination beyond `BACKUP_RETENTION_COUNT`.
 
 Backups stay fully disabled until `ENCRYPTION_KEY` is set — there's no way
-to send an unencrypted backup offsite. With encryption configured, set
-`BACKUP_S3_*` and/or `BACKUP_SFTP_*` to enable each destination. See
-[`.env.example`](.env.example) for the full list of backup-related
-variables and their defaults.
+to write an unencrypted backup, even locally. With encryption configured,
+set `BACKUP_S3_*`, `BACKUP_SFTP_*`, and/or `BACKUP_LOCAL_PATH` to enable
+each destination. See [`.env.example`](.env.example) for the full list of
+backup-related variables and their defaults.
 
 Backups run on `BACKUP_CRON_SCHEDULE` (default daily at 03:00) via the
 same built-in scheduler used for reminders, can be triggered manually from
@@ -546,6 +570,7 @@ for the full list with defaults. Notable ones:
 | `BACKUP_CRON_SCHEDULE` / `BACKUP_RETENTION_COUNT` | Optional. Schedule (cron syntax, default daily at 03:00) and how many backups to keep per destination (default 7). |
 | `BACKUP_S3_*` | Optional. Set `BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY` (plus `BACKUP_S3_ENDPOINT`/`BACKUP_S3_REGION`/`BACKUP_S3_FORCE_PATH_STYLE` for non-AWS providers) to enable S3-compatible offsite backups — see "Database backups" above. |
 | `BACKUP_SFTP_*` | Optional. Set `BACKUP_SFTP_HOST` and `BACKUP_SFTP_USERNAME` plus `BACKUP_SFTP_PASSWORD` or `BACKUP_SFTP_PRIVATE_KEY` to enable SFTP offsite backups — see "Database backups" above. |
+| `BACKUP_LOCAL_PATH` | Optional. Set to a directory path to enable a local-filesystem backup destination, encrypted the same as S3/SFTP — see "Database backups" above. Multiple destinations can be enabled at once; each configured destination receives every backup. |
 
 If neither email nor ntfy is configured, the scheduler runs but sends nothing
 (no errors).

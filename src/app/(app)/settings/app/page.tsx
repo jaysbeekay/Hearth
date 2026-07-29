@@ -8,6 +8,7 @@ import {
   getBarcodeConfig,
   getS3Config,
   getSftpConfig,
+  getLocalConfig,
   getBackupScheduleConfig,
   getReminderConfig,
   getAppSetting,
@@ -20,6 +21,7 @@ import {
   saveBarcodeSettings,
   saveS3Settings,
   saveSftpSettings,
+  saveLocalSettings,
   saveScheduleSettings,
   saveAviationStackSettings,
 } from "@/lib/actions/app-settings";
@@ -30,6 +32,7 @@ import {
   BarcodeForm,
   S3Form,
   SftpForm,
+  LocalForm,
   ScheduleForm,
   AviationStackForm,
 } from "@/components/AppSettingsForms";
@@ -50,6 +53,7 @@ export default async function AppSettingsPage() {
     barcode,
     s3,
     sftp,
+    local,
     backupSchedule,
     reminder,
     aiProvider,
@@ -72,6 +76,7 @@ export default async function AppSettingsPage() {
     getBarcodeConfig(),
     getS3Config(),
     getSftpConfig(),
+    getLocalConfig(),
     getBackupScheduleConfig(),
     getReminderConfig(),
     getAppSetting("ai.provider"),
@@ -227,6 +232,16 @@ export default async function AppSettingsPage() {
             privateKeyIsSet: sftpPrivateKeyIsSet,
           }}
         />
+      </section>
+
+      <section className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
+        <div>
+          <h2 className="font-medium">Local backup</h2>
+          <p className="text-xs text-foreground/50 mt-0.5">
+            Encrypted backups written to a local path on this server/container
+          </p>
+        </div>
+        <LocalForm action={saveLocalSettings} current={{ path: local.path }} />
       </section>
 
       <section className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">

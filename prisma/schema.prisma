@@ -71,6 +71,7 @@ enum AiProvider {
 enum BackupDestination {
   S3
   SFTP
+  LOCAL
 }
 
 enum BackupStatus {

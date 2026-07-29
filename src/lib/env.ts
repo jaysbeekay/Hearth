@@ -48,6 +48,9 @@ export const env = {
       privateKey: optional("BACKUP_SFTP_PRIVATE_KEY"),
       remotePath: optional("BACKUP_SFTP_REMOTE_PATH", "/backups"),
     },
+    local: {
+      path: optional("BACKUP_LOCAL_PATH"),
+    },
   },
 };
 

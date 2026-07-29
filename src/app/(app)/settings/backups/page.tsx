@@ -7,6 +7,7 @@ import {
   isBackupConfigured,
   isS3BackupConfigured,
   isSftpBackupConfigured,
+  isLocalBackupConfigured,
   getBackupScheduleConfig,
 } from "@/lib/appSettings";
 import { BackupNowForm } from "@/components/BackupNowForm";
@@ -21,11 +22,12 @@ export default async function BackupsPage() {
     redirect("/settings");
   }
 
-  const [logs, s3Configured, sftpConfigured, backupOk, backupSchedule, { dateFormat }] =
+  const [logs, s3Configured, sftpConfigured, localConfigured, backupOk, backupSchedule, { dateFormat }] =
     await Promise.all([
       prisma.backupLog.findMany({ orderBy: { startedAt: "desc" }, take: 10 }),
       isS3BackupConfigured(),
       isSftpBackupConfigured(),
+      isLocalBackupConfigured(),
       isBackupConfigured(),
       getBackupScheduleConfig(),
       getUserPreferences(),
@@ -43,6 +45,7 @@ export default async function BackupsPage() {
           </li>
           <li>S3-compatible storage: {s3Configured ? "configured" : "not configured"}</li>
           <li>SFTP: {sftpConfigured ? "configured" : "not configured"}</li>
+          <li>Local: {localConfigured ? "configured" : "not configured"}</li>
           <li>Schedule: {backupSchedule.cron}</li>
           <li>Retention: last {backupSchedule.retentionCount} backups per destination</li>
         </ul>
@@ -50,8 +53,8 @@ export default async function BackupsPage() {
         {!backupOk && (
           <p className="mt-3 text-sm text-warning">
             {isEncryptionConfigured()
-              ? "Configure S3 or SFTP in System settings to enable offsite backups."
-              : "Set ENCRYPTION_KEY, then configure S3 or SFTP in System settings to enable offsite backups. Backups are never sent unencrypted."}
+              ? "Configure S3, SFTP, or a local backup directory in System settings to enable backups."
+              : "Set ENCRYPTION_KEY, then configure S3, SFTP, or a local backup directory in System settings to enable backups. Backups are never written unencrypted."}
           </p>
         )}
 

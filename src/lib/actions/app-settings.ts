@@ -150,6 +150,23 @@ export async function saveSftpSettings(
   return { success: "SFTP backup settings saved." };
 }
 
+export async function saveLocalSettings(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  await requireAdmin();
+
+  try {
+    await setAppSetting("backup.local.path", formData.get("localPath") as string);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Failed to save local backup settings." };
+  }
+
+  revalidatePath("/settings/app");
+  revalidatePath("/settings/backups");
+  return { success: "Local backup settings saved." };
+}
+
 export async function saveScheduleSettings(
   _prevState: ActionState,
   formData: FormData,

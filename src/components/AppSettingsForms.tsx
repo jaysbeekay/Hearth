@@ -291,6 +291,33 @@ export function SftpForm({
   );
 }
 
+// ─── Local backup ────────────────────────────────────────────────────────────
+
+export function LocalForm({
+  action,
+  current,
+}: {
+  action: (s: ActionState, f: FormData) => Promise<ActionState>;
+  current: { path: string };
+}) {
+  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  return (
+    <form action={formAction} className="space-y-4">
+      <Field
+        label="Backup directory"
+        htmlFor="localPath"
+        hint="Leave blank to disable this destination. Point this at a path inside your existing data volume (e.g. ./data/backups) so it's covered by whatever you already back up."
+      >
+        <input id="localPath" name="localPath" defaultValue={current.path} placeholder="./data/backups" className={inputClass} />
+      </Field>
+      <FormMessage error={state?.error} success={state?.success} />
+      <div className="flex justify-end">
+        <SubmitButton>Save local backup settings</SubmitButton>
+      </div>
+    </form>
+  );
+}
+
 // ─── Schedules ───────────────────────────────────────────────────────────────
 
 export function ScheduleForm({
