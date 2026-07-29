@@ -63,6 +63,22 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   tracking flow. Selecting "Rented" shows a prompt linking to rental
   tracking setup (or to the existing overview, if already set up) — this
   is additive and doesn't change how `isRented`/rental agreements work.
+- **Local filesystem backup destination** (#137) — configurable from
+  System settings alongside the existing S3/SFTP destinations, encrypted
+  the same way. Multiple destinations can still be enabled simultaneously,
+  each receiving every backup, matching the existing model. OneDrive
+  (also requested in #137) needs an OAuth-based upload flow and is
+  deferred as a follow-up — #137 stays open to track it.
+- Preview/quick-view for product documents (#142) — previewable documents
+  (images, PDFs) on a product's detail page now open in the same inline
+  preview modal the Documents page already has, instead of only
+  downloading/opening in a new tab. The shared modal was extracted into
+  `src/components/DocumentPreviewModal.tsx` so both pages use one
+  implementation.
+- A worked ntfy.sh example in `docker-compose.yml`/README (#138): a
+  concrete example topic with a note that public ntfy.sh topics are
+  guessable and should be unguessable or token-protected, plus a
+  commented-out self-hosted `binwiederhier/ntfy` service block.
 
 ### Changed
 
@@ -111,6 +127,15 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   toasts on error as well as success, so an inline validation error (e.g.
   switching AI provider without an API key) is no longer easy to miss
   (#124).
+- Product form: "Warranty end date" now auto-suggests 12 months after
+  "Purchase date" when left blank, using the same auto-fill highlight
+  styling as AI-extracted fields — only fills in if you haven't already
+  entered your own warranty end date (#131).
+- The dashboard's "Est. monthly spend" tile now shows a visible warning
+  banner (not just a small `*` footnote) when contracts billed in a
+  currency without a usable exchange rate are excluded from the total,
+  and logs a server-side warning naming the affected currencies so it's
+  diagnosable from logs (#132).
 
 ### Fixed
 
@@ -132,6 +157,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   button) used three different height rules and didn't visually line up.
   Standardized to one consistent height. The Products list toolbar had the
   identical mismatch and was fixed at the same time (#127).
+- Barcode lookup failures (rate-limited, unreachable, not found) all
+  looked identical — a silent no-op with no indication why. `lookupBarcode()`
+  now returns a specific reason, surfaced as a specific message on the
+  product form (#139). Keyless lookups already worked via UPCitemdb's
+  rate-limited trial endpoint; this only improves diagnosability of
+  failures, since the underlying "no API key required" behavior was
+  already correct.
 
 ## [0.12.1] - 2026-07-29
 
