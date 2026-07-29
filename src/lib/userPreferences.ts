@@ -38,38 +38,3 @@ export const getUserPreferences = cache(async (): Promise<UserPreferences> => {
     region: (user.region as Region) || DEFAULT_PREFERENCES.region,
   };
 });
-
-// ~30 common IANA zones, grouped roughly by region for the settings select.
-export const TIMEZONE_OPTIONS = [
-  "UTC",
-  "Australia/Sydney",
-  "Australia/Melbourne",
-  "Australia/Brisbane",
-  "Australia/Adelaide",
-  "Australia/Perth",
-  "Australia/Darwin",
-  "Australia/Hobart",
-  "Pacific/Auckland",
-  "Asia/Singapore",
-  "Asia/Hong_Kong",
-  "Asia/Tokyo",
-  "Asia/Shanghai",
-  "Asia/Kolkata",
-  "Asia/Dubai",
-  "Asia/Bangkok",
-  "Europe/London",
-  "Europe/Dublin",
-  "Europe/Paris",
-  "Europe/Berlin",
-  "Europe/Madrid",
-  "Europe/Rome",
-  "Europe/Amsterdam",
-  "Europe/Zurich",
-  "America/New_York",
-  "America/Chicago",
-  "America/Denver",
-  "America/Los_Angeles",
-  "America/Toronto",
-  "America/Sao_Paulo",
-  "Pacific/Honolulu",
-] as const;

@@ -20,15 +20,19 @@ export async function saveSmtpSettings(
 ): Promise<ActionState> {
   await requireAdmin();
 
-  await setAppSetting("smtp.host", formData.get("smtpHost") as string);
-  await setAppSetting("smtp.port", formData.get("smtpPort") as string);
-  await setAppSetting("smtp.secure", formData.get("smtpSecure") === "on" ? "true" : "false");
-  await setAppSetting("smtp.user", formData.get("smtpUser") as string);
-  await setAppSetting("smtp.from", formData.get("smtpFrom") as string);
+  try {
+    await setAppSetting("smtp.host", formData.get("smtpHost") as string);
+    await setAppSetting("smtp.port", formData.get("smtpPort") as string);
+    await setAppSetting("smtp.secure", formData.get("smtpSecure") === "on" ? "true" : "false");
+    await setAppSetting("smtp.user", formData.get("smtpUser") as string);
+    await setAppSetting("smtp.from", formData.get("smtpFrom") as string);
 
-  // Sensitive: only overwrite if a new value was submitted
-  const newPass = (formData.get("smtpPassword") as string) || "";
-  if (newPass) await setAppSetting("smtp.password", newPass);
+    // Sensitive: only overwrite if a new value was submitted
+    const newPass = (formData.get("smtpPassword") as string) || "";
+    if (newPass) await setAppSetting("smtp.password", newPass);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Failed to save email settings." };
+  }
 
   revalidatePath("/settings/app");
   return { success: "Email settings saved." };
@@ -40,11 +44,15 @@ export async function saveNtfySettings(
 ): Promise<ActionState> {
   await requireAdmin();
 
-  await setAppSetting("ntfy.url", formData.get("ntfyUrl") as string);
-  await setAppSetting("ntfy.topic", formData.get("ntfyTopic") as string);
+  try {
+    await setAppSetting("ntfy.url", formData.get("ntfyUrl") as string);
+    await setAppSetting("ntfy.topic", formData.get("ntfyTopic") as string);
 
-  const newToken = (formData.get("ntfyToken") as string) || "";
-  if (newToken) await setAppSetting("ntfy.token", newToken);
+    const newToken = (formData.get("ntfyToken") as string) || "";
+    if (newToken) await setAppSetting("ntfy.token", newToken);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Failed to save push notification settings." };
+  }
 
   revalidatePath("/settings/app");
   return { success: "Push notification settings saved." };
@@ -56,8 +64,12 @@ export async function saveOllamaSettings(
 ): Promise<ActionState> {
   await requireAdmin();
 
-  await setAppSetting("ollama.baseUrl", formData.get("ollamaBaseUrl") as string);
-  await setAppSetting("ollama.model", formData.get("ollamaModel") as string);
+  try {
+    await setAppSetting("ollama.baseUrl", formData.get("ollamaBaseUrl") as string);
+    await setAppSetting("ollama.model", formData.get("ollamaModel") as string);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Failed to save Ollama settings." };
+  }
 
   revalidatePath("/settings/app");
   return { success: "Ollama settings saved." };
@@ -69,13 +81,17 @@ export async function saveBarcodeSettings(
 ): Promise<ActionState> {
   await requireAdmin();
 
-  await setAppSetting(
-    "barcode.enabled",
-    formData.get("barcodeEnabled") === "on" ? "true" : "false",
-  );
+  try {
+    await setAppSetting(
+      "barcode.enabled",
+      formData.get("barcodeEnabled") === "on" ? "true" : "false",
+    );
 
-  const newKey = (formData.get("barcodeApiKey") as string) || "";
-  if (newKey) await setAppSetting("barcode.apiKey", newKey);
+    const newKey = (formData.get("barcodeApiKey") as string) || "";
+    if (newKey) await setAppSetting("barcode.apiKey", newKey);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Failed to save barcode lookup settings." };
+  }
 
   revalidatePath("/settings/app");
   return { success: "Barcode lookup settings saved." };
@@ -87,17 +103,21 @@ export async function saveS3Settings(
 ): Promise<ActionState> {
   await requireAdmin();
 
-  await setAppSetting("backup.s3.endpoint", formData.get("s3Endpoint") as string);
-  await setAppSetting("backup.s3.region", formData.get("s3Region") as string);
-  await setAppSetting("backup.s3.bucket", formData.get("s3Bucket") as string);
-  await setAppSetting("backup.s3.accessKeyId", formData.get("s3AccessKeyId") as string);
-  await setAppSetting(
-    "backup.s3.forcePathStyle",
-    formData.get("s3ForcePathStyle") === "on" ? "true" : "false",
-  );
+  try {
+    await setAppSetting("backup.s3.endpoint", formData.get("s3Endpoint") as string);
+    await setAppSetting("backup.s3.region", formData.get("s3Region") as string);
+    await setAppSetting("backup.s3.bucket", formData.get("s3Bucket") as string);
+    await setAppSetting("backup.s3.accessKeyId", formData.get("s3AccessKeyId") as string);
+    await setAppSetting(
+      "backup.s3.forcePathStyle",
+      formData.get("s3ForcePathStyle") === "on" ? "true" : "false",
+    );
 
-  const newSecret = (formData.get("s3SecretAccessKey") as string) || "";
-  if (newSecret) await setAppSetting("backup.s3.secretAccessKey", newSecret);
+    const newSecret = (formData.get("s3SecretAccessKey") as string) || "";
+    if (newSecret) await setAppSetting("backup.s3.secretAccessKey", newSecret);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Failed to save S3 backup settings." };
+  }
 
   revalidatePath("/settings/app");
   revalidatePath("/settings/backups");
@@ -110,16 +130,20 @@ export async function saveSftpSettings(
 ): Promise<ActionState> {
   await requireAdmin();
 
-  await setAppSetting("backup.sftp.host", formData.get("sftpHost") as string);
-  await setAppSetting("backup.sftp.port", formData.get("sftpPort") as string);
-  await setAppSetting("backup.sftp.username", formData.get("sftpUsername") as string);
-  await setAppSetting("backup.sftp.remotePath", formData.get("sftpRemotePath") as string);
+  try {
+    await setAppSetting("backup.sftp.host", formData.get("sftpHost") as string);
+    await setAppSetting("backup.sftp.port", formData.get("sftpPort") as string);
+    await setAppSetting("backup.sftp.username", formData.get("sftpUsername") as string);
+    await setAppSetting("backup.sftp.remotePath", formData.get("sftpRemotePath") as string);
 
-  const newPassword = (formData.get("sftpPassword") as string) || "";
-  if (newPassword) await setAppSetting("backup.sftp.password", newPassword);
+    const newPassword = (formData.get("sftpPassword") as string) || "";
+    if (newPassword) await setAppSetting("backup.sftp.password", newPassword);
 
-  const newKey = (formData.get("sftpPrivateKey") as string) || "";
-  if (newKey) await setAppSetting("backup.sftp.privateKey", newKey);
+    const newKey = (formData.get("sftpPrivateKey") as string) || "";
+    if (newKey) await setAppSetting("backup.sftp.privateKey", newKey);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Failed to save SFTP backup settings." };
+  }
 
   revalidatePath("/settings/app");
   revalidatePath("/settings/backups");
@@ -132,10 +156,14 @@ export async function saveScheduleSettings(
 ): Promise<ActionState> {
   await requireAdmin();
 
-  await setAppSetting("reminder.cron", formData.get("reminderCron") as string);
-  await setAppSetting("backup.cron", formData.get("backupCron") as string);
-  await setAppSetting("backup.retentionCount", formData.get("retentionCount") as string);
-  await setAppSetting("reminder.defaultDays", formData.get("reminderDefaultDays") as string);
+  try {
+    await setAppSetting("reminder.cron", formData.get("reminderCron") as string);
+    await setAppSetting("backup.cron", formData.get("backupCron") as string);
+    await setAppSetting("backup.retentionCount", formData.get("retentionCount") as string);
+    await setAppSetting("reminder.defaultDays", formData.get("reminderDefaultDays") as string);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Failed to save schedule settings." };
+  }
 
   revalidatePath("/settings/app");
   return { success: "Schedule settings saved. Restart the server for cron changes to take effect." };
@@ -156,7 +184,12 @@ export async function clearAppSetting(key: string): Promise<ActionState> {
   ]);
   if (!CLEARABLE.has(key)) return { error: "Cannot clear that setting." };
 
-  await setAppSetting(key, ""); // empty string → deletes the row
+  try {
+    await setAppSetting(key, ""); // empty string → deletes the row
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Failed to clear setting." };
+  }
+
   revalidatePath("/settings/app");
   return { success: "Setting cleared." };
 }
@@ -167,8 +200,12 @@ export async function saveAviationStackSettings(
 ): Promise<ActionState> {
   await requireAdmin();
 
-  const newKey = (formData.get("aviationstackApiKey") as string) || "";
-  if (newKey) await setAppSetting("aviationstack.apiKey", newKey);
+  try {
+    const newKey = (formData.get("aviationstackApiKey") as string) || "";
+    if (newKey) await setAppSetting("aviationstack.apiKey", newKey);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Failed to save flight status settings." };
+  }
 
   revalidatePath("/settings/app");
   return { success: "Flight status settings saved." };

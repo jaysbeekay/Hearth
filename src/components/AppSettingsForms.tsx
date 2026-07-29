@@ -67,6 +67,11 @@ export function SmtpForm({
         </Field>
       </div>
       <FormMessage error={state?.error} success={state?.success} />
+      {current.host && current.user && (
+        <p className="text-xs text-muted">
+          Testing sends against the saved settings — save your changes first if you just edited them.
+        </p>
+      )}
       <div className="flex items-center justify-between">
         {current.host && current.user ? (
           <TestConnectionButton action={testSmtpSettings} label="Send test email" />
@@ -103,6 +108,11 @@ export function NtfyForm({
         </Field>
       </div>
       <FormMessage error={state?.error} success={state?.success} />
+      {current.url && current.topic && (
+        <p className="text-xs text-muted">
+          Testing sends against the saved settings — save your changes first if you just edited them.
+        </p>
+      )}
       <div className="flex items-center justify-between">
         {current.url && current.topic ? (
           <TestConnectionButton action={testNtfySettings} label="Send test notification" />
@@ -136,6 +146,11 @@ export function OllamaForm({
         </Field>
       </div>
       <FormMessage error={state?.error} success={state?.success} />
+      {current.baseUrl && (
+        <p className="text-xs text-muted">
+          Testing connects using the saved settings — save your changes first if you just edited them.
+        </p>
+      )}
       <div className="flex items-center justify-between">
         {current.baseUrl ? (
           <TestConnectionButton action={testOllamaConnection} label="Test connection" />

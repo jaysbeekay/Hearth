@@ -19,7 +19,7 @@ import { formDataToStringValues } from "@/lib/form-state";
 import { isKnownModuleKey } from "@/lib/modules/enablement";
 import type { ModuleKey } from "@/lib/modules/registry";
 import { DATE_FORMAT_OPTIONS, REGION_OPTIONS } from "@/lib/utils";
-import { TIMEZONE_OPTIONS } from "@/lib/userPreferences";
+import { TIMEZONE_OPTIONS } from "@/lib/timezones";
 import { POPULAR_CURRENCIES } from "@/components/CurrencySelect";
 import { env } from "@/lib/env";
 import { sendPasswordResetEmail } from "@/lib/notifications/email";
@@ -240,20 +240,27 @@ export async function updateMemberRole(
   return { success: "Role updated." };
 }
 
-export async function updateNotificationPreferences(formData: FormData): Promise<void> {
+export async function updateNotificationPreferences(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
   const session = await auth();
-  if (!session?.user) return;
+  if (!session?.user) return { error: "Not signed in." };
 
   await prisma.user.update({
     where: { id: session.user.id },
     data: { emailReminders: formData.get("emailReminders") === "on" },
   });
   revalidatePath("/settings");
+  return { success: "Notification preferences saved." };
 }
 
-export async function updateUserPreferences(formData: FormData): Promise<void> {
+export async function updateUserPreferences(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
   const session = await auth();
-  if (!session?.user) return;
+  if (!session?.user) return { error: "Not signed in." };
 
   const dateFormat = formData.get("dateFormat");
   const preferredCurrency = formData.get("preferredCurrency");
@@ -262,15 +269,27 @@ export async function updateUserPreferences(formData: FormData): Promise<void> {
 
   if (
     typeof dateFormat !== "string" ||
+    !DATE_FORMAT_OPTIONS.includes(dateFormat as (typeof DATE_FORMAT_OPTIONS)[number])
+  ) {
+    return { error: "Invalid date format." };
+  }
+  if (
     typeof preferredCurrency !== "string" ||
+    !POPULAR_CURRENCIES.includes(preferredCurrency as (typeof POPULAR_CURRENCIES)[number])
+  ) {
+    return { error: "Invalid currency." };
+  }
+  if (
     typeof timezone !== "string" ||
+    !TIMEZONE_OPTIONS.includes(timezone as (typeof TIMEZONE_OPTIONS)[number])
+  ) {
+    return { error: "Invalid timezone." };
+  }
+  if (
     typeof region !== "string" ||
-    !DATE_FORMAT_OPTIONS.includes(dateFormat as (typeof DATE_FORMAT_OPTIONS)[number]) ||
-    !POPULAR_CURRENCIES.includes(preferredCurrency as (typeof POPULAR_CURRENCIES)[number]) ||
-    !TIMEZONE_OPTIONS.includes(timezone as (typeof TIMEZONE_OPTIONS)[number]) ||
     !REGION_OPTIONS.includes(region as (typeof REGION_OPTIONS)[number])
   ) {
-    return;
+    return { error: "Invalid region." };
   }
 
   await prisma.user.update({
@@ -279,6 +298,7 @@ export async function updateUserPreferences(formData: FormData): Promise<void> {
   });
   revalidatePath("/settings");
   revalidatePath("/", "layout");
+  return { success: "Preferences saved." };
 }
 
 export async function changePassword(

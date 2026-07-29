@@ -17,8 +17,11 @@ export function FormMessage({
     if (success && success !== lastShown.current) {
       showToast(success);
       lastShown.current = success;
+    } else if (error && error !== lastShown.current) {
+      showToast(error, "error");
+      lastShown.current = error;
     }
-  }, [success]);
+  }, [success, error]);
 
   if (!error && !success) return null;
 

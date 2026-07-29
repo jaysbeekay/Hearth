@@ -4,22 +4,18 @@ import { redirect } from "next/navigation";
 import { DatabaseBackup, KeyRound, LayoutGrid, Settings2, Users, Webhook } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { updateNotificationPreferences, updateUserPreferences } from "@/lib/actions/auth";
 import { isEncryptionConfigured } from "@/lib/env";
 import { env } from "@/lib/env";
 import { isSmtpConfigured, isNtfyConfigured } from "@/lib/appSettings";
-import { DATE_FORMAT_OPTIONS, DATE_FORMAT_LABELS, REGION_OPTIONS, REGION_LABELS } from "@/lib/utils";
-import { TIMEZONE_OPTIONS } from "@/lib/userPreferences";
 import { ChangePasswordForm } from "@/components/ChangePasswordForm";
 import { AiSettingsForm } from "@/components/AiSettingsForm";
 import { ChatSettingsForm } from "@/components/ChatSettingsForm";
 import { IcalTokenSection } from "@/components/IcalTokenSection";
 import { TotpSection } from "@/components/TotpSection";
-import { CurrencySelect } from "@/components/CurrencySelect";
-import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
+import { NotificationPreferencesForm } from "@/components/NotificationPreferencesForm";
+import { PreferencesForm } from "@/components/PreferencesForm";
 import { OfflineDocumentsPanel } from "@/components/OfflineDocumentsPanel";
 import { UnconfiguredNotice } from "@/components/UnconfiguredNotice";
-import { compactButtonClass } from "@/lib/buttonStyles";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -96,24 +92,7 @@ export default async function SettingsPage() {
               </span>
             )}
           </p>
-          <form action={updateNotificationPreferences} className="flex items-center gap-2">
-            <input
-              id="emailReminders"
-              name="emailReminders"
-              type="checkbox"
-              defaultChecked={user.emailReminders}
-              className="size-4 rounded border-border accent-accent"
-            />
-            <label htmlFor="emailReminders" className="text-sm">
-              Email me about contracts expiring soon
-            </label>
-            <button
-              type="submit"
-              className={`ml-auto ${compactButtonClass()}`}
-            >
-              Save
-            </button>
-          </form>
+          <NotificationPreferencesForm emailReminders={user.emailReminders} />
         </section>
 
         <section className="rounded-xl border border-border bg-surface p-4 md:p-6 md:col-span-2">
@@ -123,83 +102,12 @@ export default async function SettingsPage() {
             timezone, and the region convention used for number formatting (decimal/thousands
             separators). This doesn&apos;t change the app&apos;s display language.
           </p>
-          <form action={updateUserPreferences} className="grid gap-4 sm:grid-cols-4">
-            <div className="space-y-1">
-              <label htmlFor="dateFormat" className="text-sm font-medium">
-                Date format
-              </label>
-              <SelectWrapper>
-                <select
-                  id="dateFormat"
-                  name="dateFormat"
-                  defaultValue={user.dateFormat}
-                  className={selectClass}
-                >
-                  {DATE_FORMAT_OPTIONS.map((value) => (
-                    <option key={value} value={value}>
-                      {DATE_FORMAT_LABELS[value]}
-                    </option>
-                  ))}
-                </select>
-              </SelectWrapper>
-            </div>
-            <div className="space-y-1">
-              <label htmlFor="preferredCurrency" className="text-sm font-medium">
-                Default currency
-              </label>
-              <CurrencySelect
-                id="preferredCurrency"
-                name="preferredCurrency"
-                defaultValue={user.preferredCurrency}
-              />
-            </div>
-            <div className="space-y-1">
-              <label htmlFor="timezone" className="text-sm font-medium">
-                Timezone
-              </label>
-              <SelectWrapper>
-                <select
-                  id="timezone"
-                  name="timezone"
-                  defaultValue={user.timezone}
-                  className={selectClass}
-                >
-                  {TIMEZONE_OPTIONS.map((tz) => (
-                    <option key={tz} value={tz}>
-                      {tz}
-                    </option>
-                  ))}
-                </select>
-              </SelectWrapper>
-            </div>
-            <div className="space-y-1">
-              <label htmlFor="region" className="text-sm font-medium">
-                Region
-              </label>
-              <SelectWrapper>
-                <select
-                  id="region"
-                  name="region"
-                  defaultValue={user.region}
-                  className={selectClass}
-                >
-                  {REGION_OPTIONS.map((value) => (
-                    <option key={value} value={value}>
-                      {REGION_LABELS[value]}
-                    </option>
-                  ))}
-                </select>
-              </SelectWrapper>
-            </div>
-            <div className="sm:col-span-4">
-              <button
-                type="submit"
-                className={compactButtonClass()}
-              >
-                Save preferences
-              </button>
-            </div>
-          </form>
+          <PreferencesForm
+            dateFormat={user.dateFormat}
+            preferredCurrency={user.preferredCurrency}
+            timezone={user.timezone}
+            region={user.region}
+          />
         </section>
 
         <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
