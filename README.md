@@ -94,9 +94,9 @@ Everything else is optional. Set `SMTP_*` to enable email reminders, `NTFY_*` fo
 | --- | --- |
 | ![Trip detail](docs/screenshots/trip-detail.png) | ![Vehicles list](docs/screenshots/vehicles-list.png) |
 
-| Vehicle detail | Home — properties |
+| Vehicle detail | Property list |
 | --- | --- |
-| ![Vehicle detail](docs/screenshots/vehicle-detail.png) | ![Home list](docs/screenshots/home-list.png) |
+| ![Vehicle detail](docs/screenshots/vehicle-detail.png) | ![Property list](docs/screenshots/home-list.png) |
 
 | Property detail — map | Settings — modules |
 | --- | --- |

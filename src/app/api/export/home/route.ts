@@ -10,7 +10,7 @@ import { getUserPreferences } from "@/lib/userPreferences";
 export async function GET(request: NextRequest) {
   const session = await auth();
   if (!session?.user) return new NextResponse("Unauthorized", { status: 401 });
-  if (!(await isModuleEnabled("HOME"))) return new NextResponse("Home module disabled", { status: 403 });
+  if (!(await isModuleEnabled("HOME"))) return new NextResponse("Property module disabled", { status: 403 });
 
   const format = request.nextUrl.searchParams.get("format") ?? "csv";
 

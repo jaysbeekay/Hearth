@@ -23,6 +23,7 @@ export function formToContractInput(formData: FormData) {
     notes: formData.get("notes"),
     reminderDaysBefore: formData.get("reminderDaysBefore"),
     isTaxDeductible: formData.get("isTaxDeductible") === "on",
+    propertyId: formData.get("propertyId"),
   };
 }
 
@@ -40,5 +41,6 @@ export function formToProductInput(formData: FormData) {
     currency: formData.get("currency") || "AUD",
     notes: formData.get("notes"),
     reminderDaysBefore: formData.get("reminderDaysBefore"),
+    propertyId: formData.get("propertyId"),
   };
 }

@@ -22,7 +22,7 @@ const KIND_LABELS: Record<CalendarEvent["kind"], string> = {
   contract: "Contract",
   product: "Product",
   trip: "Travel",
-  homeItem: "Home",
+  homeItem: "Property",
   vehicleExpiry: "Vehicle",
   vehicleItem: "Vehicle record",
 };

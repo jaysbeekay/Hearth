@@ -231,7 +231,7 @@ export async function GET(request: NextRequest) {
             title: r.label,
             subtitle: r.address ?? undefined,
             href: `/home/${r.id}`,
-            group: "Home",
+            group: "Property",
           })),
         ),
     );
@@ -254,7 +254,7 @@ export async function GET(request: NextRequest) {
             title: r.title,
             subtitle: r.property.label,
             href: `/home/${r.propertyId}/items/${r.id}`,
-            group: "Home",
+            group: "Property",
           })),
         ),
     );

@@ -7,6 +7,33 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-07-29
+
+### Added
+
+- **Contracts and Products (warranties) can now be linked directly to a
+  Property** (#114) — a new optional Property field on both forms (shown
+  only when the Property module is enabled), and a "Contracts & warranties
+  linked to this property" section on the Property detail page listing
+  everything linked to it. This is separate from the existing
+  rental-agreement-to-contract link, which is specifically for the lease
+  itself — a contract can now be tied to a property regardless of whether
+  there's a rental agreement at all.
+
+### Changed
+
+- **The "Home" module is now labelled "Property"** throughout the UI (#114)
+  — the underlying data model was already called `Property`
+  (`prisma/schema.prisma`), so this just fixes the user-facing naming
+  mismatch that was causing confusion. Updated: the module registry label,
+  the property list page's heading ("Home" → "Properties"), the quick-add
+  menu item, search result groups, the /spend table column header, the
+  calendar event-type label, the documents type filter, and a few
+  module-disabled API error messages. The `ModuleKey` enum value (`HOME`)
+  and the `/home` route path are unchanged — renaming those would need a
+  data migration and would break existing bookmarks for a purely cosmetic
+  win, so that's left for a separate, explicit decision if ever wanted.
+
 ## [0.11.2] - 2026-07-29
 
 ### Added

@@ -13,7 +13,7 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   if (!(await isModuleEnabled("HOME"))) {
-    return NextResponse.json({ error: "Home module is disabled." }, { status: 403 });
+    return NextResponse.json({ error: "Property module is disabled." }, { status: 403 });
   }
 
   const { id } = await params;

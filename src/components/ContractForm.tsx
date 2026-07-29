@@ -50,10 +50,12 @@ export function ContractForm({
   action,
   contract,
   defaultCurrency,
+  properties = [],
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   contract?: ContractModel;
   defaultCurrency?: string;
+  properties?: { id: string; label: string }[];
 }) {
   const offlineAwareAction = makeOfflineAwareAction(
     action,
@@ -363,6 +365,26 @@ export function ContractForm({
               >
                 <option value="ACTIVE">Active</option>
                 <option value="CANCELLED">Cancelled</option>
+              </select>
+            </SelectWrapper>
+          </Field>
+        )}
+
+        {properties.length > 0 && (
+          <Field label="Property" htmlFor="propertyId">
+            <SelectWrapper>
+              <select
+                id="propertyId"
+                name="propertyId"
+                defaultValue={effectiveValues?.propertyId ?? contract?.propertyId ?? ""}
+                className={selectClass}
+              >
+                <option value="">Not linked to a property</option>
+                {properties.map((property) => (
+                  <option key={property.id} value={property.id}>
+                    {property.label}
+                  </option>
+                ))}
               </select>
             </SelectWrapper>
           </Field>

@@ -250,8 +250,8 @@ export default async function SpendPage({
                   <th className="pb-2">Year</th>
                   {homeActuals.length > 0 && (
                     <>
-                      <th className="pb-2 text-right">Home</th>
-                      <th className="pb-2 text-right">Home tax deductible</th>
+                      <th className="pb-2 text-right">Property</th>
+                      <th className="pb-2 text-right">Property tax deductible</th>
                     </>
                   )}
                   {vehicleActuals.length > 0 && <th className="pb-2 text-right">Vehicle</th>}
