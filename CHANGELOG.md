@@ -7,6 +7,69 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+### Breaking Changes
+
+- **`INSURANCE` and `REGISTRATION` removed as vehicle item types** (#144) —
+  redundant now that a vehicle can link directly to an insurance Contract
+  (#143), with proper renewal/billing/reminder tracking. Existing
+  `VehicleItem` rows of those two types are **automatically recoded to
+  `OTHER`** by the migration, with the original type preserved as a
+  `[Insurance]`/`[Registration]` prefix in the record's notes so nothing is
+  silently relabeled without a trace. Any external tooling or exports that
+  depended on those two type values will need to be updated.
+
+### Added
+
+- **Vehicles can now link to a Contract** (#143) — a new optional "Vehicle"
+  field on the contract form (shown only when the Vehicles module is
+  enabled and at least one vehicle exists), and a "Contracts & warranties
+  linked to this vehicle" section on the vehicle detail page, mirroring the
+  existing Property↔Contract linking (#114).
+- A shared `BackLink` component, added to every "add a record" page that
+  was missing a way back to the record/list it was launched from (#145):
+  contracts/new, products/new, vehicles/new, vehicles/[id]/items/new,
+  home/new, home/[id]/items/new, travel/new, and
+  travel/[id]/segments/new.
+- A warning next to the SMTP/ntfy/Ollama "Test connection" buttons in
+  System settings clarifying they test the currently *saved* settings, not
+  unsaved form edits (#122).
+
+### Changed
+
+- Vehicle detail page: make/model/year/license plate moved out of an
+  unlabeled subtitle above the page heading into the same labeled details
+  card as Colour/VIN/Rego expiry/Insurance expiry (#146).
+- `ContractForm`'s main field grid is now grouped under a "Contract /
+  policy details" heading, matching the existing "Contact details
+  (optional)" section directly below it (#133).
+- Settings preferences and notification forms now surface a specific,
+  visible error when a save fails, instead of silently discarding the
+  whole submission on any single invalid field (#120). `FormMessage` now
+  toasts on error as well as success, so an inline validation error (e.g.
+  switching AI provider without an API key) is no longer easy to miss
+  (#124).
+
+### Fixed
+
+- **Contract, product, vehicle, travel, property, and wealth exports
+  (CSV/PDF) only included records the current user personally created**,
+  contradicting the app's household-wide data model — every other query
+  for these entities has no such filter. A household member who didn't
+  create the records they were exporting got a blank or near-empty file.
+  Removed the filter from all 6 export routes (#140).
+- Settings crashed with a raw, unhandled Prisma error if the signed-in
+  user's account had been deleted elsewhere (JWT sessions don't
+  re-validate against the database). Now redirects to `/login` instead
+  (#141).
+- Settings save actions for SMTP/ntfy/Ollama/barcode/S3/SFTP/schedule/
+  flight-status had no error handling around their writes, so a
+  misconfigured `ENCRYPTION_KEY` surfaced as a generic, unreadable Server
+  Components error instead of a specific message (#118).
+- Contracts' filter toolbar (search box, category/status selects, Filter
+  button) used three different height rules and didn't visually line up.
+  Standardized to one consistent height. The Products list toolbar had the
+  identical mismatch and was fixed at the same time (#127).
+
 ## [0.12.1] - 2026-07-29
 
 ### Fixed
