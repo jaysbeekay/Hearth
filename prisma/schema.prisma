@@ -123,8 +123,6 @@ enum InventoryItemCategory {
 enum VehicleItemType {
   SERVICE
   REPAIR
-  REGISTRATION
-  INSURANCE
   ROADWORTHY
   MODIFICATION
   OTHER

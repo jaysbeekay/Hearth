@@ -189,8 +189,6 @@ export const HOME_ITEM_TYPE_LABELS: Record<string, string> = {
 export const VEHICLE_ITEM_TYPE_LABELS: Record<string, string> = {
   SERVICE: "Service",
   REPAIR: "Repair",
-  REGISTRATION: "Registration",
-  INSURANCE: "Insurance",
   ROADWORTHY: "Roadworthy",
   MODIFICATION: "Modification",
   OTHER: "Other",
