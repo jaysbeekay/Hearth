@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Upload } from "lucide-react";
+import { AlertTriangle, Upload } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { ContractCard } from "@/components/ContractCard";
 import { ProductCard } from "@/components/ProductCard";
@@ -60,16 +60,22 @@ export default async function DashboardPage() {
   await refreshFxRates(fxPairs);
   const rateMap = await getFxRateMap(fxPairs);
 
-  let hasUnconvertedSpend = false;
+  const unconvertedCurrencies = new Set<string>();
   const monthlySpend = active.reduce((sum, c) => {
     if (c.cost == null) return sum;
     const converted = convertAmount(c.cost, c.currency, preferredCurrency, rateMap);
     if (converted == null) {
-      hasUnconvertedSpend = true;
+      unconvertedCurrencies.add(c.currency);
       return sum;
     }
     return sum + monthlyEquivalent(converted, c.billingFrequency);
   }, 0);
+  const hasUnconvertedSpend = unconvertedCurrencies.size > 0;
+  if (hasUnconvertedSpend) {
+    console.warn(
+      `[dashboard] "Est. monthly spend" excludes contracts billed in ${[...unconvertedCurrencies].join(", ")} — FX rate(s) to ${preferredCurrency} unavailable.`,
+    );
+  }
 
   const productsWithDays = products.map((p) => ({
     product: p,
@@ -162,18 +168,20 @@ export default async function DashboardPage() {
             />
             <StatCard
               label="Est. monthly spend"
-              value={
-                formatCurrency(monthlySpend, preferredCurrency, undefined, region) +
-                (hasUnconvertedSpend ? "*" : "")
-              }
+              value={formatCurrency(monthlySpend, preferredCurrency, undefined, region)}
+              tone={hasUnconvertedSpend ? "warning" : "default"}
               href="/spend"
             />
           </div>
           {hasUnconvertedSpend && (
-            <p className="text-xs text-muted">
-              * Some contracts are billed in a currency that couldn&apos;t be converted right now —
-              excluded from this total.
-            </p>
+            <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
+              <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden />
+              <p>
+                This total excludes contracts billed in{" "}
+                {[...unconvertedCurrencies].join(", ")} — an exchange rate to{" "}
+                {preferredCurrency} isn&apos;t available right now.
+              </p>
+            </div>
           )}
 
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
