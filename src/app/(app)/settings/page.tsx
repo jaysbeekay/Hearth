@@ -225,9 +225,10 @@ export default async function SettingsPage() {
               <p className="mb-3 text-sm text-foreground/60">
                 Bring your own API key to chat with an assistant that can answer questions using
                 your household&apos;s own data — contracts, warranties, trips, vehicles, home,
-                inventory, and wealth. It&apos;s read-only: it can look things up, but never
-                creates, edits, or deletes anything. Configure a different provider/model here than
-                document extraction if you like — the two are independent.
+                inventory, and wealth. It can also propose creating or updating a contract or
+                product, but nothing is ever written without your explicit confirmation first.
+                Configure a different provider/model here than document extraction if you like —
+                the two are independent.
               </p>
               <ChatSettingsForm provider={user.chatProvider} model={user.chatModel} />
             </>
