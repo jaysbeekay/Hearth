@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
+import { formatPropertyAddress } from "@/lib/utils";
 
 export interface SearchResult {
   id: string;
@@ -221,15 +222,32 @@ export async function GET(request: NextRequest) {
     queries.push(
       prisma.property
         .findMany({
-          where: { OR: [{ label: contains }, { address: contains }] },
-          select: { id: true, label: true, address: true },
+          where: {
+            OR: [
+              { label: contains },
+              { street: contains },
+              { suburb: contains },
+              { state: contains },
+              { postcode: contains },
+              { country: contains },
+            ],
+          },
+          select: {
+            id: true,
+            label: true,
+            street: true,
+            suburb: true,
+            state: true,
+            postcode: true,
+            country: true,
+          },
           take: LIMIT,
         })
         .then((rows) =>
           rows.map((r) => ({
             id: r.id,
             title: r.label,
-            subtitle: r.address ?? undefined,
+            subtitle: formatPropertyAddress(r) || undefined,
             href: `/home/${r.id}`,
             group: "Property",
           })),

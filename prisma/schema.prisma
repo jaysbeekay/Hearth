@@ -141,6 +141,13 @@ enum HomeItemType {
   OTHER
 }
 
+enum OccupancyStatus {
+  OWNER_OCCUPIED
+  RENTED
+  VACANT
+  OTHER
+}
+
 model User {
   id                String     @id @default(cuid())
   name              String
@@ -490,13 +497,18 @@ model TripSegmentDocument {
 }
 
 model Property {
-  id          String  @id @default(cuid())
-  label       String
-  address     String?
-  lat         Float?
-  lng         Float?
-  notes       String?
-  isRented    Boolean @default(false)
+  id              String          @id @default(cuid())
+  label           String
+  street          String?
+  suburb          String?
+  state           String?
+  postcode        String?
+  country         String?
+  lat             Float?
+  lng             Float?
+  notes           String?
+  isRented        Boolean         @default(false)
+  occupancyStatus OccupancyStatus @default(OWNER_OCCUPIED)
 
   createdById String
   createdBy   User    @relation(fields: [createdById], references: [id])

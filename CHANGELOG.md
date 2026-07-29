@@ -9,6 +9,15 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Breaking Changes
 
+- **`Property.address` (a single free-text string) is replaced by structured
+  `street`/`suburb`/`state`/`postcode`/`country` fields** (#128). Existing
+  addresses are preserved by the migration — the full original text is
+  copied into the new `street` field rather than parsed into the other
+  parts, since address formats vary too much by country to split reliably.
+  Re-pick a property's address via the autocomplete to populate the other
+  fields precisely. Anything reading `property.address` directly (custom
+  scripts, direct DB queries) will need to switch to the new fields or the
+  new `formatPropertyAddress()` helper (`src/lib/utils.ts`).
 - **AI document extraction and AI Assistant provider/API key/model are now
   household-wide settings, not per-user.** Previously each household member
   configured their own BYOK provider independently; now there is one shared
@@ -48,9 +57,25 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   gathering every household-wide settings entry point (Manage household
   members, Database backups, Webhooks, Modules, System settings) in one
   place, separate from the personal Settings page.
+- **Property occupancy status** (#129) — a new "Occupancy status" field
+  (Owner-occupied / Rented / Vacant / Other) on the property form, settable
+  at creation time instead of only discoverable via the separate rental
+  tracking flow. Selecting "Rented" shows a prompt linking to rental
+  tracking setup (or to the existing overview, if already set up) — this
+  is additive and doesn't change how `isRented`/rental agreements work.
 
 ### Changed
 
+- Property address is now entered as separate Street/Suburb/State/Postcode/
+  Country fields instead of one free-text field (#128), still driven by the
+  same OpenStreetMap autocomplete — picking a suggestion now populates all
+  five fields. The Label field auto-fills from the suburb when left blank
+  and a suggestion is picked (only if Label is still empty, so it never
+  overwrites something you've already typed).
+- The property map now loads tiles from CARTO's free basemap service
+  instead of OpenStreetMap's own raw tile server, which its usage policy
+  reserves for light/evaluation use rather than production embedding
+  (#130). OpenStreetMap attribution is unchanged.
 - Settings is now clearly split into two screens: the main Settings page
   (`/settings`) holds only settings that affect your own account —
   Profile, Notifications, Preferences, Security, iCal feed, Change

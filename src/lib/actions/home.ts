@@ -19,7 +19,18 @@ import { formDataToStringValues } from "@/lib/form-state";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import type { ActionState } from "@/lib/actions/auth";
 
-const PROPERTY_FORM_FIELDS = ["label", "address", "lat", "lng", "notes"];
+const PROPERTY_FORM_FIELDS = [
+  "label",
+  "street",
+  "suburb",
+  "state",
+  "postcode",
+  "country",
+  "lat",
+  "lng",
+  "notes",
+  "occupancyStatus",
+];
 
 const RENTAL_AGREEMENT_FORM_FIELDS = [
   "tenantName",
@@ -89,10 +100,15 @@ async function attachItemDocument(homeItemId: string, file: File): Promise<Actio
 function formToPropertyInput(formData: FormData) {
   return {
     label: formData.get("label"),
-    address: formData.get("address"),
+    street: formData.get("street"),
+    suburb: formData.get("suburb"),
+    state: formData.get("state"),
+    postcode: formData.get("postcode"),
+    country: formData.get("country"),
     lat: formData.get("lat"),
     lng: formData.get("lng"),
     notes: formData.get("notes"),
+    occupancyStatus: formData.get("occupancyStatus") || undefined,
   };
 }
 

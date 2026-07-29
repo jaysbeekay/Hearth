@@ -194,6 +194,28 @@ export const VEHICLE_ITEM_TYPE_LABELS: Record<string, string> = {
   OTHER: "Other",
 };
 
+export const OCCUPANCY_STATUS_LABELS: Record<string, string> = {
+  OWNER_OCCUPIED: "Owner-occupied",
+  RENTED: "Rented",
+  VACANT: "Vacant",
+  OTHER: "Other",
+};
+
+interface PropertyAddressParts {
+  street?: string | null;
+  suburb?: string | null;
+  state?: string | null;
+  postcode?: string | null;
+  country?: string | null;
+}
+
+// Composes the structured address fields into a single display string, e.g.
+// "123 Main St, Richmond VIC 3121, Australia".
+export function formatPropertyAddress(property: PropertyAddressParts): string {
+  const line2 = [property.suburb, property.state, property.postcode].filter(Boolean).join(" ");
+  return [property.street, line2, property.country].filter(Boolean).join(", ");
+}
+
 // AU financial year runs 1 Jul–30 Jun; e.g. 15 Mar 2026 and 1 Aug 2025 are both "FY2025–26".
 export function financialYearLabel(date: Date) {
   const startYear = date.getMonth() >= 6 ? date.getFullYear() : date.getFullYear() - 1;

@@ -15,7 +15,13 @@ import { PropertyMap } from "@/components/PropertyMap";
 import { PropertyValuationForm } from "@/components/PropertyValuationForm";
 import { ContractCard } from "@/components/ContractCard";
 import { ProductCard } from "@/components/ProductCard";
-import { HOME_ITEM_TYPE_LABELS, formatCurrency, formatDate } from "@/lib/utils";
+import {
+  HOME_ITEM_TYPE_LABELS,
+  OCCUPANCY_STATUS_LABELS,
+  formatCurrency,
+  formatDate,
+  formatPropertyAddress,
+} from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 
 const ITEM_ICONS: Record<string, LucideIcon> = {
@@ -75,8 +81,13 @@ export default async function PropertyDetailPage({
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-sm text-foreground/60">{property.address || "No address set"}</p>
+          <p className="text-sm text-foreground/60">
+            {formatPropertyAddress(property) || "No address set"}
+          </p>
           <h1 className="text-2xl font-semibold">{property.label}</h1>
+          <span className="mt-1 inline-block rounded-full bg-black/5 px-2 py-0.5 text-xs font-medium text-foreground/70 dark:bg-white/10">
+            {OCCUPANCY_STATUS_LABELS[property.occupancyStatus] ?? property.occupancyStatus}
+          </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Link

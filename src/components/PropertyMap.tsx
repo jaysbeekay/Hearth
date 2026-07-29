@@ -32,9 +32,15 @@ export function PropertyMap({
       });
 
       const map = L.map(containerRef.current).setView([lat, lng], 15);
-      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      // CARTO's free basemap tiles, not OSM's own raw tile server — OSM's
+      // tile usage policy reserves tile.openstreetmap.org for light/
+      // evaluation use, not production embedding (#130).
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors ' +
+          '&copy; <a href="https://carto.com/attributions">CARTO</a>',
         maxZoom: 19,
+        subdomains: "abcd",
       }).addTo(map);
       L.marker([lat, lng]).addTo(map).bindPopup(label);
       mapRef.current = map;
