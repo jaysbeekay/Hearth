@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   if (!(await isModuleEnabled("HOME"))) {
-    return NextResponse.json({ error: "Home module is disabled." }, { status: 403 });
+    return NextResponse.json({ error: "Property module is disabled." }, { status: 403 });
   }
 
   const formData = await request.formData();

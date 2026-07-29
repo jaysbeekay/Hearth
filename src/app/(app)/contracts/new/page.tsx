@@ -2,9 +2,17 @@ import Link from "next/link";
 import { createContract } from "@/lib/actions/contracts";
 import { ContractForm } from "@/components/ContractForm";
 import { getUserPreferences } from "@/lib/userPreferences";
+import { isModuleEnabled } from "@/lib/modules/enablement";
+import { prisma } from "@/lib/prisma";
 
 export default async function NewContractPage() {
-  const { preferredCurrency } = await getUserPreferences();
+  const [{ preferredCurrency }, homeEnabled] = await Promise.all([
+    getUserPreferences(),
+    isModuleEnabled("HOME"),
+  ]);
+  const properties = homeEnabled
+    ? await prisma.property.findMany({ select: { id: true, label: true }, orderBy: { label: "asc" } })
+    : [];
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -23,7 +31,7 @@ export default async function NewContractPage() {
         </p>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
-        <ContractForm action={createContract} defaultCurrency={preferredCurrency} />
+        <ContractForm action={createContract} defaultCurrency={preferredCurrency} properties={properties} />
       </div>
     </div>
   );

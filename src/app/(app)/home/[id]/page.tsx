@@ -13,6 +13,8 @@ import { HomeItemDocumentList } from "@/components/HomeItemDocumentList";
 import { RecordMeta } from "@/components/RecordMeta";
 import { PropertyMap } from "@/components/PropertyMap";
 import { PropertyValuationForm } from "@/components/PropertyValuationForm";
+import { ContractCard } from "@/components/ContractCard";
+import { ProductCard } from "@/components/ProductCard";
 import { HOME_ITEM_TYPE_LABELS, formatCurrency, formatDate } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 
@@ -37,17 +39,20 @@ export default async function PropertyDetailPage({
   await requireModuleEnabled("HOME");
 
   const { id } = await params;
-  const [property, { dateFormat, preferredCurrency, region }] = await Promise.all([
-    prisma.property.findUnique({
-      where: { id },
-      include: {
-        createdBy: true,
-        items: { include: { documents: { orderBy: { uploadedAt: "desc" } } } },
-        valuations: { orderBy: { valuedAt: "desc" } },
-      },
-    }),
-    getUserPreferences(),
-  ]);
+  const [property, { dateFormat, preferredCurrency, region }, linkedContracts, linkedProducts] =
+    await Promise.all([
+      prisma.property.findUnique({
+        where: { id },
+        include: {
+          createdBy: true,
+          items: { include: { documents: { orderBy: { uploadedAt: "desc" } } } },
+          valuations: { orderBy: { valuedAt: "desc" } },
+        },
+      }),
+      getUserPreferences(),
+      prisma.contract.findMany({ where: { propertyId: id }, orderBy: { title: "asc" } }),
+      prisma.product.findMany({ where: { propertyId: id }, orderBy: { description: "asc" } }),
+    ]);
   if (!property) notFound();
 
   const latestValuation = property.valuations[0] ?? null;
@@ -64,7 +69,7 @@ export default async function PropertyDetailPage({
     <div className="max-w-3xl space-y-6">
       <div>
         <Link href="/home" className="text-sm text-foreground/60 hover:text-foreground">
-          ← Back to home
+          ← Back to properties
         </Link>
       </div>
 
@@ -197,6 +202,20 @@ export default async function PropertyDetailPage({
           </div>
         )}
       </div>
+
+      {(linkedContracts.length > 0 || linkedProducts.length > 0) && (
+        <div className="space-y-3">
+          <h2 className="font-medium">Contracts &amp; warranties linked to this property</h2>
+          <div className="grid gap-3 md:grid-cols-2">
+            {linkedContracts.map((contract) => (
+              <ContractCard key={contract.id} contract={contract} dateFormat={dateFormat} region={region} />
+            ))}
+            {linkedProducts.map((product) => (
+              <ProductCard key={product.id} product={product} dateFormat={dateFormat} region={region} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Property valuations */}
       <div className="space-y-3">

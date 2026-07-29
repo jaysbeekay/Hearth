@@ -36,6 +36,7 @@ const PRODUCT_FORM_FIELDS = [
   "currency",
   "notes",
   "reminderDaysBefore",
+  "propertyId",
 ];
 
 function firstIssueMessage(error: { issues: { message: string }[] }) {

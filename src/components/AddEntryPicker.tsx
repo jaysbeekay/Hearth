@@ -47,7 +47,7 @@ export function AddEntryPicker({ enabledModules }: { enabledModules: string[] })
 
   if (enabledModules.includes("HOME")) {
     options.push({
-      label: "A home repair or improvement",
+      label: "A property repair or improvement",
       description: "Logged against one of your properties, with receipts.",
       href: "/home",
       icon: HomeIcon,

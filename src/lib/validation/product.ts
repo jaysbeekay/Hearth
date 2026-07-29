@@ -31,6 +31,7 @@ export const productSchema = z.object({
       )
       .optional(),
   ),
+  propertyId: z.preprocess(emptyToUndefined, z.string().trim().max(100).optional()),
 }).refine(
   (data) => !data.purchaseDate || !data.warrantyEndDate || data.warrantyEndDate >= data.purchaseDate,
   { message: "Warranty end date can't be before the purchase date.", path: ["warrantyEndDate"] },

@@ -3,12 +3,16 @@ import { createProduct } from "@/lib/actions/products";
 import { ProductForm } from "@/components/ProductForm";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
+import { prisma } from "@/lib/prisma";
 
 export default async function NewProductPage() {
   const [{ preferredCurrency }, enabledModules] = await Promise.all([
     getUserPreferences(),
     getEnabledModuleKeys(),
   ]);
+  const properties = enabledModules.has("HOME")
+    ? await prisma.property.findMany({ select: { id: true, label: true }, orderBy: { label: "asc" } })
+    : [];
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -37,7 +41,7 @@ export default async function NewProductPage() {
         </p>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
-        <ProductForm action={createProduct} defaultCurrency={preferredCurrency} />
+        <ProductForm action={createProduct} defaultCurrency={preferredCurrency} properties={properties} />
       </div>
     </div>
   );

@@ -45,7 +45,7 @@ export function HomeListClient({ properties, taxDeductibleSummary, region }: Pro
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Home</h1>
+        <h1 className="text-2xl font-semibold">Properties</h1>
         <div className="flex items-center gap-2">
           <details className="relative">
             <summary className={toolbarButtonClass}>

@@ -41,6 +41,7 @@ const CONTRACT_FORM_FIELDS = [
   "notes",
   "reminderDaysBefore",
   "isTaxDeductible",
+  "propertyId",
 ];
 
 function firstIssueMessage(error: { issues: { message: string }[] }) {

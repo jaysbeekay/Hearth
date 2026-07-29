@@ -18,7 +18,7 @@ import {
   type QueuedOperation,
 } from "@/lib/offlineQueue";
 import { Field } from "@/components/FormField";
-import { inputClass } from "@/components/SelectWrapper";
+import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 import { markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 
 function toDateInputValue(date: Date | null | undefined) {
@@ -34,10 +34,12 @@ export function ProductForm({
   action,
   product,
   defaultCurrency,
+  properties = [],
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   product?: ProductModel;
   defaultCurrency?: string;
+  properties?: { id: string; label: string }[];
 }) {
   const offlineAwareAction = makeOfflineAwareAction(
     action,
@@ -354,6 +356,26 @@ export function ProductForm({
             defaultValue={effectiveValues?.currency ?? product?.currency ?? defaultCurrency}
           />
         </Field>
+
+        {properties.length > 0 && (
+          <Field label="Property" htmlFor="propertyId">
+            <SelectWrapper>
+              <select
+                id="propertyId"
+                name="propertyId"
+                defaultValue={effectiveValues?.propertyId ?? product?.propertyId ?? ""}
+                className={selectClass}
+              >
+                <option value="">Not linked to a property</option>
+                {properties.map((property) => (
+                  <option key={property.id} value={property.id}>
+                    {property.label}
+                  </option>
+                ))}
+              </select>
+            </SelectWrapper>
+          </Field>
+        )}
       </div>
 
       <Field label="Notes" htmlFor="notes">
