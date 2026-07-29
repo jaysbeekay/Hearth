@@ -4,7 +4,7 @@ import { openGlobalSearch } from "@/components/GlobalSearch";
 
 export function TopBar() {
   return (
-    <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-surface px-4 py-3 md:hidden">
+    <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-surface px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] md:hidden">
       <div className="flex items-center gap-2">
         <Flame size={20} className="text-accent" />
         <span className="font-semibold">Hearth</span>

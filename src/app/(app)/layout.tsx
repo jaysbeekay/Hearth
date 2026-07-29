@@ -34,7 +34,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <TopBar />
         <OfflineSyncManager />
         <OfflineBanner />
-        <main id="main" className="flex-1 px-4 py-6 pb-24 md:px-8 md:py-8 md:pb-8">
+        <main id="main" className="flex-1 px-4 py-6 pb-[calc(6rem+env(safe-area-inset-bottom))] md:px-8 md:py-8 md:pb-8">
           {children}
         </main>
       </div>

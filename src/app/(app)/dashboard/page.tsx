@@ -120,18 +120,19 @@ export default async function DashboardPage() {
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Documents</h2>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <StatCard
-            label="Uploaded this week"
-            value={String(documentStats.uploadedThisWeek)}
-            tone="info"
-          />
+        <div className="grid grid-cols-2 gap-3">
           <StatCard
             label="Needs review"
             value={String(documentStats.needsReview)}
             tone={documentStats.needsReview > 0 ? "warning" : "default"}
+            href="/documents/inbox"
           />
-          <StatCard label="Total documents" value={String(documentStats.total)} tone="info" />
+          <StatCard
+            label="Total documents"
+            value={String(documentStats.total)}
+            tone="info"
+            href="/documents"
+          />
         </div>
       </section>
 
@@ -144,7 +145,11 @@ export default async function DashboardPage() {
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <StatCard label="Active contracts" value={String(active.length)} />
+            <StatCard
+              label="Active contracts"
+              value={String(active.length)}
+              href="/contracts?status=ACTIVE"
+            />
             <StatCard
               label="Contracts expiring in 30 days"
               value={String(expiringSoon.length)}
@@ -161,6 +166,7 @@ export default async function DashboardPage() {
                 formatCurrency(monthlySpend, preferredCurrency, undefined, region) +
                 (hasUnconvertedSpend ? "*" : "")
               }
+              href="/spend"
             />
           </div>
           {hasUnconvertedSpend && (
@@ -171,7 +177,7 @@ export default async function DashboardPage() {
           )}
 
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <StatCard label="Products tracked" value={String(products.length)} />
+            <StatCard label="Products tracked" value={String(products.length)} href="/products" />
             <StatCard
               label="Warranties expiring in 30 days"
               value={String(warrantiesExpiringSoon.length)}
@@ -187,63 +193,68 @@ export default async function DashboardPage() {
                 label="Vehicles needing attention"
                 value={String(vehiclesNeedingAttention.length)}
                 tone={vehiclesNeedingAttention.length > 0 ? "warning" : "default"}
+                href="/vehicles"
               />
             )}
           </div>
         </>
       )}
 
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Contracts expiring soon</h2>
-        {expiringSoon.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted">
-            Nothing expiring in the next 30 days.
-          </p>
-        ) : (
-          <div className="grid gap-3 md:grid-cols-2">
-            {expiringSoon.map(({ contract }) => (
-              <ContractCard key={contract.id} contract={contract} region={region} />
-            ))}
+      <section className="space-y-4">
+        <h2 className="text-xl font-semibold">Contracts &amp; Warranties</h2>
+
+        <div className="space-y-3">
+          <h3 className="text-lg font-semibold">Contracts expiring soon</h3>
+          {expiringSoon.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted">
+              Nothing expiring in the next 30 days.
+            </p>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2">
+              {expiringSoon.map(({ contract }) => (
+                <ContractCard key={contract.id} contract={contract} region={region} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {expired.length > 0 && (
+          <div className="space-y-3">
+            <h3 className="text-lg font-semibold">Contracts expired</h3>
+            <div className="grid gap-3 md:grid-cols-2">
+              {expired.map(({ contract }) => (
+                <ContractCard key={contract.id} contract={contract} region={region} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-3">
+          <h3 className="text-lg font-semibold">Warranties expiring soon</h3>
+          {warrantiesExpiringSoon.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted">
+              Nothing expiring in the next 30 days.
+            </p>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2">
+              {warrantiesExpiringSoon.map(({ product }) => (
+                <ProductCard key={product.id} product={product} region={region} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {warrantiesExpired.length > 0 && (
+          <div className="space-y-3">
+            <h3 className="text-lg font-semibold">Warranties expired</h3>
+            <div className="grid gap-3 md:grid-cols-2">
+              {warrantiesExpired.map(({ product }) => (
+                <ProductCard key={product.id} product={product} region={region} />
+              ))}
+            </div>
           </div>
         )}
       </section>
-
-      {expired.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold">Contracts expired</h2>
-          <div className="grid gap-3 md:grid-cols-2">
-            {expired.map(({ contract }) => (
-              <ContractCard key={contract.id} contract={contract} region={region} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Warranties expiring soon</h2>
-        {warrantiesExpiringSoon.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted">
-            Nothing expiring in the next 30 days.
-          </p>
-        ) : (
-          <div className="grid gap-3 md:grid-cols-2">
-            {warrantiesExpiringSoon.map(({ product }) => (
-              <ProductCard key={product.id} product={product} region={region} />
-            ))}
-          </div>
-        )}
-      </section>
-
-      {warrantiesExpired.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold">Warranties expired</h2>
-          <div className="grid gap-3 md:grid-cols-2">
-            {warrantiesExpired.map(({ product }) => (
-              <ProductCard key={product.id} product={product} region={region} />
-            ))}
-          </div>
-        </section>
-      )}
 
       {enabledModules.has("VEHICLES") && vehiclesNeedingAttention.length > 0 && (
         <section className="space-y-3">

@@ -47,7 +47,7 @@ export function BottomNav({ enabledModules }: { enabledModules: ModuleKey[] }) {
 
   return (
     <>
-      <nav className="fixed inset-x-0 bottom-0 z-30 flex border-t border-border bg-surface md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-30 flex border-t border-border bg-surface pb-[env(safe-area-inset-bottom)] md:hidden">
         {primary.map(({ href, label, icon: Icon }) => {
           const active = isActive(href, pathname);
           return (

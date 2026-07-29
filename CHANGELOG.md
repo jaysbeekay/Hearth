@@ -7,6 +7,36 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-07-29
+
+### Fixed
+
+- **Mobile top bar and bottom nav now respect the device's safe-area insets**
+  (#104, #105) — on Android edge-to-edge layouts they no longer overlap the
+  status bar or get hidden behind the gesture bar, matching the pattern the
+  "More" sheet already used.
+- **The "← Back to contracts" link's arrow is now a properly flex-aligned
+  icon** instead of a bare text glyph that could sit off-baseline (#110).
+
+### Changed
+
+- **The contract detail page's "Cancel"/"Reactivate" button is now labelled
+  "Mark as cancelled"/"Mark as active"**, with a clearer confirmation message,
+  so it reads unambiguously as a reversible status change rather than the
+  permanent "Delete" action tucked in the overflow menu (#111).
+- **The Dashboard's Documents section no longer shows "Uploaded this week"**
+  (#107) — considered low-value clutter; "Needs review" and "Total documents"
+  remain.
+- **Dashboard stat tiles are now clickable** where there's a sensible
+  destination (#106) — Active contracts, Est. monthly spend, Products
+  tracked, Needs review, Total documents, and Vehicles needing attention all
+  link through to the relevant filtered view. Tiles with no direct filter
+  support (e.g. the 30-day-expiry counts) are left non-interactive rather
+  than linking somewhere misleading.
+- **The Dashboard's four contracts/warranties sub-sections are now grouped
+  under a single "Contracts & Warranties" heading** (#108), matching the
+  existing "Documents" section pattern.
+
 ## [0.11.0] - 2026-07-27
 
 ### Added
