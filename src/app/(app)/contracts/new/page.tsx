@@ -4,6 +4,7 @@ import { ContractForm } from "@/components/ContractForm";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import { prisma } from "@/lib/prisma";
+import { BackLink } from "@/components/BackLink";
 
 export default async function NewContractPage() {
   const [{ preferredCurrency }, homeEnabled, vehiclesEnabled] = await Promise.all([
@@ -20,6 +21,7 @@ export default async function NewContractPage() {
 
   return (
     <div className="max-w-3xl space-y-6">
+      <BackLink href="/contracts" label="Back to contracts" />
       <div>
         <h1 className="text-2xl font-semibold">Add a contract</h1>
         <p className="text-sm text-foreground/60">
