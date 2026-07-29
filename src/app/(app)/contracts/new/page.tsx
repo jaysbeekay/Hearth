@@ -6,12 +6,16 @@ import { isModuleEnabled } from "@/lib/modules/enablement";
 import { prisma } from "@/lib/prisma";
 
 export default async function NewContractPage() {
-  const [{ preferredCurrency }, homeEnabled] = await Promise.all([
+  const [{ preferredCurrency }, homeEnabled, vehiclesEnabled] = await Promise.all([
     getUserPreferences(),
     isModuleEnabled("HOME"),
+    isModuleEnabled("VEHICLES"),
   ]);
   const properties = homeEnabled
     ? await prisma.property.findMany({ select: { id: true, label: true }, orderBy: { label: "asc" } })
+    : [];
+  const vehicles = vehiclesEnabled
+    ? await prisma.vehicle.findMany({ select: { id: true, label: true }, orderBy: { label: "asc" } })
     : [];
 
   return (
@@ -31,7 +35,12 @@ export default async function NewContractPage() {
         </p>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
-        <ContractForm action={createContract} defaultCurrency={preferredCurrency} properties={properties} />
+        <ContractForm
+          action={createContract}
+          defaultCurrency={preferredCurrency}
+          properties={properties}
+          vehicles={vehicles}
+        />
       </div>
     </div>
   );

@@ -51,11 +51,13 @@ export function ContractForm({
   contract,
   defaultCurrency,
   properties = [],
+  vehicles = [],
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   contract?: ContractModel;
   defaultCurrency?: string;
   properties?: { id: string; label: string }[];
+  vehicles?: { id: string; label: string }[];
 }) {
   const offlineAwareAction = makeOfflineAwareAction(
     action,
@@ -387,6 +389,26 @@ export function ContractForm({
                   {properties.map((property) => (
                     <option key={property.id} value={property.id}>
                       {property.label}
+                    </option>
+                  ))}
+                </select>
+              </SelectWrapper>
+            </Field>
+          )}
+
+          {vehicles.length > 0 && (
+            <Field label="Vehicle" htmlFor="vehicleId">
+              <SelectWrapper>
+                <select
+                  id="vehicleId"
+                  name="vehicleId"
+                  defaultValue={effectiveValues?.vehicleId ?? contract?.vehicleId ?? ""}
+                  className={selectClass}
+                >
+                  <option value="">Not linked to a vehicle</option>
+                  {vehicles.map((vehicle) => (
+                    <option key={vehicle.id} value={vehicle.id}>
+                      {vehicle.label}
                     </option>
                   ))}
                 </select>

@@ -24,6 +24,7 @@ export function formToContractInput(formData: FormData) {
     reminderDaysBefore: formData.get("reminderDaysBefore"),
     isTaxDeductible: formData.get("isTaxDeductible") === "on",
     propertyId: formData.get("propertyId"),
+    vehicleId: formData.get("vehicleId"),
   };
 }
 

@@ -248,6 +248,9 @@ model Contract {
   propertyId        String?
   property          Property?     @relation(fields: [propertyId], references: [id], onDelete: SetNull)
 
+  vehicleId         String?
+  vehicle           Vehicle?      @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+
   documents         Document[]
   notifications     NotificationLog[]
   rentalAgreement   RentalAgreement?
@@ -624,6 +627,7 @@ model Vehicle {
 
   items              VehicleItem[]
   notificationLogs   VehicleNotificationLog[]
+  contracts          Contract[]
 
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
