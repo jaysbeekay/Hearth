@@ -7,6 +7,20 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-07-29
+
+### Fixed
+
+- **The AI Assistant's own description text (Settings and the Assistant page
+  header) still said it was strictly read-only** — stale since #68 shipped
+  guarded write proposals. Updated both to describe the confirm-before-write
+  behavior instead. Found during a routine screenshot-accuracy audit.
+- Regenerated `docs/screenshots/settings-ai.png`, `spend.png`, and
+  `assistant.png`, which were stale in ways beyond copy: `settings-ai.png`
+  predated the current side-by-side desktop grid layout for the two AI
+  cards, and `spend.png` still showed "Home"/"Home tax deductible" column
+  headers from before the #114 rename.
+
 ## [0.12.0] - 2026-07-29
 
 ### Added

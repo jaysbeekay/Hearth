@@ -51,7 +51,8 @@ export default async function AssistantPage({
       <div>
         <h1 className="text-2xl font-semibold">Assistant</h1>
         <p className="text-sm text-foreground/60">
-          Ask about your household data — nothing here is created, edited, or deleted for you.
+          Ask about your household data — it can also propose creating or updating a contract or
+          product, but nothing is written without your explicit confirmation first.
         </p>
       </div>
       <AssistantClient
