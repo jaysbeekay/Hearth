@@ -211,185 +211,190 @@ export function ContractForm({
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Title" htmlFor="title" required>
-          <input
-            ref={titleRef}
-            id="title"
-            name="title"
-            required
-            defaultValue={effectiveValues?.title ?? contract?.title}
-            placeholder="e.g. Apartment lease - 12 Main St"
-            className={inputClass}
-          />
-        </Field>
-
-        <Field label="Category" htmlFor="category" required>
-          <SelectWrapper>
-            <select
-              id="category"
-              name="category"
+      <fieldset className="space-y-4 rounded-lg border border-border p-4">
+        <legend className="px-1 text-sm font-medium text-foreground/70">
+          Contract / policy details
+        </legend>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field label="Title" htmlFor="title" required>
+            <input
+              ref={titleRef}
+              id="title"
+              name="title"
               required
-              defaultValue={effectiveValues?.category ?? contract?.category ?? "OTHER"}
-              className={selectClass}
-            >
-              {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </SelectWrapper>
-        </Field>
-
-        <Field label="Provider / Company" htmlFor="provider" required>
-          <input
-            ref={providerRef}
-            id="provider"
-            name="provider"
-            required
-            defaultValue={effectiveValues?.provider ?? contract?.provider}
-            placeholder="e.g. Allianz, Acme Realty"
-            className={inputClass}
-          />
-        </Field>
-
-        <Field label="Contract / policy number" htmlFor="contractNumber">
-          <input
-            ref={contractNumberRef}
-            id="contractNumber"
-            name="contractNumber"
-            defaultValue={effectiveValues?.contractNumber ?? contract?.contractNumber ?? ""}
-            className={inputClass}
-          />
-        </Field>
-
-        <Field label="Start date" htmlFor="startDate">
-          <input
-            ref={startDateRef}
-            id="startDate"
-            name="startDate"
-            type="date"
-            defaultValue={effectiveValues?.startDate ?? toDateInputValue(contract?.startDate)}
-            className={inputClass}
-          />
-        </Field>
-
-        <Field label="End date" htmlFor="endDate">
-          <input
-            ref={endDateRef}
-            id="endDate"
-            name="endDate"
-            type="date"
-            defaultValue={effectiveValues?.endDate ?? toDateInputValue(contract?.endDate)}
-            className={inputClass}
-          />
-        </Field>
-
-        <Field label="Renewal type" htmlFor="renewalType">
-          <SelectWrapper>
-            <select
-              id="renewalType"
-              name="renewalType"
-              defaultValue={effectiveValues?.renewalType ?? contract?.renewalType ?? "MANUAL_RENEWAL"}
-              className={selectClass}
-            >
-              {Object.entries(RENEWAL_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </SelectWrapper>
-        </Field>
-
-        <Field label="Notice period (days)" htmlFor="noticePeriodDays">
-          <input
-            id="noticePeriodDays"
-            name="noticePeriodDays"
-            type="number"
-            min={0}
-            defaultValue={effectiveValues?.noticePeriodDays ?? contract?.noticePeriodDays ?? ""}
-            placeholder="e.g. 30"
-            className={inputClass}
-          />
-        </Field>
-
-        <Field label="Cost" htmlFor="cost">
-          <input
-            ref={costRef}
-            id="cost"
-            name="cost"
-            type="number"
-            min={0}
-            step="0.01"
-            defaultValue={effectiveValues?.cost ?? contract?.cost ?? ""}
-            className={inputClass}
-          />
-        </Field>
-
-        <Field label="Currency" htmlFor="currency">
-          <CurrencySelect
-            name="currency"
-            defaultValue={effectiveValues?.currency ?? contract?.currency ?? defaultCurrency}
-          />
-        </Field>
-
-        <Field label="Billing frequency" htmlFor="billingFrequency">
-          <SelectWrapper>
-            <select
-              ref={billingFrequencyRef}
-              id="billingFrequency"
-              name="billingFrequency"
-              defaultValue={effectiveValues?.billingFrequency ?? contract?.billingFrequency ?? ""}
-              className={selectClass}
-            >
-              <option value="">Not set</option>
-              {Object.entries(BILLING_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </SelectWrapper>
-        </Field>
-
-        {contract && (
-          <Field label="Status" htmlFor="status">
-            <SelectWrapper>
-              <select
-                id="status"
-                name="status"
-                defaultValue={effectiveValues?.status ?? contract.status}
-                className={selectClass}
-              >
-                <option value="ACTIVE">Active</option>
-                <option value="CANCELLED">Cancelled</option>
-              </select>
-            </SelectWrapper>
+              defaultValue={effectiveValues?.title ?? contract?.title}
+              placeholder="e.g. Apartment lease - 12 Main St"
+              className={inputClass}
+            />
           </Field>
-        )}
 
-        {properties.length > 0 && (
-          <Field label="Property" htmlFor="propertyId">
+          <Field label="Category" htmlFor="category" required>
             <SelectWrapper>
               <select
-                id="propertyId"
-                name="propertyId"
-                defaultValue={effectiveValues?.propertyId ?? contract?.propertyId ?? ""}
+                id="category"
+                name="category"
+                required
+                defaultValue={effectiveValues?.category ?? contract?.category ?? "OTHER"}
                 className={selectClass}
               >
-                <option value="">Not linked to a property</option>
-                {properties.map((property) => (
-                  <option key={property.id} value={property.id}>
-                    {property.label}
+                {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
                   </option>
                 ))}
               </select>
             </SelectWrapper>
           </Field>
-        )}
-      </div>
+
+          <Field label="Provider / Company" htmlFor="provider" required>
+            <input
+              ref={providerRef}
+              id="provider"
+              name="provider"
+              required
+              defaultValue={effectiveValues?.provider ?? contract?.provider}
+              placeholder="e.g. Allianz, Acme Realty"
+              className={inputClass}
+            />
+          </Field>
+
+          <Field label="Contract / policy number" htmlFor="contractNumber">
+            <input
+              ref={contractNumberRef}
+              id="contractNumber"
+              name="contractNumber"
+              defaultValue={effectiveValues?.contractNumber ?? contract?.contractNumber ?? ""}
+              className={inputClass}
+            />
+          </Field>
+
+          <Field label="Start date" htmlFor="startDate">
+            <input
+              ref={startDateRef}
+              id="startDate"
+              name="startDate"
+              type="date"
+              defaultValue={effectiveValues?.startDate ?? toDateInputValue(contract?.startDate)}
+              className={inputClass}
+            />
+          </Field>
+
+          <Field label="End date" htmlFor="endDate">
+            <input
+              ref={endDateRef}
+              id="endDate"
+              name="endDate"
+              type="date"
+              defaultValue={effectiveValues?.endDate ?? toDateInputValue(contract?.endDate)}
+              className={inputClass}
+            />
+          </Field>
+
+          <Field label="Renewal type" htmlFor="renewalType">
+            <SelectWrapper>
+              <select
+                id="renewalType"
+                name="renewalType"
+                defaultValue={effectiveValues?.renewalType ?? contract?.renewalType ?? "MANUAL_RENEWAL"}
+                className={selectClass}
+              >
+                {Object.entries(RENEWAL_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </SelectWrapper>
+          </Field>
+
+          <Field label="Notice period (days)" htmlFor="noticePeriodDays">
+            <input
+              id="noticePeriodDays"
+              name="noticePeriodDays"
+              type="number"
+              min={0}
+              defaultValue={effectiveValues?.noticePeriodDays ?? contract?.noticePeriodDays ?? ""}
+              placeholder="e.g. 30"
+              className={inputClass}
+            />
+          </Field>
+
+          <Field label="Cost" htmlFor="cost">
+            <input
+              ref={costRef}
+              id="cost"
+              name="cost"
+              type="number"
+              min={0}
+              step="0.01"
+              defaultValue={effectiveValues?.cost ?? contract?.cost ?? ""}
+              className={inputClass}
+            />
+          </Field>
+
+          <Field label="Currency" htmlFor="currency">
+            <CurrencySelect
+              name="currency"
+              defaultValue={effectiveValues?.currency ?? contract?.currency ?? defaultCurrency}
+            />
+          </Field>
+
+          <Field label="Billing frequency" htmlFor="billingFrequency">
+            <SelectWrapper>
+              <select
+                ref={billingFrequencyRef}
+                id="billingFrequency"
+                name="billingFrequency"
+                defaultValue={effectiveValues?.billingFrequency ?? contract?.billingFrequency ?? ""}
+                className={selectClass}
+              >
+                <option value="">Not set</option>
+                {Object.entries(BILLING_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </SelectWrapper>
+          </Field>
+
+          {contract && (
+            <Field label="Status" htmlFor="status">
+              <SelectWrapper>
+                <select
+                  id="status"
+                  name="status"
+                  defaultValue={effectiveValues?.status ?? contract.status}
+                  className={selectClass}
+                >
+                  <option value="ACTIVE">Active</option>
+                  <option value="CANCELLED">Cancelled</option>
+                </select>
+              </SelectWrapper>
+            </Field>
+          )}
+
+          {properties.length > 0 && (
+            <Field label="Property" htmlFor="propertyId">
+              <SelectWrapper>
+                <select
+                  id="propertyId"
+                  name="propertyId"
+                  defaultValue={effectiveValues?.propertyId ?? contract?.propertyId ?? ""}
+                  className={selectClass}
+                >
+                  <option value="">Not linked to a property</option>
+                  {properties.map((property) => (
+                    <option key={property.id} value={property.id}>
+                      {property.label}
+                    </option>
+                  ))}
+                </select>
+              </SelectWrapper>
+            </Field>
+          )}
+        </div>
+      </fieldset>
 
       <fieldset className="space-y-4 rounded-lg border border-border p-4">
         <legend className="px-1 text-sm font-medium text-foreground/70">
