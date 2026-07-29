@@ -15,7 +15,7 @@
   --accent: #533afd;
   --accent-foreground: #ffffff;
   --success: #0b7a36;
-  --danger: #ea2261;
+  --danger: #d91552;
 }
 
 @media (prefers-color-scheme: dark) {

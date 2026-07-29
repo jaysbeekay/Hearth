@@ -7,6 +7,41 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+## [0.11.2] - 2026-07-29
+
+### Added
+
+- **A left-side navigation drawer, reachable by a left-edge swipe or a new
+  menu button in the mobile top bar** (#112) — shows the full nav list
+  (everything `Sidebar` shows on desktop, plus Settings) from any page, not
+  just the bottom nav's 4 primary items or its "More" sheet. The edge-swipe
+  only starts tracking a touch that begins within 24px of the screen's left
+  edge and only opens past a deliberate drag threshold, so it can't be
+  triggered from a mid-screen touch and doesn't collide with
+  `SwipeableListItem`'s left-drag-to-reveal (opposite direction). Whether the
+  OS's own back-gesture intercepts a touch in that same edge zone before this
+  handler sees it depends on the platform/WebView and isn't verifiable
+  without a real device — the visible menu button is the reliable fallback
+  either way, and existing bottom-nav/tap navigation is unchanged.
+
+### Fixed
+
+- **The native app shell's pre-login "connect to your server" screen now
+  matches the current design system's danger color** (#103) — its
+  `--danger` token had drifted from `src/app/globals.css` after a rebrand
+  pass updated one file and not the other. The web `/login` and `/setup`
+  pages were already visually identical and needed no change.
+- **Android: the on-screen keyboard now resizes the layout instead of
+  panning/scrolling it** (#109) — added
+  `android:windowSoftInputMode="adjustResize"` to `MainActivity`. Not
+  verified against a real Android device/emulator in this environment.
+
+### Closed
+
+- **#91** (mobile-centric navigation) closed as substantially satisfied by
+  the bottom-sheet overflow menu and touch-target work (#92), swipe-to-delete
+  on contracts (#94), and this release's navigation drawer (#112).
+
 ## [0.11.1] - 2026-07-29
 
 ### Fixed
