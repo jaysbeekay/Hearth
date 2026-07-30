@@ -73,13 +73,23 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   every `save*` in storage.ts and all eight extract routes. `/api/sync` also
   gained an aggregate body cap and a 200-operation limit; the per-file 15MB
   cap never bounded a request carrying many files.
-- **Administrator-configurable outbound destinations are validated** (#167).
-  Webhook, ntfy and Ollama URLs are resolved and checked before each request:
-  non-HTTP(S) schemes, cloud instance-metadata addresses, link-local,
-  multicast, unspecified and broadcast are always refused, including their
-  IPv4-mapped IPv6 forms. Private and loopback ranges stay allowed by default
-  — this app's documented integrations are LAN services — and can be refused
-  with `BLOCK_PRIVATE_NETWORK_TARGETS=true`.
+- **Administrator-configurable outbound destinations are checked** (#167).
+  Webhook, ntfy and Ollama URLs are validated before each request against the
+  two things that are never legitimate from this app: a non-HTTP(S) scheme,
+  and the cloud instance-metadata addresses (`169.254.169.254` and the
+  equivalents for ECS, Alibaba, Oracle and AWS IPv6), including their
+  IPv4-mapped IPv6 spellings in both dotted and hex form.
+
+  Everything else is permitted, deliberately. Bare IP addresses and local
+  hostnames are supported destinations, not suspicious ones —
+  `http://192.168.1.50:8123`, `https://homeassistant.local:8123`,
+  `http://ntfy:80`, `http://host.docker.internal:11434` and
+  `http://localhost:11434` all work, as do link-local/APIPA and
+  carrier-grade-NAT addresses. A hostname that doesn't resolve is also
+  allowed through rather than refused: `.local` names need mDNS the runtime
+  image doesn't have, and a service may simply be down when its webhook is
+  saved. Operators with no local integrations can set
+  `BLOCK_PRIVATE_NETWORK_TARGETS=true` to refuse local destinations too.
 - **`importTrades` validated its input at compile time only** (#162). It took
   a `ParsedTrade[]` straight from the client with no runtime check, so NaN or
   Infinity units/prices reached the database and poisoned every downstream

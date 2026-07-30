@@ -34,9 +34,11 @@ export async function createWebhookEndpoint(
     };
   }
 
-  // Checked here so a bad destination is an immediate, explainable form error
-  // rather than a delivery that quietly fails later. Delivery re-checks too,
-  // since DNS can change after the endpoint is saved.
+  // Catches the two things that are never valid — a non-HTTP(S) scheme and a
+  // cloud metadata address — as an explainable form error rather than a
+  // delivery that quietly fails later. A host that simply isn't resolvable
+  // right now is fine to save: the target service may be offline, or be a
+  // .local name this container can't resolve. Delivery re-checks anyway.
   try {
     await assertSafeOutboundUrl(parsed.data.url);
   } catch (error) {
