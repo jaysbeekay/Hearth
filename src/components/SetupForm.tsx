@@ -1,11 +1,17 @@
 "use client";
 
 import { useActionState } from "react";
+import { FileText } from "lucide-react";
 import { setupAdmin, type ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { inputClass } from "@/components/SelectWrapper";
-import { MODULE_REGISTRY } from "@/lib/modules/registry";
+import { MODULE_REGISTRY, type ModuleKey } from "@/lib/modules/registry";
+
+// Setup-screen-only ordering: Travel last, since it's the module most new
+// households defer. Doesn't touch MODULE_REGISTRY's own order, which also
+// drives nav grouping and the Settings > Modules list.
+const SETUP_MODULE_ORDER: ModuleKey[] = ["HOME", "VEHICLES", "INVENTORY", "WEALTH", "TRAVEL"];
 
 export function SetupForm() {
   const [state, formAction] = useActionState<ActionState, FormData>(setupAdmin, null);
@@ -60,26 +66,47 @@ export function SetupForm() {
         <p className="text-xs text-foreground/60">
           Enable any extra modules now, or turn them on later from Settings.
         </p>
-        {Object.values(MODULE_REGISTRY).map(({ key, label, description, icon: Icon }) => (
-          <label
-            key={key}
-            className="flex items-start gap-3 rounded-lg border border-border px-3 py-2"
-          >
-            <input
-              type="checkbox"
-              name="modules"
-              value={key}
-              className="mt-0.5 size-4 rounded border-border accent-accent"
-            />
-            <span>
-              <span className="flex items-center gap-2 text-sm font-medium">
-                <Icon size={16} />
-                {label}
-              </span>
-              <span className="text-xs text-foreground/60">{description}</span>
+        <label className="flex items-start gap-3 rounded-lg border border-border px-3 py-2 opacity-70">
+          <input
+            type="checkbox"
+            checked
+            disabled
+            aria-label="Document management (always enabled)"
+            className="mt-0.5 size-4 rounded border-border accent-accent"
+          />
+          <span>
+            <span className="flex items-center gap-2 text-sm font-medium">
+              <FileText size={16} />
+              Document management
             </span>
-          </label>
-        ))}
+            <span className="text-xs text-foreground/60">
+              Contracts, warranties, and documents are always included — not optional.
+            </span>
+          </span>
+        </label>
+        {SETUP_MODULE_ORDER.map((key) => {
+          const { label, description, icon: Icon } = MODULE_REGISTRY[key];
+          return (
+            <label
+              key={key}
+              className="flex items-start gap-3 rounded-lg border border-border px-3 py-2"
+            >
+              <input
+                type="checkbox"
+                name="modules"
+                value={key}
+                className="mt-0.5 size-4 rounded border-border accent-accent"
+              />
+              <span>
+                <span className="flex items-center gap-2 text-sm font-medium">
+                  <Icon size={16} />
+                  {label}
+                </span>
+                <span className="text-xs text-foreground/60">{description}</span>
+              </span>
+            </label>
+          );
+        })}
       </fieldset>
 
       <FormMessage error={state?.error} success={state?.success} />

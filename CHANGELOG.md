@@ -7,6 +7,14 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+### Changed
+
+- Setup screen's module checklist now lists Travel last, after Wealth, instead
+  of first (#119). Also added a permanently-checked, disabled "Document
+  management" row above the optional modules, clarifying that contract/
+  warranty/document tracking is always included and isn't one of the
+  toggleable modules — it isn't submitted as part of the form.
+
 ## [0.13.0] - 2026-07-30
 
 ### Breaking Changes
