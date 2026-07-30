@@ -7,6 +7,8 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-07-30
+
 ### Breaking Changes
 
 - **`Property.address` (a single free-text string) is replaced by structured
