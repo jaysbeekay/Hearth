@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { ALLOWED_MIME_TYPES, MAX_UPLOAD_BYTES } from "@/lib/storage";
 import { extractText } from "@/lib/documents/textExtraction";
 import { extractInventoryItemFields } from "@/lib/documents/inventoryItemFieldExtraction";
 import { getByokConfig } from "@/lib/ai/extract";
 import { isModuleEnabled } from "@/lib/modules/enablement";
+import { readValidatedUpload, UploadRejectedError } from "@/lib/uploadValidation";
 
 export async function POST(request: NextRequest) {
   const session = await auth();
@@ -20,14 +20,18 @@ export async function POST(request: NextRequest) {
   if (!(file instanceof File) || file.size === 0) {
     return NextResponse.json({ error: "Choose a file to upload." }, { status: 400 });
   }
-  if (file.size > MAX_UPLOAD_BYTES) {
-    return NextResponse.json({ error: "File is too large (15MB max)." }, { status: 400 });
-  }
-  if (!ALLOWED_MIME_TYPES.has(file.type)) {
-    return NextResponse.json({ error: "Unsupported file type." }, { status: 400 });
-  }
 
-  const buffer = Buffer.from(await file.arrayBuffer());
+  // Validates size, declared type AND leading bytes — this file is about to
+  // be handed to pdftotext/pdftoppm/tesseract, so its real format matters.
+  let buffer: Buffer;
+  try {
+    buffer = await readValidatedUpload(file);
+  } catch (error) {
+    if (error instanceof UploadRejectedError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    throw error;
+  }
   const [text, byokUser] = await Promise.all([
     extractText(buffer, file.type),
     getByokConfig(),

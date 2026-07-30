@@ -3,6 +3,10 @@ import { auth } from "@/lib/auth";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
 import { ENTITY_SYNC_CONFIGS } from "@/app/api/sync/entityHandlers";
+import {
+  assertRequestWithinUploadBudget,
+  UploadRejectedError,
+} from "@/lib/uploadValidation";
 
 interface SyncOperation {
   id: string;
@@ -13,6 +17,10 @@ interface SyncOperation {
   formValues?: Record<string, string>;
   baseUpdatedAt?: string;
 }
+
+// Matches the client's own queue drain size (OfflineSyncManager); a request
+// carrying more than this isn't something the app produces.
+const MAX_SYNC_OPERATIONS = 200;
 
 interface SyncResult {
   id: string;
@@ -47,6 +55,30 @@ export async function POST(request: NextRequest) {
   }
   if (!Array.isArray(operations)) {
     return NextResponse.json({ error: "operations must be an array" }, { status: 400 });
+  }
+
+  // /api/sync is the one endpoint that carries many files in a single body —
+  // a queue of offline edits replayed at once. The per-file cap doesn't bound
+  // that total (#165).
+  const allFiles = [...formData.values()].filter((v): v is File => v instanceof File);
+  try {
+    assertRequestWithinUploadBudget(allFiles);
+  } catch (error) {
+    if (error instanceof UploadRejectedError) {
+      return NextResponse.json({ error: error.message }, { status: 413 });
+    }
+    throw error;
+  }
+
+  // Bounds the work one request can queue up, independent of file size.
+  if (operations.length > MAX_SYNC_OPERATIONS) {
+    return NextResponse.json(
+      {
+        error: `Too many queued changes in one request (max ${MAX_SYNC_OPERATIONS}). ` +
+          "They'll sync in smaller batches.",
+      },
+      { status: 413 },
+    );
   }
 
   const results: SyncResult[] = [];

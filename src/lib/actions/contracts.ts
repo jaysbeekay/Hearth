@@ -6,8 +6,6 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { contractSchema } from "@/lib/validation/contract";
 import {
-  ALLOWED_MIME_TYPES,
-  MAX_UPLOAD_BYTES,
   deleteContractDir,
   deleteDocument as deleteDocumentFile,
   saveDocument,
@@ -15,6 +13,7 @@ import {
 import { formDataToStringValues } from "@/lib/form-state";
 import { formToContractInput } from "@/lib/formMappers";
 import { extractSearchableText } from "@/lib/documents/textExtraction";
+import { describeUploadRejection } from "@/lib/uploadValidation";
 
 export type ActionState = {
   error?: string;
@@ -57,10 +56,8 @@ async function requireUser() {
 }
 
 async function attachDocument(contractId: string, file: File): Promise<ActionState | null> {
-  if (file.size > MAX_UPLOAD_BYTES) return { error: "File is too large (15MB max)." };
-  if (!ALLOWED_MIME_TYPES.has(file.type)) {
-    return { error: "Unsupported file type. Use PDF, Word, or image files." };
-  }
+  const rejection = await describeUploadRejection(file);
+  if (rejection) return { error: rejection };
 
   const { storedName, size } = await saveDocument(contractId, file);
   const extractedText = await extractSearchableText(Buffer.from(await file.arrayBuffer()), file.type);
@@ -93,10 +90,8 @@ export async function createContract(
 
   const file = formData.get("file");
   if (file instanceof File && file.size > 0) {
-    if (file.size > MAX_UPLOAD_BYTES) return { error: "File is too large (15MB max)." };
-    if (!ALLOWED_MIME_TYPES.has(file.type)) {
-      return { error: "Unsupported file type. Use PDF, Word, or image files." };
-    }
+    const rejection = await describeUploadRejection(file);
+    if (rejection) return { error: rejection };
   }
 
   const contract = await prisma.contract.create({

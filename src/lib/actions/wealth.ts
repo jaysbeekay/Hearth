@@ -11,8 +11,6 @@ import {
   propertyValuationSchema,
 } from "@/lib/validation/wealth";
 import {
-  ALLOWED_MIME_TYPES,
-  MAX_UPLOAD_BYTES,
   saveTradeDocument,
   deleteTradeDocument,
   deleteTradeDir,
@@ -22,6 +20,7 @@ import { isModuleEnabled } from "@/lib/modules/enablement";
 import { formDataToStringValues } from "@/lib/form-state";
 import type { ActionState } from "@/lib/actions/auth";
 import { parse } from "csv-parse/sync";
+import { describeUploadRejection } from "@/lib/uploadValidation";
 
 const PORTFOLIO_FIELDS = ["name", "description", "currency"];
 const HOLDING_FIELDS = ["ticker", "name", "assetClass", "exchange"];
@@ -182,10 +181,8 @@ async function requireHolding(holdingId: string) {
 }
 
 async function attachTradeDocument(tradeId: string, file: File): Promise<ActionState | null> {
-  if (file.size > MAX_UPLOAD_BYTES) return { error: "File is too large (15MB max)." };
-  if (!ALLOWED_MIME_TYPES.has(file.type)) {
-    return { error: "Unsupported file type. Use PDF, Word, or image files." };
-  }
+  const rejection = await describeUploadRejection(file);
+  if (rejection) return { error: rejection };
   const { storedName, size } = await saveTradeDocument(tradeId, file);
   await prisma.tradeDocument.create({
     data: {
@@ -227,10 +224,8 @@ export async function createTrade(
 
   const file = formData.get("file");
   if (file instanceof File && file.size > 0) {
-    if (file.size > MAX_UPLOAD_BYTES) return { error: "File is too large (15MB max)." };
-    if (!ALLOWED_MIME_TYPES.has(file.type)) {
-      return { error: "Unsupported file type. Use PDF, Word, or image files." };
-    }
+    const rejection = await describeUploadRejection(file);
+    if (rejection) return { error: rejection };
   }
 
   const trade = await prisma.trade.create({ data: { ...parsed.data, holdingId } });

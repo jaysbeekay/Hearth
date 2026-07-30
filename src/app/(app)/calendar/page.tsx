@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { auth } from "@/lib/auth";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { getCalendarEvents } from "@/lib/calendarEvents";
 import { formatDate } from "@/lib/utils";
@@ -44,7 +43,6 @@ function monthLabel(key: string) {
 }
 
 export default async function CalendarPage() {
-  const session = await auth();
   const [enabledModules, { dateFormat }] = await Promise.all([
     getEnabledModuleKeys(),
     getUserPreferences(),

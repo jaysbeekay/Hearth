@@ -7,6 +7,7 @@ import { auth } from "@/lib/auth";
 import { webhookEndpointSchema } from "@/lib/validation/webhook";
 import { sendTestWebhook } from "@/lib/notifications/webhook";
 import { formDataToStringValues } from "@/lib/form-state";
+import { assertSafeOutboundUrl, UnsafeOutboundUrlError } from "@/lib/net/outbound";
 import type { ActionState } from "@/lib/actions/auth";
 
 // Secret is intentionally excluded — never echo it back to the form.
@@ -31,6 +32,21 @@ export async function createWebhookEndpoint(
       error: parsed.error.issues[0]?.message ?? "Invalid input",
       values: formDataToStringValues(formData, WEBHOOK_FORM_FIELDS),
     };
+  }
+
+  // Checked here so a bad destination is an immediate, explainable form error
+  // rather than a delivery that quietly fails later. Delivery re-checks too,
+  // since DNS can change after the endpoint is saved.
+  try {
+    await assertSafeOutboundUrl(parsed.data.url);
+  } catch (error) {
+    if (error instanceof UnsafeOutboundUrlError) {
+      return {
+        error: error.message,
+        values: formDataToStringValues(formData, WEBHOOK_FORM_FIELDS),
+      };
+    }
+    throw error;
   }
 
   await prisma.webhookEndpoint.create({
