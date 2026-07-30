@@ -81,6 +81,20 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   concrete example topic with a note that public ntfy.sh topics are
   guessable and should be unguessable or token-protected, plus a
   commented-out self-hosted `binwiederhier/ntfy` service block.
+- **Expiring invitation email for new household members** (#126) — with SMTP
+  configured, adding a household member now sends a single-use invitation
+  link (expires in 48 hours) instead of the admin choosing a password
+  directly; the new member sets their own password on `/accept-invitation`.
+  Without SMTP configured, admin-set passwords still work exactly as
+  before. Reuses the existing password-reset token model with a new
+  `purpose` field (`RESET`/`INVITE`) rather than a parallel table.
+- **Optional "Sign in with GitHub"** (#116) — set `GITHUB_CLIENT_ID`/
+  `GITHUB_CLIENT_SECRET` to show a GitHub sign-in button on the login page.
+  Sign-up stays invite-only: a GitHub sign-in only succeeds for an email
+  that already has an admin-invited Hearth account, matched by verified
+  email — it never auto-creates an account. Existing TOTP/passkey
+  second-factor and role model are unaffected, since GitHub sign-in is
+  just a different way to establish the same session.
 
 ### Changed
 

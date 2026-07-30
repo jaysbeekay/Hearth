@@ -6,7 +6,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 
-export function CreateUserForm() {
+export function CreateUserForm({ smtpConfigured }: { smtpConfigured: boolean }) {
   const [state, formAction] = useActionState<ActionState, FormData>(createUser, null);
 
   return (
@@ -36,19 +36,21 @@ export function CreateUserForm() {
           className={inputClass}
         />
       </div>
-      <div className="space-y-1">
-        <label htmlFor="password" className="text-sm font-medium">
-          Temporary password
-        </label>
-        <input
-          id="password"
-          name="password"
-          type="password"
-          required
-          minLength={8}
-          className={inputClass}
-        />
-      </div>
+      {!smtpConfigured && (
+        <div className="space-y-1">
+          <label htmlFor="password" className="text-sm font-medium">
+            Temporary password
+          </label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            required
+            minLength={8}
+            className={inputClass}
+          />
+        </div>
+      )}
       <div className="space-y-1">
         <label htmlFor="role" className="text-sm font-medium">
           Role
@@ -66,11 +68,16 @@ export function CreateUserForm() {
           </select>
         </SelectWrapper>
       </div>
+      {smtpConfigured && (
+        <p className="md:col-span-2 text-xs text-foreground/50">
+          An invitation email will be sent so they can set their own password.
+        </p>
+      )}
       <div className="md:col-span-2">
         <FormMessage error={state?.error} success={state?.success} />
       </div>
       <div className="md:col-span-2">
-        <SubmitButton>Add household member</SubmitButton>
+        <SubmitButton>{smtpConfigured ? "Send invitation" : "Add household member"}</SubmitButton>
       </div>
     </form>
   );

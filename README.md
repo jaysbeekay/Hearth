@@ -71,7 +71,8 @@ Everything else is optional. Set `SMTP_*` to enable email reminders, `NTFY_*` fo
 - Offsite database backups to S3-compatible storage or SFTP on a configurable schedule
 - Dashboard with active/expiring/expired counts and estimated monthly spend
 - Multi-user/household accounts — everyone sees the same data
-- Admin-invite-only (no public sign-up) since this stores sensitive household data
+- Admin-invite-only (no public sign-up) since this stores sensitive household data — with SMTP configured, adding a member sends a 48-hour expiring invitation link to set their own password, instead of the admin choosing one
+- Optional "Sign in with GitHub" on the login page (`GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`) — still only works for an email with an existing admin-invited account, it doesn't bypass the invite-only model
 - Mobile-friendly responsive UI, installable as a PWA ("Add to Home Screen")
 - **Offline read cache** — a service worker caches previously-visited pages so they're still browsable when your home server is unreachable; an amber banner appears and writes are queued locally and synced automatically when you reconnect. Records created offline show up immediately as a "Pending sync" card on their list page — editable or discardable before they've synced (Contracts, Products, Vehicles, Travel, Home, Inventory)
 - **AI Assistant** (bring-your-own-key chat) streams its replies as they're generated and can propose creating/updating a contract or product — you review and confirm before anything is saved
@@ -465,19 +466,23 @@ on a schedule. Each backup:
 2. Encrypts the snapshot with AES-256-GCM using `ENCRYPTION_KEY` (the same
    key used for "bring your own AI key", see above) before it ever leaves
    the server.
-3. Uploads the encrypted file to whichever destination(s) you've
-   configured — **S3-compatible object storage** (AWS S3, Backblaze B2,
-   Cloudflare R2, MinIO, etc.), **SFTP**, and/or a **local filesystem
-   path** — independently enabled by their own environment variables (or
-   from Settings → System settings), with every configured destination
-   receiving every backup, for redundancy.
-4. Prunes older backups at each destination beyond `BACKUP_RETENTION_COUNT`.
+3. Uploads the encrypted file to a single active destination — **S3-
+   compatible object storage** (AWS S3, Backblaze B2, Cloudflare R2, MinIO,
+   etc.), **SFTP**, or a **local filesystem path** — chosen from a
+   "Backup destination" dropdown in Settings → System settings. Only one
+   destination runs at a time; switching the dropdown doesn't discard the
+   other destinations' previously-saved credentials, it just makes them
+   inactive.
+4. Prunes older backups at the active destination beyond
+   `BACKUP_RETENTION_COUNT`.
 
 Backups stay fully disabled until `ENCRYPTION_KEY` is set — there's no way
 to write an unencrypted backup, even locally. With encryption configured,
-set `BACKUP_S3_*`, `BACKUP_SFTP_*`, and/or `BACKUP_LOCAL_PATH` to enable
-each destination. See [`.env.example`](.env.example) for the full list of
-backup-related variables and their defaults.
+pick a destination and fill in its fields in Settings → System settings
+(`BACKUP_S3_*`, `BACKUP_SFTP_*`, `BACKUP_LOCAL_PATH` env vars just
+pre-populate those fields, they don't select the destination). See
+[`.env.example`](.env.example) for the full list of backup-related
+variables and their defaults.
 
 Backups run on `BACKUP_CRON_SCHEDULE` (default daily at 03:00) via the
 same built-in scheduler used for reminders, can be triggered manually from
@@ -568,9 +573,10 @@ for the full list with defaults. Notable ones:
 | `BARCODE_LOOKUP_API_KEY` | Optional. A paid UPCitemdb API key for higher-limit barcode lookups, instead of the free keyless trial endpoint. |
 | `ENCRYPTION_KEY` | Optional. Generate with `openssl rand -base64 32`. Set to enable users bringing their own AI provider key for document extraction, and a prerequisite for offsite database backups — see "Bring your own AI key" and "Database backups" above. |
 | `BACKUP_CRON_SCHEDULE` / `BACKUP_RETENTION_COUNT` | Optional. Schedule (cron syntax, default daily at 03:00) and how many backups to keep per destination (default 7). |
-| `BACKUP_S3_*` | Optional. Set `BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY` (plus `BACKUP_S3_ENDPOINT`/`BACKUP_S3_REGION`/`BACKUP_S3_FORCE_PATH_STYLE` for non-AWS providers) to enable S3-compatible offsite backups — see "Database backups" above. |
-| `BACKUP_SFTP_*` | Optional. Set `BACKUP_SFTP_HOST` and `BACKUP_SFTP_USERNAME` plus `BACKUP_SFTP_PASSWORD` or `BACKUP_SFTP_PRIVATE_KEY` to enable SFTP offsite backups — see "Database backups" above. |
-| `BACKUP_LOCAL_PATH` | Optional. Set to a directory path to enable a local-filesystem backup destination, encrypted the same as S3/SFTP — see "Database backups" above. Multiple destinations can be enabled at once; each configured destination receives every backup. |
+| `BACKUP_S3_*` | Optional. Pre-populates the S3-compatible backup fields (`BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY`, plus `BACKUP_S3_ENDPOINT`/`BACKUP_S3_REGION`/`BACKUP_S3_FORCE_PATH_STYLE` for non-AWS providers) — still requires picking "S3-compatible storage" in Settings → System settings' backup destination dropdown to activate it. See "Database backups" above. |
+| `BACKUP_SFTP_*` | Optional. Pre-populates the SFTP backup fields (`BACKUP_SFTP_HOST`, `BACKUP_SFTP_USERNAME`, plus `BACKUP_SFTP_PASSWORD` or `BACKUP_SFTP_PRIVATE_KEY`) — still requires picking "SFTP" in the backup destination dropdown to activate it. See "Database backups" above. |
+| `BACKUP_LOCAL_PATH` | Optional. Pre-populates the local-filesystem backup path — still requires picking "Local filesystem" in the backup destination dropdown to activate it. See "Database backups" above. |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | Optional. Set both to show a "Sign in with GitHub" button on the login page. Sign-up stays invite-only — GitHub sign-in only works for an email that already has an admin-invited Hearth account. |
 
 If neither email nor ntfy is configured, the scheduler runs but sends nothing
 (no errors).

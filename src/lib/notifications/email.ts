@@ -47,6 +47,26 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string) {
   });
 }
 
+export async function sendInvitationEmail(to: string, inviteUrl: string) {
+  if (!(await isSmtpConfigured())) return;
+
+  const smtp = await getSmtpConfig();
+  const transporter = nodemailer.createTransport({
+    host: smtp.host,
+    port: smtp.port,
+    secure: smtp.secure,
+    auth: smtp.user ? { user: smtp.user, pass: smtp.pass } : undefined,
+  });
+
+  await transporter.sendMail({
+    from: smtp.from,
+    to,
+    subject: "You've been invited to Hearth",
+    text: `You've been added to a Hearth household. Follow this link to set your password and sign in (expires in 48 hours):\n\n${inviteUrl}\n\nIf you weren't expecting this, you can ignore this email.`,
+    html: `<p>You've been added to a Hearth household.</p><p><a href="${inviteUrl}">Set your password and sign in</a> (link expires in 48 hours).</p><p>If you weren't expecting this, you can ignore this email.</p>`,
+  });
+}
+
 export async function sendReminderEmail(opts: {
   to: string;
   kind: "contract" | "warranty";

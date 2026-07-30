@@ -181,14 +181,20 @@ model User {
   @@map("users")
 }
 
+enum PasswordResetTokenPurpose {
+  RESET
+  INVITE
+}
+
 model PasswordResetToken {
-  id        String    @id @default(cuid())
-  token     String    @unique
+  id        String                    @id @default(cuid())
+  token     String                    @unique
   userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose   PasswordResetTokenPurpose @default(RESET)
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime  @default(now())
+  createdAt DateTime                  @default(now())
 
   @@index([userId])
   @@map("password_reset_tokens")

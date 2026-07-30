@@ -10,8 +10,16 @@ export const setupSchema = z.object({
   password: passwordSchema,
 });
 
-export const createUserSchema = setupSchema.extend({
+export const createUserSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(100),
+  email: z.string().trim().toLowerCase().email("Enter a valid email address"),
   role: z.enum(["ADMIN", "MEMBER", "READONLY"]).default("MEMBER"),
+});
+
+// Used only when SMTP isn't configured and the admin must set the initial
+// password directly, since there's no way to deliver an invitation link.
+export const createUserWithPasswordSchema = createUserSchema.extend({
+  password: passwordSchema,
 });
 
 export const updateMemberRoleSchema = z.object({
