@@ -1,6 +1,20 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
+  const { env, isProduction, isAppUrlSecure } = await import("@/lib/env");
+
+  // Hearth holds household documents, credentials and financial data. Served
+  // over plain HTTP on anything but loopback or a LAN-only name, every session
+  // cookie and document is readable in transit — worth shouting about at boot
+  // rather than leaving to be discovered.
+  if (isProduction() && !isAppUrlSecure()) {
+    console.warn(
+      `[security] APP_URL is "${env.appUrl}" — not HTTPS. Session cookies, documents and ` +
+        "invitation links will travel in cleartext. Put Hearth behind a reverse proxy with " +
+        "TLS, or use a mesh VPN, before exposing it beyond localhost.",
+    );
+  }
+
   const globalForCron = globalThis as unknown as {
     __reminderCronStarted?: boolean;
     __backupCronStarted?: boolean;

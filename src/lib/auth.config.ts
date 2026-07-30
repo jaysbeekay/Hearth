@@ -30,6 +30,14 @@ const PUBLIC_PATHS = [
   "/api/mcp",
 ];
 
+// Shared by the `authorized` callback below and by src/proxy.ts, which has to
+// make the same allow/deny decision itself — NextAuth skips its own redirect
+// once a handler is supplied, and the proxy supplies one so it can attach
+// security headers. One list, two callers.
+export function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PATHS.some((path) => pathname.startsWith(path));
+}
+
 export const authConfig: NextAuthConfig = {
   trustHost: true,
   session: { strategy: "jwt" },
@@ -37,10 +45,7 @@ export const authConfig: NextAuthConfig = {
   providers: [],
   callbacks: {
     authorized: ({ auth: session, request }) => {
-      const isPublic = PUBLIC_PATHS.some((path) =>
-        request.nextUrl.pathname.startsWith(path),
-      );
-      if (isPublic) return true;
+      if (isPublicPath(request.nextUrl.pathname)) return true;
       return Boolean(session?.user);
     },
     jwt: ({ token, user }) => {

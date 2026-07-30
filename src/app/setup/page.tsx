@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Flame } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { SetupForm } from "@/components/SetupForm";
+import { isSetupTokenRequired } from "@/lib/env";
 
 export const metadata: Metadata = { title: "Set up" };
 export const dynamic = "force-dynamic";
@@ -24,7 +25,7 @@ export default async function SetupPage() {
           </p>
         </div>
         <div className="rounded-xl border border-border bg-surface p-6">
-          <SetupForm />
+          <SetupForm setupTokenRequired={isSetupTokenRequired()} />
         </div>
       </div>
     </div>
