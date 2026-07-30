@@ -109,7 +109,7 @@ function assertNotStale(existing: { updatedAt: Date }, ctx: SyncContext) {
 }
 
 export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
-  // ── Contracts (always-on, per-user ownership) ──────────────────────────────
+  // ── Contracts (always-on, household-wide) ─────────────────────────────────
   contract: defineEntity({
     schema: contractSchema,
     create: async (data, { userId }) => {
@@ -119,7 +119,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     },
     update: async (id, data, ctx) => {
       const existing = await prisma.contract.findUnique({ where: { id } });
-      if (!existing || existing.createdById !== ctx.userId) throw new Error("Contract not found");
+      if (!existing) throw new Error("Contract not found");
       assertNotStale(existing, ctx);
       await prisma.contract.update({ where: { id }, data });
       revalidatePath("/contracts");
@@ -143,7 +143,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     },
   }),
 
-  // ── Products (always-on, per-user ownership) ───────────────────────────────
+  // ── Products (always-on, household-wide) ──────────────────────────────────
   product: defineEntity({
     schema: productSchema,
     create: async (data, { userId }) => {
@@ -153,7 +153,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     },
     update: async (id, data, ctx) => {
       const existing = await prisma.product.findUnique({ where: { id } });
-      if (!existing || existing.createdById !== ctx.userId) throw new Error("Product not found");
+      if (!existing) throw new Error("Product not found");
       assertNotStale(existing, ctx);
       await prisma.product.update({ where: { id }, data });
       revalidatePath("/products");
@@ -426,7 +426,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     },
     update: async (id, data, ctx) => {
       const existing = await prisma.inventoryItem.findUnique({ where: { id } });
-      if (!existing || existing.createdById !== ctx.userId) throw new Error("Item not found");
+      if (!existing) throw new Error("Item not found");
       assertNotStale(existing, ctx);
       await prisma.inventoryItem.update({ where: { id }, data });
       revalidatePath("/inventory");
@@ -434,7 +434,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     },
     remove: async (id, { userId }) => {
       const existing = await prisma.inventoryItem.findUnique({ where: { id } });
-      if (!existing || existing.createdById !== userId) throw new Error("Item not found");
+      if (!existing) throw new Error("Item not found");
       await deleteInventoryItemDir(id);
       await prisma.inventoryItem.delete({ where: { id } });
       revalidatePath("/inventory");
@@ -448,7 +448,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     },
   }),
 
-  // ── Wealth (per-user ownership via portfolio.createdById) ──────────────────
+  // ── Wealth (household-wide, like every other module) ──────────────────────
   portfolio: defineEntity({
     schema: portfolioSchema,
     requiresModule: "WEALTH",
@@ -459,7 +459,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     },
     update: async (id, data, ctx) => {
       const existing = await prisma.portfolio.findUnique({ where: { id } });
-      if (!existing || existing.createdById !== ctx.userId) throw new Error("Portfolio not found");
+      if (!existing) throw new Error("Portfolio not found");
       assertNotStale(existing, ctx);
       await prisma.portfolio.update({ where: { id }, data });
       revalidatePath("/wealth");
@@ -467,7 +467,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     },
     remove: async (id, { userId }) => {
       const existing = await prisma.portfolio.findUnique({ where: { id } });
-      if (!existing || existing.createdById !== userId) throw new Error("Portfolio not found");
+      if (!existing) throw new Error("Portfolio not found");
       await prisma.portfolio.delete({ where: { id } });
       revalidatePath("/wealth");
     },
@@ -479,7 +479,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     create: async (data, ctx) => {
       const portfolioId = requireParentId(ctx);
       const portfolio = await prisma.portfolio.findUnique({ where: { id: portfolioId } });
-      if (!portfolio || portfolio.createdById !== ctx.userId) throw new Error("Portfolio not found");
+      if (!portfolio) throw new Error("Portfolio not found");
       const existing = await prisma.holding.findUnique({
         where: { portfolioId_ticker: { portfolioId, ticker: data.ticker } },
       });
@@ -493,7 +493,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
         where: { id },
         include: { portfolio: true },
       });
-      if (!holding || holding.portfolio.createdById !== ctx.userId) throw new Error("Holding not found");
+      if (!holding) throw new Error("Holding not found");
       assertNotStale(holding, ctx);
       await prisma.holding.update({ where: { id }, data });
       revalidatePath(`/wealth/portfolios/${holding.portfolioId}/holdings/${id}`);
@@ -509,7 +509,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
         where: { id: holdingId },
         include: { portfolio: true },
       });
-      if (!holding || holding.portfolio.createdById !== ctx.userId) throw new Error("Holding not found");
+      if (!holding) throw new Error("Holding not found");
       const trade = await prisma.trade.create({ data: { ...data, holdingId } });
       if (holding.exchange !== "CRYPTO") {
         fetchHistoricalPrice(holding.ticker, data.date)
@@ -529,7 +529,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
         where: { id: holdingId },
         include: { portfolio: true },
       });
-      if (!holding || holding.portfolio.createdById !== ctx.userId) throw new Error("Holding not found");
+      if (!holding) throw new Error("Holding not found");
       const trade = await prisma.trade.findUnique({ where: { id } });
       if (!trade || trade.holdingId !== holdingId) throw new Error("Trade not found");
       assertNotStale(trade, ctx);
@@ -553,7 +553,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     create: async (data, ctx) => {
       const propertyId = requireParentId(ctx);
       const property = await prisma.property.findUnique({ where: { id: propertyId } });
-      if (!property || property.createdById !== ctx.userId) throw new Error("Property not found");
+      if (!property) throw new Error("Property not found");
       const valuation = await prisma.propertyValuation.create({ data: { ...data, propertyId } });
       revalidatePath(`/home/${propertyId}`);
       return { id: valuation.id };
@@ -639,7 +639,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       const doc = await prisma.inventoryItemDocument.findUnique({ where: { id: documentId } });
       if (!doc || doc.inventoryItemId !== itemId) throw new Error("Document not found");
       const item = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
-      if (!item || item.createdById !== ctx.userId) throw new Error("Item not found");
+      if (!item) throw new Error("Item not found");
       await prisma.inventoryItemDocument.delete({ where: { id: documentId } });
       await deleteInventoryItemDocument(itemId, doc.storedName);
       revalidatePath(`/inventory/${itemId}`);
@@ -658,7 +658,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
         where: { id: holdingId },
         include: { portfolio: true },
       });
-      if (!holding || holding.portfolio.createdById !== ctx.userId) throw new Error("Holding not found");
+      if (!holding) throw new Error("Holding not found");
       const trade = await prisma.trade.findUnique({ where: { id: doc.tradeId } });
       if (!trade || trade.holdingId !== holdingId) throw new Error("Document not found");
       await prisma.tradeDocument.delete({ where: { id: documentId } });

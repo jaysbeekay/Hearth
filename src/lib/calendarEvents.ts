@@ -20,19 +20,21 @@ function urgencyFor(date: Date): "overdue" | "soon" | "ok" {
   return "ok";
 }
 
+// Household-wide: the calendar shows everything the household tracks, not
+// just the rows the viewing user happened to create. Filtering these by
+// `createdById` gave each member a different, silently incomplete calendar.
 export async function getCalendarEvents(
-  userId: string,
   enabledModules: Set<string>,
 ): Promise<CalendarEvent[]> {
   const events: CalendarEvent[] = [];
 
   const [contracts, products] = await Promise.all([
     prisma.contract.findMany({
-      where: { createdById: userId, endDate: { not: null } },
+      where: { endDate: { not: null } },
       select: { id: true, title: true, provider: true, endDate: true },
     }),
     prisma.product.findMany({
-      where: { createdById: userId, warrantyEndDate: { not: null } },
+      where: { warrantyEndDate: { not: null } },
       select: { id: true, description: true, manufacturer: true, warrantyEndDate: true },
     }),
   ]);
@@ -65,7 +67,6 @@ export async function getCalendarEvents(
 
   if (enabledModules.has("VEHICLES")) {
     const vehicles = await prisma.vehicle.findMany({
-      where: { createdById: userId },
       include: { items: { where: { date: { not: null } }, select: { id: true, title: true, date: true, type: true, vehicleId: true } } },
     });
     for (const v of vehicles) {
@@ -106,7 +107,7 @@ export async function getCalendarEvents(
 
   if (enabledModules.has("TRAVEL")) {
     const segments = await prisma.tripSegment.findMany({
-      where: { trip: { createdById: userId }, startDate: { not: null } },
+      where: { startDate: { not: null } },
       include: { trip: { select: { id: true, title: true } } },
     });
     for (const s of segments) {
@@ -126,7 +127,7 @@ export async function getCalendarEvents(
 
   if (enabledModules.has("HOME")) {
     const homeItems = await prisma.homeItem.findMany({
-      where: { property: { createdById: userId }, date: { not: null } },
+      where: { date: { not: null } },
       include: { property: { select: { id: true, label: true } } },
     });
     for (const item of homeItems) {

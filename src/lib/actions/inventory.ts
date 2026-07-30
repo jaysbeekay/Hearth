@@ -114,7 +114,7 @@ export async function updateInventoryItem(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const user = await requireUser();
+  await requireUser();
 
   const parsed = inventoryItemSchema.safeParse(formToInventoryItemInput(formData));
   if (!parsed.success) {
@@ -125,7 +125,7 @@ export async function updateInventoryItem(
   }
 
   const existing = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
-  if (!existing || existing.createdById !== user.id) return { error: "Item not found." };
+  if (!existing) return { error: "Item not found." };
 
   await prisma.inventoryItem.update({ where: { id: itemId }, data: parsed.data });
 
@@ -135,10 +135,10 @@ export async function updateInventoryItem(
 }
 
 export async function deleteInventoryItem(itemId: string): Promise<ActionState> {
-  const user = await requireUser();
+  await requireUser();
 
   const existing = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
-  if (!existing || existing.createdById !== user.id) return { error: "Item not found." };
+  if (!existing) return { error: "Item not found." };
 
   await deleteInventoryItemDir(itemId);
   await prisma.inventoryItem.delete({ where: { id: itemId } });
@@ -152,7 +152,7 @@ export async function addInventoryItemDocument(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const user = await requireUser();
+  await requireUser();
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
@@ -160,7 +160,7 @@ export async function addInventoryItemDocument(
   }
 
   const item = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
-  if (!item || item.createdById !== user.id) return { error: "Item not found." };
+  if (!item) return { error: "Item not found." };
 
   const error = await attachDocument(itemId, file);
   if (error) return error;
@@ -173,13 +173,13 @@ export async function deleteInventoryItemDocumentAction(
   itemId: string,
   documentId: string,
 ): Promise<ActionState> {
-  const user = await requireUser();
+  await requireUser();
 
   const doc = await prisma.inventoryItemDocument.findUnique({ where: { id: documentId } });
   if (!doc || doc.inventoryItemId !== itemId) return { error: "Document not found." };
 
   const item = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
-  if (!item || item.createdById !== user.id) return { error: "Item not found." };
+  if (!item) return { error: "Item not found." };
 
   await prisma.inventoryItemDocument.delete({ where: { id: documentId } });
   await deleteInventoryItemDocumentFile(itemId, doc.storedName);

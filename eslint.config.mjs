@@ -12,6 +12,12 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Serwist writes the compiled service worker here during `next build`.
+    // It's generated, bundled third-party code and gitignored, but eslint
+    // still picked it up, so `npm run lint` failed with a `no-this-alias`
+    // error on any machine that had run a build.
+    "public/sw.js",
+    "public/sw.js.map",
   ]),
 ]);
 

@@ -16,7 +16,12 @@ test.describe.serial("contracts and warranties can link to a property", () => {
     await page.goto("/home/new");
     await page.locator("#label").fill("Linking Test Property");
     await page.locator("main button[type=submit]").click();
-    await page.waitForURL(/\/home\/[^/]+$/);
+    // "/home/new" itself satisfies a bare /\/home\/[^/]+$/, so without
+    // excluding it this resolves instantly instead of waiting for the
+    // post-submit redirect — the test then tore down its context mid-POST and
+    // the property was never written (ECONNRESET server-side). Same footgun
+    // guarded against in seed.setup.ts for /travel/.
+    await page.waitForURL(/\/home\/(?!new$)[^/]+$/);
   });
 
   test("a contract can be linked to a property and shows up on its detail page", async ({

@@ -20,6 +20,25 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   are also disabled now, so the stored server address, session cookie and any
   imported client certificate can't leave the device.
 
+### Fixed
+
+- **Household records are now genuinely household-wide** (#151). Several paths
+  still enforced per-user ownership through `createdById`, so a member could
+  see a record in the UI and then be refused when acting on it:
+  - Editing or attaching a document to an inventory item created by another
+    member returned "Item not found."
+  - The calendar and the iCal feed only listed rows the viewing user had
+    created, so each member saw a different, silently incomplete calendar.
+  - Offline edits replayed through `/api/sync` were rejected for contracts,
+    products, inventory items, properties, portfolios and holdings created by
+    anyone else — the record synced fine for its creator and failed for
+    everyone else.
+  - Trade documents 404'd for members who didn't create the portfolio.
+
+  `createdById` is retained on these rows purely as audit metadata and is no
+  longer consulted for authorization. Chat threads remain private to their
+  creator, unchanged.
+
 ### Security
 
 - Added Content-Security-Policy (nonce-based, with `strict-dynamic`),

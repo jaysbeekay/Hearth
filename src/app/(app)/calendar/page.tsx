@@ -49,7 +49,7 @@ export default async function CalendarPage() {
     getEnabledModuleKeys(),
     getUserPreferences(),
   ]);
-  const events = await getCalendarEvents(session!.user.id, enabledModules);
+  const events = await getCalendarEvents(enabledModules);
 
   // Group by year-month
   const grouped = new Map<string, CalendarEvent[]>();
