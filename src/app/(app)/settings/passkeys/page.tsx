@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -9,9 +10,14 @@ export const metadata: Metadata = { title: "Passkeys" };
 
 export default async function PasskeysPage() {
   const session = await auth();
+  // auth() can now return null mid-render — a session is revoked as soon as
+  // the account's sessionVersion moves (password/role change) or the account
+  // is deleted, which the proxy won't have caught for an in-flight request.
+  if (!session?.user) redirect("/login");
+
   const [passkeys, { dateFormat }] = await Promise.all([
     prisma.passkeyCredential.findMany({
-      where: { userId: session!.user.id },
+      where: { userId: session.user.id },
       orderBy: { createdAt: "asc" },
     }),
     getUserPreferences(),

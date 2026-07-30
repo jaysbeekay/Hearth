@@ -23,6 +23,7 @@ import { DATE_FORMAT_OPTIONS, REGION_OPTIONS } from "@/lib/utils";
 import { TIMEZONE_OPTIONS } from "@/lib/timezones";
 import { POPULAR_CURRENCIES } from "@/components/CurrencySelect";
 import { env, isSetupTokenRequired } from "@/lib/env";
+import { generateToken, hashToken } from "@/lib/crypto";
 import { isSmtpConfigured } from "@/lib/appSettings";
 import { sendInvitationEmail, sendPasswordResetEmail } from "@/lib/notifications/email";
 
@@ -257,10 +258,12 @@ export async function createUser(
     },
   });
 
-  const token = randomUUID();
+  // Only the hash is stored — a leaked database snapshot shouldn't yield
+  // working invitation links.
+  const token = generateToken();
   await prisma.passwordResetToken.create({
     data: {
-      token,
+      tokenHash: hashToken(token),
       userId: user.id,
       purpose: "INVITE",
       expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
@@ -333,7 +336,12 @@ export async function updateMemberRole(
     }
   }
 
-  await prisma.user.update({ where: { id: userId }, data: { role: parsed.data.role } });
+  // A demotion has to take effect immediately, not whenever the target's JWT
+  // happens to expire — their token carries the old role until reissued.
+  await prisma.user.update({
+    where: { id: userId },
+    data: { role: parsed.data.role, sessionVersion: { increment: 1 } },
+  });
   revalidatePath("/settings/users");
   return { success: "Role updated." };
 }
@@ -421,11 +429,17 @@ export async function changePassword(
   if (!valid) return { error: "Current password is incorrect." };
 
   const passwordHash = await bcrypt.hash(parsed.data.newPassword, 12);
+  // Bumping sessionVersion invalidates every JWT issued for this account —
+  // the point being that a password change kicks out anyone who had the old
+  // one. That necessarily includes this session, so sign out and send the
+  // user back to /login rather than leaving them on a page whose session
+  // silently stopped working.
   await prisma.user.update({
     where: { id: user.id },
-    data: { passwordHash },
+    data: { passwordHash, sessionVersion: { increment: 1 } },
   });
 
+  await signOut({ redirectTo: "/login?passwordChanged=1" });
   return { success: "Password updated." };
 }
 
@@ -469,10 +483,10 @@ export async function requestPasswordReset(
 
   const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
   if (user) {
-    const token = randomUUID();
+    const token = generateToken();
     await prisma.passwordResetToken.create({
       data: {
-        token,
+        tokenHash: hashToken(token),
         userId: user.id,
         expiresAt: new Date(Date.now() + 60 * 60 * 1000),
       },
@@ -498,7 +512,9 @@ export async function resetPassword(
     return { error: firstIssueMessage(parsed.error) };
   }
 
-  const resetToken = await prisma.passwordResetToken.findUnique({ where: { token } });
+  const resetToken = await prisma.passwordResetToken.findUnique({
+    where: { tokenHash: hashToken(token) },
+  });
   if (
     !resetToken ||
     resetToken.purpose !== "RESET" ||
@@ -510,7 +526,10 @@ export async function resetPassword(
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 12);
   await prisma.$transaction([
-    prisma.user.update({ where: { id: resetToken.userId }, data: { passwordHash } }),
+    prisma.user.update({
+      where: { id: resetToken.userId },
+      data: { passwordHash, sessionVersion: { increment: 1 } },
+    }),
     prisma.passwordResetToken.updateMany({
       where: { userId: resetToken.userId, usedAt: null },
       data: { usedAt: new Date() },
@@ -530,7 +549,9 @@ export async function acceptInvitation(
     return { error: firstIssueMessage(parsed.error) };
   }
 
-  const inviteToken = await prisma.passwordResetToken.findUnique({ where: { token } });
+  const inviteToken = await prisma.passwordResetToken.findUnique({
+    where: { tokenHash: hashToken(token) },
+  });
   if (
     !inviteToken ||
     inviteToken.purpose !== "INVITE" ||
@@ -542,7 +563,10 @@ export async function acceptInvitation(
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 12);
   await prisma.$transaction([
-    prisma.user.update({ where: { id: inviteToken.userId }, data: { passwordHash } }),
+    prisma.user.update({
+      where: { id: inviteToken.userId },
+      data: { passwordHash, sessionVersion: { increment: 1 } },
+    }),
     prisma.passwordResetToken.updateMany({
       where: { userId: inviteToken.userId, usedAt: null },
       data: { usedAt: new Date() },

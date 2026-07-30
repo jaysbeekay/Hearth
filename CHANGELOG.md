@@ -9,6 +9,18 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Breaking Changes
 
+- **Existing iCal feed URLs stop working and must be regenerated** (#163).
+  Feed tokens are now stored as a SHA-256 hash, so the plaintext values the
+  migration found can't be converted and are cleared. Each user regenerates a
+  feed from Settings; the new URL is shown once, at generation, and can't be
+  displayed again.
+- **Outstanding password-reset and invitation links are invalidated** by the
+  same migration (#164) — those tokens are hashed now too. Affected users
+  request a new link; the old ones expire within hours/days regardless.
+- **Changing a password now signs out every session for that account**,
+  including the one making the change (#168). That's the point: an attacker
+  holding a stolen session is evicted. Users are redirected to /login with an
+  explanation.
 - **The Android app no longer connects over plain HTTP**, except to
   `localhost`, `*.local` and `*.home.arpa` (#166). Reaching a server by bare
   LAN IP over `http://` — e.g. `http://192.168.1.50:3000` — now fails, because
@@ -39,7 +51,36 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   longer consulted for authorization. Chat threads remain private to their
   creator, unchanged.
 
+- **The iCal feed was unreachable by actual calendar clients** (#163).
+  `/api/ical` wasn't listed as a public path, so any request without a session
+  — i.e. every calendar app — was redirected to `/login` instead of receiving
+  the feed.
+
 ### Security
+
+- **Sessions are revalidated against the database on every read** (#168).
+  Previously the role was copied into the JWT at sign-in and never revisited,
+  so a demoted account kept admin rights — and a deleted account kept working
+  entirely — until its token expired. A `sessionVersion` counter on User,
+  bumped on password and role changes, invalidates outstanding tokens.
+- Password-reset, invitation and iCal tokens are stored as SHA-256 hashes
+  rather than in the clear, and are now 256-bit random values instead of
+  UUIDs (#163, #164).
+- Webhook signing secrets are encrypted at rest with `ENCRYPTION_KEY` (#164).
+  Rows written before a key was configured keep working and are upgraded by a
+  startup backfill once one is set.
+- A missing `ENCRYPTION_KEY` now warns loudly at startup in production, and a
+  malformed one fails fast at boot instead of at the first decrypt (#164).
+- `NTFY_TOPIC` no longer defaults to `hearth-changeme-a1b2c3` in
+  docker-compose (#164). Topics on the public ntfy.sh instance are
+  world-readable, so a shared default meant anyone who guessed it received the
+  household's reminders. Push stays off until a topic is set.
+- The iCal feed sends `Cache-Control: no-store` and `Referrer-Policy:
+  no-referrer`, keeping its token out of shared caches and Referer headers
+  (#163).
+- The unauthenticated redirect no longer copies the original query string onto
+  `/login`, which had echoed bearer tokens into the login page's URL and
+  history (#163).
 
 - Added Content-Security-Policy (nonce-based, with `strict-dynamic`),
   `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`,

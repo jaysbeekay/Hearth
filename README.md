@@ -607,6 +607,13 @@ threshold.
 - Uploaded documents are stored under generated UUID filenames, never the
   user-supplied name, to prevent path traversal.
 - Email/ntfy reminder text is sanitized against header injection.
+- Password-reset, invitation and calendar-feed tokens are stored as hashes,
+  never in the clear. A calendar feed URL is shown once, when you create it —
+  generate a new one if you lose it.
+- Sessions are revalidated against the database on every request, so removing
+  a member or changing their role takes effect immediately rather than
+  whenever their session happens to expire. Changing a password signs out
+  every device for that account.
 - Every response carries a nonce-based Content-Security-Policy plus `nosniff`,
   `X-Frame-Options: DENY` and `Referrer-Policy: no-referrer`. HSTS is added
   only when the request already arrived over TLS, so a plain-HTTP LAN

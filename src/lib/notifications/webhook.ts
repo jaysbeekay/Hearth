@@ -1,10 +1,11 @@
 import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
+import { decodeWebhookSecret } from "@/lib/webhookSecret";
 
 const WEBHOOK_TIMEOUT_MS = 10_000;
 
-type Endpoint = { id: string; url: string; secret: string | null };
+type Endpoint = { id: string; url: string; secret: string | null; secretEncrypted: boolean };
 
 function sign(secret: string, body: string) {
   return `sha256=${crypto.createHmac("sha256", secret).update(body).digest("hex")}`;
@@ -15,7 +16,8 @@ async function deliver(endpoint: Endpoint, event: string, body: string) {
     "Content-Type": "application/json",
     "X-Webhook-Event": event,
   };
-  if (endpoint.secret) headers["X-Webhook-Signature"] = sign(endpoint.secret, body);
+  const secret = decodeWebhookSecret(endpoint);
+  if (secret) headers["X-Webhook-Signature"] = sign(secret, body);
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS);

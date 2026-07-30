@@ -110,9 +110,12 @@ test("the iCal feed covers the whole household, whichever member's token is used
   const memberPage = await memberContext.newPage();
 
   await memberPage.goto("/settings");
-  const generate = memberPage.getByRole("button", { name: /Generate iCal token/i });
-  if (await generate.count()) await generate.click();
-  const feedInput = memberPage.locator('section:has-text("iCal feed") input[readonly]');
+  await memberPage
+    .getByRole("button", { name: /Create calendar feed|Generate new URL/i })
+    .click();
+
+  // Only stored as a hash, so the URL appears exactly once — right here.
+  const feedInput = memberPage.locator('section:has-text("Calendar feed") input[readonly]');
   await expect(feedInput).toBeVisible();
   const feedUrl = await feedInput.inputValue();
   expect(feedUrl).toContain("/api/ical?token=");
@@ -122,6 +125,29 @@ test("the iCal feed covers the whole household, whichever member's token is used
   const response = await memberPage.request.get(feedUrl);
   expect(response.status()).toBe(200);
   expect(await response.text()).toContain("Admin Household Policy");
+
+  // A calendar client has no session. Before /api/ical was made public this
+  // 307'd to /login — and carried the token into the login URL's query string.
+  const anonContext = await browser.newContext();
+  const anonResponse = await anonContext.request.get(feedUrl);
+  expect(anonResponse.status()).toBe(200);
+  expect(anonResponse.headers()["cache-control"]).toContain("no-store");
+  expect(anonResponse.headers()["referrer-policy"]).toBe("no-referrer");
+  expect(await anonResponse.text()).toContain("Admin Household Policy");
+
+  // A wrong token must not fall back to some other user's feed.
+  const badResponse = await anonContext.request.get(
+    feedUrl.replace(/token=.*/, "token=not-a-real-token"),
+  );
+  expect(badResponse.status()).toBe(401);
+  await anonContext.close();
+
+  // Revisiting Settings can't reproduce the URL.
+  await memberPage.reload();
+  await expect(
+    memberPage.locator('section:has-text("Calendar feed") input[readonly]'),
+  ).toHaveCount(0);
+  await expect(memberPage.locator("body")).toContainText("A calendar feed is active");
 
   await memberContext.close();
 });

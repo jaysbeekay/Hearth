@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { KeyRound } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { hashToken } from "@/lib/crypto";
 import { AcceptInvitationForm } from "@/components/AcceptInvitationForm";
 
 export const metadata: Metadata = { title: "Accept invitation" };
@@ -25,7 +26,9 @@ export default async function AcceptInvitationPage({
 }) {
   const { token } = await params;
 
-  const inviteToken = await prisma.passwordResetToken.findUnique({ where: { token } });
+  const inviteToken = await prisma.passwordResetToken.findUnique({
+    where: { tokenHash: hashToken(token) },
+  });
   const valid = isTokenValid(inviteToken);
 
   return (
