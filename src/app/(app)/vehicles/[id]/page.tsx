@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Pencil, Trash2, Plus, Wrench, Shield, FileText, Tag, RotateCw, Zap } from "lucide-react";
+import { Pencil, Trash2, Plus, Wrench, Tag, RotateCw, Zap } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
@@ -10,14 +10,13 @@ import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { VehicleItemDocumentList } from "@/components/VehicleItemDocumentList";
 import { RecordMeta } from "@/components/RecordMeta";
+import { ContractCard } from "@/components/ContractCard";
 import { VEHICLE_ITEM_TYPE_LABELS, formatCurrency, formatDate } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 
 const ITEM_ICONS: Record<string, LucideIcon> = {
   SERVICE: Wrench,
   REPAIR: Wrench,
-  REGISTRATION: FileText,
-  INSURANCE: Shield,
   ROADWORTHY: RotateCw,
   MODIFICATION: Zap,
   OTHER: Tag,
@@ -31,7 +30,7 @@ export default async function VehicleDetailPage({
   await requireModuleEnabled("VEHICLES");
 
   const { id } = await params;
-  const [vehicle, { dateFormat, region }] = await Promise.all([
+  const [vehicle, { dateFormat, region }, linkedContracts] = await Promise.all([
     prisma.vehicle.findUnique({
       where: { id },
       include: {
@@ -40,6 +39,7 @@ export default async function VehicleDetailPage({
       },
     }),
     getUserPreferences(),
+    prisma.contract.findMany({ where: { vehicleId: id }, orderBy: { title: "asc" } }),
   ]);
   if (!vehicle) notFound();
 
@@ -49,10 +49,6 @@ export default async function VehicleDetailPage({
     if (!b.date) return -1;
     return b.date.getTime() - a.date.getTime();
   });
-
-  const subtitle = [vehicle.make, vehicle.model, vehicle.year, vehicle.licensePlate]
-    .filter(Boolean)
-    .join(" · ");
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -64,7 +60,6 @@ export default async function VehicleDetailPage({
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          {subtitle && <p className="text-sm text-foreground/60">{subtitle}</p>}
           <h1 className="text-2xl font-semibold">{vehicle.label}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -91,6 +86,12 @@ export default async function VehicleDetailPage({
 
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">
+          {vehicle.make && <Detail label="Make" value={vehicle.make} />}
+          {vehicle.model && <Detail label="Model" value={vehicle.model} />}
+          {vehicle.year && <Detail label="Year" value={String(vehicle.year)} />}
+          {vehicle.licensePlate && (
+            <Detail label="License plate" value={vehicle.licensePlate} />
+          )}
           {vehicle.regoExpiry && (
             <Detail label="Rego expiry" value={formatDate(vehicle.regoExpiry, dateFormat)} />
           )}
@@ -107,6 +108,17 @@ export default async function VehicleDetailPage({
           <p className="mt-4 whitespace-pre-wrap text-sm text-foreground/80">{vehicle.notes}</p>
         )}
       </div>
+
+      {linkedContracts.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="font-medium">Contracts &amp; warranties linked to this vehicle</h2>
+          <div className="grid gap-3 md:grid-cols-2">
+            {linkedContracts.map((contract) => (
+              <ContractCard key={contract.id} contract={contract} dateFormat={dateFormat} region={region} />
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">

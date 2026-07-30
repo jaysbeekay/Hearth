@@ -3,8 +3,6 @@ import { z } from "zod";
 export const VEHICLE_ITEM_TYPES = [
   "SERVICE",
   "REPAIR",
-  "REGISTRATION",
-  "INSURANCE",
   "ROADWORTHY",
   "MODIFICATION",
   "OTHER",

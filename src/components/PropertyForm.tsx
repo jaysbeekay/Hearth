@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { PropertyModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
@@ -14,12 +15,19 @@ import {
   type QueuedOperation,
 } from "@/lib/offlineQueue";
 import { Field } from "@/components/FormField";
-import { inputClass } from "@/components/SelectWrapper";
+import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
+import { OCCUPANCY_STATUSES } from "@/lib/validation/home";
+import { OCCUPANCY_STATUS_LABELS } from "@/lib/utils";
 
 interface GeocodeSuggestion {
   display_name: string;
   lat: number;
   lng: number;
+  street: string;
+  suburb: string;
+  state: string;
+  postcode: string;
+  country: string;
 }
 
 export function PropertyForm({
@@ -54,6 +62,11 @@ export function PropertyForm({
   }, [pendingOpId]);
   const effectiveValues = state?.values ?? pendingOp?.formValues;
 
+  const labelRef = useRef<HTMLInputElement>(null);
+  const [occupancyStatus, setOccupancyStatus] = useState(
+    effectiveValues?.occupancyStatus ?? property?.occupancyStatus ?? "OWNER_OCCUPIED",
+  );
+
   async function handlePendingSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!pendingOp) return;
@@ -81,6 +94,7 @@ export function PropertyForm({
           <input
             id="label"
             name="label"
+            ref={labelRef}
             required
             defaultValue={effectiveValues?.label ?? property?.label}
             placeholder="e.g. Main residence"
@@ -88,18 +102,66 @@ export function PropertyForm({
           />
         </Field>
 
-        <Field label="Address" htmlFor="address">
-          <AddressField
-            initialAddress={effectiveValues?.address ?? property?.address ?? ""}
-            initialLat={
-              effectiveValues?.lat != null ? Number(effectiveValues.lat) : (property?.lat ?? null)
-            }
-            initialLng={
-              effectiveValues?.lng != null ? Number(effectiveValues.lng) : (property?.lng ?? null)
-            }
-          />
+        <Field label="Occupancy status" htmlFor="occupancyStatus">
+          <SelectWrapper>
+            <select
+              id="occupancyStatus"
+              name="occupancyStatus"
+              value={occupancyStatus}
+              onChange={(e) => setOccupancyStatus(e.target.value)}
+              className={selectClass}
+            >
+              {OCCUPANCY_STATUSES.map((value) => (
+                <option key={value} value={value}>
+                  {OCCUPANCY_STATUS_LABELS[value]}
+                </option>
+              ))}
+            </select>
+          </SelectWrapper>
         </Field>
       </div>
+
+      {occupancyStatus === "RENTED" && (
+        <p className="rounded-lg border border-dashed border-border bg-black/5 px-4 py-2 text-sm text-foreground/70 dark:bg-white/5">
+          {property ? (
+            property.isRented ? (
+              <>
+                Rental tracking is already set up for this property —{" "}
+                <Link href={`/home/${property.id}/rental`} className="text-accent hover:underline">
+                  view it
+                </Link>
+                .
+              </>
+            ) : (
+              <>
+                Rental tracking (agreements, statements, rent reconciliation) isn&apos;t set up yet
+                for this property —{" "}
+                <Link href={`/home/${property.id}/rental`} className="text-accent hover:underline">
+                  set it up
+                </Link>
+                .
+              </>
+            )
+          ) : (
+            "You'll be able to set up rental tracking (agreements, statements) once this property is saved."
+          )}
+        </p>
+      )}
+
+      <AddressFields
+        labelRef={labelRef}
+        initialStreet={effectiveValues?.street ?? property?.street ?? ""}
+        initialSuburb={effectiveValues?.suburb ?? property?.suburb ?? ""}
+        initialState={effectiveValues?.state ?? property?.state ?? ""}
+        initialPostcode={effectiveValues?.postcode ?? property?.postcode ?? ""}
+        initialCountry={effectiveValues?.country ?? property?.country ?? ""}
+        initialLat={
+          effectiveValues?.lat != null ? Number(effectiveValues.lat) : (property?.lat ?? null)
+        }
+        initialLng={
+          effectiveValues?.lng != null ? Number(effectiveValues.lng) : (property?.lng ?? null)
+        }
+      />
 
       <Field label="Notes" htmlFor="notes">
         <textarea
@@ -124,16 +186,30 @@ export function PropertyForm({
 // parent already resolved (contract, in-progress edit, or a queued offline
 // op) — this component only mounts once that's known, so plain useState
 // initializers are correct without an extra effect to re-sync them later.
-function AddressField({
-  initialAddress,
+function AddressFields({
+  labelRef,
+  initialStreet,
+  initialSuburb,
+  initialState,
+  initialPostcode,
+  initialCountry,
   initialLat,
   initialLng,
 }: {
-  initialAddress: string;
+  labelRef: React.RefObject<HTMLInputElement | null>;
+  initialStreet: string;
+  initialSuburb: string;
+  initialState: string;
+  initialPostcode: string;
+  initialCountry: string;
   initialLat: number | null;
   initialLng: number | null;
 }) {
-  const [address, setAddress] = useState(initialAddress);
+  const [street, setStreet] = useState(initialStreet);
+  const [suburb, setSuburb] = useState(initialSuburb);
+  const [state, setState] = useState(initialState);
+  const [postcode, setPostcode] = useState(initialPostcode);
+  const [country, setCountry] = useState(initialCountry);
   const [lat, setLat] = useState<number | null>(initialLat);
   const [lng, setLng] = useState<number | null>(initialLng);
   const [suggestions, setSuggestions] = useState<GeocodeSuggestion[]>([]);
@@ -149,13 +225,13 @@ function AddressField({
       return;
     }
 
-    if (address.trim().length < 3) {
+    if (street.trim().length < 3) {
       return;
     }
 
     debounceRef.current = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/geocode?q=${encodeURIComponent(address)}`);
+        const res = await fetch(`/api/geocode?q=${encodeURIComponent(street)}`);
         if (!res.ok) return;
         const results = (await res.json()) as GeocodeSuggestion[];
         setSuggestions(results);
@@ -168,56 +244,107 @@ function AddressField({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [address]);
+  }, [street]);
 
   function selectSuggestion(s: GeocodeSuggestion) {
     skipNextLookup.current = true;
-    setAddress(s.display_name);
+    setStreet(s.street || s.display_name);
+    setSuburb(s.suburb);
+    setState(s.state);
+    setPostcode(s.postcode);
+    setCountry(s.country);
     setLat(s.lat);
     setLng(s.lng);
     setSuggestions([]);
     setShowSuggestions(false);
+
+    if (labelRef.current && !labelRef.current.value && s.suburb) {
+      labelRef.current.value = s.suburb;
+    }
   }
 
-  function handleAddressChange(value: string) {
-    setAddress(value);
+  function handleStreetChange(value: string) {
+    setStreet(value);
     setLat(null);
     setLng(null);
   }
 
-  const visibleSuggestions = address.trim().length >= 3 ? suggestions : [];
+  const visibleSuggestions = street.trim().length >= 3 ? suggestions : [];
 
   return (
-    <div className="relative">
-      <input
-        id="address"
-        name="address"
-        value={address}
-        onChange={(e) => handleAddressChange(e.target.value)}
-        onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
-        onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-        placeholder="e.g. 35C Clarence Street"
-        autoComplete="off"
-        className={inputClass}
-      />
-      <input type="hidden" name="lat" value={lat ?? ""} />
-      <input type="hidden" name="lng" value={lng ?? ""} />
-      {showSuggestions && visibleSuggestions.length > 0 && (
-        <ul className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-border bg-surface shadow-md">
-          {visibleSuggestions.map((s) => (
-            <li key={`${s.lat},${s.lng}`}>
-              <button
-                type="button"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => selectSuggestion(s)}
-                className="block w-full px-3 py-2 text-left text-sm hover:bg-black/5 dark:hover:bg-white/5"
-              >
-                {s.display_name}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+    <div className="space-y-4">
+      <Field label="Street" htmlFor="street">
+        <div className="relative">
+          <input
+            id="street"
+            name="street"
+            value={street}
+            onChange={(e) => handleStreetChange(e.target.value)}
+            onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+            placeholder="e.g. 35C Clarence Street"
+            autoComplete="off"
+            className={inputClass}
+          />
+          <input type="hidden" name="lat" value={lat ?? ""} />
+          <input type="hidden" name="lng" value={lng ?? ""} />
+          {showSuggestions && visibleSuggestions.length > 0 && (
+            <ul className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-border bg-surface shadow-md">
+              {visibleSuggestions.map((s) => (
+                <li key={`${s.lat},${s.lng}`}>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => selectSuggestion(s)}
+                    className="block w-full px-3 py-2 text-left text-sm hover:bg-black/5 dark:hover:bg-white/5"
+                  >
+                    {s.display_name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </Field>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <Field label="Suburb" htmlFor="suburb">
+          <input
+            id="suburb"
+            name="suburb"
+            value={suburb}
+            onChange={(e) => setSuburb(e.target.value)}
+            className={inputClass}
+          />
+        </Field>
+        <Field label="State" htmlFor="state">
+          <input
+            id="state"
+            name="state"
+            value={state}
+            onChange={(e) => setState(e.target.value)}
+            className={inputClass}
+          />
+        </Field>
+        <Field label="Postcode" htmlFor="postcode">
+          <input
+            id="postcode"
+            name="postcode"
+            value={postcode}
+            onChange={(e) => setPostcode(e.target.value)}
+            className={inputClass}
+          />
+        </Field>
+        <Field label="Country" htmlFor="country">
+          <input
+            id="country"
+            name="country"
+            value={country}
+            onChange={(e) => setCountry(e.target.value)}
+            className={inputClass}
+          />
+        </Field>
+      </div>
     </div>
   );
 }

@@ -7,8 +7,15 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { inputClass } from "@/components/SelectWrapper";
 import { PasskeySignInButton } from "@/components/PasskeySignInButton";
+import { GithubSignInButton } from "@/components/GithubSignInButton";
 
-export function LoginForm({ smtpConfigured = false }: { smtpConfigured?: boolean }) {
+export function LoginForm({
+  smtpConfigured = false,
+  githubConfigured = false,
+}: {
+  smtpConfigured?: boolean;
+  githubConfigured?: boolean;
+}) {
   const [state, formAction] = useActionState<ActionState, FormData>(login, null);
   const totpRequired = Boolean(state?.totpRequired);
 
@@ -108,6 +115,7 @@ export function LoginForm({ smtpConfigured = false }: { smtpConfigured?: boolean
           </div>
 
           <PasskeySignInButton />
+          {githubConfigured && <GithubSignInButton />}
         </>
       )}
     </div>

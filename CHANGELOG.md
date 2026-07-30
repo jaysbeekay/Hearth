@@ -7,6 +7,182 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-07-30
+
+### Breaking Changes
+
+- **`Property.address` (a single free-text string) is replaced by structured
+  `street`/`suburb`/`state`/`postcode`/`country` fields** (#128). Existing
+  addresses are preserved by the migration — the full original text is
+  copied into the new `street` field rather than parsed into the other
+  parts, since address formats vary too much by country to split reliably.
+  Re-pick a property's address via the autocomplete to populate the other
+  fields precisely. Anything reading `property.address` directly (custom
+  scripts, direct DB queries) will need to switch to the new fields or the
+  new `formatPropertyAddress()` helper (`src/lib/utils.ts`).
+- **AI document extraction and AI Assistant provider/API key/model are now
+  household-wide settings, not per-user.** Previously each household member
+  configured their own BYOK provider independently; now there is one shared
+  configuration for the whole household, managed on System settings
+  (`/settings/app`) by an admin, the same way SMTP/S3/Ollama/etc. already
+  work. A migration copies any existing per-user configuration into the new
+  household-wide setting (preferring an admin's config if more than one
+  member had configured one) before dropping the now-unused `User` columns
+  (`aiProvider`, `aiApiKeyEncrypted`, `aiModel`, `chatProvider`,
+  `chatApiKeyEncrypted`, `chatModel`). Non-admin members can no longer
+  configure their own provider/key — ask a household admin instead.
+- **`INSURANCE` and `REGISTRATION` removed as vehicle item types** (#144) —
+  redundant now that a vehicle can link directly to an insurance Contract
+  (#143), with proper renewal/billing/reminder tracking. Existing
+  `VehicleItem` rows of those two types are **automatically recoded to
+  `OTHER`** by the migration, with the original type preserved as a
+  `[Insurance]`/`[Registration]` prefix in the record's notes so nothing is
+  silently relabeled without a trace. Any external tooling or exports that
+  depended on those two type values will need to be updated.
+
+### Added
+
+- **Vehicles can now link to a Contract** (#143) — a new optional "Vehicle"
+  field on the contract form (shown only when the Vehicles module is
+  enabled and at least one vehicle exists), and a "Contracts & warranties
+  linked to this vehicle" section on the vehicle detail page, mirroring the
+  existing Property↔Contract linking (#114).
+- A shared `BackLink` component, added to every "add a record" page that
+  was missing a way back to the record/list it was launched from (#145):
+  contracts/new, products/new, vehicles/new, vehicles/[id]/items/new,
+  home/new, home/[id]/items/new, travel/new, and
+  travel/[id]/segments/new.
+- A warning next to the SMTP/ntfy/Ollama "Test connection" buttons in
+  System settings clarifying they test the currently *saved* settings, not
+  unsaved form edits (#122).
+- A new **Household & System** page (`/settings/household`, admin-only)
+  gathering every household-wide settings entry point (Manage household
+  members, Database backups, Webhooks, Modules, System settings) in one
+  place, separate from the personal Settings page.
+- **Property occupancy status** (#129) — a new "Occupancy status" field
+  (Owner-occupied / Rented / Vacant / Other) on the property form, settable
+  at creation time instead of only discoverable via the separate rental
+  tracking flow. Selecting "Rented" shows a prompt linking to rental
+  tracking setup (or to the existing overview, if already set up) — this
+  is additive and doesn't change how `isRented`/rental agreements work.
+- **Local filesystem backup destination, and backups now use a single
+  destination picker** (#137) — System settings now has one "Backup
+  destination" dropdown (Local filesystem / S3-compatible storage / SFTP)
+  instead of three independently-configurable sections; choosing a
+  destination reveals only that destination's configuration fields, and
+  only the chosen destination runs. OneDrive (also requested in #137)
+  needs an OAuth-based upload flow and is deferred as a follow-up — #137
+  stays open to track it.
+- Preview/quick-view for product documents (#142) — previewable documents
+  (images, PDFs) on a product's detail page now open in the same inline
+  preview modal the Documents page already has, instead of only
+  downloading/opening in a new tab. The shared modal was extracted into
+  `src/components/DocumentPreviewModal.tsx` so both pages use one
+  implementation.
+- A worked ntfy.sh example in `docker-compose.yml`/README (#138): a
+  concrete example topic with a note that public ntfy.sh topics are
+  guessable and should be unguessable or token-protected, plus a
+  commented-out self-hosted `binwiederhier/ntfy` service block.
+- **Expiring invitation email for new household members** (#126) — with SMTP
+  configured, adding a household member now sends a single-use invitation
+  link (expires in 48 hours) instead of the admin choosing a password
+  directly; the new member sets their own password on `/accept-invitation`.
+  Without SMTP configured, admin-set passwords still work exactly as
+  before. Reuses the existing password-reset token model with a new
+  `purpose` field (`RESET`/`INVITE`) rather than a parallel table.
+- **Optional "Sign in with GitHub"** (#116) — set `GITHUB_CLIENT_ID`/
+  `GITHUB_CLIENT_SECRET` to show a GitHub sign-in button on the login page.
+  Sign-up stays invite-only: a GitHub sign-in only succeeds for an email
+  that already has an admin-invited Hearth account, matched by verified
+  email — it never auto-creates an account. Existing TOTP/passkey
+  second-factor and role model are unaffected, since GitHub sign-in is
+  just a different way to establish the same session.
+
+### Changed
+
+- Property address is now entered as separate Street/Suburb/State/Postcode/
+  Country fields instead of one free-text field (#128), still driven by the
+  same OpenStreetMap autocomplete — picking a suggestion now populates all
+  five fields. The Label field auto-fills from the suburb when left blank
+  and a suggestion is picked (only if Label is still empty, so it never
+  overwrites something you've already typed).
+- The property map now loads tiles from CARTO's free basemap service
+  instead of OpenStreetMap's own raw tile server, which its usage policy
+  reserves for light/evaluation use rather than production embedding
+  (#130). OpenStreetMap attribution is unchanged.
+- Settings is now clearly split into two screens: the main Settings page
+  (`/settings`) holds only settings that affect your own account —
+  Profile, Notifications, Preferences, Security, iCal feed, Change
+  password — while everything shared by the whole household lives on the
+  new Household & System page and its sub-pages (#121).
+- AI document extraction and AI Assistant settings moved from the personal
+  Settings page to System settings (`/settings/app`), reflecting that
+  they're now household-wide and admin-managed (see Breaking Changes
+  above). Saving no longer requires re-entering the API key on every
+  save — like every other secret in System settings, it's only
+  overwritten when a new value is actually submitted.
+- The AI document extraction and AI Assistant provider settings now show
+  a persistent "Leave blank to use the default: `<model>`" hint under the
+  Model field, instead of relying solely on a placeholder that disappears
+  on focus and never confirms which model is actually in effect once
+  saved (#123).
+- Sidebar, mobile nav drawer, and bottom-nav "More" sheet now group nav
+  items into "Modules" (Contracts, Warranties, plus enabled optional
+  modules) and "Tools" (Documents, Assistant, Calendar, Spending)
+  sections, with Dashboard standing alone above both (#125). The
+  "Assistant" nav item is now hidden entirely for users who haven't
+  configured an AI provider, instead of linking to a page that can't do
+  anything (#135).
+- Vehicle detail page: make/model/year/license plate moved out of an
+  unlabeled subtitle above the page heading into the same labeled details
+  card as Colour/VIN/Rego expiry/Insurance expiry (#146).
+- `ContractForm`'s main field grid is now grouped under a "Contract /
+  policy details" heading, matching the existing "Contact details
+  (optional)" section directly below it (#133).
+- Settings preferences and notification forms now surface a specific,
+  visible error when a save fails, instead of silently discarding the
+  whole submission on any single invalid field (#120). `FormMessage` now
+  toasts on error as well as success, so an inline validation error (e.g.
+  switching AI provider without an API key) is no longer easy to miss
+  (#124).
+- Product form: "Warranty end date" now auto-suggests 12 months after
+  "Purchase date" when left blank, using the same auto-fill highlight
+  styling as AI-extracted fields — only fills in if you haven't already
+  entered your own warranty end date (#131).
+- The dashboard's "Est. monthly spend" tile now shows a visible warning
+  banner (not just a small `*` footnote) when contracts billed in a
+  currency without a usable exchange rate are excluded from the total,
+  and logs a server-side warning naming the affected currencies so it's
+  diagnosable from logs (#132).
+
+### Fixed
+
+- **Contract, product, vehicle, travel, property, and wealth exports
+  (CSV/PDF) only included records the current user personally created**,
+  contradicting the app's household-wide data model — every other query
+  for these entities has no such filter. A household member who didn't
+  create the records they were exporting got a blank or near-empty file.
+  Removed the filter from all 6 export routes (#140).
+- Settings crashed with a raw, unhandled Prisma error if the signed-in
+  user's account had been deleted elsewhere (JWT sessions don't
+  re-validate against the database). Now redirects to `/login` instead
+  (#141).
+- Settings save actions for SMTP/ntfy/Ollama/barcode/S3/SFTP/schedule/
+  flight-status had no error handling around their writes, so a
+  misconfigured `ENCRYPTION_KEY` surfaced as a generic, unreadable Server
+  Components error instead of a specific message (#118).
+- Contracts' filter toolbar (search box, category/status selects, Filter
+  button) used three different height rules and didn't visually line up.
+  Standardized to one consistent height. The Products list toolbar had the
+  identical mismatch and was fixed at the same time (#127).
+- Barcode lookup failures (rate-limited, unreachable, not found) all
+  looked identical — a silent no-op with no indication why. `lookupBarcode()`
+  now returns a specific reason, surfaced as a specific message on the
+  product form (#139). Keyless lookups already worked via UPCitemdb's
+  rate-limited trial endpoint; this only improves diagnosability of
+  failures, since the underlying "no API key required" behavior was
+  already correct.
+
 ## [0.12.1] - 2026-07-29
 
 ### Fixed

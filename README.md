@@ -71,7 +71,8 @@ Everything else is optional. Set `SMTP_*` to enable email reminders, `NTFY_*` fo
 - Offsite database backups to S3-compatible storage or SFTP on a configurable schedule
 - Dashboard with active/expiring/expired counts and estimated monthly spend
 - Multi-user/household accounts — everyone sees the same data
-- Admin-invite-only (no public sign-up) since this stores sensitive household data
+- Admin-invite-only (no public sign-up) since this stores sensitive household data — with SMTP configured, adding a member sends a 48-hour expiring invitation link to set their own password, instead of the admin choosing one
+- Optional "Sign in with GitHub" on the login page (`GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`) — still only works for an email with an existing admin-invited account, it doesn't bypass the invite-only model
 - Mobile-friendly responsive UI, installable as a PWA ("Add to Home Screen")
 - **Offline read cache** — a service worker caches previously-visited pages so they're still browsable when your home server is unreachable; an amber banner appears and writes are queued locally and synced automatically when you reconnect. Records created offline show up immediately as a "Pending sync" card on their list page — editable or discardable before they've synced (Contracts, Products, Vehicles, Travel, Home, Inventory)
 - **AI Assistant** (bring-your-own-key chat) streams its replies as they're generated and can propose creating/updating a contract or product — you review and confirm before anything is saved
@@ -105,6 +106,10 @@ Everything else is optional. Set `SMTP_*` to enable email reminders, `NTFY_*` fo
 | Spend — yearly view | Contract — linked rental agreement |
 | --- | --- |
 | ![Spend](docs/screenshots/spend.png) | ![Contract rental link](docs/screenshots/contract-rental-link.png) |
+
+| Settings — personal account | Settings — household & system |
+| --- | --- |
+| ![Settings — personal](docs/screenshots/settings-personal.png) | ![Settings — household & system](docs/screenshots/settings-household-system.png) |
 
 | Settings — household members | Settings — AI provider |
 | --- | --- |
@@ -183,8 +188,14 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM: ${SMTP_FROM:-Hearth <no-reply@localhost>}
+      # Push notifications via ntfy.sh (or a self-hosted instance — see the
+      # commented-out "ntfy" service below). Topics on the public ntfy.sh
+      # instance are unauthenticated by default and guessable by anyone who
+      # knows the name, so pick something long/unguessable (e.g.
+      # "hearth-a1b2c3d4e5"), not something like "family-reminders". Set
+      # NTFY_TOKEN if your topic is access-controlled.
       NTFY_URL: ${NTFY_URL:-https://ntfy.sh}
-      NTFY_TOPIC: ${NTFY_TOPIC:-}
+      NTFY_TOPIC: ${NTFY_TOPIC:-hearth-changeme-a1b2c3}
       NTFY_TOKEN: ${NTFY_TOKEN:-}
       CRON_SECRET: ${CRON_SECRET:-}
       MCP_TOKEN: ${MCP_TOKEN:-}
@@ -207,9 +218,25 @@ services:
       BACKUP_SFTP_PASSWORD: ${BACKUP_SFTP_PASSWORD:-}
       BACKUP_SFTP_PRIVATE_KEY: ${BACKUP_SFTP_PRIVATE_KEY:-}
       BACKUP_SFTP_REMOTE_PATH: ${BACKUP_SFTP_REMOTE_PATH:-/backups}
+      # Local backups land inside ./data, which is already mounted below —
+      # no separate volume needed for this destination to be persisted.
+      BACKUP_LOCAL_PATH: ${BACKUP_LOCAL_PATH:-}
     volumes:
       - ./data:/app/data
     restart: unless-stopped
+
+  # Optional: self-host ntfy instead of relying on the public ntfy.sh
+  # instance. Uncomment this service, set NTFY_URL: http://ntfy:80 above,
+  # and subscribe to your topic in the ntfy app pointed at this server
+  # instead of ntfy.sh.
+  # ntfy:
+  #   image: binwiederhier/ntfy
+  #   command: serve
+  #   ports:
+  #     - "8080:80"
+  #   volumes:
+  #     - ./data/ntfy:/var/cache/ntfy
+  #   restart: unless-stopped
 ```
 
 Values not set in `.env` fall back to the defaults shown above (most
@@ -439,15 +466,21 @@ on a schedule. Each backup:
 2. Encrypts the snapshot with AES-256-GCM using `ENCRYPTION_KEY` (the same
    key used for "bring your own AI key", see above) before it ever leaves
    the server.
-3. Uploads the encrypted file to whichever destination(s) you've
-   configured — **S3-compatible object storage** (AWS S3, Backblaze B2,
-   Cloudflare R2, MinIO, etc.) and/or **SFTP**, independently enabled by
-   their own environment variables, and both run if both are configured.
-4. Prunes older backups at each destination beyond `BACKUP_RETENTION_COUNT`.
+3. Uploads the encrypted file to a single active destination — **S3-
+   compatible object storage** (AWS S3, Backblaze B2, Cloudflare R2, MinIO,
+   etc.), **SFTP**, or a **local filesystem path** — chosen from a
+   "Backup destination" dropdown in Settings → System settings. Only one
+   destination runs at a time; switching the dropdown doesn't discard the
+   other destinations' previously-saved credentials, it just makes them
+   inactive.
+4. Prunes older backups at the active destination beyond
+   `BACKUP_RETENTION_COUNT`.
 
 Backups stay fully disabled until `ENCRYPTION_KEY` is set — there's no way
-to send an unencrypted backup offsite. With encryption configured, set
-`BACKUP_S3_*` and/or `BACKUP_SFTP_*` to enable each destination. See
+to write an unencrypted backup, even locally. With encryption configured,
+pick a destination and fill in its fields in Settings → System settings
+(`BACKUP_S3_*`, `BACKUP_SFTP_*`, `BACKUP_LOCAL_PATH` env vars just
+pre-populate those fields, they don't select the destination). See
 [`.env.example`](.env.example) for the full list of backup-related
 variables and their defaults.
 
@@ -540,8 +573,10 @@ for the full list with defaults. Notable ones:
 | `BARCODE_LOOKUP_API_KEY` | Optional. A paid UPCitemdb API key for higher-limit barcode lookups, instead of the free keyless trial endpoint. |
 | `ENCRYPTION_KEY` | Optional. Generate with `openssl rand -base64 32`. Set to enable users bringing their own AI provider key for document extraction, and a prerequisite for offsite database backups — see "Bring your own AI key" and "Database backups" above. |
 | `BACKUP_CRON_SCHEDULE` / `BACKUP_RETENTION_COUNT` | Optional. Schedule (cron syntax, default daily at 03:00) and how many backups to keep per destination (default 7). |
-| `BACKUP_S3_*` | Optional. Set `BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY` (plus `BACKUP_S3_ENDPOINT`/`BACKUP_S3_REGION`/`BACKUP_S3_FORCE_PATH_STYLE` for non-AWS providers) to enable S3-compatible offsite backups — see "Database backups" above. |
-| `BACKUP_SFTP_*` | Optional. Set `BACKUP_SFTP_HOST` and `BACKUP_SFTP_USERNAME` plus `BACKUP_SFTP_PASSWORD` or `BACKUP_SFTP_PRIVATE_KEY` to enable SFTP offsite backups — see "Database backups" above. |
+| `BACKUP_S3_*` | Optional. Pre-populates the S3-compatible backup fields (`BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY`, plus `BACKUP_S3_ENDPOINT`/`BACKUP_S3_REGION`/`BACKUP_S3_FORCE_PATH_STYLE` for non-AWS providers) — still requires picking "S3-compatible storage" in Settings → System settings' backup destination dropdown to activate it. See "Database backups" above. |
+| `BACKUP_SFTP_*` | Optional. Pre-populates the SFTP backup fields (`BACKUP_SFTP_HOST`, `BACKUP_SFTP_USERNAME`, plus `BACKUP_SFTP_PASSWORD` or `BACKUP_SFTP_PRIVATE_KEY`) — still requires picking "SFTP" in the backup destination dropdown to activate it. See "Database backups" above. |
+| `BACKUP_LOCAL_PATH` | Optional. Pre-populates the local-filesystem backup path — still requires picking "Local filesystem" in the backup destination dropdown to activate it. See "Database backups" above. |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | Optional. Set both to show a "Sign in with GitHub" button on the login page. Sign-up stays invite-only — GitHub sign-in only works for an email that already has an admin-invited Hearth account. |
 
 If neither email nor ntfy is configured, the scheduler runs but sends nothing
 (no errors).

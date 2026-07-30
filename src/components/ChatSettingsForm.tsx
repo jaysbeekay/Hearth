@@ -19,9 +19,11 @@ import { TestConnectionButton } from "@/components/TestConnectionButton";
 export function ChatSettingsForm({
   provider,
   model,
+  apiKeyIsSet,
 }: {
   provider: AiProviderId | null;
   model: string | null;
+  apiKeyIsSet: boolean;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(saveChatSettings, null);
   const configured = Boolean(provider);
@@ -61,9 +63,8 @@ export function ChatSettingsForm({
               id="chatApiKey"
               name="apiKey"
               type="password"
-              required
               autoComplete="off"
-              placeholder={configured ? "Enter a new key to replace the saved one" : "sk-..."}
+              placeholder={apiKeyIsSet ? "Enter a new key to replace the saved one" : "sk-..."}
               className={inputClass}
             />
           </div>
@@ -88,6 +89,9 @@ export function ChatSettingsForm({
             placeholder={CHAT_PROVIDER_DEFAULT_MODELS[selected]}
             className={inputClass}
           />
+          <p className="text-xs text-foreground/50">
+            Leave blank to use the default: {CHAT_PROVIDER_DEFAULT_MODELS[selected]}
+          </p>
         </div>
 
         <FormMessage error={state?.error} success={state?.success} />

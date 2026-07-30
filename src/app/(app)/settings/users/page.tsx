@@ -4,6 +4,7 @@ import { Trash2 } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { deleteUser } from "@/lib/actions/auth";
+import { isSmtpConfigured } from "@/lib/appSettings";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { CreateUserForm } from "@/components/CreateUserForm";
 import { MemberRoleForm } from "@/components/MemberRoleForm";
@@ -18,9 +19,10 @@ export default async function ManageUsersPage() {
     redirect("/settings");
   }
 
-  const [users, { dateFormat }] = await Promise.all([
+  const [users, { dateFormat }, smtpConfigured] = await Promise.all([
     prisma.user.findMany({ orderBy: { createdAt: "asc" } }),
     getUserPreferences(),
+    isSmtpConfigured(),
   ]);
 
   return (
@@ -62,7 +64,7 @@ export default async function ManageUsersPage() {
 
       <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <h2 className="mb-3 font-medium">Add a household member</h2>
-        <CreateUserForm />
+        <CreateUserForm smtpConfigured={smtpConfigured} />
       </section>
     </div>
   );

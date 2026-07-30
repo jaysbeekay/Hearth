@@ -100,14 +100,14 @@ export function ContractListClient({
             clearTimeout(searchTimeout.current);
             searchTimeout.current = setTimeout(() => formRef.current?.requestSubmit(), 400);
           }}
-          className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+          className="flex-1 min-h-11 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-accent"
         />
         <SelectWrapper>
           <select
             name="category"
             defaultValue={category ?? ""}
             onChange={(e) => e.currentTarget.form?.requestSubmit()}
-            className="rounded-lg border border-border bg-background px-3 h-9 text-sm outline-none focus:border-accent appearance-none pr-8"
+            className="min-h-11 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-accent appearance-none pr-8"
           >
             <option value="">All categories</option>
             {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
@@ -122,7 +122,7 @@ export function ContractListClient({
             name="status"
             defaultValue={status ?? ""}
             onChange={(e) => e.currentTarget.form?.requestSubmit()}
-            className="rounded-lg border border-border bg-background px-3 h-9 text-sm outline-none focus:border-accent appearance-none pr-8"
+            className="min-h-11 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-accent appearance-none pr-8"
           >
             <option value="">All statuses</option>
             <option value="ACTIVE">Active</option>

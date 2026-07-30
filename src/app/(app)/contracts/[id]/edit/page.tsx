@@ -10,14 +10,18 @@ export default async function EditContractPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [contract, homeEnabled] = await Promise.all([
+  const [contract, homeEnabled, vehiclesEnabled] = await Promise.all([
     prisma.contract.findUnique({ where: { id } }),
     isModuleEnabled("HOME"),
+    isModuleEnabled("VEHICLES"),
   ]);
   if (!contract) notFound();
 
   const properties = homeEnabled
     ? await prisma.property.findMany({ select: { id: true, label: true }, orderBy: { label: "asc" } })
+    : [];
+  const vehicles = vehiclesEnabled
+    ? await prisma.vehicle.findMany({ select: { id: true, label: true }, orderBy: { label: "asc" } })
     : [];
 
   const boundAction = updateContract.bind(null, contract.id);
@@ -29,7 +33,12 @@ export default async function EditContractPage({
         <p className="text-sm text-foreground/60">{contract.title}</p>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
-        <ContractForm action={boundAction} contract={contract} properties={properties} />
+        <ContractForm
+          action={boundAction}
+          contract={contract}
+          properties={properties}
+          vehicles={vehicles}
+        />
       </div>
     </div>
   );

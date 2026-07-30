@@ -8,8 +8,11 @@ import {
   getBarcodeConfig,
   getS3Config,
   getSftpConfig,
+  getLocalConfig,
+  getBackupDestinationChoice,
   getBackupScheduleConfig,
   getReminderConfig,
+  getAppSetting,
   isAppSettingSet,
 } from "@/lib/appSettings";
 import {
@@ -17,8 +20,7 @@ import {
   saveNtfySettings,
   saveOllamaSettings,
   saveBarcodeSettings,
-  saveS3Settings,
-  saveSftpSettings,
+  saveBackupDestination,
   saveScheduleSettings,
   saveAviationStackSettings,
 } from "@/lib/actions/app-settings";
@@ -27,11 +29,13 @@ import {
   NtfyForm,
   OllamaForm,
   BarcodeForm,
-  S3Form,
-  SftpForm,
+  BackupDestinationForm,
   ScheduleForm,
   AviationStackForm,
 } from "@/components/AppSettingsForms";
+import { AiSettingsForm } from "@/components/AiSettingsForm";
+import { ChatSettingsForm } from "@/components/ChatSettingsForm";
+import type { AiProviderId } from "@/lib/ai/types";
 
 export const metadata: Metadata = { title: "System settings" };
 
@@ -46,8 +50,14 @@ export default async function AppSettingsPage() {
     barcode,
     s3,
     sftp,
+    local,
+    backupDestination,
     backupSchedule,
     reminder,
+    aiProvider,
+    aiModel,
+    chatProvider,
+    chatModel,
     smtpPasswordIsSet,
     ntfyTokenIsSet,
     barcodeApiKeyIsSet,
@@ -55,6 +65,8 @@ export default async function AppSettingsPage() {
     sftpPasswordIsSet,
     sftpPrivateKeyIsSet,
     aviationKeyIsSet,
+    aiApiKeyIsSet,
+    chatApiKeyIsSet,
   ] = await Promise.all([
     getSmtpConfig(),
     getNtfyConfig(),
@@ -62,8 +74,14 @@ export default async function AppSettingsPage() {
     getBarcodeConfig(),
     getS3Config(),
     getSftpConfig(),
+    getLocalConfig(),
+    getBackupDestinationChoice(),
     getBackupScheduleConfig(),
     getReminderConfig(),
+    getAppSetting("ai.provider"),
+    getAppSetting("ai.model"),
+    getAppSetting("chat.provider"),
+    getAppSetting("chat.model"),
     isAppSettingSet("smtp.password"),
     isAppSettingSet("ntfy.token"),
     isAppSettingSet("barcode.apiKey"),
@@ -71,6 +89,8 @@ export default async function AppSettingsPage() {
     isAppSettingSet("backup.sftp.password"),
     isAppSettingSet("backup.sftp.privateKey"),
     isAppSettingSet("aviationstack.apiKey"),
+    isAppSettingSet("ai.apiKey"),
+    isAppSettingSet("chat.apiKey"),
   ]);
 
   return (
@@ -130,6 +150,41 @@ export default async function AppSettingsPage() {
 
       <section className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
         <div>
+          <h2 className="font-medium">AI document extraction</h2>
+          <p className="text-xs text-foreground/50 mt-0.5">
+            Bring your own API key to send uploaded documents to a cloud AI provider for
+            higher-accuracy field extraction, shared by the whole household. Leave this unset to
+            keep using the built-in local extraction only.
+          </p>
+        </div>
+        <AiSettingsForm
+          provider={(aiProvider || null) as AiProviderId | null}
+          model={aiModel || null}
+          apiKeyIsSet={aiApiKeyIsSet}
+        />
+      </section>
+
+      <section className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
+        <div>
+          <h2 className="font-medium">AI Assistant</h2>
+          <p className="text-xs text-foreground/50 mt-0.5">
+            Bring your own API key to enable an assistant that can answer questions using the
+            household&apos;s own data — contracts, warranties, trips, vehicles, home, inventory,
+            and wealth. It can also propose creating or updating a contract or product, but
+            nothing is ever written without the requesting member&apos;s explicit confirmation
+            first. Configure a different provider/model here than document extraction if you like
+            — the two are independent.
+          </p>
+        </div>
+        <ChatSettingsForm
+          provider={(chatProvider || null) as AiProviderId | null}
+          model={chatModel || null}
+          apiKeyIsSet={chatApiKeyIsSet}
+        />
+      </section>
+
+      <section className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
+        <div>
           <h2 className="font-medium">Barcode lookup</h2>
           <p className="text-xs text-foreground/50 mt-0.5">Scanned barcode product lookup for the Products module</p>
         </div>
@@ -144,36 +199,32 @@ export default async function AppSettingsPage() {
 
       <section className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
         <div>
-          <h2 className="font-medium">S3 backup</h2>
-          <p className="text-xs text-foreground/50 mt-0.5">Encrypted offsite backups to S3-compatible storage</p>
+          <h2 className="font-medium">Backup destination</h2>
+          <p className="text-xs text-foreground/50 mt-0.5">
+            Where encrypted database backups are written. Choose one destination.
+          </p>
         </div>
-        <S3Form
-          action={saveS3Settings}
+        <BackupDestinationForm
+          action={saveBackupDestination}
           current={{
-            endpoint: s3.endpoint,
-            region: s3.region,
-            bucket: s3.bucket,
-            accessKeyId: s3.accessKeyId,
-            forcePathStyle: s3.forcePathStyle,
-            secretKeyIsSet: s3SecretIsSet,
-          }}
-        />
-      </section>
-
-      <section className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
-        <div>
-          <h2 className="font-medium">SFTP backup</h2>
-          <p className="text-xs text-foreground/50 mt-0.5">Encrypted offsite backups via SFTP</p>
-        </div>
-        <SftpForm
-          action={saveSftpSettings}
-          current={{
-            host: sftp.host,
-            port: sftp.port,
-            username: sftp.username,
-            remotePath: sftp.remotePath,
-            passwordIsSet: sftpPasswordIsSet,
-            privateKeyIsSet: sftpPrivateKeyIsSet,
+            destination: backupDestination,
+            local: { path: local.path },
+            s3: {
+              endpoint: s3.endpoint,
+              region: s3.region,
+              bucket: s3.bucket,
+              accessKeyId: s3.accessKeyId,
+              forcePathStyle: s3.forcePathStyle,
+              secretKeyIsSet: s3SecretIsSet,
+            },
+            sftp: {
+              host: sftp.host,
+              port: sftp.port,
+              username: sftp.username,
+              remotePath: sftp.remotePath,
+              passwordIsSet: sftpPasswordIsSet,
+              privateKeyIsSet: sftpPrivateKeyIsSet,
+            },
           }}
         />
       </section>

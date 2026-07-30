@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { getAppSettingRaw } from "@/lib/appSettings";
 import { decryptSecret } from "@/lib/crypto";
 import { callAnthropic } from "@/lib/ai/providers/anthropic";
 import { callGemini } from "@/lib/ai/providers/gemini";
@@ -40,11 +40,19 @@ export function isByokConfigured(
   return Boolean(user.aiApiKeyEncrypted);
 }
 
-export async function getByokUser(userId: string): Promise<ByokUser | null> {
-  return prisma.user.findUnique({
-    where: { id: userId },
-    select: { aiProvider: true, aiApiKeyEncrypted: true, aiModel: true },
-  });
+// AI document-extraction provider/key/model is household-wide, not
+// per-user — stored in app_settings alongside SMTP/S3/Ollama/etc.
+export async function getByokConfig(): Promise<ByokUser> {
+  const [provider, apiKeyEncrypted, model] = await Promise.all([
+    getAppSettingRaw("ai.provider"),
+    getAppSettingRaw("ai.apiKey"),
+    getAppSettingRaw("ai.model"),
+  ]);
+  return {
+    aiProvider: (provider as AiProviderId | null) ?? null,
+    aiApiKeyEncrypted: apiKeyEncrypted,
+    aiModel: model,
+  };
 }
 
 export async function extractWithByok(

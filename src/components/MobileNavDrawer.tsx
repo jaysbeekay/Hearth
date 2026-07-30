@@ -31,14 +31,19 @@ export function MobileNavDrawer({
   userName,
   userEmail,
   enabledModules,
+  chatConfigured,
 }: {
   userName: string;
   userEmail: string;
   enabledModules: ModuleKey[];
+  chatConfigured: boolean;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const items = getNavItems(new Set(enabledModules));
+  const items = getNavItems(new Set(enabledModules), chatConfigured);
+  const dashboardItems = items.filter((item) => item.group === "dashboard");
+  const moduleItems = items.filter((item) => item.group === "modules");
+  const toolItems = items.filter((item) => item.group === "tools");
   const startX = useRef<number | null>(null);
   const dragging = useRef(false);
 
@@ -125,7 +130,47 @@ export function MobileNavDrawer({
           </button>
         </div>
         <nav className="flex-1 space-y-1 overflow-y-auto px-3">
-          {items.map(({ href, label, icon: Icon }) => (
+          {dashboardItems.map(({ href, label, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              onClick={close}
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition",
+                isActive(href, pathname)
+                  ? "bg-accent/10 text-accent"
+                  : "text-foreground/70 hover:bg-black/5 dark:hover:bg-white/5",
+              )}
+            >
+              <Icon size={18} />
+              {label}
+            </Link>
+          ))}
+
+          <p className="mt-4 px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-foreground/40">
+            Modules
+          </p>
+          {moduleItems.map(({ href, label, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              onClick={close}
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition",
+                isActive(href, pathname)
+                  ? "bg-accent/10 text-accent"
+                  : "text-foreground/70 hover:bg-black/5 dark:hover:bg-white/5",
+              )}
+            >
+              <Icon size={18} />
+              {label}
+            </Link>
+          ))}
+
+          <p className="mt-4 px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-foreground/40">
+            Tools
+          </p>
+          {toolItems.map(({ href, label, icon: Icon }) => (
             <Link
               key={href}
               href={href}

@@ -16,7 +16,6 @@ export async function GET(request: NextRequest) {
 
   const [vehicles, { dateFormat, region }] = await Promise.all([
     prisma.vehicle.findMany({
-      where: { createdById: session.user.id },
       include: { items: { orderBy: { date: "desc" } } },
     }),
     getUserPreferences(),

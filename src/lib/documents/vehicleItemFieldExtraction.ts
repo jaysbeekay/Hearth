@@ -23,8 +23,8 @@ function findVehicleItemType(text: string): string | undefined {
   const lower = text.toLowerCase();
   if (/\b(service|oil\s+change|tyre|logbook|scheduled)\b/.test(lower)) return "SERVICE";
   if (/\b(repair|fix(ed)?|replace|damage|collision)\b/.test(lower)) return "REPAIR";
-  if (/\b(registr|rego)\b/.test(lower)) return "REGISTRATION";
-  if (/\b(insurance|policy|premium|ctp)\b/.test(lower)) return "INSURANCE";
+  if (/\b(registr|rego)\b/.test(lower)) return "OTHER";
+  if (/\b(insurance|policy|premium|ctp)\b/.test(lower)) return "OTHER";
   if (/\b(roadworthy|rwc|safety\s+cert)\b/.test(lower)) return "ROADWORTHY";
   if (/\b(modif|accessory|upgrade)\b/.test(lower)) return "MODIFICATION";
   return undefined;

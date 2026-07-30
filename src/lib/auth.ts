@@ -1,5 +1,6 @@
 import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import GitHub from "next-auth/providers/github";
 import bcrypt from "bcryptjs";
 import { verifyAuthenticationResponse } from "@simplewebauthn/server";
 import type {
@@ -7,7 +8,7 @@ import type {
   AuthenticatorTransportFuture,
 } from "@simplewebauthn/types";
 import { prisma } from "@/lib/prisma";
-import { env } from "@/lib/env";
+import { env, isGithubOAuthConfigured } from "@/lib/env";
 import { authConfig } from "@/lib/auth.config";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import { verifyTotpCode, consumeRecoveryCode } from "@/lib/totp";
@@ -161,5 +162,32 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         };
       },
     }),
+
+    ...(isGithubOAuthConfigured()
+      ? [GitHub({ clientId: env.github.clientId, clientSecret: env.github.clientSecret })]
+      : []),
   ],
+  callbacks: {
+    ...authConfig.callbacks,
+    // Sign-up is invite-only (every User row is admin-created with a
+    // password/placeholder hash already set) — an OAuth sign-in must match
+    // an existing user's verified email rather than auto-creating one.
+    signIn: async ({ user, account }) => {
+      if (!account || account.provider === "credentials" || account.provider === "passkey") {
+        return true;
+      }
+
+      const email = user.email;
+      if (!email) return false;
+
+      const existing = await prisma.user.findUnique({
+        where: { email: email.toLowerCase().trim() },
+      });
+      if (!existing) return false;
+
+      user.id = existing.id;
+      user.role = existing.role;
+      return true;
+    },
+  },
 });

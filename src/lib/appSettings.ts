@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { env, isEncryptionConfigured } from "@/lib/env";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
+import type { BackupDestinationChoice } from "@/lib/backupDestination";
 
 // Keys whose values are encrypted at rest using ENCRYPTION_KEY.
 const ENCRYPTED_KEYS = new Set([
@@ -11,6 +12,8 @@ const ENCRYPTED_KEYS = new Set([
   "backup.sftp.password",
   "backup.sftp.privateKey",
   "aviationstack.apiKey",
+  "ai.apiKey",
+  "chat.apiKey",
 ]);
 
 async function readSetting(key: string): Promise<string | null> {
@@ -34,6 +37,18 @@ async function readSetting(key: string): Promise<string | null> {
 export async function getAppSetting(key: string, fallback = ""): Promise<string> {
   const val = await readSetting(key);
   return val ?? fallback;
+}
+
+// Reads a setting's stored value without decrypting it — for callers that
+// need to pass a still-encrypted secret through to a decrypt-on-demand
+// consumer (e.g. BYOK AI provider keys, decrypted only at call time).
+export async function getAppSettingRaw(key: string): Promise<string | null> {
+  try {
+    const row = await prisma.appSetting.findUnique({ where: { key } });
+    return row?.value ?? null;
+  } catch {
+    return null;
+  }
 }
 
 // Batch-reads multiple settings in a single query.
@@ -227,6 +242,16 @@ export async function isSftpBackupConfigured(): Promise<boolean> {
   return Boolean(cfg.host && cfg.username && (cfg.password || cfg.privateKey));
 }
 
+export async function getLocalConfig() {
+  const s = await getAppSettings(["backup.local.path"], { "backup.local.path": env.backup.local.path });
+  return { path: s["backup.local.path"] };
+}
+
+export async function isLocalBackupConfigured(): Promise<boolean> {
+  const { path } = await getLocalConfig();
+  return Boolean(path);
+}
+
 export async function getBackupScheduleConfig() {
   const s = await getAppSettings(
     ["backup.cron", "backup.retentionCount"],
@@ -262,6 +287,32 @@ export async function isAviationStackConfigured(): Promise<boolean> {
   return Boolean(apiKey);
 }
 
+// The active backup destination is a single explicit choice, not "every
+// destination with credentials saved" — an admin picks one from a dropdown.
+// If no choice has ever been explicitly saved (e.g. upgrading from before
+// this setting existed), fall back to whichever single destination already
+// has valid credentials, so existing backups don't silently stop running.
+export async function getBackupDestinationChoice(): Promise<BackupDestinationChoice> {
+  const stored = await getAppSetting("backup.destination", "");
+  if (stored === "LOCAL" || stored === "S3" || stored === "SFTP") return stored;
+
+  if (await isS3BackupConfigured()) return "S3";
+  if (await isSftpBackupConfigured()) return "SFTP";
+  if (await isLocalBackupConfigured()) return "LOCAL";
+  return "NONE";
+}
+
 export async function isBackupConfigured(): Promise<boolean> {
-  return isEncryptionConfigured() && (await isS3BackupConfigured() || await isSftpBackupConfigured());
+  if (!isEncryptionConfigured()) return false;
+  const destination = await getBackupDestinationChoice();
+  switch (destination) {
+    case "S3":
+      return isS3BackupConfigured();
+    case "SFTP":
+      return isSftpBackupConfigured();
+    case "LOCAL":
+      return isLocalBackupConfigured();
+    default:
+      return false;
+  }
 }

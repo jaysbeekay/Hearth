@@ -9,6 +9,7 @@ import { auth, signIn, signOut } from "@/lib/auth";
 import {
   changePasswordSchema,
   createUserSchema,
+  createUserWithPasswordSchema,
   forgotPasswordSchema,
   loginSchema,
   resetPasswordSchema,
@@ -19,10 +20,11 @@ import { formDataToStringValues } from "@/lib/form-state";
 import { isKnownModuleKey } from "@/lib/modules/enablement";
 import type { ModuleKey } from "@/lib/modules/registry";
 import { DATE_FORMAT_OPTIONS, REGION_OPTIONS } from "@/lib/utils";
-import { TIMEZONE_OPTIONS } from "@/lib/userPreferences";
+import { TIMEZONE_OPTIONS } from "@/lib/timezones";
 import { POPULAR_CURRENCIES } from "@/components/CurrencySelect";
 import { env } from "@/lib/env";
-import { sendPasswordResetEmail } from "@/lib/notifications/email";
+import { isSmtpConfigured } from "@/lib/appSettings";
+import { sendInvitationEmail, sendPasswordResetEmail } from "@/lib/notifications/email";
 
 export type ActionState = {
   error?: string;
@@ -146,10 +148,47 @@ export async function createUser(
     return { error: "Only admins can add household members." };
   }
 
+  const smtpOn = await isSmtpConfigured();
+
+  if (!smtpOn) {
+    const parsed = createUserWithPasswordSchema.safeParse({
+      name: formData.get("name"),
+      email: formData.get("email"),
+      password: formData.get("password"),
+      role: formData.get("role") || "MEMBER",
+    });
+    if (!parsed.success) {
+      return {
+        error: firstIssueMessage(parsed.error),
+        values: formDataToStringValues(formData, CREATE_USER_FORM_FIELDS),
+      };
+    }
+
+    const existing = await prisma.user.findUnique({ where: { email: parsed.data.email } });
+    if (existing) {
+      return {
+        error: "A user with that email already exists.",
+        values: formDataToStringValues(formData, CREATE_USER_FORM_FIELDS),
+      };
+    }
+
+    const passwordHash = await bcrypt.hash(parsed.data.password, 12);
+    await prisma.user.create({
+      data: {
+        name: parsed.data.name,
+        email: parsed.data.email,
+        passwordHash,
+        role: parsed.data.role,
+      },
+    });
+
+    revalidatePath("/settings/users");
+    return { success: `${parsed.data.name} was added.` };
+  }
+
   const parsed = createUserSchema.safeParse({
     name: formData.get("name"),
     email: formData.get("email"),
-    password: formData.get("password"),
     role: formData.get("role") || "MEMBER",
   });
   if (!parsed.success) {
@@ -159,9 +198,7 @@ export async function createUser(
     };
   }
 
-  const existing = await prisma.user.findUnique({
-    where: { email: parsed.data.email },
-  });
+  const existing = await prisma.user.findUnique({ where: { email: parsed.data.email } });
   if (existing) {
     return {
       error: "A user with that email already exists.",
@@ -169,18 +206,40 @@ export async function createUser(
     };
   }
 
-  const passwordHash = await bcrypt.hash(parsed.data.password, 12);
-  await prisma.user.create({
+  // SMTP is configured: the admin never sets a password directly. Generate
+  // a random, unusable placeholder hash and send an invitation link instead.
+  const placeholderHash = await bcrypt.hash(randomUUID() + randomUUID(), 12);
+  const user = await prisma.user.create({
     data: {
       name: parsed.data.name,
       email: parsed.data.email,
-      passwordHash,
+      passwordHash: placeholderHash,
       role: parsed.data.role,
     },
   });
 
+  const token = randomUUID();
+  await prisma.passwordResetToken.create({
+    data: {
+      token,
+      userId: user.id,
+      purpose: "INVITE",
+      expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+    },
+  });
+
   revalidatePath("/settings/users");
-  return { success: `${parsed.data.name} was added.` };
+  try {
+    await sendInvitationEmail(user.email, `${env.appUrl}/accept-invitation/${token}`);
+  } catch (error) {
+    return {
+      error: `${parsed.data.name} was added, but the invitation email failed to send (${
+        error instanceof Error ? error.message : "unknown error"
+      }). Check your SMTP settings.`,
+    };
+  }
+
+  return { success: `${parsed.data.name} was invited — an email was sent to set up their account.` };
 }
 
 export async function deleteUser(userId: string): Promise<ActionState> {
@@ -240,20 +299,27 @@ export async function updateMemberRole(
   return { success: "Role updated." };
 }
 
-export async function updateNotificationPreferences(formData: FormData): Promise<void> {
+export async function updateNotificationPreferences(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
   const session = await auth();
-  if (!session?.user) return;
+  if (!session?.user) return { error: "Not signed in." };
 
   await prisma.user.update({
     where: { id: session.user.id },
     data: { emailReminders: formData.get("emailReminders") === "on" },
   });
   revalidatePath("/settings");
+  return { success: "Notification preferences saved." };
 }
 
-export async function updateUserPreferences(formData: FormData): Promise<void> {
+export async function updateUserPreferences(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
   const session = await auth();
-  if (!session?.user) return;
+  if (!session?.user) return { error: "Not signed in." };
 
   const dateFormat = formData.get("dateFormat");
   const preferredCurrency = formData.get("preferredCurrency");
@@ -262,15 +328,27 @@ export async function updateUserPreferences(formData: FormData): Promise<void> {
 
   if (
     typeof dateFormat !== "string" ||
+    !DATE_FORMAT_OPTIONS.includes(dateFormat as (typeof DATE_FORMAT_OPTIONS)[number])
+  ) {
+    return { error: "Invalid date format." };
+  }
+  if (
     typeof preferredCurrency !== "string" ||
+    !POPULAR_CURRENCIES.includes(preferredCurrency as (typeof POPULAR_CURRENCIES)[number])
+  ) {
+    return { error: "Invalid currency." };
+  }
+  if (
     typeof timezone !== "string" ||
+    !TIMEZONE_OPTIONS.includes(timezone as (typeof TIMEZONE_OPTIONS)[number])
+  ) {
+    return { error: "Invalid timezone." };
+  }
+  if (
     typeof region !== "string" ||
-    !DATE_FORMAT_OPTIONS.includes(dateFormat as (typeof DATE_FORMAT_OPTIONS)[number]) ||
-    !POPULAR_CURRENCIES.includes(preferredCurrency as (typeof POPULAR_CURRENCIES)[number]) ||
-    !TIMEZONE_OPTIONS.includes(timezone as (typeof TIMEZONE_OPTIONS)[number]) ||
     !REGION_OPTIONS.includes(region as (typeof REGION_OPTIONS)[number])
   ) {
-    return;
+    return { error: "Invalid region." };
   }
 
   await prisma.user.update({
@@ -279,6 +357,7 @@ export async function updateUserPreferences(formData: FormData): Promise<void> {
   });
   revalidatePath("/settings");
   revalidatePath("/", "layout");
+  return { success: "Preferences saved." };
 }
 
 export async function changePassword(
@@ -383,6 +462,7 @@ export async function resetPassword(
   const resetToken = await prisma.passwordResetToken.findUnique({ where: { token } });
   if (
     !resetToken ||
+    resetToken.purpose !== "RESET" ||
     resetToken.usedAt ||
     resetToken.expiresAt.getTime() < Date.now()
   ) {
@@ -399,6 +479,38 @@ export async function resetPassword(
   ]);
 
   return { success: "Password updated. You can now sign in." };
+}
+
+export async function acceptInvitation(
+  token: string,
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const parsed = resetPasswordSchema.safeParse({ password: formData.get("password") });
+  if (!parsed.success) {
+    return { error: firstIssueMessage(parsed.error) };
+  }
+
+  const inviteToken = await prisma.passwordResetToken.findUnique({ where: { token } });
+  if (
+    !inviteToken ||
+    inviteToken.purpose !== "INVITE" ||
+    inviteToken.usedAt ||
+    inviteToken.expiresAt.getTime() < Date.now()
+  ) {
+    return { error: "This invitation link is invalid or has expired." };
+  }
+
+  const passwordHash = await bcrypt.hash(parsed.data.password, 12);
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: inviteToken.userId }, data: { passwordHash } }),
+    prisma.passwordResetToken.updateMany({
+      where: { userId: inviteToken.userId, usedAt: null },
+      data: { usedAt: new Date() },
+    }),
+  ]);
+
+  return { success: "Password set. You can now sign in." };
 }
 
 export async function logout() {

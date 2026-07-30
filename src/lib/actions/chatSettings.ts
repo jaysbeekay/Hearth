@@ -1,21 +1,20 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
-import { encryptSecret } from "@/lib/crypto";
+import { requireAdmin } from "@/lib/actions/app-settings";
+import { setAppSetting } from "@/lib/appSettings";
 import { isEncryptionConfigured } from "@/lib/env";
 import { chatSettingsSchema } from "@/lib/validation/chat";
 import { AI_PROVIDERS_WITHOUT_API_KEY } from "@/lib/ai/types";
 
 export type ActionState = { error?: string; success?: string } | null;
 
+// Household-wide, admin-only — see src/lib/ai/chat/dispatch.ts's getChatConfig().
 export async function saveChatSettings(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const session = await auth();
-  if (!session?.user) return { error: "Not signed in." };
+  await requireAdmin();
 
   const parsed = chatSettingsSchema.safeParse({
     provider: formData.get("provider"),
@@ -27,32 +26,34 @@ export async function saveChatSettings(
   }
 
   const needsApiKey = !AI_PROVIDERS_WITHOUT_API_KEY.includes(parsed.data.provider);
-  if (needsApiKey && !isEncryptionConfigured()) {
+  if (needsApiKey && parsed.data.apiKey && !isEncryptionConfigured()) {
     return { error: "Set ENCRYPTION_KEY on the server before configuring an API key." };
   }
 
-  await prisma.user.update({
-    where: { id: session.user.id },
-    data: {
-      chatProvider: parsed.data.provider,
-      chatApiKeyEncrypted: needsApiKey ? encryptSecret(parsed.data.apiKey!) : null,
-      chatModel: parsed.data.model ?? null,
-    },
-  });
+  try {
+    await setAppSetting("chat.provider", parsed.data.provider);
+    await setAppSetting("chat.model", parsed.data.model ?? "");
+    // Sensitive: only overwrite if a new value was submitted
+    if (parsed.data.apiKey) await setAppSetting("chat.apiKey", parsed.data.apiKey);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Failed to save assistant settings." };
+  }
 
-  revalidatePath("/settings");
-  return { success: needsApiKey ? "API key saved." : "Provider saved." };
+  revalidatePath("/settings/app");
+  return { success: "AI Assistant settings saved." };
 }
 
 export async function removeChatSettings(): Promise<ActionState> {
-  const session = await auth();
-  if (!session?.user) return { error: "Not signed in." };
+  await requireAdmin();
 
-  await prisma.user.update({
-    where: { id: session.user.id },
-    data: { chatProvider: null, chatApiKeyEncrypted: null, chatModel: null },
-  });
+  try {
+    await setAppSetting("chat.provider", "");
+    await setAppSetting("chat.apiKey", "");
+    await setAppSetting("chat.model", "");
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Failed to remove assistant settings." };
+  }
 
-  revalidatePath("/settings");
-  return { success: "API key removed." };
+  revalidatePath("/settings/app");
+  return { success: "AI Assistant settings removed." };
 }

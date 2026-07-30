@@ -71,6 +71,7 @@ enum AiProvider {
 enum BackupDestination {
   S3
   SFTP
+  LOCAL
 }
 
 enum BackupStatus {
@@ -123,8 +124,6 @@ enum InventoryItemCategory {
 enum VehicleItemType {
   SERVICE
   REPAIR
-  REGISTRATION
-  INSURANCE
   ROADWORTHY
   MODIFICATION
   OTHER
@@ -143,6 +142,13 @@ enum HomeItemType {
   OTHER
 }
 
+enum OccupancyStatus {
+  OWNER_OCCUPIED
+  RENTED
+  VACANT
+  OTHER
+}
+
 model User {
   id                String     @id @default(cuid())
   name              String
@@ -150,12 +156,6 @@ model User {
   passwordHash      String
   role              Role       @default(MEMBER)
   emailReminders    Boolean    @default(true)
-  aiProvider        AiProvider?
-  aiApiKeyEncrypted String?
-  aiModel           String?
-  chatProvider        AiProvider?
-  chatApiKeyEncrypted String?
-  chatModel           String?
   icalToken         String?    @unique
   dateFormat        String     @default("DD/MM/YYYY")
   preferredCurrency String     @default("AUD")
@@ -181,14 +181,20 @@ model User {
   @@map("users")
 }
 
+enum PasswordResetTokenPurpose {
+  RESET
+  INVITE
+}
+
 model PasswordResetToken {
-  id        String    @id @default(cuid())
-  token     String    @unique
+  id        String                    @id @default(cuid())
+  token     String                    @unique
   userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose   PasswordResetTokenPurpose @default(RESET)
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime  @default(now())
+  createdAt DateTime                  @default(now())
 
   @@index([userId])
   @@map("password_reset_tokens")
@@ -247,6 +253,9 @@ model Contract {
 
   propertyId        String?
   property          Property?     @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+
+  vehicleId         String?
+  vehicle           Vehicle?      @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
 
   documents         Document[]
   notifications     NotificationLog[]
@@ -495,13 +504,18 @@ model TripSegmentDocument {
 }
 
 model Property {
-  id          String  @id @default(cuid())
-  label       String
-  address     String?
-  lat         Float?
-  lng         Float?
-  notes       String?
-  isRented    Boolean @default(false)
+  id              String          @id @default(cuid())
+  label           String
+  street          String?
+  suburb          String?
+  state           String?
+  postcode        String?
+  country         String?
+  lat             Float?
+  lng             Float?
+  notes           String?
+  isRented        Boolean         @default(false)
+  occupancyStatus OccupancyStatus @default(OWNER_OCCUPIED)
 
   createdById String
   createdBy   User    @relation(fields: [createdById], references: [id])
@@ -624,6 +638,7 @@ model Vehicle {
 
   items              VehicleItem[]
   notificationLogs   VehicleNotificationLog[]
+  contracts          Contract[]
 
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt

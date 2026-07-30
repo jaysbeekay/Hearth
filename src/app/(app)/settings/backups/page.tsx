@@ -3,12 +3,8 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isEncryptionConfigured } from "@/lib/env";
-import {
-  isBackupConfigured,
-  isS3BackupConfigured,
-  isSftpBackupConfigured,
-  getBackupScheduleConfig,
-} from "@/lib/appSettings";
+import { isBackupConfigured, getBackupDestinationChoice, getBackupScheduleConfig } from "@/lib/appSettings";
+import { BACKUP_DESTINATION_LABELS } from "@/lib/backupDestination";
 import { BackupNowForm } from "@/components/BackupNowForm";
 import { formatDate, humanFileSize } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
@@ -21,15 +17,13 @@ export default async function BackupsPage() {
     redirect("/settings");
   }
 
-  const [logs, s3Configured, sftpConfigured, backupOk, backupSchedule, { dateFormat }] =
-    await Promise.all([
-      prisma.backupLog.findMany({ orderBy: { startedAt: "desc" }, take: 10 }),
-      isS3BackupConfigured(),
-      isSftpBackupConfigured(),
-      isBackupConfigured(),
-      getBackupScheduleConfig(),
-      getUserPreferences(),
-    ]);
+  const [logs, destination, backupOk, backupSchedule, { dateFormat }] = await Promise.all([
+    prisma.backupLog.findMany({ orderBy: { startedAt: "desc" }, take: 10 }),
+    getBackupDestinationChoice(),
+    isBackupConfigured(),
+    getBackupScheduleConfig(),
+    getUserPreferences(),
+  ]);
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -41,17 +35,16 @@ export default async function BackupsPage() {
           <li>
             Encryption: {isEncryptionConfigured() ? "configured" : "not configured"}
           </li>
-          <li>S3-compatible storage: {s3Configured ? "configured" : "not configured"}</li>
-          <li>SFTP: {sftpConfigured ? "configured" : "not configured"}</li>
+          <li>Backup destination: {BACKUP_DESTINATION_LABELS[destination]}</li>
           <li>Schedule: {backupSchedule.cron}</li>
-          <li>Retention: last {backupSchedule.retentionCount} backups per destination</li>
+          <li>Retention: last {backupSchedule.retentionCount} backups</li>
         </ul>
 
         {!backupOk && (
           <p className="mt-3 text-sm text-warning">
             {isEncryptionConfigured()
-              ? "Configure S3 or SFTP in System settings to enable offsite backups."
-              : "Set ENCRYPTION_KEY, then configure S3 or SFTP in System settings to enable offsite backups. Backups are never sent unencrypted."}
+              ? "Choose a backup destination in System settings to enable backups."
+              : "Set ENCRYPTION_KEY, then choose a backup destination in System settings to enable backups. Backups are never written unencrypted."}
           </p>
         )}
 

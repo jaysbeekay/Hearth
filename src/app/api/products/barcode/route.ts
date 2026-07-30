@@ -24,9 +24,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Invalid barcode." }, { status: 400 });
   }
 
-  const fields = await lookupBarcode(code);
-  if (!fields) {
-    return NextResponse.json({ fields: {}, found: false });
+  const result = await lookupBarcode(code);
+  if (!result?.ok) {
+    return NextResponse.json({ fields: {}, found: false, reason: result?.reason ?? "not_found" });
   }
-  return NextResponse.json({ fields, found: true });
+  return NextResponse.json({ fields: result.info, found: true });
 }

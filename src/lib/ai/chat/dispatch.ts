@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { getAppSettingRaw } from "@/lib/appSettings";
 import { decryptSecret } from "@/lib/crypto";
 import { callAnthropicChat } from "@/lib/ai/chat/providers/anthropic";
 import { callGeminiChat } from "@/lib/ai/chat/providers/gemini";
@@ -35,11 +35,20 @@ export function isChatConfigured(
   return Boolean(user.chatApiKeyEncrypted);
 }
 
-export async function getChatUser(userId: string): Promise<ChatUser | null> {
-  return prisma.user.findUnique({
-    where: { id: userId },
-    select: { chatProvider: true, chatApiKeyEncrypted: true, chatModel: true },
-  });
+// AI Assistant provider/key/model is household-wide, not per-user — every
+// household member shares one configured assistant, same as the read-only
+// data it can query (see the ChatThread model comment in schema.prisma).
+export async function getChatConfig(): Promise<ChatUser> {
+  const [provider, apiKeyEncrypted, model] = await Promise.all([
+    getAppSettingRaw("chat.provider"),
+    getAppSettingRaw("chat.apiKey"),
+    getAppSettingRaw("chat.model"),
+  ]);
+  return {
+    chatProvider: (provider as AiProviderId | null) ?? null,
+    chatApiKeyEncrypted: apiKeyEncrypted,
+    chatModel: model,
+  };
 }
 
 export async function callChatCompletion(

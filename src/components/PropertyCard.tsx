@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { PropertyModel } from "@/generated/prisma/models";
+import { formatPropertyAddress } from "@/lib/utils";
 
 export function PropertyCard({
   property,
@@ -12,7 +13,9 @@ export function PropertyCard({
       className="block min-w-0 rounded-lg border border-border bg-surface p-4 shadow-stripe transition hover:border-accent/50"
     >
       <div className="min-w-0">
-        <p className="truncate text-sm text-muted">{property.address || "No address set"}</p>
+        <p className="truncate text-sm text-muted">
+          {formatPropertyAddress(property) || "No address set"}
+        </p>
         <p className="truncate font-medium">{property.label}</p>
       </div>
 

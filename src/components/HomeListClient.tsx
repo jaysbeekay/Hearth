@@ -89,7 +89,7 @@ export function HomeListClient({ properties, taxDeductibleSummary, region }: Pro
               key={op.id}
               op={op}
               title={op.formValues?.label || "Untitled property"}
-              subtitle={op.formValues?.address}
+              subtitle={op.formValues?.street || op.formValues?.suburb}
               editHref={`/home/new?pendingOpId=${op.id}`}
               onDeleted={refreshPending}
             />

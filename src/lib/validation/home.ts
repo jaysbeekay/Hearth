@@ -2,12 +2,18 @@ import { z } from "zod";
 
 export const HOME_ITEM_TYPES = ["MAINTENANCE", "IMPROVEMENT", "REPAIR", "OTHER"] as const;
 
+export const OCCUPANCY_STATUSES = ["OWNER_OCCUPIED", "RENTED", "VACANT", "OTHER"] as const;
+
 const emptyToUndefined = (val: unknown) =>
   val == null || (typeof val === "string" && val.trim() === "") ? undefined : val;
 
 export const propertySchema = z.object({
   label: z.string().trim().min(1, "Label is required").max(200),
-  address: z.preprocess(emptyToUndefined, z.string().trim().max(300).optional()),
+  street: z.preprocess(emptyToUndefined, z.string().trim().max(200).optional()),
+  suburb: z.preprocess(emptyToUndefined, z.string().trim().max(100).optional()),
+  state: z.preprocess(emptyToUndefined, z.string().trim().max(100).optional()),
+  postcode: z.preprocess(emptyToUndefined, z.string().trim().max(20).optional()),
+  country: z.preprocess(emptyToUndefined, z.string().trim().max(100).optional()),
   lat: z
     .preprocess(emptyToUndefined, z.coerce.number().min(-90).max(90).optional())
     .transform((v) => v ?? null),
@@ -15,6 +21,7 @@ export const propertySchema = z.object({
     .preprocess(emptyToUndefined, z.coerce.number().min(-180).max(180).optional())
     .transform((v) => v ?? null),
   notes: z.preprocess(emptyToUndefined, z.string().trim().max(5000).optional()),
+  occupancyStatus: z.enum(OCCUPANCY_STATUSES).default("OWNER_OCCUPIED"),
 });
 
 export type PropertyInput = z.infer<typeof propertySchema>;

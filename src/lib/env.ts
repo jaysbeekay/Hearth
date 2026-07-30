@@ -29,6 +29,10 @@ export const env = {
     apiKey: optional("BARCODE_LOOKUP_API_KEY"),
   },
   encryptionKey: optional("ENCRYPTION_KEY"),
+  github: {
+    clientId: optional("GITHUB_CLIENT_ID"),
+    clientSecret: optional("GITHUB_CLIENT_SECRET"),
+  },
   backup: {
     cron: optional("BACKUP_CRON_SCHEDULE", "0 3 * * *"),
     retentionCount: Number(optional("BACKUP_RETENTION_COUNT", "7")),
@@ -48,6 +52,9 @@ export const env = {
       privateKey: optional("BACKUP_SFTP_PRIVATE_KEY"),
       remotePath: optional("BACKUP_SFTP_REMOTE_PATH", "/backups"),
     },
+    local: {
+      path: optional("BACKUP_LOCAL_PATH"),
+    },
   },
 };
 
@@ -56,6 +63,8 @@ export const isNtfyConfigured = () => Boolean(env.ntfy.url && env.ntfy.topic);
 export const isOllamaConfigured = () => Boolean(env.ollama.baseUrl && env.ollama.model);
 export const isBarcodeLookupConfigured = () => env.barcodeLookup.enabled;
 export const isEncryptionConfigured = () => env.encryptionKey.length > 0;
+export const isGithubOAuthConfigured = () =>
+  Boolean(env.github.clientId && env.github.clientSecret);
 
 export const isS3BackupConfigured = () =>
   Boolean(env.backup.s3.bucket && env.backup.s3.accessKeyId && env.backup.s3.secretAccessKey);

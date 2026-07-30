@@ -81,7 +81,6 @@ test("assistant proposes a contract, confirming creates it and cancelling doesn'
       .locator("button[type=submit]")
       .click();
 
-    await page.goto("/settings");
     await page.selectOption("#chatProvider", "OLLAMA");
     await page.locator("#chatModel").fill("test-model");
     await page

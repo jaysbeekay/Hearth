@@ -25,6 +25,7 @@ const PUBLIC_PATHS = [
   "/setup",
   "/forgot-password",
   "/reset-password",
+  "/accept-invitation",
   "/api/cron",
   "/api/mcp",
 ];

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Bot } from "lucide-react";
 import { auth } from "@/lib/auth";
-import { getChatUser, isChatConfigured } from "@/lib/ai/chat/dispatch";
+import { getChatConfig, isChatConfigured } from "@/lib/ai/chat/dispatch";
 import { listChatThreads, getChatThreadMessages } from "@/lib/chat/threads";
 import { AssistantClient } from "@/components/AssistantClient";
 
@@ -17,23 +17,27 @@ export default async function AssistantPage({
   const userId = session!.user.id;
   const { thread: requestedThreadId } = await searchParams;
 
-  const [chatUser, threads] = await Promise.all([getChatUser(userId), listChatThreads(userId)]);
+  const [chatUser, threads] = await Promise.all([getChatConfig(), listChatThreads(userId)]);
 
   if (!isChatConfigured(chatUser)) {
+    const isAdmin = session!.user.role === "ADMIN";
     return (
       <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border p-12 text-center">
         <Bot size={32} className="text-foreground/30" />
         <h1 className="text-lg font-semibold">Assistant not configured</h1>
         <p className="max-w-sm text-sm text-foreground/60">
-          Bring your own AI provider key to chat with an assistant that can answer questions
-          about your contracts, warranties, trips, vehicles, home, inventory, and wealth.
+          {isAdmin
+            ? "Bring your own AI provider key to enable an assistant that can answer questions about your household's contracts, warranties, trips, vehicles, home, inventory, and wealth."
+            : "Ask a household admin to configure an AI provider so the assistant can answer questions about your household's data."}
         </p>
-        <Link
-          href="/settings"
-          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
-        >
-          Configure in Settings
-        </Link>
+        {isAdmin && (
+          <Link
+            href="/settings/app"
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+          >
+            Configure in System settings
+          </Link>
+        )}
       </div>
     );
   }

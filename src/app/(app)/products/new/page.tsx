@@ -4,6 +4,7 @@ import { ProductForm } from "@/components/ProductForm";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { prisma } from "@/lib/prisma";
+import { BackLink } from "@/components/BackLink";
 
 export default async function NewProductPage() {
   const [{ preferredCurrency }, enabledModules] = await Promise.all([
@@ -16,6 +17,7 @@ export default async function NewProductPage() {
 
   return (
     <div className="max-w-3xl space-y-6">
+      <BackLink href="/products" label="Back to warranties" />
       <div>
         <h1 className="text-2xl font-semibold">Add a product</h1>
         <p className="text-sm text-foreground/60">

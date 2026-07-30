@@ -5,7 +5,7 @@
 // Prisma queries independently. Net worth doesn't need an entry here — it
 // already has a single shared implementation in src/lib/wealth.ts.
 import { prisma } from "@/lib/prisma";
-import { daysUntil } from "@/lib/utils";
+import { daysUntil, formatPropertyAddress } from "@/lib/utils";
 
 export function iso(date: Date | null | undefined): string | null {
   return date ? date.toISOString() : null;
@@ -103,8 +103,13 @@ export async function queryProperties() {
     select: {
       id: true,
       label: true,
-      address: true,
+      street: true,
+      suburb: true,
+      state: true,
+      postcode: true,
+      country: true,
       isRented: true,
+      occupancyStatus: true,
       notes: true,
       rentalAgreements: {
         select: { tenantName: true, weeklyRent: true, leaseEnd: true },
@@ -121,8 +126,9 @@ export async function queryProperties() {
   return properties.map((p) => ({
     id: p.id,
     label: p.label,
-    address: p.address,
+    address: formatPropertyAddress(p) || null,
     isRented: p.isRented,
+    occupancyStatus: p.occupancyStatus,
     notes: p.notes,
     currentTenant: p.rentalAgreements[0]
       ? {

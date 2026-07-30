@@ -4,6 +4,7 @@ import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { addVehicleItem } from "@/lib/actions/vehicles";
 import { VehicleItemForm } from "@/components/VehicleItemForm";
 import { getUserPreferences } from "@/lib/userPreferences";
+import { BackLink } from "@/components/BackLink";
 
 export default async function NewVehicleItemPage({
   params,
@@ -23,6 +24,7 @@ export default async function NewVehicleItemPage({
 
   return (
     <div className="max-w-3xl space-y-6">
+      <BackLink href={`/vehicles/${vehicle.id}`} label={`Back to ${vehicle.label}`} />
       <div>
         <h1 className="text-2xl font-semibold">Add a record</h1>
         <p className="text-sm text-foreground/60">{vehicle.label}</p>

@@ -4,6 +4,7 @@ import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { addHomeItem } from "@/lib/actions/home";
 import { HomeItemForm } from "@/components/HomeItemForm";
 import { getUserPreferences } from "@/lib/userPreferences";
+import { BackLink } from "@/components/BackLink";
 
 export default async function NewHomeItemPage({
   params,
@@ -23,6 +24,7 @@ export default async function NewHomeItemPage({
 
   return (
     <div className="max-w-3xl space-y-6">
+      <BackLink href={`/home/${property.id}`} label={`Back to ${property.label}`} />
       <div>
         <h1 className="text-2xl font-semibold">Add an item</h1>
         <p className="text-sm text-foreground/60">{property.label}</p>
