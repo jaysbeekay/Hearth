@@ -15,19 +15,19 @@ jobs:
       HAS_SIGNING: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Set up JDK
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
         with:
           distribution: temurin
           java-version: "21"
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
 
@@ -55,16 +55,33 @@ jobs:
         run: chmod +x gradlew
         working-directory: android
 
-      - name: Build debug APK
+      # Debug builds only on a manual run, never for a tag. A debug APK is
+      # signed with the universal Android debug key — anyone can modify and
+      # re-sign it — and is built debuggable, so it must not be distributed
+      # (#160). Kept here purely so a maintainer can dispatch a build to test
+      # a change without release signing configured.
+      - name: Build debug APK (manual runs only)
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         run: ./gradlew assembleDebug --no-daemon
         working-directory: android
 
-      - name: Upload debug APK artifact
-        uses: actions/upload-artifact@v4
+      - name: Upload debug APK artifact (manual runs only)
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: hearth-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
+      # A tagged build with no signing secrets used to fall back to attaching
+      # the debug APK to the public release. Fail instead of shipping one.
+      - name: Require release signing for tagged builds
+        if: ${{ startsWith(github.ref, 'refs/tags/v') && env.HAS_SIGNING != 'true' }}
+        run: |
+          echo "::error::Release signing is not configured, so this tag would" \
+               "have published an unsigned debug build. Set ANDROID_KEYSTORE_BASE64," \
+               "ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD."
+          exit 1
 
       - name: Decode release keystore
         if: ${{ env.HAS_SIGNING == 'true' }}
@@ -84,7 +101,7 @@ jobs:
 
       - name: Upload release APK artifact
         if: ${{ env.HAS_SIGNING == 'true' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: hearth-release-apk
           path: android/app/build/outputs/apk/release/app-release.apk
@@ -104,24 +121,23 @@ jobs:
 
       - name: Upload release AAB artifact
         if: ${{ env.HAS_SIGNING == 'true' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: hearth-release-aab
           path: android/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
 
       - name: Attach APK/AAB to release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: ${{ startsWith(github.ref, 'refs/tags/v') && env.HAS_SIGNING == 'true' }}
         run: |
           # release.yml also triggers on this tag push and creates the
           # GitHub Release; wait for it to exist before uploading to it.
-          apk="android/app/build/outputs/apk/debug/app-debug.apk"
-          assets=()
-          if [ "$HAS_SIGNING" = "true" ]; then
-            apk="android/app/build/outputs/apk/release/app-release.apk"
-            assets+=("android/app/build/outputs/bundle/release/app-release.aab")
-          fi
-          assets+=("$apk")
+          # Only signed artifacts are ever published — the unsigned-fallback
+          # path that used to attach a debug APK is gone.
+          assets=(
+            "android/app/build/outputs/apk/release/app-release.apk"
+            "android/app/build/outputs/bundle/release/app-release.aab"
+          )
           for i in $(seq 1 30); do
             if gh release view "${{ github.ref_name }}" >/dev/null 2>&1; then
               gh release upload "${{ github.ref_name }}" "${assets[@]}" --clobber

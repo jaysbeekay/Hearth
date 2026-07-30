@@ -58,6 +58,34 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Security
 
+- **The container no longer runs as root** (#160). The app process runs as the
+  unprivileged `node` user (uid 1000). The entrypoint still starts as root
+  purely to adopt ownership of `/app/data` — earlier images ran everything as
+  root, so an existing deployment's `./data` is root-owned on the host and
+  would otherwise become unreadable on upgrade — then drops privileges with
+  `su-exec` before running migrations or the server. That adoption is
+  automatic and one-time; no action is needed on upgrade. Operators who prefer
+  the container never to hold root can set `user: "1000:1000"` in
+  `docker-compose.yml`, having first run `sudo chown -R 1000:1000 ./data`.
+- **Base image and GitHub Actions are pinned by digest** (#160). `node:22-alpine`
+  is now referenced by its multi-arch index digest, and all 12 workflow actions
+  by commit SHA rather than a moving tag — whoever can move a tag can otherwise
+  change what CI runs.
+- **High-severity Snyk findings now block CI** (#160). Every step in the Snyk
+  workflow carried `continue-on-error: true`, so it reported findings but could
+  never fail. Dependency, code and container scans now gate on high severity;
+  `monitor` and IaC steps stay non-blocking since they publish state rather
+  than assert anything. The job is skipped entirely when `SNYK_TOKEN` isn't
+  configured, so forks don't get a permanently red check.
+- **Published images carry an SBOM and SLSA build provenance** (#160), via
+  buildx's native attestations — inspect with
+  `docker buildx imagetools inspect jaysbeekay/hearth:latest`.
+- **Debug APKs are no longer published** (#160). A tagged build with no signing
+  secrets configured used to fall back to attaching the *debug* APK to the
+  public GitHub Release — an artifact signed with the universal Android debug
+  key, which anyone can modify and re-sign, and built debuggable. Tagged builds
+  without signing configured now fail loudly instead, and debug APKs are built
+  only on manual `workflow_dispatch` runs.
 - **Rate limiting, where there was none** (#155). Failed sign-ins, TOTP codes,
   recovery codes, password-reset requests and passkey challenge issuance are
   now throttled, along with the cost-bearing document-extraction and chat
