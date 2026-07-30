@@ -16,6 +16,9 @@ const eslintConfig = defineConfig([
     // by the embedded runtime, outside the Next.js/TS module graph — this
     // config's require()-forbidding TS rules don't apply to them.
     "mobile-standalone/**",
+    // Generated build output (mobile-standalone/scripts/build-standalone-server.sh)
+    // — a full vendored node_modules/.next tree, not source this repo owns.
+    "ios-shell/www/nodejs/**",
   ]),
 ]);
 

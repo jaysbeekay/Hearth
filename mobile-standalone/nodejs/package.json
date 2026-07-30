@@ -1,10 +1,9 @@
 {
-  "name": "hearth-standalone-server",
+  "name": "hearth-standalone-bootstrap",
   "private": true,
   "main": "bootstrap.js",
-  "comment": "This package.json only exists so `npm install` here can override @libsql/client to the WASM build — @libsql/client's native binding (the actual `libsql` package) publishes prebuilts for linux-gnu/musl, darwin, and win32 only, NOT Android's Bionic libc or iOS. See README.md 'Verified risks' — this override is the untested fix attempt for that.",
-  "dependencies": {},
-  "overrides": {
-    "@libsql/client": "npm:@libsql/client-wasm@^0.17.4"
+  "comment": "bootstrap.js's own runtime dependency (used to apply Prisma migrations directly via @libsql/client-wasm's executeMultiple, without needing the prisma CLI/migrate engine — another native binary with the same Android/iOS ABI gap this whole build works around). The build script separately overrides the SERVER bundle's own @libsql/client -> @libsql/client-wasm for the same reason — that override is NOT in this file, it's injected into an isolated copy of the root package.json (see build-standalone-server.sh) so it only affects the mobile build's dependency resolution.",
+  "dependencies": {
+    "@libsql/client-wasm": "^0.17.4"
   }
 }
