@@ -5,6 +5,7 @@ import { extractInventoryItemFields } from "@/lib/documents/inventoryItemFieldEx
 import { getByokConfig } from "@/lib/ai/extract";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import { readValidatedUpload, UploadRejectedError } from "@/lib/uploadValidation";
+import { consumeRateLimit } from "@/lib/rateLimit";
 
 export async function POST(request: NextRequest) {
   const session = await auth();
@@ -13,6 +14,16 @@ export async function POST(request: NextRequest) {
   }
   if (!(await isModuleEnabled("INVENTORY"))) {
     return NextResponse.json({ error: "Inventory module is disabled." }, { status: 403 });
+  }
+
+  // OCR and AI extraction spawn processes or bill the household's API key, so
+  // this counts every call, not just failures.
+  const extractionThrottle = consumeRateLimit("documentExtraction", session.user.id);
+  if (!extractionThrottle.allowed) {
+    return NextResponse.json(
+      { error: "Too many documents processed just now. Try again shortly." },
+      { status: 429, headers: { "Retry-After": String(extractionThrottle.retryAfterSeconds) } },
+    );
   }
 
   const formData = await request.formData();

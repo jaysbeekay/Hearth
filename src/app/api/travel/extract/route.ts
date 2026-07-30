@@ -5,6 +5,7 @@ import { extractTripSegmentFields } from "@/lib/documents/tripFieldExtraction";
 import { getByokConfig } from "@/lib/ai/extract";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import { readValidatedUpload, UploadRejectedError } from "@/lib/uploadValidation";
+import { consumeRateLimit } from "@/lib/rateLimit";
 
 // Previews auto-fill fields for a document before a trip segment exists yet —
 // nothing is persisted here, the file is only held in memory for the
@@ -17,6 +18,16 @@ export async function POST(request: NextRequest) {
   }
   if (!(await isModuleEnabled("TRAVEL"))) {
     return NextResponse.json({ error: "Travel module is disabled." }, { status: 403 });
+  }
+
+  // OCR and AI extraction spawn processes or bill the household's API key, so
+  // this counts every call, not just failures.
+  const extractionThrottle = consumeRateLimit("documentExtraction", session.user.id);
+  if (!extractionThrottle.allowed) {
+    return NextResponse.json(
+      { error: "Too many documents processed just now. Try again shortly." },
+      { status: 429, headers: { "Retry-After": String(extractionThrottle.retryAfterSeconds) } },
+    );
   }
 
   const formData = await request.formData();

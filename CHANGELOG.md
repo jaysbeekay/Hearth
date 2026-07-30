@@ -58,6 +58,36 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Security
 
+- **Rate limiting, where there was none** (#155). Failed sign-ins, TOTP codes,
+  recovery codes, password-reset requests and passkey challenge issuance are
+  now throttled, along with the cost-bearing document-extraction and chat
+  endpoints. Auth limits count failures only, keyed by account *and* client
+  address, so guessing at one account can't lock out the household and a
+  shared NAT egress doesn't either. In-memory and dependency-free: counters
+  reset on restart and aren't shared across replicas, which is the right
+  trade for a single-container deployment but is worth knowing.
+- **Uploads are validated by content, not by the type the client claims**
+  (#165). `file.type` is caller-controlled, and it decided whether a file was
+  accepted, which extraction pipeline ran over it, and what Content-Type it
+  was served back with. Leading bytes are now sniffed at both choke points —
+  every `save*` in storage.ts and all eight extract routes. `/api/sync` also
+  gained an aggregate body cap and a 200-operation limit; the per-file 15MB
+  cap never bounded a request carrying many files.
+- **Administrator-configurable outbound destinations are validated** (#167).
+  Webhook, ntfy and Ollama URLs are resolved and checked before each request:
+  non-HTTP(S) schemes, cloud instance-metadata addresses, link-local,
+  multicast, unspecified and broadcast are always refused, including their
+  IPv4-mapped IPv6 forms. Private and loopback ranges stay allowed by default
+  — this app's documented integrations are LAN services — and can be refused
+  with `BLOCK_PRIVATE_NETWORK_TARGETS=true`.
+- **`importTrades` validated its input at compile time only** (#162). It took
+  a `ParsedTrade[]` straight from the client with no runtime check, so NaN or
+  Infinity units/prices reached the database and poisoned every downstream
+  FIFO cost-basis calculation, and `type` was cast to an enum it was never
+  checked against. It's now parsed with Zod, with finite-number and row-count
+  limits. Chat history sent to the provider is capped at the most recent 60
+  messages rather than the entire thread, and CSV imports are bounded at 5000
+  rows.
 - **Sessions are revalidated against the database on every read** (#168).
   Previously the role was copied into the JWT at sign-in and never revisited,
   so a demoted account kept admin rights — and a deleted account kept working

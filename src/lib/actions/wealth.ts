@@ -9,6 +9,8 @@ import {
   holdingSchema,
   tradeSchema,
   propertyValuationSchema,
+  importedTradesSchema,
+  MAX_IMPORTED_TRADES,
 } from "@/lib/validation/wealth";
 import {
   saveTradeDocument,
@@ -382,6 +384,12 @@ export async function parseTradesCsv(
   }
 
   if (!records.length) return { rows: [], error: "CSV is empty." };
+  if (records.length > MAX_IMPORTED_TRADES) {
+    return {
+      rows: [],
+      error: `That file has ${records.length} rows — import at most ${MAX_IMPORTED_TRADES} at a time.`,
+    };
+  }
   const headers = Object.keys(records[0]);
   const format = detectFormat(headers);
 
@@ -462,10 +470,17 @@ export async function importTrades(
   const portfolio = await prisma.portfolio.findUnique({ where: { id: portfolioId } });
   if (!portfolio) return { error: "Portfolio not found." };
 
+  // `rows` arrives from the client. The ParsedTrade[] type is compile-time
+  // only, so validate it for real before any of it reaches the database.
+  const validated = importedTradesSchema.safeParse(rows);
+  if (!validated.success) {
+    return { error: firstIssueMessage(validated.error) };
+  }
+
   let imported = 0;
   let skipped = 0;
 
-  for (const row of rows) {
+  for (const row of validated.data) {
     const date = new Date(row.date);
     if (isNaN(date.getTime())) { skipped++; continue; }
 
@@ -480,7 +495,7 @@ export async function importTrades(
       where: {
         holdingId: holding.id,
         date,
-        type: row.type as "BUY" | "SELL" | "DIVIDEND" | "SPLIT",
+        type: row.type,
         units: row.units,
         pricePerUnit: row.pricePerUnit,
       },
@@ -490,7 +505,7 @@ export async function importTrades(
     const newTrade = await prisma.trade.create({
       data: {
         holdingId: holding.id,
-        type: row.type as "BUY" | "SELL" | "DIVIDEND" | "SPLIT",
+        type: row.type,
         date,
         units: row.units,
         pricePerUnit: row.pricePerUnit,

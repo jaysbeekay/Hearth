@@ -4,6 +4,7 @@ import { extractText } from "@/lib/documents/textExtraction";
 import { extractContractFields } from "@/lib/documents/fieldExtraction";
 import { getByokConfig } from "@/lib/ai/extract";
 import { readValidatedUpload, UploadRejectedError } from "@/lib/uploadValidation";
+import { consumeRateLimit } from "@/lib/rateLimit";
 
 // Previews auto-fill fields for a document before a contract exists yet —
 // nothing is persisted here, the file is only held in memory for the
@@ -13,6 +14,16 @@ export async function POST(request: NextRequest) {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // OCR and AI extraction spawn processes or bill the household's API key, so
+  // this counts every call, not just failures.
+  const extractionThrottle = consumeRateLimit("documentExtraction", session.user.id);
+  if (!extractionThrottle.allowed) {
+    return NextResponse.json(
+      { error: "Too many documents processed just now. Try again shortly." },
+      { status: 429, headers: { "Retry-After": String(extractionThrottle.retryAfterSeconds) } },
+    );
   }
 
   const formData = await request.formData();
