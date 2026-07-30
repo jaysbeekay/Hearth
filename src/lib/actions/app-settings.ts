@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { setAppSetting, isAppSettingSet, getOllamaConfig, isSmtpConfigured, isNtfyConfigured } from "@/lib/appSettings";
+import { setAppSetting, getOllamaConfig, isSmtpConfigured, isNtfyConfigured } from "@/lib/appSettings";
 import { sendTestEmail } from "@/lib/notifications/email";
 import { sendTestNtfy } from "@/lib/notifications/ntfy";
 import type { ActionState } from "@/lib/actions/auth";
@@ -97,74 +97,51 @@ export async function saveBarcodeSettings(
   return { success: "Barcode lookup settings saved." };
 }
 
-export async function saveS3Settings(
+// A single explicit destination choice — an admin picks one from a dropdown,
+// and only that destination's fields are persisted.
+export async function saveBackupDestination(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
   await requireAdmin();
+  const destination = (formData.get("destination") as string) || "NONE";
 
   try {
-    await setAppSetting("backup.s3.endpoint", formData.get("s3Endpoint") as string);
-    await setAppSetting("backup.s3.region", formData.get("s3Region") as string);
-    await setAppSetting("backup.s3.bucket", formData.get("s3Bucket") as string);
-    await setAppSetting("backup.s3.accessKeyId", formData.get("s3AccessKeyId") as string);
-    await setAppSetting(
-      "backup.s3.forcePathStyle",
-      formData.get("s3ForcePathStyle") === "on" ? "true" : "false",
-    );
+    await setAppSetting("backup.destination", destination === "NONE" ? "" : destination);
 
-    const newSecret = (formData.get("s3SecretAccessKey") as string) || "";
-    if (newSecret) await setAppSetting("backup.s3.secretAccessKey", newSecret);
+    if (destination === "LOCAL") {
+      await setAppSetting("backup.local.path", formData.get("localPath") as string);
+    } else if (destination === "S3") {
+      await setAppSetting("backup.s3.endpoint", formData.get("s3Endpoint") as string);
+      await setAppSetting("backup.s3.region", formData.get("s3Region") as string);
+      await setAppSetting("backup.s3.bucket", formData.get("s3Bucket") as string);
+      await setAppSetting("backup.s3.accessKeyId", formData.get("s3AccessKeyId") as string);
+      await setAppSetting(
+        "backup.s3.forcePathStyle",
+        formData.get("s3ForcePathStyle") === "on" ? "true" : "false",
+      );
+
+      const newSecret = (formData.get("s3SecretAccessKey") as string) || "";
+      if (newSecret) await setAppSetting("backup.s3.secretAccessKey", newSecret);
+    } else if (destination === "SFTP") {
+      await setAppSetting("backup.sftp.host", formData.get("sftpHost") as string);
+      await setAppSetting("backup.sftp.port", formData.get("sftpPort") as string);
+      await setAppSetting("backup.sftp.username", formData.get("sftpUsername") as string);
+      await setAppSetting("backup.sftp.remotePath", formData.get("sftpRemotePath") as string);
+
+      const newPassword = (formData.get("sftpPassword") as string) || "";
+      if (newPassword) await setAppSetting("backup.sftp.password", newPassword);
+
+      const newKey = (formData.get("sftpPrivateKey") as string) || "";
+      if (newKey) await setAppSetting("backup.sftp.privateKey", newKey);
+    }
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "Failed to save S3 backup settings." };
+    return { error: error instanceof Error ? error.message : "Failed to save backup settings." };
   }
 
   revalidatePath("/settings/app");
   revalidatePath("/settings/backups");
-  return { success: "S3 backup settings saved." };
-}
-
-export async function saveSftpSettings(
-  _prevState: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  await requireAdmin();
-
-  try {
-    await setAppSetting("backup.sftp.host", formData.get("sftpHost") as string);
-    await setAppSetting("backup.sftp.port", formData.get("sftpPort") as string);
-    await setAppSetting("backup.sftp.username", formData.get("sftpUsername") as string);
-    await setAppSetting("backup.sftp.remotePath", formData.get("sftpRemotePath") as string);
-
-    const newPassword = (formData.get("sftpPassword") as string) || "";
-    if (newPassword) await setAppSetting("backup.sftp.password", newPassword);
-
-    const newKey = (formData.get("sftpPrivateKey") as string) || "";
-    if (newKey) await setAppSetting("backup.sftp.privateKey", newKey);
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : "Failed to save SFTP backup settings." };
-  }
-
-  revalidatePath("/settings/app");
-  revalidatePath("/settings/backups");
-  return { success: "SFTP backup settings saved." };
-}
-
-export async function saveLocalSettings(
-  _prevState: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  await requireAdmin();
-
-  try {
-    await setAppSetting("backup.local.path", formData.get("localPath") as string);
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : "Failed to save local backup settings." };
-  }
-
-  revalidatePath("/settings/app");
-  revalidatePath("/settings/backups");
-  return { success: "Local backup settings saved." };
+  return { success: "Backup destination saved." };
 }
 
 export async function saveScheduleSettings(

@@ -63,12 +63,14 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   tracking flow. Selecting "Rented" shows a prompt linking to rental
   tracking setup (or to the existing overview, if already set up) — this
   is additive and doesn't change how `isRented`/rental agreements work.
-- **Local filesystem backup destination** (#137) — configurable from
-  System settings alongside the existing S3/SFTP destinations, encrypted
-  the same way. Multiple destinations can still be enabled simultaneously,
-  each receiving every backup, matching the existing model. OneDrive
-  (also requested in #137) needs an OAuth-based upload flow and is
-  deferred as a follow-up — #137 stays open to track it.
+- **Local filesystem backup destination, and backups now use a single
+  destination picker** (#137) — System settings now has one "Backup
+  destination" dropdown (Local filesystem / S3-compatible storage / SFTP)
+  instead of three independently-configurable sections; choosing a
+  destination reveals only that destination's configuration fields, and
+  only the chosen destination runs. OneDrive (also requested in #137)
+  needs an OAuth-based upload flow and is deferred as a follow-up — #137
+  stays open to track it.
 - Preview/quick-view for product documents (#142) — previewable documents
   (images, PDFs) on a product's detail page now open in the same inline
   preview modal the Documents page already has, instead of only

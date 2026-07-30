@@ -9,6 +9,7 @@ import {
   getS3Config,
   getSftpConfig,
   getLocalConfig,
+  getBackupDestinationChoice,
   getBackupScheduleConfig,
   getReminderConfig,
   getAppSetting,
@@ -19,9 +20,7 @@ import {
   saveNtfySettings,
   saveOllamaSettings,
   saveBarcodeSettings,
-  saveS3Settings,
-  saveSftpSettings,
-  saveLocalSettings,
+  saveBackupDestination,
   saveScheduleSettings,
   saveAviationStackSettings,
 } from "@/lib/actions/app-settings";
@@ -30,9 +29,7 @@ import {
   NtfyForm,
   OllamaForm,
   BarcodeForm,
-  S3Form,
-  SftpForm,
-  LocalForm,
+  BackupDestinationForm,
   ScheduleForm,
   AviationStackForm,
 } from "@/components/AppSettingsForms";
@@ -54,6 +51,7 @@ export default async function AppSettingsPage() {
     s3,
     sftp,
     local,
+    backupDestination,
     backupSchedule,
     reminder,
     aiProvider,
@@ -77,6 +75,7 @@ export default async function AppSettingsPage() {
     getS3Config(),
     getSftpConfig(),
     getLocalConfig(),
+    getBackupDestinationChoice(),
     getBackupScheduleConfig(),
     getReminderConfig(),
     getAppSetting("ai.provider"),
@@ -200,48 +199,34 @@ export default async function AppSettingsPage() {
 
       <section className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
         <div>
-          <h2 className="font-medium">S3 backup</h2>
-          <p className="text-xs text-foreground/50 mt-0.5">Encrypted offsite backups to S3-compatible storage</p>
-        </div>
-        <S3Form
-          action={saveS3Settings}
-          current={{
-            endpoint: s3.endpoint,
-            region: s3.region,
-            bucket: s3.bucket,
-            accessKeyId: s3.accessKeyId,
-            forcePathStyle: s3.forcePathStyle,
-            secretKeyIsSet: s3SecretIsSet,
-          }}
-        />
-      </section>
-
-      <section className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
-        <div>
-          <h2 className="font-medium">SFTP backup</h2>
-          <p className="text-xs text-foreground/50 mt-0.5">Encrypted offsite backups via SFTP</p>
-        </div>
-        <SftpForm
-          action={saveSftpSettings}
-          current={{
-            host: sftp.host,
-            port: sftp.port,
-            username: sftp.username,
-            remotePath: sftp.remotePath,
-            passwordIsSet: sftpPasswordIsSet,
-            privateKeyIsSet: sftpPrivateKeyIsSet,
-          }}
-        />
-      </section>
-
-      <section className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
-        <div>
-          <h2 className="font-medium">Local backup</h2>
+          <h2 className="font-medium">Backup destination</h2>
           <p className="text-xs text-foreground/50 mt-0.5">
-            Encrypted backups written to a local path on this server/container
+            Where encrypted database backups are written. Choose one destination.
           </p>
         </div>
-        <LocalForm action={saveLocalSettings} current={{ path: local.path }} />
+        <BackupDestinationForm
+          action={saveBackupDestination}
+          current={{
+            destination: backupDestination,
+            local: { path: local.path },
+            s3: {
+              endpoint: s3.endpoint,
+              region: s3.region,
+              bucket: s3.bucket,
+              accessKeyId: s3.accessKeyId,
+              forcePathStyle: s3.forcePathStyle,
+              secretKeyIsSet: s3SecretIsSet,
+            },
+            sftp: {
+              host: sftp.host,
+              port: sftp.port,
+              username: sftp.username,
+              remotePath: sftp.remotePath,
+              passwordIsSet: sftpPasswordIsSet,
+              privateKeyIsSet: sftpPrivateKeyIsSet,
+            },
+          }}
+        />
       </section>
 
       <section className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">

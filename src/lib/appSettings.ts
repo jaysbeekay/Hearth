@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { env, isEncryptionConfigured } from "@/lib/env";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
+import type { BackupDestinationChoice } from "@/lib/backupDestination";
 
 // Keys whose values are encrypted at rest using ENCRYPTION_KEY.
 const ENCRYPTED_KEYS = new Set([
@@ -286,9 +287,32 @@ export async function isAviationStackConfigured(): Promise<boolean> {
   return Boolean(apiKey);
 }
 
+// The active backup destination is a single explicit choice, not "every
+// destination with credentials saved" — an admin picks one from a dropdown.
+// If no choice has ever been explicitly saved (e.g. upgrading from before
+// this setting existed), fall back to whichever single destination already
+// has valid credentials, so existing backups don't silently stop running.
+export async function getBackupDestinationChoice(): Promise<BackupDestinationChoice> {
+  const stored = await getAppSetting("backup.destination", "");
+  if (stored === "LOCAL" || stored === "S3" || stored === "SFTP") return stored;
+
+  if (await isS3BackupConfigured()) return "S3";
+  if (await isSftpBackupConfigured()) return "SFTP";
+  if (await isLocalBackupConfigured()) return "LOCAL";
+  return "NONE";
+}
+
 export async function isBackupConfigured(): Promise<boolean> {
-  return (
-    isEncryptionConfigured() &&
-    ((await isS3BackupConfigured()) || (await isSftpBackupConfigured()) || (await isLocalBackupConfigured()))
-  );
+  if (!isEncryptionConfigured()) return false;
+  const destination = await getBackupDestinationChoice();
+  switch (destination) {
+    case "S3":
+      return isS3BackupConfigured();
+    case "SFTP":
+      return isSftpBackupConfigured();
+    case "LOCAL":
+      return isLocalBackupConfigured();
+    default:
+      return false;
+  }
 }

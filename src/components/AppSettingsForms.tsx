@@ -1,13 +1,14 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { testSmtpSettings, testNtfySettings, testOllamaConnection } from "@/lib/actions/app-settings";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { Field } from "@/components/FormField";
-import { inputClass } from "@/components/SelectWrapper";
+import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 import { TestConnectionButton } from "@/components/TestConnectionButton";
+import { BACKUP_DESTINATION_LABELS, type BackupDestinationChoice } from "@/lib/backupDestination";
 
 const checkboxClass = "size-4 rounded border-border accent-accent";
 
@@ -194,125 +195,123 @@ export function BarcodeForm({
   );
 }
 
-// ─── S3 backup ───────────────────────────────────────────────────────────────
+// ─── Backup destination ──────────────────────────────────────────────────────
+// A single destination is active at a time (not "every configured
+// destination runs"), selected from this dropdown. Switching the selection
+// doesn't discard the other destinations' previously-saved credentials —
+// they're just inactive until selected again.
 
-export function S3Form({
+export function BackupDestinationForm({
   action,
   current,
 }: {
   action: (s: ActionState, f: FormData) => Promise<ActionState>;
   current: {
-    endpoint: string;
-    region: string;
-    bucket: string;
-    accessKeyId: string;
-    forcePathStyle: boolean;
-    secretKeyIsSet: boolean;
+    destination: BackupDestinationChoice;
+    local: { path: string };
+    s3: {
+      endpoint: string;
+      region: string;
+      bucket: string;
+      accessKeyId: string;
+      forcePathStyle: boolean;
+      secretKeyIsSet: boolean;
+    };
+    sftp: {
+      host: string;
+      port: number;
+      username: string;
+      remotePath: string;
+      passwordIsSet: boolean;
+      privateKeyIsSet: boolean;
+    };
   };
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  const [destination, setDestination] = useState<BackupDestinationChoice>(current.destination);
+
   return (
     <form action={formAction} className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Endpoint" htmlFor="s3Endpoint" hint="Leave blank for AWS S3">
-          <input id="s3Endpoint" name="s3Endpoint" defaultValue={current.endpoint} placeholder="https://s3.example.com" className={inputClass} />
-        </Field>
-        <Field label="Region" htmlFor="s3Region">
-          <input id="s3Region" name="s3Region" defaultValue={current.region} placeholder="auto" className={inputClass} />
-        </Field>
-        <Field label="Bucket" htmlFor="s3Bucket">
-          <input id="s3Bucket" name="s3Bucket" defaultValue={current.bucket} placeholder="my-backups" className={inputClass} />
-        </Field>
-        <Field label="Access key ID" htmlFor="s3AccessKeyId">
-          <input id="s3AccessKeyId" name="s3AccessKeyId" defaultValue={current.accessKeyId} className={inputClass} />
-        </Field>
-        <Field label="Secret access key" htmlFor="s3SecretAccessKey">
-          <SensitiveField id="s3SecretAccessKey" name="s3SecretAccessKey" isSet={current.secretKeyIsSet} />
-        </Field>
-        <Field label="" htmlFor="s3ForcePathStyle">
-          <div className="flex items-center gap-2 pt-1">
-            <input id="s3ForcePathStyle" name="s3ForcePathStyle" type="checkbox" defaultChecked={current.forcePathStyle} className={checkboxClass} />
-            <label htmlFor="s3ForcePathStyle" className="text-sm">Force path-style URLs</label>
-          </div>
-        </Field>
-      </div>
-      <FormMessage error={state?.error} success={state?.success} />
-      <div className="flex justify-end">
-        <SubmitButton>Save S3 settings</SubmitButton>
-      </div>
-    </form>
-  );
-}
-
-// ─── SFTP backup ─────────────────────────────────────────────────────────────
-
-export function SftpForm({
-  action,
-  current,
-}: {
-  action: (s: ActionState, f: FormData) => Promise<ActionState>;
-  current: {
-    host: string;
-    port: number;
-    username: string;
-    remotePath: string;
-    passwordIsSet: boolean;
-    privateKeyIsSet: boolean;
-  };
-}) {
-  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
-  return (
-    <form action={formAction} className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Host" htmlFor="sftpHost">
-          <input id="sftpHost" name="sftpHost" defaultValue={current.host} placeholder="sftp.example.com" className={inputClass} />
-        </Field>
-        <Field label="Port" htmlFor="sftpPort">
-          <input id="sftpPort" name="sftpPort" type="number" defaultValue={current.port || 22} className={inputClass} />
-        </Field>
-        <Field label="Username" htmlFor="sftpUsername">
-          <input id="sftpUsername" name="sftpUsername" defaultValue={current.username} className={inputClass} />
-        </Field>
-        <Field label="Remote path" htmlFor="sftpRemotePath">
-          <input id="sftpRemotePath" name="sftpRemotePath" defaultValue={current.remotePath} placeholder="/backups" className={inputClass} />
-        </Field>
-        <Field label="Password" htmlFor="sftpPassword" hint="Use password or private key, or both">
-          <SensitiveField id="sftpPassword" name="sftpPassword" isSet={current.passwordIsSet} />
-        </Field>
-        <Field label="Private key (PEM)" htmlFor="sftpPrivateKey">
-          <SensitiveField id="sftpPrivateKey" name="sftpPrivateKey" isSet={current.privateKeyIsSet} />
-        </Field>
-      </div>
-      <FormMessage error={state?.error} success={state?.success} />
-      <div className="flex justify-end">
-        <SubmitButton>Save SFTP settings</SubmitButton>
-      </div>
-    </form>
-  );
-}
-
-// ─── Local backup ────────────────────────────────────────────────────────────
-
-export function LocalForm({
-  action,
-  current,
-}: {
-  action: (s: ActionState, f: FormData) => Promise<ActionState>;
-  current: { path: string };
-}) {
-  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
-  return (
-    <form action={formAction} className="space-y-4">
-      <Field
-        label="Backup directory"
-        htmlFor="localPath"
-        hint="Leave blank to disable this destination. Point this at a path inside your existing data volume (e.g. ./data/backups) so it's covered by whatever you already back up."
-      >
-        <input id="localPath" name="localPath" defaultValue={current.path} placeholder="./data/backups" className={inputClass} />
+      <Field label="Backup destination" htmlFor="destination">
+        <SelectWrapper>
+          <select
+            id="destination"
+            name="destination"
+            value={destination}
+            onChange={(e) => setDestination(e.target.value as BackupDestinationChoice)}
+            className={selectClass}
+          >
+            {(Object.keys(BACKUP_DESTINATION_LABELS) as BackupDestinationChoice[]).map((value) => (
+              <option key={value} value={value}>
+                {BACKUP_DESTINATION_LABELS[value]}
+              </option>
+            ))}
+          </select>
+        </SelectWrapper>
       </Field>
+
+      {destination === "LOCAL" && (
+        <Field
+          label="Backup directory"
+          htmlFor="localPath"
+          hint="Point this at a path inside your existing data volume (e.g. ./data/backups) so it's covered by whatever you already back up."
+        >
+          <input id="localPath" name="localPath" defaultValue={current.local.path} placeholder="./data/backups" className={inputClass} />
+        </Field>
+      )}
+
+      {destination === "S3" && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Endpoint" htmlFor="s3Endpoint" hint="Leave blank for AWS S3">
+            <input id="s3Endpoint" name="s3Endpoint" defaultValue={current.s3.endpoint} placeholder="https://s3.example.com" className={inputClass} />
+          </Field>
+          <Field label="Region" htmlFor="s3Region">
+            <input id="s3Region" name="s3Region" defaultValue={current.s3.region} placeholder="auto" className={inputClass} />
+          </Field>
+          <Field label="Bucket" htmlFor="s3Bucket">
+            <input id="s3Bucket" name="s3Bucket" defaultValue={current.s3.bucket} placeholder="my-backups" className={inputClass} />
+          </Field>
+          <Field label="Access key ID" htmlFor="s3AccessKeyId">
+            <input id="s3AccessKeyId" name="s3AccessKeyId" defaultValue={current.s3.accessKeyId} className={inputClass} />
+          </Field>
+          <Field label="Secret access key" htmlFor="s3SecretAccessKey">
+            <SensitiveField id="s3SecretAccessKey" name="s3SecretAccessKey" isSet={current.s3.secretKeyIsSet} />
+          </Field>
+          <Field label="" htmlFor="s3ForcePathStyle">
+            <div className="flex items-center gap-2 pt-1">
+              <input id="s3ForcePathStyle" name="s3ForcePathStyle" type="checkbox" defaultChecked={current.s3.forcePathStyle} className={checkboxClass} />
+              <label htmlFor="s3ForcePathStyle" className="text-sm">Force path-style URLs</label>
+            </div>
+          </Field>
+        </div>
+      )}
+
+      {destination === "SFTP" && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Host" htmlFor="sftpHost">
+            <input id="sftpHost" name="sftpHost" defaultValue={current.sftp.host} placeholder="sftp.example.com" className={inputClass} />
+          </Field>
+          <Field label="Port" htmlFor="sftpPort">
+            <input id="sftpPort" name="sftpPort" type="number" defaultValue={current.sftp.port || 22} className={inputClass} />
+          </Field>
+          <Field label="Username" htmlFor="sftpUsername">
+            <input id="sftpUsername" name="sftpUsername" defaultValue={current.sftp.username} className={inputClass} />
+          </Field>
+          <Field label="Remote path" htmlFor="sftpRemotePath">
+            <input id="sftpRemotePath" name="sftpRemotePath" defaultValue={current.sftp.remotePath} placeholder="/backups" className={inputClass} />
+          </Field>
+          <Field label="Password" htmlFor="sftpPassword" hint="Use password or private key, or both">
+            <SensitiveField id="sftpPassword" name="sftpPassword" isSet={current.sftp.passwordIsSet} />
+          </Field>
+          <Field label="Private key (PEM)" htmlFor="sftpPrivateKey">
+            <SensitiveField id="sftpPrivateKey" name="sftpPrivateKey" isSet={current.sftp.privateKeyIsSet} />
+          </Field>
+        </div>
+      )}
+
       <FormMessage error={state?.error} success={state?.success} />
       <div className="flex justify-end">
-        <SubmitButton>Save local backup settings</SubmitButton>
+        <SubmitButton>Save backup destination</SubmitButton>
       </div>
     </form>
   );
