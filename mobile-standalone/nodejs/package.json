@@ -1,0 +1,10 @@
+{
+  "name": "hearth-standalone-server",
+  "private": true,
+  "main": "bootstrap.js",
+  "comment": "This package.json only exists so `npm install` here can override @libsql/client to the WASM build — @libsql/client's native binding (the actual `libsql` package) publishes prebuilts for linux-gnu/musl, darwin, and win32 only, NOT Android's Bionic libc or iOS. See README.md 'Verified risks' — this override is the untested fix attempt for that.",
+  "dependencies": {},
+  "overrides": {
+    "@libsql/client": "npm:@libsql/client-wasm@^0.17.4"
+  }
+}

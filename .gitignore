@@ -72,3 +72,8 @@ next-env.d.ts
 *.keystore
 !debug.keystore
 
+# Standalone-mode spike (#148): generated server bundle copied into the
+# Capacitor web dir by mobile-standalone/scripts/build-standalone-server.sh —
+# mobile-standalone/nodejs/ holds the source templates, this is build output.
+/ios-shell/www/nodejs
+
