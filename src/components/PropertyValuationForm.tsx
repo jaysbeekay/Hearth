@@ -7,6 +7,7 @@ import { CurrencySelect } from "@/components/CurrencySelect";
 import { FormMessage } from "@/components/FormMessage";
 import { SubmitButton } from "@/components/SubmitButton";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
+import { DateInput } from "@/components/DateInput";
 
 export function PropertyValuationForm({
   action,
@@ -35,8 +36,7 @@ export function PropertyValuationForm({
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="mb-1 block text-xs text-foreground/60">Date</label>
-          <input
-            type="date"
+          <DateInput
             name="valuedAt"
             required
             defaultValue={state?.values?.valuedAt ?? new Date().toISOString().slice(0, 10)}

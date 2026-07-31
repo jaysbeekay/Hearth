@@ -63,16 +63,16 @@ export default async function PortfolioPage({
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           <div className="rounded-xl border border-border bg-surface p-4">
             <p className="text-xs text-foreground/50">Market value</p>
-            <p className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(portfolioValue.totalValue, portfolio.currency, undefined, region)}</p>
+            <p className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(portfolioValue.totalValue, portfolio.currency, undefined, region, { showCode: true })}</p>
           </div>
           <div className="rounded-xl border border-border bg-surface p-4">
             <p className="text-xs text-foreground/50">Cost basis</p>
-            <p className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(portfolioValue.totalCost, portfolio.currency, undefined, region)}</p>
+            <p className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(portfolioValue.totalCost, portfolio.currency, undefined, region, { showCode: true })}</p>
           </div>
           <div className="rounded-xl border border-border bg-surface p-4">
             <p className="text-xs text-foreground/50">Total gain / loss</p>
             <p className={`mt-1 text-xl font-semibold tabular-nums ${(portfolioValue.totalValue - portfolioValue.totalCost) >= 0 ? "text-success" : "text-danger"}`}>
-              {formatCurrency(portfolioValue.totalValue - portfolioValue.totalCost, portfolio.currency, undefined, region)}
+              {formatCurrency(portfolioValue.totalValue - portfolioValue.totalCost, portfolio.currency, undefined, region, { showCode: true })}
             </p>
           </div>
         </div>

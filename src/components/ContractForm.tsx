@@ -24,6 +24,7 @@ import {
   type QueuedOperation,
 } from "@/lib/offlineQueue";
 import { markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
+import { DateInput } from "@/components/DateInput";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -271,22 +272,20 @@ export function ContractForm({
           </Field>
 
           <Field label="Start date" htmlFor="startDate">
-            <input
+            <DateInput
               ref={startDateRef}
               id="startDate"
               name="startDate"
-              type="date"
               defaultValue={effectiveValues?.startDate ?? toDateInputValue(contract?.startDate)}
               className={inputClass}
             />
           </Field>
 
           <Field label="End date" htmlFor="endDate">
-            <input
+            <DateInput
               ref={endDateRef}
               id="endDate"
               name="endDate"
-              type="date"
               defaultValue={effectiveValues?.endDate ?? toDateInputValue(contract?.endDate)}
               className={inputClass}
             />

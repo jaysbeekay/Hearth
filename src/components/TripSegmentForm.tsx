@@ -14,6 +14,7 @@ import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
 import { markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
+import { DateInput } from "@/components/DateInput";
 
 type SegmentType = (typeof TRIP_SEGMENT_TYPES)[number];
 
@@ -233,22 +234,20 @@ export function TripSegmentForm({
         </Field>
 
         <Field label="Start date" htmlFor="startDate">
-          <input
+          <DateInput
             ref={startDateRef}
             id="startDate"
             name="startDate"
-            type="date"
             defaultValue={state?.values?.startDate ?? toDateInputValue(segment?.startDate)}
             className={inputClass}
           />
         </Field>
 
         <Field label="End date" htmlFor="endDate">
-          <input
+          <DateInput
             ref={endDateRef}
             id="endDate"
             name="endDate"
-            type="date"
             defaultValue={state?.values?.endDate ?? toDateInputValue(segment?.endDate)}
             className={inputClass}
           />

@@ -10,6 +10,7 @@ import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapp
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
+import { DateInput } from "@/components/DateInput";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -104,10 +105,9 @@ export function TradeForm({
 
         <div>
           <label className="block text-sm font-medium mb-1" htmlFor="date">Trade date <span className="text-danger">*</span></label>
-          <input
+          <DateInput
             id="date"
             name="date"
-            type="date"
             required
             value={selectedDate}
             onChange={(e) => setSelectedDate(e.target.value)}

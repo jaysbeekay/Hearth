@@ -12,6 +12,7 @@ import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
 import { markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
+import { DateInput } from "@/components/DateInput";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -183,22 +184,20 @@ export function RentalAgreementForm({
         </Field>
 
         <Field label="Lease start" htmlFor="leaseStart">
-          <input
+          <DateInput
             ref={leaseStartRef}
             id="leaseStart"
             name="leaseStart"
-            type="date"
             defaultValue={state?.values?.leaseStart ?? toDateInputValue(agreement?.leaseStart)}
             className={inputClass}
           />
         </Field>
 
         <Field label="Lease end" htmlFor="leaseEnd">
-          <input
+          <DateInput
             ref={leaseEndRef}
             id="leaseEnd"
             name="leaseEnd"
-            type="date"
             defaultValue={state?.values?.leaseEnd ?? toDateInputValue(agreement?.leaseEnd)}
             className={inputClass}
           />

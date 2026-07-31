@@ -15,6 +15,7 @@ import {
 } from "@/lib/offlineQueue";
 import { Field } from "@/components/FormField";
 import { inputClass } from "@/components/SelectWrapper";
+import { DateInput } from "@/components/DateInput";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -98,20 +99,18 @@ export function TripForm({
         </Field>
 
         <Field label="Start date" htmlFor="startDate">
-          <input
+          <DateInput
             id="startDate"
             name="startDate"
-            type="date"
             defaultValue={effectiveValues?.startDate ?? toDateInputValue(trip?.startDate)}
             className={inputClass}
           />
         </Field>
 
         <Field label="End date" htmlFor="endDate">
-          <input
+          <DateInput
             id="endDate"
             name="endDate"
-            type="date"
             defaultValue={effectiveValues?.endDate ?? toDateInputValue(trip?.endDate)}
             className={inputClass}
           />

@@ -167,6 +167,25 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- **One user-facing name per section** (#174). The warranties area called
+  itself "Products" in its page title, heading and the Documents filter while
+  the navigation said "Warranties"; it now says "Warranties" everywhere. The
+  `/products` route, the Prisma model and the component names are unchanged —
+  renaming those would break bookmarks and stored offline queues for no user
+  benefit.
+- **Date fields show the household's date format** (#174). A native date input
+  is drawn by the platform and always uses the *browser's* locale, so a
+  household set to DD/MM/YYYY still saw `07/29/2026` in every form while the
+  rest of the app showed `29 Jul 2026`. Date fields now echo the chosen value
+  underneath in the household's own format. The picker itself still follows
+  the browser — that isn't something an attribute or CSS can change — but what
+  you picked is no longer ambiguous.
+- **Amounts show their currency code where a view can mix currencies** (#174).
+  `Intl` already spells out non-local currencies, but the household's own
+  currency collapsed to a bare `$`, which doesn't say which dollar it is. The
+  Wealth pages and /spend — the views that can genuinely show several
+  currencies at once — now render `AUD 1,234.50` rather than `$1,234.50`.
+
 - Setup screen's module checklist now lists Travel last, after Wealth, instead
   of first (#119). Also added a permanently-checked, disabled "Document
   management" row above the optional modules, clarifying that contract/

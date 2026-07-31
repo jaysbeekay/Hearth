@@ -12,6 +12,7 @@ import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
 import { markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
+import { DateInput } from "@/components/DateInput";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -149,39 +150,36 @@ export function RentalStatementForm({
 
       <div className="grid gap-4 md:grid-cols-2">
         <Field label="Period start" htmlFor="periodStart">
-          <input
+          <DateInput
             ref={periodStartRef}
             id="periodStart"
             name="periodStart"
-            type="date"
             defaultValue={
-              state?.values?.periodStart ?? toDateInputValue(statement?.periodStart)
+            state?.values?.periodStart ?? toDateInputValue(statement?.periodStart)
             }
             className={inputClass}
           />
         </Field>
 
         <Field label="Period end" htmlFor="periodEnd">
-          <input
+          <DateInput
             ref={periodEndRef}
             id="periodEnd"
             name="periodEnd"
-            type="date"
             defaultValue={
-              state?.values?.periodEnd ?? toDateInputValue(statement?.periodEnd)
+            state?.values?.periodEnd ?? toDateInputValue(statement?.periodEnd)
             }
             className={inputClass}
           />
         </Field>
 
         <Field label="Statement date" htmlFor="statementDate">
-          <input
+          <DateInput
             ref={statementDateRef}
             id="statementDate"
             name="statementDate"
-            type="date"
             defaultValue={
-              state?.values?.statementDate ?? toDateInputValue(statement?.statementDate)
+            state?.values?.statementDate ?? toDateInputValue(statement?.statementDate)
             }
             className={inputClass}
           />
