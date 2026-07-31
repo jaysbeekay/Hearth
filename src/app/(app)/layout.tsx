@@ -10,6 +10,8 @@ import { GlobalSearch } from "@/components/GlobalSearch";
 import { ToastContainer } from "@/components/Toast";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { getChatConfig, isChatConfigured } from "@/lib/ai/chat/dispatch";
+import { getUserPreferences } from "@/lib/userPreferences";
+import { DateFormatProvider } from "@/components/DateFormatProvider";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
@@ -20,14 +22,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Icon components can't cross the server/client boundary as props, so we
   // only pass the enabled module keys down and let Sidebar/BottomNav build
   // their own nav item list (with icons) on the client.
-  const [enabledModulesSet, chatConfig] = await Promise.all([
+  const [enabledModulesSet, chatConfig, { dateFormat }] = await Promise.all([
     getEnabledModuleKeys(),
     getChatConfig(),
+    getUserPreferences(),
   ]);
   const enabledModules = [...enabledModulesSet];
   const chatConfigured = isChatConfigured(chatConfig);
 
   return (
+    <DateFormatProvider dateFormat={dateFormat}>
     <div className="flex min-h-screen">
       <a href="#main" className="sr-only-focusable">
         Skip to content
@@ -56,5 +60,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <GlobalSearch />
       <ToastContainer />
     </div>
+    </DateFormatProvider>
   );
 }

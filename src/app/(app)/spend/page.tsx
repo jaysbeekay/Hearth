@@ -136,19 +136,19 @@ export default async function SpendPage({
         <div className="rounded-xl border border-border bg-surface p-4">
           <p className="text-xs text-muted">Monthly recurring</p>
           <p className="mt-1 text-2xl font-semibold">
-            {formatCurrency(monthlyTotal, preferredCurrency, undefined, region)}
+            {formatCurrency(monthlyTotal, preferredCurrency, undefined, region, { showCode: true })}
           </p>
         </div>
         <div className="rounded-xl border border-border bg-surface p-4">
           <p className="text-xs text-muted">Annual projection</p>
           <p className="mt-1 text-2xl font-semibold">
-            {formatCurrency(annualTotal, preferredCurrency, undefined, region)}
+            {formatCurrency(annualTotal, preferredCurrency, undefined, region, { showCode: true })}
           </p>
         </div>
         <div className="rounded-xl border border-border bg-surface p-4">
           <p className="text-xs text-muted">Tax-deductible / mo</p>
           <p className="mt-1 text-2xl font-semibold">
-            {formatCurrency(taxDeductibleMonthly, preferredCurrency, undefined, region)}
+            {formatCurrency(taxDeductibleMonthly, preferredCurrency, undefined, region, { showCode: true })}
           </p>
         </div>
       </div>
@@ -190,7 +190,7 @@ export default async function SpendPage({
                     />
                   </div>
                   <span className="w-20 shrink-0 text-xs text-muted tabular-nums">
-                    {formatCurrency(bucket.total, preferredCurrency, undefined, region)}
+                    {formatCurrency(bucket.total, preferredCurrency, undefined, region, { showCode: true })}
                   </span>
                 </div>
               ))
@@ -204,7 +204,7 @@ export default async function SpendPage({
                     />
                   </div>
                   <span className="w-20 shrink-0 text-xs text-muted tabular-nums">
-                    {formatCurrency(bucket.total, preferredCurrency, undefined, region)}
+                    {formatCurrency(bucket.total, preferredCurrency, undefined, region, { showCode: true })}
                   </span>
                 </div>
               ))}
@@ -230,7 +230,7 @@ export default async function SpendPage({
                     />
                   </div>
                   <span className="w-28 shrink-0 text-right text-xs text-muted tabular-nums">
-                    {formatCurrency(bucket.monthlyTotal, preferredCurrency, undefined, region)} ({pct.toFixed(0)}%)
+                    {formatCurrency(bucket.monthlyTotal, preferredCurrency, undefined, region, { showCode: true })} ({pct.toFixed(0)}%)
                   </span>
                 </div>
               );
@@ -264,18 +264,18 @@ export default async function SpendPage({
                     {homeActuals.length > 0 && (
                       <>
                         <td className="py-2 text-right tabular-nums">
-                          {row.home ? formatCurrency(row.home.amount, row.currency, undefined, region) : "—"}
+                          {row.home ? formatCurrency(row.home.amount, row.currency, undefined, region, { showCode: true }) : "—"}
                         </td>
                         <td className="py-2 text-right tabular-nums">
                           {row.homeDeductible
-                            ? formatCurrency(row.homeDeductible.amount, row.currency, undefined, region)
+                            ? formatCurrency(row.homeDeductible.amount, row.currency, undefined, region, { showCode: true })
                             : "—"}
                         </td>
                       </>
                     )}
                     {vehicleActuals.length > 0 && (
                       <td className="py-2 text-right tabular-nums">
-                        {row.vehicle ? formatCurrency(row.vehicle.amount, row.currency, undefined, region) : "—"}
+                        {row.vehicle ? formatCurrency(row.vehicle.amount, row.currency, undefined, region, { showCode: true }) : "—"}
                       </td>
                     )}
                   </tr>

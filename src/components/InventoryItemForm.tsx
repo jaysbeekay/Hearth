@@ -19,6 +19,7 @@ import {
   serializeFormData,
   type QueuedOperation,
 } from "@/lib/offlineQueue";
+import { DateInput } from "@/components/DateInput";
 
 const CATEGORY_LABELS: Record<string, string> = {
   APPLIANCE: "Appliance",
@@ -247,11 +248,10 @@ export function InventoryItemForm({
 
       <div className="grid grid-cols-2 gap-4">
         <Field label="Purchase Date" htmlFor="purchaseDate">
-          <input
+          <DateInput
             ref={purchaseDateRef}
             id="purchaseDate"
             name="purchaseDate"
-            type="date"
             defaultValue={effectiveValues?.purchaseDate ?? toDateInputValue(item?.purchaseDate)}
             className={inputClass}
           />

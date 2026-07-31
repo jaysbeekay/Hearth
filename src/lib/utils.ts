@@ -71,15 +71,30 @@ export function formatDate(
   }
 }
 
+export interface CurrencyFormatOptions {
+  /**
+   * Render the ISO code ("AUD 1,234.50") instead of the locale's symbol.
+   *
+   * Intl already spells out non-local currencies — in en-AU, USD renders as
+   * "USD 1,234.50" — but the household's *own* currency collapses to a bare
+   * "$", which says nothing about which dollar it is (#174). Set this on any
+   * view that can show more than one currency at once, so amounts there are
+   * never ambiguous.
+   */
+  showCode?: boolean;
+}
+
 export function formatCurrency(
   amount: number | null | undefined,
   currency: string,
   fractionDigits?: number,
   region: string = DEFAULT_REGION,
+  { showCode = false }: CurrencyFormatOptions = {},
 ) {
   if (amount == null) return "—";
   try {
     const opts: Intl.NumberFormatOptions = { style: "currency", currency };
+    if (showCode) opts.currencyDisplay = "code";
     if (fractionDigits !== undefined) {
       opts.minimumFractionDigits = fractionDigits;
       opts.maximumFractionDigits = fractionDigits;

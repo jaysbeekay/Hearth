@@ -19,12 +19,12 @@ export default async function NewProductPage() {
     <div className="max-w-3xl space-y-6">
       <BackLink href="/products" label="Back to warranties" />
       <div>
-        <h1 className="text-2xl font-semibold">Add a product</h1>
+        <h1 className="text-2xl font-semibold">Add a warranty</h1>
         <p className="text-sm text-foreground/60">
           Capture the purchase details so you never miss a warranty deadline.
         </p>
         <p className="mt-1 text-xs text-muted">
-          Products are things with a warranty. Looking for an ongoing bill or subscription
+          Warranties cover things you&apos;ve bought. Looking for an ongoing bill or subscription
           instead? Try{" "}
           <Link href="/contracts/new" className="text-accent hover:underline">
             add a contract

@@ -186,7 +186,7 @@ export default async function AppSettingsPage() {
       <section className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
         <div>
           <h2 className="font-medium">Barcode lookup</h2>
-          <p className="text-xs text-foreground/50 mt-0.5">Scanned barcode product lookup for the Products module</p>
+          <p className="text-xs text-foreground/50 mt-0.5">Scanned barcode product lookup for the Warranties module</p>
         </div>
         <BarcodeForm
           action={saveBarcodeSettings}
