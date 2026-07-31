@@ -1,8 +1,16 @@
 name: Publish Docker image
 
 on:
+  # Tag push only — a Docker Hub image is published for a release, not for
+  # every commit that lands on main. This used to also trigger on push to
+  # main, tagging that build `latest` via `enable={{is_default_branch}}`,
+  # which tracks "newest commit on main" rather than "newest release": a
+  # tag push (is_default_branch is false off a branch) never actually
+  # produced `latest`, so self-hosters pulling `:latest` got whatever had
+  # most recently merged, not what CHANGELOG.md says shipped.
+  # workflow_dispatch stays for the documented manual-tag fallback in
+  # README's "Releasing" section — always run it against the release tag.
   push:
-    branches: [main]
     tags: ["v*"]
   workflow_dispatch:
 
@@ -30,8 +38,11 @@ jobs:
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
           images: jaysbeekay/hearth
+          # Every trigger of this workflow is now a release (tag push, or a
+          # manual dispatch run against one), so `latest` applies
+          # unconditionally rather than being gated on the default branch.
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest
             type=ref,event=tag
             type=sha,prefix=
 
@@ -54,7 +65,9 @@ jobs:
           provenance: mode=max
 
       - name: Sync Docker Hub overview with README
-        if: github.ref == 'refs/heads/main'
+        # Unconditional now: every run of this workflow is a release, so the
+        # overview should refresh each time rather than only on a main push
+        # (which no longer triggers this workflow at all).
         uses: peter-evans/dockerhub-description@432a30c9e07499fd01da9f8a49f0faf9e0ca5b77 # v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
