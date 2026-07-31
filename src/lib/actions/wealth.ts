@@ -9,10 +9,10 @@ import {
   holdingSchema,
   tradeSchema,
   propertyValuationSchema,
+  importedTradesSchema,
+  MAX_IMPORTED_TRADES,
 } from "@/lib/validation/wealth";
 import {
-  ALLOWED_MIME_TYPES,
-  MAX_UPLOAD_BYTES,
   saveTradeDocument,
   deleteTradeDocument,
   deleteTradeDir,
@@ -22,6 +22,7 @@ import { isModuleEnabled } from "@/lib/modules/enablement";
 import { formDataToStringValues } from "@/lib/form-state";
 import type { ActionState } from "@/lib/actions/auth";
 import { parse } from "csv-parse/sync";
+import { describeUploadRejection } from "@/lib/uploadValidation";
 
 const PORTFOLIO_FIELDS = ["name", "description", "currency"];
 const HOLDING_FIELDS = ["ticker", "name", "assetClass", "exchange"];
@@ -182,10 +183,8 @@ async function requireHolding(holdingId: string) {
 }
 
 async function attachTradeDocument(tradeId: string, file: File): Promise<ActionState | null> {
-  if (file.size > MAX_UPLOAD_BYTES) return { error: "File is too large (15MB max)." };
-  if (!ALLOWED_MIME_TYPES.has(file.type)) {
-    return { error: "Unsupported file type. Use PDF, Word, or image files." };
-  }
+  const rejection = await describeUploadRejection(file);
+  if (rejection) return { error: rejection };
   const { storedName, size } = await saveTradeDocument(tradeId, file);
   await prisma.tradeDocument.create({
     data: {
@@ -227,10 +226,8 @@ export async function createTrade(
 
   const file = formData.get("file");
   if (file instanceof File && file.size > 0) {
-    if (file.size > MAX_UPLOAD_BYTES) return { error: "File is too large (15MB max)." };
-    if (!ALLOWED_MIME_TYPES.has(file.type)) {
-      return { error: "Unsupported file type. Use PDF, Word, or image files." };
-    }
+    const rejection = await describeUploadRejection(file);
+    if (rejection) return { error: rejection };
   }
 
   const trade = await prisma.trade.create({ data: { ...parsed.data, holdingId } });
@@ -387,6 +384,12 @@ export async function parseTradesCsv(
   }
 
   if (!records.length) return { rows: [], error: "CSV is empty." };
+  if (records.length > MAX_IMPORTED_TRADES) {
+    return {
+      rows: [],
+      error: `That file has ${records.length} rows — import at most ${MAX_IMPORTED_TRADES} at a time.`,
+    };
+  }
   const headers = Object.keys(records[0]);
   const format = detectFormat(headers);
 
@@ -467,10 +470,17 @@ export async function importTrades(
   const portfolio = await prisma.portfolio.findUnique({ where: { id: portfolioId } });
   if (!portfolio) return { error: "Portfolio not found." };
 
+  // `rows` arrives from the client. The ParsedTrade[] type is compile-time
+  // only, so validate it for real before any of it reaches the database.
+  const validated = importedTradesSchema.safeParse(rows);
+  if (!validated.success) {
+    return { error: firstIssueMessage(validated.error) };
+  }
+
   let imported = 0;
   let skipped = 0;
 
-  for (const row of rows) {
+  for (const row of validated.data) {
     const date = new Date(row.date);
     if (isNaN(date.getTime())) { skipped++; continue; }
 
@@ -485,7 +495,7 @@ export async function importTrades(
       where: {
         holdingId: holding.id,
         date,
-        type: row.type as "BUY" | "SELL" | "DIVIDEND" | "SPLIT",
+        type: row.type,
         units: row.units,
         pricePerUnit: row.pricePerUnit,
       },
@@ -495,7 +505,7 @@ export async function importTrades(
     const newTrade = await prisma.trade.create({
       data: {
         holdingId: holding.id,
-        type: row.type as "BUY" | "SELL" | "DIVIDEND" | "SPLIT",
+        type: row.type,
         date,
         units: row.units,
         pricePerUnit: row.pricePerUnit,

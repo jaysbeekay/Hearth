@@ -6,8 +6,6 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { inventoryItemSchema } from "@/lib/validation/inventory";
 import {
-  ALLOWED_MIME_TYPES,
-  MAX_UPLOAD_BYTES,
   deleteInventoryItemDir,
   deleteInventoryItemDocument as deleteInventoryItemDocumentFile,
   saveInventoryItemDocument,
@@ -15,6 +13,7 @@ import {
 import { formDataToStringValues } from "@/lib/form-state";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import type { ActionState } from "@/lib/actions/auth";
+import { describeUploadRejection } from "@/lib/uploadValidation";
 
 const INVENTORY_ITEM_FORM_FIELDS = [
   "label",
@@ -57,10 +56,8 @@ function formToInventoryItemInput(formData: FormData) {
 }
 
 async function attachDocument(inventoryItemId: string, file: File): Promise<ActionState | null> {
-  if (file.size > MAX_UPLOAD_BYTES) return { error: "File is too large (15MB max)." };
-  if (!ALLOWED_MIME_TYPES.has(file.type)) {
-    return { error: "Unsupported file type. Use PDF, Word, or image files." };
-  }
+  const rejection = await describeUploadRejection(file);
+  if (rejection) return { error: rejection };
 
   const { storedName, size } = await saveInventoryItemDocument(inventoryItemId, file);
   await prisma.inventoryItemDocument.create({
@@ -91,10 +88,8 @@ export async function createInventoryItem(
 
   const file = formData.get("file");
   if (file instanceof File && file.size > 0) {
-    if (file.size > MAX_UPLOAD_BYTES) return { error: "File is too large (15MB max)." };
-    if (!ALLOWED_MIME_TYPES.has(file.type)) {
-      return { error: "Unsupported file type. Use PDF, Word, or image files." };
-    }
+    const rejection = await describeUploadRejection(file);
+    if (rejection) return { error: rejection };
   }
 
   const item = await prisma.inventoryItem.create({

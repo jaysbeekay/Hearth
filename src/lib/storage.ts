@@ -2,18 +2,9 @@ import { randomUUID } from "crypto";
 import path from "path";
 import fs from "fs/promises";
 import { env } from "@/lib/env";
+import { readValidatedUpload } from "@/lib/uploadValidation";
 
-export { MAX_UPLOAD_BYTES } from "@/lib/uploadLimits";
-
-export const ALLOWED_MIME_TYPES = new Set([
-  "application/pdf",
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/heic",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-]);
+export { MAX_UPLOAD_BYTES, ALLOWED_MIME_TYPES } from "@/lib/uploadLimits";
 
 // IDs are always database-sourced cuids, but path.basename() strips any
 // directory-traversal characters defensively in case that ever changes.
@@ -47,7 +38,7 @@ export async function saveDocument(contractId: string, file: File) {
   const storedName = `${randomUUID()}${safeExtension(file.name)}`;
   const fullPath = path.join(dir, storedName);
 
-  const buffer = Buffer.from(await file.arrayBuffer());
+  const buffer = await readValidatedUpload(file);
   await fs.writeFile(fullPath, buffer);
 
   return { storedName, size: buffer.byteLength };
@@ -74,7 +65,7 @@ export async function saveProductDocument(productId: string, file: File) {
   const storedName = `${randomUUID()}${safeExtension(file.name)}`;
   const fullPath = path.join(dir, storedName);
 
-  const buffer = Buffer.from(await file.arrayBuffer());
+  const buffer = await readValidatedUpload(file);
   await fs.writeFile(fullPath, buffer);
 
   return { storedName, size: buffer.byteLength };
@@ -101,7 +92,7 @@ export async function saveTripSegmentDocument(tripSegmentId: string, file: File)
   const storedName = `${randomUUID()}${safeExtension(file.name)}`;
   const fullPath = path.join(dir, storedName);
 
-  const buffer = Buffer.from(await file.arrayBuffer());
+  const buffer = await readValidatedUpload(file);
   await fs.writeFile(fullPath, buffer);
 
   return { storedName, size: buffer.byteLength };
@@ -128,7 +119,7 @@ export async function saveHomeItemDocument(homeItemId: string, file: File) {
   const storedName = `${randomUUID()}${safeExtension(file.name)}`;
   const fullPath = path.join(dir, storedName);
 
-  const buffer = Buffer.from(await file.arrayBuffer());
+  const buffer = await readValidatedUpload(file);
   await fs.writeFile(fullPath, buffer);
 
   return { storedName, size: buffer.byteLength };
@@ -159,7 +150,7 @@ export async function saveVehicleItemDocument(vehicleItemId: string, file: File)
   const storedName = `${randomUUID()}${safeExtension(file.name)}`;
   const fullPath = path.join(dir, storedName);
 
-  const buffer = Buffer.from(await file.arrayBuffer());
+  const buffer = await readValidatedUpload(file);
   await fs.writeFile(fullPath, buffer);
 
   return { storedName, size: buffer.byteLength };
@@ -194,7 +185,7 @@ export async function saveRentalStatementDocument(statementId: string, file: Fil
   const storedName = `${randomUUID()}${safeExtension(file.name)}`;
   const fullPath = path.join(dir, storedName);
 
-  const buffer = Buffer.from(await file.arrayBuffer());
+  const buffer = await readValidatedUpload(file);
   await fs.writeFile(fullPath, buffer);
 
   return { storedName, size: buffer.byteLength };
@@ -229,7 +220,7 @@ export async function saveInventoryItemDocument(inventoryItemId: string, file: F
   const storedName = `${randomUUID()}${safeExtension(file.name)}`;
   const fullPath = path.join(dir, storedName);
 
-  const buffer = Buffer.from(await file.arrayBuffer());
+  const buffer = await readValidatedUpload(file);
   await fs.writeFile(fullPath, buffer);
 
   return { storedName, size: buffer.byteLength };
@@ -260,7 +251,7 @@ export async function saveInboxDocument(file: File) {
   const storedName = `${randomUUID()}${safeExtension(file.name)}`;
   const fullPath = path.join(dir, storedName);
 
-  const buffer = Buffer.from(await file.arrayBuffer());
+  const buffer = await readValidatedUpload(file);
   await fs.writeFile(fullPath, buffer);
 
   return { storedName, size: buffer.byteLength };
@@ -287,7 +278,7 @@ export async function saveTradeDocument(tradeId: string, file: File) {
   const storedName = `${randomUUID()}${safeExtension(file.name)}`;
   const fullPath = path.join(dir, storedName);
 
-  const buffer = Buffer.from(await file.arrayBuffer());
+  const buffer = await readValidatedUpload(file);
   await fs.writeFile(fullPath, buffer);
 
   return { storedName, size: buffer.byteLength };

@@ -86,6 +86,46 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   key, which anyone can modify and re-sign, and built debuggable. Tagged builds
   without signing configured now fail loudly instead, and debug APKs are built
   only on manual `workflow_dispatch` runs.
+- **Rate limiting, where there was none** (#155). Failed sign-ins, TOTP codes,
+  recovery codes, password-reset requests and passkey challenge issuance are
+  now throttled, along with the cost-bearing document-extraction and chat
+  endpoints. Auth limits count failures only, keyed by account *and* client
+  address, so guessing at one account can't lock out the household and a
+  shared NAT egress doesn't either. In-memory and dependency-free: counters
+  reset on restart and aren't shared across replicas, which is the right
+  trade for a single-container deployment but is worth knowing.
+- **Uploads are validated by content, not by the type the client claims**
+  (#165). `file.type` is caller-controlled, and it decided whether a file was
+  accepted, which extraction pipeline ran over it, and what Content-Type it
+  was served back with. Leading bytes are now sniffed at both choke points —
+  every `save*` in storage.ts and all eight extract routes. `/api/sync` also
+  gained an aggregate body cap and a 200-operation limit; the per-file 15MB
+  cap never bounded a request carrying many files.
+- **Administrator-configurable outbound destinations are checked** (#167).
+  Webhook, ntfy and Ollama URLs are validated before each request against the
+  two things that are never legitimate from this app: a non-HTTP(S) scheme,
+  and the cloud instance-metadata addresses (`169.254.169.254` and the
+  equivalents for ECS, Alibaba, Oracle and AWS IPv6), including their
+  IPv4-mapped IPv6 spellings in both dotted and hex form.
+
+  Everything else is permitted, deliberately. Bare IP addresses and local
+  hostnames are supported destinations, not suspicious ones —
+  `http://192.168.1.50:8123`, `https://homeassistant.local:8123`,
+  `http://ntfy:80`, `http://host.docker.internal:11434` and
+  `http://localhost:11434` all work, as do link-local/APIPA and
+  carrier-grade-NAT addresses. A hostname that doesn't resolve is also
+  allowed through rather than refused: `.local` names need mDNS the runtime
+  image doesn't have, and a service may simply be down when its webhook is
+  saved. Operators with no local integrations can set
+  `BLOCK_PRIVATE_NETWORK_TARGETS=true` to refuse local destinations too.
+- **`importTrades` validated its input at compile time only** (#162). It took
+  a `ParsedTrade[]` straight from the client with no runtime check, so NaN or
+  Infinity units/prices reached the database and poisoned every downstream
+  FIFO cost-basis calculation, and `type` was cast to an enum it was never
+  checked against. It's now parsed with Zod, with finite-number and row-count
+  limits. Chat history sent to the provider is capped at the most recent 60
+  messages rather than the entire thread, and CSV imports are bounded at 5000
+  rows.
 - **Sessions are revalidated against the database on every read** (#168).
   Previously the role was copied into the JWT at sign-in and never revisited,
   so a demoted account kept admin rights — and a deleted account kept working

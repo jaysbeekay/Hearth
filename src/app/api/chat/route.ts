@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { consumeRateLimit } from "@/lib/rateLimit";
 import { prisma } from "@/lib/prisma";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { sendChatMessageSchema } from "@/lib/validation/chat";
@@ -8,6 +9,11 @@ import { callChatCompletion, getChatConfig, isChatConfigured } from "@/lib/ai/ch
 import { MAX_TOOL_CALL_ROUNDS, type ChatTurn } from "@/lib/ai/chat/types";
 import { getAvailableTools, runTool, type ToolContext } from "@/lib/chat/tools";
 import type { ChatMessageModel } from "@/generated/prisma/models";
+
+// How much of a thread's history is replayed to the provider on each turn.
+// Tool calls and their results are separate rows, so a single exchange can be
+// three or four of these.
+const MAX_HISTORY_MESSAGES = 60;
 
 const SYSTEM_PROMPT =
   "You are the household assistant built into Hearth, a household management app. " +
@@ -72,6 +78,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Each turn bills the household's own provider key, and a tool-calling turn
+  // can fan out into several upstream calls.
+  const chatThrottle = consumeRateLimit("chat", session.user.id);
+  if (!chatThrottle.allowed) {
+    return NextResponse.json(
+      { error: "Too many messages just now. Give it a moment." },
+      { status: 429, headers: { "Retry-After": String(chatThrottle.retryAfterSeconds) } },
+    );
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -105,11 +121,16 @@ export async function POST(request: NextRequest) {
     });
   }
 
+  // A thread grows without limit, and every turn resent the whole of it to
+  // the provider — cost and latency climbing with each message, until the
+  // request eventually exceeded the model's context window and started
+  // failing outright (#162). Take the most recent slice instead.
   const priorRows = await prisma.chatMessage.findMany({
     where: { threadId: thread.id },
-    orderBy: { createdAt: "asc" },
+    orderBy: { createdAt: "desc" },
+    take: MAX_HISTORY_MESSAGES,
   });
-  const messages: ChatTurn[] = priorRows.map(rowToTurn);
+  const messages: ChatTurn[] = priorRows.reverse().map(rowToTurn);
 
   await prisma.chatMessage.create({
     data: { threadId: thread.id, role: "USER", content: message },

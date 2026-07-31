@@ -6,8 +6,6 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { productSchema } from "@/lib/validation/product";
 import {
-  ALLOWED_MIME_TYPES,
-  MAX_UPLOAD_BYTES,
   deleteProductDir,
   deleteProductDocument as deleteProductDocumentFile,
   saveProductDocument,
@@ -16,6 +14,7 @@ import { ProductDocumentKind } from "@/generated/prisma/enums";
 import { formDataToStringValues } from "@/lib/form-state";
 import { formToProductInput } from "@/lib/formMappers";
 import { extractSearchableText } from "@/lib/documents/textExtraction";
+import { describeUploadRejection } from "@/lib/uploadValidation";
 
 export type ActionState = {
   error?: string;
@@ -62,10 +61,8 @@ async function attachProductDocument(
   file: File,
   kind: ProductDocumentKind,
 ): Promise<ActionState | null> {
-  if (file.size > MAX_UPLOAD_BYTES) return { error: "File is too large (15MB max)." };
-  if (!ALLOWED_MIME_TYPES.has(file.type)) {
-    return { error: "Unsupported file type. Use PDF, Word, or image files." };
-  }
+  const rejection = await describeUploadRejection(file);
+  if (rejection) return { error: rejection };
 
   const { storedName, size } = await saveProductDocument(productId, file);
   // Only invoices carry meaningful text; skip OCR on plain product photos.
@@ -105,10 +102,8 @@ export async function createProduct(
   const photoFile = formData.get("photoFile");
   for (const file of [invoiceFile, photoFile]) {
     if (file instanceof File && file.size > 0) {
-      if (file.size > MAX_UPLOAD_BYTES) return { error: "File is too large (15MB max)." };
-      if (!ALLOWED_MIME_TYPES.has(file.type)) {
-        return { error: "Unsupported file type. Use PDF, Word, or image files." };
-      }
+      const rejection = await describeUploadRejection(file);
+      if (rejection) return { error: rejection };
     }
   }
 

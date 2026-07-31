@@ -1,4 +1,5 @@
 import { getNtfyConfig, isNtfyConfigured } from "@/lib/appSettings";
+import { assertSafeOutboundUrl } from "@/lib/net/outbound";
 
 function stripNewlines(value: string) {
   return value.replace(/[\r\n]+/g, " ").trim();
@@ -16,10 +17,12 @@ export async function sendTestNtfy() {
   };
   if (ntfy.token) headers.Authorization = `Bearer ${ntfy.token}`;
 
+  await assertSafeOutboundUrl(url);
   const response = await fetch(url, {
     method: "POST",
     headers,
     body: "This is a test notification from Hearth.",
+    signal: AbortSignal.timeout(10_000),
   });
 
   if (!response.ok) {
@@ -57,10 +60,12 @@ export async function sendNtfyReminder(opts: {
     headers.Authorization = `Bearer ${ntfy.token}`;
   }
 
+  await assertSafeOutboundUrl(url);
   const response = await fetch(url, {
     method: "POST",
     headers,
     body: `${opts.detail ? `${opts.detail} ` : ""}${opts.kind} expires on ${formattedDate}.`,
+    signal: AbortSignal.timeout(10_000),
   });
 
   if (!response.ok) {

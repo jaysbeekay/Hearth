@@ -598,6 +598,7 @@ for the full list with defaults. Notable ones:
 | `BARCODE_LOOKUP_ENABLED` | Optional. Set to `true` to look up a scanned product barcode online and auto-fill its name/manufacturer — see "Barcode scanning for products" above. |
 | `BARCODE_LOOKUP_API_KEY` | Optional. A paid UPCitemdb API key for higher-limit barcode lookups, instead of the free keyless trial endpoint. |
 | `ENCRYPTION_KEY` | Optional. Generate with `openssl rand -base64 32`. Set to enable users bringing their own AI provider key for document extraction, and a prerequisite for offsite database backups — see "Bring your own AI key" and "Database backups" above. |
+| `BLOCK_PRIVATE_NETWORK_TARGETS` | Optional. Set to `true` to refuse outbound requests (webhooks, ntfy, Ollama) to addresses on your own network. Off by default — LAN IPs and local hostnames are supported destinations. Cloud instance-metadata addresses are always refused either way. |
 | `SETUP_TOKEN` | Optional. Generate with `openssl rand -hex 16`. If set, the first-run setup screen also asks for this value, so a server that's reachable before you've created your account can't be claimed by someone else — see "Security notes" below. Ignored once setup is complete. |
 | `BACKUP_CRON_SCHEDULE` / `BACKUP_RETENTION_COUNT` | Optional. Schedule (cron syntax, default daily at 03:00) and how many backups to keep per destination (default 7). |
 | `BACKUP_S3_*` | Optional. Pre-populates the S3-compatible backup fields (`BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY`, plus `BACKUP_S3_ENDPOINT`/`BACKUP_S3_REGION`/`BACKUP_S3_FORCE_PATH_STYLE` for non-AWS providers) — still requires picking "S3-compatible storage" in Settings → System settings' backup destination dropdown to activate it. See "Database backups" above. |
@@ -636,6 +637,20 @@ threshold.
 - Password-reset, invitation and calendar-feed tokens are stored as hashes,
   never in the clear. A calendar feed URL is shown once, when you create it —
   generate a new one if you lose it.
+- Failed sign-ins, two-factor codes, recovery codes, password-reset requests
+  and passkey challenges are rate-limited, as are the document-extraction and
+  assistant endpoints. Limits are per-account and per-address, held in memory,
+  and reset when the app restarts.
+- Uploaded files are checked by their actual contents, not the type your
+  browser claims, before anything is stored or handed to the OCR tools.
+- Outbound requests to addresses you configure — webhooks, ntfy, Ollama — are
+  checked first, but only against the two things that are never legitimate: a
+  non-HTTP(S) scheme, and the cloud instance-metadata addresses. LAN IPs
+  (`http://192.168.1.50:8123`) and local hostnames (`homeassistant.local`,
+  `ntfy`, `host.docker.internal`, `localhost`) are supported destinations and
+  are not blocked, including hosts that aren't resolvable or aren't running
+  when you save the setting. Set `BLOCK_PRIVATE_NETWORK_TARGETS=true` if you
+  want local destinations refused as well.
 - Sessions are revalidated against the database on every request, so removing
   a member or changing their role takes effect immediately rather than
   whenever their session happens to expire. Changing a password signs out
