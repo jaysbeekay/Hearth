@@ -15,6 +15,7 @@ import {
 } from "@/lib/offlineQueue";
 import { Field } from "@/components/FormField";
 import { inputClass } from "@/components/SelectWrapper";
+import { DateInput } from "@/components/DateInput";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -151,22 +152,20 @@ export function VehicleForm({
         </Field>
 
         <Field label="Rego expiry" htmlFor="regoExpiry">
-          <input
+          <DateInput
             id="regoExpiry"
             name="regoExpiry"
-            type="date"
             defaultValue={effectiveValues?.regoExpiry ?? toDateInputValue(vehicle?.regoExpiry)}
             className={inputClass}
           />
         </Field>
 
         <Field label="Insurance expiry" htmlFor="insuranceExpiry">
-          <input
+          <DateInput
             id="insuranceExpiry"
             name="insuranceExpiry"
-            type="date"
             defaultValue={
-              effectiveValues?.insuranceExpiry ?? toDateInputValue(vehicle?.insuranceExpiry)
+            effectiveValues?.insuranceExpiry ?? toDateInputValue(vehicle?.insuranceExpiry)
             }
             className={inputClass}
           />

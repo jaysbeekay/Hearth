@@ -22,7 +22,7 @@ export default async function NewInventoryItemPage() {
           Inventory is a catalogue of what you own — no warranty tracking. Need to track a
           warranty instead? Try{" "}
           <Link href="/products/new" className="text-accent hover:underline">
-            add a product
+            add a warranty
           </Link>
           .
         </p>

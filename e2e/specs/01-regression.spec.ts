@@ -6,7 +6,7 @@ test.use({ storageState: ADMIN_AUTH_FILE });
 const PAGES: Array<[string, string[]]> = [
   ["/dashboard", ["Dashboard"]],
   ["/contracts", ["Contracts"]],
-  ["/products", ["Products"]],
+  ["/products", ["Warranties"]],
   ["/settings", ["Settings"]],
   ["/settings/webhooks", ["Webhook"]],
   ["/settings/modules", ["Travel"]],
@@ -27,8 +27,9 @@ test("all nav items appear together on one page", async ({ page }) => {
   await page.goto("/dashboard");
   const body = page.locator("body");
   await expect(body).toContainText("Contracts");
-  // Products' nav label reads "Warranties" (matches what users search for);
-  // the /products route, page heading, and data model are unchanged.
+  // "Warranties" is the single user-facing term for this section (#174) — nav,
+  // page heading and page title all agree. The /products route, the Prisma
+  // model and the component names are unchanged.
   await expect(body).toContainText("Warranties");
   await expect(body).toContainText("Travel");
   await expect(body).toContainText("Settings");

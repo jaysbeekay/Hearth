@@ -40,7 +40,7 @@ export function ProductListClient({ products, q, dateFormat, region, canWrite = 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Products</h1>
+        <h1 className="text-2xl font-semibold">Warranties</h1>
         <div className="flex items-center gap-2">
           <details className="relative">
             <summary className={toolbarButtonClass}>
@@ -59,7 +59,7 @@ export function ProductListClient({ products, q, dateFormat, region, canWrite = 
               className={linkButtonClass("primary", { online })}
             >
               <Plus size={16} />
-              Add product
+              Add warranty
             </Link>
           )}
         </div>
@@ -119,8 +119,8 @@ export function ProductListClient({ products, q, dateFormat, region, canWrite = 
         pendingOps.length === 0 && (
           <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-foreground/60">
             {q
-              ? "No products match your search."
-              : "No products yet. Add one manually, or upload an invoice and we'll fill in the details."}
+              ? "No warranties match your search."
+              : "No warranties yet. Add one manually, or upload an invoice and we'll fill in the details."}
           </p>
         )
       ) : (

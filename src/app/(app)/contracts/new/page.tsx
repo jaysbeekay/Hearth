@@ -31,7 +31,7 @@ export default async function NewContractPage() {
           Contracts are ongoing agreements — leases, subscriptions, insurance. For a single
           purchased item under warranty, try{" "}
           <Link href="/products/new" className="text-accent hover:underline">
-            add a product
+            add a warranty
           </Link>{" "}
           instead.
         </p>

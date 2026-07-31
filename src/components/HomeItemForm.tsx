@@ -14,6 +14,7 @@ import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
 import { markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
+import { DateInput } from "@/components/DateInput";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -170,11 +171,10 @@ export function HomeItemForm({
         </Field>
 
         <Field label="Date" htmlFor="date">
-          <input
+          <DateInput
             ref={dateRef}
             id="date"
             name="date"
-            type="date"
             defaultValue={state?.values?.date ?? toDateInputValue(item?.date)}
             className={inputClass}
           />

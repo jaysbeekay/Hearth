@@ -57,7 +57,7 @@ export default async function DocumentsPage({
           size: r.size,
           uploadedAt: r.uploadedAt,
           mimeType: r.mimeType,
-          type: "Products",
+          type: "Warranties",
           parentTitle: r.product.description,
           parentHref: `/products/${r.product.id}`,
           downloadHref: `/api/products/documents/${r.id}`,

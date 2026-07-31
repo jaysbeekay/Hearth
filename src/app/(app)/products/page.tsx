@@ -5,7 +5,7 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import { ProductListClient } from "@/components/ProductListClient";
 import type { Prisma } from "@/generated/prisma/client";
 
-export const metadata: Metadata = { title: "Products" };
+export const metadata: Metadata = { title: "Warranties" };
 
 export default async function ProductsPage({
   searchParams,

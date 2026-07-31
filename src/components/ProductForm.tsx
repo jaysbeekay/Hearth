@@ -21,6 +21,7 @@ import {
 import { Field } from "@/components/FormField";
 import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 import { markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
+import { DateInput } from "@/components/DateInput";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -45,7 +46,7 @@ export function ProductForm({
   const offlineAwareAction = makeOfflineAwareAction(
     action,
     () => ({
-      label: product ? `Update product: ${product.description}` : "Add product",
+      label: product ? `Update warranty: ${product.description}` : "Add warranty",
       entity: "product",
       operation: product ? "update" : "create",
       entityId: product?.id,
@@ -337,11 +338,10 @@ export function ProductForm({
         </Field>
 
         <Field label="Purchase date" htmlFor="purchaseDate">
-          <input
+          <DateInput
             ref={purchaseDateRef}
             id="purchaseDate"
             name="purchaseDate"
-            type="date"
             defaultValue={effectiveValues?.purchaseDate ?? toDateInputValue(product?.purchaseDate)}
             onChange={suggestWarrantyEndDate}
             className={inputClass}
@@ -349,13 +349,12 @@ export function ProductForm({
         </Field>
 
         <Field label="Warranty end date" htmlFor="warrantyEndDate">
-          <input
+          <DateInput
             ref={warrantyEndDateRef}
             id="warrantyEndDate"
             name="warrantyEndDate"
-            type="date"
             defaultValue={
-              effectiveValues?.warrantyEndDate ?? toDateInputValue(product?.warrantyEndDate)
+            effectiveValues?.warrantyEndDate ?? toDateInputValue(product?.warrantyEndDate)
             }
             className={inputClass}
           />
@@ -428,7 +427,7 @@ export function ProductForm({
       <FormMessage error={state?.error} success={state?.success} />
 
       <div className="flex justify-end gap-3">
-        <SubmitButton>{pendingOp || product ? "Save changes" : "Add product"}</SubmitButton>
+        <SubmitButton>{pendingOp || product ? "Save changes" : "Add warranty"}</SubmitButton>
       </div>
 
       {scannerOpen && (

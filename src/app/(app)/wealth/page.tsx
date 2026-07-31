@@ -104,15 +104,15 @@ export default async function WealthPage() {
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div className="col-span-2 rounded-xl border border-border bg-surface p-4">
           <p className="text-xs text-foreground/50">Total net worth</p>
-          <p className="mt-1 text-3xl font-bold tabular-nums">{formatCurrency(data.totalNetWorth, "AUD", undefined, region)}</p>
+          <p className="mt-1 text-3xl font-bold tabular-nums">{formatCurrency(data.totalNetWorth, "AUD", undefined, region, { showCode: true })}</p>
         </div>
         <div className="rounded-xl border border-border bg-surface p-4">
           <p className="text-xs text-foreground/50">Shares / ETFs</p>
-          <p className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(data.sharesValue, "AUD", undefined, region)}</p>
+          <p className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(data.sharesValue, "AUD", undefined, region, { showCode: true })}</p>
         </div>
         <div className="rounded-xl border border-border bg-surface p-4">
           <p className="text-xs text-foreground/50">Property</p>
-          <p className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(data.propertyValue, "AUD", undefined, region)}</p>
+          <p className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(data.propertyValue, "AUD", undefined, region, { showCode: true })}</p>
         </div>
       </div>
 
@@ -139,7 +139,7 @@ export default async function WealthPage() {
                 </div>
                 <div className="flex items-center gap-3 tabular-nums text-sm">
                   <span className="text-foreground/60">{((seg.value / total) * 100).toFixed(0)}%</span>
-                  <span className="font-medium">{formatCurrency(seg.value, "AUD", undefined, region)}</span>
+                  <span className="font-medium">{formatCurrency(seg.value, "AUD", undefined, region, { showCode: true })}</span>
                 </div>
               </div>
             ))}

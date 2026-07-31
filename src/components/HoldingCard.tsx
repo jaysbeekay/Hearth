@@ -40,7 +40,7 @@ export function HoldingCard({ holding, portfolioId, region }: Props) {
           <dt className="text-xs text-foreground/50">Current price</dt>
           <dd className="flex items-center gap-1 text-sm font-medium tabular-nums">
             {holding.currentPrice != null
-              ? formatCurrency(holding.currentPrice, holding.currency, undefined, region)
+              ? formatCurrency(holding.currentPrice, holding.currency, undefined, region, { showCode: true })
               : <span className="text-foreground/40">—</span>}
             {holding.changePct != null && (
               <span className={`text-xs ${holding.changePct >= 0 ? "text-success" : "text-danger"}`}>
@@ -52,7 +52,7 @@ export function HoldingCard({ holding, portfolioId, region }: Props) {
         <div>
           <dt className="text-xs text-foreground/50">Market value</dt>
           <dd className="text-sm font-medium tabular-nums">
-            {hasValue ? formatCurrency(holding.currentValue!, holding.currency, undefined, region) : "—"}
+            {hasValue ? formatCurrency(holding.currentValue!, holding.currency, undefined, region, { showCode: true }) : "—"}
           </dd>
         </div>
         <div>
@@ -62,7 +62,7 @@ export function HoldingCard({ holding, portfolioId, region }: Props) {
               <>
                 {isPositive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
                 {isPositive ? "+" : ""}
-                {formatCurrency(holding.gainLoss!, holding.currency, undefined, region)}
+                {formatCurrency(holding.gainLoss!, holding.currency, undefined, region, { showCode: true })}
                 {holding.gainLossPct != null && (
                   <span className="ml-1 text-xs">
                     ({isPositive ? "+" : ""}{holding.gainLossPct.toFixed(1)}%)

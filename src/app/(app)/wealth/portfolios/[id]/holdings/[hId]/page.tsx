@@ -166,7 +166,7 @@ function PerformanceChart({ points, currency, dateFormat, region }: SvgChartProp
           fill="currentColor"
           fillOpacity="0.45"
         >
-          {formatCurrency(t.value, currency, 0, region)}
+          {formatCurrency(t.value, currency, 0, region, { showCode: true })}
         </text>
       ))}
 
@@ -290,7 +290,7 @@ export default async function HoldingPage({
         <div className="rounded-xl border border-border bg-surface p-4">
           <p className="text-xs text-foreground/50">Current price</p>
           <p className="mt-1 text-lg font-semibold tabular-nums">
-            {currentPrice != null ? formatCurrency(currentPrice, currency, undefined, region) : "—"}
+            {currentPrice != null ? formatCurrency(currentPrice, currency, undefined, region, { showCode: true }) : "—"}
           </p>
           {priceEntry?.changePct != null && (
             <p className={`text-xs tabular-nums ${priceEntry.changePct >= 0 ? "text-success" : "text-danger"}`}>
@@ -301,14 +301,14 @@ export default async function HoldingPage({
         <div className="rounded-xl border border-border bg-surface p-4">
           <p className="text-xs text-foreground/50">Market value</p>
           <p className="mt-1 text-lg font-semibold tabular-nums">
-            {currentValue != null ? formatCurrency(currentValue, currency, undefined, region) : "—"}
+            {currentValue != null ? formatCurrency(currentValue, currency, undefined, region, { showCode: true }) : "—"}
           </p>
         </div>
         <div className="rounded-xl border border-border bg-surface p-4">
           <p className="text-xs text-foreground/50">Unrealised gain/loss</p>
           <p className={`mt-1 text-lg font-semibold tabular-nums ${gainLoss == null ? "" : gainLoss >= 0 ? "text-success" : "text-danger"}`}>
             {gainLoss != null
-              ? `${gainLoss >= 0 ? "+" : ""}${formatCurrency(gainLoss, currency, undefined, region)}`
+              ? `${gainLoss >= 0 ? "+" : ""}${formatCurrency(gainLoss, currency, undefined, region, { showCode: true })}`
               : "—"}
           </p>
           {gainLossPct != null && (
@@ -322,12 +322,12 @@ export default async function HoldingPage({
       <dl className="grid grid-cols-2 gap-4 rounded-xl border border-border bg-surface p-4 md:p-6 sm:grid-cols-3">
         <div className="min-w-0">
           <dt className="text-xs text-foreground/50">Cost basis</dt>
-          <dd className="text-sm font-medium tabular-nums break-words">{formatCurrency(cost, currency, undefined, region)}</dd>
+          <dd className="text-sm font-medium tabular-nums break-words">{formatCurrency(cost, currency, undefined, region, { showCode: true })}</dd>
         </div>
         <div className="min-w-0">
           <dt className="text-xs text-foreground/50">Avg cost / unit</dt>
           <dd className="text-sm font-medium tabular-nums break-words">
-            {units > 0 && cost > 0 ? formatCurrency(cost / units, currency, undefined, region) : "—"}
+            {units > 0 && cost > 0 ? formatCurrency(cost / units, currency, undefined, region, { showCode: true }) : "—"}
           </dd>
         </div>
         <div className="min-w-0">
@@ -382,15 +382,15 @@ export default async function HoldingPage({
                       </span>
                       <div>
                         <p className="text-sm font-medium tabular-nums">
-                          {formatNumber(trade.units, region)} units @ {formatCurrency(trade.pricePerUnit, trade.currency, undefined, region)}
+                          {formatNumber(trade.units, region)} units @ {formatCurrency(trade.pricePerUnit, trade.currency, undefined, region, { showCode: true })}
                         </p>
                         <p className="text-xs text-foreground/50">
                           {formatDate(trade.date, dateFormat)}
-                          {trade.fees != null && ` · fees ${formatCurrency(trade.fees, trade.currency, undefined, region)}`}
+                          {trade.fees != null && ` · fees ${formatCurrency(trade.fees, trade.currency, undefined, region, { showCode: true })}`}
                         </p>
                         {trade.marketPriceOnDate != null && (
                           <p className="mt-0.5 text-xs text-foreground/40">
-                            Market close {formatDate(trade.date, dateFormat)}: {formatCurrency(trade.marketPriceOnDate, trade.currency, undefined, region)}
+                            Market close {formatDate(trade.date, dateFormat)}: {formatCurrency(trade.marketPriceOnDate, trade.currency, undefined, region, { showCode: true })}
                             {slippage != null && (
                               <span className={`ml-1 ${Math.abs(slippage) < 0.5 ? "text-foreground/40" : slippage > 0 ? "text-danger" : "text-success"}`}>
                                 ({slippage > 0 ? "+" : ""}{slippage.toFixed(2)}% vs close)
