@@ -9,6 +9,10 @@ const withSerwist = withSerwistInit({
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // The dev-mode build indicator (bottom-left badge) has no purpose in a
+  // household-admin UI and previously leaked into published screenshots,
+  // overlapping the sidebar account email (#178).
+  devIndicators: false,
   // ssh2 (used by the SFTP backup destination) ships a non-ESM asset that
   // Turbopack can't bundle into server chunks — load it natively instead.
   serverExternalPackages: ["ssh2", "ssh2-sftp-client", "yahoo-finance2"],

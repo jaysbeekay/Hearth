@@ -127,6 +127,10 @@ Everything else is optional. Set `SMTP_*` to enable email reminders, `NTFY_*` fo
 | --- | --- |
 | ![Documents](docs/screenshots/documents.png) | ![Assistant](docs/screenshots/assistant.png) |
 
+| Mobile — dashboard | Form validation error |
+| --- | --- |
+| ![Mobile dashboard](docs/screenshots/mobile-dashboard.png) | ![Form validation error](docs/screenshots/error-state-form.png) |
+
 ## Tech stack
 
 Next.js (App Router) + TypeScript, Prisma 7 (SQLite via `@prisma/adapter-libsql`),
