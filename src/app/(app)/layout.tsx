@@ -4,6 +4,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { TopBar } from "@/components/TopBar";
 import { BottomNav } from "@/components/BottomNav";
 import { MobileNavDrawer } from "@/components/MobileNavDrawer";
+import { MobileUploadFab } from "@/components/MobileUploadFab";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { OfflineSyncManager } from "@/components/OfflineSyncManager";
 import { GlobalSearch } from "@/components/GlobalSearch";
@@ -51,6 +52,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </main>
       </div>
       <BottomNav enabledModules={enabledModules} chatConfigured={chatConfigured} />
+      <MobileUploadFab />
       <MobileNavDrawer
         userName={session.user.name ?? ""}
         userEmail={session.user.email ?? ""}

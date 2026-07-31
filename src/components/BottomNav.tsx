@@ -13,9 +13,11 @@ function isActive(href: string, pathname: string) {
 }
 
 // Fixed regardless of how many modules are enabled — everything else
-// (Spend, module items, Settings) lives in the "More" sheet so the bar
-// never grows past 5 slots on small screens.
-const PRIMARY_HREFS = ["/dashboard", "/contracts", "/products", "/calendar"];
+// (Calendar, Spend, module items, Settings) lives in the "More" sheet so the
+// bar never grows past 5 slots on small screens. Documents is promoted here
+// over Calendar since capturing/reviewing receipts is a primary, frequent
+// action, while calendar is a secondary/glanceable view (#173).
+const PRIMARY_HREFS = ["/dashboard", "/contracts", "/products", "/documents"];
 
 export function BottomNav({
   enabledModules,
