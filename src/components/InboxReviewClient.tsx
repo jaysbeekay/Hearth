@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FileText, X, Loader2 } from "lucide-react";
+import { FileText, X, Loader2, AlertTriangle } from "lucide-react";
 import { classifyInboxDocument, discardInboxDocument } from "@/lib/actions/import";
 import { CATEGORY_LABELS, humanFileSize, formatDate } from "@/lib/utils";
 import { INVENTORY_ITEM_CATEGORIES } from "@/lib/validation/inventory";
 import { showToast } from "@/components/Toast";
-import { extractionMessage } from "@/lib/autoFillHighlight";
+import { extractionMessage, isAiExtractionSource } from "@/lib/autoFillHighlight";
 
 const INVENTORY_CATEGORY_LABELS: Record<string, string> = {
   APPLIANCE: "Appliance",
@@ -54,6 +54,7 @@ interface RowState {
   type: EntityType;
   error?: string;
   scanMessage?: string;
+  source?: ExtractionSource;
   contract: ContractFields;
   product: ProductFields;
   inventory: InventoryFields;
@@ -75,9 +76,14 @@ function emptyRowState(): RowState {
   };
 }
 
-function fieldClass(autoFilled?: boolean) {
+// Heuristic hits get the accent color, AI-suggested values (BYOK/local LLM)
+// get info instead — same distinction as ContractForm's markAutoFilled,
+// so a reviewer can tell pattern-matched fields from model-inferred ones
+// at a glance (#172).
+function fieldClass(autoFilled?: boolean, isAi?: boolean) {
+  if (!autoFilled) return "rounded-md border px-2 py-1.5 text-sm outline-none focus:border-accent border-border bg-background";
   return `rounded-md border px-2 py-1.5 text-sm outline-none focus:border-accent ${
-    autoFilled ? "border-accent/40 bg-accent/5 ring-1 ring-accent/40" : "border-border bg-background"
+    isAi ? "border-info/40 bg-info/5 ring-1 ring-info/40" : "border-accent/40 bg-accent/5 ring-1 ring-accent/40"
   }`;
 }
 
@@ -149,6 +155,7 @@ export function InboxReviewClient({
       updateRow(id, {
         status: "ready",
         scanMessage,
+        source,
         contract: {
           title: fields.title ?? filename.replace(/\.[^.]+$/, ""),
           provider: fields.provider ?? "",
@@ -165,6 +172,7 @@ export function InboxReviewClient({
       updateRow(id, {
         status: "ready",
         scanMessage,
+        source,
         product: {
           description: fields.description ?? filename.replace(/\.[^.]+$/, ""),
           manufacturer: fields.manufacturer ?? "",
@@ -180,6 +188,7 @@ export function InboxReviewClient({
       updateRow(id, {
         status: "ready",
         scanMessage,
+        source,
         inventory: {
           label: fields.label ?? filename.replace(/\.[^.]+$/, ""),
           category: fields.category ?? "OTHER",
@@ -252,6 +261,13 @@ export function InboxReviewClient({
       {visibleDocs.map((doc) => {
         const row = rows[doc.id];
         if (!row) return null;
+        const rowIsAi = row.source != null && isAiExtractionSource(row.source);
+        // Title/description/label always fall back to the filename, and
+        // category always has a select default — provider is the only field
+        // across all three entity types that can genuinely be missing at
+        // save time (#171).
+        const missingRequired =
+          row.type === "CONTRACT" && !row.contract.provider.trim() ? ["Provider"] : [];
         return (
           <div key={doc.id} className="rounded-xl border border-border bg-surface p-4">
             <div className="mb-3 flex items-center justify-between gap-2">
@@ -302,6 +318,13 @@ export function InboxReviewClient({
               </p>
             )}
 
+            {row.status !== "scanning" && missingRequired.length > 0 && (
+              <p className="mb-2 flex items-center gap-1 text-xs font-medium text-warning">
+                <AlertTriangle size={12} />
+                Missing required: {missingRequired.join(", ")}
+              </p>
+            )}
+
             {(row.status === "ready" || row.status === "saving" || row.status === "error") &&
               row.type === "CONTRACT" && (
                 <div className="grid gap-2 sm:grid-cols-2">
@@ -316,7 +339,7 @@ export function InboxReviewClient({
                           contractAutoFilled: { ...row.contractAutoFilled, title: false },
                         })
                       }
-                      className={fieldClass(row.contractAutoFilled.title)}
+                      className={fieldClass(row.contractAutoFilled.title, rowIsAi)}
                     />
                   </RowField>
                   <RowField label="Provider" htmlFor={`${doc.id}-provider`}>
@@ -330,7 +353,7 @@ export function InboxReviewClient({
                           contractAutoFilled: { ...row.contractAutoFilled, provider: false },
                         })
                       }
-                      className={fieldClass(row.contractAutoFilled.provider)}
+                      className={fieldClass(row.contractAutoFilled.provider, rowIsAi)}
                     />
                   </RowField>
                   <RowField label="Category" htmlFor={`${doc.id}-category`}>
@@ -362,7 +385,7 @@ export function InboxReviewClient({
                         })
                       }
                       inputMode="decimal"
-                      className={fieldClass(row.contractAutoFilled.cost)}
+                      className={fieldClass(row.contractAutoFilled.cost, rowIsAi)}
                     />
                   </RowField>
                 </div>
@@ -382,7 +405,7 @@ export function InboxReviewClient({
                           productAutoFilled: { ...row.productAutoFilled, description: false },
                         })
                       }
-                      className={fieldClass(row.productAutoFilled.description)}
+                      className={fieldClass(row.productAutoFilled.description, rowIsAi)}
                     />
                   </RowField>
                   <RowField label="Manufacturer" htmlFor={`${doc.id}-manufacturer`}>
@@ -396,7 +419,7 @@ export function InboxReviewClient({
                           productAutoFilled: { ...row.productAutoFilled, manufacturer: false },
                         })
                       }
-                      className={fieldClass(row.productAutoFilled.manufacturer)}
+                      className={fieldClass(row.productAutoFilled.manufacturer, rowIsAi)}
                     />
                   </RowField>
                   <RowField label="Price" htmlFor={`${doc.id}-price`}>
@@ -411,7 +434,7 @@ export function InboxReviewClient({
                         })
                       }
                       inputMode="decimal"
-                      className={fieldClass(row.productAutoFilled.price)}
+                      className={fieldClass(row.productAutoFilled.price, rowIsAi)}
                     />
                   </RowField>
                 </div>
@@ -431,7 +454,7 @@ export function InboxReviewClient({
                           inventoryAutoFilled: { ...row.inventoryAutoFilled, label: false },
                         })
                       }
-                      className={fieldClass(row.inventoryAutoFilled.label)}
+                      className={fieldClass(row.inventoryAutoFilled.label, rowIsAi)}
                     />
                   </RowField>
                   <RowField label="Brand" htmlFor={`${doc.id}-brand`}>
@@ -445,7 +468,7 @@ export function InboxReviewClient({
                           inventoryAutoFilled: { ...row.inventoryAutoFilled, brand: false },
                         })
                       }
-                      className={fieldClass(row.inventoryAutoFilled.brand)}
+                      className={fieldClass(row.inventoryAutoFilled.brand, rowIsAi)}
                     />
                   </RowField>
                   <RowField label="Category" htmlFor={`${doc.id}-inv-category`}>
@@ -459,7 +482,7 @@ export function InboxReviewClient({
                           inventoryAutoFilled: { ...row.inventoryAutoFilled, category: false },
                         })
                       }
-                      className={fieldClass(row.inventoryAutoFilled.category)}
+                      className={fieldClass(row.inventoryAutoFilled.category, rowIsAi)}
                     >
                       {INVENTORY_ITEM_CATEGORIES.map((cat) => (
                         <option key={cat} value={cat}>
@@ -480,7 +503,7 @@ export function InboxReviewClient({
                         })
                       }
                       inputMode="decimal"
-                      className={fieldClass(row.inventoryAutoFilled.purchasePrice)}
+                      className={fieldClass(row.inventoryAutoFilled.purchasePrice, rowIsAi)}
                     />
                   </RowField>
                 </div>
