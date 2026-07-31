@@ -42,7 +42,11 @@ test("create a contract end-to-end", async ({ page }) => {
   const category = page.locator('select[name="category"]');
   if (await category.count()) await category.selectOption({ index: 1 });
   await page.locator("main button[type=submit]").click();
-  await page.waitForURL(/\/contracts\/[^/]+$/);
+  // Exclude "new" itself: we're already on /contracts/new when this is
+  // called, which a bare /\/contracts\/[^/]+$/ also matches — so without the
+  // exclusion this resolves instantly instead of waiting for the real
+  // post-submit redirect. Same footgun as seed.setup.ts's /travel/ case.
+  await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
   await expect(page.locator("body")).toContainText("Regression Test Contract");
 });
 
@@ -50,7 +54,7 @@ test("create a product end-to-end", async ({ page }) => {
   await page.goto("/products/new");
   await page.locator("#description").fill("Regression Test Product");
   await page.locator("main button[type=submit]").click();
-  await page.waitForURL(/\/products\/[^/]+$/);
+  await page.waitForURL(/\/products\/(?!new$)[^/]+$/);
   await expect(page.locator("body")).toContainText("Regression Test Product");
 });
 

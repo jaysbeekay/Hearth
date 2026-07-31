@@ -34,7 +34,9 @@ test.describe.serial("contracts and warranties can link to a property", () => {
     await expect(propertySelect).toBeVisible();
     await propertySelect.selectOption({ label: "Linking Test Property" });
     await page.locator("main button[type=submit]").click();
-    await page.waitForURL(/\/contracts\/[^/]+$/);
+    // Exclude "new" itself — same footgun as line 19's /home/new note above,
+    // here for /contracts/new.
+    await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
 
     await page.goto("/home");
     await page.locator("a", { hasText: "Linking Test Property" }).first().click();
@@ -51,7 +53,9 @@ test.describe.serial("contracts and warranties can link to a property", () => {
     await page.locator("#title").fill("Unlinked Contract");
     await page.locator("#provider").fill("Some Provider");
     await page.locator("main button[type=submit]").click();
-    await page.waitForURL(/\/contracts\/[^/]+$/);
+    // Exclude "new" itself — same footgun as line 19's /home/new note above,
+    // here for /contracts/new.
+    await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
 
     await page.goto("/home");
     await page.locator("a", { hasText: "Linking Test Property" }).first().click();

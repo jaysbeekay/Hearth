@@ -24,7 +24,14 @@ test("contract detail page with long field values doesn't overflow on a mobile v
     .locator("#contactEmail")
     .fill("a.very.long.email.address.for.testing.overflow@some-extremely-long-domain-name.com.au");
   await page.locator("main button[type=submit]").click();
-  await page.waitForURL(/\/contracts\/[^/]+$/);
+  // Exclude "new" itself: we're already on /contracts/new when this is
+  // called, which a bare /\/contracts\/[^/]+$/ also matches — so without the
+  // exclusion this resolves instantly instead of waiting for the real
+  // post-submit redirect, and the next step runs against a page whose create
+  // request may still be in flight (see 07-mobile-responsive's swipe test,
+  // which failed exactly this way: the created contract never showed up on
+  // /contracts because the request was aborted mid-navigation).
+  await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
 
   await expectNoHorizontalOverflow(page);
 });
@@ -39,7 +46,9 @@ test("DetailOverflowMenu renders as a full-width bottom sheet on mobile", async 
   await page.locator("#title").fill("Overflow Menu Test Contract");
   await page.locator("#provider").fill("Test Provider");
   await page.locator("main button[type=submit]").click();
-  await page.waitForURL(/\/contracts\/[^/]+$/);
+  // Exclude "new" itself — see the test above for why a bare
+  // /\/contracts\/[^/]+$/ resolves instantly here instead of waiting.
+  await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
 
   const trigger = page.locator('button[aria-label="More actions"]');
   const triggerBox = await trigger.boundingBox();
@@ -64,7 +73,15 @@ test("swiping a contract card left reveals a delete action, which still uses the
   await page.locator("#title").fill("Swipe Test Contract");
   await page.locator("#provider").fill("Swipe Provider");
   await page.locator("main button[type=submit]").click();
-  await page.waitForURL(/\/contracts\/[^/]+$/);
+  // Exclude "new" itself: we're already on /contracts/new when this is
+  // called, which a bare /\/contracts\/[^/]+$/ also matches — so without the
+  // exclusion this resolved instantly instead of waiting for the real
+  // post-submit redirect, and the next line navigated away while the create
+  // request was still in flight. That's exactly why this test flaked: the
+  // contract was never actually created (server-side "Error: aborted /
+  // ECONNRESET" from the interrupted POST), so it never showed up on
+  // /contracts and the boundingBox() below timed out waiting for it.
+  await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
 
   await page.goto("/contracts");
   const card = page.locator("a", { hasText: "Swipe Test Contract" }).first();
