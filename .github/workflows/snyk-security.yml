@@ -76,7 +76,22 @@ jobs:
 
       - name: Snyk Container test (blocks on high severity)
         if: ${{ env.HAS_SNYK == 'true' }}
-        run: snyk container test "$IMAGE_TAG" --file=Dockerfile --severity-threshold=high
+        # --exclude-base-image-vulns scopes this to what *this repository*
+        # controls: the packages the Dockerfile installs (tesseract, poppler,
+        # su-exec) and the application's own dependencies. Both were clean on
+        # the run that introduced this flag.
+        #
+        # What it filters out is the node:22-alpine base image itself, whose
+        # bundled npm CLI currently carries 9 high-severity advisories
+        # (brace-expansion, pacote, sigstore, picomatch, tar). Those aren't
+        # fixable from here — they're upstream's to patch and ours to pick up
+        # by moving the pinned digest. Blocking every pull request on them
+        # would make the gate unactionable, which is how gates get deleted.
+        # `snyk container monitor` below still reports them, unfiltered, to
+        # the dashboard, so they stay visible when choosing a new digest.
+        run: >-
+          snyk container test "$IMAGE_TAG" --file=Dockerfile
+          --severity-threshold=high --exclude-base-image-vulns
 
       # ── Reporting only ───────────────────────────────────────────────────
       # These publish state to the Snyk dashboard rather than asserting
