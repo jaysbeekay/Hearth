@@ -2,10 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { encodeWebhookSecret } from "@/lib/webhookSecret";
 import { auth } from "@/lib/auth";
 import { webhookEndpointSchema } from "@/lib/validation/webhook";
 import { sendTestWebhook } from "@/lib/notifications/webhook";
 import { formDataToStringValues } from "@/lib/form-state";
+import { assertSafeOutboundUrl, UnsafeOutboundUrlError } from "@/lib/net/outbound";
 import type { ActionState } from "@/lib/actions/auth";
 
 // Secret is intentionally excluded — never echo it back to the form.
@@ -32,11 +34,28 @@ export async function createWebhookEndpoint(
     };
   }
 
+  // Catches the two things that are never valid — a non-HTTP(S) scheme and a
+  // cloud metadata address — as an explainable form error rather than a
+  // delivery that quietly fails later. A host that simply isn't resolvable
+  // right now is fine to save: the target service may be offline, or be a
+  // .local name this container can't resolve. Delivery re-checks anyway.
+  try {
+    await assertSafeOutboundUrl(parsed.data.url);
+  } catch (error) {
+    if (error instanceof UnsafeOutboundUrlError) {
+      return {
+        error: error.message,
+        values: formDataToStringValues(formData, WEBHOOK_FORM_FIELDS),
+      };
+    }
+    throw error;
+  }
+
   await prisma.webhookEndpoint.create({
     data: {
       name: parsed.data.name,
       url: parsed.data.url,
-      secret: parsed.data.secret ?? null,
+      ...encodeWebhookSecret(parsed.data.secret ?? null),
       createdById: session.user.id,
     },
   });

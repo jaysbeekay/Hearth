@@ -28,6 +28,10 @@ const PUBLIC_PATHS = [
   "/accept-invitation",
   "/api/cron",
   "/api/mcp",
+  // Authenticated by its own query-string token, not a session — a calendar
+  // client has no cookies. Without this the feed 307s to /login, which also
+  // copied the token into the login URL.
+  "/api/ical",
 ];
 
 // Shared by the `authorized` callback below and by src/proxy.ts, which has to

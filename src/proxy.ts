@@ -86,8 +86,11 @@ export default auth((request) => {
   const csp = buildCsp(nonce, { isDev, isHttps });
 
   if (!isPublicPath(request.nextUrl.pathname) && !request.auth?.user) {
-    const signInUrl = request.nextUrl.clone();
-    signInUrl.pathname = "/login";
+    // Built from scratch rather than cloning the request URL: cloning carried
+    // the original query string onto /login, so a request to a token-bearing
+    // URL echoed that token into the login page's address, its history entry
+    // and anything logging URLs. Only callbackUrl is carried across.
+    const signInUrl = new URL("/login", request.nextUrl.origin);
     signInUrl.searchParams.set("callbackUrl", request.nextUrl.href);
     return withSecurityHeaders(NextResponse.redirect(signInUrl), csp, isHttps);
   }

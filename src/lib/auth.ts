@@ -10,6 +10,7 @@ import type {
 import { prisma } from "@/lib/prisma";
 import { env, isGithubOAuthConfigured } from "@/lib/env";
 import { authConfig } from "@/lib/auth.config";
+import type { Role } from "@/generated/prisma/enums";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import { verifyTotpCode, consumeRecoveryCode } from "@/lib/totp";
 
@@ -169,6 +170,44 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
   callbacks: {
     ...authConfig.callbacks,
+    // Revalidates the session against the database on every read (#168).
+    //
+    // authConfig's own jwt callback only stamps the role at sign-in, so a JWT
+    // kept saying ADMIN after a demotion, and stayed valid after the account
+    // was deleted, for the token's whole lifetime. This override lives in
+    // auth.ts rather than auth.config.ts because auth.config.ts is also loaded
+    // by src/proxy.ts on the edge runtime, where Prisma can't run. That split
+    // is safe: the proxy only answers "is there a session at all", while every
+    // page and server action calls auth() from here, which is what actually
+    // gates data.
+    jwt: async ({ token, user }) => {
+      const appToken = token as typeof token & { role?: Role; sub?: string; sv?: number };
+
+      if (user) {
+        appToken.role = user.role;
+        const fresh = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: { sessionVersion: true },
+        });
+        appToken.sv = fresh?.sessionVersion ?? 0;
+        return appToken;
+      }
+
+      if (!appToken.sub) return null;
+
+      const current = await prisma.user.findUnique({
+        where: { id: appToken.sub },
+        select: { role: true, sessionVersion: true },
+      });
+
+      // Account deleted, or the session was explicitly invalidated by a
+      // password or role change. Returning null drops the session.
+      if (!current || current.sessionVersion !== (appToken.sv ?? 0)) return null;
+
+      // Pick up role changes that didn't warrant invalidation.
+      appToken.role = current.role;
+      return appToken;
+    },
     // Sign-up is invite-only (every User row is admin-created with a
     // password/placeholder hash already set) — an OAuth sign-in must match
     // an existing user's verified email rather than auto-creating one.

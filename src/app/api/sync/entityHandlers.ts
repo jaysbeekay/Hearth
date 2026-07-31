@@ -432,7 +432,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       revalidatePath("/inventory");
       revalidatePath(`/inventory/${id}`);
     },
-    remove: async (id, { userId }) => {
+    remove: async (id) => {
       const existing = await prisma.inventoryItem.findUnique({ where: { id } });
       if (!existing) throw new Error("Item not found");
       await deleteInventoryItemDir(id);
@@ -465,7 +465,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       revalidatePath("/wealth");
       revalidatePath(`/wealth/portfolios/${id}`);
     },
-    remove: async (id, { userId }) => {
+    remove: async (id) => {
       const existing = await prisma.portfolio.findUnique({ where: { id } });
       if (!existing) throw new Error("Portfolio not found");
       await prisma.portfolio.delete({ where: { id } });

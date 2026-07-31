@@ -26,6 +26,23 @@ async function upload(
   return page.locator("body").innerText();
 }
 
+
+// Real leading bytes. Uploads are validated by content now, not by the
+// Content-Type the client claims (#165), so fixtures have to actually be the
+// format they say they are.
+function pdfBytes(padTo = 0): Buffer {
+  const header = Buffer.from("%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n");
+  if (padTo <= header.length) return header;
+  return Buffer.concat([header, Buffer.alloc(padTo - header.length, 0x20)]);
+}
+
+const PNG_BYTES = Buffer.from([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, // signature
+  0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52, // IHDR
+  0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+  0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4, 0x89,
+]);
+
 test("0-byte file is rejected", async ({ page }) => {
   const body = await upload(page, {
     name: "empty.pdf",
@@ -57,7 +74,7 @@ test("a file under the 15MB limit uploads successfully", async ({ page }) => {
   const body = await upload(page, {
     name: "two-mb.pdf",
     mimeType: "application/pdf",
-    buffer: Buffer.alloc(2 * 1024 * 1024, "A"),
+    buffer: pdfBytes(2 * 1024 * 1024),
   });
   expect(body).toContain("Document uploaded");
 });
@@ -66,7 +83,7 @@ test("a file over the 15MB limit is cleanly rejected, not crashed", async ({ pag
   const body = await upload(page, {
     name: "oversized.pdf",
     mimeType: "application/pdf",
-    buffer: Buffer.alloc(16 * 1024 * 1024, "A"),
+    buffer: pdfBytes(16 * 1024 * 1024),
   });
   expect(body).toContain("too large");
   expect(body).not.toContain("Application error");
@@ -79,7 +96,7 @@ test("path-traversal-shaped filename is stored safely", async ({ page }) => {
   const body = await upload(page, {
     name: "../../../etc/passwd.pdf",
     mimeType: "application/pdf",
-    buffer: Buffer.from("traversal content"),
+    buffer: pdfBytes(),
   });
   expect(body).toContain("Document uploaded");
 });
@@ -98,7 +115,7 @@ test("served documents use Content-Disposition: attachment (no stored-XSS execut
   await page.locator('input[type="file"][name="file"]').first().setInputFiles({
     name: "evil.png",
     mimeType: "image/png",
-    buffer: Buffer.from("<script>alert(1)</script>"),
+    buffer: Buffer.concat([PNG_BYTES, Buffer.from("<script>alert(1)</script>")]),
   });
   await page.locator('form:has(input[name="file"]) button[type="submit"]').first().click();
   await page.waitForLoadState("networkidle");
@@ -112,4 +129,27 @@ test("served documents use Content-Disposition: attachment (no stored-XSS execut
   const response = await context.request.get(href!);
   expect(response.headers()["content-disposition"]).toContain("attachment");
   expect(dialogFired).toBe(false);
+});
+
+test("a file whose contents don't match its claimed type is rejected", async ({ page }) => {
+  // The exact bypass #165 describes: any HTTP client can set Content-Type
+  // freely, and the old checks believed it. This would previously have been
+  // stored as a PDF and handed to pdftotext.
+  const body = await upload(page, {
+    name: "not-really.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from("#!/bin/sh\necho definitely not a pdf\n"),
+  });
+  expect(body).not.toContain("Document uploaded");
+  expect(body).toContain("don't match any supported format");
+});
+
+test("an executable renamed and relabelled as a PNG is rejected", async ({ page }) => {
+  const body = await upload(page, {
+    name: "payload.png",
+    mimeType: "image/png",
+    buffer: Buffer.from([0x4d, 0x5a, 0x90, 0x00, 0x03, 0x00, 0x00, 0x00]), // MZ header
+  });
+  expect(body).not.toContain("Document uploaded");
+  expect(body).toContain("don't match any supported format");
 });

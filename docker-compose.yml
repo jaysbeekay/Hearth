@@ -24,7 +24,10 @@ services:
       # "hearth-a1b2c3d4e5"), not something like "family-reminders". Set
       # NTFY_TOKEN if your topic is access-controlled.
       NTFY_URL: ${NTFY_URL:-https://ntfy.sh}
-      NTFY_TOPIC: ${NTFY_TOPIC:-hearth-changeme-a1b2c3}
+      # No default: a shared, guessable topic name on the public ntfy.sh
+      # instance is world-readable, so anyone who guesses it receives this
+      # household's reminders. Push stays off until you set one.
+      NTFY_TOPIC: ${NTFY_TOPIC:-}
       NTFY_TOKEN: ${NTFY_TOKEN:-}
       CRON_SECRET: ${CRON_SECRET:-}
       MCP_TOKEN: ${MCP_TOKEN:-}

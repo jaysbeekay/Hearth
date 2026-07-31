@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Bot } from "lucide-react";
@@ -14,13 +15,18 @@ export default async function AssistantPage({
   searchParams: Promise<{ thread?: string }>;
 }) {
   const session = await auth();
-  const userId = session!.user.id;
+  // auth() can now return null mid-render — a session is revoked as soon as
+  // the account's sessionVersion moves (password/role change) or the account
+  // is deleted, which the proxy won't have caught for an in-flight request.
+  if (!session?.user) redirect("/login");
+
+  const userId = session.user.id;
   const { thread: requestedThreadId } = await searchParams;
 
   const [chatUser, threads] = await Promise.all([getChatConfig(), listChatThreads(userId)]);
 
   if (!isChatConfigured(chatUser)) {
-    const isAdmin = session!.user.role === "ADMIN";
+    const isAdmin = session.user.role === "ADMIN";
     return (
       <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border p-12 text-center">
         <Bot size={32} className="text-foreground/30" />

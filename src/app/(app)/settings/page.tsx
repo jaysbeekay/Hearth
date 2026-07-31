@@ -24,8 +24,13 @@ const quickLinkClass =
 
 export default async function SettingsPage() {
   const session = await auth();
+  // auth() can now return null mid-render — a session is revoked as soon as
+  // the account's sessionVersion moves (password/role change) or the account
+  // is deleted, which the proxy won't have caught for an in-flight request.
+  if (!session?.user) redirect("/login");
+
   const [user, smtpConfigured, ntfyConfigured] = await Promise.all([
-    prisma.user.findUnique({ where: { id: session!.user.id } }),
+    prisma.user.findUnique({ where: { id: session.user.id } }),
     isSmtpConfigured(),
     isNtfyConfigured(),
   ]);
@@ -123,7 +128,7 @@ export default async function SettingsPage() {
           </div>
         </section>
 
-        <IcalTokenSection token={user.icalToken ?? null} appUrl={appUrl} />
+        <IcalTokenSection hasToken={Boolean(user.icalTokenHash)} appUrl={appUrl} />
 
         <OfflineDocumentsPanel />
 

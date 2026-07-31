@@ -1,5 +1,6 @@
 import { getOllamaConfig } from "@/lib/appSettings";
 import { PROVIDER_TIMEOUT_MS, type ProviderCall } from "@/lib/ai/providers/types";
+import { assertSafeOutboundUrl } from "@/lib/net/outbound";
 
 // Ollama has no cloud-hosted document reader like the other BYOK providers —
 // it routes through the shared local server configured in Settings > System
@@ -16,7 +17,9 @@ export const callOllama: ProviderCall = async ({ model, buffer, mimeType, prompt
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
   try {
-    const res = await fetch(`${ollama.baseUrl.replace(/\/$/, "")}/api/generate`, {
+    const ollamaUrl = `${ollama.baseUrl.replace(/\/$/, "")}/api/generate`;
+    await assertSafeOutboundUrl(ollamaUrl);
+    const res = await fetch(ollamaUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

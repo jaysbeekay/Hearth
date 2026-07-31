@@ -97,6 +97,13 @@ test("swiping from the left screen edge opens the navigation drawer, and the men
 }) => {
   await page.goto("/dashboard");
 
+  // The edge-swipe listener is attached by MobileNavDrawer's useEffect, so it
+  // doesn't exist until the client bundle has hydrated. Dispatching straight
+  // after goto() raced that and intermittently sent the gesture into a page
+  // with no handler. The menu button comes from the same client component, so
+  // waiting for it is a proxy for "that tree is interactive".
+  await expect(page.getByRole("button", { name: "Open navigation menu" })).toBeVisible();
+
   const body = page.locator("body");
   await body.dispatchEvent("pointerdown", { pointerType: "touch", clientX: 5, clientY: 300 });
   for (let i = 1; i <= 8; i++) {

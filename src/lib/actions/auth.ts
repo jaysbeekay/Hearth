@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { createHash, randomUUID, timingSafeEqual } from "crypto";
 import { AuthError, CredentialsSignin } from "next-auth";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { auth, signIn, signOut } from "@/lib/auth";
 import {
@@ -23,6 +24,14 @@ import { DATE_FORMAT_OPTIONS, REGION_OPTIONS } from "@/lib/utils";
 import { TIMEZONE_OPTIONS } from "@/lib/timezones";
 import { POPULAR_CURRENCIES } from "@/components/CurrencySelect";
 import { env, isSetupTokenRequired } from "@/lib/env";
+import { generateToken, hashToken } from "@/lib/crypto";
+import {
+  checkRateLimit,
+  clientAddress,
+  consumeRateLimit,
+  recordFailedAttempt,
+  resetRateLimit,
+} from "@/lib/rateLimit";
 import { isSmtpConfigured } from "@/lib/appSettings";
 import { sendInvitationEmail, sendPasswordResetEmail } from "@/lib/notifications/email";
 
@@ -145,6 +154,25 @@ export async function login(
   const totpCodeRaw = formData.get("totpCode");
   const totpCode = typeof totpCodeRaw === "string" ? totpCodeRaw.trim() : "";
 
+  // Keyed by account *and* address: keying on the account alone would let an
+  // attacker lock every household member out by guessing against each in
+  // turn, and keying on the address alone would lock out a whole household
+  // behind one NAT.
+  const address = clientAddress(await headers());
+  const throttleKey = `${parsed.data.email}|${address}`;
+  const limitName = totpCode ? "totp" : "login";
+  // Only failures count — see checkRateLimit's note. A successful signIn()
+  // throws a redirect, so an attempt-counting model would never get to clear
+  // the counter and would throttle ordinary repeated sign-ins.
+  const throttle = checkRateLimit(limitName, throttleKey);
+  if (!throttle.allowed) {
+    const minutes = Math.ceil(throttle.retryAfterSeconds / 60);
+    return {
+      error: `Too many attempts. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`,
+      ...(totpCode ? { totpRequired: true } : {}),
+    };
+  }
+
   try {
     await signIn("credentials", {
       email: parsed.data.email,
@@ -159,10 +187,14 @@ export async function login(
     });
   } catch (error) {
     if (error instanceof CredentialsSignin) {
+      // "TOTP required" isn't a failed guess — the password was right and the
+      // form is simply asking for the second factor next.
       if (error.code === "totp_required") {
+        resetRateLimit("login", throttleKey);
         return { totpRequired: true };
       }
       if (error.code === "invalid_totp") {
+        recordFailedAttempt("totp", throttleKey);
         return {
           totpRequired: true,
           error: "Invalid code. Check your authenticator app or use a recovery code.",
@@ -170,8 +202,11 @@ export async function login(
       }
     }
     if (error instanceof AuthError) {
+      recordFailedAttempt(limitName, throttleKey);
       return { error: "Invalid email or password." };
     }
+    // Anything else is the success-path redirect NextAuth throws, or a real
+    // fault — neither is a failed credential guess.
     throw error;
   }
 
@@ -257,10 +292,12 @@ export async function createUser(
     },
   });
 
-  const token = randomUUID();
+  // Only the hash is stored — a leaked database snapshot shouldn't yield
+  // working invitation links.
+  const token = generateToken();
   await prisma.passwordResetToken.create({
     data: {
-      token,
+      tokenHash: hashToken(token),
       userId: user.id,
       purpose: "INVITE",
       expiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
@@ -333,7 +370,12 @@ export async function updateMemberRole(
     }
   }
 
-  await prisma.user.update({ where: { id: userId }, data: { role: parsed.data.role } });
+  // A demotion has to take effect immediately, not whenever the target's JWT
+  // happens to expire — their token carries the old role until reissued.
+  await prisma.user.update({
+    where: { id: userId },
+    data: { role: parsed.data.role, sessionVersion: { increment: 1 } },
+  });
   revalidatePath("/settings/users");
   return { success: "Role updated." };
 }
@@ -421,11 +463,17 @@ export async function changePassword(
   if (!valid) return { error: "Current password is incorrect." };
 
   const passwordHash = await bcrypt.hash(parsed.data.newPassword, 12);
+  // Bumping sessionVersion invalidates every JWT issued for this account —
+  // the point being that a password change kicks out anyone who had the old
+  // one. That necessarily includes this session, so sign out and send the
+  // user back to /login rather than leaving them on a page whose session
+  // silently stopped working.
   await prisma.user.update({
     where: { id: user.id },
-    data: { passwordHash },
+    data: { passwordHash, sessionVersion: { increment: 1 } },
   });
 
+  await signOut({ redirectTo: "/login?passwordChanged=1" });
   return { success: "Password updated." };
 }
 
@@ -467,12 +515,22 @@ export async function requestPasswordReset(
     return { error: firstIssueMessage(parsed.error) };
   }
 
+  // Capped per address rather than per email — the email is whatever the
+  // caller typed. This bounds both enumeration attempts and the volume of
+  // mail the app can be made to send.
+  const resetThrottle = consumeRateLimit("passwordReset", clientAddress(await headers()));
+  if (!resetThrottle.allowed) {
+    // Same generic response as the success path: whether the throttle fired
+    // must not reveal that the account exists.
+    return { success: GENERIC_RESET_MESSAGE };
+  }
+
   const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
   if (user) {
-    const token = randomUUID();
+    const token = generateToken();
     await prisma.passwordResetToken.create({
       data: {
-        token,
+        tokenHash: hashToken(token),
         userId: user.id,
         expiresAt: new Date(Date.now() + 60 * 60 * 1000),
       },
@@ -498,7 +556,9 @@ export async function resetPassword(
     return { error: firstIssueMessage(parsed.error) };
   }
 
-  const resetToken = await prisma.passwordResetToken.findUnique({ where: { token } });
+  const resetToken = await prisma.passwordResetToken.findUnique({
+    where: { tokenHash: hashToken(token) },
+  });
   if (
     !resetToken ||
     resetToken.purpose !== "RESET" ||
@@ -510,7 +570,10 @@ export async function resetPassword(
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 12);
   await prisma.$transaction([
-    prisma.user.update({ where: { id: resetToken.userId }, data: { passwordHash } }),
+    prisma.user.update({
+      where: { id: resetToken.userId },
+      data: { passwordHash, sessionVersion: { increment: 1 } },
+    }),
     prisma.passwordResetToken.updateMany({
       where: { userId: resetToken.userId, usedAt: null },
       data: { usedAt: new Date() },
@@ -530,7 +593,9 @@ export async function acceptInvitation(
     return { error: firstIssueMessage(parsed.error) };
   }
 
-  const inviteToken = await prisma.passwordResetToken.findUnique({ where: { token } });
+  const inviteToken = await prisma.passwordResetToken.findUnique({
+    where: { tokenHash: hashToken(token) },
+  });
   if (
     !inviteToken ||
     inviteToken.purpose !== "INVITE" ||
@@ -542,7 +607,10 @@ export async function acceptInvitation(
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 12);
   await prisma.$transaction([
-    prisma.user.update({ where: { id: inviteToken.userId }, data: { passwordHash } }),
+    prisma.user.update({
+      where: { id: inviteToken.userId },
+      data: { passwordHash, sessionVersion: { increment: 1 } },
+    }),
     prisma.passwordResetToken.updateMany({
       where: { userId: inviteToken.userId, usedAt: null },
       data: { usedAt: new Date() },

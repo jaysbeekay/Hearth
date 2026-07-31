@@ -156,7 +156,13 @@ model User {
   passwordHash      String
   role              Role       @default(MEMBER)
   emailReminders    Boolean    @default(true)
-  icalToken         String?    @unique
+  // Bumped whenever a session must stop being trusted — password change,
+  // role change. Every JWT carries the value it was minted with; a mismatch
+  // invalidates the token (see the jwt callback in src/lib/auth.ts).
+  sessionVersion    Int        @default(0)
+  // SHA-256 of the iCal feed token, never the token itself. Kept on the
+  // original column name so no data migration is needed for the rename.
+  icalTokenHash     String?    @unique @map("icalToken")
   dateFormat        String     @default("DD/MM/YYYY")
   preferredCurrency String     @default("AUD")
   timezone          String     @default("UTC")
@@ -188,7 +194,9 @@ enum PasswordResetTokenPurpose {
 
 model PasswordResetToken {
   id        String                    @id @default(cuid())
-  token     String                    @unique
+  // SHA-256 of the emailed token. A leaked database snapshot shouldn't hand
+  // over working password-reset and invitation links.
+  tokenHash String                    @unique @map("token")
   userId    String
   user      User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
   purpose   PasswordResetTokenPurpose @default(RESET)
@@ -396,7 +404,11 @@ model WebhookEndpoint {
   id          String       @id @default(cuid())
   name        String
   url         String
-  secret      String?
+  // Encrypted with ENCRYPTION_KEY when one is configured. secretEncrypted
+  // records which form this row is in, so instances that predate the key
+  // keep working and get upgraded on next write (same pattern as AppSetting).
+  secret          String?
+  secretEncrypted Boolean  @default(false)
   enabled     Boolean      @default(true)
 
   createdById String

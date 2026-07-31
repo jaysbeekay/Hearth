@@ -1,10 +1,12 @@
 import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
+import { decodeWebhookSecret } from "@/lib/webhookSecret";
+import { assertSafeOutboundUrl, UnsafeOutboundUrlError } from "@/lib/net/outbound";
 
 const WEBHOOK_TIMEOUT_MS = 10_000;
 
-type Endpoint = { id: string; url: string; secret: string | null };
+type Endpoint = { id: string; url: string; secret: string | null; secretEncrypted: boolean };
 
 function sign(secret: string, body: string) {
   return `sha256=${crypto.createHmac("sha256", secret).update(body).digest("hex")}`;
@@ -15,7 +17,8 @@ async function deliver(endpoint: Endpoint, event: string, body: string) {
     "Content-Type": "application/json",
     "X-Webhook-Event": event,
   };
-  if (endpoint.secret) headers["X-Webhook-Signature"] = sign(endpoint.secret, body);
+  const secret = decodeWebhookSecret(endpoint);
+  if (secret) headers["X-Webhook-Signature"] = sign(secret, body);
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS);
@@ -25,6 +28,10 @@ async function deliver(endpoint: Endpoint, event: string, body: string) {
   let message: string | null = null;
 
   try {
+    // Re-checked at delivery time, not just when the endpoint was saved: the
+    // hostname's DNS answer can change after the fact.
+    await assertSafeOutboundUrl(endpoint.url);
+
     const res = await fetch(endpoint.url, {
       method: "POST",
       headers,
@@ -35,7 +42,12 @@ async function deliver(endpoint: Endpoint, event: string, body: string) {
     success = res.ok;
     if (!success) message = `HTTP ${res.status}`;
   } catch (error) {
-    message = error instanceof Error ? error.message : "Request failed";
+    message =
+      error instanceof UnsafeOutboundUrlError
+        ? `Refused to deliver: ${error.message}`
+        : error instanceof Error
+          ? error.message
+          : "Request failed";
   } finally {
     clearTimeout(timeout);
   }
