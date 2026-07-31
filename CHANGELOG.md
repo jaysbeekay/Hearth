@@ -149,7 +149,6 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 - The unauthenticated redirect no longer copies the original query string onto
   `/login`, which had echoed bearer tokens into the login page's URL and
   history (#163).
-
 - Added Content-Security-Policy (nonce-based, with `strict-dynamic`),
   `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`,
   `Permissions-Policy` and — on HTTPS requests only — HSTS to every response
