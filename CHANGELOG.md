@@ -184,6 +184,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   currency collapsed to a bare `$`, which doesn't say which dollar it is. The
   Wealth pages and /spend — the views that can genuinely show several
   currencies at once — now render `AUD 1,234.50` rather than `$1,234.50`.
+- Vercel no longer attempts to build this repository. `vercel.json` sets
+  `git.deploymentEnabled: false`, and the README explains why serverless
+  hosting isn't a target: the SQLite database, uploaded documents,
+  `node-cron` schedulers and the `pdftotext`/`tesseract` extraction pipeline
+  all need a long-lived process with its own disk. The deployment had been
+  failing on every pull request — including ones that changed nothing but
+  PNG files — which made the whole checks list easy to ignore.
 
 - Setup screen's module checklist now lists Travel last, after Wealth, instead
   of first (#119). Also added a permanently-checked, disabled "Document

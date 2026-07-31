@@ -276,6 +276,24 @@ overview, so the two stay in sync. To build from source instead of
 pulling, run `docker build -t jaysbeekay/hearth:local .` and change
 `image:` in `docker-compose.yml` to that tag.
 
+## Why not serverless (Vercel, Netlify, Workers)?
+
+Hearth is built to run as a single long-lived container that owns its own
+disk. That's a deliberate trade for a self-hosted household app — your data
+stays in one directory you can back up — but it rules out serverless hosting:
+
+- The database is **SQLite on the local filesystem**. Serverless functions get
+  an ephemeral disk and can't share one file between concurrent invocations.
+- **Uploaded documents** are written to `UPLOADS_DIR` on that same disk.
+- The reminder, backup and price-refresh **schedulers use `node-cron`**, which
+  needs a process that stays alive between requests.
+- Document extraction **shells out to `pdftotext`, `pdftoppm` and `tesseract`**,
+  OS packages installed in the image.
+
+`vercel.json` sets `git.deploymentEnabled: false` so Vercel doesn't attempt a
+build it can't complete. Use Docker (above), or any host that gives you a
+persistent volume and a long-running process.
+
 ## Locking down access with nginx + mTLS
 
 Since this app stores sensitive personal/financial data, you can put it
