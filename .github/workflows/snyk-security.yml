@@ -76,22 +76,26 @@ jobs:
 
       - name: Snyk Container test (blocks on high severity)
         if: ${{ env.HAS_SNYK == 'true' }}
-        # --exclude-base-image-vulns scopes this to what *this repository*
-        # controls: the packages the Dockerfile installs (tesseract, poppler,
-        # su-exec) and the application's own dependencies. Both were clean on
-        # the run that introduced this flag.
+        # --exclude-app-vulns splits the work between the two scans instead of
+        # having both report the same thing: the Open Source step above already
+        # covers this project's npm dependencies from the lockfile, so here the
+        # container scan does what a container scan is for — the OS packages in
+        # the image, base layers and the tesseract/poppler/su-exec this
+        # Dockerfile installs.
         #
-        # What it filters out is the node:22-alpine base image itself, whose
-        # bundled npm CLI currently carries 9 high-severity advisories
-        # (brace-expansion, pacote, sigstore, picomatch, tar). Those aren't
-        # fixable from here — they're upstream's to patch and ours to pick up
-        # by moving the pinned digest. Blocking every pull request on them
-        # would make the gate unactionable, which is how gates get deleted.
-        # `snyk container monitor` below still reports them, unfiltered, to
-        # the dashboard, so they stay visible when choosing a new digest.
+        # It also drops the npm CLI that ships inside node:22-alpine, which
+        # currently carries 9 high-severity advisories (brace-expansion,
+        # pacote, sigstore, picomatch, tar). Snyk classes that as an "image
+        # application", not a base-image package, so --exclude-base-image-vulns
+        # does not filter it. Nothing in this repository can fix them: they're
+        # upstream's to patch and ours to pick up by moving the pinned digest.
+        # Blocking every pull request on them would make the gate unactionable,
+        # which is how gates get deleted. `snyk container monitor` below still
+        # reports the whole image, unfiltered, to the dashboard — that's where
+        # to look when choosing a new digest.
         run: >-
           snyk container test "$IMAGE_TAG" --file=Dockerfile
-          --severity-threshold=high --exclude-base-image-vulns
+          --severity-threshold=high --exclude-app-vulns
 
       # ── Reporting only ───────────────────────────────────────────────────
       # These publish state to the Snyk dashboard rather than asserting
