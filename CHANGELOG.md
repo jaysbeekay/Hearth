@@ -7,6 +7,36 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+### Breaking Changes
+
+- **The Android app no longer connects over plain HTTP**, except to
+  `localhost`, `*.local` and `*.home.arpa` (#166). Reaching a server by bare
+  LAN IP over `http://` — e.g. `http://192.168.1.50:3000` — now fails, because
+  Android's network security config can only allow-list domain suffixes, not
+  IP ranges. Serve Hearth over HTTPS (a reverse proxy with a real certificate,
+  a mesh VPN such as Tailscale, or a private CA imported from the connect
+  screen), or reach it by an mDNS `.local` name. iOS already enforced this via
+  App Transport Security. Android cloud backup and device-to-device transfer
+  are also disabled now, so the stored server address, session cookie and any
+  imported client certificate can't leave the device.
+
+### Security
+
+- Added Content-Security-Policy (nonce-based, with `strict-dynamic`),
+  `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`,
+  `Permissions-Policy` and — on HTTPS requests only — HSTS to every response
+  (#159). Served from `src/proxy.ts`, which now supplies its own
+  unauthenticated redirect: NextAuth skips its `authorized` callback's redirect
+  once a handler is present.
+- First-run setup can be gated behind a new optional `SETUP_TOKEN` env var
+  (#169). Until the first account exists, `/setup` is reachable by anyone who
+  can reach the server, and whoever submits it first becomes the
+  administrator; setting `SETUP_TOKEN` closes that window. The "no existing
+  users" check also moved inside the write transaction, so two simultaneous
+  requests can no longer both create an admin.
+- `APP_URL` is now checked at startup and logs a warning in production when it
+  isn't HTTPS (#166).
+
 ### Changed
 
 - Setup screen's module checklist now lists Travel last, after Wealth, instead

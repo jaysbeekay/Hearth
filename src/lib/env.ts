@@ -29,6 +29,7 @@ export const env = {
     apiKey: optional("BARCODE_LOOKUP_API_KEY"),
   },
   encryptionKey: optional("ENCRYPTION_KEY"),
+  setupToken: optional("SETUP_TOKEN"),
   github: {
     clientId: optional("GITHUB_CLIENT_ID"),
     clientSecret: optional("GITHUB_CLIENT_SECRET"),
@@ -58,11 +59,40 @@ export const env = {
   },
 };
 
+export const isProduction = () => process.env.NODE_ENV === "production";
+
+// Loopback and LAN-only names are the one place plain HTTP is defensible — the
+// traffic never crosses an untrusted network. Anything else carrying session
+// cookies and household documents needs TLS.
+const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1", "[::1]", "0.0.0.0"]);
+
+export function isLocalHostname(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  return (
+    LOCAL_HOSTNAMES.has(host) || host.endsWith(".local") || host.endsWith(".home.arpa")
+  );
+}
+
+// True when APP_URL is safe to hand out in emails, invitation links, WebAuthn
+// relying-party config and iCal URLs — i.e. HTTPS, or plain HTTP somewhere the
+// traffic can't be intercepted.
+export const isAppUrlSecure = () => {
+  try {
+    const parsed = new URL(env.appUrl);
+    return parsed.protocol === "https:" || isLocalHostname(parsed.hostname);
+  } catch {
+    return false;
+  }
+};
+
 export const isEmailConfigured = () => Boolean(env.smtp.host && env.smtp.user);
 export const isNtfyConfigured = () => Boolean(env.ntfy.url && env.ntfy.topic);
 export const isOllamaConfigured = () => Boolean(env.ollama.baseUrl && env.ollama.model);
 export const isBarcodeLookupConfigured = () => env.barcodeLookup.enabled;
 export const isEncryptionConfigured = () => env.encryptionKey.length > 0;
+// When set, first-run setup additionally requires this token, so a server that
+// is reachable before anyone has registered can't be claimed by a passer-by.
+export const isSetupTokenRequired = () => env.setupToken.length > 0;
 export const isGithubOAuthConfigured = () =>
   Boolean(env.github.clientId && env.github.clientSecret);
 

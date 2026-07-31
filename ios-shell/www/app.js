@@ -16,11 +16,46 @@ function showStatus(message, ok) {
   status.classList.toggle("ok", Boolean(ok));
 }
 
+// Hosts still reachable over plain HTTP. Both platforms block cleartext at the
+// OS layer — iOS via App Transport Security, Android via
+// res/xml/network_security_config.xml — and neither can express "any private
+// IP range", so this list mirrors exactly what those configs allow. Checking it
+// here turns an opaque native network failure into a message that says why.
+const CLEARTEXT_HOSTS = ["localhost", "127.0.0.1", "::1", "[::1]"];
+const CLEARTEXT_SUFFIXES = [".local", ".home.arpa"];
+
+function allowsCleartext(hostname) {
+  const host = hostname.toLowerCase();
+  return (
+    CLEARTEXT_HOSTS.includes(host) ||
+    CLEARTEXT_SUFFIXES.some((suffix) => host.endsWith(suffix))
+  );
+}
+
 function normalizeUrl(raw) {
   const trimmed = raw.trim().replace(/\/+$/, "");
   if (!/^https?:\/\//i.test(trimmed)) {
     throw new Error("Address must start with http:// or https://");
   }
+
+  let parsed;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    throw new Error("That doesn't look like a valid address.");
+  }
+
+  // Hearth carries household documents, credentials and financial data. Over
+  // plain HTTP on an untrusted network all of it — session cookie included —
+  // is readable in transit, so cleartext is limited to loopback and LAN-only
+  // hostnames.
+  if (parsed.protocol === "http:" && !allowsCleartext(parsed.hostname)) {
+    throw new Error(
+      `Plain HTTP isn't allowed for ${parsed.hostname}. Use https:// — or reach your server ` +
+        "by a .local / .home.arpa name if it's on your own network.",
+    );
+  }
+
   return trimmed;
 }
 
@@ -71,6 +106,16 @@ async function init() {
   if (!url) return;
 
   input.value = url;
+
+  // The stored address can also be set from iOS Settings > Hearth, which does
+  // no validation of its own — re-check it rather than trusting whatever
+  // landed in UserDefaults.
+  try {
+    normalizeUrl(url);
+  } catch (err) {
+    showStatus(err.message || "Stored server address is not usable.", false);
+    return;
+  }
 
   const failedUrl = recentFailedAttempt();
   if (failedUrl === url) {

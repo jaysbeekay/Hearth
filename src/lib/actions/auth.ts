@@ -1,7 +1,7 @@
 "use server";
 
 import bcrypt from "bcryptjs";
-import { randomUUID } from "crypto";
+import { createHash, randomUUID, timingSafeEqual } from "crypto";
 import { AuthError, CredentialsSignin } from "next-auth";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
@@ -22,7 +22,7 @@ import type { ModuleKey } from "@/lib/modules/registry";
 import { DATE_FORMAT_OPTIONS, REGION_OPTIONS } from "@/lib/utils";
 import { TIMEZONE_OPTIONS } from "@/lib/timezones";
 import { POPULAR_CURRENCIES } from "@/components/CurrencySelect";
-import { env } from "@/lib/env";
+import { env, isSetupTokenRequired } from "@/lib/env";
 import { isSmtpConfigured } from "@/lib/appSettings";
 import { sendInvitationEmail, sendPasswordResetEmail } from "@/lib/notifications/email";
 
@@ -40,13 +40,36 @@ function firstIssueMessage(error: { issues: { message: string }[] }) {
   return error.issues[0]?.message ?? "Invalid input";
 }
 
+// Thrown inside the setup transaction to roll it back when another request won
+// the race; carried as a class so it can be told apart from a real DB failure.
+class SetupAlreadyCompletedError extends Error {}
+
+// Compares two secrets without leaking their contents through response timing.
+// Lengths are hashed first so unequal-length inputs don't throw and don't
+// reveal the expected length either.
+function secretsMatch(provided: string, expected: string): boolean {
+  const a = createHash("sha256").update(provided).digest();
+  const b = createHash("sha256").update(expected).digest();
+  return timingSafeEqual(a, b);
+}
+
 export async function setupAdmin(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const existingUsers = await prisma.user.count();
-  if (existingUsers > 0) {
+  // Cheap pre-check purely so an already-configured instance answers fast; the
+  // authoritative check is the transaction below, which can't be raced.
+  if ((await prisma.user.count()) > 0) {
     return { error: "Setup has already been completed." };
+  }
+
+  // A server exposed to the network before anyone has registered is claimable
+  // by whoever reaches /setup first. Setting SETUP_TOKEN closes that window.
+  if (isSetupTokenRequired()) {
+    const provided = formData.get("setupToken");
+    if (typeof provided !== "string" || !secretsMatch(provided, env.setupToken)) {
+      return { error: "Invalid setup token." };
+    }
   }
 
   const parsed = setupSchema.safeParse({
@@ -64,23 +87,39 @@ export async function setupAdmin(
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 12);
 
-  await prisma.$transaction([
-    prisma.user.create({
-      data: {
-        name: parsed.data.name,
-        email: parsed.data.email,
-        passwordHash,
-        role: "ADMIN",
-      },
-    }),
-    ...(selectedModules.length > 0
-      ? [
-          prisma.moduleEnablement.createMany({
-            data: selectedModules.map((key) => ({ key, enabled: true })),
-          }),
-        ]
-      : []),
-  ]);
+  // Re-check inside the write transaction. Two requests arriving together
+  // would both pass the check above; only one can commit this.
+  try {
+    await prisma.$transaction(async (tx) => {
+      if ((await tx.user.count()) > 0) {
+        throw new SetupAlreadyCompletedError();
+      }
+
+      await tx.user.create({
+        data: {
+          name: parsed.data.name,
+          email: parsed.data.email,
+          passwordHash,
+          role: "ADMIN",
+        },
+      });
+
+      if (selectedModules.length > 0) {
+        await tx.moduleEnablement.createMany({
+          data: selectedModules.map((key) => ({ key, enabled: true })),
+        });
+      }
+    });
+  } catch (error) {
+    if (error instanceof SetupAlreadyCompletedError) {
+      return { error: "Setup has already been completed." };
+    }
+    throw error;
+  }
+
+  console.log(
+    `[security] first-run setup completed — admin account created for ${parsed.data.email}`,
+  );
 
   await signIn("credentials", {
     email: parsed.data.email,

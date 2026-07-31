@@ -572,6 +572,7 @@ for the full list with defaults. Notable ones:
 | `BARCODE_LOOKUP_ENABLED` | Optional. Set to `true` to look up a scanned product barcode online and auto-fill its name/manufacturer — see "Barcode scanning for products" above. |
 | `BARCODE_LOOKUP_API_KEY` | Optional. A paid UPCitemdb API key for higher-limit barcode lookups, instead of the free keyless trial endpoint. |
 | `ENCRYPTION_KEY` | Optional. Generate with `openssl rand -base64 32`. Set to enable users bringing their own AI provider key for document extraction, and a prerequisite for offsite database backups — see "Bring your own AI key" and "Database backups" above. |
+| `SETUP_TOKEN` | Optional. Generate with `openssl rand -hex 16`. If set, the first-run setup screen also asks for this value, so a server that's reachable before you've created your account can't be claimed by someone else — see "Security notes" below. Ignored once setup is complete. |
 | `BACKUP_CRON_SCHEDULE` / `BACKUP_RETENTION_COUNT` | Optional. Schedule (cron syntax, default daily at 03:00) and how many backups to keep per destination (default 7). |
 | `BACKUP_S3_*` | Optional. Pre-populates the S3-compatible backup fields (`BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY`, plus `BACKUP_S3_ENDPOINT`/`BACKUP_S3_REGION`/`BACKUP_S3_FORCE_PATH_STYLE` for non-AWS providers) — still requires picking "S3-compatible storage" in Settings → System settings' backup destination dropdown to activate it. See "Database backups" above. |
 | `BACKUP_SFTP_*` | Optional. Pre-populates the SFTP backup fields (`BACKUP_SFTP_HOST`, `BACKUP_SFTP_USERNAME`, plus `BACKUP_SFTP_PASSWORD` or `BACKUP_SFTP_PRIVATE_KEY`) — still requires picking "SFTP" in the backup destination dropdown to activate it. See "Database backups" above. |
@@ -597,9 +598,26 @@ threshold.
 - New users can only be created by an existing admin (Settings → Users) —
   there's no public registration, since this app stores sensitive personal
   and financial data.
+- **First-run setup is a race you can lose.** Until the first account exists,
+  `/setup` is reachable by anyone who can reach the server, and whoever
+  submits it first becomes the administrator. If the server will be exposed
+  before you've registered, set `SETUP_TOKEN` to a random string first — the
+  setup screen will then also ask for it. Once an account exists, `/setup`
+  redirects away permanently.
 - Uploaded documents are stored under generated UUID filenames, never the
   user-supplied name, to prevent path traversal.
 - Email/ntfy reminder text is sanitized against header injection.
+- Every response carries a nonce-based Content-Security-Policy plus `nosniff`,
+  `X-Frame-Options: DENY` and `Referrer-Policy: no-referrer`. HSTS is added
+  only when the request already arrived over TLS, so a plain-HTTP LAN
+  deployment isn't pinned to an HTTPS endpoint that doesn't exist.
+- **Run it over HTTPS.** Session cookies, uploaded documents and invitation
+  links all travel in cleartext otherwise. The app logs a warning at startup
+  if `APP_URL` isn't HTTPS in production, and the mobile shells refuse plain
+  HTTP for anything but `localhost`, `*.local` and `*.home.arpa` — a bare LAN
+  IP over `http://` won't connect. Use a reverse proxy with a real
+  certificate, a mesh VPN such as Tailscale, or import a private CA from the
+  app's connect screen.
 
 See [`PRIVACY.md`](PRIVACY.md) for what data the app handles and where it
 goes for each optional integration.

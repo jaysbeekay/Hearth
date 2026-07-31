@@ -13,11 +13,30 @@ import { MODULE_REGISTRY, type ModuleKey } from "@/lib/modules/registry";
 // drives nav grouping and the Settings > Modules list.
 const SETUP_MODULE_ORDER: ModuleKey[] = ["HOME", "VEHICLES", "INVENTORY", "WEALTH", "TRAVEL"];
 
-export function SetupForm() {
+export function SetupForm({ setupTokenRequired = false }: { setupTokenRequired?: boolean }) {
   const [state, formAction] = useActionState<ActionState, FormData>(setupAdmin, null);
 
   return (
     <form action={formAction} className="space-y-4">
+      {setupTokenRequired && (
+        <div className="space-y-1">
+          <label htmlFor="setupToken" className="text-sm font-medium">
+            Setup token
+          </label>
+          <input
+            id="setupToken"
+            name="setupToken"
+            type="password"
+            required
+            autoComplete="off"
+            className={inputClass}
+          />
+          <p className="text-xs text-foreground/60">
+            The value of SETUP_TOKEN from your server&apos;s environment.
+          </p>
+        </div>
+      )}
+
       <div className="space-y-1">
         <label htmlFor="name" className="text-sm font-medium">
           Your name
