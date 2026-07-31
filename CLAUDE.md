@@ -171,8 +171,15 @@ for the full list and defaults before assuming a feature is unconfigured or misb
 - Prisma client is generated to `src/generated/prisma` (not the default `node_modules`
   location) — import types from `@/generated/prisma/enums` etc., and re-run
   `npx prisma generate` after pulling schema changes.
-- Multi-user is household-wide, not per-user-siloed: everyone in the household sees the
-  same contracts/trips/properties/etc. Role (`ADMIN`/`MEMBER`) gates admin-only actions
-  (user management, webhooks, backups, module toggles), not data visibility.
+- Multi-user is household-wide, not per-user-siloed: everyone in the household sees and
+  can edit the same contracts/trips/properties/etc. `createdById` on those rows is audit
+  metadata only — never use it as an authorization check, or you reintroduce #151, where
+  a record was visible in the UI but the server refused to update, sync or calendar it.
+  Chat threads are the one deliberate exception and stay private to their creator.
+  Role (`ADMIN`/`MEMBER`/`READONLY`) gates *actions*, not visibility: `READONLY` blocks
+  all writes (enforced in each domain's `requireUser()`), and `ADMIN` gates
+  household-administration actions (user management, webhooks, backups, module toggles).
+  Creating, editing and deleting the household's own records is open to every
+  non-`READONLY` member — deletion is deliberately *not* admin-only.
 - CHANGELOG.md follows Keep a Changelog; see the "Releasing" section of README.md for the
   full release process (bump `[Unreleased]` → version section, bump `package.json`, tag).

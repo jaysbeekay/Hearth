@@ -17,11 +17,11 @@ export async function GET(
   }
 
   const { id } = await params;
-  const doc = await prisma.tradeDocument.findUnique({
-    where: { id },
-    include: { trade: { include: { holding: { include: { portfolio: true } } } } },
-  });
-  if (!doc || doc.trade.holding.portfolio.createdById !== session.user.id) {
+  // Household-wide, like the rest of Wealth: any signed-in member with the
+  // module enabled can read a trade document. The portfolio's createdById is
+  // audit metadata, not an access check.
+  const doc = await prisma.tradeDocument.findUnique({ where: { id } });
+  if (!doc) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

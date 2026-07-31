@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Hearth stores household documents, credentials and financial data, so the
+  Android shell refuses plain HTTP by default — a self-hosted server reached
+  over cleartext on an untrusted network exposes the session cookie and every
+  document fetched through it.
+
+  The only exceptions are loopback and the conventional local-network suffixes,
+  which never leave the device or the LAN. Android's network security config
+  can only allow-list concrete domain suffixes, not IP ranges, so a server
+  reached by bare LAN IP (e.g. http://192.168.1.50:3000) is NOT covered here
+  and must be served over HTTPS. See README-ios.md for the options: a reverse
+  proxy with a real certificate, a mesh VPN such as Tailscale, or importing a
+  private CA / client certificate from the connect screen.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+            <!-- Certificates the user installs themselves, so a self-hosted
+                 server with a private CA can still be reached over HTTPS. -->
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">127.0.0.1</domain>
+        <domain includeSubdomains="true">::1</domain>
+        <!-- mDNS and the RFC 8375 home-network zone, both LAN-only. -->
+        <domain includeSubdomains="true">local</domain>
+        <domain includeSubdomains="true">home.arpa</domain>
+    </domain-config>
+</network-security-config>

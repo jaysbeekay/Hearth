@@ -15,6 +15,11 @@ export async function GET(request: NextRequest) {
     return new NextResponse("Invalid token", { status: 401 });
   }
 
+  // The token identifies which household member subscribed, for revocation —
+  // it does not narrow what the feed contains. Hearth is household-wide, and a
+  // calendar filtered to rows this user happened to create was silently
+  // missing most of the household's renewals.
+
   const enabledModules = await getEnabledModuleKeys();
   const appUrl = env.appUrl ?? "http://localhost:3000";
 
@@ -22,7 +27,7 @@ export async function GET(request: NextRequest) {
 
   // Contracts
   const contracts = await prisma.contract.findMany({
-    where: { createdById: user.id, endDate: { not: null } },
+    where: { endDate: { not: null } },
     select: { id: true, title: true, provider: true, endDate: true },
   });
   for (const c of contracts) {
@@ -40,7 +45,7 @@ export async function GET(request: NextRequest) {
 
   // Products
   const products = await prisma.product.findMany({
-    where: { createdById: user.id, warrantyEndDate: { not: null } },
+    where: { warrantyEndDate: { not: null } },
     select: { id: true, description: true, manufacturer: true, warrantyEndDate: true },
   });
   for (const p of products) {
@@ -59,7 +64,6 @@ export async function GET(request: NextRequest) {
   // Vehicles (rego + insurance)
   if (enabledModules.has("VEHICLES")) {
     const vehicles = await prisma.vehicle.findMany({
-      where: { createdById: user.id },
       select: { id: true, label: true, regoExpiry: true, insuranceExpiry: true },
     });
     for (const v of vehicles) {
@@ -89,7 +93,7 @@ export async function GET(request: NextRequest) {
   // Travel segments
   if (enabledModules.has("TRAVEL")) {
     const segments = await prisma.tripSegment.findMany({
-      where: { trip: { createdById: user.id }, startDate: { not: null } },
+      where: { startDate: { not: null } },
       include: { trip: { select: { id: true, title: true } } },
     });
     for (const s of segments) {
@@ -108,7 +112,7 @@ export async function GET(request: NextRequest) {
   // Home items
   if (enabledModules.has("HOME")) {
     const homeItems = await prisma.homeItem.findMany({
-      where: { property: { createdById: user.id }, date: { not: null } },
+      where: { date: { not: null } },
       include: { property: { select: { id: true, label: true } } },
     });
     for (const item of homeItems) {
