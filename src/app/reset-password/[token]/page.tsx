@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { KeyRound } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { hashToken } from "@/lib/crypto";
 import { ResetPasswordForm } from "@/components/ResetPasswordForm";
 
 export const metadata: Metadata = { title: "Reset password" };
@@ -18,7 +19,9 @@ export default async function ResetPasswordPage({
 }) {
   const { token } = await params;
 
-  const resetToken = await prisma.passwordResetToken.findUnique({ where: { token } });
+  const resetToken = await prisma.passwordResetToken.findUnique({
+    where: { tokenHash: hashToken(token) },
+  });
   const valid = isTokenValid(resetToken);
 
   return (

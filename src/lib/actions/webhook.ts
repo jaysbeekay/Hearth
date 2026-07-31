@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { encodeWebhookSecret } from "@/lib/webhookSecret";
 import { auth } from "@/lib/auth";
 import { webhookEndpointSchema } from "@/lib/validation/webhook";
 import { sendTestWebhook } from "@/lib/notifications/webhook";
@@ -36,7 +37,7 @@ export async function createWebhookEndpoint(
     data: {
       name: parsed.data.name,
       url: parsed.data.url,
-      secret: parsed.data.secret ?? null,
+      ...encodeWebhookSecret(parsed.data.secret ?? null),
       createdById: session.user.id,
     },
   });

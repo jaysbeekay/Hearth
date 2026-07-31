@@ -1,7 +1,33 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
-  const { env, isProduction, isAppUrlSecure } = await import("@/lib/env");
+  const { env, isProduction, isAppUrlSecure, isEncryptionConfigured } = await import(
+    "@/lib/env"
+  );
+
+  // ENCRYPTION_KEY guards BYOK AI keys, SMTP/ntfy/backup credentials, TOTP
+  // secrets and webhook signing secrets. Without it those sit in the database
+  // in the clear, and any offsite backup would leave the server unencrypted.
+  if (isProduction() && !isEncryptionConfigured()) {
+    console.warn(
+      "[security] ENCRYPTION_KEY is not set. Integration credentials and TOTP secrets " +
+        "will be stored unencrypted, and database backups stay disabled. Generate one " +
+        "with: openssl rand -base64 32",
+    );
+  } else if (isEncryptionConfigured()) {
+    // Fail fast on a malformed key rather than at the first decrypt.
+    if (Buffer.from(env.encryptionKey, "base64").length !== 32) {
+      throw new Error(
+        "ENCRYPTION_KEY must be a base64-encoded 32-byte key (openssl rand -base64 32).",
+      );
+    }
+
+    // Upgrade any webhook secrets stored before a key was configured.
+    const { backfillWebhookSecrets } = await import("@/lib/webhookSecret");
+    await backfillWebhookSecrets().catch((error) => {
+      console.error("[security] webhook secret backfill failed:", error);
+    });
+  }
 
   // Hearth holds household documents, credentials and financial data. Served
   // over plain HTTP on anything but loopback or a LAN-only name, every session

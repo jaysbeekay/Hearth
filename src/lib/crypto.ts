@@ -1,7 +1,23 @@
-import { createCipheriv, createDecipheriv, randomBytes } from "crypto";
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "crypto";
 import { env } from "@/lib/env";
 
 const ALGORITHM = "aes-256-gcm";
+
+// ── Bearer-style tokens (iCal feeds, password resets, invitations) ──────────
+//
+// These are stored as a hash so a database snapshot — or an offsite backup
+// taken before ENCRYPTION_KEY was configured — doesn't hand over working
+// tokens. They're high-entropy random values, not user-chosen passwords, so a
+// single fast hash is the right primitive: there's nothing to brute-force, and
+// a slow KDF would only tax every calendar poll.
+
+export function generateToken(): string {
+  return randomBytes(32).toString("base64url");
+}
+
+export function hashToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
 
 function getKey(): Buffer {
   const key = Buffer.from(env.encryptionKey, "base64");

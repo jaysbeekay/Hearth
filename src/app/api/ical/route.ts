@@ -3,6 +3,7 @@ import ical from "ical-generator";
 import { prisma } from "@/lib/prisma";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { env } from "@/lib/env";
+import { hashToken } from "@/lib/crypto";
 
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get("token");
@@ -10,7 +11,9 @@ export async function GET(request: NextRequest) {
     return new NextResponse("Missing token", { status: 401 });
   }
 
-  const user = await prisma.user.findUnique({ where: { icalToken: token } });
+  const user = await prisma.user.findUnique({
+    where: { icalTokenHash: hashToken(token) },
+  });
   if (!user) {
     return new NextResponse("Invalid token", { status: 401 });
   }
@@ -132,6 +135,11 @@ export async function GET(request: NextRequest) {
     headers: {
       "Content-Type": "text/calendar; charset=utf-8",
       "Content-Disposition": 'attachment; filename="hearth.ics"',
+      // The URL carries a bearer token in its query string — the one shape
+      // calendar clients universally support. Keep it out of shared caches
+      // and out of any Referer header a fetched URL might generate.
+      "Cache-Control": "no-store, private",
+      "Referrer-Policy": "no-referrer",
     },
   });
 }
