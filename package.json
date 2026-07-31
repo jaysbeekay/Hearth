@@ -10,7 +10,8 @@
     "test:e2e": "tsx e2e/prepare-db.ts && playwright test",
     "cap:sync": "cap sync",
     "cap:android": "cap open android",
-    "cap:ios": "cap open ios"
+    "cap:ios": "cap open ios",
+    "cap:build-standalone": "./mobile-standalone/scripts/build-standalone-server.sh"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1075.0",
@@ -63,6 +64,7 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^8.4.1",
+    "@capawesome/capacitor-nodejs": "^0.1.0",
     "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
