@@ -191,6 +191,14 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   all need a long-lived process with its own disk. The deployment had been
   failing on every pull request — including ones that changed nothing but
   PNG files — which made the whole checks list easy to ignore.
+- **`jaysbeekay/hearth:latest` on Docker Hub now only moves on a real
+  release.** `docker-publish.yml` previously also ran on every push to
+  `main` and tagged that build `latest`, so self-hosters pulling `:latest`
+  got whatever had most recently merged — including in-progress or
+  breaking work — rather than what a tagged version and its CHANGELOG
+  entry actually describe. The workflow now runs only on a `vX.Y.Z` tag
+  push (or a manual dispatch against one), tagging the image both `latest`
+  and `vX.Y.Z` together.
 
 - Setup screen's module checklist now lists Travel last, after Wealth, instead
   of first (#119). Also added a permanently-checked, disabled "Document

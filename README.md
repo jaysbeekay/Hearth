@@ -270,11 +270,13 @@ features simply stay disabled until configured).
 
 The image is built and pushed to Docker Hub automatically by
 [`.github/workflows/docker-publish.yml`](.github/workflows/docker-publish.yml)
-on every push to `main` (tagged `latest`) and on `v*` tags — that same
-workflow also pushes this README to Docker Hub as the repository's
-overview, so the two stay in sync. To build from source instead of
-pulling, run `docker build -t jaysbeekay/hearth:local .` and change
-`image:` in `docker-compose.yml` to that tag.
+**on a release** — a `vX.Y.Z` tag push, tagged both `latest` and `vX.Y.Z` —
+not on every push to `main`, so `:latest` always matches a real, tagged
+release and its CHANGELOG entry rather than whatever most recently merged.
+That same workflow also pushes this README to Docker Hub as the
+repository's overview, so the two stay in sync. To build from source
+instead of pulling, run `docker build -t jaysbeekay/hearth:local .` and
+change `image:` in `docker-compose.yml` to that tag.
 
 ## Why not serverless (Vercel, Netlify, Workers)?
 
@@ -712,11 +714,14 @@ the body pulled from the matching `CHANGELOG.md` section so each release
 captures the functionality that shipped in it.
 
 `docker-publish.yml` builds and pushes the image to Docker Hub as
-[`jaysbeekay/hearth`](https://hub.docker.com/r/jaysbeekay/hearth),
-tagged `latest` on every push to `main` and `vx.y.z` on a real tag push. If
-the tag was cut via `release.yml`'s manual dispatch instead of a tag push,
-also run `docker-publish.yml` manually against the new tag to get the
-`vx.y.z` image tag.
+[`jaysbeekay/hearth`](https://hub.docker.com/r/jaysbeekay/hearth), tagged
+both `latest` and `vx.y.z`, whenever a `vx.y.z` git tag is pushed — it does
+**not** run on an ordinary push to `main`, so `:latest` only ever moves on a
+real release. A tag created via `release.yml`'s manual dispatch (rather
+than a `git push` of the tag) doesn't trigger this workflow automatically —
+GitHub Actions doesn't fire push-triggered workflows for refs created by its
+own token — so also run `docker-publish.yml` manually against the new tag
+in that case.
 
 ## License
 
