@@ -23,7 +23,7 @@ import {
   serializeFormData,
   type QueuedOperation,
 } from "@/lib/offlineQueue";
-import { markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
+import { markAutoFilled, extractionMessage, isAiExtractionSource } from "@/lib/autoFillHighlight";
 import { DateInput } from "@/components/DateInput";
 
 function toDateInputValue(date: Date | null | undefined) {
@@ -112,46 +112,47 @@ export function ContractForm({
   const contactPhoneRef = useRef<HTMLInputElement>(null);
   const contactEmailRef = useRef<HTMLInputElement>(null);
 
-  function applyExtractedFields(fields: ExtractedFields) {
+  function applyExtractedFields(fields: ExtractedFields, source: "byok" | "heuristic" | "llm" | "none") {
+    const highlight = isAiExtractionSource(source) ? "ai" : "heuristic";
     if (fields.title && titleRef.current && !titleRef.current.value) {
       titleRef.current.value = fields.title;
-      markAutoFilled(titleRef.current);
+      markAutoFilled(titleRef.current, highlight);
     }
     if (fields.provider && providerRef.current) {
       providerRef.current.value = fields.provider;
-      markAutoFilled(providerRef.current);
+      markAutoFilled(providerRef.current, highlight);
     }
     if (fields.contractNumber && contractNumberRef.current) {
       contractNumberRef.current.value = fields.contractNumber;
-      markAutoFilled(contractNumberRef.current);
+      markAutoFilled(contractNumberRef.current, highlight);
     }
     if (fields.startDate && startDateRef.current) {
       startDateRef.current.value = fields.startDate;
-      markAutoFilled(startDateRef.current);
+      markAutoFilled(startDateRef.current, highlight);
     }
     if (fields.endDate && endDateRef.current) {
       endDateRef.current.value = fields.endDate;
-      markAutoFilled(endDateRef.current);
+      markAutoFilled(endDateRef.current, highlight);
     }
     if (fields.cost && costRef.current) {
       costRef.current.value = fields.cost;
-      markAutoFilled(costRef.current);
+      markAutoFilled(costRef.current, highlight);
     }
     if (fields.billingFrequency && billingFrequencyRef.current) {
       billingFrequencyRef.current.value = fields.billingFrequency;
-      markAutoFilled(billingFrequencyRef.current);
+      markAutoFilled(billingFrequencyRef.current, highlight);
     }
     if (fields.contactName && contactNameRef.current) {
       contactNameRef.current.value = fields.contactName;
-      markAutoFilled(contactNameRef.current);
+      markAutoFilled(contactNameRef.current, highlight);
     }
     if (fields.contactPhone && contactPhoneRef.current) {
       contactPhoneRef.current.value = fields.contactPhone;
-      markAutoFilled(contactPhoneRef.current);
+      markAutoFilled(contactPhoneRef.current, highlight);
     }
     if (fields.contactEmail && contactEmailRef.current) {
       contactEmailRef.current.value = fields.contactEmail;
-      markAutoFilled(contactEmailRef.current);
+      markAutoFilled(contactEmailRef.current, highlight);
     }
   }
 
@@ -171,7 +172,7 @@ export function ContractForm({
         source: "byok" | "heuristic" | "llm" | "none";
       };
       const filledCount = Object.keys(fields).length;
-      if (filledCount > 0) applyExtractedFields(fields);
+      if (filledCount > 0) applyExtractedFields(fields, source);
       setScanMessage(extractionMessage(source, filledCount));
     } catch {
       setScanMessage("Couldn't scan this document. You can still attach it and fill in fields manually.");

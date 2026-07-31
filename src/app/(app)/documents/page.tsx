@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { DocumentsExplorer, type DocRow } from "@/components/DocumentsExplorer";
+import { DocumentsTabs } from "@/components/DocumentsTabs";
 
 export const metadata: Metadata = { title: "Documents" };
 
@@ -18,13 +19,16 @@ function chipClass(active: boolean) {
 export default async function DocumentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ type?: string }>;
+  searchParams: Promise<{ type?: string; view?: string }>;
 }) {
-  const { type } = await searchParams;
-  const [enabledModules, { dateFormat }, inboxCount] = await Promise.all([
+  const { type, view } = await searchParams;
+  const showAll = view === "all";
+  const [enabledModules, { dateFormat }, inboxDocs] = await Promise.all([
     getEnabledModuleKeys(),
     getUserPreferences(),
-    prisma.inboxDocument.count(),
+    prisma.inboxDocument.findMany({
+      select: { id: true, filename: true, size: true, uploadedAt: true, mimeType: true },
+    }),
   ]);
 
   const queries: Promise<DocRow[]>[] = [];
@@ -241,37 +245,55 @@ export default async function DocumentsPage({
     );
   }
 
-  const allDocs = (await Promise.all(queries)).flat();
-  allDocs.sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime());
+  const filedDocs = (await Promise.all(queries)).flat();
+  const inboxRows: DocRow[] = inboxDocs.map((d) => ({
+    id: d.id,
+    filename: d.filename,
+    size: d.size,
+    uploadedAt: d.uploadedAt,
+    mimeType: d.mimeType,
+    type: "Needs review",
+    parentTitle: "Needs review",
+    parentHref: "/documents/inbox",
+    downloadHref: `/api/documents/inbox/${d.id}`,
+  }));
 
-  const filtered = type ? allDocs.filter((d) => d.type === type) : allDocs;
-  const availableTypes = [...new Set(allDocs.map((d) => d.type))];
+  const baseDocs = showAll ? [...filedDocs, ...inboxRows] : filedDocs;
+  baseDocs.sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime());
+
+  const filtered = type ? baseDocs.filter((d) => d.type === type) : baseDocs;
+  const availableTypes = [...new Set(baseDocs.map((d) => d.type))];
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">Documents</h1>
-          <p className="text-sm text-muted">Every file you&apos;ve uploaded, in one place.</p>
-        </div>
-        {inboxCount > 0 && (
-          <Link
-            href="/documents/inbox"
-            className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm font-medium text-warning hover:bg-warning/20"
-          >
-            Needs review ({inboxCount})
-          </Link>
-        )}
+      <div>
+        <h1 className="text-2xl font-semibold">Documents</h1>
+        <p className="text-sm text-muted">
+          {showAll
+            ? "Every uploaded document, including anything still waiting to be filed."
+            : "Documents you've saved to a contract, warranty, or other record."}
+        </p>
       </div>
 
-      {allDocs.length > 0 && (
+      <DocumentsTabs
+        active={showAll ? "all" : "filed"}
+        inboxCount={inboxDocs.length}
+        filedCount={filedDocs.length}
+        allCount={filedDocs.length + inboxDocs.length}
+      />
+
+      {baseDocs.length > 0 && (
         <div className="flex flex-wrap gap-2">
-          <Link href="/documents" className={chipClass(!type)}>
-            All ({allDocs.length})
+          <Link href={showAll ? "/documents?view=all" : "/documents"} className={chipClass(!type)}>
+            All types ({baseDocs.length})
           </Link>
           {availableTypes.map((t) => (
-            <Link key={t} href={`/documents?type=${encodeURIComponent(t)}`} className={chipClass(type === t)}>
-              {t} ({allDocs.filter((d) => d.type === t).length})
+            <Link
+              key={t}
+              href={`/documents?type=${encodeURIComponent(t)}${showAll ? "&view=all" : ""}`}
+              className={chipClass(type === t)}
+            >
+              {t} ({baseDocs.filter((d) => d.type === t).length})
             </Link>
           ))}
         </div>
@@ -281,7 +303,7 @@ export default async function DocumentsPage({
         docs={filtered}
         dateFormat={dateFormat}
         emptyMessage={
-          allDocs.length === 0 ? null : `No ${type?.toLowerCase()} documents yet.`
+          baseDocs.length === 0 ? null : `No ${type?.toLowerCase()} documents yet.`
         }
       />
     </div>

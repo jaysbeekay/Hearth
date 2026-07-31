@@ -2,13 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { AlertTriangle, Upload } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { ContractCard } from "@/components/ContractCard";
-import { ProductCard } from "@/components/ProductCard";
-import { VehicleCard } from "@/components/VehicleCard";
 import { TripCard } from "@/components/TripCard";
 import { StatCard } from "@/components/StatCard";
 import { AddEntryPicker } from "@/components/AddEntryPicker";
-import { NotificationNudgeBanner } from "@/components/NotificationNudgeBanner";
 import { OnboardingChecklist } from "@/components/OnboardingChecklist";
 import { daysUntil, monthlyEquivalent, formatCurrency } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
@@ -17,6 +13,14 @@ import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { auth } from "@/lib/auth";
 import { isSmtpConfigured, isNtfyConfigured } from "@/lib/appSettings";
 import { getDocumentStats } from "@/lib/documents/stats";
+import {
+  buildContractAttentionItems,
+  buildWarrantyAttentionItems,
+  buildVehicleAttentionItems,
+  buildReminderNudgeItem,
+  sortAttentionItems,
+} from "@/lib/needsAttention";
+import { NeedsAttentionQueue } from "@/components/NeedsAttentionQueue";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -29,12 +33,16 @@ export default async function DashboardPage() {
       isSmtpConfigured(),
       isNtfyConfigured(),
     ]);
-  const showNotificationNudge =
-    session?.user.role === "ADMIN" && !smtpConfigured && !ntfyConfigured;
 
   const [contracts, products, vehicles, trips, memberCount, documentStats] = await Promise.all([
-    prisma.contract.findMany({ orderBy: { endDate: "asc" } }),
-    prisma.product.findMany({ orderBy: { warrantyEndDate: "asc" } }),
+    prisma.contract.findMany({
+      orderBy: { endDate: "asc" },
+      include: { _count: { select: { documents: true } } },
+    }),
+    prisma.product.findMany({
+      orderBy: { warrantyEndDate: "asc" },
+      include: { _count: { select: { documents: true } } },
+    }),
     enabledModules.has("VEHICLES") ? prisma.vehicle.findMany({ orderBy: { createdAt: "desc" } }) : [],
     enabledModules.has("TRAVEL")
       ? prisma.trip.findMany({
@@ -94,6 +102,19 @@ export default async function DashboardPage() {
     return (rego != null && rego <= 30) || (insurance != null && insurance <= 30);
   });
 
+  // Every overdue-or-soon-to-expire record in one urgency-sorted list, each
+  // with its next action already decided rather than left for the user to
+  // work out (#170). Cancelled contracts are excluded via `active`, same
+  // basis as expiringSoon/expired above.
+  const needsAttentionItems = sortAttentionItems([
+    ...buildContractAttentionItems(active),
+    ...buildWarrantyAttentionItems(products),
+    ...(enabledModules.has("VEHICLES") ? buildVehicleAttentionItems(vehicles) : []),
+    ...(session?.user.role === "ADMIN" && !smtpConfigured && !ntfyConfigured
+      ? [buildReminderNudgeItem()]
+      : []),
+  ]);
+
   const upcomingTrips = trips.filter((t) => {
     const days = daysUntil(t.startDate);
     return days != null && days >= 0 && days <= 30;
@@ -121,8 +142,6 @@ export default async function DashboardPage() {
           <AddEntryPicker enabledModules={[...enabledModules]} />
         </div>
       </div>
-
-      {showNotificationNudge && <NotificationNudgeBanner />}
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Documents</h2>
@@ -160,11 +179,13 @@ export default async function DashboardPage() {
               label="Contracts expiring in 30 days"
               value={String(expiringSoon.length)}
               tone={expiringSoon.length > 0 ? "warning" : "default"}
+              href="/contracts?status=ACTIVE&expiring=30"
             />
             <StatCard
               label="Contracts expired"
               value={String(expired.length)}
               tone={expired.length > 0 ? "danger" : "default"}
+              href="/contracts?status=ACTIVE&expired=true"
             />
             <StatCard
               label="Est. monthly spend"
@@ -190,11 +211,13 @@ export default async function DashboardPage() {
               label="Warranties expiring in 30 days"
               value={String(warrantiesExpiringSoon.length)}
               tone={warrantiesExpiringSoon.length > 0 ? "warning" : "default"}
+              href="/products?expiring=30"
             />
             <StatCard
               label="Warranties expired"
               value={String(warrantiesExpired.length)}
               tone={warrantiesExpired.length > 0 ? "danger" : "default"}
+              href="/products?expired=true"
             />
             {enabledModules.has("VEHICLES") && (
               <StatCard
@@ -208,72 +231,16 @@ export default async function DashboardPage() {
         </>
       )}
 
-      <section className="space-y-4">
-        <h2 className="text-xl font-semibold">Contracts &amp; Warranties</h2>
-
-        <div className="space-y-3">
-          <h3 className="text-lg font-semibold">Contracts expiring soon</h3>
-          {expiringSoon.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted">
-              Nothing expiring in the next 30 days.
-            </p>
-          ) : (
-            <div className="grid gap-3 md:grid-cols-2">
-              {expiringSoon.map(({ contract }) => (
-                <ContractCard key={contract.id} contract={contract} region={region} />
-              ))}
-            </div>
-          )}
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-xl font-semibold">Needs attention</h2>
+          <p className="text-sm text-muted">
+            Every overdue or soon-to-expire contract, warranty and vehicle, with the next
+            action already picked out — sorted so the most urgent is first.
+          </p>
         </div>
-
-        {expired.length > 0 && (
-          <div className="space-y-3">
-            <h3 className="text-lg font-semibold">Contracts expired</h3>
-            <div className="grid gap-3 md:grid-cols-2">
-              {expired.map(({ contract }) => (
-                <ContractCard key={contract.id} contract={contract} region={region} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="space-y-3">
-          <h3 className="text-lg font-semibold">Warranties expiring soon</h3>
-          {warrantiesExpiringSoon.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted">
-              Nothing expiring in the next 30 days.
-            </p>
-          ) : (
-            <div className="grid gap-3 md:grid-cols-2">
-              {warrantiesExpiringSoon.map(({ product }) => (
-                <ProductCard key={product.id} product={product} region={region} />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {warrantiesExpired.length > 0 && (
-          <div className="space-y-3">
-            <h3 className="text-lg font-semibold">Warranties expired</h3>
-            <div className="grid gap-3 md:grid-cols-2">
-              {warrantiesExpired.map(({ product }) => (
-                <ProductCard key={product.id} product={product} region={region} />
-              ))}
-            </div>
-          </div>
-        )}
+        <NeedsAttentionQueue items={needsAttentionItems} />
       </section>
-
-      {enabledModules.has("VEHICLES") && vehiclesNeedingAttention.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold">Vehicles needing attention</h2>
-          <div className="grid gap-3 md:grid-cols-2">
-            {vehiclesNeedingAttention.map((vehicle) => (
-              <VehicleCard key={vehicle.id} vehicle={vehicle} />
-            ))}
-          </div>
-        </section>
-      )}
 
       {enabledModules.has("TRAVEL") && upcomingTrips.length > 0 && (
         <section className="space-y-3">
