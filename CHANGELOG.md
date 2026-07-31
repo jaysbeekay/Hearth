@@ -7,6 +7,8 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-07-31
+
 ### Breaking Changes
 
 - **Existing iCal feed URLs stop working and must be regenerated** (#163).
@@ -163,6 +165,12 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   requests can no longer both create an admin.
 - `APP_URL` is now checked at startup and logs a warning in production when it
   isn't HTTPS (#166).
+- Two published screenshots (`settings-totp-setup.png`,
+  `settings-totp-codes.png`) exposed a scannable TOTP QR code, its manual
+  secret, and eight recovery codes (#178). Both came from a throwaway
+  scratch database, so nothing real was exposed, but they're regenerated
+  with the QR, secret and codes all redacted, and without the development
+  overlay that appeared on every screenshot in the set.
 
 ### Changed
 
