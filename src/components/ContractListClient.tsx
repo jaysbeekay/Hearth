@@ -1,18 +1,19 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { linkButtonClass, toolbarButtonClass, exportMenuItemClass } from "@/lib/buttonStyles";
 import { useRouter } from "next/navigation";
-import { Plus, ChevronDown, X, Trash2 } from "lucide-react";
+import { Plus, ChevronDown, X, Trash2, Upload } from "lucide-react";
 import { SelectWrapper } from "@/components/SelectWrapper";
 import { ContractCard } from "@/components/ContractCard";
 import { PendingRecordCard } from "@/components/PendingRecordCard";
 import { SwipeableListItem } from "@/components/SwipeableListItem";
 import { ConfirmForm } from "@/components/ConfirmForm";
+import { ListSummaryStrip } from "@/components/ListSummaryStrip";
 import { deleteContract } from "@/lib/actions/contracts";
 import type { ContractModel } from "@/generated/prisma/models";
-import { CATEGORY_LABELS } from "@/lib/utils";
+import { CATEGORY_LABELS, daysUntil } from "@/lib/utils";
 import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
@@ -60,6 +61,27 @@ export function ContractListClient({
 
   useEffect(() => {
     cachePageData("contracts:list", contracts).catch(() => {});
+  }, [contracts]);
+
+  const filtered = Boolean(q || category || status);
+  const summary = useMemo(() => {
+    let expiringSoon = 0;
+    let expired = 0;
+    let recentlyAdded = 0;
+    const weekAgo = new Date().getTime() - 7 * 86_400_000;
+    for (const contract of contracts) {
+      if (contract.status === "ACTIVE") {
+        const days = daysUntil(contract.endDate);
+        if (days != null && days < 0) expired++;
+        else if (days != null && days <= 30) expiringSoon++;
+      }
+      if (new Date(contract.createdAt).getTime() >= weekAgo) recentlyAdded++;
+    }
+    return [
+      { label: "expiring within 30 days", value: expiringSoon, tone: "warning" as const },
+      { label: "expired", value: expired, tone: "danger" as const },
+      { label: "added this week", value: recentlyAdded },
+    ];
   }, [contracts]);
 
   return (
@@ -179,6 +201,8 @@ export function ContractListClient({
         </div>
       )}
 
+      {!filtered && contracts.length > 0 && <ListSummaryStrip items={summary} />}
+
       {pendingOps.length > 0 && (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {pendingOps.map((op) => (
@@ -196,11 +220,25 @@ export function ContractListClient({
 
       {contracts.length === 0 ? (
         pendingOps.length === 0 && (
-          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-foreground/60">
-            {q || category || status
-              ? "No contracts match your search or filters."
-              : "No contracts yet. Add one manually, or upload a PDF and we'll fill in the details."}
-          </p>
+          <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border p-10 text-center">
+            <p className="text-sm text-foreground/60">
+              {filtered
+                ? "No contracts match your search or filters."
+                : "No contracts yet. Add one manually, or upload a document and we'll fill in the details."}
+            </p>
+            {!filtered && canWrite && (
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <Link href="/contracts/new" className={linkButtonClass("primary")}>
+                  <Plus size={16} />
+                  Add contract
+                </Link>
+                <Link href="/import" className={linkButtonClass("secondary")}>
+                  <Upload size={16} />
+                  Upload a document
+                </Link>
+              </div>
+            )}
+          </div>
         )
       ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">

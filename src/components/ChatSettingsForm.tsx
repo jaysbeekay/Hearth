@@ -56,6 +56,9 @@ export function ChatSettingsForm({
 
         {needsApiKey ? (
           <div className="space-y-1">
+            <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
+              Your household&apos;s data will be sent to {AI_PROVIDER_LABELS[selected]} to answer questions.
+            </p>
             <label htmlFor="chatApiKey" className="text-sm font-medium">
               API key
             </label>

@@ -56,6 +56,9 @@ export function AiSettingsForm({
 
         {needsApiKey ? (
           <div className="space-y-1">
+            <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
+              Documents will be sent to {AI_PROVIDER_LABELS[selected]} for processing.
+            </p>
             <label htmlFor="apiKey" className="text-sm font-medium">
               API key
             </label>

@@ -1,5 +1,4 @@
 import { Flame, Menu, Search } from "lucide-react";
-import { SignOutButton } from "@/components/SignOutButton";
 import { openGlobalSearch } from "@/components/GlobalSearch";
 import { openMobileNavDrawer } from "@/components/MobileNavDrawer";
 
@@ -27,10 +26,6 @@ export function TopBar() {
         >
           <Search size={18} />
         </button>
-        <SignOutButton
-          className="flex h-11 w-11 items-center justify-center rounded-full text-muted hover:bg-black/5 dark:hover:bg-white/5"
-          iconOnly
-        />
       </div>
     </header>
   );

@@ -6,6 +6,7 @@ import { addDocument, deleteContract, setContractStatus } from "@/lib/actions/co
 import { ExpiryBadge } from "@/components/ExpiryBadge";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
+import { DetailStatusBanner } from "@/components/DetailStatusBanner";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { DocumentList } from "@/components/DocumentList";
 import { RecordMeta } from "@/components/RecordMeta";
@@ -101,6 +102,16 @@ export default async function ContractDetailPage({
           </DetailOverflowMenu>
         </div>
       </div>
+
+      {!cancelled && (
+        <DetailStatusBanner
+          days={days}
+          hasDocuments={contract.documents.length > 0}
+          documentsHref="#documents"
+          editHref={`/contracts/${contract.id}/edit`}
+          renewLabel="Renew policy"
+        />
+      )}
 
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">

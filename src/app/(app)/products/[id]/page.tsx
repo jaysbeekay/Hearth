@@ -6,6 +6,7 @@ import { addProductDocument, deleteProduct } from "@/lib/actions/products";
 import { ExpiryBadge } from "@/components/ExpiryBadge";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
+import { DetailStatusBanner } from "@/components/DetailStatusBanner";
 import { ProductDocumentUploadForm } from "@/components/ProductDocumentUploadForm";
 import { ProductDocumentList } from "@/components/ProductDocumentList";
 import { RecordMeta } from "@/components/RecordMeta";
@@ -80,6 +81,14 @@ export default async function ProductDetailPage({
           className="max-h-80 w-full rounded-xl border border-border object-contain"
         />
       )}
+
+      <DetailStatusBanner
+        days={days}
+        hasDocuments={product.documents.length > 0}
+        documentsHref="#documents"
+        editHref={`/products/${product.id}/edit`}
+        renewLabel="Review warranty"
+      />
 
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">
