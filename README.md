@@ -166,6 +166,32 @@ port 3000. The SQLite database (`data/app.db`) and uploaded documents
 (`data/uploads/`) live in `./data` on the host, mounted into the container —
 back up that directory to back up everything.
 
+The app itself runs as an unprivileged user (uid 1000), not root. The
+entrypoint briefly starts as root only to take ownership of `./data` — images
+before v0.14.0 ran as root, so an existing `./data` is root-owned — and drops
+privileges before running migrations or serving anything. That happens
+automatically; there's nothing to do on upgrade.
+
+If you'd rather the container never hold root at all, take ownership yourself
+and pin the user:
+
+```bash
+sudo chown -R 1000:1000 ./data
+```
+
+```yaml
+services:
+  app:
+    user: "1000:1000"
+```
+
+Published images are pinned to a specific base-image digest and carry an SBOM
+and build provenance:
+
+```bash
+docker buildx imagetools inspect jaysbeekay/hearth:latest
+```
+
 [`docker-compose.yml`](docker-compose.yml):
 
 ```yaml

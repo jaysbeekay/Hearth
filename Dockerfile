@@ -1,4 +1,10 @@
-FROM node:22-alpine AS base
+# Pinned by digest, not just by tag: `node:22-alpine` is a moving target, so an
+# unpinned build is not reproducible and silently picks up whatever the tag
+# points at that day. This is the multi-arch index digest, so buildx still
+# selects the right architecture.
+#
+# To update: docker buildx imagetools inspect node:22-alpine
+FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS base
 WORKDIR /app
 
 FROM base AS deps
@@ -23,14 +29,20 @@ FROM base AS runner
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
+# npx/npm write caches under $HOME — point it at the app user's own home so
+# nothing tries to write to /root after privileges are dropped.
+ENV HOME=/home/node
 
 # Upgrade already-installed OS packages to their latest patched versions
 # (the base image's apk index can lag behind by the time this builds), then
 # install tesseract-ocr + poppler-utils, which power document OCR/text-
 # extraction for the "auto-fill from document" feature (see src/lib/documents).
+#
+# su-exec drops from root to the app user in docker-entrypoint.sh — see the
+# comment there for why the entrypoint starts as root.
 RUN apk update && \
     apk upgrade --no-cache && \
-    apk add --no-cache tesseract-ocr tesseract-ocr-data-eng poppler-utils
+    apk add --no-cache tesseract-ocr tesseract-ocr-data-eng poppler-utils su-exec
 
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
@@ -41,7 +53,12 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY docker-entrypoint.sh ./docker-entrypoint.sh
 
-RUN chmod +x docker-entrypoint.sh && mkdir -p /app/data
+# `node` (uid/gid 1000) ships with the base image. The application code is
+# owned by it but the app never writes there — only /app/data, the SQLite
+# database and uploaded documents.
+RUN chmod +x docker-entrypoint.sh && \
+    mkdir -p /app/data && \
+    chown -R node:node /app
 
 EXPOSE 3000
 
