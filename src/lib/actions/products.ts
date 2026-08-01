@@ -13,6 +13,7 @@ import {
 import { ProductDocumentKind } from "@/generated/prisma/enums";
 import { formDataToStringValues } from "@/lib/form-state";
 import { formToProductInput } from "@/lib/formMappers";
+import { clearNotificationLogs } from "@/lib/notifications/logs";
 import { extractSearchableText } from "@/lib/documents/textExtraction";
 import { describeUploadRejection } from "@/lib/uploadValidation";
 
@@ -150,7 +151,7 @@ export async function updateProduct(
       data: parsed.data,
     }),
     ...(warrantyEndDateChanged
-      ? [prisma.productNotificationLog.deleteMany({ where: { productId } })]
+      ? [prisma.notificationLog.deleteMany({ where: { ownerType: "PRODUCT", ownerId: productId } })]
       : []),
   ]);
 
@@ -204,7 +205,7 @@ export async function updateProductFromAssistant(
   await prisma.$transaction([
     prisma.product.update({ where: { id: productId }, data: parsed.data }),
     ...(warrantyEndDateChanged
-      ? [prisma.productNotificationLog.deleteMany({ where: { productId } })]
+      ? [prisma.notificationLog.deleteMany({ where: { ownerType: "PRODUCT", ownerId: productId } })]
       : []),
   ]);
 
@@ -221,6 +222,9 @@ export async function deleteProduct(productId: string): Promise<ActionState> {
   if (!existing) return { error: "Product not found." };
 
   await prisma.product.delete({ where: { id: productId } });
+  // See the equivalent comment in deleteContract (contracts.ts) — NotificationLog
+  // is no longer FK-cascaded, so this cleanup is now explicit.
+  await clearNotificationLogs("PRODUCT", productId);
   await deleteProductDir(productId);
 
   revalidatePath("/products");

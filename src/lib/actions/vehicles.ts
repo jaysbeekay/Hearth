@@ -12,6 +12,7 @@ import {
 } from "@/lib/storage";
 import { formDataToStringValues } from "@/lib/form-state";
 import { isModuleEnabled } from "@/lib/modules/enablement";
+import { clearNotificationLogs } from "@/lib/notifications/logs";
 import type { ActionState } from "@/lib/actions/auth";
 import { describeUploadRejection } from "@/lib/uploadValidation";
 
@@ -157,6 +158,9 @@ export async function deleteVehicle(vehicleId: string): Promise<ActionState> {
   }
 
   await prisma.vehicle.delete({ where: { id: vehicleId } });
+  // See the equivalent comment in deleteContract (contracts.ts) — NotificationLog
+  // is no longer FK-cascaded, so this cleanup is now explicit.
+  await clearNotificationLogs("VEHICLE", vehicleId);
 
   revalidatePath("/vehicles");
   redirect("/vehicles");

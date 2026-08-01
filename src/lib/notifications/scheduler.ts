@@ -4,6 +4,7 @@ import { sendReminderEmail } from "@/lib/notifications/email";
 import { sendNtfyReminder } from "@/lib/notifications/ntfy";
 import { sendExpiryWebhooks, getEnabledWebhookEndpoints } from "@/lib/notifications/webhook";
 import { parseThresholds } from "@/lib/notifications/thresholds";
+import { getNotificationLogsByOwner, recordNotificationOutcome } from "@/lib/notifications/logs";
 import type { NotificationChannel } from "@/generated/prisma/enums";
 
 function daysRemaining(endDate: Date, now: Date): number {
@@ -24,8 +25,11 @@ export async function runExpirationCheck(now: Date = new Date()) {
 
   const contracts = await prisma.contract.findMany({
     where: { status: "ACTIVE", endDate: { not: null } },
-    include: { notifications: true },
   });
+  const contractLogs = await getNotificationLogsByOwner(
+    "CONTRACT",
+    contracts.map((c) => c.id),
+  );
 
   const recipientEmails = emailEnabled
     ? (
@@ -55,8 +59,8 @@ export async function runExpirationCheck(now: Date = new Date()) {
 
     for (const channel of channels) {
       const loggedThresholds = new Set(
-        contract.notifications
-          .filter((n) => n.channel === channel)
+        (contractLogs.get(contract.id) ?? [])
+          .filter((n) => n.channel === channel && n.status === "SENT")
           .map((n) => n.thresholdDays),
       );
       const unlogged = dueThresholds.filter((t) => !loggedThresholds.has(t));
@@ -97,8 +101,12 @@ export async function runExpirationCheck(now: Date = new Date()) {
           });
         }
 
-        await prisma.notificationLog.create({
-          data: { contractId: contract.id, channel, thresholdDays: threshold },
+        await recordNotificationOutcome({
+          ownerType: "CONTRACT",
+          ownerId: contract.id,
+          channel,
+          thresholdDays: threshold,
+          status: "SENT",
         });
         sentCount += 1;
       } catch (error) {
@@ -106,14 +114,25 @@ export async function runExpirationCheck(now: Date = new Date()) {
           `[notifications] failed to send ${channel} reminder for contract ${contract.id}:`,
           error,
         );
+        await recordNotificationOutcome({
+          ownerType: "CONTRACT",
+          ownerId: contract.id,
+          channel,
+          thresholdDays: threshold,
+          status: "FAILED",
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
   }
 
   const products = await prisma.product.findMany({
     where: { warrantyEndDate: { not: null } },
-    include: { notifications: true },
   });
+  const productLogs = await getNotificationLogsByOwner(
+    "PRODUCT",
+    products.map((p) => p.id),
+  );
 
   for (const product of products) {
     if (!product.warrantyEndDate) continue;
@@ -132,8 +151,8 @@ export async function runExpirationCheck(now: Date = new Date()) {
 
     for (const channel of channels) {
       const loggedThresholds = new Set(
-        product.notifications
-          .filter((n) => n.channel === channel)
+        (productLogs.get(product.id) ?? [])
+          .filter((n) => n.channel === channel && n.status === "SENT")
           .map((n) => n.thresholdDays),
       );
       const unlogged = dueThresholds.filter((t) => !loggedThresholds.has(t));
@@ -175,8 +194,12 @@ export async function runExpirationCheck(now: Date = new Date()) {
           });
         }
 
-        await prisma.productNotificationLog.create({
-          data: { productId: product.id, channel, thresholdDays: threshold },
+        await recordNotificationOutcome({
+          ownerType: "PRODUCT",
+          ownerId: product.id,
+          channel,
+          thresholdDays: threshold,
+          status: "SENT",
         });
         sentCount += 1;
       } catch (error) {
@@ -184,14 +207,25 @@ export async function runExpirationCheck(now: Date = new Date()) {
           `[notifications] failed to send ${channel} reminder for product ${product.id}:`,
           error,
         );
+        await recordNotificationOutcome({
+          ownerType: "PRODUCT",
+          ownerId: product.id,
+          channel,
+          thresholdDays: threshold,
+          status: "FAILED",
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
   }
 
   const vehicles = await prisma.vehicle.findMany({
     where: { OR: [{ regoExpiry: { not: null } }, { insuranceExpiry: { not: null } }] },
-    include: { notificationLogs: true },
   });
+  const vehicleLogs = await getNotificationLogsByOwner(
+    "VEHICLE",
+    vehicles.map((v) => v.id),
+  );
 
   for (const vehicle of vehicles) {
     const expiries: { field: string; date: Date | null; detail: string }[] = [
@@ -216,8 +250,8 @@ export async function runExpirationCheck(now: Date = new Date()) {
 
       for (const channel of channels) {
         const loggedThresholds = new Set(
-          vehicle.notificationLogs
-            .filter((n) => n.channel === channel && n.field === field)
+          (vehicleLogs.get(vehicle.id) ?? [])
+            .filter((n) => n.channel === channel && n.field === field && n.status === "SENT")
             .map((n) => n.thresholdDays),
         );
         const unlogged = dueThresholds.filter((t) => !loggedThresholds.has(t));
@@ -260,8 +294,13 @@ export async function runExpirationCheck(now: Date = new Date()) {
             });
           }
 
-          await prisma.vehicleNotificationLog.create({
-            data: { vehicleId: vehicle.id, channel, thresholdDays: threshold, field },
+          await recordNotificationOutcome({
+            ownerType: "VEHICLE",
+            ownerId: vehicle.id,
+            field,
+            channel,
+            thresholdDays: threshold,
+            status: "SENT",
           });
           sentCount += 1;
         } catch (error) {
@@ -269,6 +308,15 @@ export async function runExpirationCheck(now: Date = new Date()) {
             `[notifications] failed to send ${channel} reminder for vehicle ${vehicle.id} (${field}):`,
             error,
           );
+          await recordNotificationOutcome({
+            ownerType: "VEHICLE",
+            ownerId: vehicle.id,
+            field,
+            channel,
+            thresholdDays: threshold,
+            status: "FAILED",
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
       }
     }

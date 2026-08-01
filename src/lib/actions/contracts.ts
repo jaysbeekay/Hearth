@@ -14,6 +14,7 @@ import { formDataToStringValues } from "@/lib/form-state";
 import { formToContractInput } from "@/lib/formMappers";
 import { extractSearchableText } from "@/lib/documents/textExtraction";
 import { describeUploadRejection } from "@/lib/uploadValidation";
+import { clearNotificationLogs } from "@/lib/notifications/logs";
 
 export type ActionState = {
   error?: string;
@@ -134,7 +135,7 @@ export async function updateContract(
       data: parsed.data,
     }),
     ...(endDateChanged
-      ? [prisma.notificationLog.deleteMany({ where: { contractId } })]
+      ? [prisma.notificationLog.deleteMany({ where: { ownerType: "CONTRACT", ownerId: contractId } })]
       : []),
   ]);
 
@@ -187,7 +188,7 @@ export async function updateContractFromAssistant(
   await prisma.$transaction([
     prisma.contract.update({ where: { id: contractId }, data: parsed.data }),
     ...(endDateChanged
-      ? [prisma.notificationLog.deleteMany({ where: { contractId } })]
+      ? [prisma.notificationLog.deleteMany({ where: { ownerType: "CONTRACT", ownerId: contractId } })]
       : []),
   ]);
 
@@ -204,6 +205,10 @@ export async function deleteContract(contractId: string): Promise<ActionState> {
   if (!existing) return { error: "Contract not found." };
 
   await prisma.contract.delete({ where: { id: contractId } });
+  // NotificationLog is no longer FK-linked to Contract (it's polymorphic
+  // across contract/product/vehicle owners, see #201), so this cleanup is
+  // no longer an automatic cascade — has to happen explicitly.
+  await clearNotificationLogs("CONTRACT", contractId);
   await deleteContractDir(contractId);
 
   revalidatePath("/contracts");

@@ -53,6 +53,21 @@ enum NotificationChannel {
   WEBHOOK
 }
 
+// #201 foundation: NotificationLog is now polymorphic across the three
+// reminder-eligible record types (previously three separate tables —
+// NotificationLog/ProductNotificationLog/VehicleNotificationLog — that
+// scheduler.ts had to handle three times over).
+enum NotificationOwnerType {
+  CONTRACT
+  PRODUCT
+  VEHICLE
+}
+
+enum NotificationStatus {
+  SENT
+  FAILED
+}
+
 enum ProductDocumentKind {
   INVOICE
   PHOTO
@@ -266,7 +281,6 @@ model Contract {
   vehicle           Vehicle?      @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
 
   documents         Document[]
-  notifications     NotificationLog[]
   rentalAgreement   RentalAgreement?
 
   createdAt         DateTime      @default(now())
@@ -276,16 +290,26 @@ model Contract {
 }
 
 model Document {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   contractId    String
-  contract      Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  contract      Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
   filename      String
   storedName    String
   mimeType      String
   size          Int
   extractedText String?
-  uploadedAt    DateTime @default(now())
+  // File-hash and version-chain fields (#206/#207/#208 foundation) — sha256
+  // enables exact-duplicate detection, supersedesId links a re-upload to the
+  // document it replaces (linear chain, enforced @unique so a document has
+  // at most one successor), isImportant is the user-starred flag.
+  sha256        String?
+  isImportant   Boolean   @default(false)
+  supersedesId  String?   @unique
+  supersedes    Document? @relation("DocumentVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy  Document? @relation("DocumentVersions")
+  uploadedAt    DateTime  @default(now())
 
+  @@index([sha256])
   @@map("documents")
 }
 
@@ -300,6 +324,7 @@ model InboxDocument {
   mimeType      String
   size          Int
   extractedText String?
+  sha256        String?
 
   // Null for email-ingested documents (#195), which have no acting web user.
   uploadedById  String?
@@ -315,6 +340,7 @@ model InboxDocument {
 
   uploadedAt    DateTime      @default(now())
 
+  @@index([sha256])
   @@map("inbox_documents")
 }
 
@@ -341,14 +367,22 @@ model ProcessedEmailMessage {
 }
 
 model NotificationLog {
-  id            String              @id @default(cuid())
-  contractId    String
-  contract      Contract            @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  id            String                @id @default(cuid())
+  ownerType     NotificationOwnerType
+  ownerId       String
+  // Vehicle only — distinguishes rego vs insurance reminders on the same
+  // vehicle. Empty string (never null) for contract/product so the unique
+  // index below fully enforces uniqueness — SQLite treats each NULL in a
+  // unique index as distinct, which would silently defeat it here.
+  field         String                @default("")
   channel       NotificationChannel
   thresholdDays Int
-  sentAt        DateTime            @default(now())
+  status        NotificationStatus    @default(SENT)
+  error         String?
+  sentAt        DateTime              @default(now())
 
-  @@unique([contractId, channel, thresholdDays])
+  @@unique([ownerType, ownerId, field, channel, thresholdDays])
+  @@index([ownerType, ownerId])
   @@map("notification_logs")
 }
 
@@ -374,7 +408,6 @@ model Product {
   property           Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
 
   documents          ProductDocument[]
-  notifications      ProductNotificationLog[]
 
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
@@ -383,30 +416,24 @@ model Product {
 }
 
 model ProductDocument {
-  id            String              @id @default(cuid())
+  id            String               @id @default(cuid())
   productId     String
-  product       Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product       Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
   filename      String
   storedName    String
   mimeType      String
   size          Int
-  kind          ProductDocumentKind @default(OTHER)
+  kind          ProductDocumentKind  @default(OTHER)
   extractedText String?
-  uploadedAt    DateTime            @default(now())
+  sha256        String?
+  isImportant   Boolean              @default(false)
+  supersedesId  String?              @unique
+  supersedes    ProductDocument?     @relation("ProductDocumentVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy  ProductDocument?     @relation("ProductDocumentVersions")
+  uploadedAt    DateTime             @default(now())
 
+  @@index([sha256])
   @@map("product_documents")
-}
-
-model ProductNotificationLog {
-  id            String              @id @default(cuid())
-  productId     String
-  product       Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
-  channel       NotificationChannel
-  thresholdDays Int
-  sentAt        DateTime            @default(now())
-
-  @@unique([productId, channel, thresholdDays])
-  @@map("product_notification_logs")
 }
 
 model AppSetting {
@@ -534,15 +561,21 @@ model TripSegment {
 }
 
 model TripSegmentDocument {
-  id            String      @id @default(cuid())
+  id            String               @id @default(cuid())
   tripSegmentId String
-  tripSegment   TripSegment @relation(fields: [tripSegmentId], references: [id], onDelete: Cascade)
+  tripSegment   TripSegment          @relation(fields: [tripSegmentId], references: [id], onDelete: Cascade)
   filename      String
   storedName    String
   mimeType      String
   size          Int
-  uploadedAt    DateTime    @default(now())
+  sha256        String?
+  isImportant   Boolean              @default(false)
+  supersedesId  String?              @unique
+  supersedes    TripSegmentDocument? @relation("TripSegmentDocumentVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy  TripSegmentDocument? @relation("TripSegmentDocumentVersions")
+  uploadedAt    DateTime             @default(now())
 
+  @@index([sha256])
   @@map("trip_segment_documents")
 }
 
@@ -616,15 +649,21 @@ model RentalStatement {
 }
 
 model RentalStatementDocument {
-  id                String          @id @default(cuid())
+  id                String                   @id @default(cuid())
   rentalStatementId String
-  rentalStatement   RentalStatement @relation(fields: [rentalStatementId], references: [id], onDelete: Cascade)
+  rentalStatement   RentalStatement          @relation(fields: [rentalStatementId], references: [id], onDelete: Cascade)
   filename          String
   storedName        String
   mimeType          String
   size              Int
-  uploadedAt        DateTime        @default(now())
+  sha256            String?
+  isImportant       Boolean                  @default(false)
+  supersedesId      String?                  @unique
+  supersedes        RentalStatementDocument? @relation("RentalStatementDocumentVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy      RentalStatementDocument? @relation("RentalStatementDocumentVersions")
+  uploadedAt        DateTime                 @default(now())
 
+  @@index([sha256])
   @@map("rental_statement_documents")
 }
 
@@ -650,15 +689,21 @@ model HomeItem {
 }
 
 model HomeItemDocument {
-  id         String   @id @default(cuid())
-  homeItemId String
-  homeItem   HomeItem @relation(fields: [homeItemId], references: [id], onDelete: Cascade)
-  filename   String
-  storedName String
-  mimeType   String
-  size       Int
-  uploadedAt DateTime @default(now())
+  id           String            @id @default(cuid())
+  homeItemId   String
+  homeItem     HomeItem          @relation(fields: [homeItemId], references: [id], onDelete: Cascade)
+  filename     String
+  storedName   String
+  mimeType     String
+  size         Int
+  sha256       String?
+  isImportant  Boolean           @default(false)
+  supersedesId String?           @unique
+  supersedes   HomeItemDocument? @relation("HomeItemDocumentVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy HomeItemDocument? @relation("HomeItemDocumentVersions")
+  uploadedAt   DateTime          @default(now())
 
+  @@index([sha256])
   @@map("home_item_documents")
 }
 
@@ -680,7 +725,6 @@ model Vehicle {
   createdBy          User      @relation(fields: [createdById], references: [id])
 
   items              VehicleItem[]
-  notificationLogs   VehicleNotificationLog[]
   contracts          Contract[]
 
   createdAt          DateTime  @default(now())
@@ -710,29 +754,22 @@ model VehicleItem {
 }
 
 model VehicleItemDocument {
-  id            String      @id @default(cuid())
+  id            String               @id @default(cuid())
   vehicleItemId String
-  vehicleItem   VehicleItem @relation(fields: [vehicleItemId], references: [id], onDelete: Cascade)
+  vehicleItem   VehicleItem          @relation(fields: [vehicleItemId], references: [id], onDelete: Cascade)
   filename      String
   storedName    String
   mimeType      String
   size          Int
-  uploadedAt    DateTime    @default(now())
+  sha256        String?
+  isImportant   Boolean              @default(false)
+  supersedesId  String?              @unique
+  supersedes    VehicleItemDocument? @relation("VehicleItemDocumentVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy  VehicleItemDocument? @relation("VehicleItemDocumentVersions")
+  uploadedAt    DateTime             @default(now())
 
+  @@index([sha256])
   @@map("vehicle_item_documents")
-}
-
-model VehicleNotificationLog {
-  id            String   @id @default(cuid())
-  vehicleId     String
-  vehicle       Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-  channel       String
-  thresholdDays Int
-  field         String
-  sentAt        DateTime @default(now())
-
-  @@unique([vehicleId, channel, thresholdDays, field])
-  @@map("vehicle_notification_logs")
 }
 
 model InventoryItem {
@@ -760,15 +797,21 @@ model InventoryItem {
 }
 
 model InventoryItemDocument {
-  id              String        @id @default(cuid())
+  id              String                 @id @default(cuid())
   inventoryItemId String
-  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  inventoryItem   InventoryItem          @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
   filename        String
   storedName      String
   mimeType        String
   size            Int
-  uploadedAt      DateTime      @default(now())
+  sha256          String?
+  isImportant     Boolean                @default(false)
+  supersedesId    String?                @unique
+  supersedes      InventoryItemDocument? @relation("InventoryItemDocumentVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy    InventoryItemDocument? @relation("InventoryItemDocumentVersions")
+  uploadedAt      DateTime               @default(now())
 
+  @@index([sha256])
   @@map("inventory_item_documents")
 }
 
@@ -823,15 +866,21 @@ model Trade {
 }
 
 model TradeDocument {
-  id         String   @id @default(cuid())
-  tradeId    String
-  trade      Trade    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
-  filename   String
-  storedName String
-  mimeType   String
-  size       Int
-  uploadedAt DateTime @default(now())
+  id           String         @id @default(cuid())
+  tradeId      String
+  trade        Trade          @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  filename     String
+  storedName   String
+  mimeType     String
+  size         Int
+  sha256       String?
+  isImportant  Boolean        @default(false)
+  supersedesId String?        @unique
+  supersedes   TradeDocument? @relation("TradeDocumentVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy TradeDocument? @relation("TradeDocumentVersions")
+  uploadedAt   DateTime       @default(now())
 
+  @@index([sha256])
   @@map("trade_documents")
 }
 
