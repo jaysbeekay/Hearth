@@ -7,29 +7,121 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <main class="screen">
-    <img src="icon.svg" class="logo" alt="" />
-    <h1>Hearth</h1>
-    <p class="hint">Connect to your self-hosted server to get started.</p>
+  <main class="shell">
+    <section id="mode-screen" class="panel">
+      <img src="icon.svg" class="logo" alt="" />
+      <h1>Hearth</h1>
+      <p class="hint">Choose how this app should keep your household records.</p>
+      <div class="choice-grid">
+        <button id="choose-standalone" class="choice">
+          <span>Use on this device</span>
+          <small>Private local records with no sharing.</small>
+        </button>
+        <button id="choose-connected" class="choice">
+          <span>Connect to my server</span>
+          <small>Use your self-hosted Hearth household.</small>
+        </button>
+      </div>
+    </section>
 
-    <form id="connect-form">
-      <label for="server-url">Server address</label>
-      <input
-        id="server-url"
-        type="url"
-        inputmode="url"
-        autocapitalize="off"
-        autocorrect="off"
-        spellcheck="false"
-        placeholder="https://hearth.example.com"
-        required
-      />
-      <button type="submit">Connect</button>
-    </form>
+    <section id="connected-screen" class="panel" hidden>
+      <img src="icon.svg" class="logo" alt="" />
+      <h1>Connect</h1>
+      <p class="hint">Enter the address of your self-hosted Hearth server.</p>
+      <form id="connect-form">
+        <label for="server-url">Server address</label>
+        <input
+          id="server-url"
+          type="url"
+          inputmode="url"
+          autocapitalize="off"
+          autocorrect="off"
+          spellcheck="false"
+          placeholder="https://hearth.example.com"
+          required
+        />
+        <button type="submit">Connect</button>
+      </form>
+      <button id="import-cert-btn" class="secondary">Import client certificate (.p12)</button>
+      <button data-reset-mode class="link-button">Back</button>
+      <p id="connected-status" class="status" hidden></p>
+    </section>
 
-    <button id="import-cert-btn" class="secondary">Import client certificate (.p12)</button>
+    <section id="standalone-screen" hidden>
+      <header class="app-header">
+        <div>
+          <img src="icon.svg" class="small-logo" alt="" />
+          <h1>Hearth</h1>
+        </div>
+        <button data-reset-mode class="link-button">Switch mode</button>
+      </header>
 
-    <p id="status" class="status" hidden></p>
+      <section class="summary-grid">
+        <div>
+          <strong id="contract-count">0</strong>
+          <span>Contracts</span>
+        </div>
+        <div>
+          <strong id="product-count">0</strong>
+          <span>Products</span>
+        </div>
+        <div>
+          <strong id="vehicle-count">0</strong>
+          <span>Vehicles</span>
+        </div>
+      </section>
+
+      <nav class="tabs" aria-label="Standalone sections">
+        <button class="tab active" data-tab="contracts">Contracts</button>
+        <button class="tab" data-tab="products">Products</button>
+        <button class="tab" data-tab="vehicles">Vehicles</button>
+      </nav>
+
+      <section id="contracts-tab" class="tab-panel">
+        <form id="contract-form" class="record-form">
+          <input name="title" placeholder="Contract title" required />
+          <input name="provider" placeholder="Provider" required />
+          <input name="endDate" type="date" />
+          <input name="cost" type="number" min="0" step="0.01" placeholder="Cost" />
+          <select name="billingFrequency">
+            <option value="">Billing frequency</option>
+            <option value="WEEKLY">Weekly</option>
+            <option value="MONTHLY">Monthly</option>
+            <option value="QUARTERLY">Quarterly</option>
+            <option value="ANNUALLY">Annually</option>
+            <option value="ONE_OFF">One off</option>
+          </select>
+          <input name="file" type="file" />
+          <button type="submit">Add contract</button>
+        </form>
+        <div id="contract-list" class="list"></div>
+      </section>
+
+      <section id="products-tab" class="tab-panel" hidden>
+        <form id="product-form" class="record-form">
+          <input name="description" placeholder="Product description" required />
+          <input name="manufacturer" placeholder="Manufacturer" />
+          <input name="warrantyEndDate" type="date" />
+          <input name="price" type="number" min="0" step="0.01" placeholder="Price" />
+          <input name="file" type="file" />
+          <button type="submit">Add product</button>
+        </form>
+        <div id="product-list" class="list"></div>
+      </section>
+
+      <section id="vehicles-tab" class="tab-panel" hidden>
+        <form id="vehicle-form" class="record-form">
+          <input name="label" placeholder="Vehicle label" required />
+          <input name="make" placeholder="Make" />
+          <input name="model" placeholder="Model" />
+          <input name="regoExpiry" type="date" />
+          <button type="submit">Add vehicle</button>
+        </form>
+        <div id="vehicle-list" class="list"></div>
+      </section>
+
+      <p id="standalone-status" class="status" hidden></p>
+    </section>
   </main>
 
   <script src="app.js"></script>

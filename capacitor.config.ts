@@ -1,9 +1,9 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
-// This shell does not bundle the Next.js app. ios-shell/www is a small
-// bootstrap page that asks the user for the address of their own
-// self-hosted server, then hands the WebView off to it — see
-// ios-shell/www/app.js and README-ios.md.
+// This shell is the bundled mobile entrypoint. It lets the user choose between
+// standalone on-device storage and a connected self-hosted Hearth server.
+// Connected mode hands the WebView off to the configured server, while
+// standalone mode stays inside ios-shell/www and uses native Capacitor storage.
 const config: CapacitorConfig = {
   appId: "com.hearthapp.app",
   appName: "Hearth",
@@ -16,6 +16,23 @@ const config: CapacitorConfig = {
     // of showing a blank WKWebView error page. app.js detects the bounce-back
     // via a localStorage debounce flag (no query params are passed here).
     errorPath: "index.html",
+  },
+  plugins: {
+    CapacitorSQLite: {
+      iosDatabaseLocation: "Library/CapacitorDatabase",
+      iosIsEncryption: true,
+      iosKeychainPrefix: "hearth-standalone",
+      iosBiometric: {
+        biometricAuth: false,
+        biometricTitle: "Unlock Hearth standalone storage",
+      },
+      androidIsEncryption: true,
+      androidBiometric: {
+        biometricAuth: false,
+        biometricTitle: "Unlock Hearth standalone storage",
+        biometricSubTitle: "Use your device unlock method",
+      },
+    },
   },
 };
 
