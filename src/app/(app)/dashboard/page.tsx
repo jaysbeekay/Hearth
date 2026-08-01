@@ -18,6 +18,8 @@ import {
   buildWarrantyAttentionItems,
   buildVehicleAttentionItems,
   buildReminderNudgeItem,
+  buildExtractionReviewItems,
+  buildReminderFailureItems,
   sortAttentionItems,
 } from "@/lib/needsAttention";
 import { NeedsAttentionQueue } from "@/components/NeedsAttentionQueue";
@@ -34,25 +36,31 @@ export default async function DashboardPage() {
       isNtfyConfigured(),
     ]);
 
-  const [contracts, products, vehicles, trips, memberCount, documentStats] = await Promise.all([
-    prisma.contract.findMany({
-      orderBy: { endDate: "asc" },
-      include: { _count: { select: { documents: true } } },
-    }),
-    prisma.product.findMany({
-      orderBy: { warrantyEndDate: "asc" },
-      include: { _count: { select: { documents: true } } },
-    }),
-    enabledModules.has("VEHICLES") ? prisma.vehicle.findMany({ orderBy: { createdAt: "desc" } }) : [],
-    enabledModules.has("TRAVEL")
-      ? prisma.trip.findMany({
-          orderBy: { startDate: "asc" },
-          include: { _count: { select: { segments: true } } },
-        })
-      : [],
-    prisma.user.count(),
-    getDocumentStats(enabledModules),
-  ]);
+  const [contracts, products, vehicles, trips, memberCount, documentStats, failedReminderLogs] =
+    await Promise.all([
+      prisma.contract.findMany({
+        orderBy: { endDate: "asc" },
+        include: { _count: { select: { documents: true } } },
+      }),
+      prisma.product.findMany({
+        orderBy: { warrantyEndDate: "asc" },
+        include: { _count: { select: { documents: true } } },
+      }),
+      enabledModules.has("VEHICLES") ? prisma.vehicle.findMany({ orderBy: { createdAt: "desc" } }) : [],
+      enabledModules.has("TRAVEL")
+        ? prisma.trip.findMany({
+            orderBy: { startDate: "asc" },
+            include: { _count: { select: { segments: true } } },
+          })
+        : [],
+      prisma.user.count(),
+      getDocumentStats(enabledModules),
+      prisma.notificationLog.findMany({
+        where: { status: "FAILED" },
+        orderBy: { sentAt: "desc" },
+        select: { ownerType: true, ownerId: true, error: true },
+      }),
+    ]);
 
   const active = contracts.filter((c) => c.status === "ACTIVE");
   const withDays = active.map((c) => ({ contract: c, days: daysUntil(c.endDate) }));
@@ -110,6 +118,8 @@ export default async function DashboardPage() {
     ...buildContractAttentionItems(active),
     ...buildWarrantyAttentionItems(products),
     ...(enabledModules.has("VEHICLES") ? buildVehicleAttentionItems(vehicles) : []),
+    ...buildExtractionReviewItems(contracts, products),
+    ...buildReminderFailureItems(failedReminderLogs, contracts, products, vehicles),
     ...(session?.user.role === "ADMIN" && !smtpConfigured && !ntfyConfigured
       ? [buildReminderNudgeItem()]
       : []),

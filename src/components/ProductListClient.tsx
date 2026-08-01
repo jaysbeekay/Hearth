@@ -43,16 +43,19 @@ export function ProductListClient({ products, q, dateFormat, region, canWrite = 
     let expiringSoon = 0;
     let expired = 0;
     let recentlyAdded = 0;
+    let needsReview = 0;
     const weekAgo = new Date().getTime() - 7 * 86_400_000;
     for (const product of products) {
       const days = daysUntil(product.warrantyEndDate);
       if (days != null && days < 0) expired++;
       else if (days != null && days <= 30) expiringSoon++;
       if (new Date(product.createdAt).getTime() >= weekAgo) recentlyAdded++;
+      if (product.extractionPending) needsReview++;
     }
     return [
       { label: "expiring within 30 days", value: expiringSoon, tone: "warning" as const },
       { label: "expired", value: expired, tone: "danger" as const },
+      { label: "needs review", value: needsReview, tone: "warning" as const },
       { label: "added this week", value: recentlyAdded },
     ];
   }, [products]);

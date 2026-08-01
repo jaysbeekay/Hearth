@@ -61,6 +61,11 @@ export function ProductForm({
   const [scannerOpen, setScannerOpen] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
   const [lookupMessage, setLookupMessage] = useState<string | null>(null);
+  // #200: same pattern as ContractForm — see extractionFieldsFromForm in
+  // src/lib/actions/products.ts. Both invoice scan and barcode lookup can
+  // populate critical fields, so both count as "extraction used".
+  const [extractionUsed, setExtractionUsed] = useState(false);
+  const [confirmExtraction, setConfirmExtraction] = useState(false);
 
   const router = useRouter();
   const pendingOpId = useSearchParams().get("pendingOpId");
@@ -148,7 +153,10 @@ export function ProductForm({
         source: "byok" | "heuristic" | "llm" | "none";
       };
       const filledCount = Object.keys(fields).length;
-      if (filledCount > 0) applyExtractedFields(fields);
+      if (filledCount > 0) {
+        applyExtractedFields(fields);
+        setExtractionUsed(true);
+      }
       setScanMessage(extractionMessage(source, filledCount));
     } catch {
       setScanMessage("Couldn't scan this invoice. You can still attach it and fill in fields manually.");
@@ -181,6 +189,7 @@ export function ProductForm({
       };
       if (found) {
         applyExtractedFields(fields);
+        setExtractionUsed(true);
         setLookupMessage("Fields populated from the barcode — review before saving.");
       } else if (reason === "rate_limited") {
         setLookupMessage(
@@ -423,6 +432,26 @@ export function ProductForm({
           className={inputClass}
         />
       </Field>
+
+      {extractionUsed && (
+        <div className="flex items-start gap-2 rounded-lg border border-dashed border-border p-3">
+          <input
+            id="confirmExtractionCheckbox"
+            type="checkbox"
+            checked={confirmExtraction}
+            onChange={(e) => setConfirmExtraction(e.target.checked)}
+            className="mt-0.5 size-4 rounded border-border accent-accent"
+          />
+          <label htmlFor="confirmExtractionCheckbox" className="text-sm">
+            I&apos;ve checked the highlighted fields above and they&apos;re correct. Leave this
+            unchecked to save anyway — the record will be marked{" "}
+            <span className="font-medium">Needs review</span> and reminders will be held until
+            it&apos;s confirmed.
+          </label>
+        </div>
+      )}
+      <input type="hidden" name="extractionUsed" value={extractionUsed ? "1" : "0"} />
+      <input type="hidden" name="confirmExtraction" value={confirmExtraction ? "1" : "0"} />
 
       <FormMessage error={state?.error} success={state?.success} />
 

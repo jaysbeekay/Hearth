@@ -2,7 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Pencil, Trash2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { addProductDocument, deleteProduct } from "@/lib/actions/products";
+import {
+  addProductDocument,
+  deleteProduct,
+  confirmProductExtraction,
+} from "@/lib/actions/products";
 import { ExpiryBadge } from "@/components/ExpiryBadge";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
@@ -10,6 +14,8 @@ import { DetailStatusBanner } from "@/components/DetailStatusBanner";
 import { ProductDocumentUploadForm } from "@/components/ProductDocumentUploadForm";
 import { ProductDocumentList } from "@/components/ProductDocumentList";
 import { RecordMeta } from "@/components/RecordMeta";
+import { ReminderHealthCard } from "@/components/ReminderHealthCard";
+import { getReminderHealth } from "@/lib/notifications/health";
 import { daysUntil, formatCurrency, formatDate } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 
@@ -30,6 +36,12 @@ export default async function ProductDetailPage({
 
   const days = daysUntil(product.warrantyEndDate);
   const boundUpload = addProductDocument.bind(null, product.id);
+  const reminderHealth = await getReminderHealth({
+    ownerType: "PRODUCT",
+    ownerId: product.id,
+    targetDate: product.warrantyEndDate,
+    reminderDaysBefore: product.reminderDaysBefore,
+  });
   const photo = product.documents.find(
     (doc) => doc.kind === "PHOTO" && doc.mimeType.startsWith("image/"),
   );
@@ -88,6 +100,11 @@ export default async function ProductDetailPage({
         documentsHref="#documents"
         editHref={`/products/${product.id}/edit`}
         renewLabel="Review warranty"
+        needsReview={
+          product.extractionPending
+            ? { onConfirm: confirmProductExtraction.bind(null, product.id) }
+            : undefined
+        }
       />
 
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
@@ -105,6 +122,10 @@ export default async function ProductDetailPage({
           />
         </dl>
       </div>
+
+      {product.warrantyEndDate && (
+        <ReminderHealthCard health={reminderHealth} dateFormat={dateFormat} />
+      )}
 
       {product.notes && (
         <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
@@ -126,6 +147,7 @@ export default async function ProductDetailPage({
         createdAt={product.createdAt}
         updatedAt={product.updatedAt}
         dateFormat={dateFormat}
+        extractionConfirmedAt={product.extractionConfirmedAt}
       />
     </div>
   );

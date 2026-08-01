@@ -15,6 +15,7 @@ import { formToContractInput } from "@/lib/formMappers";
 import { extractSearchableText } from "@/lib/documents/textExtraction";
 import { describeUploadRejection } from "@/lib/uploadValidation";
 import { clearNotificationLogs } from "@/lib/notifications/logs";
+import { extractionFieldsFromForm } from "@/lib/documents/extractionConfirmation";
 
 export type ActionState = {
   error?: string;
@@ -96,7 +97,7 @@ export async function createContract(
   }
 
   const contract = await prisma.contract.create({
-    data: { ...parsed.data, createdById: user.id },
+    data: { ...parsed.data, createdById: user.id, ...extractionFieldsFromForm(formData) },
   });
 
   if (file instanceof File && file.size > 0) {
@@ -132,7 +133,7 @@ export async function updateContract(
   await prisma.$transaction([
     prisma.contract.update({
       where: { id: contractId },
-      data: parsed.data,
+      data: { ...parsed.data, ...extractionFieldsFromForm(formData) },
     }),
     ...(endDateChanged
       ? [prisma.notificationLog.deleteMany({ where: { ownerType: "CONTRACT", ownerId: contractId } })]
@@ -143,6 +144,27 @@ export async function updateContract(
   revalidatePath(`/contracts/${contractId}`);
   revalidatePath("/dashboard");
   redirect(`/contracts/${contractId}`);
+}
+
+/**
+ * Standalone confirm action for the detail page's DetailStatusBanner —
+ * clears extractionPending without reopening the edit form, for the case
+ * where a user reviews the already-saved values in place (#200).
+ */
+export async function confirmContractExtraction(contractId: string): Promise<ActionState> {
+  await requireUser();
+
+  const existing = await prisma.contract.findUnique({ where: { id: contractId } });
+  if (!existing) return { error: "Contract not found." };
+
+  await prisma.contract.update({
+    where: { id: contractId },
+    data: { extractionPending: false, extractionConfirmedAt: new Date() },
+  });
+
+  revalidatePath(`/contracts/${contractId}`);
+  revalidatePath("/dashboard");
+  return { success: "Details confirmed." };
 }
 
 export type AssistantActionResult =

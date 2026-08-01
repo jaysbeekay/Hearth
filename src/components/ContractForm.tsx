@@ -75,6 +75,11 @@ export function ContractForm({
   const [state, formAction] = useActionState<ActionState, FormData>(offlineAwareAction, null);
   const [scanning, setScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState<string | null>(null);
+  // #200: once a scan populates fields, require an explicit "these look
+  // correct" confirmation before the record is treated as fully trusted —
+  // see extractionFieldsFromForm in src/lib/actions/contracts.ts.
+  const [extractionUsed, setExtractionUsed] = useState(false);
+  const [confirmExtraction, setConfirmExtraction] = useState(false);
 
   // Editing a record that was created offline and hasn't synced yet — there's
   // no server-side row to update, so submitting rewrites the queued
@@ -172,7 +177,10 @@ export function ContractForm({
         source: "byok" | "heuristic" | "llm" | "none";
       };
       const filledCount = Object.keys(fields).length;
-      if (filledCount > 0) applyExtractedFields(fields, source);
+      if (filledCount > 0) {
+        applyExtractedFields(fields, source);
+        setExtractionUsed(true);
+      }
       setScanMessage(extractionMessage(source, filledCount));
     } catch {
       setScanMessage("Couldn't scan this document. You can still attach it and fill in fields manually.");
@@ -493,6 +501,26 @@ export function ContractForm({
           Tax deductible
         </label>
       </div>
+
+      {extractionUsed && (
+        <div className="flex items-start gap-2 rounded-lg border border-dashed border-border p-3">
+          <input
+            id="confirmExtractionCheckbox"
+            type="checkbox"
+            checked={confirmExtraction}
+            onChange={(e) => setConfirmExtraction(e.target.checked)}
+            className="mt-0.5 size-4 rounded border-border accent-accent"
+          />
+          <label htmlFor="confirmExtractionCheckbox" className="text-sm">
+            I&apos;ve checked the highlighted fields above and they&apos;re correct. Leave this
+            unchecked to save anyway — the record will be marked{" "}
+            <span className="font-medium">Needs review</span> and reminders will be held until
+            it&apos;s confirmed.
+          </label>
+        </div>
+      )}
+      <input type="hidden" name="extractionUsed" value={extractionUsed ? "1" : "0"} />
+      <input type="hidden" name="confirmExtraction" value={confirmExtraction ? "1" : "0"} />
 
       <FormMessage error={state?.error} success={state?.success} />
 

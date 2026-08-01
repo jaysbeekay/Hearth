@@ -24,7 +24,7 @@ export async function runExpirationCheck(now: Date = new Date()) {
   }
 
   const contracts = await prisma.contract.findMany({
-    where: { status: "ACTIVE", endDate: { not: null } },
+    where: { status: "ACTIVE", endDate: { not: null }, extractionPending: false },
   });
   const contractLogs = await getNotificationLogsByOwner(
     "CONTRACT",
@@ -127,7 +127,7 @@ export async function runExpirationCheck(now: Date = new Date()) {
   }
 
   const products = await prisma.product.findMany({
-    where: { warrantyEndDate: { not: null } },
+    where: { warrantyEndDate: { not: null }, extractionPending: false },
   });
   const productLogs = await getNotificationLogsByOwner(
     "PRODUCT",

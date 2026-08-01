@@ -68,6 +68,7 @@ export function ContractListClient({
     let expiringSoon = 0;
     let expired = 0;
     let recentlyAdded = 0;
+    let needsReview = 0;
     const weekAgo = new Date().getTime() - 7 * 86_400_000;
     for (const contract of contracts) {
       if (contract.status === "ACTIVE") {
@@ -76,10 +77,12 @@ export function ContractListClient({
         else if (days != null && days <= 30) expiringSoon++;
       }
       if (new Date(contract.createdAt).getTime() >= weekAgo) recentlyAdded++;
+      if (contract.extractionPending) needsReview++;
     }
     return [
       { label: "expiring within 30 days", value: expiringSoon, tone: "warning" as const },
       { label: "expired", value: expired, tone: "danger" as const },
+      { label: "needs review", value: needsReview, tone: "warning" as const },
       { label: "added this week", value: recentlyAdded },
     ];
   }, [contracts]);

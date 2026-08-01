@@ -270,6 +270,13 @@ model Contract {
   notes             String?
   reminderDaysBefore String?      @default("30,14,7,1")
   isTaxDeductible   Boolean       @default(false)
+  // #200: true when a document scan populated critical fields this session
+  // and the user saved without checking "confirm these are correct" — the
+  // scheduler (see notifications/scheduler.ts) skips reminders for this
+  // contract until it's cleared, either by re-confirming on the form or via
+  // the detail page's standalone "Confirm details" action.
+  extractionPending Boolean       @default(false)
+  extractionConfirmedAt DateTime?
 
   createdById       String
   createdBy         User          @relation(fields: [createdById], references: [id])
@@ -400,6 +407,9 @@ model Product {
   currency           String    @default("AUD")
   notes              String?
   reminderDaysBefore String?   @default("30,14,7,1")
+  // See the equivalent Contract fields for the full explanation (#200).
+  extractionPending  Boolean   @default(false)
+  extractionConfirmedAt DateTime?
 
   createdById        String
   createdBy          User      @relation(fields: [createdById], references: [id])

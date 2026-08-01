@@ -2,7 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Pencil, Trash2, Ban, RotateCcw, Home, ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { addDocument, deleteContract, setContractStatus } from "@/lib/actions/contracts";
+import {
+  addDocument,
+  deleteContract,
+  setContractStatus,
+  confirmContractExtraction,
+} from "@/lib/actions/contracts";
 import { ExpiryBadge } from "@/components/ExpiryBadge";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
@@ -10,6 +15,8 @@ import { DetailStatusBanner } from "@/components/DetailStatusBanner";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { DocumentList } from "@/components/DocumentList";
 import { RecordMeta } from "@/components/RecordMeta";
+import { ReminderHealthCard } from "@/components/ReminderHealthCard";
+import { getReminderHealth } from "@/lib/notifications/health";
 import {
   CATEGORY_LABELS,
   BILLING_LABELS,
@@ -42,6 +49,12 @@ export default async function ContractDetailPage({
   const days = daysUntil(contract.endDate);
   const cancelled = contract.status === "CANCELLED";
   const boundUpload = addDocument.bind(null, contract.id);
+  const reminderHealth = await getReminderHealth({
+    ownerType: "CONTRACT",
+    ownerId: contract.id,
+    targetDate: contract.endDate,
+    reminderDaysBefore: contract.reminderDaysBefore,
+  });
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -110,6 +123,11 @@ export default async function ContractDetailPage({
           documentsHref="#documents"
           editHref={`/contracts/${contract.id}/edit`}
           renewLabel="Renew policy"
+          needsReview={
+            contract.extractionPending
+              ? { onConfirm: confirmContractExtraction.bind(null, contract.id) }
+              : undefined
+          }
         />
       )}
 
@@ -140,6 +158,10 @@ export default async function ContractDetailPage({
           />
         </dl>
       </div>
+
+      {!cancelled && contract.endDate && (
+        <ReminderHealthCard health={reminderHealth} dateFormat={dateFormat} />
+      )}
 
       {(contract.contactName || contract.contactPhone || contract.contactEmail) && (
         <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
@@ -211,6 +233,7 @@ export default async function ContractDetailPage({
         createdAt={contract.createdAt}
         updatedAt={contract.updatedAt}
         dateFormat={dateFormat}
+        extractionConfirmedAt={contract.extractionConfirmedAt}
       />
     </div>
   );

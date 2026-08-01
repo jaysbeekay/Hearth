@@ -11,6 +11,8 @@ import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { VehicleItemDocumentList } from "@/components/VehicleItemDocumentList";
 import { RecordMeta } from "@/components/RecordMeta";
 import { ContractCard } from "@/components/ContractCard";
+import { ReminderHealthCard } from "@/components/ReminderHealthCard";
+import { getReminderHealth } from "@/lib/notifications/health";
 import { VEHICLE_ITEM_TYPE_LABELS, formatCurrency, formatDate } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 
@@ -42,6 +44,27 @@ export default async function VehicleDetailPage({
     prisma.contract.findMany({ where: { vehicleId: id }, orderBy: { title: "asc" } }),
   ]);
   if (!vehicle) notFound();
+
+  const [regoHealth, insuranceHealth] = await Promise.all([
+    vehicle.regoExpiry
+      ? getReminderHealth({
+          ownerType: "VEHICLE",
+          ownerId: vehicle.id,
+          field: "regoExpiry",
+          targetDate: vehicle.regoExpiry,
+          reminderDaysBefore: vehicle.reminderDaysBefore,
+        })
+      : null,
+    vehicle.insuranceExpiry
+      ? getReminderHealth({
+          ownerType: "VEHICLE",
+          ownerId: vehicle.id,
+          field: "insuranceExpiry",
+          targetDate: vehicle.insuranceExpiry,
+          reminderDaysBefore: vehicle.reminderDaysBefore,
+        })
+      : null,
+  ]);
 
   const items = [...vehicle.items].sort((a, b) => {
     if (!a.date && !b.date) return 0;
@@ -108,6 +131,13 @@ export default async function VehicleDetailPage({
           <p className="mt-4 whitespace-pre-wrap text-sm text-foreground/80">{vehicle.notes}</p>
         )}
       </div>
+
+      {regoHealth && (
+        <ReminderHealthCard title="Registration reminder" health={regoHealth} dateFormat={dateFormat} />
+      )}
+      {insuranceHealth && (
+        <ReminderHealthCard title="Insurance reminder" health={insuranceHealth} dateFormat={dateFormat} />
+      )}
 
       {linkedContracts.length > 0 && (
         <div className="space-y-3">

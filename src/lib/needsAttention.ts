@@ -25,6 +25,8 @@ export interface AttentionItem {
    * contract detail page's own "Mark as cancelled" button uses.
    */
   canMarkCancelled?: boolean;
+  /** Short status pill shown instead of/alongside the expiry badge — e.g. "Not configured", "Needs review", "Reminder failed" (#200/#201). */
+  badge?: string;
 }
 
 // Sort key: overdue items first (more negative = more overdue), then soonest
@@ -122,7 +124,118 @@ export function buildReminderNudgeItem(): AttentionItem {
     days: null,
     href: "/settings/app",
     action: { label: "Configure reminders", href: "/settings/app" },
+    badge: "Not configured",
   };
+}
+
+// #200: contracts/products where a document scan populated critical fields
+// and the user saved without confirming them — pinned like the reminder
+// nudge (days: null) since "needs review" isn't a decaying, date-driven gap.
+export function buildExtractionReviewItems(
+  contracts: Contract[],
+  products: Product[],
+): AttentionItem[] {
+  const items: AttentionItem[] = [];
+  for (const contract of contracts) {
+    if (!contract.extractionPending) continue;
+    items.push({
+      id: `review-contract-${contract.id}`,
+      kind: "contract",
+      title: contract.title,
+      subtitle: "Some auto-filled details haven't been confirmed yet.",
+      days: null,
+      href: `/contracts/${contract.id}`,
+      action: { label: "Confirm details", href: `/contracts/${contract.id}` },
+      badge: "Needs review",
+    });
+  }
+  for (const product of products) {
+    if (!product.extractionPending) continue;
+    items.push({
+      id: `review-product-${product.id}`,
+      kind: "warranty",
+      title: product.description,
+      subtitle: "Some auto-filled details haven't been confirmed yet.",
+      days: null,
+      href: `/products/${product.id}`,
+      action: { label: "Confirm details", href: `/products/${product.id}` },
+      badge: "Needs review",
+    });
+  }
+  return items;
+}
+
+export interface FailedReminderLog {
+  ownerType: "CONTRACT" | "PRODUCT" | "VEHICLE";
+  ownerId: string;
+  error: string | null;
+}
+
+// #201: a FAILED NotificationLog row is always the *current* state for that
+// threshold — recordNotificationOutcome upserts the same row to SENT the
+// moment a retry succeeds, so anything still FAILED here is a live problem,
+// not stale history. One row per owner (not per failed channel/threshold) —
+// a household doesn't need the same broken delivery reported repeatedly.
+export function buildReminderFailureItems(
+  failedLogs: FailedReminderLog[],
+  contracts: Contract[],
+  products: Product[],
+  vehicles: Vehicle[],
+): AttentionItem[] {
+  const contractMap = new Map(contracts.map((c) => [c.id, c]));
+  const productMap = new Map(products.map((p) => [p.id, p]));
+  const vehicleMap = new Map(vehicles.map((v) => [v.id, v]));
+  const seenOwners = new Set<string>();
+  const items: AttentionItem[] = [];
+
+  for (const log of failedLogs) {
+    const ownerKey = `${log.ownerType}:${log.ownerId}`;
+    if (seenOwners.has(ownerKey)) continue;
+    seenOwners.add(ownerKey);
+
+    const suffix = log.error ? `: ${log.error}` : "";
+    if (log.ownerType === "CONTRACT") {
+      const contract = contractMap.get(log.ownerId);
+      if (!contract) continue;
+      items.push({
+        id: `failed-contract-${contract.id}`,
+        kind: "contract",
+        title: contract.title,
+        subtitle: `Reminder delivery failed${suffix}`,
+        days: null,
+        href: `/contracts/${contract.id}`,
+        action: { label: "View", href: `/contracts/${contract.id}` },
+        badge: "Reminder failed",
+      });
+    } else if (log.ownerType === "PRODUCT") {
+      const product = productMap.get(log.ownerId);
+      if (!product) continue;
+      items.push({
+        id: `failed-product-${product.id}`,
+        kind: "warranty",
+        title: product.description,
+        subtitle: `Reminder delivery failed${suffix}`,
+        days: null,
+        href: `/products/${product.id}`,
+        action: { label: "View", href: `/products/${product.id}` },
+        badge: "Reminder failed",
+      });
+    } else {
+      const vehicle = vehicleMap.get(log.ownerId);
+      if (!vehicle) continue;
+      items.push({
+        id: `failed-vehicle-${vehicle.id}`,
+        kind: "vehicle",
+        title: vehicle.label,
+        subtitle: `Reminder delivery failed${suffix}`,
+        days: null,
+        href: `/vehicles/${vehicle.id}`,
+        action: { label: "View", href: `/vehicles/${vehicle.id}` },
+        badge: "Reminder failed",
+      });
+    }
+  }
+  return items;
 }
 
 export function sortAttentionItems(items: AttentionItem[]): AttentionItem[] {

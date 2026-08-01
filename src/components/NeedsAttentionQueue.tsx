@@ -47,10 +47,10 @@ export function NeedsAttentionQueue({ items }: { items: AttentionItem[] }) {
             </Link>
 
             {item.days != null && <ExpiryBadge days={item.days} />}
-            {item.kind === "system" && (
+            {item.badge && (
               <span className="inline-flex items-center gap-1 rounded-md bg-warning/10 px-2.5 py-1 text-xs font-medium text-warning">
                 <AlertCircle size={12} />
-                Not configured
+                {item.badge}
               </span>
             )}
 

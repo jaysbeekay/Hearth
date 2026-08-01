@@ -16,6 +16,7 @@ import { formToProductInput } from "@/lib/formMappers";
 import { clearNotificationLogs } from "@/lib/notifications/logs";
 import { extractSearchableText } from "@/lib/documents/textExtraction";
 import { describeUploadRejection } from "@/lib/uploadValidation";
+import { extractionFieldsFromForm } from "@/lib/documents/extractionConfirmation";
 
 export type ActionState = {
   error?: string;
@@ -109,7 +110,7 @@ export async function createProduct(
   }
 
   const product = await prisma.product.create({
-    data: { ...parsed.data, createdById: user.id },
+    data: { ...parsed.data, createdById: user.id, ...extractionFieldsFromForm(formData) },
   });
 
   if (invoiceFile instanceof File && invoiceFile.size > 0) {
@@ -148,7 +149,7 @@ export async function updateProduct(
   await prisma.$transaction([
     prisma.product.update({
       where: { id: productId },
-      data: parsed.data,
+      data: { ...parsed.data, ...extractionFieldsFromForm(formData) },
     }),
     ...(warrantyEndDateChanged
       ? [prisma.notificationLog.deleteMany({ where: { ownerType: "PRODUCT", ownerId: productId } })]
@@ -159,6 +160,26 @@ export async function updateProduct(
   revalidatePath(`/products/${productId}`);
   revalidatePath("/dashboard");
   redirect(`/products/${productId}`);
+}
+
+/**
+ * Standalone confirm action for the detail page's DetailStatusBanner — see
+ * the equivalent confirmContractExtraction in contracts.ts (#200).
+ */
+export async function confirmProductExtraction(productId: string): Promise<ActionState> {
+  await requireUser();
+
+  const existing = await prisma.product.findUnique({ where: { id: productId } });
+  if (!existing) return { error: "Product not found." };
+
+  await prisma.product.update({
+    where: { id: productId },
+    data: { extractionPending: false, extractionConfirmedAt: new Date() },
+  });
+
+  revalidatePath(`/products/${productId}`);
+  revalidatePath("/dashboard");
+  return { success: "Details confirmed." };
 }
 
 export type AssistantActionResult =
