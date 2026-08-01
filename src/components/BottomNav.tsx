@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Settings, MoreHorizontal, X } from "lucide-react";
+import { Settings, HelpCircle, MoreHorizontal, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getNavItems } from "@/components/nav-items";
 import type { ModuleKey } from "@/lib/modules/registry";
@@ -53,7 +53,9 @@ export function BottomNav({
   const overflowModules = overflow.filter((i) => i.group === "modules");
   const overflowTools = overflow.filter((i) => i.group === "tools");
   const overflowActive =
-    overflow.some((i) => isActive(i.href, pathname)) || isActive("/settings", pathname);
+    overflow.some((i) => isActive(i.href, pathname)) ||
+    isActive("/settings", pathname) ||
+    isActive("/help", pathname);
 
   return (
     <>
@@ -167,6 +169,18 @@ export function BottomNav({
               >
                 <Settings size={20} />
                 Settings
+              </Link>
+              <Link
+                href="/help"
+                className={cn(
+                  "flex flex-col items-center gap-1.5 rounded-lg p-3 text-xs font-medium",
+                  isActive("/help", pathname)
+                    ? "bg-accent/10 text-accent"
+                    : "text-foreground/70 hover:bg-black/5 dark:hover:bg-white/5",
+                )}
+              >
+                <HelpCircle size={20} />
+                Help
               </Link>
             </div>
           </div>

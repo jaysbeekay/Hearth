@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Flame, Settings, Search } from "lucide-react";
+import { Flame, Settings, Search, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getNavItems } from "@/components/nav-items";
 import type { ModuleKey } from "@/lib/modules/registry";
@@ -126,6 +126,18 @@ export function Sidebar({
         >
           <Settings size={18} />
           Settings
+        </Link>
+        <Link
+          href="/help"
+          className={cn(
+            "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition",
+            isActive("/help", pathname)
+              ? "bg-accent/10 text-accent"
+              : "text-muted hover:bg-black/5 dark:hover:bg-white/5",
+          )}
+        >
+          <HelpCircle size={18} />
+          Help
         </Link>
         <div className="mt-2 px-3">
           <p className="truncate text-sm font-medium">{userName}</p>

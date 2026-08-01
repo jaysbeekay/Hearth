@@ -7,6 +7,62 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-08-01
+
+### Added
+
+- **Dashboard is now a "needs attention" queue** (#170). The four separate
+  expiring/expired card grids (contracts, warranties) plus the vehicle
+  section are replaced by one urgency-sorted list, each row already carrying
+  its next action (upload document / renew / mark cancelled) instead of
+  leaving that to the reader. Stat cards link through to pre-filtered
+  Contracts/Products lists rather than sitting inert.
+- **Document inbox is a first-class workflow** (#171). `/documents` and
+  `/documents/inbox` share an Inbox/Filed/All tab strip, so unfiled uploads
+  read as one workflow instead of a side area reachable only via a small
+  pill. Inbox rows also flag a contract missing its provider before you try
+  to save it.
+- **Mobile capture is a primary action** (#173). Documents is promoted into
+  the primary bottom-nav slot (over Calendar), and a persistent one-tap
+  upload FAB is reachable from any page — hidden on `/import` itself and on
+  `/new`/`/edit` form routes, where it would otherwise cover the submit
+  button.
+- **Detail pages surface what needs doing** (#176). Contract and product
+  detail pages show a status banner when the record is overdue or expiring
+  within 30 days, with the renew/upload action already picked out.
+- **Sparse lists get a summary and a real empty state** (#177). Contracts and
+  Products list pages show an at-a-glance strip (expiring soon / expired /
+  added this week), and the empty state offers "Add" and "Upload a document"
+  actions instead of plain text.
+- **Help & FAQ menu** (#191). A new `/help` page answers common questions
+  (modules, invites, roles, AI extraction and privacy, notifications,
+  backups, passkeys/TOTP, offline mode, troubleshooting), linked from the
+  sidebar, mobile drawer, and bottom-nav "More" sheet next to Settings.
+
+### Changed
+
+- **Settings reorganized into user-facing categories** (#175). `/settings/app`
+  is grouped into Notifications / AI and privacy / Advanced system settings;
+  the `/settings/household` hub shows status summaries (member count, backup
+  destination, webhook count, module count, notification status) instead of
+  bare links; backup destination configuration is consolidated into
+  `/settings/backups` rather than split across two pages.
+- **Document extraction messaging is honest about confidence** (#172).
+  Low-confidence results no longer contradict themselves; auto-filled fields
+  are now visually distinguished as heuristic-matched (accent) vs
+  AI-suggested (info), in both the contract form and the inbox review UI. A
+  privacy notice now appears when a cloud AI provider is selected for
+  extraction or the Assistant, naming which provider documents/data are sent
+  to.
+
+### Fixed
+
+- **The dev-mode build-indicator badge no longer leaks into the app or its
+  screenshots** (#178). It served no purpose in this UI and previously
+  overlapped the sidebar account email in every published screenshot; it's
+  now disabled at the Next.js config level rather than worked around per
+  capture.
+
 ## [0.14.0] - 2026-07-31
 
 ### Breaking Changes
