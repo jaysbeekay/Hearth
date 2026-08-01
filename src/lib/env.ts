@@ -24,6 +24,15 @@ export const env = {
     baseUrl: optional("OLLAMA_BASE_URL"),
     model: optional("OLLAMA_MODEL"),
   },
+  emailIngest: {
+    host: optional("EMAIL_INGEST_HOST"),
+    port: Number(optional("EMAIL_INGEST_PORT", "993")),
+    secure: optional("EMAIL_INGEST_SECURE", "true") === "true",
+    user: optional("EMAIL_INGEST_USER"),
+    pass: optional("EMAIL_INGEST_PASSWORD"),
+    mailbox: optional("EMAIL_INGEST_MAILBOX", "INBOX"),
+    cron: optional("EMAIL_INGEST_CRON_SCHEDULE", "*/10 * * * *"),
+  },
   barcodeLookup: {
     enabled: optional("BARCODE_LOOKUP_ENABLED", "false") === "true",
     apiKey: optional("BARCODE_LOOKUP_API_KEY"),

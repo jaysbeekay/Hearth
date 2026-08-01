@@ -45,12 +45,17 @@ export async function register() {
     __reminderCronStarted?: boolean;
     __backupCronStarted?: boolean;
     __priceCronStarted?: boolean;
+    __emailIngestCronStarted?: boolean;
   };
 
   const cron = await import("node-cron");
-  const { getReminderConfig, isBackupConfigured, getBackupScheduleConfig } = await import(
-    "@/lib/appSettings"
-  );
+  const {
+    getReminderConfig,
+    isBackupConfigured,
+    getBackupScheduleConfig,
+    isEmailIngestionConfigured,
+    getEmailIngestConfig,
+  } = await import("@/lib/appSettings");
 
   if (!globalForCron.__reminderCronStarted) {
     globalForCron.__reminderCronStarted = true;
@@ -78,6 +83,20 @@ export async function register() {
     });
 
     console.log(`[backup] scheduler started (cron: "${backupCron}")`);
+  }
+
+  if (!globalForCron.__emailIngestCronStarted && (await isEmailIngestionConfigured())) {
+    globalForCron.__emailIngestCronStarted = true;
+
+    const { runEmailIngestion } = await import("@/lib/emailIngestion/scheduler");
+    const { cron: emailIngestCron } = await getEmailIngestConfig();
+    cron.schedule(emailIngestCron, () => {
+      runEmailIngestion().catch((error) => {
+        console.error("[email-ingest] scheduled ingestion failed:", error);
+      });
+    });
+
+    console.log(`[email-ingest] scheduler started (cron: "${emailIngestCron}")`);
   }
 
   if (!globalForCron.__priceCronStarted) {

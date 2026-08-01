@@ -14,6 +14,7 @@ const ENCRYPTED_KEYS = new Set([
   "aviationstack.apiKey",
   "ai.apiKey",
   "chat.apiKey",
+  "emailIngest.password",
 ]);
 
 async function readSetting(key: string): Promise<string | null> {
@@ -126,6 +127,43 @@ export async function getSmtpConfig() {
 export async function isSmtpConfigured(): Promise<boolean> {
   const cfg = await getSmtpConfig();
   return Boolean(cfg.host && cfg.user);
+}
+
+export async function getEmailIngestConfig() {
+  const s = await getAppSettings(
+    [
+      "emailIngest.host",
+      "emailIngest.port",
+      "emailIngest.secure",
+      "emailIngest.user",
+      "emailIngest.password",
+      "emailIngest.mailbox",
+      "emailIngest.cron",
+    ],
+    {
+      "emailIngest.host": env.emailIngest.host,
+      "emailIngest.port": String(env.emailIngest.port),
+      "emailIngest.secure": String(env.emailIngest.secure),
+      "emailIngest.user": env.emailIngest.user,
+      "emailIngest.password": env.emailIngest.pass,
+      "emailIngest.mailbox": env.emailIngest.mailbox,
+      "emailIngest.cron": env.emailIngest.cron,
+    },
+  );
+  return {
+    host: s["emailIngest.host"],
+    port: Number(s["emailIngest.port"]) || 993,
+    secure: s["emailIngest.secure"] === "true",
+    user: s["emailIngest.user"],
+    pass: s["emailIngest.password"],
+    mailbox: s["emailIngest.mailbox"] || "INBOX",
+    cron: s["emailIngest.cron"] || "*/10 * * * *",
+  };
+}
+
+export async function isEmailIngestionConfigured(): Promise<boolean> {
+  const cfg = await getEmailIngestConfig();
+  return Boolean(cfg.host && cfg.user && cfg.pass);
 }
 
 export async function getNtfyConfig() {

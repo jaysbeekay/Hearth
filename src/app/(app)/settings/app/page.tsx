@@ -8,6 +8,7 @@ import {
   getBarcodeConfig,
   getBackupScheduleConfig,
   getReminderConfig,
+  getEmailIngestConfig,
   getAppSetting,
   isAppSettingSet,
 } from "@/lib/appSettings";
@@ -18,6 +19,8 @@ import {
   saveBarcodeSettings,
   saveScheduleSettings,
   saveAviationStackSettings,
+  saveEmailIngestSettings,
+  testEmailIngestConnection,
 } from "@/lib/actions/app-settings";
 import {
   SmtpForm,
@@ -26,6 +29,7 @@ import {
   BarcodeForm,
   ScheduleForm,
   AviationStackForm,
+  EmailIngestForm,
 } from "@/components/AppSettingsForms";
 import { AiSettingsForm } from "@/components/AiSettingsForm";
 import { ChatSettingsForm } from "@/components/ChatSettingsForm";
@@ -56,6 +60,7 @@ export default async function AppSettingsPage() {
     barcode,
     backupSchedule,
     reminder,
+    emailIngest,
     aiProvider,
     aiModel,
     chatProvider,
@@ -66,6 +71,7 @@ export default async function AppSettingsPage() {
     aviationKeyIsSet,
     aiApiKeyIsSet,
     chatApiKeyIsSet,
+    emailIngestPasswordIsSet,
   ] = await Promise.all([
     getSmtpConfig(),
     getNtfyConfig(),
@@ -73,6 +79,7 @@ export default async function AppSettingsPage() {
     getBarcodeConfig(),
     getBackupScheduleConfig(),
     getReminderConfig(),
+    getEmailIngestConfig(),
     getAppSetting("ai.provider"),
     getAppSetting("ai.model"),
     getAppSetting("chat.provider"),
@@ -83,6 +90,7 @@ export default async function AppSettingsPage() {
     isAppSettingSet("aviationstack.apiKey"),
     isAppSettingSet("ai.apiKey"),
     isAppSettingSet("chat.apiKey"),
+    isAppSettingSet("emailIngest.password"),
   ]);
 
   return (
@@ -179,6 +187,33 @@ export default async function AppSettingsPage() {
             provider={(chatProvider || null) as AiProviderId | null}
             model={chatModel || null}
             apiKeyIsSet={chatApiKeyIsSet}
+          />
+        </section>
+      </div>
+
+      <div className="space-y-4">
+        <CategoryHeading>Document ingestion</CategoryHeading>
+        <section className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
+          <div>
+            <h3 className="font-medium">Email ingestion</h3>
+            <p className="text-xs text-foreground/50 mt-0.5">
+              Forward or email a document to this mailbox and Hearth periodically checks it,
+              guesses what type of document it is, and drops it in the Needs review queue for
+              you to confirm — the sender is never trusted, so nothing is ever filed
+              automatically.
+            </p>
+          </div>
+          <EmailIngestForm
+            action={saveEmailIngestSettings}
+            testAction={testEmailIngestConnection}
+            current={{
+              host: emailIngest.host,
+              port: emailIngest.port,
+              secure: emailIngest.secure,
+              user: emailIngest.user,
+              mailbox: emailIngest.mailbox,
+              passwordIsSet: emailIngestPasswordIsSet,
+            }}
           />
         </section>
       </div>

@@ -294,19 +294,50 @@ model Document {
 // row in the matching per-entity document table and deletes this one; it is
 // never a permanent home for a file, only a queue.
 model InboxDocument {
-  id            String   @id @default(cuid())
+  id            String        @id @default(cuid())
   filename      String
   storedName    String
   mimeType      String
   size          Int
   extractedText String?
 
-  uploadedById  String
-  uploadedBy    User     @relation(fields: [uploadedById], references: [id])
+  // Null for email-ingested documents (#195), which have no acting web user.
+  uploadedById  String?
+  uploadedBy    User?         @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
 
-  uploadedAt    DateTime @default(now())
+  source        InboxSource   @default(WEB)
+  // Sender address for EMAIL-sourced documents, kept for provenance/review —
+  // never used for authorization or auto-filing.
+  fromAddress   String?
+  // Best-guess target type from cheap heuristic-only scoring at ingestion
+  // time (#195) — pre-selects the classify dropdown, never auto-files.
+  guessedType   InboxTargetType?
+
+  uploadedAt    DateTime      @default(now())
 
   @@map("inbox_documents")
+}
+
+enum InboxSource {
+  WEB
+  EMAIL
+}
+
+enum InboxTargetType {
+  CONTRACT
+  PRODUCT
+  INVENTORY
+}
+
+// Records inbound email Message-IDs already ingested (#195), so a poll that
+// re-observes a message already \Seen by a different mail client (or before
+// this cycle's IMAP flag update lands) never creates a duplicate inbox entry.
+model ProcessedEmailMessage {
+  id          String   @id @default(cuid())
+  messageId   String   @unique
+  processedAt DateTime @default(now())
+
+  @@map("processed_email_messages")
 }
 
 model NotificationLog {

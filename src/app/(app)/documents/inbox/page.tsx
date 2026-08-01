@@ -40,6 +40,8 @@ export default async function InboxPage() {
           size: d.size,
           uploadedAt: d.uploadedAt.toISOString(),
           downloadHref: `/api/documents/inbox/${d.id}`,
+          fromAddress: d.fromAddress,
+          guessedType: d.guessedType,
         }))}
         dateFormat={dateFormat}
         inventoryEnabled={enabledModules.has("INVENTORY")}

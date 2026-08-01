@@ -48,7 +48,9 @@ function findBillingFrequency(text: string): string | undefined {
   return undefined;
 }
 
-function heuristicExtract(text: string): ExtractedFields {
+// Exported for classifyDocument.ts's type-guessing pass (#195), which scores
+// candidate types by heuristic-only field count — never triggers AI escalation.
+export function heuristicExtract(text: string): ExtractedFields {
   return {
     provider: findCompanyLine(text),
     contractNumber: findLabeledValue(
@@ -71,7 +73,7 @@ function heuristicExtract(text: string): ExtractedFields {
   };
 }
 
-function countFound(fields: ExtractedFields): number {
+export function countFound(fields: ExtractedFields): number {
   return Object.values(fields).filter((v) => v != null && v !== "").length;
 }
 

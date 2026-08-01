@@ -42,7 +42,7 @@ function findInventoryCategory(text: string): string | undefined {
   return undefined;
 }
 
-function heuristicExtract(text: string): ExtractedInventoryItemFields {
+export function heuristicExtract(text: string): ExtractedInventoryItemFields {
   return {
     category: findInventoryCategory(text),
     brand: findCompanyLine(text),
@@ -51,7 +51,7 @@ function heuristicExtract(text: string): ExtractedInventoryItemFields {
   };
 }
 
-function countFound(fields: ExtractedInventoryItemFields): number {
+export function countFound(fields: ExtractedInventoryItemFields): number {
   return Object.values(fields).filter((v) => v != null && v !== "").length;
 }
 

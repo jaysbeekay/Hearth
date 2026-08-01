@@ -85,6 +85,69 @@ export function SmtpForm({
   );
 }
 
+// ─── Email ingestion ─────────────────────────────────────────────────────────
+
+export function EmailIngestForm({
+  action,
+  testAction,
+  current,
+}: {
+  action: (s: ActionState, f: FormData) => Promise<ActionState>;
+  testAction: () => Promise<ActionState>;
+  current: {
+    host: string;
+    port: number;
+    secure: boolean;
+    user: string;
+    mailbox: string;
+    passwordIsSet: boolean;
+  };
+}) {
+  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  return (
+    <form action={formAction} className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="IMAP host" htmlFor="emailIngestHost">
+          <input id="emailIngestHost" name="emailIngestHost" defaultValue={current.host} placeholder="imap.example.com" className={inputClass} />
+        </Field>
+        <Field label="Port" htmlFor="emailIngestPort">
+          <input id="emailIngestPort" name="emailIngestPort" type="number" defaultValue={current.port || 993} className={inputClass} />
+        </Field>
+        <Field label="Username" htmlFor="emailIngestUser">
+          <input id="emailIngestUser" name="emailIngestUser" defaultValue={current.user} placeholder="documents@example.com" className={inputClass} />
+        </Field>
+        <Field label="Password" htmlFor="emailIngestPassword">
+          <SensitiveField id="emailIngestPassword" name="emailIngestPassword" isSet={current.passwordIsSet} />
+        </Field>
+        <Field label="Mailbox folder" htmlFor="emailIngestMailbox">
+          <input id="emailIngestMailbox" name="emailIngestMailbox" defaultValue={current.mailbox || "INBOX"} placeholder="INBOX" className={inputClass} />
+        </Field>
+        <Field label="" htmlFor="emailIngestSecure" hint="Enable for implicit TLS (typically port 993)">
+          <div className="flex items-center gap-2 pt-1">
+            <input id="emailIngestSecure" name="emailIngestSecure" type="checkbox" defaultChecked={current.secure} className={checkboxClass} />
+            <label htmlFor="emailIngestSecure" className="text-sm">Use TLS</label>
+          </div>
+        </Field>
+      </div>
+      <FormMessage error={state?.error} success={state?.success} />
+      {current.host && current.user && (
+        <p className="text-xs text-muted">
+          Testing connects against the saved settings — save your changes first if you just edited
+          them.
+        </p>
+      )}
+      <div className="flex items-center justify-between">
+        {current.host && current.user ? (
+          <TestConnectionButton action={testAction} label="Test connection" />
+        ) : (
+          <span />
+        )}
+        <SubmitButton>Save email ingestion settings</SubmitButton>
+      </div>
+    </form>
+  );
+}
+
 // ─── ntfy ────────────────────────────────────────────────────────────────────
 
 export function NtfyForm({

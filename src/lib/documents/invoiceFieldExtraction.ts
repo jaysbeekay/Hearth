@@ -61,7 +61,7 @@ function findSerialNumber(text: string): string | undefined {
   );
 }
 
-function heuristicExtract(text: string): ExtractedInvoiceFields {
+export function heuristicExtract(text: string): ExtractedInvoiceFields {
   return {
     vendor: findCompanyLine(text),
     manufacturer: findManufacturer(text),
@@ -76,7 +76,7 @@ function heuristicExtract(text: string): ExtractedInvoiceFields {
   };
 }
 
-function countFound(fields: ExtractedInvoiceFields): number {
+export function countFound(fields: ExtractedInvoiceFields): number {
   return Object.values(fields).filter((v) => v != null && v !== "").length;
 }
 

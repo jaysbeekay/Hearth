@@ -7,6 +7,17 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+### Added
+
+- **Email ingestion** (#195). Configure an IMAP mailbox in Settings → System
+  settings and forward or email a document to it — Hearth polls it on a
+  schedule, guesses what type of document each attachment is (Contract,
+  Product, or Inventory item) from the same heuristics already used for
+  manual uploads, and drops it in the Documents inbox pre-classified for
+  review. Nothing is ever filed without a human confirming it first;
+  attachments are validated by content (not the claimed MIME type), same as
+  every other upload path (#165).
+
 ## [0.15.0] - 2026-08-01
 
 ### Added

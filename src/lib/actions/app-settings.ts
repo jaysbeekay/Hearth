@@ -3,7 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { setAppSetting, getOllamaConfig, isSmtpConfigured, isNtfyConfigured } from "@/lib/appSettings";
+import {
+  setAppSetting,
+  getOllamaConfig,
+  isSmtpConfigured,
+  isNtfyConfigured,
+  getEmailIngestConfig,
+  isEmailIngestionConfigured,
+} from "@/lib/appSettings";
 import { sendTestEmail } from "@/lib/notifications/email";
 import { sendTestNtfy } from "@/lib/notifications/ntfy";
 import type { ActionState } from "@/lib/actions/auth";
@@ -56,6 +63,35 @@ export async function saveNtfySettings(
 
   revalidatePath("/settings/app");
   return { success: "Push notification settings saved." };
+}
+
+export async function saveEmailIngestSettings(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  await requireAdmin();
+
+  try {
+    await setAppSetting("emailIngest.host", formData.get("emailIngestHost") as string);
+    await setAppSetting("emailIngest.port", formData.get("emailIngestPort") as string);
+    await setAppSetting(
+      "emailIngest.secure",
+      formData.get("emailIngestSecure") === "on" ? "true" : "false",
+    );
+    await setAppSetting("emailIngest.user", formData.get("emailIngestUser") as string);
+    await setAppSetting("emailIngest.mailbox", formData.get("emailIngestMailbox") as string);
+
+    // Sensitive: only overwrite if a new value was submitted
+    const newPass = (formData.get("emailIngestPassword") as string) || "";
+    if (newPass) await setAppSetting("emailIngest.password", newPass);
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Failed to save email ingestion settings.",
+    };
+  }
+
+  revalidatePath("/settings/app");
+  return { success: "Email ingestion settings saved." };
 }
 
 export async function saveOllamaSettings(
@@ -233,6 +269,33 @@ export async function testNtfySettings(): Promise<ActionState> {
     return { success: "Test notification sent." };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Failed to send test notification." };
+  }
+}
+
+export async function testEmailIngestConnection(): Promise<ActionState> {
+  await requireAdmin();
+  if (!(await isEmailIngestionConfigured())) {
+    return { error: "Email ingestion isn't configured yet — save settings first." };
+  }
+
+  const config = await getEmailIngestConfig();
+  const { ImapFlow } = await import("imapflow");
+  const client = new ImapFlow({
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    auth: { user: config.user, pass: config.pass },
+    logger: false,
+  });
+
+  try {
+    await client.connect();
+    await client.getMailboxLock(config.mailbox).then((lock) => lock.release());
+    return { success: `Connected to ${config.host} and opened "${config.mailbox}".` };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Failed to connect." };
+  } finally {
+    await client.logout().catch(() => client.close());
   }
 }
 

@@ -20,15 +20,18 @@ const INVENTORY_CATEGORY_LABELS: Record<string, string> = {
   OTHER: "Other",
 };
 
+type EntityType = "CONTRACT" | "PRODUCT" | "INVENTORY";
+
 export interface InboxDocSummary {
   id: string;
   filename: string;
   size: number;
   uploadedAt: string;
   downloadHref: string;
+  // Set for documents ingested by email (#195) — never for web uploads.
+  fromAddress?: string | null;
+  guessedType?: EntityType | null;
 }
-
-type EntityType = "CONTRACT" | "PRODUCT" | "INVENTORY";
 type ExtractionSource = "byok" | "heuristic" | "llm" | "none";
 
 interface ContractFields {
@@ -63,10 +66,10 @@ interface RowState {
   inventoryAutoFilled: Partial<Record<keyof InventoryFields, boolean>>;
 }
 
-function emptyRowState(): RowState {
+function emptyRowState(initialType: EntityType = "CONTRACT"): RowState {
   return {
     status: "scanning",
-    type: "CONTRACT",
+    type: initialType,
     contract: { title: "", provider: "", category: "OTHER", cost: "" },
     product: { description: "", manufacturer: "", price: "" },
     inventory: { label: "", category: "OTHER", brand: "", purchasePrice: "" },
@@ -128,16 +131,18 @@ export function InboxReviewClient({
 }) {
   const [visibleIds, setVisibleIds] = useState(() => docs.map((d) => d.id));
   const [rows, setRows] = useState<Record<string, RowState>>(() =>
-    Object.fromEntries(docs.map((d) => [d.id, emptyRowState()])),
+    Object.fromEntries(docs.map((d) => [d.id, emptyRowState(d.guessedType ?? "CONTRACT")])),
   );
 
   useEffect(() => {
     // Deferred one tick so the initial scan (which sets state) isn't a
     // direct call from the effect body — rows already start in "scanning"
-    // via emptyRowState(), this just kicks off the actual fetches.
+    // via emptyRowState(), this just kicks off the actual fetches. Scans
+    // with the email-ingestion type guess when there is one (#195), instead
+    // of always defaulting to Contract.
     queueMicrotask(() => {
       for (const doc of docs) {
-        scan(doc.id, "CONTRACT", doc.filename);
+        scan(doc.id, doc.guessedType ?? "CONTRACT", doc.filename);
       }
     });
   }, []);
@@ -278,6 +283,7 @@ export function InboxReviewClient({
                 </a>
                 <span className="shrink-0 text-xs text-muted">
                   {humanFileSize(doc.size)} · {formatDate(new Date(doc.uploadedAt), dateFormat)}
+                  {doc.fromAddress && ` · via email from ${doc.fromAddress}`}
                 </span>
               </div>
               <div className="flex shrink-0 items-center gap-2">
