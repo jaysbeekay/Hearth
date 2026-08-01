@@ -9,6 +9,16 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Reminder health** (#201). Contract, product, and vehicle detail pages
+  show a Reminder health card — whether a reminder is enabled, the next
+  reminder date, thresholds, delivery channel and status, last sent, last
+  failure, and a "Send test reminder" action. The dashboard's needs-attention
+  queue now also surfaces records with a failed reminder delivery.
+- **Extraction confirmation** (#200). When a document scan auto-fills
+  critical fields on a contract or product, saving without confirming them
+  marks the record "Needs review" and holds its reminders until confirmed —
+  either by checking "these look correct" on the form, or via a standalone
+  "Confirm details" action on the detail page and dashboard.
 - **Email ingestion** (#195). Configure an IMAP mailbox in Settings → System
   settings and forward or email a document to it — Hearth polls it on a
   schedule, guesses what type of document each attachment is (Contract,
