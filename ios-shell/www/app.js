@@ -506,13 +506,18 @@ function recordAttempt(url) {
   localStorage.setItem(LAST_ATTEMPT_KEY, JSON.stringify({ url, ts: Date.now() }));
 }
 
-function navigateToConnectedServer(url) {
+function navigateToConnectedServer(rawUrl) {
+  const url = normalizeUrl(rawUrl);
+  const destination = new URL(url);
+  if (destination.protocol !== "https:" && destination.protocol !== "http:") {
+    throw new Error("Address must start with http:// or https://");
+  }
   const testHook = window.__hearthStandaloneTest?.onConnectedNavigate;
   if (typeof testHook === "function") {
-    testHook(url);
+    testHook(destination.href.replace(/\/+$/, ""));
     return;
   }
-  window.location.replace(url);
+  window.location.replace(destination.href.replace(/\/+$/, ""));
 }
 
 function recentFailedAttempt() {
@@ -1068,17 +1073,17 @@ async function autoConnectIfSaved() {
   if (!ServerConfig) return;
   const { url } = await ServerConfig.getServerUrl();
   if (!url) return;
-  $("server-url").value = url;
-  normalizeUrl(url);
+  const normalizedUrl = normalizeUrl(url);
+  $("server-url").value = normalizedUrl;
   const failedUrl = recentFailedAttempt();
-  if (failedUrl === url) {
+  if (failedUrl === normalizedUrl) {
     localStorage.removeItem(LAST_ATTEMPT_KEY);
-    showStatus(connectedStatus, `Could not reach ${url}. Check the address and try again.`);
+    showStatus(connectedStatus, `Could not reach ${normalizedUrl}. Check the address and try again.`);
     return;
   }
-  showStatus(connectedStatus, `Connecting to ${url}...`, true);
-  recordAttempt(url);
-  navigateToConnectedServer(url);
+  showStatus(connectedStatus, `Connecting to ${normalizedUrl}...`, true);
+  recordAttempt(normalizedUrl);
+  navigateToConnectedServer(normalizedUrl);
 }
 
 async function render() {
