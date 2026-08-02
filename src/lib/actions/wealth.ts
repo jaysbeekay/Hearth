@@ -185,7 +185,7 @@ async function requireHolding(holdingId: string) {
 async function attachTradeDocument(tradeId: string, file: File): Promise<ActionState | null> {
   const rejection = await describeUploadRejection(file);
   if (rejection) return { error: rejection };
-  const { storedName, size } = await saveTradeDocument(tradeId, file);
+  const { storedName, size, sha256 } = await saveTradeDocument(tradeId, file);
   await prisma.tradeDocument.create({
     data: {
       tradeId,
@@ -193,6 +193,7 @@ async function attachTradeDocument(tradeId: string, file: File): Promise<ActionS
       storedName,
       mimeType: file.type,
       size,
+      sha256,
     },
   });
   return null;

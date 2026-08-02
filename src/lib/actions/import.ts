@@ -19,6 +19,8 @@ import { ProductDocumentKind } from "@/generated/prisma/enums";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import { extractSearchableText } from "@/lib/documents/textExtraction";
 import { describeUploadRejection } from "@/lib/uploadValidation";
+import { computeInboxIntake } from "@/lib/documents/inboxIntake";
+import { getDocumentVersionChain } from "@/lib/documents/documentQueries";
 
 function formToInventoryItemInput(formData: FormData) {
   return {
@@ -68,7 +70,7 @@ export async function importContract(formData: FormData): Promise<ImportResult> 
   });
 
   if (file instanceof File && file.size > 0) {
-    const { storedName, size } = await saveDocument(contract.id, file);
+    const { storedName, size, sha256 } = await saveDocument(contract.id, file);
     await prisma.document.create({
       data: {
         contractId: contract.id,
@@ -76,6 +78,7 @@ export async function importContract(formData: FormData): Promise<ImportResult> 
         storedName,
         mimeType: file.type,
         size,
+        sha256,
       },
     });
   }
@@ -102,7 +105,7 @@ export async function importProduct(formData: FormData): Promise<ImportResult> {
   });
 
   if (file instanceof File && file.size > 0) {
-    const { storedName, size } = await saveProductDocument(product.id, file);
+    const { storedName, size, sha256 } = await saveProductDocument(product.id, file);
     await prisma.productDocument.create({
       data: {
         productId: product.id,
@@ -111,6 +114,7 @@ export async function importProduct(formData: FormData): Promise<ImportResult> {
         mimeType: file.type,
         size,
         kind: ProductDocumentKind.INVOICE,
+        sha256,
       },
     });
   }
@@ -138,7 +142,7 @@ export async function importInventoryItem(formData: FormData): Promise<ImportRes
   });
 
   if (file instanceof File && file.size > 0) {
-    const { storedName, size } = await saveInventoryItemDocument(item.id, file);
+    const { storedName, size, sha256 } = await saveInventoryItemDocument(item.id, file);
     await prisma.inventoryItemDocument.create({
       data: {
         inventoryItemId: item.id,
@@ -146,6 +150,7 @@ export async function importInventoryItem(formData: FormData): Promise<ImportRes
         storedName,
         mimeType: file.type,
         size,
+        sha256,
       },
     });
   }
@@ -166,8 +171,9 @@ export async function saveToInbox(formData: FormData): Promise<ImportResult> {
   if (rejection) return { error: rejection };
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  const { storedName, size } = await saveInboxDocument(file);
+  const { storedName, size, sha256 } = await saveInboxDocument(file);
   const extractedText = await extractSearchableText(buffer, file.type);
+  const { status, guessedType } = await computeInboxIntake({ extractedText, sha256 });
 
   const doc = await prisma.inboxDocument.create({
     data: {
@@ -177,6 +183,9 @@ export async function saveToInbox(formData: FormData): Promise<ImportResult> {
       size,
       extractedText,
       uploadedById: user.id,
+      sha256,
+      status,
+      guessedType,
     },
   });
 
@@ -229,4 +238,102 @@ export async function discardInboxDocument(inboxId: string): Promise<ImportResul
   revalidatePath("/documents/inbox");
   revalidatePath("/documents");
   return { success: "Discarded." };
+}
+
+// Downgrades a POSSIBLE_DUPLICATE row back into the normal classify flow
+// (#206) — used when the user confirms the hash match was a coincidence
+// rather than a genuine re-upload.
+export async function keepInboxDocumentSeparate(inboxId: string): Promise<ImportResult> {
+  await requireUser();
+
+  const doc = await prisma.inboxDocument.findUnique({ where: { id: inboxId } });
+  if (!doc) return { error: "Document not found." };
+
+  await prisma.inboxDocument.update({
+    where: { id: inboxId },
+    data: { status: doc.guessedType ? "NEEDS_REVIEW" : "NEEDS_CLASSIFICATION" },
+  });
+
+  revalidatePath("/documents/inbox");
+  return { success: "Kept as a separate document." };
+}
+
+// Files an inbox document as a new version of an already-filed document
+// (#206), instead of a separate record — used from the duplicate-review UI
+// once the user confirms this really is a re-upload. Scoped to the three
+// types the inbox can natively file into (matches classifyInboxDocument's
+// boundary); a duplicate match in another domain is shown as informational
+// only, since inbox filing doesn't reach those domains today.
+export async function attachInboxDocumentAsVersion(
+  inboxId: string,
+  targetKind: "CONTRACT" | "PRODUCT" | "INVENTORY_ITEM",
+  targetOwnerId: string,
+  targetDocId: string,
+): Promise<ImportResult> {
+  await requireUser();
+
+  const doc = await prisma.inboxDocument.findUnique({ where: { id: inboxId } });
+  if (!doc) return { error: "Document not found." };
+
+  // supersedesId is @unique per table, so this must point at the chain's
+  // current head, not necessarily targetDocId itself — the hash match could
+  // have landed on an already-superseded (non-head) version.
+  const chain = await getDocumentVersionChain(targetKind, targetDocId);
+  const headId = chain.length > 0 ? chain[chain.length - 1].id : targetDocId;
+
+  const buffer = await readInboxDocument(doc.storedName);
+  const file = new File([new Uint8Array(buffer)], doc.filename, { type: doc.mimeType });
+
+  if (targetKind === "CONTRACT") {
+    const { storedName, size, sha256 } = await saveDocument(targetOwnerId, file);
+    await prisma.document.create({
+      data: {
+        contractId: targetOwnerId,
+        filename: doc.filename,
+        storedName,
+        mimeType: doc.mimeType,
+        size,
+        sha256,
+        supersedesId: headId,
+        extractedText: doc.extractedText,
+      },
+    });
+    revalidatePath(`/contracts/${targetOwnerId}`);
+  } else if (targetKind === "PRODUCT") {
+    const { storedName, size, sha256 } = await saveProductDocument(targetOwnerId, file);
+    await prisma.productDocument.create({
+      data: {
+        productId: targetOwnerId,
+        filename: doc.filename,
+        storedName,
+        mimeType: doc.mimeType,
+        size,
+        sha256,
+        supersedesId: headId,
+        extractedText: doc.extractedText,
+      },
+    });
+    revalidatePath(`/products/${targetOwnerId}`);
+  } else {
+    const { storedName, size, sha256 } = await saveInventoryItemDocument(targetOwnerId, file);
+    await prisma.inventoryItemDocument.create({
+      data: {
+        inventoryItemId: targetOwnerId,
+        filename: doc.filename,
+        storedName,
+        mimeType: doc.mimeType,
+        size,
+        sha256,
+        supersedesId: headId,
+      },
+    });
+    revalidatePath(`/inventory/${targetOwnerId}`);
+  }
+
+  await deleteInboxDocument(doc.storedName);
+  await prisma.inboxDocument.delete({ where: { id: inboxId } });
+
+  revalidatePath("/documents/inbox");
+  revalidatePath("/documents");
+  return { success: "Attached as a new version." };
 }

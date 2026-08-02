@@ -81,7 +81,7 @@ async function attachItemDocument(homeItemId: string, file: File): Promise<Actio
   const rejection = await describeUploadRejection(file);
   if (rejection) return { error: rejection };
 
-  const { storedName, size } = await saveHomeItemDocument(homeItemId, file);
+  const { storedName, size, sha256 } = await saveHomeItemDocument(homeItemId, file);
   await prisma.homeItemDocument.create({
     data: {
       homeItemId,
@@ -89,6 +89,7 @@ async function attachItemDocument(homeItemId: string, file: File): Promise<Actio
       storedName,
       mimeType: file.type,
       size,
+      sha256,
     },
   });
   return null;
@@ -470,7 +471,7 @@ async function attachStatementDocument(
   const rejection = await describeUploadRejection(file);
   if (rejection) return { error: rejection };
 
-  const { storedName, size } = await saveRentalStatementDocument(statementId, file);
+  const { storedName, size, sha256 } = await saveRentalStatementDocument(statementId, file);
   await prisma.rentalStatementDocument.create({
     data: {
       rentalStatementId: statementId,
@@ -478,6 +479,7 @@ async function attachStatementDocument(
       storedName,
       mimeType: file.type,
       size,
+      sha256,
     },
   });
   return null;

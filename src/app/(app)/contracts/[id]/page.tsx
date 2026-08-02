@@ -17,6 +17,7 @@ import { DocumentList } from "@/components/DocumentList";
 import { RecordMeta } from "@/components/RecordMeta";
 import { ReminderHealthCard } from "@/components/ReminderHealthCard";
 import { getReminderHealth } from "@/lib/notifications/health";
+import { DocFallbackBanner } from "@/components/DocFallbackBanner";
 import {
   CATEGORY_LABELS,
   BILLING_LABELS,
@@ -29,10 +30,13 @@ import { getUserPreferences } from "@/lib/userPreferences";
 
 export default async function ContractDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ docFallback?: string }>;
 }) {
   const { id } = await params;
+  const { docFallback } = await searchParams;
   const [contract, { dateFormat, region }] = await Promise.all([
     prisma.contract.findUnique({
       where: { id },
@@ -115,6 +119,8 @@ export default async function ContractDetailPage({
           </DetailOverflowMenu>
         </div>
       </div>
+
+      <DocFallbackBanner docFallback={docFallback} />
 
       {!cancelled && (
         <DetailStatusBanner

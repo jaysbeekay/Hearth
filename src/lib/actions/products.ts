@@ -17,6 +17,7 @@ import { clearNotificationLogs } from "@/lib/notifications/logs";
 import { extractSearchableText } from "@/lib/documents/textExtraction";
 import { describeUploadRejection } from "@/lib/uploadValidation";
 import { extractionFieldsFromForm } from "@/lib/documents/extractionConfirmation";
+import { saveFileToInboxFallback } from "@/lib/documents/inboxFallback";
 
 export type ActionState = {
   error?: string;
@@ -66,7 +67,7 @@ async function attachProductDocument(
   const rejection = await describeUploadRejection(file);
   if (rejection) return { error: rejection };
 
-  const { storedName, size } = await saveProductDocument(productId, file);
+  const { storedName, size, sha256 } = await saveProductDocument(productId, file);
   // Only invoices carry meaningful text; skip OCR on plain product photos.
   const extractedText =
     kind === ProductDocumentKind.INVOICE
@@ -81,6 +82,7 @@ async function attachProductDocument(
       size,
       kind,
       extractedText,
+      sha256,
     },
   });
   return null;
@@ -113,16 +115,25 @@ export async function createProduct(
     data: { ...parsed.data, createdById: user.id, ...extractionFieldsFromForm(formData) },
   });
 
+  let docFallback: "inbox" | "failed" | null = null;
   if (invoiceFile instanceof File && invoiceFile.size > 0) {
-    await attachProductDocument(product.id, invoiceFile, ProductDocumentKind.INVOICE);
+    const result = await attachProductDocument(product.id, invoiceFile, ProductDocumentKind.INVOICE);
+    if (result?.error) {
+      const fallback = await saveFileToInboxFallback(invoiceFile, user.id);
+      docFallback = fallback ? "inbox" : "failed";
+    }
   }
   if (photoFile instanceof File && photoFile.size > 0) {
-    await attachProductDocument(product.id, photoFile, ProductDocumentKind.PHOTO);
+    const result = await attachProductDocument(product.id, photoFile, ProductDocumentKind.PHOTO);
+    if (result?.error) {
+      const fallback = await saveFileToInboxFallback(photoFile, user.id);
+      docFallback = fallback ? "inbox" : (docFallback ?? "failed");
+    }
   }
 
   revalidatePath("/products");
   revalidatePath("/dashboard");
-  redirect(`/products/${product.id}`);
+  redirect(`/products/${product.id}${docFallback ? `?docFallback=${docFallback}` : ""}`);
 }
 
 export async function updateProduct(

@@ -344,6 +344,11 @@ model InboxDocument {
   // Best-guess target type from cheap heuristic-only scoring at ingestion
   // time (#195) — pre-selects the classify dropdown, never auto-files.
   guessedType   InboxTargetType?
+  // #199/#206: computed once at ingestion (see computeInboxIntake) from
+  // extraction success, guessedType, and a sha256 match against every filed
+  // document table — never recomputed afterward, so a status set here stays
+  // stable even if e.g. the matched duplicate is later deleted.
+  status        InboxDocumentStatus @default(NEEDS_CLASSIFICATION)
 
   uploadedAt    DateTime      @default(now())
 
@@ -360,6 +365,13 @@ enum InboxTargetType {
   CONTRACT
   PRODUCT
   INVENTORY
+}
+
+enum InboxDocumentStatus {
+  NEEDS_CLASSIFICATION
+  NEEDS_REVIEW
+  EXTRACTION_FAILED
+  POSSIBLE_DUPLICATE
 }
 
 // Records inbound email Message-IDs already ingested (#195), so a poll that

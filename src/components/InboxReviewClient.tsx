@@ -1,12 +1,51 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FileText, X, Loader2, AlertTriangle } from "lucide-react";
-import { classifyInboxDocument, discardInboxDocument } from "@/lib/actions/import";
+import { FileText, X, Loader2, AlertTriangle, Copy } from "lucide-react";
+import Link from "next/link";
+import {
+  classifyInboxDocument,
+  discardInboxDocument,
+  keepInboxDocumentSeparate,
+  attachInboxDocumentAsVersion,
+} from "@/lib/actions/import";
 import { CATEGORY_LABELS, humanFileSize, formatDate } from "@/lib/utils";
 import { INVENTORY_ITEM_CATEGORIES } from "@/lib/validation/inventory";
 import { showToast } from "@/components/Toast";
 import { extractionMessage, isAiExtractionSource } from "@/lib/autoFillHighlight";
+
+export type InboxDocumentStatus =
+  | "NEEDS_CLASSIFICATION"
+  | "NEEDS_REVIEW"
+  | "EXTRACTION_FAILED"
+  | "POSSIBLE_DUPLICATE";
+
+export interface DuplicateMatch {
+  kind: string;
+  filename: string;
+  ownerHref: string | null;
+  ownerId: string | null;
+  docId: string;
+}
+
+const STATUS_LABELS: Record<InboxDocumentStatus, string> = {
+  NEEDS_CLASSIFICATION: "Needs classification",
+  NEEDS_REVIEW: "Needs review",
+  EXTRACTION_FAILED: "Extraction failed",
+  POSSIBLE_DUPLICATE: "Possible duplicate",
+};
+
+const KIND_LABELS: Record<string, string> = {
+  CONTRACT: "a contract",
+  PRODUCT: "a product/warranty",
+  TRIP_SEGMENT: "a trip",
+  RENTAL_STATEMENT: "a rental statement",
+  HOME_ITEM: "a home item",
+  VEHICLE_ITEM: "a vehicle record",
+  INVENTORY_ITEM: "an inventory item",
+  TRADE: "a wealth trade",
+  INBOX: "another unfiled document",
+};
 
 const INVENTORY_CATEGORY_LABELS: Record<string, string> = {
   APPLIANCE: "Appliance",
@@ -31,6 +70,8 @@ export interface InboxDocSummary {
   // Set for documents ingested by email (#195) — never for web uploads.
   fromAddress?: string | null;
   guessedType?: EntityType | null;
+  status: InboxDocumentStatus;
+  duplicateOf: DuplicateMatch[];
 }
 type ExtractionSource = "byok" | "heuristic" | "llm" | "none";
 
@@ -90,6 +131,34 @@ function fieldClass(autoFilled?: boolean, isAi?: boolean) {
   }`;
 }
 
+// #199 — lets a household with many pending documents jump straight to e.g.
+// "possible duplicate" instead of scanning past everything else.
+function FilterChip({
+  label,
+  count,
+  active,
+  onClick,
+}: {
+  label: string;
+  count: number;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full border px-3 py-1 text-xs font-medium ${
+        active
+          ? "border-accent bg-accent/10 text-accent"
+          : "border-border bg-surface text-muted hover:bg-black/5 dark:hover:bg-white/5"
+      }`}
+    >
+      {label} ({count})
+    </button>
+  );
+}
+
 function RowField({
   label,
   htmlFor,
@@ -133,6 +202,14 @@ export function InboxReviewClient({
   const [rows, setRows] = useState<Record<string, RowState>>(() =>
     Object.fromEntries(docs.map((d) => [d.id, emptyRowState(d.guessedType ?? "CONTRACT")])),
   );
+  const [statusFilter, setStatusFilter] = useState<InboxDocumentStatus | "ALL">("ALL");
+  // Rows the user explicitly chose "keep as separate" for this session —
+  // the server row's status flips too (keepInboxDocumentSeparate), but this
+  // client component doesn't re-fetch props on that revalidatePath, so the
+  // duplicate panel needs its own override to switch to the classify form
+  // immediately instead of waiting for the next full page load.
+  const [keptSeparate, setKeptSeparate] = useState<Set<string>>(new Set());
+  const [attaching, setAttaching] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     // Deferred one tick so the initial scan (which sets state) isn't a
@@ -251,9 +328,39 @@ export function InboxReviewClient({
     }
   }
 
-  const visibleDocs = docs.filter((d) => visibleIds.includes(d.id));
+  async function keepSeparate(doc: InboxDocSummary) {
+    const result = await keepInboxDocumentSeparate(doc.id);
+    if (result.error) {
+      showToast(`${doc.filename}: ${result.error}`, "error");
+    } else {
+      setKeptSeparate((prev) => new Set(prev).add(doc.id));
+    }
+  }
 
-  if (visibleDocs.length === 0) {
+  async function attachAsVersion(doc: InboxDocSummary, match: DuplicateMatch) {
+    if (!match.ownerId) return;
+    const targetKind = match.kind as "CONTRACT" | "PRODUCT" | "INVENTORY_ITEM";
+    setAttaching((prev) => new Set(prev).add(doc.id));
+    const result = await attachInboxDocumentAsVersion(doc.id, targetKind, match.ownerId, match.docId);
+    setAttaching((prev) => {
+      const next = new Set(prev);
+      next.delete(doc.id);
+      return next;
+    });
+    if (result.error) {
+      showToast(`${doc.filename}: ${result.error}`, "error");
+    } else {
+      showToast(`Attached ${doc.filename} as a new version`);
+      setVisibleIds((prev) => prev.filter((id) => id !== doc.id));
+    }
+  }
+
+  const remainingDocs = docs.filter((d) => visibleIds.includes(d.id));
+  const visibleDocs = remainingDocs.filter(
+    (d) => statusFilter === "ALL" || d.status === statusFilter,
+  );
+
+  if (remainingDocs.length === 0) {
     return (
       <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
         Nothing needs review — every uploaded document has been filed.
@@ -263,6 +370,36 @@ export function InboxReviewClient({
 
   return (
     <div className="space-y-3">
+      {remainingDocs.length > 1 && (
+        <div className="flex flex-wrap gap-2">
+          <FilterChip
+            label="All"
+            count={remainingDocs.length}
+            active={statusFilter === "ALL"}
+            onClick={() => setStatusFilter("ALL")}
+          />
+          {(Object.keys(STATUS_LABELS) as InboxDocumentStatus[]).map((s) => {
+            const count = remainingDocs.filter((d) => d.status === s).length;
+            if (count === 0) return null;
+            return (
+              <FilterChip
+                key={s}
+                label={STATUS_LABELS[s]}
+                count={count}
+                active={statusFilter === s}
+                onClick={() => setStatusFilter(s)}
+              />
+            );
+          })}
+        </div>
+      )}
+
+      {visibleDocs.length === 0 && (
+        <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted">
+          No documents match this filter.
+        </p>
+      )}
+
       {visibleDocs.map((doc) => {
         const row = rows[doc.id];
         if (!row) return null;
@@ -273,6 +410,8 @@ export function InboxReviewClient({
         // save time (#171).
         const missingRequired =
           row.type === "CONTRACT" && !row.contract.provider.trim() ? ["Provider"] : [];
+        const isDuplicatePending = doc.status === "POSSIBLE_DUPLICATE" && !keptSeparate.has(doc.id);
+        const isAttaching = attaching.has(doc.id);
         return (
           <div key={doc.id} className="rounded-xl border border-border bg-surface p-4">
             <div className="mb-3 flex items-center justify-between gap-2">
@@ -312,26 +451,71 @@ export function InboxReviewClient({
               </div>
             </div>
 
-            {row.status === "scanning" && (
+            {isDuplicatePending && (
+              <div className="space-y-2 rounded-lg border border-warning/30 bg-warning/10 p-3">
+                <p className="flex items-center gap-1.5 text-sm font-medium text-warning">
+                  <Copy size={14} />
+                  This file looks identical to something already saved.
+                </p>
+                <ul className="space-y-1 text-sm">
+                  {doc.duplicateOf.map((match) => (
+                    <li key={match.docId} className="flex flex-wrap items-center gap-2">
+                      <span className="text-foreground/70">
+                        Matches {KIND_LABELS[match.kind] ?? match.kind}:{" "}
+                      </span>
+                      {match.ownerHref ? (
+                        <Link href={match.ownerHref} className="font-medium text-accent hover:underline">
+                          {match.filename}
+                        </Link>
+                      ) : (
+                        <span className="font-medium">{match.filename}</span>
+                      )}
+                      {match.ownerHref && match.ownerId && (
+                        <button
+                          type="button"
+                          disabled={isAttaching}
+                          onClick={() => attachAsVersion(doc, match)}
+                          className="rounded-md border border-border px-2 py-1 text-xs font-medium hover:bg-black/5 disabled:opacity-60 dark:hover:bg-white/5"
+                        >
+                          {isAttaching ? "Attaching…" : "Attach as new version"}
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => keepSeparate(doc)}
+                    className="rounded-md border border-border px-2 py-1 text-xs font-medium hover:bg-black/5 dark:hover:bg-white/5"
+                  >
+                    Keep as separate document
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!isDuplicatePending && row.status === "scanning" && (
               <p role="status" className="flex items-center gap-2 text-sm text-muted">
                 <Loader2 size={14} className="animate-spin" /> Scanning…
               </p>
             )}
 
-            {row.scanMessage && row.status !== "scanning" && (
+            {!isDuplicatePending && row.scanMessage && row.status !== "scanning" && (
               <p role="status" aria-live="polite" className="mb-2 text-xs text-muted">
                 {row.scanMessage}
               </p>
             )}
 
-            {row.status !== "scanning" && missingRequired.length > 0 && (
+            {!isDuplicatePending && row.status !== "scanning" && missingRequired.length > 0 && (
               <p className="mb-2 flex items-center gap-1 text-xs font-medium text-warning">
                 <AlertTriangle size={12} />
                 Missing required: {missingRequired.join(", ")}
               </p>
             )}
 
-            {(row.status === "ready" || row.status === "saving" || row.status === "error") &&
+            {!isDuplicatePending &&
+              (row.status === "ready" || row.status === "saving" || row.status === "error") &&
               row.type === "CONTRACT" && (
                 <div className="grid gap-2 sm:grid-cols-2">
                   <RowField label="Title" htmlFor={`${doc.id}-title`}>
@@ -397,7 +581,8 @@ export function InboxReviewClient({
                 </div>
               )}
 
-            {(row.status === "ready" || row.status === "saving" || row.status === "error") &&
+            {!isDuplicatePending &&
+              (row.status === "ready" || row.status === "saving" || row.status === "error") &&
               row.type === "PRODUCT" && (
                 <div className="grid gap-2 sm:grid-cols-3">
                   <RowField label="Description" htmlFor={`${doc.id}-description`}>
@@ -446,7 +631,8 @@ export function InboxReviewClient({
                 </div>
               )}
 
-            {(row.status === "ready" || row.status === "saving" || row.status === "error") &&
+            {!isDuplicatePending &&
+              (row.status === "ready" || row.status === "saving" || row.status === "error") &&
               row.type === "INVENTORY" && (
                 <div className="grid gap-2 sm:grid-cols-2">
                   <RowField label="Label" htmlFor={`${doc.id}-label`}>
@@ -515,9 +701,11 @@ export function InboxReviewClient({
                 </div>
               )}
 
-            {row.error && <p className="mt-2 text-xs text-danger">{row.error}</p>}
+            {!isDuplicatePending && row.error && (
+              <p className="mt-2 text-xs text-danger">{row.error}</p>
+            )}
 
-            {(row.status === "ready" || row.status === "error") && (
+            {!isDuplicatePending && (row.status === "ready" || row.status === "error") && (
               <button
                 type="button"
                 onClick={() => classify(doc)}

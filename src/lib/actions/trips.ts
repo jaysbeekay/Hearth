@@ -52,7 +52,7 @@ async function attachSegmentDocument(
   const rejection = await describeUploadRejection(file);
   if (rejection) return { error: rejection };
 
-  const { storedName, size } = await saveTripSegmentDocument(tripSegmentId, file);
+  const { storedName, size, sha256 } = await saveTripSegmentDocument(tripSegmentId, file);
   await prisma.tripSegmentDocument.create({
     data: {
       tripSegmentId,
@@ -60,6 +60,7 @@ async function attachSegmentDocument(
       storedName,
       mimeType: file.type,
       size,
+      sha256,
     },
   });
   return null;

@@ -16,15 +16,19 @@ import { ProductDocumentList } from "@/components/ProductDocumentList";
 import { RecordMeta } from "@/components/RecordMeta";
 import { ReminderHealthCard } from "@/components/ReminderHealthCard";
 import { getReminderHealth } from "@/lib/notifications/health";
+import { DocFallbackBanner } from "@/components/DocFallbackBanner";
 import { daysUntil, formatCurrency, formatDate } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 
 export default async function ProductDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ docFallback?: string }>;
 }) {
   const { id } = await params;
+  const { docFallback } = await searchParams;
   const [product, { dateFormat, region }] = await Promise.all([
     prisma.product.findUnique({
       where: { id },
@@ -93,6 +97,8 @@ export default async function ProductDetailPage({
           className="max-h-80 w-full rounded-xl border border-border object-contain"
         />
       )}
+
+      <DocFallbackBanner docFallback={docFallback} />
 
       <DetailStatusBanner
         days={days}

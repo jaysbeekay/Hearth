@@ -5,7 +5,7 @@ import { isEmailIngestionConfigured, getEmailIngestConfig } from "@/lib/appSetti
 import { saveInboxDocument } from "@/lib/storage";
 import { UploadRejectedError } from "@/lib/uploadValidation";
 import { extractSearchableText } from "@/lib/documents/textExtraction";
-import { guessDocumentType } from "@/lib/documents/classifyDocument";
+import { computeInboxIntake } from "@/lib/documents/inboxIntake";
 
 // Bounds one poll's cost: a mailbox flooded with mail (or mail-bombed on
 // purpose) can only ever cost one connection and this many attachment
@@ -76,12 +76,12 @@ export async function runEmailIngestion(): Promise<EmailIngestionResult> {
             );
 
             try {
-              const { storedName, size } = await saveInboxDocument(file);
+              const { storedName, size, sha256 } = await saveInboxDocument(file);
               const extractedText = await extractSearchableText(
                 attachment.content,
                 attachment.contentType,
               );
-              const guessedType = extractedText ? guessDocumentType(extractedText) : null;
+              const { status, guessedType } = await computeInboxIntake({ extractedText, sha256 });
 
               await prisma.inboxDocument.create({
                 data: {
@@ -93,6 +93,8 @@ export async function runEmailIngestion(): Promise<EmailIngestionResult> {
                   source: "EMAIL",
                   fromAddress,
                   guessedType,
+                  status,
+                  sha256,
                   uploadedById: null,
                 },
               });

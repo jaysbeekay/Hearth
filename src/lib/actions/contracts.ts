@@ -16,6 +16,7 @@ import { extractSearchableText } from "@/lib/documents/textExtraction";
 import { describeUploadRejection } from "@/lib/uploadValidation";
 import { clearNotificationLogs } from "@/lib/notifications/logs";
 import { extractionFieldsFromForm } from "@/lib/documents/extractionConfirmation";
+import { saveFileToInboxFallback } from "@/lib/documents/inboxFallback";
 
 export type ActionState = {
   error?: string;
@@ -61,7 +62,7 @@ async function attachDocument(contractId: string, file: File): Promise<ActionSta
   const rejection = await describeUploadRejection(file);
   if (rejection) return { error: rejection };
 
-  const { storedName, size } = await saveDocument(contractId, file);
+  const { storedName, size, sha256 } = await saveDocument(contractId, file);
   const extractedText = await extractSearchableText(Buffer.from(await file.arrayBuffer()), file.type);
   await prisma.document.create({
     data: {
@@ -71,6 +72,7 @@ async function attachDocument(contractId: string, file: File): Promise<ActionSta
       mimeType: file.type,
       size,
       extractedText,
+      sha256,
     },
   });
   return null;
@@ -100,13 +102,18 @@ export async function createContract(
     data: { ...parsed.data, createdById: user.id, ...extractionFieldsFromForm(formData) },
   });
 
+  let docFallback: "inbox" | "failed" | null = null;
   if (file instanceof File && file.size > 0) {
-    await attachDocument(contract.id, file);
+    const attachResult = await attachDocument(contract.id, file);
+    if (attachResult?.error) {
+      const fallback = await saveFileToInboxFallback(file, user.id);
+      docFallback = fallback ? "inbox" : "failed";
+    }
   }
 
   revalidatePath("/contracts");
   revalidatePath("/dashboard");
-  redirect(`/contracts/${contract.id}`);
+  redirect(`/contracts/${contract.id}${docFallback ? `?docFallback=${docFallback}` : ""}`);
 }
 
 export async function updateContract(

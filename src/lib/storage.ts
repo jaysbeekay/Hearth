@@ -1,8 +1,15 @@
-import { randomUUID } from "crypto";
+import { randomUUID, createHash } from "crypto";
 import path from "path";
 import fs from "fs/promises";
 import { env } from "@/lib/env";
 import { readValidatedUpload } from "@/lib/uploadValidation";
+
+// Exact-duplicate detection signal (#206) — every save*Document function
+// below returns this alongside storedName/size so callers can persist it on
+// the document row without re-reading the file.
+function sha256Hex(buffer: Buffer): string {
+  return createHash("sha256").update(buffer).digest("hex");
+}
 
 export { MAX_UPLOAD_BYTES, ALLOWED_MIME_TYPES } from "@/lib/uploadLimits";
 
@@ -41,7 +48,7 @@ export async function saveDocument(contractId: string, file: File) {
   const buffer = await readValidatedUpload(file);
   await fs.writeFile(fullPath, buffer);
 
-  return { storedName, size: buffer.byteLength };
+  return { storedName, size: buffer.byteLength, sha256: sha256Hex(buffer) };
 }
 
 export async function readDocument(contractId: string, storedName: string) {
@@ -68,7 +75,7 @@ export async function saveProductDocument(productId: string, file: File) {
   const buffer = await readValidatedUpload(file);
   await fs.writeFile(fullPath, buffer);
 
-  return { storedName, size: buffer.byteLength };
+  return { storedName, size: buffer.byteLength, sha256: sha256Hex(buffer) };
 }
 
 export async function readProductDocument(productId: string, storedName: string) {
@@ -95,7 +102,7 @@ export async function saveTripSegmentDocument(tripSegmentId: string, file: File)
   const buffer = await readValidatedUpload(file);
   await fs.writeFile(fullPath, buffer);
 
-  return { storedName, size: buffer.byteLength };
+  return { storedName, size: buffer.byteLength, sha256: sha256Hex(buffer) };
 }
 
 export async function readTripSegmentDocument(tripSegmentId: string, storedName: string) {
@@ -122,7 +129,7 @@ export async function saveHomeItemDocument(homeItemId: string, file: File) {
   const buffer = await readValidatedUpload(file);
   await fs.writeFile(fullPath, buffer);
 
-  return { storedName, size: buffer.byteLength };
+  return { storedName, size: buffer.byteLength, sha256: sha256Hex(buffer) };
 }
 
 export async function readHomeItemDocument(homeItemId: string, storedName: string) {
@@ -153,7 +160,7 @@ export async function saveVehicleItemDocument(vehicleItemId: string, file: File)
   const buffer = await readValidatedUpload(file);
   await fs.writeFile(fullPath, buffer);
 
-  return { storedName, size: buffer.byteLength };
+  return { storedName, size: buffer.byteLength, sha256: sha256Hex(buffer) };
 }
 
 export async function readVehicleItemDocument(vehicleItemId: string, storedName: string) {
@@ -188,7 +195,7 @@ export async function saveRentalStatementDocument(statementId: string, file: Fil
   const buffer = await readValidatedUpload(file);
   await fs.writeFile(fullPath, buffer);
 
-  return { storedName, size: buffer.byteLength };
+  return { storedName, size: buffer.byteLength, sha256: sha256Hex(buffer) };
 }
 
 export async function readRentalStatementDocument(statementId: string, storedName: string) {
@@ -223,7 +230,7 @@ export async function saveInventoryItemDocument(inventoryItemId: string, file: F
   const buffer = await readValidatedUpload(file);
   await fs.writeFile(fullPath, buffer);
 
-  return { storedName, size: buffer.byteLength };
+  return { storedName, size: buffer.byteLength, sha256: sha256Hex(buffer) };
 }
 
 export async function readInventoryItemDocument(inventoryItemId: string, storedName: string) {
@@ -254,7 +261,7 @@ export async function saveInboxDocument(file: File) {
   const buffer = await readValidatedUpload(file);
   await fs.writeFile(fullPath, buffer);
 
-  return { storedName, size: buffer.byteLength };
+  return { storedName, size: buffer.byteLength, sha256: sha256Hex(buffer) };
 }
 
 export async function readInboxDocument(storedName: string) {
@@ -281,7 +288,7 @@ export async function saveTradeDocument(tradeId: string, file: File) {
   const buffer = await readValidatedUpload(file);
   await fs.writeFile(fullPath, buffer);
 
-  return { storedName, size: buffer.byteLength };
+  return { storedName, size: buffer.byteLength, sha256: sha256Hex(buffer) };
 }
 
 export async function readTradeDocument(tradeId: string, storedName: string) {

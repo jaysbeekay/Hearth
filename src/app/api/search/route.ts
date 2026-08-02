@@ -357,6 +357,28 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // #199 — an unfiled document is still findable by name/content, so a
+  // household member who half-remembers uploading something isn't limited
+  // to browsing the Documents inbox tab to rediscover it.
+  queries.push(
+    prisma.inboxDocument
+      .findMany({
+        where: { OR: [{ filename: contains }, { extractedText: contains }] },
+        select: { id: true, filename: true },
+        take: LIMIT,
+      })
+      .then((rows) =>
+        rows.map((r) => ({
+          id: r.id,
+          title: r.filename,
+          subtitle: "Needs review",
+          href: "/documents/inbox",
+          group: "Inbox",
+          matchedInDocument: !matchedViaFields(q, [r.filename]),
+        })),
+      ),
+  );
+
   const results = (await Promise.all(queries)).flat();
   const groups: Record<string, SearchResult[]> = {};
   for (const r of results) {

@@ -59,7 +59,7 @@ async function attachDocument(inventoryItemId: string, file: File): Promise<Acti
   const rejection = await describeUploadRejection(file);
   if (rejection) return { error: rejection };
 
-  const { storedName, size } = await saveInventoryItemDocument(inventoryItemId, file);
+  const { storedName, size, sha256 } = await saveInventoryItemDocument(inventoryItemId, file);
   await prisma.inventoryItemDocument.create({
     data: {
       inventoryItemId,
@@ -67,6 +67,7 @@ async function attachDocument(inventoryItemId: string, file: File): Promise<Acti
       storedName,
       mimeType: file.type,
       size,
+      sha256,
     },
   });
   return null;
