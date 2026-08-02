@@ -9,6 +9,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Important flag, completeness filters, and search filter chips**
+  (#205, #207, #208). Documents on a contract or product can be starred
+  Important for quick retrieval later. The Contracts and Products list
+  pages gained filter chips for Expiring soon, Expired, Needs review, and
+  Missing document. Global search gained matching filter chips (plus
+  Important), so a record can be found by state even without remembering
+  its name.
 - **Inbox duplicate detection and status filters** (#199, #206). Documents
   in the inbox are now tagged Needs classification, Needs review, Extraction
   failed, or Possible duplicate, with filter chips to jump straight to any
