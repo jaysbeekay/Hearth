@@ -9,6 +9,19 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Inbox duplicate detection and status filters** (#199, #206). Documents
+  in the inbox are now tagged Needs classification, Needs review, Extraction
+  failed, or Possible duplicate, with filter chips to jump straight to any
+  of them. A likely duplicate (identical file content to something already
+  filed) shows what it matches, with options to attach it as a new version,
+  keep it as a separate document, or discard it. A contract's document list
+  now groups re-uploads into a version history instead of listing them as
+  unrelated files.
+- **Never lose an upload** (#203). If a document can't be attached to a
+  new contract or product for some reason, it's saved to the Documents
+  inbox instead of silently disappearing, with a banner on the record
+  pointing there. Global search now also finds documents still sitting in
+  the inbox.
 - **Reminder health** (#201). Contract, product, and vehicle detail pages
   show a Reminder health card — whether a reminder is enabled, the next
   reminder date, thresholds, delivery channel and status, last sent, last
