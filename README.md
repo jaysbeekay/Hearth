@@ -33,6 +33,20 @@ Everything else is optional. Set `SMTP_*` to enable email reminders, `NTFY_*` fo
   auto-fills fields like provider, dates, and cost via AI/heuristic extraction
 - Configurable reminder thresholds per contract/product (e.g. 30/14/7/1 days before expiry)
 - Reminders via email (SMTP) and/or push notifications ([ntfy](https://ntfy.sh))
+- Reminder health status per record — enabled, next reminder date, thresholds, delivery
+  channel/status, last sent, last failure — plus a one-off "Send test reminder" action
+- Auto-filled fields from a scanned document require an explicit confirmation before
+  reminders go live, so an incorrect extracted date or cost can't silently slip through
+- Star a document Important for quick retrieval, and filter contracts/warranties by
+  Expiring soon, Expired, Needs review, or Missing document
+- A Documents inbox holds uploads that couldn't be immediately filed — unclassified, needs
+  review, extraction failed, or a possible duplicate of something already saved — with
+  options to attach a duplicate as a new version, keep it separate, or discard it
+- Forward or email documents to a configured IMAP mailbox — Hearth polls it, guesses the
+  document type, and drops it in the inbox pre-classified for review
+- Global search across every module supports the same filters, plus finding documents
+  still sitting in the inbox, with copy-to-clipboard on policy numbers, serial numbers,
+  VINs, and confirmation codes on detail pages
 
 **Travel** *(opt-in module)*
 - Plan trips as itineraries with flight, lodging, and activity segments
@@ -629,6 +643,7 @@ for the full list with defaults. Notable ones:
 | `BACKUP_SFTP_*` | Optional. Pre-populates the SFTP backup fields (`BACKUP_SFTP_HOST`, `BACKUP_SFTP_USERNAME`, plus `BACKUP_SFTP_PASSWORD` or `BACKUP_SFTP_PRIVATE_KEY`) — still requires picking "SFTP" in the backup destination dropdown to activate it. See "Database backups" above. |
 | `BACKUP_LOCAL_PATH` | Optional. Pre-populates the local-filesystem backup path — still requires picking "Local filesystem" in the backup destination dropdown to activate it. See "Database backups" above. |
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | Optional. Set both to show a "Sign in with GitHub" button on the login page. Sign-up stays invite-only — GitHub sign-in only works for an email that already has an admin-invited Hearth account. |
+| `EMAIL_INGEST_HOST` | Optional. Set to enable an IMAP mailbox household members can email or forward documents to — Hearth polls it on `EMAIL_INGEST_CRON_SCHEDULE` and drops attachments in the Documents inbox pre-classified for review. See `EMAIL_INGEST_PORT`/`EMAIL_INGEST_SECURE`/`EMAIL_INGEST_USER`/`EMAIL_INGEST_PASSWORD`/`EMAIL_INGEST_MAILBOX` in `.env.example` for the rest. |
 
 If neither email nor ntfy is configured, the scheduler runs but sends nothing
 (no errors).

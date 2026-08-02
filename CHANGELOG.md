@@ -7,6 +7,8 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-08-02
+
 ### Added
 
 - **Copyable identifiers on detail pages** (#209, #210, #211). Policy
