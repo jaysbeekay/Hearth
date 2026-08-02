@@ -7,6 +7,12 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+### Added
+
+- **In-app feedback** (#196). Authenticated household members can report a bug or
+  suggest an enhancement from Help & FAQ; configured GitHub Project automation
+  routes the resulting labeled issue into the review queue.
+
 ## [0.16.0] - 2026-08-02
 
 ### Added

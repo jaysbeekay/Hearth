@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { FeedbackForm } from "@/components/FeedbackForm";
+import { isGithubFeedbackConfigured } from "@/lib/env";
 
 export const metadata: Metadata = { title: "Help" };
 
@@ -144,8 +146,8 @@ export default function HelpPage() {
       <div>
         <h1 className="text-2xl font-semibold">Help &amp; FAQ</h1>
         <p className="mt-1 text-sm text-foreground/60">
-          Answers to common questions about using Hearth. Can&apos;t find what you need? Ask your
-          household admin.
+          Answers to common questions about using Hearth. Can&apos;t find what
+          you need? Send us feedback below.
         </p>
       </div>
 
@@ -172,6 +174,18 @@ export default function HelpPage() {
           </div>
         </div>
       ))}
+
+      <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+        <div className="mb-4">
+          <h2 className="font-medium">Share feedback</h2>
+          <p className="mt-1 text-sm text-foreground/60">
+            Report a bug, describe an issue, or suggest an enhancement.
+            Submissions are added to the GitHub review queue for the Hearth
+            team.
+          </p>
+        </div>
+        <FeedbackForm configured={isGithubFeedbackConfigured()} />
+      </section>
     </div>
   );
 }
