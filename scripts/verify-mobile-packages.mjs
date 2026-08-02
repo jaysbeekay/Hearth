@@ -84,6 +84,12 @@ for (const marker of [
   "CapacitorSQLite",
   "Filesystem",
   "LocalNotifications",
+  "const ServerConfig = Plugins.ServerConfig",
+  "function normalizeUrl",
+  "function navigateToConnectedServer",
+  "Plain HTTP is not allowed",
+  "ServerConfig.setServerUrl",
+  "autoConnectIfSaved",
   "CREATE TABLE IF NOT EXISTS trades",
   "standalone_schema_version', '7'",
   "CREATE TABLE IF NOT EXISTS rental_agreements",
@@ -152,6 +158,55 @@ for (const file of androidXmlFiles) {
   if (/\s\d+\.xml$/.test(file)) fail(`Android duplicate resource remains: ${rel(join(androidXmlDir, file))}`);
 }
 
+const androidMainActivity = text(join(root, "android/app/src/main/java/com/hearthapp/app/MainActivity.java"));
+for (const marker of [
+  "registerPlugin(ServerConfigPlugin.class)",
+  "getSharedPreferences(ServerConfigPlugin.PREFS_NAME",
+  ".setAllowNavigation(new String[]{host})",
+  "bridge.setWebViewClient(new MtlsWebViewClient(bridge))",
+]) {
+  assertIncludes(androidMainActivity, marker, "Android connected-mode activity");
+}
+
+const androidServerConfigPlugin = text(join(root, "android/app/src/main/java/com/hearthapp/app/ServerConfigPlugin.java"));
+for (const marker of [
+  '@CapacitorPlugin(name = "ServerConfig")',
+  'static final String PREFS_NAME = "ServerConfig"',
+  'static final String SERVER_URL_KEY = "server_url"',
+  "public void setServerUrl",
+  ".edit().putString(SERVER_URL_KEY, url.trim()).apply()",
+  "getActivity().runOnUiThread(() -> getActivity().recreate())",
+  "public void importClientCertificate",
+]) {
+  assertIncludes(androidServerConfigPlugin, marker, "Android ServerConfig plugin");
+}
+
+const androidMtlsClient = text(join(root, "android/app/src/main/java/com/hearthapp/app/MtlsWebViewClient.java"));
+for (const marker of [
+  "extends BridgeWebViewClient",
+  "onReceivedClientCertRequest",
+  "ClientCertManager.loadCredential(context)",
+  "request.proceed(cred.privateKey, cred.chain)",
+  "request.cancel()",
+]) {
+  assertIncludes(androidMtlsClient, marker, "Android mTLS WebView client");
+}
+
+const androidManifest = text(join(root, "android/app/src/main/AndroidManifest.xml"));
+assertIncludes(androidManifest, 'android:usesCleartextTraffic="false"', "Android manifest");
+assertIncludes(androidManifest, 'android:networkSecurityConfig="@xml/network_security_config"', "Android manifest");
+
+const androidNetworkSecurity = text(join(root, "android/app/src/main/res/xml/network_security_config.xml"));
+for (const marker of [
+  '<base-config cleartextTrafficPermitted="false">',
+  '<domain includeSubdomains="true">localhost</domain>',
+  '<domain includeSubdomains="true">127.0.0.1</domain>',
+  '<domain includeSubdomains="true">local</domain>',
+  '<domain includeSubdomains="true">home.arpa</domain>',
+]) {
+  assertIncludes(androidNetworkSecurity, marker, "Android network security config");
+}
+
 const mergedManifestPath = join(
   root,
   "android/app/build/intermediates/merged_manifests/debug/processDebugManifest/AndroidManifest.xml",
@@ -196,6 +251,29 @@ if (!iosAppPath) {
   }
   const iosInfo = text(join(iosAppPath, "Info.plist"));
   assertIncludes(iosInfo, "com.hearthapp.app", "iOS Info.plist");
+}
+
+const iosMainViewController = text(join(root, "ios/App/App/MainViewController.swift"));
+for (const marker of [
+  "bridge?.registerPluginInstance(ServerConfigPlugin())",
+  "override func instanceDescriptor() -> InstanceDescriptor",
+  "descriptor.allowedNavigationHostnames += [host]",
+  "static func reloadForUpdatedServerUrl()",
+]) {
+  assertIncludes(iosMainViewController, marker, "iOS connected-mode view controller");
+}
+
+const iosServerConfigPlugin = text(join(root, "ios/App/App/ServerConfigPlugin.swift"));
+for (const marker of [
+  "public let jsName = \"ServerConfig\"",
+  "static let serverUrlDefaultsKey = \"server_url\"",
+  "@objc func setServerUrl",
+  "UserDefaults.standard.set(url, forKey: Self.serverUrlDefaultsKey)",
+  "MainViewController.reloadForUpdatedServerUrl()",
+  "public override func handleWKWebViewURLAuthenticationChallenge",
+  "ClientCertManager.shared.storedIdentity()",
+]) {
+  assertIncludes(iosServerConfigPlugin, marker, "iOS ServerConfig plugin");
 }
 
 const privacyManifest = text(join(root, "ios/App/App/PrivacyInfo.xcprivacy"));
