@@ -25,6 +25,10 @@ interface Props {
   q?: string;
   category?: string;
   status?: string;
+  expiring?: string;
+  expired?: string;
+  needsReview?: string;
+  missingDocument?: string;
   dateFormat?: string;
   region?: string;
   canWrite?: boolean;
@@ -35,6 +39,10 @@ export function ContractListClient({
   q,
   category,
   status,
+  expiring,
+  expired,
+  needsReview,
+  missingDocument,
   dateFormat,
   region,
   canWrite = true,
@@ -56,6 +64,33 @@ export function ContractListClient({
     if (key !== "q" && q) params.set("q", q);
     if (key !== "category" && category) params.set("category", category);
     if (key !== "status" && status) params.set("status", status);
+    if (expiring) params.set("expiring", expiring);
+    if (expired) params.set("expired", expired);
+    if (needsReview) params.set("needsReview", needsReview);
+    if (missingDocument) params.set("missingDocument", missingDocument);
+    router.push(`/contracts${params.toString() ? `?${params.toString()}` : ""}`);
+  }
+
+  // #207 — completeness filter chips. expiring/expired are mutually
+  // exclusive (clicking one clears the other); needsReview/missingDocument
+  // are independent and can be combined with any other filter.
+  function toggleCompletenessFilter(key: "expiring" | "expired" | "needsReview" | "missingDocument", value: string) {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (category) params.set("category", category);
+    if (status) params.set("status", status);
+    if (expiring) params.set("expiring", expiring);
+    if (expired) params.set("expired", expired);
+    if (needsReview) params.set("needsReview", needsReview);
+    if (missingDocument) params.set("missingDocument", missingDocument);
+
+    const isActive = params.get(key) === value;
+    if (key === "expiring" || key === "expired") {
+      params.delete("expiring");
+      params.delete("expired");
+    }
+    if (!isActive) params.set(key, value);
+    else params.delete(key);
     router.push(`/contracts${params.toString() ? `?${params.toString()}` : ""}`);
   }
 
@@ -63,7 +98,9 @@ export function ContractListClient({
     cachePageData("contracts:list", contracts).catch(() => {});
   }, [contracts]);
 
-  const filtered = Boolean(q || category || status);
+  const filtered = Boolean(
+    q || category || status || expiring || expired || needsReview || missingDocument,
+  );
   const summary = useMemo(() => {
     let expiringSoon = 0;
     let expired = 0;
@@ -162,7 +199,35 @@ export function ContractListClient({
         </button>
       </form>
 
-      {(q || category || status) && (
+      <div className="flex flex-wrap gap-2 text-sm">
+        {[
+          { key: "expiring" as const, value: "30", label: "Expiring soon", active: expiring === "30" },
+          { key: "expired" as const, value: "true", label: "Expired", active: expired === "true" },
+          { key: "needsReview" as const, value: "true", label: "Needs review", active: needsReview === "true" },
+          {
+            key: "missingDocument" as const,
+            value: "true",
+            label: "Missing document",
+            active: missingDocument === "true",
+          },
+        ].map((chip) => (
+          <button
+            key={chip.key}
+            type="button"
+            onClick={() => toggleCompletenessFilter(chip.key, chip.value)}
+            aria-pressed={chip.active}
+            className={`rounded-full border px-3 py-1 text-xs font-medium ${
+              chip.active
+                ? "border-accent bg-accent/10 text-accent"
+                : "border-border bg-surface text-muted hover:bg-black/5 dark:hover:bg-white/5"
+            }`}
+          >
+            {chip.label}
+          </button>
+        ))}
+      </div>
+
+      {filtered && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-muted">
             {contracts.length} {contracts.length === 1 ? "contract" : "contracts"}

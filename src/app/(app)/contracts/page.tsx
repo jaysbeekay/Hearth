@@ -11,14 +11,16 @@ export default async function ContractsPage({
     q?: string;
     category?: string;
     status?: string;
-    // Linked to from the dashboard's Needs Attention stat cards (#170) — not
-    // exposed as filter-chip UI here, just accepted on arrival so those links
-    // land on a genuinely pre-filtered list rather than the full one.
+    // expiring/expired are also linked to from the dashboard's Needs
+    // Attention stat cards (#170); needsReview/missingDocument are new
+    // filter-chip options (#207) surfaced directly on this page.
     expiring?: string;
     expired?: string;
+    needsReview?: string;
+    missingDocument?: string;
   }>;
 }) {
-  const { q, category, status, expiring, expired } = await searchParams;
+  const { q, category, status, expiring, expired, needsReview, missingDocument } = await searchParams;
 
   const where: Prisma.ContractWhereInput = {};
   if (category) where.category = category as Prisma.ContractWhereInput["category"];
@@ -40,6 +42,8 @@ export default async function ContractsPage({
       where.endDate = { gte: new Date(), lte: until };
     }
   }
+  if (needsReview === "true") where.extractionPending = true;
+  if (missingDocument === "true") where.documents = { none: {} };
 
   const [contracts, { dateFormat, region }, session] = await Promise.all([
     prisma.contract.findMany({
@@ -57,6 +61,10 @@ export default async function ContractsPage({
       q={q}
       category={category}
       status={status}
+      expiring={expiring}
+      expired={expired}
+      needsReview={needsReview}
+      missingDocument={missingDocument}
       dateFormat={dateFormat}
       region={region}
       canWrite={session?.user.role !== "READONLY"}

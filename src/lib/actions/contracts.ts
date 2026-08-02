@@ -285,6 +285,24 @@ export async function deleteDocumentAction(
   return { success: "Document removed." };
 }
 
+export async function setDocumentImportant(
+  contractId: string,
+  documentId: string,
+  isImportant: boolean,
+): Promise<ActionState> {
+  await requireUser();
+
+  const doc = await prisma.document.findUnique({ where: { id: documentId } });
+  if (!doc || doc.contractId !== contractId) {
+    return { error: "Document not found." };
+  }
+
+  await prisma.document.update({ where: { id: documentId }, data: { isImportant } });
+
+  revalidatePath(`/contracts/${contractId}`);
+  return { success: isImportant ? "Marked as important." : "Unmarked as important." };
+}
+
 export async function setContractStatus(
   contractId: string,
   status: "ACTIVE" | "CANCELLED",

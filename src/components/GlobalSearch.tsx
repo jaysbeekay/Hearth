@@ -7,6 +7,17 @@ import type { SearchResult } from "@/app/api/search/route";
 
 const OPEN_EVENT = "hearth:open-search";
 
+// #205 — memory-fragment filters, mirrored from the server's supported
+// `filter` values (src/app/api/search/route.ts). Single-select: picking one
+// clears any other, since they express mutually-relevant "what am I looking
+// for" states rather than a combinable checklist.
+const SEARCH_FILTERS: { value: string; label: string }[] = [
+  { value: "expiring", label: "Expiring soon" },
+  { value: "needsReview", label: "Needs review" },
+  { value: "noDocument", label: "No document attached" },
+  { value: "important", label: "Important" },
+];
+
 export function openGlobalSearch() {
   window.dispatchEvent(new Event(OPEN_EVENT));
 }
@@ -15,6 +26,7 @@ export function GlobalSearch() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<string | null>(null);
   const [groups, setGroups] = useState<Record<string, SearchResult[]>>({});
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -36,6 +48,7 @@ export function GlobalSearch() {
     const openSearch = () => {
       previouslyFocusedRef.current = document.activeElement as HTMLElement | null;
       setQuery("");
+      setFilter(null);
       setGroups({});
       setActiveIndex(-1);
       setOpen(true);
@@ -73,13 +86,18 @@ export function GlobalSearch() {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [open]);
 
+  const textOk = query.trim().length >= 2;
+
   useEffect(() => {
-    if (!open || query.trim().length < 2) {
+    if (!open || (!textOk && !filter)) {
       return;
     }
     const timeout = setTimeout(() => {
       setLoading(true);
-      fetch(`/api/search?q=${encodeURIComponent(query.trim())}`)
+      const params = new URLSearchParams();
+      if (textOk) params.set("q", query.trim());
+      if (filter) params.set("filter", filter);
+      fetch(`/api/search?${params.toString()}`)
         .then((res) => res.json())
         .then((data) => {
           setGroups(data.groups ?? {});
@@ -88,14 +106,14 @@ export function GlobalSearch() {
         .finally(() => setLoading(false));
     }, 250);
     return () => clearTimeout(timeout);
-  }, [query, open]);
+  }, [query, filter, open, textOk]);
 
   if (!open) return null;
 
-  const groupEntries = query.trim().length >= 2 ? Object.entries(groups) : [];
+  const groupEntries = textOk || filter ? Object.entries(groups) : [];
   const flatResults = groupEntries.flatMap(([, results]) => results);
   const hasResults = flatResults.length > 0;
-  const showEmpty = !loading && query.trim().length >= 2 && !hasResults;
+  const showEmpty = !loading && (textOk || filter) && !hasResults;
   let flatIndex = -1;
 
   return (
@@ -165,10 +183,28 @@ export function GlobalSearch() {
           </button>
         </div>
 
+        <div className="flex flex-wrap gap-1.5 border-b border-border px-3 py-2">
+          {SEARCH_FILTERS.map((f) => (
+            <button
+              key={f.value}
+              type="button"
+              aria-pressed={filter === f.value}
+              onClick={() => setFilter((current) => (current === f.value ? null : f.value))}
+              className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
+                filter === f.value
+                  ? "border-accent bg-accent/10 text-accent"
+                  : "border-border text-muted hover:bg-black/5 dark:hover:bg-white/5"
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
         <div id="global-search-listbox" role="listbox" className="max-h-[60vh] overflow-y-auto p-2">
-          {query.trim().length < 2 && (
+          {!textOk && !filter && (
             <p className="px-3 py-6 text-center text-sm text-muted">
-              Type at least 2 characters to search.
+              Type at least 2 characters, or pick a filter, to search.
             </p>
           )}
           {showEmpty && (

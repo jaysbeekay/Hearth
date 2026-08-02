@@ -3,10 +3,11 @@
 import { useState } from "react";
 import { Eye, FileText, Trash2 } from "lucide-react";
 import type { ProductDocumentModel } from "@/generated/prisma/models";
-import { deleteProductDocumentAction } from "@/lib/actions/products";
+import { deleteProductDocumentAction, setProductDocumentImportant } from "@/lib/actions/products";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DocumentLink } from "@/components/DocumentLink";
 import { DocumentPreviewModal, isPreviewable } from "@/components/DocumentPreviewModal";
+import { ImportantToggle } from "@/components/ImportantToggle";
 import { ProductDocumentThumbnail } from "@/components/ProductDocumentThumbnail";
 import { formatDate, humanFileSize } from "@/lib/utils";
 
@@ -66,6 +67,11 @@ export function ProductDocumentList({
                 <Eye size={16} />
               </button>
             )}
+            <ImportantToggle
+              isImportant={doc.isImportant}
+              action={setProductDocumentImportant.bind(null, doc.productId, doc.id)}
+              label={doc.filename}
+            />
             <ConfirmForm
               action={deleteProductDocumentAction.bind(null, doc.productId, doc.id)}
               confirmText={`Delete ${doc.filename}? This can't be undone.`}

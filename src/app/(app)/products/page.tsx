@@ -10,9 +10,15 @@ export const metadata: Metadata = { title: "Warranties" };
 export default async function ProductsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; expiring?: string; expired?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    expiring?: string;
+    expired?: string;
+    needsReview?: string;
+    missingDocument?: string;
+  }>;
 }) {
-  const { q, expiring, expired } = await searchParams;
+  const { q, expiring, expired, needsReview, missingDocument } = await searchParams;
 
   const where: Prisma.ProductWhereInput = {};
   if (q) {
@@ -36,6 +42,8 @@ export default async function ProductsPage({
       where.warrantyEndDate = { gte: new Date(), lte: until };
     }
   }
+  if (needsReview === "true") where.extractionPending = true;
+  if (missingDocument === "true") where.documents = { none: {} };
 
   const [products, { dateFormat, region }, session] = await Promise.all([
     prisma.product.findMany({
@@ -51,6 +59,10 @@ export default async function ProductsPage({
     <ProductListClient
       products={products}
       q={q}
+      expiring={expiring}
+      expired={expired}
+      needsReview={needsReview}
+      missingDocument={missingDocument}
       dateFormat={dateFormat}
       region={region}
       canWrite={session?.user.role !== "READONLY"}

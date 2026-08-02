@@ -304,3 +304,21 @@ export async function deleteProductDocumentAction(
   revalidatePath(`/products/${productId}`);
   return { success: "Document removed." };
 }
+
+export async function setProductDocumentImportant(
+  productId: string,
+  documentId: string,
+  isImportant: boolean,
+): Promise<ActionState> {
+  await requireUser();
+
+  const doc = await prisma.productDocument.findUnique({ where: { id: documentId } });
+  if (!doc || doc.productId !== productId) {
+    return { error: "Document not found." };
+  }
+
+  await prisma.productDocument.update({ where: { id: documentId }, data: { isImportant } });
+
+  revalidatePath(`/products/${productId}`);
+  return { success: isImportant ? "Marked as important." : "Unmarked as important." };
+}

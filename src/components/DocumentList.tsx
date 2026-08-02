@@ -1,8 +1,9 @@
 import { FileText, Trash2, History } from "lucide-react";
 import type { DocumentModel } from "@/generated/prisma/models";
-import { deleteDocumentAction } from "@/lib/actions/contracts";
+import { deleteDocumentAction, setDocumentImportant } from "@/lib/actions/contracts";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DocumentLink } from "@/components/DocumentLink";
+import { ImportantToggle } from "@/components/ImportantToggle";
 import { formatDate, humanFileSize } from "@/lib/utils";
 
 function DeleteButton({ doc }: { doc: DocumentModel }) {
@@ -83,7 +84,14 @@ export function DocumentList({
                   </span>
                 )}
               </DocumentLink>
-              <DeleteButton doc={doc} />
+              <div className="flex shrink-0 items-center gap-1">
+                <ImportantToggle
+                  isImportant={doc.isImportant}
+                  action={setDocumentImportant.bind(null, doc.contractId, doc.id)}
+                  label={doc.filename}
+                />
+                <DeleteButton doc={doc} />
+              </div>
             </div>
 
             {older.length > 0 && (

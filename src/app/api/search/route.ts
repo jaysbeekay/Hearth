@@ -31,9 +31,28 @@ export async function GET(request: NextRequest) {
   }
 
   const q = request.nextUrl.searchParams.get("q")?.trim() ?? "";
-  if (q.length < 2) {
+
+  // #205 — memory-fragment filters. Scoped to Contract/Product, the two
+  // record types with both an expiry date and the extraction-review/
+  // document infrastructure these filters key off; other domains stay
+  // text-search-only rather than growing bespoke "expiring"/"needsReview"
+  // semantics for shapes that don't naturally have them.
+  const FILTER_VALUES = ["expiring", "needsReview", "noDocument", "important"] as const;
+  type SearchFilter = (typeof FILTER_VALUES)[number];
+  const filterParam = request.nextUrl.searchParams.get("filter");
+  const filter: SearchFilter | undefined = (FILTER_VALUES as readonly string[]).includes(
+    filterParam ?? "",
+  )
+    ? (filterParam as SearchFilter)
+    : undefined;
+
+  const textOk = q.length >= 2;
+  if (!textOk && !filter) {
     return NextResponse.json({ groups: {} });
   }
+
+  const now = new Date();
+  const soon = new Date(now.getTime() + 30 * 86_400_000);
 
   const enabledModules = await getEnabledModuleKeys();
   const contains = { contains: q };
@@ -43,10 +62,22 @@ export async function GET(request: NextRequest) {
     prisma.contract
       .findMany({
         where: {
-          OR: [
-            { title: contains },
-            { provider: contains },
-            { documents: { some: { extractedText: contains } } },
+          AND: [
+            ...(textOk
+              ? [
+                  {
+                    OR: [
+                      { title: contains },
+                      { provider: contains },
+                      { documents: { some: { extractedText: contains } } },
+                    ],
+                  },
+                ]
+              : []),
+            ...(filter === "expiring" ? [{ status: "ACTIVE" as const, endDate: { gte: now, lte: soon } }] : []),
+            ...(filter === "needsReview" ? [{ extractionPending: true }] : []),
+            ...(filter === "noDocument" ? [{ documents: { none: {} } }] : []),
+            ...(filter === "important" ? [{ documents: { some: { isImportant: true } } }] : []),
           ],
         },
         select: { id: true, title: true, provider: true },
@@ -68,12 +99,24 @@ export async function GET(request: NextRequest) {
     prisma.product
       .findMany({
         where: {
-          OR: [
-            { description: contains },
-            { manufacturer: contains },
-            { model: contains },
-            { vendor: contains },
-            { documents: { some: { extractedText: contains } } },
+          AND: [
+            ...(textOk
+              ? [
+                  {
+                    OR: [
+                      { description: contains },
+                      { manufacturer: contains },
+                      { model: contains },
+                      { vendor: contains },
+                      { documents: { some: { extractedText: contains } } },
+                    ],
+                  },
+                ]
+              : []),
+            ...(filter === "expiring" ? [{ warrantyEndDate: { gte: now, lte: soon } }] : []),
+            ...(filter === "needsReview" ? [{ extractionPending: true }] : []),
+            ...(filter === "noDocument" ? [{ documents: { none: {} } }] : []),
+            ...(filter === "important" ? [{ documents: { some: { isImportant: true } } }] : []),
           ],
         },
         select: { id: true, description: true, manufacturer: true, vendor: true },
@@ -91,43 +134,45 @@ export async function GET(request: NextRequest) {
       ),
   );
 
-  queries.push(
-    prisma.document
-      .findMany({
-        where: { OR: [{ filename: contains }, { extractedText: contains }] },
-        select: { id: true, filename: true, contract: { select: { id: true, title: true } } },
-        take: LIMIT,
-      })
-      .then((rows) =>
-        rows.map((r) => ({
-          id: r.id,
-          title: r.filename,
-          subtitle: r.contract.title,
-          href: `/contracts/${r.contract.id}`,
-          group: "Documents",
-        })),
-      ),
-  );
+  if (textOk) {
+    queries.push(
+      prisma.document
+        .findMany({
+          where: { OR: [{ filename: contains }, { extractedText: contains }] },
+          select: { id: true, filename: true, contract: { select: { id: true, title: true } } },
+          take: LIMIT,
+        })
+        .then((rows) =>
+          rows.map((r) => ({
+            id: r.id,
+            title: r.filename,
+            subtitle: r.contract.title,
+            href: `/contracts/${r.contract.id}`,
+            group: "Documents",
+          })),
+        ),
+    );
 
-  queries.push(
-    prisma.productDocument
-      .findMany({
-        where: { OR: [{ filename: contains }, { extractedText: contains }] },
-        select: { id: true, filename: true, product: { select: { id: true, description: true } } },
-        take: LIMIT,
-      })
-      .then((rows) =>
-        rows.map((r) => ({
-          id: r.id,
-          title: r.filename,
-          subtitle: r.product.description,
-          href: `/products/${r.product.id}`,
-          group: "Documents",
-        })),
-      ),
-  );
+    queries.push(
+      prisma.productDocument
+        .findMany({
+          where: { OR: [{ filename: contains }, { extractedText: contains }] },
+          select: { id: true, filename: true, product: { select: { id: true, description: true } } },
+          take: LIMIT,
+        })
+        .then((rows) =>
+          rows.map((r) => ({
+            id: r.id,
+            title: r.filename,
+            subtitle: r.product.description,
+            href: `/products/${r.product.id}`,
+            group: "Documents",
+          })),
+        ),
+    );
+  }
 
-  if (enabledModules.has("VEHICLES")) {
+  if (enabledModules.has("VEHICLES") && textOk) {
     queries.push(
       prisma.vehicle
         .findMany({
@@ -176,7 +221,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  if (enabledModules.has("TRAVEL")) {
+  if (enabledModules.has("TRAVEL") && textOk) {
     queries.push(
       prisma.trip
         .findMany({
@@ -218,7 +263,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  if (enabledModules.has("HOME")) {
+  if (enabledModules.has("HOME") && textOk) {
     queries.push(
       prisma.property
         .findMany({
@@ -300,7 +345,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  if (enabledModules.has("INVENTORY")) {
+  if (enabledModules.has("INVENTORY") && textOk) {
     queries.push(
       prisma.inventoryItem
         .findMany({
@@ -338,7 +383,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  if (enabledModules.has("WEALTH")) {
+  if (enabledModules.has("WEALTH") && textOk) {
     queries.push(
       prisma.portfolio
         .findMany({
@@ -360,24 +405,26 @@ export async function GET(request: NextRequest) {
   // #199 — an unfiled document is still findable by name/content, so a
   // household member who half-remembers uploading something isn't limited
   // to browsing the Documents inbox tab to rediscover it.
-  queries.push(
-    prisma.inboxDocument
-      .findMany({
-        where: { OR: [{ filename: contains }, { extractedText: contains }] },
-        select: { id: true, filename: true },
-        take: LIMIT,
-      })
-      .then((rows) =>
-        rows.map((r) => ({
-          id: r.id,
-          title: r.filename,
-          subtitle: "Needs review",
-          href: "/documents/inbox",
-          group: "Inbox",
-          matchedInDocument: !matchedViaFields(q, [r.filename]),
-        })),
-      ),
-  );
+  if (textOk) {
+    queries.push(
+      prisma.inboxDocument
+        .findMany({
+          where: { OR: [{ filename: contains }, { extractedText: contains }] },
+          select: { id: true, filename: true },
+          take: LIMIT,
+        })
+        .then((rows) =>
+          rows.map((r) => ({
+            id: r.id,
+            title: r.filename,
+            subtitle: "Needs review",
+            href: "/documents/inbox",
+            group: "Inbox",
+            matchedInDocument: !matchedViaFields(q, [r.filename]),
+          })),
+        ),
+    );
+  }
 
   const results = (await Promise.all(queries)).flat();
   const groups: Record<string, SearchResult[]> = {};
