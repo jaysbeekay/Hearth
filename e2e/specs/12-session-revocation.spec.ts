@@ -105,12 +105,20 @@ test("changing a password signs out every session, including the current one", a
   await signIn(secondPage, ADMIN_EMAIL, NEW_PASSWORD);
   await expect(secondPage).toHaveURL(/\/dashboard/);
 
-  // Restore it so the shared admin storageState stays usable.
+  // Restore the password — but that alone isn't enough. Every password
+  // change bumps sessionVersion, which permanently invalidates the JWT
+  // baked into ADMIN_AUTH_FILE on disk (captured once, at seed time), not
+  // just the in-memory sessions above. Any spec that runs after this one
+  // and loads ADMIN_AUTH_FILE via test.use() would otherwise be silently
+  // redirected to /login — so re-authenticate and re-capture it too.
   await secondPage.goto("/settings");
   await secondPage.locator("#currentPassword").fill(NEW_PASSWORD);
   await secondPage.locator("#newPassword").fill(ADMIN_PASSWORD);
   await secondPage.locator("form:has(#currentPassword) button[type=submit]").click();
   await secondPage.waitForURL(/\/login/);
+
+  await signIn(secondPage, ADMIN_EMAIL, ADMIN_PASSWORD);
+  await secondContext.storageState({ path: ADMIN_AUTH_FILE });
 
   await firstContext.close();
   await secondContext.close();
