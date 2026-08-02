@@ -20,7 +20,8 @@ export default async function ModulesPage() {
       <h1 className="text-2xl font-semibold">Modules</h1>
       <p className="text-sm text-foreground/60">
         Enable or disable optional features. Disabling a module hides it from navigation but
-        keeps its data intact.
+        keeps its data intact. Records in every module are visible to your whole household, not
+        just the person who added them.
       </p>
 
       <section className="rounded-xl border border-border bg-surface p-4 md:p-6">

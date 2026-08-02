@@ -12,6 +12,7 @@ import { ExpiryBadge } from "@/components/ExpiryBadge";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DetailStatusBanner } from "@/components/DetailStatusBanner";
+import { DetailField as Detail } from "@/components/DetailField";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { DocumentList } from "@/components/DocumentList";
 import { RecordMeta } from "@/components/RecordMeta";
@@ -139,7 +140,7 @@ export default async function ContractDetailPage({
 
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">
-          <Detail label="Contract / policy number" value={contract.contractNumber ?? "—"} />
+          <Detail label="Contract / policy number" value={contract.contractNumber ?? "—"} copyable />
           <Detail label="Start date" value={formatDate(contract.startDate, dateFormat)} />
           <Detail label="End date" value={formatDate(contract.endDate, dateFormat)} />
           <Detail
@@ -241,15 +242,6 @@ export default async function ContractDetailPage({
         dateFormat={dateFormat}
         extractionConfirmedAt={contract.extractionConfirmedAt}
       />
-    </div>
-  );
-}
-
-function Detail({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0">
-      <dt className="text-xs text-foreground/50">{label}</dt>
-      <dd className="text-sm font-medium break-words">{value}</dd>
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { deleteVehicle, deleteVehicleItem, addVehicleItemDocument } from "@/lib/actions/vehicles";
 import { ConfirmForm } from "@/components/ConfirmForm";
+import { DetailField as Detail } from "@/components/DetailField";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { VehicleItemDocumentList } from "@/components/VehicleItemDocumentList";
@@ -113,7 +114,7 @@ export default async function VehicleDetailPage({
           {vehicle.model && <Detail label="Model" value={vehicle.model} />}
           {vehicle.year && <Detail label="Year" value={String(vehicle.year)} />}
           {vehicle.licensePlate && (
-            <Detail label="License plate" value={vehicle.licensePlate} />
+            <Detail label="License plate" value={vehicle.licensePlate} copyable />
           )}
           {vehicle.regoExpiry && (
             <Detail label="Rego expiry" value={formatDate(vehicle.regoExpiry, dateFormat)} />
@@ -124,7 +125,7 @@ export default async function VehicleDetailPage({
               value={formatDate(vehicle.insuranceExpiry, dateFormat)}
             />
           )}
-          {vehicle.vin && <Detail label="VIN" value={vehicle.vin} />}
+          {vehicle.vin && <Detail label="VIN" value={vehicle.vin} copyable />}
           {vehicle.colour && <Detail label="Colour" value={vehicle.colour} />}
         </dl>
         {vehicle.notes && (
@@ -241,15 +242,6 @@ export default async function VehicleDetailPage({
         updatedAt={vehicle.updatedAt}
         dateFormat={dateFormat}
       />
-    </div>
-  );
-}
-
-function Detail({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0">
-      <dt className="text-xs text-foreground/50">{label}</dt>
-      <dd className="text-sm font-medium break-words">{value}</dd>
     </div>
   );
 }

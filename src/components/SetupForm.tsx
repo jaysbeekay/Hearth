@@ -83,7 +83,8 @@ export function SetupForm({ setupTokenRequired = false }: { setupTokenRequired?:
       <fieldset className="space-y-2">
         <legend className="text-sm font-medium">What would you like to track?</legend>
         <p className="text-xs text-foreground/60">
-          Enable any extra modules now, or turn them on later from Settings.
+          Enable any extra modules now, or turn them on later from Settings. Records in every
+          module are visible to your whole household, not just the person who added them.
         </p>
         <label className="flex items-start gap-3 rounded-lg border border-border px-3 py-2 opacity-70">
           <input

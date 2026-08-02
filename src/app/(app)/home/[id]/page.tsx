@@ -7,6 +7,7 @@ import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { deleteProperty, deleteHomeItem, addItemDocument } from "@/lib/actions/home";
 import { createPropertyValuation, deletePropertyValuation } from "@/lib/actions/wealth";
 import { ConfirmForm } from "@/components/ConfirmForm";
+import { DetailField as Detail } from "@/components/DetailField";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { HomeItemDocumentList } from "@/components/HomeItemDocumentList";
@@ -315,15 +316,6 @@ export default async function PropertyDetailPage({
         updatedAt={property.updatedAt}
         dateFormat={dateFormat}
       />
-    </div>
-  );
-}
-
-function Detail({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0">
-      <dt className="text-xs text-foreground/50">{label}</dt>
-      <dd className="text-sm font-medium break-words">{value}</dd>
     </div>
   );
 }

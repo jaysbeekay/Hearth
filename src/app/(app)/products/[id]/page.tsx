@@ -11,6 +11,7 @@ import { ExpiryBadge } from "@/components/ExpiryBadge";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DetailStatusBanner } from "@/components/DetailStatusBanner";
+import { DetailField as Detail } from "@/components/DetailField";
 import { ProductDocumentUploadForm } from "@/components/ProductDocumentUploadForm";
 import { ProductDocumentList } from "@/components/ProductDocumentList";
 import { RecordMeta } from "@/components/RecordMeta";
@@ -118,8 +119,8 @@ export default async function ProductDetailPage({
           <Detail label="Brand" value={product.manufacturer ?? "—"} />
           <Detail label="Model" value={product.model ?? "—"} />
           <Detail label="Vendor / retailer" value={product.vendor ?? "—"} />
-          <Detail label="Serial number" value={product.serialNumber ?? "—"} />
-          <Detail label="Barcode" value={product.barcode ?? "—"} />
+          <Detail label="Serial number" value={product.serialNumber ?? "—"} copyable />
+          <Detail label="Barcode" value={product.barcode ?? "—"} copyable />
           <Detail label="Purchase date" value={formatDate(product.purchaseDate, dateFormat)} />
           <Detail label="Warranty end date" value={formatDate(product.warrantyEndDate, dateFormat)} />
           <Detail
@@ -155,15 +156,6 @@ export default async function ProductDetailPage({
         dateFormat={dateFormat}
         extractionConfirmedAt={product.extractionConfirmedAt}
       />
-    </div>
-  );
-}
-
-function Detail({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0">
-      <dt className="text-xs text-foreground/50">{label}</dt>
-      <dd className="text-sm font-medium break-words">{value}</dd>
     </div>
   );
 }

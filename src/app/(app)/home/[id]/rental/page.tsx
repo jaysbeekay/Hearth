@@ -11,6 +11,7 @@ import {
   linkRentalAgreementContract,
 } from "@/lib/actions/home";
 import { ConfirmForm } from "@/components/ConfirmForm";
+import { DetailField as Detail } from "@/components/DetailField";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { RentalStatementDocumentList } from "@/components/RentalStatementDocumentList";
 import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
@@ -408,15 +409,6 @@ export default async function RentalOverviewPage({
           )}
         </div>
       )}
-    </div>
-  );
-}
-
-function Detail({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0">
-      <dt className="text-xs text-foreground/50">{label}</dt>
-      <dd className="text-sm font-medium break-words">{value ?? "—"}</dd>
     </div>
   );
 }

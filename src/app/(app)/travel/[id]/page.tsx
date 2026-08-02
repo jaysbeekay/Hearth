@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { deleteTrip, deleteTripSegment, addSegmentDocument, refreshFlightStatusAction } from "@/lib/actions/trips";
 import { ConfirmForm } from "@/components/ConfirmForm";
+import { DetailField as Detail } from "@/components/DetailField";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { TripSegmentDocumentList } from "@/components/TripSegmentDocumentList";
@@ -179,7 +180,7 @@ export default async function TripDetailPage({
                   </div>
 
                   <dl className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3">
-                    <Detail label="Confirmation code" value={segment.confirmationCode ?? "—"} />
+                    <Detail label="Confirmation code" value={segment.confirmationCode ?? "—"} copyable />
                     <Detail label="Start" value={formatDate(segment.startDate, dateFormat)} />
                     <Detail label="End" value={formatDate(segment.endDate, dateFormat)} />
                     <Detail label="Location" value={segment.location ?? "—"} />
@@ -190,7 +191,7 @@ export default async function TripDetailPage({
                       }
                     />
                     {segment.type === "FLIGHT" && segment.flightNumber && (
-                      <Detail label="Flight" value={segment.flightNumber} />
+                      <Detail label="Flight" value={segment.flightNumber} copyable />
                     )}
                     {segment.type === "FLIGHT" &&
                       segment.departureIata &&
@@ -304,23 +305,7 @@ export default async function TripDetailPage({
   );
 }
 
-function Detail({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0">
-      <dt className="text-xs text-foreground/50">{label}</dt>
-      <dd className="text-sm font-medium break-words">{value}</dd>
-    </div>
-  );
-}
-
-function FlightDetail({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0">
-      <dt className="text-xs text-foreground/50">{label}</dt>
-      <dd className="text-sm font-medium break-words">{value}</dd>
-    </div>
-  );
-}
+const FlightDetail = Detail;
 
 function formatDateTime(date: Date | null | undefined): string {
   if (!date) return "—";
