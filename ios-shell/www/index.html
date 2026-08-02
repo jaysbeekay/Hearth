@@ -7,29 +7,67 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <main class="screen">
-    <img src="icon.svg" class="logo" alt="" />
-    <h1>Hearth</h1>
-    <p class="hint">Connect to your self-hosted server to get started.</p>
+  <main class="shell">
+    <section id="mode-screen" class="panel">
+      <img src="icon.svg" class="logo" alt="" />
+      <h1>Hearth</h1>
+      <p class="hint">Choose how this app should keep your household records.</p>
+      <div class="choice-grid">
+        <button id="choose-standalone" class="choice">
+          <span>Use on this device</span>
+          <small>Private local records with no sharing.</small>
+        </button>
+        <button id="choose-connected" class="choice">
+          <span>Connect to my server</span>
+          <small>Use your self-hosted Hearth household.</small>
+        </button>
+      </div>
+    </section>
 
-    <form id="connect-form">
-      <label for="server-url">Server address</label>
-      <input
-        id="server-url"
-        type="url"
-        inputmode="url"
-        autocapitalize="off"
-        autocorrect="off"
-        spellcheck="false"
-        placeholder="https://hearth.example.com"
-        required
-      />
-      <button type="submit">Connect</button>
-    </form>
+    <section id="connected-screen" class="panel" hidden>
+      <img src="icon.svg" class="logo" alt="" />
+      <h1>Connect</h1>
+      <p class="hint">Enter the address of your self-hosted Hearth server.</p>
+      <form id="connect-form">
+        <label for="server-url">Server address</label>
+        <input
+          id="server-url"
+          type="url"
+          inputmode="url"
+          autocapitalize="off"
+          autocorrect="off"
+          spellcheck="false"
+          placeholder="https://hearth.example.com"
+          required
+        />
+        <button type="submit">Connect</button>
+      </form>
+      <button id="import-cert-btn" class="secondary">Import client certificate (.p12)</button>
+      <button data-reset-mode class="link-button">Back</button>
+      <p id="connected-status" class="status" hidden></p>
+    </section>
 
-    <button id="import-cert-btn" class="secondary">Import client certificate (.p12)</button>
+    <section id="standalone-screen" class="mobile-app" hidden>
+      <header class="mobile-header">
+        <button id="back-button" class="icon-button is-hidden" aria-label="Back" aria-hidden="true" disabled>‹</button>
+        <div>
+          <p id="view-kicker" class="kicker">Standalone</p>
+          <h1 id="view-title">Dashboard</h1>
+        </div>
+        <button id="switch-mode-button" class="icon-button" aria-label="Switch mode">⌁</button>
+      </header>
 
-    <p id="status" class="status" hidden></p>
+      <p id="standalone-status" class="status floating-status" hidden></p>
+      <main id="mobile-view" class="mobile-view" tabindex="-1"></main>
+
+      <nav class="bottom-nav" aria-label="Standalone navigation">
+        <button class="nav-item active" data-nav="dashboard">Dashboard</button>
+        <button class="nav-item" data-nav="records" data-record-type="contracts">Contracts</button>
+        <button class="nav-item" data-nav="records" data-record-type="products">Warranties</button>
+        <button class="nav-item" data-nav="documents">Documents</button>
+        <button class="nav-item" data-nav="more">More</button>
+      </nav>
+    </section>
   </main>
 
   <script src="app.js"></script>

@@ -56,13 +56,13 @@ async function attachVehicleItemDocument(vehicleItemId: string, file: File): Pro
   const rejection = await describeUploadRejection(file);
   if (rejection) return { error: rejection };
 
-  const { storedName, size, sha256 } = await saveVehicleItemDocument(vehicleItemId, file);
+  const { storedName, size, sha256, mimeType } = await saveVehicleItemDocument(vehicleItemId, file);
   await prisma.vehicleItemDocument.create({
     data: {
       vehicleItemId,
       filename: file.name.slice(0, 255),
       storedName,
-      mimeType: file.type,
+      mimeType,
       size,
       sha256,
     },

@@ -11,6 +11,7 @@ const eslintConfig = defineConfig([
     ".next/**",
     "out/**",
     "build/**",
+    "android/**/build/**",
     "next-env.d.ts",
     // Serwist writes the compiled service worker here during `next build`.
     // It's generated, bundled third-party code and gitignored, but eslint
@@ -18,6 +19,8 @@ const eslintConfig = defineConfig([
     // error on any machine that had run a build.
     "public/sw.js",
     "public/sw.js.map",
+    "public/sw *.js",
+    "public/sw *.js.map",
   ]),
 ]);
 

@@ -16,6 +16,7 @@
 		504EC30F1FED79650016851F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30E1FED79650016851F /* Assets.xcassets */; };
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
+		6F2E9B4B1E4B4BB39A6ECA11 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 6F2E9B4A1E4B4BB39A6ECA11 /* PrivacyInfo.xcprivacy */; };
 		91B01115B2F075138361265C /* ServerConfigPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5686AD7220282059CB7347F5 /* ServerConfigPlugin.swift */; };
 		F1A7F22C6D96410880980A0C /* ClientCertManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C172A7CBF64699B175530DEF /* ClientCertManager.swift */; };
 /* End PBXBuildFile section */
@@ -31,6 +32,7 @@
 		504EC3131FED79650016851F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
 		5686AD7220282059CB7347F5 /* ServerConfigPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerConfigPlugin.swift; sourceTree = "<group>"; };
+		6F2E9B4A1E4B4BB39A6ECA11 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
 		C172A7CBF64699B175530DEF /* ClientCertManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientCertManager.swift; sourceTree = "<group>"; };
 		F3B468D7E3D20CDD89FA65AE /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
@@ -77,6 +79,7 @@
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
 				504EC3131FED79650016851F /* Info.plist */,
+				6F2E9B4A1E4B4BB39A6ECA11 /* PrivacyInfo.xcprivacy */,
 				2FAD9762203C412B000D30F8 /* config.xml */,
 				50B271D01FEDC1A000F3C39B /* public */,
 			);
@@ -153,6 +156,7 @@
 				504EC30F1FED79650016851F /* Assets.xcassets in Resources */,
 				50379B232058CBB4000EE86E /* capacitor.config.json in Resources */,
 				504EC30D1FED79650016851F /* Main.storyboard in Resources */,
+				6F2E9B4B1E4B4BB39A6ECA11 /* PrivacyInfo.xcprivacy in Resources */,
 				2FAD9763203C412B000D30F8 /* config.xml in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
