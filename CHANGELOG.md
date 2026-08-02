@@ -9,6 +9,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Copyable identifiers on detail pages** (#209, #210, #211). Policy
+  numbers, serial numbers/barcodes, VIN and license plate, and flight/
+  confirmation codes now have a copy-to-clipboard button, from one shared
+  detail-field component reused across contracts, warranties, vehicles,
+  and travel instead of duplicated per page. Module setup and Settings >
+  Modules now also state that records are visible to the whole household,
+  not just the person who added them.
 - **Important flag, completeness filters, and search filter chips**
   (#205, #207, #208). Documents on a contract or product can be starred
   Important for quick retrieval later. The Contracts and Products list
