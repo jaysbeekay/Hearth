@@ -20,6 +20,19 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   entirely (same as Snyk) when the Docker Hub secrets aren't configured, so
   forks aren't left with a permanently red check.
 
+### Security
+
+- **LLM prompt-injection hardening** (#215). Document AI-extraction (BYOK cloud
+  providers and the local Ollama fallback) now prefixes every extraction prompt
+  with an explicit notice that the attached document/text is untrusted,
+  user-supplied content to extract fields from, not instructions to follow.
+  Extracted field values over 300 characters — well beyond what any legitimate
+  title, date, amount, or name needs — are now dropped rather than passed to
+  the review form. The household chat assistant's system prompt got the same
+  treatment for tool results and record data. Chat writes were already gated
+  behind an explicit user confirmation card before this, so this closes the
+  content-manipulation gap rather than a write-authorization one.
+
 ## [0.16.0] - 2026-08-02
 
 ### Added
