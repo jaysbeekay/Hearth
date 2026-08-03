@@ -1,0 +1,71 @@
+# Docker Scout is a third-party action, governed by its own terms — see
+# https://github.com/docker/scout-action
+#
+# Complements the Snyk container scan in snyk-security.yml (which already
+# blocks on high-severity OS/package CVEs in the built image) with Docker
+# Scout's Hub-native view: findings surface directly on the Docker Hub
+# repository page and as SARIF in this repo's Security tab, plus base-image
+# update recommendations Snyk doesn't provide.
+#
+# Reuses the DOCKERHUB_USERNAME/DOCKERHUB_TOKEN secrets docker-publish.yml
+# already requires — no new secret to configure. The whole job is skipped
+# when they aren't set, so forks and clones aren't left with a permanently
+# red, unfixable check (same pattern as HAS_SNYK in snyk-security.yml).
+
+name: Docker Scout
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  scout:
+    permissions:
+      contents: read # for actions/checkout to fetch code
+      security-events: write # for github/codeql-action/upload-sarif to upload SARIF results
+      actions: read # only required for a private repository by github/codeql-action/upload-sarif to get the Action run status
+    runs-on: ubuntu-latest
+    env:
+      # Secrets can't be referenced in a job-level `if`, so this is checked per
+      # step instead. Same pattern as HAS_SNYK in snyk-security.yml.
+      HAS_DOCKERHUB: ${{ secrets.DOCKERHUB_USERNAME != '' }}
+      IMAGE_TAG: hearth:scout-scan
+      SARIF_FILE: docker-scout.sarif.json
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Report that Docker Scout is not configured
+        if: ${{ env.HAS_DOCKERHUB != 'true' }}
+        run: |
+          echo "DOCKERHUB_USERNAME/DOCKERHUB_TOKEN are not set — skipping Docker Scout analysis." >> "$GITHUB_STEP_SUMMARY"
+          echo "These are the same secrets docker-publish.yml uses to push releases." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Build image for Docker Scout
+        if: ${{ env.HAS_DOCKERHUB == 'true' }}
+        run: docker build -t "$IMAGE_TAG" .
+
+      - name: Docker Scout CVEs (blocks on critical/high severity)
+        if: ${{ env.HAS_DOCKERHUB == 'true' }}
+        id: docker-scout
+        uses: docker/scout-action@7c6b6c3f7844478ace1ffd4e7aef649053d1f87d # v1.24.0
+        with:
+          command: cves
+          image: ${{ env.IMAGE_TAG }}
+          dockerhub-user: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub-password: ${{ secrets.DOCKERHUB_TOKEN }}
+          only-severities: critical,high
+          exit-code: true
+          sarif-file: ${{ env.SARIF_FILE }}
+
+      - name: Upload Docker Scout results to GitHub Code Scanning
+        # always() so findings still reach the Security tab on the runs where
+        # the gate above failed — which is exactly when they're most wanted.
+        if: ${{ always() && env.HAS_DOCKERHUB == 'true' && hashFiles(env.SARIF_FILE) != '' }}
+        uses: github/codeql-action/upload-sarif@a2983b8bed1923f44751c5c43237f479442827b3 # v3
+        with:
+          sarif_file: ${{ env.SARIF_FILE }}

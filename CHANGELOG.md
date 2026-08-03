@@ -12,6 +12,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 - **In-app feedback** (#196). Authenticated household members can report a bug or
   suggest an enhancement from Help & FAQ; configured GitHub Project automation
   routes the resulting labeled issue into the review queue.
+- **Docker Scout CVE scanning in CI** (#216). A new workflow builds the image on
+  every push/PR to `main` and blocks on critical/high-severity findings,
+  reusing the existing `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN` secrets — no new
+  configuration needed. Complements the existing Snyk container scan with
+  Docker Hub-native findings and base-image update recommendations. Skipped
+  entirely (same as Snyk) when the Docker Hub secrets aren't configured, so
+  forks aren't left with a permanently red check.
 
 ## [0.16.0] - 2026-08-02
 
