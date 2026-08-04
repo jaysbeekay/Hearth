@@ -7,6 +7,8 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-08-04
+
 ### Added
 
 - **In-app feedback** (#196). Authenticated household members can report a bug or
