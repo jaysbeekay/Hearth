@@ -43,6 +43,10 @@ export const env = {
     clientId: optional("GITHUB_CLIENT_ID"),
     clientSecret: optional("GITHUB_CLIENT_SECRET"),
   },
+  githubFeedback: {
+    token: optional("GITHUB_FEEDBACK_TOKEN"),
+    repository: optional("GITHUB_FEEDBACK_REPOSITORY"),
+  },
   backup: {
     cron: optional("BACKUP_CRON_SCHEDULE", "0 3 * * *"),
     retentionCount: Number(optional("BACKUP_RETENTION_COUNT", "7")),
@@ -104,6 +108,12 @@ export const isEncryptionConfigured = () => env.encryptionKey.length > 0;
 export const isSetupTokenRequired = () => env.setupToken.length > 0;
 export const isGithubOAuthConfigured = () =>
   Boolean(env.github.clientId && env.github.clientSecret);
+
+export const isGithubFeedbackConfigured = () =>
+  Boolean(
+    env.githubFeedback.token &&
+    /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(env.githubFeedback.repository),
+  );
 
 export const isS3BackupConfigured = () =>
   Boolean(env.backup.s3.bucket && env.backup.s3.accessKeyId && env.backup.s3.secretAccessKey);

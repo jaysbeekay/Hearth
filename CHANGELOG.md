@@ -7,6 +7,34 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-08-04
+
+### Added
+
+- **In-app feedback** (#196). Authenticated household members can report a bug or
+  suggest an enhancement from Help & FAQ; configured GitHub Project automation
+  routes the resulting labeled issue into the review queue.
+- **Docker Scout CVE scanning in CI** (#216). A new workflow builds the image on
+  every push/PR to `main` and blocks on critical/high-severity findings,
+  reusing the existing `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN` secrets — no new
+  configuration needed. Complements the existing Snyk container scan with
+  Docker Hub-native findings and base-image update recommendations. Skipped
+  entirely (same as Snyk) when the Docker Hub secrets aren't configured, so
+  forks aren't left with a permanently red check.
+
+### Security
+
+- **LLM prompt-injection hardening** (#215). Document AI-extraction (BYOK cloud
+  providers and the local Ollama fallback) now prefixes every extraction prompt
+  with an explicit notice that the attached document/text is untrusted,
+  user-supplied content to extract fields from, not instructions to follow.
+  Extracted field values over 300 characters — well beyond what any legitimate
+  title, date, amount, or name needs — are now dropped rather than passed to
+  the review form. The household chat assistant's system prompt got the same
+  treatment for tool results and record data. Chat writes were already gated
+  behind an explicit user confirmation card before this, so this closes the
+  content-manipulation gap rather than a write-authorization one.
+
 ## [0.16.0] - 2026-08-02
 
 ### Added

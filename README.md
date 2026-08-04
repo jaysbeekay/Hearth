@@ -643,6 +643,7 @@ for the full list with defaults. Notable ones:
 | `BACKUP_SFTP_*` | Optional. Pre-populates the SFTP backup fields (`BACKUP_SFTP_HOST`, `BACKUP_SFTP_USERNAME`, plus `BACKUP_SFTP_PASSWORD` or `BACKUP_SFTP_PRIVATE_KEY`) — still requires picking "SFTP" in the backup destination dropdown to activate it. See "Database backups" above. |
 | `BACKUP_LOCAL_PATH` | Optional. Pre-populates the local-filesystem backup path — still requires picking "Local filesystem" in the backup destination dropdown to activate it. See "Database backups" above. |
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | Optional. Set both to show a "Sign in with GitHub" button on the login page. Sign-up stays invite-only — GitHub sign-in only works for an email that already has an admin-invited Hearth account. |
+| `GITHUB_FEEDBACK_TOKEN` / `GITHUB_FEEDBACK_REPOSITORY` | Optional. Set both to enable the feedback form on Help & FAQ. The token needs Issues: Read and write permission for the target `owner/repository`; configure that repository's GitHub Project automation to auto-add new issues and place them in the review column. |
 | `EMAIL_INGEST_HOST` | Optional. Set to enable an IMAP mailbox household members can email or forward documents to — Hearth polls it on `EMAIL_INGEST_CRON_SCHEDULE` and drops attachments in the Documents inbox pre-classified for review. See `EMAIL_INGEST_PORT`/`EMAIL_INGEST_SECURE`/`EMAIL_INGEST_USER`/`EMAIL_INGEST_PASSWORD`/`EMAIL_INGEST_MAILBOX` in `.env.example` for the rest. |
 
 If neither email nor ntfy is configured, the scheduler runs but sends nothing

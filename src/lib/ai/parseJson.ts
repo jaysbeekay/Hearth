@@ -20,6 +20,13 @@ export function parseJsonObject(raw: string): Record<string, unknown> | null {
   }
 }
 
+// Every extracted field (dates, amounts, names, short labels) is legitimately
+// short — the longest heuristic-matched value elsewhere in the pipeline caps
+// at 100 chars. A value blowing past this is either a mis-extraction or a
+// model that got steered by injected instruction text hiding in the source
+// document; either way it's dropped rather than passed on to the review form.
+const MAX_FIELD_LENGTH = 300;
+
 export function whitelistFields<K extends string>(
   parsed: Record<string, unknown>,
   keys: readonly K[],
@@ -27,8 +34,11 @@ export function whitelistFields<K extends string>(
   const fields: Partial<Record<K, string>> = {};
   for (const key of keys) {
     const value = parsed[key];
-    if (typeof value === "string" && value.trim()) fields[key] = value.trim();
-    else if (typeof value === "number") fields[key] = String(value);
+    if (typeof value === "string" && value.trim() && value.trim().length <= MAX_FIELD_LENGTH) {
+      fields[key] = value.trim();
+    } else if (typeof value === "number") {
+      fields[key] = String(value);
+    }
   }
   return fields;
 }
