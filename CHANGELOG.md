@@ -18,6 +18,11 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   of going through `npx`). The npm CLI is now stripped from the final image.
   Also pins `fast-uri`/`ip-address@10.2.0` — the two findings that *did* match
   real transitive dependencies — to fixed versions via `overrides`.
+- **`nanoid@3.3.16` ReDoS/infinite-loop findings** (high severity, via
+  `next` → `postcss` → `nanoid`), caught by the Snyk CI job. Pinned to
+  `3.3.17` — the maintained same-major patch release (`legacy` dist-tag on
+  npm) — rather than the `5.x`/`6.x` line, which dropped CommonJS support
+  and would risk breaking `postcss`'s `require("nanoid")`.
 
 ## [0.17.0] - 2026-08-04
 
