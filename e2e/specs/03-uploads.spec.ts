@@ -56,18 +56,18 @@ test("disallowed mimetype (.exe) is rejected", async ({ page }) => {
   const body = await upload(page, {
     name: "malware.exe",
     mimeType: "application/x-msdownload",
-    buffer: Buffer.from("MZ fake exe"),
+    buffer: pdfBytes(),
   });
   expect(body).toContain("Unsupported file type");
 });
 
-test("disallowed mimetype (.sh) is rejected", async ({ page }) => {
+test("unrecognised executable-like contents are rejected", async ({ page }) => {
   const body = await upload(page, {
     name: "script.sh",
     mimeType: "text/x-shellscript",
     buffer: Buffer.from("#!/bin/sh\necho hi\n"),
   });
-  expect(body).toContain("Unsupported file type");
+  expect(body).toContain("don't match any supported format");
 });
 
 test("a file under the 15MB limit uploads successfully", async ({ page }) => {
@@ -75,6 +75,24 @@ test("a file under the 15MB limit uploads successfully", async ({ page }) => {
     name: "two-mb.pdf",
     mimeType: "application/pdf",
     buffer: pdfBytes(2 * 1024 * 1024),
+  });
+  expect(body).toContain("Document uploaded");
+});
+
+test("a content-sniffed PDF with a blank mobile MIME label uploads successfully", async ({ page }) => {
+  const body = await upload(page, {
+    name: "blank-mobile-type.pdf",
+    mimeType: "",
+    buffer: pdfBytes(),
+  });
+  expect(body).toContain("Document uploaded");
+});
+
+test("a content-sniffed PDF with a generic mobile MIME label uploads successfully", async ({ page }) => {
+  const body = await upload(page, {
+    name: "generic-mobile-type.pdf",
+    mimeType: "application/octet-stream",
+    buffer: pdfBytes(),
   });
   expect(body).toContain("Document uploaded");
 });

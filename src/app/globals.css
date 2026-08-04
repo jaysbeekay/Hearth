@@ -19,6 +19,8 @@
   --danger: #d91552;
   --warning: #92400e;
   --info: #0f6fb0;
+  --font-inter-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-source-code-pro: "SFMono-Regular", Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
 @theme inline {

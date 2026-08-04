@@ -1,10 +1,10 @@
-# Pinned by digest, not just by tag: `node:22-alpine` is a moving target, so an
+# Pinned by digest, not just by tag: `node:26-alpine` is a moving target, so an
 # unpinned build is not reproducible and silently picks up whatever the tag
 # points at that day. This is the multi-arch index digest, so buildx still
 # selects the right architecture.
 #
-# To update: docker buildx imagetools inspect node:22-alpine
-FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS base
+# To update: docker buildx imagetools inspect node:26-alpine
+FROM node:26-alpine@sha256:233761595746769ebfdb6090f44fc7cdf818ae0ce62d2b37e0367723b9823e36 AS base
 WORKDIR /app
 
 FROM base AS deps
@@ -43,6 +43,13 @@ ENV HOME=/home/node
 RUN apk update && \
     apk upgrade --no-cache && \
     apk add --no-cache tesseract-ocr tesseract-ocr-data-eng poppler-utils su-exec
+
+# The base image's globally-installed npm (needed at runtime for `npx prisma
+# migrate deploy` in docker-entrypoint.sh) vendors its own copies of tar,
+# brace-expansion, etc. — periodically ahead of CVE fixes in whatever npm
+# shipped with the base image. Upgrading npm itself pulls in patched
+# vendored deps without touching anything in package-lock.json.
+RUN npm install -g npm@latest
 
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json

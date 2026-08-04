@@ -17,6 +17,24 @@ const config: CapacitorConfig = {
     // via a localStorage debounce flag (no query params are passed here).
     errorPath: "index.html",
   },
+  plugins: {
+    CapacitorSQLite: {
+      iosDatabaseLocation: "Library/CapacitorDatabase",
+      iosIsEncryption: true,
+      iosKeychainPrefix: "hearth-standalone",
+      androidIsEncryption: true,
+      biometricAuth: false,
+      iosBiometric: {
+        biometricAuth: false,
+        biometricTitle: "Unlock Hearth standalone storage",
+      },
+      androidBiometric: {
+        biometricAuth: false,
+        biometricTitle: "Unlock Hearth standalone storage",
+        biometricSubTitle: "Use your device credential",
+      },
+    },
+  },
 };
 
 export default config;

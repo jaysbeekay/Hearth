@@ -55,8 +55,8 @@ jobs:
         if: ${{ env.HAS_SNYK == 'true' }}
         # --exclude covers the Open Source scan; the .snyk policy file covers
         # Code and IaC. Both are needed — they read exclusions from different
-        # places. See .snyk for why android/ is out of scope.
-        run: snyk test --all-projects --exclude=android --severity-threshold=high
+        # places. See .snyk for why android/ and ios/ are out of scope here.
+        run: snyk test --all-projects --exclude=android,ios --severity-threshold=high
 
       - name: Snyk Code test (blocks on high severity)
         if: ${{ env.HAS_SNYK == 'true' }}
@@ -83,16 +83,10 @@ jobs:
         # the image, base layers and the tesseract/poppler/su-exec this
         # Dockerfile installs.
         #
-        # It also drops the npm CLI that ships inside node:22-alpine, which
-        # currently carries 9 high-severity advisories (brace-expansion,
-        # pacote, sigstore, picomatch, tar). Snyk classes that as an "image
-        # application", not a base-image package, so --exclude-base-image-vulns
-        # does not filter it. Nothing in this repository can fix them: they're
-        # upstream's to patch and ours to pick up by moving the pinned digest.
-        # Blocking every pull request on them would make the gate unactionable,
-        # which is how gates get deleted. `snyk container monitor` below still
-        # reports the whole image, unfiltered, to the dashboard — that's where
-        # to look when choosing a new digest.
+        # Keep the base image pinned and current in Dockerfile. When Snyk flags
+        # a Node or Alpine base-layer issue, the durable remediation is to move
+        # the pinned digest to a patched upstream image instead of policy-
+        # ignoring the finding.
         run: >-
           snyk container test "$IMAGE_TAG" --file=Dockerfile
           --severity-threshold=high --exclude-app-vulns
@@ -103,7 +97,7 @@ jobs:
 
       - name: Snyk Open Source monitor
         if: ${{ env.HAS_SNYK == 'true' }}
-        run: snyk monitor --all-projects --exclude=android
+        run: snyk monitor --all-projects --exclude=android,ios
         continue-on-error: true
 
       - name: Snyk Container monitor
