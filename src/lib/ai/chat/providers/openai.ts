@@ -5,6 +5,7 @@ import {
   type ToolCallRequest,
 } from "@/lib/ai/chat/types";
 import { readSseStream } from "@/lib/ai/chat/streamParsing";
+import { proxiedProviderUrl } from "@/lib/ai/egressProxy";
 
 // Chat Completions (not the Responses API the extraction provider uses) —
 // its tool-calling shape is the de facto standard OpenRouter also mirrors,
@@ -58,7 +59,7 @@ export const callOpenAiChat: ChatProviderCall = async ({
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), CHAT_PROVIDER_TIMEOUT_MS);
   try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    const res = await fetch(proxiedProviderUrl("https://api.openai.com/v1/chat/completions"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

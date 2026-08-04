@@ -24,6 +24,9 @@ export const env = {
     baseUrl: optional("OLLAMA_BASE_URL"),
     model: optional("OLLAMA_MODEL"),
   },
+  aiEgressProxy: {
+    url: optional("AI_EGRESS_PROXY_URL"),
+  },
   emailIngest: {
     host: optional("EMAIL_INGEST_HOST"),
     port: Number(optional("EMAIL_INGEST_PORT", "993")),
@@ -101,6 +104,11 @@ export const isAppUrlSecure = () => {
 export const isEmailConfigured = () => Boolean(env.smtp.host && env.smtp.user);
 export const isNtfyConfigured = () => Boolean(env.ntfy.url && env.ntfy.topic);
 export const isOllamaConfigured = () => Boolean(env.ollama.baseUrl && env.ollama.model);
+// Routes outbound AI-provider calls (document extraction + chat assistant)
+// through a local agent-firewall proxy — e.g. Pipelock — instead of calling
+// the provider directly. See "Routing AI traffic through an agent firewall"
+// in the README.
+export const isAiEgressProxyConfigured = () => env.aiEgressProxy.url.length > 0;
 export const isBarcodeLookupConfigured = () => env.barcodeLookup.enabled;
 export const isEncryptionConfigured = () => env.encryptionKey.length > 0;
 // When set, first-run setup additionally requires this token, so a server that

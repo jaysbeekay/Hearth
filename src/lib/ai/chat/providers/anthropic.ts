@@ -5,6 +5,7 @@ import {
   type ToolCallRequest,
 } from "@/lib/ai/chat/types";
 import { readSseStream } from "@/lib/ai/chat/streamParsing";
+import { proxiedProviderUrl } from "@/lib/ai/egressProxy";
 
 interface AnthropicContentBlock {
   type: string;
@@ -63,7 +64,7 @@ export const callAnthropicChat: ChatProviderCall = async ({
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), CHAT_PROVIDER_TIMEOUT_MS);
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
+    const res = await fetch(proxiedProviderUrl("https://api.anthropic.com/v1/messages"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

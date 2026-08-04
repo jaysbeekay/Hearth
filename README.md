@@ -501,6 +501,32 @@ saving. Leave it unset to hide this section entirely and keep extraction
 fully local/self-hosted. Word docs (`.doc`/`.docx`) aren't supported by this
 path either, for the same reason local OCR skips them.
 
+## Routing AI traffic through an agent firewall (optional)
+
+Document extraction and the household chat assistant both send content to an
+AI provider — your configured cloud provider, or a local Ollama server — and
+read its response back. A document or a tool result is untrusted input by
+the time it reaches the model (the extraction prompts and the assistant's
+system prompt are already hardened against it, see "Security notes" below),
+so as defense in depth you can route that outbound traffic through a local
+agent firewall that inspects it for injection and credential/data
+exfiltration attempts before it leaves the network.
+
+Set `AI_EGRESS_PROXY_URL` to the base URL of a running instance of an
+agent-firewall proxy — e.g.
+[Pipelock](https://github.com/luckyPipewrench/pipelock), an open-source
+option built for exactly this — and every provider call (Anthropic, Gemini,
+OpenAI, OpenRouter, and Ollama alike) is sent through its `/fetch?url=...`
+mediation endpoint instead of directly to the provider. Leave it unset to
+call providers directly, as before; this is entirely optional and off by
+default.
+
+`docker-compose.yml` has a commented-out `pipelock` service showing this
+wired up as a sidecar. Note that whatever you point `AI_EGRESS_PROXY_URL` at
+sees the full request it mediates, including your provider API key, the same
+way any reverse proxy sees the traffic passing through it — only point this
+at a proxy you run and trust.
+
 ## Barcode scanning for products
 
 When adding a new product, you can tap the scan icon next to the Barcode
@@ -633,6 +659,7 @@ for the full list with defaults. Notable ones:
 | `AUTH_TRUST_HOST` | Set to `true` when running behind a reverse proxy (e.g. nginx) — see "Locking down access with nginx + mTLS" above. |
 | `MCP_TOKEN` | Optional. If set, enables `GET/POST /api/mcp`, a read-only MCP server for querying contracts from an LLM agent — see "Querying contracts from an LLM (MCP)" above. |
 | `OLLAMA_BASE_URL` / `OLLAMA_MODEL` | Optional. Set both to enable the local-LLM fallback for document auto-fill when heuristics can't confidently parse a scan — see "Auto-filling fields from a document" above. |
+| `AI_EGRESS_PROXY_URL` | Optional. Routes outbound AI provider calls (document extraction and the chat assistant) through a local agent-firewall proxy such as Pipelock, instead of calling the provider directly — see "Routing AI traffic through an agent firewall" above. |
 | `BARCODE_LOOKUP_ENABLED` | Optional. Set to `true` to look up a scanned product barcode online and auto-fill its name/manufacturer — see "Barcode scanning for products" above. |
 | `BARCODE_LOOKUP_API_KEY` | Optional. A paid UPCitemdb API key for higher-limit barcode lookups, instead of the free keyless trial endpoint. |
 | `ENCRYPTION_KEY` | Optional. Generate with `openssl rand -base64 32`. Set to enable users bringing their own AI provider key for document extraction, and a prerequisite for offsite database backups — see "Bring your own AI key" and "Database backups" above. |
