@@ -33,6 +33,9 @@ services:
       MCP_TOKEN: ${MCP_TOKEN:-}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-}
+      # Optional: route AI provider calls through a local agent-firewall proxy
+      # (e.g. the commented-out "pipelock" service below) — see .env.example.
+      AI_EGRESS_PROXY_URL: ${AI_EGRESS_PROXY_URL:-}
       BARCODE_LOOKUP_ENABLED: ${BARCODE_LOOKUP_ENABLED:-}
       BARCODE_LOOKUP_API_KEY: ${BARCODE_LOOKUP_API_KEY:-}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
@@ -70,4 +73,17 @@ services:
   #     - "8080:80"
   #   volumes:
   #     - ./data/ntfy:/var/cache/ntfy
+  #   restart: unless-stopped
+
+  # Optional: run Pipelock (https://github.com/luckyPipewrench/pipelock), an
+  # open-source agent firewall, in front of Hearth's outbound AI provider
+  # traffic. Uncomment this service and set AI_EGRESS_PROXY_URL:
+  # http://pipelock:8888 above. Generate pipelock.yaml first with
+  # `pipelock generate config --preset balanced > pipelock.yaml` (see
+  # upstream README) and review it before pointing production traffic at it.
+  # pipelock:
+  #   image: ghcr.io/luckypipewrench/pipelock:latest
+  #   command: run --config /config/pipelock.yaml --listen 0.0.0.0:8888
+  #   volumes:
+  #     - ./pipelock.yaml:/config/pipelock.yaml:ro
   #   restart: unless-stopped

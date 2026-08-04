@@ -7,6 +7,7 @@ import {
   type ToolDefinition,
 } from "@/lib/ai/chat/types";
 import { readSseStream } from "@/lib/ai/chat/streamParsing";
+import { proxiedProviderUrl } from "@/lib/ai/egressProxy";
 
 // Gemini has no separate "assistant"/"tool" roles — "model" stands in for
 // assistant, and a function result is its own "function" role turn keyed by
@@ -75,7 +76,9 @@ export const callGeminiChat: ChatProviderCall = async ({
   const timeout = setTimeout(() => controller.abort(), CHAT_PROVIDER_TIMEOUT_MS);
   try {
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`,
+      proxiedProviderUrl(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`,
+      ),
       {
         method: "POST",
         headers: {

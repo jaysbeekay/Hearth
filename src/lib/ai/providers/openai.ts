@@ -1,4 +1,5 @@
 import { PROVIDER_TIMEOUT_MS, type ProviderCall } from "@/lib/ai/providers/types";
+import { proxiedProviderUrl } from "@/lib/ai/egressProxy";
 
 // Sends the raw PDF/image bytes to OpenAI's Responses API so the model
 // reads the document directly, rather than relying on local OCR.
@@ -12,7 +13,7 @@ export const callOpenAi: ProviderCall = async ({ apiKey, model, buffer, mimeType
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
   try {
-    const res = await fetch("https://api.openai.com/v1/responses", {
+    const res = await fetch(proxiedProviderUrl("https://api.openai.com/v1/responses"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

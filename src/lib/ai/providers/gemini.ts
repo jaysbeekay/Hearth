@@ -1,4 +1,5 @@
 import { PROVIDER_TIMEOUT_MS, type ProviderCall } from "@/lib/ai/providers/types";
+import { proxiedProviderUrl } from "@/lib/ai/egressProxy";
 
 // Sends the raw PDF/image bytes to Google's Generative Language API so
 // Gemini reads the document directly, rather than relying on local OCR.
@@ -9,7 +10,9 @@ export const callGemini: ProviderCall = async ({ apiKey, model, buffer, mimeType
   const timeout = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
   try {
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+      proxiedProviderUrl(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+      ),
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

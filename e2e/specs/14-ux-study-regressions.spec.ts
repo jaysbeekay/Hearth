@@ -108,7 +108,9 @@ test("global search Important filter finds a starred contract's document", async
   await page.locator('form:has(input[type="file"]) button[type="submit"]').first().click();
   await page.waitForSelector("text=search-important-test.pdf");
   await page.getByRole("button", { name: "Mark search-important-test.pdf as important" }).click();
-  await page.waitForTimeout(300);
+  await expect(
+    page.getByRole("button", { name: "Unmark search-important-test.pdf as important" }),
+  ).toBeVisible();
 
   await page.goto("/dashboard");
   await page.locator("aside").getByRole("button", { name: "Search" }).click();
