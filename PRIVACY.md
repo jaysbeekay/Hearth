@@ -53,6 +53,12 @@ Barcode scanning itself (reading the code from your camera) happens entirely
 on-device — nothing is sent anywhere unless barcode lookup is separately
 enabled.
 
+If you set `AI_EGRESS_PROXY_URL`, the AI extraction/chat traffic in the table
+above is routed through that proxy first (e.g. a self-hosted agent-firewall
+like Pipelock) before reaching the provider — only relevant if you've
+configured one yourself, and it sees the same request your server would have
+sent the provider directly.
+
 ## What's never collected
 
 Hearth has no analytics, telemetry, crash reporting, advertising, or

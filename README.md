@@ -87,6 +87,8 @@ Everything else is optional. Set `SMTP_*` to enable email reminders, `NTFY_*` fo
 - Multi-user/household accounts — everyone sees the same data
 - Admin-invite-only (no public sign-up) since this stores sensitive household data — with SMTP configured, adding a member sends a 48-hour expiring invitation link to set their own password, instead of the admin choosing one
 - Optional "Sign in with GitHub" on the login page (`GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`) — still only works for an email with an existing admin-invited account, it doesn't bypass the invite-only model
+- In-app feedback from Help & FAQ — report a bug or suggest an enhancement without leaving the app; files a labeled issue on the project's GitHub repo (`GITHUB_FEEDBACK_TOKEN`/`GITHUB_FEEDBACK_REPOSITORY`)
+- Optional AI egress-proxy support — route document extraction/chat assistant calls through a local agent-firewall proxy (e.g. Pipelock) for network-level inspection of outbound AI traffic (`AI_EGRESS_PROXY_URL`)
 - Mobile-friendly responsive UI, installable as a PWA ("Add to Home Screen")
 - **Offline read cache** — a service worker caches previously-visited pages so they're still browsable when your home server is unreachable; an amber banner appears and writes are queued locally and synced automatically when you reconnect. Records created offline show up immediately as a "Pending sync" card on their list page — editable or discardable before they've synced (Contracts, Products, Vehicles, Travel, Home, Inventory)
 - **AI Assistant** (bring-your-own-key chat) streams its replies as they're generated and can propose creating/updating a contract or product — you review and confirm before anything is saved
@@ -710,6 +712,13 @@ threshold.
   and reset when the app restarts.
 - Uploaded files are checked by their actual contents, not the type your
   browser claims, before anything is stored or handed to the OCR tools.
+- Document AI-extraction prompts and the chat assistant's system prompt both
+  explicitly flag attached document/tool content as untrusted data to extract
+  from, not instructions to follow, and extracted field values over 300
+  characters are dropped rather than passed to the review form — hardening
+  against prompt injection embedded in a malicious document. `AI_EGRESS_PROXY_URL`
+  (see "Routing AI traffic through an agent firewall" above) adds an optional
+  network-level layer on top of this.
 - Outbound requests to addresses you configure — webhooks, ntfy, Ollama — are
   checked first, but only against the two things that are never legitimate: a
   non-HTTP(S) scheme, and the cloud instance-metadata addresses. LAN IPs
