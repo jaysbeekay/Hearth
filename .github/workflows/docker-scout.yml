@@ -29,6 +29,7 @@ jobs:
       contents: read # for actions/checkout to fetch code
       security-events: write # for github/codeql-action/upload-sarif to upload SARIF results
       actions: read # only required for a private repository by github/codeql-action/upload-sarif to get the Action run status
+      pull-requests: write # for docker/scout-action to post its findings comment on the PR
     runs-on: ubuntu-latest
     env:
       # Secrets can't be referenced in a job-level `if`, so this is checked per
