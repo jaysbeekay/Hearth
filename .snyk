@@ -5,6 +5,26 @@
 # wolf on every pull request is one that gets switched off.
 version: v1.25.0
 
+ignore:
+  SNYK-JS-NANOID-18506894:
+    - "next > postcss > nanoid":
+        reason: >-
+          Temporary scoped policy for Next/PostCSS's CommonJS-only PostCSS 8
+          path. Snyk's fixed nanoid line is 5.1.16, which is ESM-only and
+          breaks postcss/lib/input.js's require('nanoid/non-secure') import.
+          Revisit when Next/PostCSS publish a compatible fixed dependency path.
+        expires: "2026-10-03T00:00:00.000Z"
+        created: "2026-08-03T00:00:00.000Z"
+  SNYK-JS-NANOID-18506897:
+    - "next > postcss > nanoid":
+        reason: >-
+          Temporary scoped policy for Next/PostCSS's CommonJS-only PostCSS 8
+          path. Snyk's fixed nanoid line is 5.1.16, which is ESM-only and
+          breaks postcss/lib/input.js's require('nanoid/non-secure') import.
+          Revisit when Next/PostCSS publish a compatible fixed dependency path.
+        expires: "2026-10-03T00:00:00.000Z"
+        created: "2026-08-03T00:00:00.000Z"
+
 exclude:
   global:
     # The e2e suite hardcodes an AUTH_SECRET and ENCRYPTION_KEY (e2e/env.ts).
@@ -24,3 +44,12 @@ exclude:
     # its own — it wraps a WebView pointed at the user's own server — so
     # there's nothing here the npm scan doesn't already cover.
     - android/**
+
+    # The Capacitor iOS shell uses generated Swift Package Manager scaffolding
+    # under ios/App/CapApp-SPM. A plain CI checkout does not have the same
+    # Xcode/Capacitor-generated package graph, so `snyk test --all-projects`
+    # reports "Unable to generate dependency tree" for Package.swift. The
+    # native app is still covered by xcodebuild, Capacitor sync, package
+    # verification, CodeQL, and the npm Open Source scan for the bundled web
+    # shell dependencies.
+    - ios/**

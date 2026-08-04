@@ -4,7 +4,7 @@ import { extractText } from "@/lib/documents/textExtraction";
 import { extractHomeItemFields } from "@/lib/documents/homeItemFieldExtraction";
 import { getByokConfig } from "@/lib/ai/extract";
 import { isModuleEnabled } from "@/lib/modules/enablement";
-import { readValidatedUpload, UploadRejectedError } from "@/lib/uploadValidation";
+import { readValidatedUploadDetails, UploadRejectedError } from "@/lib/uploadValidation";
 import { consumeRateLimit } from "@/lib/rateLimit";
 
 // Previews auto-fill fields for a document before a home item exists yet —
@@ -39,8 +39,9 @@ export async function POST(request: NextRequest) {
   // Validates size, declared type AND leading bytes — this file is about to
   // be handed to pdftotext/pdftoppm/tesseract, so its real format matters.
   let buffer: Buffer;
+  let mimeType: string;
   try {
-    buffer = await readValidatedUpload(file);
+    ({ buffer, mimeType } = await readValidatedUploadDetails(file));
   } catch (error) {
     if (error instanceof UploadRejectedError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
@@ -48,12 +49,12 @@ export async function POST(request: NextRequest) {
     throw error;
   }
   const [text, byokUser] = await Promise.all([
-    extractText(buffer, file.type),
+    extractText(buffer, mimeType),
     getByokConfig(),
   ]);
   const { fields, source } = await extractHomeItemFields(text, {
     buffer,
-    mimeType: file.type,
+    mimeType,
     byokUser,
   });
 

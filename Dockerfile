@@ -1,10 +1,10 @@
-# Pinned by digest, not just by tag: `node:22-alpine` is a moving target, so an
+# Pinned by digest, not just by tag: `node:26-alpine` is a moving target, so an
 # unpinned build is not reproducible and silently picks up whatever the tag
 # points at that day. This is the multi-arch index digest, so buildx still
 # selects the right architecture.
 #
-# To update: docker buildx imagetools inspect node:22-alpine
-FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS base
+# To update: docker buildx imagetools inspect node:26-alpine
+FROM node:26-alpine@sha256:233761595746769ebfdb6090f44fc7cdf818ae0ce62d2b37e0367723b9823e36 AS base
 WORKDIR /app
 
 FROM base AS deps
@@ -44,16 +44,12 @@ RUN apk update && \
     apk upgrade --no-cache && \
     apk add --no-cache tesseract-ocr tesseract-ocr-data-eng poppler-utils su-exec
 
-# node:22-alpine ships a full npm CLI under /usr/local/lib/node_modules/npm,
-# bundled with npm's own vendored dependencies (tar, brace-expansion,
-# sigstore, picomatch, ip-address — at whatever versions happened to ship
-# with this Node release). Those are unrelated to this project's
-# package-lock.json, so a CVE in them can't be fixed by any override here —
-# Docker Scout was flagging exactly this (#221). docker-entrypoint.sh calls
-# the local prisma binary directly rather than going through npx, so nothing
-# at runtime needs npm — strip it from the image outright.
-RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
-    /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
+# The base image's globally-installed npm (needed at runtime for `npx prisma
+# migrate deploy` in docker-entrypoint.sh) vendors its own copies of tar,
+# brace-expansion, etc. — periodically ahead of CVE fixes in whatever npm
+# shipped with the base image. Upgrading npm itself pulls in patched
+# vendored deps without touching anything in package-lock.json.
+RUN npm install -g npm@latest
 
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
