@@ -44,6 +44,13 @@ RUN apk update && \
     apk upgrade --no-cache && \
     apk add --no-cache tesseract-ocr tesseract-ocr-data-eng poppler-utils su-exec
 
+# The base image's globally-installed npm (needed at runtime for `npx prisma
+# migrate deploy` in docker-entrypoint.sh) vendors its own copies of tar,
+# brace-expansion, etc. — periodically ahead of CVE fixes in whatever npm
+# shipped with the base image. Upgrading npm itself pulls in patched
+# vendored deps without touching anything in package-lock.json.
+RUN npm install -g npm@latest
+
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/prisma ./prisma
