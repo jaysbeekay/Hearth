@@ -62,14 +62,14 @@ async function attachDocument(contractId: string, file: File): Promise<ActionSta
   const rejection = await describeUploadRejection(file);
   if (rejection) return { error: rejection };
 
-  const { storedName, size, sha256 } = await saveDocument(contractId, file);
-  const extractedText = await extractSearchableText(Buffer.from(await file.arrayBuffer()), file.type);
+  const { storedName, size, sha256, mimeType } = await saveDocument(contractId, file);
+  const extractedText = await extractSearchableText(Buffer.from(await file.arrayBuffer()), mimeType);
   await prisma.document.create({
     data: {
       contractId,
       filename: file.name.slice(0, 255),
       storedName,
-      mimeType: file.type,
+      mimeType,
       size,
       extractedText,
       sha256,

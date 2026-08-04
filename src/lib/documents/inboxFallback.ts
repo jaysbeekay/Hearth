@@ -20,14 +20,14 @@ export async function saveFileToInboxFallback(
 ): Promise<{ id: string } | null> {
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
-    const { storedName, size, sha256 } = await saveInboxDocument(file);
+    const { storedName, size, sha256, mimeType } = await saveInboxDocument(file);
     const extractedText = await extractSearchableText(buffer, file.type);
     const { status, guessedType } = await computeInboxIntake({ extractedText, sha256 });
     const doc = await prisma.inboxDocument.create({
       data: {
         filename: file.name.slice(0, 255),
         storedName,
-        mimeType: file.type,
+        mimeType,
         size,
         extractedText,
         uploadedById,

@@ -64,21 +64,25 @@ const CONTAINER_EQUIVALENTS: Record<string, string[]> = {
   ],
 };
 
+const GENERIC_MIME_TYPES = new Set(["", "application/octet-stream", "binary/octet-stream"]);
+
+export type ValidatedUpload = {
+  buffer: Buffer;
+  mimeType: string;
+};
+
 /**
- * Validates one uploaded file and returns its bytes.
+ * Validates one uploaded file and returns its bytes plus resolved MIME type.
  *
  * Reads the file once and hands the buffer back so callers don't re-read it —
  * every save path needs the bytes anyway.
  */
-export async function readValidatedUpload(file: File): Promise<Buffer> {
+export async function readValidatedUploadDetails(file: File): Promise<ValidatedUpload> {
   if (file.size === 0) {
     throw new UploadRejectedError("That file is empty.");
   }
   if (file.size > MAX_UPLOAD_BYTES) {
     throw new UploadRejectedError("File is too large (15MB max).");
-  }
-  if (!ALLOWED_MIME_TYPES.has(file.type)) {
-    throw new UploadRejectedError("Unsupported file type. Use PDF, Word, or image files.");
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
@@ -90,13 +94,26 @@ export async function readValidatedUpload(file: File): Promise<Buffer> {
     );
   }
 
+  const declared = GENERIC_MIME_TYPES.has(file.type) ? sniffed : file.type;
+  if (!ALLOWED_MIME_TYPES.has(declared)) {
+    throw new UploadRejectedError("Unsupported file type. Use PDF, Word, or image files.");
+  }
+
   const acceptable = CONTAINER_EQUIVALENTS[sniffed] ?? [sniffed];
-  if (!acceptable.includes(file.type)) {
+  if (!acceptable.includes(declared)) {
     throw new UploadRejectedError(
-      `That file is labelled ${file.type} but its contents are ${sniffed}.`,
+      `That file is labelled ${declared} but its contents are ${sniffed}.`,
     );
   }
 
+  return { buffer, mimeType: declared };
+}
+
+/**
+ * Validates one uploaded file and returns its bytes.
+ */
+export async function readValidatedUpload(file: File): Promise<Buffer> {
+  const { buffer } = await readValidatedUploadDetails(file);
   return buffer;
 }
 

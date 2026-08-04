@@ -23,7 +23,6 @@ import { fetchHistoricalPrice } from "@/lib/prices";
 import { extractSearchableText } from "@/lib/documents/textExtraction";
 import { ProductDocumentKind } from "@/generated/prisma/enums";
 import {
-  ALLOWED_MIME_TYPES,
   MAX_UPLOAD_BYTES,
   saveDocument,
   saveProductDocument,
@@ -91,9 +90,6 @@ function requireParentId(ctx: SyncContext): string {
 
 function validateFile(file: File) {
   if (file.size > MAX_UPLOAD_BYTES) throw new Error("File is too large (15MB max).");
-  if (!ALLOWED_MIME_TYPES.has(file.type)) {
-    throw new Error("Unsupported file type. Use PDF, Word, or image files.");
-  }
 }
 
 // Detects (doesn't merge) a conflicting edit: if the record's updatedAt has
@@ -135,10 +131,10 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     },
     saveFile: async (contractId, file) => {
       validateFile(file);
-      const { storedName, size, sha256 } = await saveDocument(contractId, file);
-      const extractedText = await extractSearchableText(Buffer.from(await file.arrayBuffer()), file.type);
+      const { storedName, size, sha256, mimeType } = await saveDocument(contractId, file);
+      const extractedText = await extractSearchableText(Buffer.from(await file.arrayBuffer()), mimeType);
       await prisma.document.create({
-        data: { contractId, filename: file.name.slice(0, 255), storedName, mimeType: file.type, size, extractedText, sha256 },
+        data: { contractId, filename: file.name.slice(0, 255), storedName, mimeType, size, extractedText, sha256 },
       });
     },
   }),
@@ -172,13 +168,13 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     saveFile: async (productId, file, fieldName) => {
       validateFile(file);
       const kind = fieldName === "photoFile" ? ProductDocumentKind.PHOTO : ProductDocumentKind.INVOICE;
-      const { storedName, size, sha256 } = await saveProductDocument(productId, file);
+      const { storedName, size, sha256, mimeType } = await saveProductDocument(productId, file);
       const extractedText =
         kind === ProductDocumentKind.INVOICE
-          ? await extractSearchableText(Buffer.from(await file.arrayBuffer()), file.type)
+          ? await extractSearchableText(Buffer.from(await file.arrayBuffer()), mimeType)
           : null;
       await prisma.productDocument.create({
-        data: { productId, filename: file.name.slice(0, 255), storedName, mimeType: file.type, size, kind, extractedText, sha256 },
+        data: { productId, filename: file.name.slice(0, 255), storedName, mimeType, size, kind, extractedText, sha256 },
       });
     },
   }),
@@ -235,9 +231,9 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     },
     saveFile: async (vehicleItemId, file) => {
       validateFile(file);
-      const { storedName, size, sha256 } = await saveVehicleItemDocument(vehicleItemId, file);
+      const { storedName, size, sha256, mimeType } = await saveVehicleItemDocument(vehicleItemId, file);
       await prisma.vehicleItemDocument.create({
-        data: { vehicleItemId, filename: file.name.slice(0, 255), storedName, mimeType: file.type, size, sha256 },
+        data: { vehicleItemId, filename: file.name.slice(0, 255), storedName, mimeType, size, sha256 },
       });
     },
   }),
@@ -294,9 +290,9 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     },
     saveFile: async (segmentId, file) => {
       validateFile(file);
-      const { storedName, size, sha256 } = await saveTripSegmentDocument(segmentId, file);
+      const { storedName, size, sha256, mimeType } = await saveTripSegmentDocument(segmentId, file);
       await prisma.tripSegmentDocument.create({
-        data: { tripSegmentId: segmentId, filename: file.name.slice(0, 255), storedName, mimeType: file.type, size, sha256 },
+        data: { tripSegmentId: segmentId, filename: file.name.slice(0, 255), storedName, mimeType, size, sha256 },
       });
     },
   }),
@@ -353,9 +349,9 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     },
     saveFile: async (homeItemId, file) => {
       validateFile(file);
-      const { storedName, size, sha256 } = await saveHomeItemDocument(homeItemId, file);
+      const { storedName, size, sha256, mimeType } = await saveHomeItemDocument(homeItemId, file);
       await prisma.homeItemDocument.create({
-        data: { homeItemId, filename: file.name.slice(0, 255), storedName, mimeType: file.type, size, sha256 },
+        data: { homeItemId, filename: file.name.slice(0, 255), storedName, mimeType, size, sha256 },
       });
     },
   }),
@@ -408,9 +404,9 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     },
     saveFile: async (statementId, file) => {
       validateFile(file);
-      const { storedName, size, sha256 } = await saveRentalStatementDocument(statementId, file);
+      const { storedName, size, sha256, mimeType } = await saveRentalStatementDocument(statementId, file);
       await prisma.rentalStatementDocument.create({
-        data: { rentalStatementId: statementId, filename: file.name.slice(0, 255), storedName, mimeType: file.type, size, sha256 },
+        data: { rentalStatementId: statementId, filename: file.name.slice(0, 255), storedName, mimeType, size, sha256 },
       });
     },
   }),
@@ -441,9 +437,9 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     },
     saveFile: async (itemId, file) => {
       validateFile(file);
-      const { storedName, size, sha256 } = await saveInventoryItemDocument(itemId, file);
+      const { storedName, size, sha256, mimeType } = await saveInventoryItemDocument(itemId, file);
       await prisma.inventoryItemDocument.create({
-        data: { inventoryItemId: itemId, filename: file.name.slice(0, 255), storedName, mimeType: file.type, size, sha256 },
+        data: { inventoryItemId: itemId, filename: file.name.slice(0, 255), storedName, mimeType, size, sha256 },
       });
     },
   }),
@@ -538,9 +534,9 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     },
     saveFile: async (tradeId, file) => {
       validateFile(file);
-      const { storedName, size, sha256 } = await saveTradeDocument(tradeId, file);
+      const { storedName, size, sha256, mimeType } = await saveTradeDocument(tradeId, file);
       await prisma.tradeDocument.create({
-        data: { tradeId, filename: file.name.slice(0, 255), storedName, mimeType: file.type, size, sha256 },
+        data: { tradeId, filename: file.name.slice(0, 255), storedName, mimeType, size, sha256 },
       });
     },
   }),

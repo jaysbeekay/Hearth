@@ -67,18 +67,18 @@ async function attachProductDocument(
   const rejection = await describeUploadRejection(file);
   if (rejection) return { error: rejection };
 
-  const { storedName, size, sha256 } = await saveProductDocument(productId, file);
+  const { storedName, size, sha256, mimeType } = await saveProductDocument(productId, file);
   // Only invoices carry meaningful text; skip OCR on plain product photos.
   const extractedText =
     kind === ProductDocumentKind.INVOICE
-      ? await extractSearchableText(Buffer.from(await file.arrayBuffer()), file.type)
+      ? await extractSearchableText(Buffer.from(await file.arrayBuffer()), mimeType)
       : null;
   await prisma.productDocument.create({
     data: {
       productId,
       filename: file.name.slice(0, 255),
       storedName,
-      mimeType: file.type,
+      mimeType,
       size,
       kind,
       extractedText,

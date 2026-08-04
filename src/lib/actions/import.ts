@@ -70,13 +70,13 @@ export async function importContract(formData: FormData): Promise<ImportResult> 
   });
 
   if (file instanceof File && file.size > 0) {
-    const { storedName, size, sha256 } = await saveDocument(contract.id, file);
+    const { storedName, size, sha256, mimeType } = await saveDocument(contract.id, file);
     await prisma.document.create({
       data: {
         contractId: contract.id,
         filename: file.name.slice(0, 255),
         storedName,
-        mimeType: file.type,
+        mimeType,
         size,
         sha256,
       },
@@ -105,13 +105,13 @@ export async function importProduct(formData: FormData): Promise<ImportResult> {
   });
 
   if (file instanceof File && file.size > 0) {
-    const { storedName, size, sha256 } = await saveProductDocument(product.id, file);
+    const { storedName, size, sha256, mimeType } = await saveProductDocument(product.id, file);
     await prisma.productDocument.create({
       data: {
         productId: product.id,
         filename: file.name.slice(0, 255),
         storedName,
-        mimeType: file.type,
+        mimeType,
         size,
         kind: ProductDocumentKind.INVOICE,
         sha256,
@@ -142,13 +142,13 @@ export async function importInventoryItem(formData: FormData): Promise<ImportRes
   });
 
   if (file instanceof File && file.size > 0) {
-    const { storedName, size, sha256 } = await saveInventoryItemDocument(item.id, file);
+    const { storedName, size, sha256, mimeType } = await saveInventoryItemDocument(item.id, file);
     await prisma.inventoryItemDocument.create({
       data: {
         inventoryItemId: item.id,
         filename: file.name.slice(0, 255),
         storedName,
-        mimeType: file.type,
+        mimeType,
         size,
         sha256,
       },
@@ -171,7 +171,7 @@ export async function saveToInbox(formData: FormData): Promise<ImportResult> {
   if (rejection) return { error: rejection };
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  const { storedName, size, sha256 } = await saveInboxDocument(file);
+  const { storedName, size, sha256, mimeType } = await saveInboxDocument(file);
   const extractedText = await extractSearchableText(buffer, file.type);
   const { status, guessedType } = await computeInboxIntake({ extractedText, sha256 });
 
@@ -179,7 +179,7 @@ export async function saveToInbox(formData: FormData): Promise<ImportResult> {
     data: {
       filename: file.name.slice(0, 255),
       storedName,
-      mimeType: file.type,
+      mimeType,
       size,
       extractedText,
       uploadedById: user.id,
@@ -285,13 +285,13 @@ export async function attachInboxDocumentAsVersion(
   const file = new File([new Uint8Array(buffer)], doc.filename, { type: doc.mimeType });
 
   if (targetKind === "CONTRACT") {
-    const { storedName, size, sha256 } = await saveDocument(targetOwnerId, file);
+    const { storedName, size, sha256, mimeType } = await saveDocument(targetOwnerId, file);
     await prisma.document.create({
       data: {
         contractId: targetOwnerId,
         filename: doc.filename,
         storedName,
-        mimeType: doc.mimeType,
+        mimeType,
         size,
         sha256,
         supersedesId: headId,
@@ -300,13 +300,13 @@ export async function attachInboxDocumentAsVersion(
     });
     revalidatePath(`/contracts/${targetOwnerId}`);
   } else if (targetKind === "PRODUCT") {
-    const { storedName, size, sha256 } = await saveProductDocument(targetOwnerId, file);
+    const { storedName, size, sha256, mimeType } = await saveProductDocument(targetOwnerId, file);
     await prisma.productDocument.create({
       data: {
         productId: targetOwnerId,
         filename: doc.filename,
         storedName,
-        mimeType: doc.mimeType,
+        mimeType,
         size,
         sha256,
         supersedesId: headId,
@@ -315,13 +315,13 @@ export async function attachInboxDocumentAsVersion(
     });
     revalidatePath(`/products/${targetOwnerId}`);
   } else {
-    const { storedName, size, sha256 } = await saveInventoryItemDocument(targetOwnerId, file);
+    const { storedName, size, sha256, mimeType } = await saveInventoryItemDocument(targetOwnerId, file);
     await prisma.inventoryItemDocument.create({
       data: {
         inventoryItemId: targetOwnerId,
         filename: doc.filename,
         storedName,
-        mimeType: doc.mimeType,
+        mimeType,
         size,
         sha256,
         supersedesId: headId,
