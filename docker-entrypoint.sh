@@ -21,6 +21,19 @@ APP_USER="${APP_USER:-node}"
 # /app/data is what the image and docker-compose.yml actually use.
 DATA_DIR="${DATA_DIR:-/app/data}"
 
+# DATABASE_URL is always "file:<path>" (src/lib/prisma.ts's own default),
+# resolved relative to the app's working directory when not absolute — same
+# as Prisma itself resolves it. The directory-ownership check below is a
+# fast-path proxy for "everything under here is fine," not a guarantee: the
+# db file specifically can end up wrong-owned independently of its parent
+# directory (a `docker cp` done as root, a restored backup, a leftover from
+# an older image), so it's checked and repaired on its own too.
+DB_FILE="${DATABASE_URL#file:}"
+case "$DB_FILE" in
+  /*) : ;;
+  *) DB_FILE="/app/$DB_FILE" ;;
+esac
+
 if [ "$(id -u)" = "0" ]; then
   mkdir -p "$DATA_DIR"
 
@@ -29,6 +42,14 @@ if [ "$(id -u)" = "0" ]; then
   if [ "$(stat -c %u "$DATA_DIR")" != "$(id -u "$APP_USER")" ]; then
     echo "[entrypoint] adopting $DATA_DIR for the $APP_USER user (uid $(id -u "$APP_USER"))"
     chown -R "$APP_USER:$APP_USER" "$DATA_DIR"
+  fi
+
+  # Cheap (one file) belt-and-braces check independent of the directory
+  # fast-path above, since that path can be skipped while this file is still
+  # wrong-owned.
+  if [ -e "$DB_FILE" ] && [ "$(stat -c %u "$DB_FILE")" != "$(id -u "$APP_USER")" ]; then
+    echo "[entrypoint] adopting $DB_FILE for the $APP_USER user (uid $(id -u "$APP_USER"))"
+    chown "$APP_USER:$APP_USER" "$DB_FILE"
   fi
 
   # Re-exec this same script as the app user; the block below then runs.
@@ -42,6 +63,13 @@ if [ ! -w "$DATA_DIR" ]; then
   echo "[entrypoint] The container is running as a non-root user, so the host" >&2
   echo "[entrypoint] directory bind-mounted there must be writable by it:" >&2
   echo "[entrypoint]     sudo chown -R $(id -u):$(id -g) ./data" >&2
+  exit 1
+fi
+
+if [ -e "$DB_FILE" ] && [ ! -w "$DB_FILE" ]; then
+  echo "[entrypoint] $DB_FILE is not writable by uid $(id -u), even though $DATA_DIR is." >&2
+  echo "[entrypoint] Fix its ownership directly:" >&2
+  echo "[entrypoint]     sudo chown $(id -u):$(id -g) $DB_FILE" >&2
   exit 1
 fi
 
