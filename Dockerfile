@@ -44,6 +44,17 @@ RUN apk update && \
     apk upgrade --no-cache && \
     apk add --no-cache tesseract-ocr tesseract-ocr-data-eng poppler-utils su-exec
 
+# node:22-alpine ships a full npm CLI under /usr/local/lib/node_modules/npm,
+# bundled with npm's own vendored dependencies (tar, brace-expansion,
+# sigstore, picomatch, ip-address — at whatever versions happened to ship
+# with this Node release). Those are unrelated to this project's
+# package-lock.json, so a CVE in them can't be fixed by any override here —
+# Docker Scout was flagging exactly this (#221). docker-entrypoint.sh calls
+# the local prisma binary directly rather than going through npx, so nothing
+# at runtime needs npm — strip it from the image outright.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+    /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
+
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/prisma ./prisma
