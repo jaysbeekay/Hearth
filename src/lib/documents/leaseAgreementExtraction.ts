@@ -65,7 +65,13 @@ function extractTenantName(text: string): string | undefined {
   return undefined;
 }
 
-function heuristicExtract(text: string): ExtractedLeaseFields {
+// Exported for fieldExtraction.ts's Contract extraction pass (#228), which
+// merges these in as a fallback for lease/rental agreements uploaded
+// directly to a Contract — the generic Contract heuristics don't know about
+// lease-specific date layouts (e.g. REIWA's spaced-digit dates) or rent/bond
+// phrasing. Synchronous and heuristic-only: no network escalation here, that
+// stays owned by extractLeaseFields below.
+export function heuristicExtract(text: string): ExtractedLeaseFields {
   return {
     weeklyRent:
       findLabeledValue(text, /(rent\s+is|weekly\s+rent|rent\s+per\s+week)/i, AMOUNT_PATTERN) ??
@@ -85,7 +91,7 @@ function normaliseAmount(val: string | undefined): string | undefined {
   return val.replace(/,/g, "");
 }
 
-function normaliseFields(fields: ExtractedLeaseFields): ExtractedLeaseFields {
+export function normaliseFields(fields: ExtractedLeaseFields): ExtractedLeaseFields {
   return {
     ...fields,
     weeklyRent: normaliseAmount(fields.weeklyRent),
