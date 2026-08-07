@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { MessagesSquare, X } from "lucide-react";
 import { ChatThreadList, type ThreadSummary } from "@/components/ChatThreadList";
 import { ChatMessageList, type DisplayMessage } from "@/components/ChatMessageList";
 import { ChatComposer } from "@/components/ChatComposer";
@@ -37,6 +38,11 @@ export function AssistantClient({
   const [pending, setPending] = useState(false);
   const [toolStatus, setToolStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The thread sidebar is desktop-only (see the <aside> below) — on mobile
+  // there's otherwise no way to reach previous chats at all, not just an
+  // unresponsive click (#234). This mirrors DetailOverflowMenu's bottom-sheet
+  // pattern for the same "no room for a permanent sidebar" mobile case.
+  const [threadsOpen, setThreadsOpen] = useState(false);
 
   async function handleSend(text: string) {
     setError(null);
@@ -158,6 +164,16 @@ export function AssistantClient({
         <ChatThreadList threads={threads} activeThreadId={threadId} />
       </aside>
       <div className="flex flex-1 flex-col">
+        <div className="flex items-center justify-between border-b border-border px-3 py-2 md:hidden">
+          <button
+            type="button"
+            onClick={() => setThreadsOpen(true)}
+            className="flex h-11 items-center gap-2 rounded-lg px-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
+          >
+            <MessagesSquare size={16} />
+            Chats
+          </button>
+        </div>
         <ChatMessageList
           messages={messages}
           toolStatus={toolStatus}
@@ -170,6 +186,40 @@ export function AssistantClient({
         )}
         <ChatComposer onSend={handleSend} disabled={pending} />
       </div>
+
+      {threadsOpen && (
+        <div
+          className="fixed inset-0 z-40 flex items-end bg-black/40 md:hidden"
+          onClick={() => setThreadsOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-label="Previous chats"
+            aria-modal="true"
+            className="max-h-[70vh] w-full overflow-hidden rounded-t-2xl border-t border-border bg-surface pb-[env(safe-area-inset-bottom)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-border px-3 py-2">
+              <span className="text-sm font-medium">Chats</span>
+              <button
+                type="button"
+                onClick={() => setThreadsOpen(false)}
+                aria-label="Close"
+                className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/5"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="max-h-[calc(70vh-3rem)] overflow-y-auto">
+              <ChatThreadList
+                threads={threads}
+                activeThreadId={threadId}
+                onNavigate={() => setThreadsOpen(false)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
