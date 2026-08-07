@@ -101,6 +101,11 @@ export const isAppUrlSecure = () => {
   }
 };
 
+// True when APP_URL was actually set, as opposed to silently defaulting to
+// http://localhost:3000 — that default is fine for local dev, but a link
+// built from it and emailed to a real recipient is just broken (#227).
+export const isAppUrlConfigured = () => Boolean(process.env.APP_URL);
+
 export const isEmailConfigured = () => Boolean(env.smtp.host && env.smtp.user);
 export const isNtfyConfigured = () => Boolean(env.ntfy.url && env.ntfy.topic);
 export const isOllamaConfigured = () => Boolean(env.ollama.baseUrl && env.ollama.model);

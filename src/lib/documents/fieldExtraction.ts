@@ -11,6 +11,10 @@ import {
 import { extractWithByok, isByokConfigured } from "@/lib/ai/extract";
 import { parseJsonObject, whitelistFields } from "@/lib/ai/parseJson";
 import type { ByokUser } from "@/lib/ai/types";
+import {
+  heuristicExtract as heuristicExtractLease,
+  normaliseFields as normaliseLeaseFields,
+} from "@/lib/documents/leaseAgreementExtraction";
 
 export interface ExtractedFields {
   title?: string;
@@ -48,10 +52,27 @@ function findBillingFrequency(text: string): string | undefined {
   return undefined;
 }
 
+// Fills gaps left by the generic pass with lease/rental-specific heuristics
+// (#228) — a rental agreement uploaded to a Contract has dates and rent
+// phrasing (e.g. REIWA's spaced-digit dates, "rent is $X per week") the
+// generic patterns above don't recognize. Only fills fields the generic pass
+// missed, so it can't override a correct generic match with a worse guess.
+function fillFromLeaseHeuristics(text: string, fields: ExtractedFields): ExtractedFields {
+  const lease = normaliseLeaseFields(heuristicExtractLease(text));
+  return {
+    ...fields,
+    startDate: fields.startDate ?? lease.leaseStart,
+    endDate: fields.endDate ?? lease.leaseEnd,
+    cost: fields.cost ?? lease.weeklyRent,
+    billingFrequency: fields.billingFrequency ?? (lease.weeklyRent ? "WEEKLY" : undefined),
+    contactName: fields.contactName ?? lease.tenantName,
+  };
+}
+
 // Exported for classifyDocument.ts's type-guessing pass (#195), which scores
 // candidate types by heuristic-only field count — never triggers AI escalation.
 export function heuristicExtract(text: string): ExtractedFields {
-  return {
+  const fields: ExtractedFields = {
     provider: findCompanyLine(text),
     contractNumber: findLabeledValue(
       text,
@@ -71,6 +92,7 @@ export function heuristicExtract(text: string): ExtractedFields {
     contactPhone: findPhone(text),
     contactEmail: findEmail(text),
   };
+  return fillFromLeaseHeuristics(text, fields);
 }
 
 export function countFound(fields: ExtractedFields): number {

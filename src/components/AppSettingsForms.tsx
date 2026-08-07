@@ -30,6 +30,7 @@ function SensitiveField({ id, name, isSet }: { id: string; name: string; isSet: 
 export function SmtpForm({
   action,
   current,
+  appUrlConfigured,
 }: {
   action: (s: ActionState, f: FormData) => Promise<ActionState>;
   current: {
@@ -40,10 +41,18 @@ export function SmtpForm({
     from: string;
     passwordIsSet: boolean;
   };
+  appUrlConfigured: boolean;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(action, null);
   return (
     <form action={formAction} className="space-y-4">
+      {!appUrlConfigured && (
+        <p className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
+          APP_URL isn&apos;t set — password-reset and invitation links in emails will point to
+          http://localhost:3000 and won&apos;t work for recipients. Set APP_URL to this
+          app&apos;s real address (see .env.example).
+        </p>
+      )}
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="SMTP host" htmlFor="smtpHost">
           <input id="smtpHost" name="smtpHost" defaultValue={current.host} placeholder="mail.example.com" className={inputClass} />

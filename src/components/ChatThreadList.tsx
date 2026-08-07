@@ -15,15 +15,19 @@ export interface ThreadSummary {
 export function ChatThreadList({
   threads,
   activeThreadId,
+  onNavigate,
 }: {
   threads: ThreadSummary[];
   activeThreadId: string | null;
+  /** Called when a "New chat" or thread link is clicked — used to close the mobile sheet this list is shown in. */
+  onNavigate?: () => void;
 }) {
   return (
     <div className="flex h-full flex-col">
       <div className="p-3">
         <Link
           href="/assistant"
+          onClick={onNavigate}
           className="flex items-center justify-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
         >
           <Plus size={16} />
@@ -44,7 +48,11 @@ export function ChatThreadList({
                 : "hover:bg-black/5 dark:hover:bg-white/5",
             )}
           >
-            <Link href={`/assistant?thread=${thread.id}`} className="flex-1 truncate">
+            <Link
+              href={`/assistant?thread=${thread.id}`}
+              onClick={onNavigate}
+              className="flex-1 truncate"
+            >
               {thread.title || "New conversation"}
             </Link>
             <ConfirmForm

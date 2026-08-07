@@ -7,6 +7,33 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Invitation/password-reset email links pointed to `http://localhost:3000`
+  when `APP_URL` wasn't set** (#227). Inviting a user now fails loudly with an
+  actionable error instead of silently sending a broken link; a warning also
+  shows in Settings next to SMTP config when `APP_URL` isn't configured.
+- **Deleting a Wealth portfolio or holding orphaned its trade documents**
+  (#233). `deletePortfolio`/`deleteHolding` (and the equivalent offline-sync
+  handler) now clean up each trade's document directory before the Prisma
+  cascade removes the DB rows, matching the pattern already used for
+  contracts/vehicles/properties/trips.
+- **No way to reach previous chats in Assistant on mobile** (#234). The
+  thread list was a desktop-only sidebar (`hidden md:block`) with no mobile
+  equivalent — added a "Chats" toggle that opens the thread list in a bottom
+  sheet on small viewports.
+- **Docker Scout CVEs in npm's own vendored dependencies** (#225). Chasing
+  `npm install -g npm@latest` in the runtime image didn't reliably stay
+  ahead of CVEs in npm's *own* bundled deps (tar, brace-expansion,
+  ip-address, undici) — the runner image now strips the npm CLI entirely,
+  since nothing at runtime needs it once `docker-entrypoint.sh` calls the
+  local `prisma` binary directly instead of going through `npx`.
+- **Inaccurate Contract field autofill for uploaded rental/lease agreements**
+  (#228). Contract extraction only used generic invoice-shaped heuristics;
+  it now also falls back to the lease-specific date/rent/tenant heuristics
+  already used for Property rental agreements, filling in any fields the
+  generic pass missed.
+
 ## [0.17.0] - 2026-08-04
 
 ### Added
