@@ -23,7 +23,7 @@ import type { ModuleKey } from "@/lib/modules/registry";
 import { DATE_FORMAT_OPTIONS, REGION_OPTIONS } from "@/lib/utils";
 import { TIMEZONE_OPTIONS } from "@/lib/timezones";
 import { POPULAR_CURRENCIES } from "@/components/CurrencySelect";
-import { env, isSetupTokenRequired } from "@/lib/env";
+import { env, isAppUrlConfigured, isSetupTokenRequired } from "@/lib/env";
 import { generateToken, hashToken } from "@/lib/crypto";
 import {
   checkRateLimit,
@@ -268,6 +268,14 @@ export async function createUser(
   if (!parsed.success) {
     return {
       error: firstIssueMessage(parsed.error),
+      values: formDataToStringValues(formData, CREATE_USER_FORM_FIELDS),
+    };
+  }
+
+  if (!isAppUrlConfigured()) {
+    return {
+      error:
+        "APP_URL isn't set — the invitation link would point to http://localhost:3000, which the invitee can't reach. Set APP_URL to this app's real address first (see .env.example).",
       values: formDataToStringValues(formData, CREATE_USER_FORM_FIELDS),
     };
   }
