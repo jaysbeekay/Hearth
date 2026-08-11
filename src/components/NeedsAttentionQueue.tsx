@@ -46,6 +46,15 @@ export function NeedsAttentionQueue({ items }: { items: AttentionItem[] }) {
               )}
             </Link>
 
+            {/* Zero-content, full-width flex item: forces the badge and
+                action buttons below onto a new line on narrow screens,
+                without touching Link's own min-w-0/truncate sizing — wrapping
+                Icon+Link in a flex div to carry that basis-full instead grows
+                the whole row past the viewport, since it breaks the
+                min-content chain truncate relies on to shrink. Collapses to
+                nothing at md, where the row is single-line anyway. */}
+            <div className="basis-full md:hidden" aria-hidden />
+
             {item.days != null && <ExpiryBadge days={item.days} />}
             {item.badge && (
               <span className="inline-flex items-center gap-1 rounded-md bg-warning/10 px-2.5 py-1 text-xs font-medium text-warning">
