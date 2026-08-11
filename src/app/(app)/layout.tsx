@@ -43,7 +43,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         enabledModules={enabledModules}
         chatConfigured={chatConfigured}
       />
-      <div className="flex flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col">
         <TopBar />
         <OfflineSyncManager />
         <OfflineBanner />

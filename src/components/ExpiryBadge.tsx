@@ -20,7 +20,12 @@ export function ExpiryBadge({
             : "bg-success/10 text-success";
 
   return (
-    <span className={cn("inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium", tone)}>
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-medium",
+        tone,
+      )}
+    >
       {cancelled ? "Cancelled" : expiryLabel(days)}
     </span>
   );
