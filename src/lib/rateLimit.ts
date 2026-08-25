@@ -67,8 +67,15 @@ export const RATE_LIMITS = {
   passkeyChallenge: { limit: 20, windowMs: 15 * 60_000 },
   // OCR and AI extraction spawn processes or bill a third-party key.
   documentExtraction: { limit: 30, windowMs: 5 * 60_000 },
+  // Longer-horizon companion to documentExtraction — bounds total daily
+  // spend/load even across many separate 5-minute windows, e.g. someone
+  // scripting requests to stay just under the burst limit. 200 is generous
+  // enough to cover migrating a household's whole paper trail in one sitting.
+  documentExtractionDaily: { limit: 200, windowMs: 24 * 60 * 60_000 },
   // Chat turns bill the household's own API key.
   chat: { limit: 60, windowMs: 5 * 60_000 },
+  // Daily companion to chat, same rationale as documentExtractionDaily.
+  chatDaily: { limit: 500, windowMs: 24 * 60 * 60_000 },
   // Feedback creates a public GitHub issue, so keep accidental repeats and
   // issue spam bounded per signed-in household member.
   feedback: { limit: 5, windowMs: 60 * 60_000 },
@@ -155,6 +162,24 @@ export function consumeRateLimit(
  */
 export function resetRateLimit(name: RateLimitName, identifier: string): void {
   buckets.delete(`${name}:${identifier}`);
+}
+
+/**
+ * Like consumeRateLimit, but checks and records several rules together for
+ * the same identifier — a short burst window layered under a longer daily
+ * ceiling — and reports the most restrictive result. Every rule is recorded
+ * even when an earlier one already blocks, so a request that trips the
+ * daily cap still counts toward the burst window too.
+ */
+export function consumeLayeredRateLimit(
+  names: RateLimitName[],
+  identifier: string,
+  now = Date.now(),
+): RateLimitResult {
+  const results = names.map((name) => consumeRateLimit(name, identifier, now));
+  const blocked = results.find((r) => !r.allowed);
+  if (blocked) return blocked;
+  return results.reduce((worst, r) => (r.remaining < worst.remaining ? r : worst));
 }
 
 /** Test seam. */

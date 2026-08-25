@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, KeyRound } from "lucide-react";
+import { ArrowRight, KeyRound, History } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isEncryptionConfigured } from "@/lib/env";
@@ -116,6 +116,12 @@ export default async function SettingsPage() {
               <KeyRound size={16} />
               Manage passkeys
             </Link>
+            {user.role === "ADMIN" && (
+              <Link href="/settings/security" className={quickLinkClass}>
+                <History size={16} />
+                View security log
+              </Link>
+            )}
           </div>
 
           <div className="mt-4 border-t border-border pt-4">

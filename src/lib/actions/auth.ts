@@ -34,6 +34,7 @@ import {
 } from "@/lib/rateLimit";
 import { isSmtpConfigured } from "@/lib/appSettings";
 import { sendInvitationEmail, sendPasswordResetEmail } from "@/lib/notifications/email";
+import { logSecurityEvent } from "@/lib/securityEventLog";
 
 export type ActionState = {
   error?: string;
@@ -166,6 +167,11 @@ export async function login(
   // the counter and would throttle ordinary repeated sign-ins.
   const throttle = checkRateLimit(limitName, throttleKey);
   if (!throttle.allowed) {
+    await logSecurityEvent({
+      type: "LOGIN_THROTTLED",
+      email: parsed.data.email,
+      address,
+    });
     const minutes = Math.ceil(throttle.retryAfterSeconds / 60);
     return {
       error: `Too many attempts. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`,
@@ -203,6 +209,11 @@ export async function login(
     }
     if (error instanceof AuthError) {
       recordFailedAttempt(limitName, throttleKey);
+      await logSecurityEvent({
+        type: "LOGIN_FAILED",
+        email: parsed.data.email,
+        address,
+      });
       return { error: "Invalid email or password." };
     }
     // Anything else is the success-path redirect NextAuth throws, or a real
@@ -346,6 +357,12 @@ export async function deleteUser(userId: string): Promise<ActionState> {
   }
 
   await prisma.user.delete({ where: { id: userId } });
+  await logSecurityEvent({
+    type: "USER_DELETED",
+    userId,
+    email: target.email,
+    detail: `deleted by ${session.user.id}`,
+  });
   revalidatePath("/settings/users");
   return { success: "User removed." };
 }
@@ -383,6 +400,12 @@ export async function updateMemberRole(
   await prisma.user.update({
     where: { id: userId },
     data: { role: parsed.data.role, sessionVersion: { increment: 1 } },
+  });
+  await logSecurityEvent({
+    type: "ROLE_CHANGED",
+    userId,
+    email: target.email,
+    detail: `role → ${parsed.data.role} (by ${session.user.id})`,
   });
   revalidatePath("/settings/users");
   return { success: "Role updated." };
@@ -480,6 +503,7 @@ export async function changePassword(
     where: { id: user.id },
     data: { passwordHash, sessionVersion: { increment: 1 } },
   });
+  await logSecurityEvent({ type: "PASSWORD_CHANGED", userId: user.id, email: user.email });
 
   await signOut({ redirectTo: "/login?passwordChanged=1" });
   return { success: "Password updated." };
@@ -507,6 +531,7 @@ export async function disableTotp(
     where: { id: user.id },
     data: { totpSecret: null, totpEnabled: false, totpRecoveryCodes: null },
   });
+  await logSecurityEvent({ type: "TOTP_DISABLED", userId: user.id, email: user.email });
 
   revalidatePath("/settings");
   return { success: "Two-factor authentication disabled." };
@@ -587,6 +612,7 @@ export async function resetPassword(
       data: { usedAt: new Date() },
     }),
   ]);
+  await logSecurityEvent({ type: "PASSWORD_RESET_COMPLETED", userId: resetToken.userId });
 
   return { success: "Password updated. You can now sign in." };
 }

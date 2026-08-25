@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { consumeRateLimit } from "@/lib/rateLimit";
+import { consumeLayeredRateLimit } from "@/lib/rateLimit";
 import { prisma } from "@/lib/prisma";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { sendChatMessageSchema } from "@/lib/validation/chat";
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
 
   // Each turn bills the household's own provider key, and a tool-calling turn
   // can fan out into several upstream calls.
-  const chatThrottle = consumeRateLimit("chat", session.user.id);
+  const chatThrottle = consumeLayeredRateLimit(["chat", "chatDaily"], session.user.id);
   if (!chatThrottle.allowed) {
     return NextResponse.json(
       { error: "Too many messages just now. Give it a moment." },

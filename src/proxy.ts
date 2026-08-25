@@ -1,6 +1,7 @@
 import NextAuth from "next-auth";
 import { NextResponse, type NextRequest } from "next/server";
 import { authConfig, isPublicPath } from "@/lib/auth.config";
+import { hasMismatchedOrigin } from "@/lib/originCheck";
 
 const { auth } = NextAuth(authConfig);
 
@@ -52,6 +53,25 @@ function requestIsHttps(request: NextRequest): boolean {
   return request.nextUrl.protocol === "https:";
 }
 
+const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+// /api/auth/* (including our own passkey routes under it) is already outside
+// this file's matcher below, so NextAuth's own callback route can bypass it —
+// this list is for paths that ARE matched but still shouldn't get an origin
+// check. /api/cron authenticates with a shared secret header, not a session
+// cookie, so it has no browser Origin to check and no legitimate one to
+// expect (an external scheduler calling it is never a browser request).
+const ORIGIN_CHECK_EXEMPT_API_PATHS = ["/api/cron"];
+
+function needsOriginCheck(request: NextRequest): boolean {
+  const { pathname } = request.nextUrl;
+  return (
+    pathname.startsWith("/api/") &&
+    MUTATING_METHODS.has(request.method) &&
+    !ORIGIN_CHECK_EXEMPT_API_PATHS.some((path) => pathname.startsWith(path))
+  );
+}
+
 function withSecurityHeaders(response: NextResponse, csp: string, isHttps: boolean) {
   response.headers.set("content-security-policy", csp);
   response.headers.set("x-content-type-options", "nosniff");
@@ -84,6 +104,19 @@ export default auth((request) => {
   const isHttps = requestIsHttps(request);
   const nonce = crypto.randomUUID().replace(/-/g, "");
   const csp = buildCsp(nonce, { isDev, isHttps });
+
+  // Defense-in-depth CSRF check for the REST API surface (Server Actions
+  // already get the equivalent from Next.js itself). Checked ahead of the
+  // session check below so a forged cross-origin request is rejected
+  // outright rather than falling through to whatever the route would
+  // otherwise do with an authenticated session's cookie.
+  if (needsOriginCheck(request) && hasMismatchedOrigin(request)) {
+    return withSecurityHeaders(
+      new NextResponse("Cross-origin request rejected", { status: 403 }),
+      csp,
+      isHttps,
+    );
+  }
 
   if (!isPublicPath(request.nextUrl.pathname) && !request.auth?.user) {
     // Built from scratch rather than cloning the request URL: cloning carried

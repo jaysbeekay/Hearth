@@ -5,7 +5,7 @@ import { extractHomeItemFields } from "@/lib/documents/homeItemFieldExtraction";
 import { getByokConfig } from "@/lib/ai/extract";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import { readValidatedUploadDetails, UploadRejectedError } from "@/lib/uploadValidation";
-import { consumeRateLimit } from "@/lib/rateLimit";
+import { consumeLayeredRateLimit } from "@/lib/rateLimit";
 
 // Previews auto-fill fields for a document before a home item exists yet —
 // nothing is persisted here, the file is only held in memory for the
@@ -22,7 +22,10 @@ export async function POST(request: NextRequest) {
 
   // OCR and AI extraction spawn processes or bill the household's API key, so
   // this counts every call, not just failures.
-  const extractionThrottle = consumeRateLimit("documentExtraction", session.user.id);
+  const extractionThrottle = consumeLayeredRateLimit(
+    ["documentExtraction", "documentExtractionDaily"],
+    session.user.id,
+  );
   if (!extractionThrottle.allowed) {
     return NextResponse.json(
       { error: "Too many documents processed just now. Try again shortly." },
