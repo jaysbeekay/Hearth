@@ -20,7 +20,7 @@ export function hashToken(token: string): string {
 }
 
 function getKey(): Buffer {
-  const key = Buffer.from(env.encryptionKey, "base64");
+  const key = Buffer.from(process.env.ENCRYPTION_KEY ?? env.encryptionKey, "base64");
   if (key.length !== 32) {
     throw new Error(
       "ENCRYPTION_KEY must be set to a base64-encoded 32-byte key (openssl rand -base64 32).",

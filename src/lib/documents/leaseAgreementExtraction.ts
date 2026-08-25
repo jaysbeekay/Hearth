@@ -44,8 +44,8 @@ function findLabeledLeaseDate(text: string, labels: RegExp): string | undefined 
   const lines = text.split(/\r?\n/);
   for (let i = 0; i < lines.length; i++) {
     if (!labels.test(lines[i])) continue;
-    const window = lines.slice(i, i + 3).join(" ");
-    const iso = matchLeaseDate(window);
+    const window = lines.slice(i, i + 2).join(" ");
+    const iso = matchLeaseDate(lines[i]) ?? matchLeaseDate(window);
     if (iso) return iso;
   }
   return undefined;
