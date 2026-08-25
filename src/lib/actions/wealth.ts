@@ -94,8 +94,19 @@ export async function updatePortfolio(
 
 export async function deletePortfolio(portfolioId: string): Promise<ActionState> {
   await requireUser();
-  const existing = await prisma.portfolio.findUnique({ where: { id: portfolioId } });
+  const existing = await prisma.portfolio.findUnique({
+    where: { id: portfolioId },
+    include: { holdings: { include: { trades: { select: { id: true } } } } },
+  });
   if (!existing) return { error: "Portfolio not found." };
+
+  // Cascade removes the DB rows but not the uploaded trade-document files —
+  // clean those up first.
+  for (const holding of existing.holdings) {
+    for (const trade of holding.trades) {
+      await deleteTradeDir(trade.id);
+    }
+  }
 
   await prisma.portfolio.delete({ where: { id: portfolioId } });
   revalidatePath("/wealth");
@@ -168,8 +179,17 @@ export async function updateHolding(
 
 export async function deleteHolding(portfolioId: string, holdingId: string): Promise<ActionState> {
   await requireUser();
-  const holding = await prisma.holding.findUnique({ where: { id: holdingId } });
+  const holding = await prisma.holding.findUnique({
+    where: { id: holdingId },
+    include: { trades: { select: { id: true } } },
+  });
   if (!holding) return { error: "Holding not found." };
+
+  // Cascade removes the DB rows but not the uploaded trade-document files —
+  // clean those up first.
+  for (const trade of holding.trades) {
+    await deleteTradeDir(trade.id);
+  }
 
   await prisma.holding.delete({ where: { id: holdingId } });
   revalidatePath(`/wealth/portfolios/${portfolioId}`);

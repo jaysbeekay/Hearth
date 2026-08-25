@@ -73,6 +73,9 @@ if [ -e "$DB_FILE" ] && [ ! -w "$DB_FILE" ]; then
   exit 1
 fi
 
-npx prisma migrate deploy
+# Direct binary invocation, not `npx prisma` — the runner image has no npm
+# CLI (#225), and none is needed here: prisma is already a production
+# dependency with its own resolved bin.
+./node_modules/.bin/prisma migrate deploy
 
 exec node server.js

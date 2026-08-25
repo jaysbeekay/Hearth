@@ -29,8 +29,9 @@ FROM base AS runner
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
-# npx/npm write caches under $HOME — point it at the app user's own home so
-# nothing tries to write to /root after privileges are dropped.
+# Some tooling (e.g. prisma's engine cache) writes under $HOME — point it at
+# the app user's own home so nothing tries to write to /root after
+# privileges are dropped.
 ENV HOME=/home/node
 
 # Upgrade already-installed OS packages to their latest patched versions
@@ -44,12 +45,18 @@ RUN apk update && \
     apk upgrade --no-cache && \
     apk add --no-cache tesseract-ocr tesseract-ocr-data-eng poppler-utils su-exec
 
-# The base image's globally-installed npm (needed at runtime for `npx prisma
-# migrate deploy` in docker-entrypoint.sh) vendors its own copies of tar,
-# brace-expansion, etc. — periodically ahead of CVE fixes in whatever npm
-# shipped with the base image. Upgrading npm itself pulls in patched
-# vendored deps without touching anything in package-lock.json.
-RUN npm install -g npm@latest
+# The base image ships a full npm CLI under /usr/local/lib/node_modules/npm,
+# bundled with npm's own vendored dependencies (tar, brace-expansion,
+# ip-address, undici, etc. — at whatever versions happened to ship with
+# whichever npm release "latest" resolves to at build time). Those are
+# unrelated to this project's package-lock.json, so a CVE in them can't be
+# fixed by any override here, and chasing npm's "latest" tag doesn't reliably
+# clear them either — npm's own release still lags fixes for some of its
+# vendored deps (#225). docker-entrypoint.sh calls the local prisma binary
+# directly rather than going through npx, so nothing at runtime needs npm —
+# strip it from the image outright rather than continuing to chase versions.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+    /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json

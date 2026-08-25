@@ -46,6 +46,7 @@ import {
   deleteHomeItemDir,
   deleteInventoryItemDir,
   deleteVehicleItemDir,
+  deleteTradeDir,
 } from "@/lib/storage";
 
 export interface SyncContext {
@@ -462,8 +463,18 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       revalidatePath(`/wealth/portfolios/${id}`);
     },
     remove: async (id) => {
-      const existing = await prisma.portfolio.findUnique({ where: { id } });
+      const existing = await prisma.portfolio.findUnique({
+        where: { id },
+        include: { holdings: { include: { trades: { select: { id: true } } } } },
+      });
       if (!existing) throw new Error("Portfolio not found");
+      // Cascade removes the DB rows but not the uploaded trade-document
+      // files — clean those up first, same as the online deletePortfolio action.
+      for (const holding of existing.holdings) {
+        for (const trade of holding.trades) {
+          await deleteTradeDir(trade.id);
+        }
+      }
       await prisma.portfolio.delete({ where: { id } });
       revalidatePath("/wealth");
     },

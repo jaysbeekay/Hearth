@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
+import { isAppUrlConfigured } from "@/lib/env";
 import {
   getSmtpConfig,
   getNtfyConfig,
@@ -120,6 +121,7 @@ export default async function AppSettingsPage() {
               from: smtp.from,
               passwordIsSet: smtpPasswordIsSet,
             }}
+            appUrlConfigured={isAppUrlConfigured()}
           />
         </section>
 
