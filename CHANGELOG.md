@@ -9,6 +9,12 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **Docker Scout flagged `nanoid` 3.3.17 (CVE-2026-67213)** — an infinite-loop
+  denial of service, fixed upstream in 3.3.18. It reaches the image as a
+  build-time transitive of `postcss` (via `@tailwindcss/postcss`), so it's
+  pinned through the existing `overrides` block rather than a direct
+  dependency bump. `postcss` accepts `^3.3.16`, so the pin needs no other
+  change.
 - **Invitation/password-reset email links pointed to `http://localhost:3000`
   when `APP_URL` wasn't set** (#227). Inviting a user now fails loudly with an
   actionable error instead of silently sending a broken link; a warning also
