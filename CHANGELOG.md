@@ -9,6 +9,18 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **Seven high-severity CVEs in transitive dependencies.** `mailparser` moves to
+  3.9.16, which pins `html-to-text` 10.0.1 and so pulls `deepmerge-ts` off the
+  vulnerable 7.1.5 (uncontrolled recursion) onto 8.0.2 — this one is reachable
+  with attacker-controlled input, since `simpleParser` runs `html-to-text` over
+  incoming email bodies on the ingestion path. `browserslist` is pinned to
+  ^4.28.8 (prototype pollution, unthrottled allocation) and `fast-uri` to
+  ^3.1.6 (four URL-parsing CVEs) — note the previous `fast-uri` override pinned
+  the exact version that later became vulnerable, so it's now a range. Prisma
+  pulls a second copy of `deepmerge-ts` through `@prisma/config`, which depends
+  on exactly 7.1.5; a scoped override lifts that path to 8.0.2 as well, since
+  the advisory is only fixed in 8.x and no current Prisma release has moved off
+  7.1.5.
 - **Docker Scout flagged `nanoid` 3.3.17 (CVE-2026-67213)** — an infinite-loop
   denial of service, fixed upstream in 3.3.18. It reaches the image as a
   build-time transitive of `postcss` (via `@tailwindcss/postcss`), so it's
