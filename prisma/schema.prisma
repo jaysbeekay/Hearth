@@ -68,6 +68,16 @@ enum NotificationStatus {
   FAILED
 }
 
+enum SecurityEventType {
+  LOGIN_FAILED
+  LOGIN_THROTTLED
+  PASSWORD_CHANGED
+  PASSWORD_RESET_COMPLETED
+  TOTP_DISABLED
+  ROLE_CHANGED
+  USER_DELETED
+}
+
 enum ProductDocumentKind {
   INVOICE
   PHOTO
@@ -512,6 +522,23 @@ model WebhookLog {
   sentAt     DateTime        @default(now())
 
   @@map("webhook_logs")
+}
+
+// Deliberately not a relation to User: an audit trail needs to survive the
+// deletion of the account it's about (including the USER_DELETED event for
+// that same deletion), same reasoning as createdById elsewhere in this
+// schema (see CLAUDE.md) — it's a record of what happened, not a live link.
+model SecurityEventLog {
+  id        String            @id @default(cuid())
+  type      SecurityEventType
+  userId    String?
+  email     String?
+  detail    String?
+  address   String?
+  createdAt DateTime          @default(now())
+
+  @@index([createdAt])
+  @@map("security_event_logs")
 }
 
 model ModuleEnablement {

@@ -5,7 +5,7 @@ import { extractInventoryItemFields } from "@/lib/documents/inventoryItemFieldEx
 import { getByokConfig } from "@/lib/ai/extract";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import { readValidatedUploadDetails, UploadRejectedError } from "@/lib/uploadValidation";
-import { consumeRateLimit } from "@/lib/rateLimit";
+import { consumeLayeredRateLimit } from "@/lib/rateLimit";
 
 export async function POST(request: NextRequest) {
   const session = await auth();
@@ -18,7 +18,10 @@ export async function POST(request: NextRequest) {
 
   // OCR and AI extraction spawn processes or bill the household's API key, so
   // this counts every call, not just failures.
-  const extractionThrottle = consumeRateLimit("documentExtraction", session.user.id);
+  const extractionThrottle = consumeLayeredRateLimit(
+    ["documentExtraction", "documentExtractionDaily"],
+    session.user.id,
+  );
   if (!extractionThrottle.allowed) {
     return NextResponse.json(
       { error: "Too many documents processed just now. Try again shortly." },

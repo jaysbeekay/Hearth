@@ -6,6 +6,7 @@ import { stringify } from "csv-stringify/sync";
 import { formatDate, TRIP_SEGMENT_TYPE_LABELS } from "@/lib/utils";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import { getUserPreferences } from "@/lib/userPreferences";
+import { sanitizeCsvRow } from "@/lib/csvSafety";
 
 export async function GET(request: NextRequest) {
   const session = await auth();
@@ -68,7 +69,7 @@ export async function GET(request: NextRequest) {
 
   const csv = stringify([
     ["Trip", "Type", "Title", "Provider", "Start Date", "End Date"],
-    ...rows,
+    ...rows.map(sanitizeCsvRow),
   ]);
 
   return new NextResponse(csv, {

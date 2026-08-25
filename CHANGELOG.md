@@ -52,6 +52,28 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   already used for Property rental agreements, filling in any fields the
   generic pass missed.
 
+### Security
+
+- **CSV/PDF exports could carry a formula-injection payload.** A cell value
+  starting with `=`, `+`, `-`, `@`, tab, or CR is now prefixed with a single
+  quote before being written to any CSV export, the standard mitigation
+  against a cell executing as a formula when opened in Excel/Sheets/
+  LibreOffice.
+- **Defense-in-depth CSRF check for the REST API surface.** Server Actions
+  (the app's primary write path) already get same-origin enforcement from
+  Next.js itself; state-changing `/api/*` routes now get the equivalent via
+  `src/proxy.ts`, rejecting a request whose `Origin` header names a
+  different host than it was sent to.
+- **A new Security log** (Settings → Security, admin-only) records
+  auth-relevant events — failed and throttled sign-ins, password/role
+  changes, two-factor disablement, and account removal — so the household
+  has an audit trail beyond scattered console output.
+- **AI usage is now capped per day, not just per 5-minute burst window**, on
+  both document extraction and chat, bounding total daily third-party API
+  load/spend even across many separate burst windows. The one extraction
+  route that had no rate limit at all (re-extracting from an already-scanned
+  inbox document) now has one too.
+
 ## [0.17.0] - 2026-08-04
 
 ### Added

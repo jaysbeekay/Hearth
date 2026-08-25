@@ -5,6 +5,7 @@ import PDFDocument from "pdfkit";
 import { stringify } from "csv-stringify/sync";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
+import { sanitizeCsvRow } from "@/lib/csvSafety";
 
 export async function GET(request: NextRequest) {
   const session = await auth();
@@ -65,7 +66,7 @@ export async function GET(request: NextRequest) {
 
   const csv = stringify([
     ["Description", "Brand", "Model", "Vendor", "Purchase Date", "Warranty End", "Price", "Currency", "Serial Number"],
-    ...rows,
+    ...rows.map(sanitizeCsvRow),
   ]);
 
   return new NextResponse(csv, {

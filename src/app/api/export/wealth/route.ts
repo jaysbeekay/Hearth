@@ -5,6 +5,7 @@ import { stringify } from "csv-stringify/sync";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import { formatDate } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
+import { sanitizeCsvRow } from "@/lib/csvSafety";
 
 export async function GET(request: NextRequest) {
   const session = await auth();
@@ -84,7 +85,7 @@ export async function GET(request: NextRequest) {
 
   const csv = stringify([
     ["Portfolio", "Ticker", "Name", "Asset Class", "Trade Type", "Date", "Units", "Price/Unit", "Fees", "Currency", "FX Rate", "Notes"],
-    ...rows,
+    ...rows.map(sanitizeCsvRow),
   ]);
 
   return new NextResponse(csv, {
