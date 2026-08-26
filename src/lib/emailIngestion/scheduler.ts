@@ -6,6 +6,7 @@ import { saveInboxDocument } from "@/lib/storage";
 import { UploadRejectedError } from "@/lib/uploadValidation";
 import { extractSearchableText } from "@/lib/documents/textExtraction";
 import { computeInboxIntake } from "@/lib/documents/inboxIntake";
+import { getIngestibleAttachments } from "@/lib/emailIngestion/parser";
 
 // Bounds one poll's cost: a mailbox flooded with mail (or mail-bombed on
 // purpose) can only ever cost one connection and this many attachment
@@ -65,13 +66,10 @@ export async function runEmailIngestion(): Promise<EmailIngestionResult> {
           const fromAddress = parsed.from?.value?.[0]?.address ?? null;
           let ingestedAny = false;
 
-          for (const attachment of parsed.attachments) {
-            if (!(attachment.content instanceof Buffer) || attachment.content.length === 0) {
-              continue;
-            }
+          for (const attachment of getIngestibleAttachments(parsed)) {
             const file = new File(
               [new Uint8Array(attachment.content)],
-              attachment.filename || "attachment",
+              attachment.filename,
               { type: attachment.contentType },
             );
 
