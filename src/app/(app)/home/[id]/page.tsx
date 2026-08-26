@@ -53,6 +53,7 @@ export default async function PropertyDetailPage({
         where: { id },
         include: {
           createdBy: true,
+          updatedBy: true,
           items: { include: { documents: { orderBy: { uploadedAt: "desc" } } } },
           valuations: { orderBy: { valuedAt: "desc" } },
         },
@@ -317,6 +318,7 @@ export default async function PropertyDetailPage({
 
       <RecordMeta
         createdByName={property.createdBy.name}
+        updatedByName={property.updatedBy?.name}
         createdAt={property.createdAt}
         updatedAt={property.updatedAt}
         dateFormat={dateFormat}

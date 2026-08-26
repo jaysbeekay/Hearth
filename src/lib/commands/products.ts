@@ -17,12 +17,12 @@ export async function createProductCommand(
   return product;
 }
 
-export async function updateProductCommand(id: string, input: ProductInput) {
+export async function updateProductCommand(id: string, input: ProductInput, actorId: string) {
   const existing = await prisma.product.findUnique({ where: { id } });
   if (!existing) throw new Error("Product not found");
   const warrantyEndDateChanged = existing.warrantyEndDate?.getTime() !== input.warrantyEndDate?.getTime();
   await prisma.$transaction([
-    prisma.product.update({ where: { id }, data: input }),
+    prisma.product.update({ where: { id }, data: { ...input, updatedById: actorId } }),
     ...(warrantyEndDateChanged ? [prisma.notificationLog.deleteMany({ where: { ownerType: "PRODUCT", ownerId: id } })] : []),
   ]);
   revalidatePath("/products");

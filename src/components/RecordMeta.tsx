@@ -4,6 +4,7 @@ export function RecordMeta({
   createdByName,
   createdAt,
   updatedAt,
+  updatedByName,
   dateFormat,
   extractionConfirmedAt,
   memberCount,
@@ -11,6 +12,10 @@ export function RecordMeta({
   createdByName: string;
   createdAt: Date;
   updatedAt: Date;
+  /** #286 — who last edited the record. Null/undefined (e.g. a row edited
+   * before this field existed, or by a since-removed member) falls back to
+   * the old "Last updated {date}" wording rather than naming no one. */
+  updatedByName?: string | null;
   dateFormat?: string;
   /** #200 — when set, shown so it's clear the auto-filled fields were reviewed, not just accepted by default. */
   extractionConfirmedAt?: Date | null;
@@ -24,7 +29,10 @@ export function RecordMeta({
   return (
     <p className="text-xs text-muted">
       Added by {createdByName} on {formatDate(createdAt, dateFormat)}
-      {wasUpdated && ` · Last updated ${formatDate(updatedAt, dateFormat)}`}
+      {wasUpdated &&
+        (updatedByName
+          ? ` · Last changed by ${updatedByName} on ${formatDate(updatedAt, dateFormat)}`
+          : ` · Last updated ${formatDate(updatedAt, dateFormat)}`)}
       {extractionConfirmedAt &&
         ` · Auto-filled details confirmed ${formatDate(extractionConfirmedAt, dateFormat)}`}
       {memberCount != null &&

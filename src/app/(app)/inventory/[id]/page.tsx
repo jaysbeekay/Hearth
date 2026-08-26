@@ -9,8 +9,10 @@ import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { InventoryItemDocumentList } from "@/components/InventoryItemDocumentList";
+import { RecordMeta } from "@/components/RecordMeta";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
+import { getHouseholdMemberCount } from "@/lib/household";
 
 export const metadata: Metadata = { title: "Inventory Item" };
 
@@ -34,15 +36,17 @@ export default async function InventoryItemPage({
   await requireModuleEnabled("INVENTORY");
 
   const { id } = await params;
-  const [item, { dateFormat, region }] = await Promise.all([
+  const [item, { dateFormat, region }, memberCount] = await Promise.all([
     prisma.inventoryItem.findUnique({
       where: { id },
       include: {
         createdBy: true,
+        updatedBy: true,
         documents: { orderBy: { uploadedAt: "desc" } },
       },
     }),
     getUserPreferences(),
+    getHouseholdMemberCount(),
   ]);
   if (!item) notFound();
 
@@ -124,6 +128,15 @@ export default async function InventoryItemPage({
           <DocumentUploadForm action={addInventoryItemDocument.bind(null, id)} />
         </div>
       </section>
+
+      <RecordMeta
+        createdByName={item.createdBy.name}
+        createdAt={item.createdAt}
+        updatedAt={item.updatedAt}
+        updatedByName={item.updatedBy?.name}
+        dateFormat={dateFormat}
+        memberCount={memberCount}
+      />
     </div>
   );
 }

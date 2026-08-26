@@ -125,7 +125,7 @@ export async function updateVehicle(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  await requireUser();
+  const user = await requireUser();
 
   const parsed = vehicleSchema.safeParse(formToVehicleInput(formData));
   if (!parsed.success) {
@@ -138,7 +138,7 @@ export async function updateVehicle(
   const existing = await prisma.vehicle.findUnique({ where: { id: vehicleId } });
   if (!existing) return { error: "Vehicle not found." };
 
-  await prisma.vehicle.update({ where: { id: vehicleId }, data: parsed.data });
+  await prisma.vehicle.update({ where: { id: vehicleId }, data: { ...parsed.data, updatedById: user.id } });
 
   revalidatePath("/vehicles");
   revalidatePath(`/vehicles/${vehicleId}`);

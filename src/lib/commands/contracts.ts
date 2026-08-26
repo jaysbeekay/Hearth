@@ -17,12 +17,12 @@ export async function createContractCommand(
   return contract;
 }
 
-export async function updateContractCommand(id: string, input: ContractInput) {
+export async function updateContractCommand(id: string, input: ContractInput, actorId: string) {
   const existing = await prisma.contract.findUnique({ where: { id } });
   if (!existing) throw new Error("Contract not found");
   const endDateChanged = existing.endDate?.getTime() !== input.endDate?.getTime();
   await prisma.$transaction([
-    prisma.contract.update({ where: { id }, data: input }),
+    prisma.contract.update({ where: { id }, data: { ...input, updatedById: actorId } }),
     ...(endDateChanged ? [prisma.notificationLog.deleteMany({ where: { ownerType: "CONTRACT", ownerId: id } })] : []),
   ]);
   revalidatePath("/contracts");

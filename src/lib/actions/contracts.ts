@@ -116,7 +116,7 @@ export async function updateContract(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  await requireUser();
+  const user = await requireUser();
 
   const parsed = contractSchema.safeParse(formToContractInput(formData));
   if (!parsed.success) {
@@ -126,8 +126,15 @@ export async function updateContract(
     };
   }
 
-  try { await updateContractCommand(contractId, { ...parsed.data, ...extractionFieldsFromForm(formData) }); }
-  catch (error) { return { error: error instanceof Error ? error.message : "Contract not found." }; }
+  try {
+    await updateContractCommand(
+      contractId,
+      { ...parsed.data, ...extractionFieldsFromForm(formData) },
+      user.id,
+    );
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Contract not found." };
+  }
   redirect(`/contracts/${contractId}`);
 }
 
@@ -177,13 +184,16 @@ export async function updateContractFromAssistant(
   contractId: string,
   data: Record<string, unknown>,
 ): Promise<AssistantActionResult> {
-  await requireUser();
+  const user = await requireUser();
 
   const parsed = contractSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: firstIssueMessage(parsed.error) };
 
-  try { await updateContractCommand(contractId, parsed.data); }
-  catch (error) { return { success: false, error: error instanceof Error ? error.message : "Contract not found." }; }
+  try {
+    await updateContractCommand(contractId, parsed.data, user.id);
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Contract not found." };
+  }
   return { success: true, contractId };
 }
 

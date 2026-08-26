@@ -34,7 +34,7 @@ export default async function ProductDetailPage({
   const [product, { dateFormat, region }, memberCount] = await Promise.all([
     prisma.product.findUnique({
       where: { id },
-      include: { documents: { orderBy: { uploadedAt: "desc" } }, createdBy: true },
+      include: { documents: { orderBy: { uploadedAt: "desc" } }, createdBy: true, updatedBy: true },
     }),
     getUserPreferences(),
     getHouseholdMemberCount(),
@@ -154,6 +154,7 @@ export default async function ProductDetailPage({
 
       <RecordMeta
         createdByName={product.createdBy.name}
+        updatedByName={product.updatedBy?.name}
         createdAt={product.createdAt}
         updatedAt={product.updatedAt}
         dateFormat={dateFormat}

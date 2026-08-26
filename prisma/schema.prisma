@@ -180,39 +180,46 @@ enum OccupancyStatus {
 }
 
 model User {
-  id                  String               @id @default(cuid())
-  name                String
-  email               String               @unique
-  passwordHash        String
-  role                Role                 @default(MEMBER)
-  emailReminders      Boolean              @default(true)
+  id                    String               @id @default(cuid())
+  name                  String
+  email                 String               @unique
+  passwordHash          String
+  role                  Role                 @default(MEMBER)
+  emailReminders        Boolean              @default(true)
   // Bumped whenever a session must stop being trusted — password change,
   // role change. Every JWT carries the value it was minted with; a mismatch
   // invalidates the token (see the jwt callback in src/lib/auth.ts).
-  sessionVersion      Int                  @default(0)
+  sessionVersion        Int                  @default(0)
   // SHA-256 of the iCal feed token, never the token itself. Kept on the
   // original column name so no data migration is needed for the rename.
-  icalTokenHash       String?              @unique @map("icalToken")
-  dateFormat          String               @default("DD/MM/YYYY")
-  preferredCurrency   String               @default("AUD")
-  timezone            String               @default("UTC")
-  region              String               @default("en-AU")
-  createdAt           DateTime             @default(now())
-  contracts           Contract[]
-  products            Product[]
-  webhookEndpoints    WebhookEndpoint[]
-  trips               Trip[]
-  properties          Property[]
-  passkeys            PasskeyCredential[]
-  vehicles            Vehicle[]
-  inventoryItems      InventoryItem[]
-  portfolios          Portfolio[]
-  inboxDocuments      InboxDocument[]
-  chatThreads         ChatThread[]
-  passwordResetTokens PasswordResetToken[]
-  totpSecret          String?
-  totpEnabled         Boolean              @default(false)
-  totpRecoveryCodes   String?
+  icalTokenHash         String?              @unique @map("icalToken")
+  dateFormat            String               @default("DD/MM/YYYY")
+  preferredCurrency     String               @default("AUD")
+  timezone              String               @default("UTC")
+  region                String               @default("en-AU")
+  createdAt             DateTime             @default(now())
+  contracts             Contract[]
+  products              Product[]
+  webhookEndpoints      WebhookEndpoint[]
+  trips                 Trip[]
+  properties            Property[]
+  passkeys              PasskeyCredential[]
+  vehicles              Vehicle[]
+  inventoryItems        InventoryItem[]
+  portfolios            Portfolio[]
+  // #286 — last-editor tracking, separate from the createdBy relations above.
+  updatedContracts      Contract[]           @relation("ContractUpdatedBy")
+  updatedProducts       Product[]            @relation("ProductUpdatedBy")
+  updatedTrips          Trip[]               @relation("TripUpdatedBy")
+  updatedProperties     Property[]           @relation("PropertyUpdatedBy")
+  updatedVehicles       Vehicle[]            @relation("VehicleUpdatedBy")
+  updatedInventoryItems InventoryItem[]      @relation("InventoryItemUpdatedBy")
+  inboxDocuments        InboxDocument[]
+  chatThreads           ChatThread[]
+  passwordResetTokens   PasswordResetToken[]
+  totpSecret            String?
+  totpEnabled           Boolean              @default(false)
+  totpRecoveryCodes     String?
 
   @@map("users")
 }
@@ -294,7 +301,9 @@ model Contract {
   extractionConfirmedAt DateTime?
 
   createdById String
-  createdBy   User   @relation(fields: [createdById], references: [id])
+  createdBy   User    @relation(fields: [createdById], references: [id])
+  updatedById String?
+  updatedBy   User?   @relation("ContractUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   propertyId String?
   property   Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
@@ -441,7 +450,9 @@ model Product {
   extractionConfirmedAt DateTime?
 
   createdById String
-  createdBy   User   @relation(fields: [createdById], references: [id])
+  createdBy   User    @relation(fields: [createdById], references: [id])
+  updatedById String?
+  updatedBy   User?   @relation("ProductUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   propertyId String?
   property   Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
@@ -567,7 +578,9 @@ model Trip {
   notes       String?
 
   createdById String
-  createdBy   User   @relation(fields: [createdById], references: [id])
+  createdBy   User    @relation(fields: [createdById], references: [id])
+  updatedById String?
+  updatedBy   User?   @relation("TripUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   segments TripSegment[]
 
@@ -651,7 +664,9 @@ model Property {
   occupancyStatus OccupancyStatus @default(OWNER_OCCUPIED)
 
   createdById String
-  createdBy   User   @relation(fields: [createdById], references: [id])
+  createdBy   User    @relation(fields: [createdById], references: [id])
+  updatedById String?
+  updatedBy   User?   @relation("PropertyUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   items            HomeItem[]
   rentalAgreements RentalAgreement[]
@@ -779,7 +794,9 @@ model Vehicle {
   notes              String?
 
   createdById String
-  createdBy   User   @relation(fields: [createdById], references: [id])
+  createdBy   User    @relation(fields: [createdById], references: [id])
+  updatedById String?
+  updatedBy   User?   @relation("VehicleUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   items     VehicleItem[]
   contracts Contract[]
@@ -845,7 +862,9 @@ model InventoryItem {
   documents InventoryItemDocument[]
 
   createdById String
-  createdBy   User   @relation(fields: [createdById], references: [id])
+  createdBy   User    @relation(fields: [createdById], references: [id])
+  updatedById String?
+  updatedBy   User?   @relation("InventoryItemUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -121,7 +121,7 @@ export async function updateTrip(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  await requireUser();
+  const user = await requireUser();
 
   const parsed = tripSchema.safeParse(formToTripInput(formData));
   if (!parsed.success) {
@@ -134,7 +134,7 @@ export async function updateTrip(
   const existing = await prisma.trip.findUnique({ where: { id: tripId } });
   if (!existing) return { error: "Trip not found." };
 
-  await prisma.trip.update({ where: { id: tripId }, data: parsed.data });
+  await prisma.trip.update({ where: { id: tripId }, data: { ...parsed.data, updatedById: user.id } });
 
   revalidatePath("/travel");
   revalidatePath(`/travel/${tripId}`);

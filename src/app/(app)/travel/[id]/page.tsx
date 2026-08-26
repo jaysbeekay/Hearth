@@ -36,6 +36,7 @@ export default async function TripDetailPage({
       where: { id },
       include: {
         createdBy: true,
+        updatedBy: true,
         segments: { include: { documents: { orderBy: { uploadedAt: "desc" } } } },
       },
     }),
@@ -301,6 +302,7 @@ export default async function TripDetailPage({
 
       <RecordMeta
         createdByName={trip.createdBy.name}
+        updatedByName={trip.updatedBy?.name}
         createdAt={trip.createdAt}
         updatedAt={trip.updatedAt}
         dateFormat={dateFormat}

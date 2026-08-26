@@ -39,6 +39,7 @@ export default async function VehicleDetailPage({
       where: { id },
       include: {
         createdBy: true,
+        updatedBy: true,
         items: { include: { documents: { orderBy: { uploadedAt: "desc" } } } },
       },
     }),
@@ -242,6 +243,7 @@ export default async function VehicleDetailPage({
 
       <RecordMeta
         createdByName={vehicle.createdBy.name}
+        updatedByName={vehicle.updatedBy?.name}
         createdAt={vehicle.createdAt}
         updatedAt={vehicle.updatedAt}
         dateFormat={dateFormat}

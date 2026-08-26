@@ -150,7 +150,7 @@ export async function updateProperty(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  await requireUser();
+  const user = await requireUser();
 
   const parsed = propertySchema.safeParse(formToPropertyInput(formData));
   if (!parsed.success) {
@@ -163,7 +163,7 @@ export async function updateProperty(
   const existing = await prisma.property.findUnique({ where: { id: propertyId } });
   if (!existing) return { error: "Property not found." };
 
-  await prisma.property.update({ where: { id: propertyId }, data: parsed.data });
+  await prisma.property.update({ where: { id: propertyId }, data: { ...parsed.data, updatedById: user.id } });
 
   revalidatePath("/home");
   revalidatePath(`/home/${propertyId}`);

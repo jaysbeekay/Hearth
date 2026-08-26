@@ -45,6 +45,7 @@ export default async function ContractDetailPage({
       include: {
         documents: { orderBy: { uploadedAt: "desc" } },
         createdBy: true,
+        updatedBy: true,
         rentalAgreement: { include: { property: true } },
       },
     }),
@@ -241,6 +242,7 @@ export default async function ContractDetailPage({
 
       <RecordMeta
         createdByName={contract.createdBy.name}
+        updatedByName={contract.updatedBy?.name}
         createdAt={contract.createdAt}
         updatedAt={contract.updatedAt}
         dateFormat={dateFormat}

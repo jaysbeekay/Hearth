@@ -110,7 +110,7 @@ export async function updateInventoryItem(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  await requireUser();
+  const user = await requireUser();
 
   const parsed = inventoryItemSchema.safeParse(formToInventoryItemInput(formData));
   if (!parsed.success) {
@@ -123,7 +123,7 @@ export async function updateInventoryItem(
   const existing = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
   if (!existing) return { error: "Item not found." };
 
-  await prisma.inventoryItem.update({ where: { id: itemId }, data: parsed.data });
+  await prisma.inventoryItem.update({ where: { id: itemId }, data: { ...parsed.data, updatedById: user.id } });
 
   revalidatePath("/inventory");
   revalidatePath(`/inventory/${itemId}`);
