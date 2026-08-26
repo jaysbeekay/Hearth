@@ -10,7 +10,7 @@ import { Field } from "@/components/FormField";
 import { inputClass } from "@/components/SelectWrapper";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
-import { markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
+import { applyIfEmpty, extractionMessage } from "@/lib/autoFillHighlight";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
 import { DateInput } from "@/components/DateInput";
 
@@ -57,26 +57,11 @@ export function RentalAgreementForm({
   const bondAmountRef = useRef<HTMLInputElement>(null);
 
   function applyExtractedFields(fields: ExtractedFields) {
-    if (fields.weeklyRent && weeklyRentRef.current) {
-      weeklyRentRef.current.value = fields.weeklyRent;
-      markAutoFilled(weeklyRentRef.current);
-    }
-    if (fields.tenantName && tenantNameRef.current) {
-      tenantNameRef.current.value = fields.tenantName;
-      markAutoFilled(tenantNameRef.current);
-    }
-    if (fields.leaseStart && leaseStartRef.current) {
-      leaseStartRef.current.value = fields.leaseStart;
-      markAutoFilled(leaseStartRef.current);
-    }
-    if (fields.leaseEnd && leaseEndRef.current) {
-      leaseEndRef.current.value = fields.leaseEnd;
-      markAutoFilled(leaseEndRef.current);
-    }
-    if (fields.bondAmount && bondAmountRef.current) {
-      bondAmountRef.current.value = fields.bondAmount;
-      markAutoFilled(bondAmountRef.current);
-    }
+    applyIfEmpty(weeklyRentRef.current, fields.weeklyRent);
+    applyIfEmpty(tenantNameRef.current, fields.tenantName);
+    applyIfEmpty(leaseStartRef.current, fields.leaseStart);
+    applyIfEmpty(leaseEndRef.current, fields.leaseEnd);
+    applyIfEmpty(bondAmountRef.current, fields.bondAmount);
   }
 
   async function handleFileChange(file: File | null) {

@@ -20,7 +20,7 @@ import {
 } from "@/lib/offlineQueue";
 import { Field } from "@/components/FormField";
 import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
-import { markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
+import { applyIfEmpty, markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 import { DateInput } from "@/components/DateInput";
 
 function toDateInputValue(date: Date | null | undefined) {
@@ -106,35 +106,17 @@ export function ProductForm({
   }
 
   function applyExtractedFields(fields: ExtractedFields) {
-    if (fields.description && descriptionRef.current && !descriptionRef.current.value) {
-      descriptionRef.current.value = fields.description;
-      markAutoFilled(descriptionRef.current);
-    }
-    if (fields.manufacturer && manufacturerRef.current) {
-      manufacturerRef.current.value = fields.manufacturer;
-      markAutoFilled(manufacturerRef.current);
-    }
-    if (fields.model && modelRef.current) {
-      modelRef.current.value = fields.model;
-      markAutoFilled(modelRef.current);
-    }
-    if (fields.vendor && vendorRef.current) {
-      vendorRef.current.value = fields.vendor;
-      markAutoFilled(vendorRef.current);
-    }
-    if (fields.serialNumber && serialNumberRef.current) {
-      serialNumberRef.current.value = fields.serialNumber;
-      markAutoFilled(serialNumberRef.current);
-    }
-    if (fields.purchaseDate && purchaseDateRef.current) {
+    applyIfEmpty(descriptionRef.current, fields.description);
+    applyIfEmpty(manufacturerRef.current, fields.manufacturer);
+    applyIfEmpty(modelRef.current, fields.model);
+    applyIfEmpty(vendorRef.current, fields.vendor);
+    applyIfEmpty(serialNumberRef.current, fields.serialNumber);
+    if (fields.purchaseDate && purchaseDateRef.current && !purchaseDateRef.current.value) {
       purchaseDateRef.current.value = fields.purchaseDate;
       markAutoFilled(purchaseDateRef.current);
       suggestWarrantyEndDate();
     }
-    if (fields.price && priceRef.current) {
-      priceRef.current.value = fields.price;
-      markAutoFilled(priceRef.current);
-    }
+    applyIfEmpty(priceRef.current, fields.price);
   }
 
   async function handleFileChange(file: File | null) {

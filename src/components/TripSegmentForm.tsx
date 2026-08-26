@@ -12,7 +12,7 @@ import { TRIP_SEGMENT_TYPE_LABELS } from "@/lib/utils";
 import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
-import { markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
+import { applyIfEmpty, markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
 import { DateInput } from "@/components/DateInput";
 
@@ -86,51 +86,23 @@ export function TripSegmentForm({
   const arrivalIataRef = useRef<HTMLInputElement>(null);
 
   function applyExtractedFields(fields: ExtractedFields) {
+    // type has no "unset" option, so it's always overwritten by design —
+    // there's no empty state to guard.
     if (fields.type && typeRef.current) {
       typeRef.current.value = fields.type;
       setSelectedType(fields.type as SegmentType);
       markAutoFilled(typeRef.current);
     }
-    if (fields.title && titleRef.current && !titleRef.current.value) {
-      titleRef.current.value = fields.title;
-      markAutoFilled(titleRef.current);
-    }
-    if (fields.provider && providerRef.current) {
-      providerRef.current.value = fields.provider;
-      markAutoFilled(providerRef.current);
-    }
-    if (fields.confirmationCode && confirmationCodeRef.current) {
-      confirmationCodeRef.current.value = fields.confirmationCode;
-      markAutoFilled(confirmationCodeRef.current);
-    }
-    if (fields.startDate && startDateRef.current) {
-      startDateRef.current.value = fields.startDate;
-      markAutoFilled(startDateRef.current);
-    }
-    if (fields.endDate && endDateRef.current) {
-      endDateRef.current.value = fields.endDate;
-      markAutoFilled(endDateRef.current);
-    }
-    if (fields.location && locationRef.current) {
-      locationRef.current.value = fields.location;
-      markAutoFilled(locationRef.current);
-    }
-    if (fields.cost && costRef.current) {
-      costRef.current.value = fields.cost;
-      markAutoFilled(costRef.current);
-    }
-    if (fields.flightNumber && flightNumberRef.current) {
-      flightNumberRef.current.value = fields.flightNumber;
-      markAutoFilled(flightNumberRef.current);
-    }
-    if (fields.departureIata && departureIataRef.current) {
-      departureIataRef.current.value = fields.departureIata;
-      markAutoFilled(departureIataRef.current);
-    }
-    if (fields.arrivalIata && arrivalIataRef.current) {
-      arrivalIataRef.current.value = fields.arrivalIata;
-      markAutoFilled(arrivalIataRef.current);
-    }
+    applyIfEmpty(titleRef.current, fields.title);
+    applyIfEmpty(providerRef.current, fields.provider);
+    applyIfEmpty(confirmationCodeRef.current, fields.confirmationCode);
+    applyIfEmpty(startDateRef.current, fields.startDate);
+    applyIfEmpty(endDateRef.current, fields.endDate);
+    applyIfEmpty(locationRef.current, fields.location);
+    applyIfEmpty(costRef.current, fields.cost);
+    applyIfEmpty(flightNumberRef.current, fields.flightNumber);
+    applyIfEmpty(departureIataRef.current, fields.departureIata);
+    applyIfEmpty(arrivalIataRef.current, fields.arrivalIata);
   }
 
   async function handleFileChange(file: File | null) {

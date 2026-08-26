@@ -5,6 +5,12 @@ const emptyToUndefined = (val: unknown) =>
 
 export const ASSET_CLASSES = ["SHARE", "ETF", "MANAGED_FUND", "CRYPTO", "CASH", "OTHER"] as const;
 export const TRADE_TYPES = ["BUY", "SELL", "DIVIDEND", "SPLIT"] as const;
+export const COST_METHODS = ["FIFO", "AVERAGE"] as const;
+
+export const COST_METHOD_LABELS: Record<string, string> = {
+  FIFO: "FIFO (first in, first out)",
+  AVERAGE: "Average cost",
+};
 
 export const ASSET_CLASS_LABELS: Record<string, string> = {
   SHARE: "Share",
@@ -26,6 +32,7 @@ export const portfolioSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(100),
   description: z.preprocess(emptyToUndefined, z.string().trim().max(500).optional()),
   currency: z.string().trim().min(1).max(10).default("AUD"),
+  costMethod: z.enum(COST_METHODS).default("FIFO"),
 });
 
 export const holdingSchema = z.object({

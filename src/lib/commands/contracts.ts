@@ -4,8 +4,14 @@ import { deleteContractDir } from "@/lib/storage";
 import { clearNotificationLogs } from "@/lib/notifications/logs";
 import type { ContractInput } from "@/lib/validation/contract";
 
-export async function createContractCommand(input: ContractInput, actorId: string) {
-  const contract = await prisma.contract.create({ data: { ...input, createdById: actorId } });
+export async function createContractCommand(
+  input: ContractInput,
+  actorId: string,
+  extra?: { extractionPending?: boolean; extractionConfirmedAt?: Date | null },
+) {
+  const contract = await prisma.contract.create({
+    data: { ...input, ...extra, createdById: actorId },
+  });
   revalidatePath("/contracts");
   revalidatePath("/dashboard");
   return contract;

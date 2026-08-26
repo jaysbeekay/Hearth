@@ -10,28 +10,11 @@ import { deleteHolding, deleteTrade, addTradeDocument, deleteTradeDocumentAction
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { DocumentLink } from "@/components/DocumentLink";
-import { ASSET_CLASS_LABELS, TRADE_TYPE_LABELS } from "@/lib/validation/wealth";
+import { ASSET_CLASS_LABELS, TRADE_TYPE_LABELS, COST_METHOD_LABELS } from "@/lib/validation/wealth";
 import { getUserPreferences } from "@/lib/userPreferences";
+import { holdingUnitsAndCost } from "@/lib/wealth";
 
 export const metadata: Metadata = { title: "Holding" };
-
-function holdingUnitsAndCost(trades: { type: string; units: number; pricePerUnit: number; fees: number | null }[]) {
-  let units = 0;
-  let cost = 0;
-  for (const t of trades) {
-    if (t.type === "BUY") {
-      units += t.units;
-      cost += t.units * t.pricePerUnit + (t.fees ?? 0);
-    } else if (t.type === "SELL") {
-      const sellUnits = Math.min(t.units, units);
-      if (units > 0) cost = cost * ((units - sellUnits) / units);
-      units = Math.max(0, units - sellUnits);
-    } else if (t.type === "SPLIT") {
-      units += t.units;
-    }
-  }
-  return { units, cost };
-}
 
 /** Running units held at or before a given timestamp. Trades must be sorted ascending by date. */
 function unitsAtTime(
@@ -219,7 +202,7 @@ export default async function HoldingPage({
 
   const sortedTrades = [...holding.trades].sort((a, b) => a.date.getTime() - b.date.getTime());
 
-  const { units, cost } = holdingUnitsAndCost(sortedTrades);
+  const { units, cost } = holdingUnitsAndCost(sortedTrades, holding.portfolio.costMethod);
 
   const currentPrice = priceEntry?.price ?? null;
   const currentValue = currentPrice != null && units > 0 ? units * currentPrice : null;
@@ -321,7 +304,9 @@ export default async function HoldingPage({
 
       <dl className="grid grid-cols-2 gap-4 rounded-xl border border-border bg-surface p-4 md:p-6 sm:grid-cols-3">
         <div className="min-w-0">
-          <dt className="text-xs text-foreground/50">Cost basis</dt>
+          <dt className="text-xs text-foreground/50">
+            Cost basis <span className="text-foreground/40">({COST_METHOD_LABELS[holding.portfolio.costMethod]})</span>
+          </dt>
           <dd className="text-sm font-medium tabular-nums break-words">{formatCurrency(cost, currency, undefined, region, { showCode: true })}</dd>
         </div>
         <div className="min-w-0">

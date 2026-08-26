@@ -23,7 +23,7 @@ import {
   serializeFormData,
   type QueuedOperation,
 } from "@/lib/offlineQueue";
-import { markAutoFilled, extractionMessage, isAiExtractionSource } from "@/lib/autoFillHighlight";
+import { applyIfEmpty, extractionMessage, isAiExtractionSource } from "@/lib/autoFillHighlight";
 import { DateInput } from "@/components/DateInput";
 
 function toDateInputValue(date: Date | null | undefined) {
@@ -119,46 +119,16 @@ export function ContractForm({
 
   function applyExtractedFields(fields: ExtractedFields, source: "byok" | "heuristic" | "llm" | "none") {
     const highlight = isAiExtractionSource(source) ? "ai" : "heuristic";
-    if (fields.title && titleRef.current && !titleRef.current.value) {
-      titleRef.current.value = fields.title;
-      markAutoFilled(titleRef.current, highlight);
-    }
-    if (fields.provider && providerRef.current) {
-      providerRef.current.value = fields.provider;
-      markAutoFilled(providerRef.current, highlight);
-    }
-    if (fields.contractNumber && contractNumberRef.current) {
-      contractNumberRef.current.value = fields.contractNumber;
-      markAutoFilled(contractNumberRef.current, highlight);
-    }
-    if (fields.startDate && startDateRef.current) {
-      startDateRef.current.value = fields.startDate;
-      markAutoFilled(startDateRef.current, highlight);
-    }
-    if (fields.endDate && endDateRef.current) {
-      endDateRef.current.value = fields.endDate;
-      markAutoFilled(endDateRef.current, highlight);
-    }
-    if (fields.cost && costRef.current) {
-      costRef.current.value = fields.cost;
-      markAutoFilled(costRef.current, highlight);
-    }
-    if (fields.billingFrequency && billingFrequencyRef.current) {
-      billingFrequencyRef.current.value = fields.billingFrequency;
-      markAutoFilled(billingFrequencyRef.current, highlight);
-    }
-    if (fields.contactName && contactNameRef.current) {
-      contactNameRef.current.value = fields.contactName;
-      markAutoFilled(contactNameRef.current, highlight);
-    }
-    if (fields.contactPhone && contactPhoneRef.current) {
-      contactPhoneRef.current.value = fields.contactPhone;
-      markAutoFilled(contactPhoneRef.current, highlight);
-    }
-    if (fields.contactEmail && contactEmailRef.current) {
-      contactEmailRef.current.value = fields.contactEmail;
-      markAutoFilled(contactEmailRef.current, highlight);
-    }
+    applyIfEmpty(titleRef.current, fields.title, highlight);
+    applyIfEmpty(providerRef.current, fields.provider, highlight);
+    applyIfEmpty(contractNumberRef.current, fields.contractNumber, highlight);
+    applyIfEmpty(startDateRef.current, fields.startDate, highlight);
+    applyIfEmpty(endDateRef.current, fields.endDate, highlight);
+    applyIfEmpty(costRef.current, fields.cost, highlight);
+    applyIfEmpty(billingFrequencyRef.current, fields.billingFrequency, highlight);
+    applyIfEmpty(contactNameRef.current, fields.contactName, highlight);
+    applyIfEmpty(contactPhoneRef.current, fields.contactPhone, highlight);
+    applyIfEmpty(contactEmailRef.current, fields.contactEmail, highlight);
   }
 
   async function handleFileChange(file: File | null) {

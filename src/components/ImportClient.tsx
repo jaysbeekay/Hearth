@@ -31,12 +31,16 @@ interface ContractFields {
   provider: string;
   category: string;
   cost: string;
+  startDate: string;
+  endDate: string;
 }
 
 interface ProductFields {
   description: string;
   manufacturer: string;
   price: string;
+  purchaseDate: string;
+  warrantyEndDate: string;
 }
 
 interface InventoryFields {
@@ -54,6 +58,10 @@ interface Row {
   error?: string;
   href?: string;
   scanMessage?: string;
+  // Set once at scan time (matches ContractForm/ProductForm's own
+  // extractionUsed flag) so the created record is held for review until the
+  // user confirms it on its detail page — see extractionFieldsFromForm.
+  extractionUsed: boolean;
   contract: ContractFields;
   product: ProductFields;
   inventory: InventoryFields;
@@ -107,35 +115,45 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
     const { fields, source } = await extract(type, file);
     const filledCount = Object.keys(fields).length;
     const scanMessage = extractionMessage(source, filledCount);
+    const extractionUsed = filledCount > 0;
     if (type === "CONTRACT") {
       updateRow(id, {
         status: "ready",
         scanMessage,
+        extractionUsed,
         contract: {
           title: fields.title ?? file.name.replace(/\.[^.]+$/, ""),
           provider: fields.provider ?? "",
           category: "OTHER",
           cost: fields.cost ?? "",
+          startDate: fields.startDate ?? "",
+          endDate: fields.endDate ?? "",
         },
         contractAutoFilled: {
           title: Boolean(fields.title),
           provider: Boolean(fields.provider),
           cost: Boolean(fields.cost),
+          startDate: Boolean(fields.startDate),
+          endDate: Boolean(fields.endDate),
         },
       });
     } else if (type === "PRODUCT") {
       updateRow(id, {
         status: "ready",
         scanMessage,
+        extractionUsed,
         product: {
           description: fields.description ?? file.name.replace(/\.[^.]+$/, ""),
           manufacturer: fields.manufacturer ?? "",
           price: fields.price ?? "",
+          purchaseDate: fields.purchaseDate ?? "",
+          warrantyEndDate: "",
         },
         productAutoFilled: {
           description: Boolean(fields.description),
           manufacturer: Boolean(fields.manufacturer),
           price: Boolean(fields.price),
+          purchaseDate: Boolean(fields.purchaseDate),
         },
       });
     } else {
@@ -166,8 +184,9 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
         file,
         type: "CONTRACT",
         status: "scanning",
-        contract: { title: "", provider: "", category: "OTHER", cost: "" },
-        product: { description: "", manufacturer: "", price: "" },
+        extractionUsed: false,
+        contract: { title: "", provider: "", category: "OTHER", cost: "", startDate: "", endDate: "" },
+        product: { description: "", manufacturer: "", price: "", purchaseDate: "", warrantyEndDate: "" },
         inventory: { label: "", category: "OTHER", brand: "", purchasePrice: "" },
         contractAutoFilled: {},
         productAutoFilled: {},
@@ -193,11 +212,19 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
       formData.append("category", row.contract.category);
       formData.append("renewalType", "MANUAL_RENEWAL");
       formData.append("cost", row.contract.cost);
+      formData.append("startDate", row.contract.startDate);
+      formData.append("endDate", row.contract.endDate);
+      formData.append("extractionUsed", row.extractionUsed ? "1" : "0");
+      formData.append("confirmExtraction", "0");
       result = await importContract(formData);
     } else if (row.type === "PRODUCT") {
       formData.append("description", row.product.description);
       formData.append("manufacturer", row.product.manufacturer);
       formData.append("price", row.product.price);
+      formData.append("purchaseDate", row.product.purchaseDate);
+      formData.append("warrantyEndDate", row.product.warrantyEndDate);
+      formData.append("extractionUsed", row.extractionUsed ? "1" : "0");
+      formData.append("confirmExtraction", "0");
       result = await importProduct(formData);
     } else if (row.type === "INVENTORY") {
       formData.append("label", row.inventory.label);
@@ -402,6 +429,36 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                           className={fieldClass(row.contractAutoFilled.cost)}
                         />
                       </RowField>
+                      <RowField label="Start date" htmlFor={`${row.id}-startDate`}>
+                        <input
+                          id={`${row.id}-startDate`}
+                          type="date"
+                          value={row.contract.startDate}
+                          disabled={row.status === "saving"}
+                          onChange={(e) =>
+                            updateRow(row.id, {
+                              contract: { ...row.contract, startDate: e.target.value },
+                              contractAutoFilled: { ...row.contractAutoFilled, startDate: false },
+                            })
+                          }
+                          className={fieldClass(row.contractAutoFilled.startDate)}
+                        />
+                      </RowField>
+                      <RowField label="End date" htmlFor={`${row.id}-endDate`}>
+                        <input
+                          id={`${row.id}-endDate`}
+                          type="date"
+                          value={row.contract.endDate}
+                          disabled={row.status === "saving"}
+                          onChange={(e) =>
+                            updateRow(row.id, {
+                              contract: { ...row.contract, endDate: e.target.value },
+                              contractAutoFilled: { ...row.contractAutoFilled, endDate: false },
+                            })
+                          }
+                          className={fieldClass(row.contractAutoFilled.endDate)}
+                        />
+                      </RowField>
                     </div>
                   )}
 
@@ -449,6 +506,35 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                           }
                           inputMode="decimal"
                           className={fieldClass(row.productAutoFilled.price)}
+                        />
+                      </RowField>
+                      <RowField label="Purchase date" htmlFor={`${row.id}-purchaseDate`}>
+                        <input
+                          id={`${row.id}-purchaseDate`}
+                          type="date"
+                          value={row.product.purchaseDate}
+                          disabled={row.status === "saving"}
+                          onChange={(e) =>
+                            updateRow(row.id, {
+                              product: { ...row.product, purchaseDate: e.target.value },
+                              productAutoFilled: { ...row.productAutoFilled, purchaseDate: false },
+                            })
+                          }
+                          className={fieldClass(row.productAutoFilled.purchaseDate)}
+                        />
+                      </RowField>
+                      <RowField label="Warranty end date" htmlFor={`${row.id}-warrantyEndDate`}>
+                        <input
+                          id={`${row.id}-warrantyEndDate`}
+                          type="date"
+                          value={row.product.warrantyEndDate}
+                          disabled={row.status === "saving"}
+                          onChange={(e) =>
+                            updateRow(row.id, {
+                              product: { ...row.product, warrantyEndDate: e.target.value },
+                            })
+                          }
+                          className={fieldClass(false)}
                         />
                       </RowField>
                     </div>

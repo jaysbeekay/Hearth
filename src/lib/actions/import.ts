@@ -23,6 +23,7 @@ import { computeInboxIntake } from "@/lib/documents/inboxIntake";
 import { getDocumentVersionChain } from "@/lib/documents/documentQueries";
 import { createContractCommand } from "@/lib/commands/contracts";
 import { createProductCommand } from "@/lib/commands/products";
+import { extractionFieldsFromForm } from "@/lib/documents/extractionConfirmation";
 
 function formToInventoryItemInput(formData: FormData) {
   return {
@@ -67,7 +68,7 @@ export async function importContract(formData: FormData): Promise<ImportResult> 
     if (rejection) return { error: rejection };
   }
 
-  const contract = await createContractCommand(parsed.data, user.id);
+  const contract = await createContractCommand(parsed.data, user.id, extractionFieldsFromForm(formData));
 
   if (file instanceof File && file.size > 0) {
     const { storedName, size, sha256, mimeType } = await saveDocument(contract.id, file);
@@ -98,7 +99,7 @@ export async function importProduct(formData: FormData): Promise<ImportResult> {
     if (rejection) return { error: rejection };
   }
 
-  const product = await createProductCommand(parsed.data, user.id);
+  const product = await createProductCommand(parsed.data, user.id, extractionFieldsFromForm(formData));
 
   if (file instanceof File && file.size > 0) {
     const { storedName, size, sha256, mimeType } = await saveProductDocument(product.id, file);

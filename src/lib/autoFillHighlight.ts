@@ -20,6 +20,20 @@ export function markAutoFilled(
   el.addEventListener("input", () => el.classList.remove(...classes), { once: true });
 }
 
+// Fills a field with an extracted value only if the user hasn't already put
+// something there. #301: every applyExtractedFields-style function used to
+// overwrite unconditionally (bar one field that happened to check first), so
+// re-scanning a document after typing a correction silently discarded it.
+export function applyIfEmpty(
+  el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null | undefined,
+  value: string | undefined,
+  source: "heuristic" | "ai" = "heuristic",
+) {
+  if (!value || !el || el.value) return;
+  el.value = value;
+  markAutoFilled(el, source);
+}
+
 // Client-side mirror of the server's extraction confidence heuristic
 // (src/lib/documents/fieldExtraction.ts's LOW_CONFIDENCE_THRESHOLD) — the
 // server module is Node/Prisma-only and can't be imported into a client

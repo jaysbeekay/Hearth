@@ -11,6 +11,7 @@ import { refreshPricesForTickers } from "@/lib/prices";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { HoldingCard } from "@/components/HoldingCard";
 import type { ModuleKey } from "@/lib/modules/registry";
+import { COST_METHOD_LABELS } from "@/lib/validation/wealth";
 
 export const metadata: Metadata = { title: "Portfolio" };
 
@@ -66,7 +67,9 @@ export default async function PortfolioPage({
             <p className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(portfolioValue.totalValue, portfolio.currency, undefined, region, { showCode: true })}</p>
           </div>
           <div className="rounded-xl border border-border bg-surface p-4">
-            <p className="text-xs text-foreground/50">Cost basis</p>
+            <p className="text-xs text-foreground/50">
+              Cost basis <span className="text-foreground/40">({COST_METHOD_LABELS[portfolio.costMethod]})</span>
+            </p>
             <p className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(portfolioValue.totalCost, portfolio.currency, undefined, region, { showCode: true })}</p>
           </div>
           <div className="rounded-xl border border-border bg-surface p-4">

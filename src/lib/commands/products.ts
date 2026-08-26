@@ -4,8 +4,14 @@ import { deleteProductDir } from "@/lib/storage";
 import { clearNotificationLogs } from "@/lib/notifications/logs";
 import type { ProductInput } from "@/lib/validation/product";
 
-export async function createProductCommand(input: ProductInput, actorId: string) {
-  const product = await prisma.product.create({ data: { ...input, createdById: actorId } });
+export async function createProductCommand(
+  input: ProductInput,
+  actorId: string,
+  extra?: { extractionPending?: boolean; extractionConfirmedAt?: Date | null },
+) {
+  const product = await prisma.product.create({
+    data: { ...input, ...extra, createdById: actorId },
+  });
   revalidatePath("/products");
   revalidatePath("/dashboard");
   return product;

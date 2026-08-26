@@ -11,7 +11,7 @@ import { Field } from "@/components/FormField";
 import { INVENTORY_ITEM_CATEGORIES } from "@/lib/validation/inventory";
 import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 import { FileDropZone } from "@/components/FileDropZone";
-import { markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
+import { applyIfEmpty, markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 import {
   makeOfflineAwareAction,
   getOperationById,
@@ -91,34 +91,18 @@ export function InventoryItemForm({
   const purchasePriceRef = useRef<HTMLInputElement>(null);
 
   function applyExtractedFields(fields: ExtractedFields) {
+    // category has no "unset" option (always defaults to "OTHER"), so it's
+    // always overwritten by design — there's no empty state to guard.
     if (fields.category && categoryRef.current) {
       categoryRef.current.value = fields.category;
       markAutoFilled(categoryRef.current);
     }
-    if (fields.label && labelRef.current && !labelRef.current.value) {
-      labelRef.current.value = fields.label;
-      markAutoFilled(labelRef.current);
-    }
-    if (fields.brand && brandRef.current) {
-      brandRef.current.value = fields.brand;
-      markAutoFilled(brandRef.current);
-    }
-    if (fields.model && modelRef.current) {
-      modelRef.current.value = fields.model;
-      markAutoFilled(modelRef.current);
-    }
-    if (fields.serialNumber && serialNumberRef.current) {
-      serialNumberRef.current.value = fields.serialNumber;
-      markAutoFilled(serialNumberRef.current);
-    }
-    if (fields.purchaseDate && purchaseDateRef.current) {
-      purchaseDateRef.current.value = fields.purchaseDate;
-      markAutoFilled(purchaseDateRef.current);
-    }
-    if (fields.purchasePrice && purchasePriceRef.current) {
-      purchasePriceRef.current.value = fields.purchasePrice;
-      markAutoFilled(purchasePriceRef.current);
-    }
+    applyIfEmpty(labelRef.current, fields.label);
+    applyIfEmpty(brandRef.current, fields.brand);
+    applyIfEmpty(modelRef.current, fields.model);
+    applyIfEmpty(serialNumberRef.current, fields.serialNumber);
+    applyIfEmpty(purchaseDateRef.current, fields.purchaseDate);
+    applyIfEmpty(purchasePriceRef.current, fields.purchasePrice);
   }
 
   async function handleFileChange(file: File | null) {

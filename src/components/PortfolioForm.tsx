@@ -5,9 +5,10 @@ import type { PortfolioModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
-import { inputClass } from "@/components/SelectWrapper";
+import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
+import { COST_METHODS, COST_METHOD_LABELS } from "@/lib/validation/wealth";
 
 export function PortfolioForm({
   action,
@@ -67,6 +68,27 @@ export function PortfolioForm({
           name="currency"
           defaultValue={state?.values?.currency ?? portfolio?.currency ?? defaultCurrency}
         />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1" htmlFor="costMethod">Cost basis method</label>
+        <SelectWrapper>
+          <select
+            id="costMethod"
+            name="costMethod"
+            defaultValue={state?.values?.costMethod ?? portfolio?.costMethod ?? "FIFO"}
+            className={selectClass}
+          >
+            {COST_METHODS.map((m) => (
+              <option key={m} value={m}>{COST_METHOD_LABELS[m]}</option>
+            ))}
+          </select>
+        </SelectWrapper>
+        <p className="mt-1 text-xs text-foreground/60">
+          Determines how gains/losses are calculated when units are sold. Changing this
+          recalculates cost basis for existing trades — check it matches how you report
+          capital gains.
+        </p>
       </div>
 
       <SubmitButton>{portfolio ? "Save changes" : "Create portfolio"}</SubmitButton>
