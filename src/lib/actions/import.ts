@@ -155,8 +155,8 @@ export async function importInventoryItem(formData: FormData): Promise<ImportRes
   return { success: "Saved", id: item.id, href: `/inventory/${item.id}` };
 }
 
-// The "Not sure yet" path: save the file with no destination chosen. Classify
-// or discard it later from the Needs review queue.
+// The "Save to review later" path: save the file with no destination chosen.
+// Classify or discard it later from the Inbox.
 export async function saveToInbox(formData: FormData): Promise<ImportResult> {
   const user = await requireUser();
 

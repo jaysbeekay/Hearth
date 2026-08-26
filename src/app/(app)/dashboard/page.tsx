@@ -166,9 +166,9 @@ export default async function DashboardPage() {
         <h2 className="text-lg font-semibold">Documents</h2>
         <div className="grid grid-cols-2 gap-3">
           <StatCard
-            label="Needs review"
-            value={String(documentStats.needsReview)}
-            tone={documentStats.needsReview > 0 ? "warning" : "default"}
+            label="Inbox"
+            value={String(documentStats.inboxCount)}
+            tone={documentStats.inboxCount > 0 ? "warning" : "default"}
             href="/documents/inbox"
           />
           <StatCard
@@ -235,7 +235,7 @@ export default async function DashboardPage() {
           )}
 
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <StatCard label="Products tracked" value={String(products.length)} href="/products" />
+            <StatCard label="Warranties tracked" value={String(products.length)} href="/products" />
             <StatCard
               label="Warranties expiring in 30 days"
               value={String(warrantiesExpiringSoon.length)}

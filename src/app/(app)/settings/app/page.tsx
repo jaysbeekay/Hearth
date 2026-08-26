@@ -200,9 +200,8 @@ export default async function AppSettingsPage() {
             <h3 className="font-medium">Email ingestion</h3>
             <p className="text-xs text-muted mt-0.5">
               Forward or email a document to this mailbox and Hearth periodically checks it,
-              guesses what type of document it is, and drops it in the Needs review queue for
-              you to confirm — the sender is never trusted, so nothing is ever filed
-              automatically.
+              guesses what type of document it is, and drops it in your Inbox for you to
+              confirm — the sender is never trusted, so nothing is ever filed automatically.
             </p>
           </div>
           <EmailIngestForm

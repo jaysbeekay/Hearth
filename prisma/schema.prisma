@@ -337,7 +337,7 @@ model Document {
 }
 
 // Holds a document saved before its destination (Contract, Product, ...) is
-// known — the "Not sure yet" import path. Classifying one creates the real
+// known — the "Save to review later" import path. Classifying one creates the real
 // row in the matching per-entity document table and deletes this one; it is
 // never a permanent home for a file, only a queue.
 model InboxDocument {

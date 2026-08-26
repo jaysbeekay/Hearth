@@ -14,6 +14,7 @@ import { NotificationPreferencesForm } from "@/components/NotificationPreference
 import { PreferencesForm } from "@/components/PreferencesForm";
 import { OfflineDocumentsPanel } from "@/components/OfflineDocumentsPanel";
 import { UnconfiguredNotice } from "@/components/UnconfiguredNotice";
+import { ROLE_LABELS } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -58,7 +59,7 @@ export default async function SettingsPage() {
             </div>
             <div className="min-w-0">
               <dt className="text-xs text-muted">Role</dt>
-              <dd className="text-sm font-medium">{user.role}</dd>
+              <dd className="text-sm font-medium">{ROLE_LABELS[user.role] ?? user.role}</dd>
             </div>
           </dl>
           {user.role === "ADMIN" && (

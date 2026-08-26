@@ -339,7 +339,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                           <option value="CONTRACT">Contract</option>
                           <option value="PRODUCT">Product</option>
                           {inventoryEnabled && <option value="INVENTORY">Inventory item</option>}
-                          <option value="INBOX">Not sure yet</option>
+                          <option value="INBOX">Save to review later</option>
                         </select>
                         <button
                           type="button"
@@ -617,7 +617,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                       Saved to your inbox as-is — classify it as a contract, product, or other
                       record later from{" "}
                       <a href="/documents/inbox" className="text-accent hover:underline">
-                        Needs review
+                        Inbox
                       </a>
                       .
                     </p>

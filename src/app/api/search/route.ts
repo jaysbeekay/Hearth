@@ -461,7 +461,6 @@ export async function GET(request: NextRequest) {
           rows.map((r) => ({
             id: r.id,
             title: r.filename,
-            subtitle: "Needs review",
             href: "/documents/inbox",
             group: "Inbox",
             matchedInDocument: !matchedViaFields(q, [r.filename]),

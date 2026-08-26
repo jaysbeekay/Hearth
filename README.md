@@ -53,7 +53,7 @@ Everything else is optional. Set `SMTP_*` to enable email reminders, `NTFY_*` fo
 - Upload booking confirmations — AI extraction pre-fills confirmation codes, dates, locations, and costs
 - Shared household-wide so all members can view each other's trips
 
-**Home** *(opt-in module)*
+**Property** *(opt-in module)*
 - Track properties and log maintenance, repairs, and improvements against each one
 - Attach receipts/invoices and record costs, providers, and dates
 - Manage rental agreements and track rental income statements per property

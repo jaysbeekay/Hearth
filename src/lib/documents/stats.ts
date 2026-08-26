@@ -5,7 +5,10 @@ const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 export interface DocumentStats {
   uploadedThisWeek: number;
-  needsReview: number;
+  // #289 — "unfiled inbox document" and "extraction-pending record" both
+  // used to be called "needs review"; this is the former, distinct from
+  // Contract/Product's own extractionPending-driven "needs review" chips.
+  inboxCount: number;
   total: number;
 }
 
@@ -50,7 +53,7 @@ export async function getDocumentStats(enabledModules: Set<ModuleKey>): Promise<
     recentQueries.push(prisma.tradeDocument.count({ where: { uploadedAt: { gte: since } } }));
   }
 
-  const [totals, recents, needsReview] = await Promise.all([
+  const [totals, recents, inboxCount] = await Promise.all([
     Promise.all(totalQueries),
     Promise.all(recentQueries),
     prisma.inboxDocument.count(),
@@ -59,6 +62,6 @@ export async function getDocumentStats(enabledModules: Set<ModuleKey>): Promise<
   return {
     total: totals.reduce((sum, n) => sum + n, 0),
     uploadedThisWeek: recents.reduce((sum, n) => sum + n, 0),
-    needsReview,
+    inboxCount,
   };
 }
