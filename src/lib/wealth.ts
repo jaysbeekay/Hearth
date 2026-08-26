@@ -39,7 +39,7 @@ export interface NetWorthData {
   currency: string;
 }
 
-function holdingUnitsAndCost(trades: { type: string; units: number; pricePerUnit: number; fees: number | null }[]) {
+export function holdingUnitsAndCost(trades: { type: string; units: number; pricePerUnit: number; fees: number | null }[]) {
   let units = 0;
   let cost = 0;
   for (const t of trades) {
