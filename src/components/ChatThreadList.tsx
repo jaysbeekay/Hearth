@@ -58,6 +58,7 @@ export function ChatThreadList({
             <ConfirmForm
               action={() => deleteChatThread(thread.id)}
               confirmText="Delete this conversation? This can't be undone."
+              actionLabel="Delete conversation"
               ariaLabel="Delete conversation"
               successMessage=""
               className="shrink-0 rounded-md p-1 text-muted opacity-0 hover:text-danger group-hover:opacity-100"

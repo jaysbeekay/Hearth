@@ -60,6 +60,7 @@ export default async function PortfoliosPage() {
                   <ConfirmForm
                     action={deletePortfolio.bind(null, p.id)}
                     confirmText={`Delete "${p.name}" and all its holdings and trades? This cannot be undone.`}
+                    actionLabel={`Delete "${p.name}"`}
                     className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
                     offline={{ entity: "portfolio", entityId: p.id, label: `Delete portfolio: ${p.name}` }}
                   >

@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Settings, HelpCircle, MoreHorizontal, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getNavItems } from "@/components/nav-items";
 import type { ModuleKey } from "@/lib/modules/registry";
+import { Dialog } from "@/components/Dialog";
 
 function isActive(href: string, pathname: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -36,15 +37,6 @@ export function BottomNav({
     setPrevPathname(pathname);
     setMoreOpen(false);
   }
-
-  useEffect(() => {
-    if (!moreOpen) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setMoreOpen(false);
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [moreOpen]);
 
   const primary = PRIMARY_HREFS.map((href) => items.find((i) => i.href === href)).filter(
     (i): i is NonNullable<typeof i> => i != null,
@@ -92,17 +84,14 @@ export function BottomNav({
         </button>
       </nav>
 
-      {moreOpen && (
-        <div
-          className="fixed inset-0 z-40 flex items-end bg-black/40 md:hidden"
-          onClick={() => setMoreOpen(false)}
-        >
-          <div
-            role="dialog"
-            aria-label="More navigation options"
-            className="w-full rounded-t-2xl border-t border-border bg-surface p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
-            onClick={(e) => e.stopPropagation()}
-          >
+      <Dialog
+        open={moreOpen}
+        onClose={() => setMoreOpen(false)}
+        label="More navigation options"
+        backdropClassName="fixed inset-0 z-40 flex items-end bg-black/40 md:hidden"
+        panelClassName="w-full rounded-t-2xl border-t border-border bg-surface p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+      >
+        <>
             <div className="mb-3 flex items-center justify-between">
               <span className="text-sm font-medium text-muted">More</span>
               <button
@@ -183,9 +172,8 @@ export function BottomNav({
                 Help
               </Link>
             </div>
-          </div>
-        </div>
-      )}
+        </>
+      </Dialog>
     </>
   );
 }

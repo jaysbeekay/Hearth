@@ -101,6 +101,7 @@ export default async function ContractDetailPage({
                 ? "Mark this contract as active again?"
                 : "Mark this contract as cancelled? This just changes its status — it won't delete the contract or its documents."
             }
+            actionLabel={cancelled ? "Mark as active" : "Mark as cancelled"}
             ariaLabel={cancelled ? "Mark contract as active" : "Mark contract as cancelled"}
             className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
           >
@@ -111,6 +112,7 @@ export default async function ContractDetailPage({
             <ConfirmForm
               action={deleteContract.bind(null, contract.id)}
               confirmText="Delete this contract and all its documents? This cannot be undone."
+              actionLabel="Delete contract"
               className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
               offline={{ entity: "contract", entityId: contract.id, label: `Delete contract: ${contract.title}` }}
             >

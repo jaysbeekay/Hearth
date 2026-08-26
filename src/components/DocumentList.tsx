@@ -11,6 +11,7 @@ function DeleteButton({ doc }: { doc: DocumentModel }) {
     <ConfirmForm
       action={deleteDocumentAction.bind(null, doc.contractId, doc.id)}
       confirmText={`Delete ${doc.filename}? This can't be undone.`}
+      actionLabel="Delete document"
       ariaLabel={`Delete ${doc.filename}`}
       className="rounded-md p-2 text-muted hover:text-danger"
       offline={{

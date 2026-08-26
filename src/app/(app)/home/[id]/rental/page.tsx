@@ -114,6 +114,7 @@ export default async function RentalOverviewPage({
           <ConfirmForm
             action={setPropertyRented.bind(null, property.id, false)}
             confirmText="Disable rental tracking for this property? Agreements and statements will be kept."
+            actionLabel="Disable rental tracking"
             className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground/70 hover:bg-black/5 dark:hover:bg-white/5"
           >
             Disable rental tracking
@@ -189,6 +190,7 @@ export default async function RentalOverviewPage({
                       <ConfirmForm
                         action={deleteRentalAgreement.bind(null, property.id, ag.id)}
                         confirmText="Delete this rental agreement? Statements are not affected."
+                        actionLabel="Delete agreement"
                         className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
                       >
                         <Trash2 size={16} />
@@ -342,6 +344,7 @@ export default async function RentalOverviewPage({
                         <ConfirmForm
                           action={deleteRentalStatement.bind(null, property.id, stmt.id)}
                           confirmText="Delete this statement and its documents?"
+                          actionLabel="Delete statement"
                           className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
                         >
                           <Trash2 size={16} />

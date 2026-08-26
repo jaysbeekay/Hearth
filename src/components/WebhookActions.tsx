@@ -49,6 +49,7 @@ export function WebhookActions({
         <ConfirmForm
           action={deleteWebhookEndpoint.bind(null, endpointId)}
           confirmText={`Remove the "${name}" webhook?`}
+          actionLabel="Remove webhook"
           ariaLabel={`Remove webhook ${name}`}
           className="rounded-md p-2 text-muted hover:text-danger"
         >

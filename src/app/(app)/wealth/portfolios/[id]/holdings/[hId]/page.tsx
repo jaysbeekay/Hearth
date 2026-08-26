@@ -253,6 +253,7 @@ export default async function HoldingPage({
             <ConfirmForm
               action={deleteHolding.bind(null, portfolioId, holdingId)}
               confirmText={`Delete ${holding.ticker} and all its trades? This cannot be undone.`}
+              actionLabel={`Delete ${holding.ticker}`}
               className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
             >
               <Trash2 size={16} />
@@ -397,6 +398,7 @@ export default async function HoldingPage({
                       <ConfirmForm
                         action={deleteTrade.bind(null, holdingId, trade.id)}
                         confirmText="Delete this trade? This can't be undone."
+                        actionLabel="Delete trade"
                         ariaLabel={`Delete trade from ${formatDate(trade.date, dateFormat)}`}
                         className="rounded-lg border border-border p-2 text-danger hover:bg-danger/10"
                       >
@@ -422,6 +424,7 @@ export default async function HoldingPage({
                             <ConfirmForm
                               action={deleteTradeDocumentAction.bind(null, holdingId, trade.id, doc.id)}
                               confirmText={`Remove ${doc.filename}? This can't be undone.`}
+                              actionLabel="Remove document"
                               ariaLabel={`Remove ${doc.filename}`}
                               className="rounded p-1 text-danger hover:text-danger/70"
                               offline={{

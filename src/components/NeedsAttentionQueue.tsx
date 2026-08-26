@@ -68,6 +68,7 @@ export function NeedsAttentionQueue({ items }: { items: AttentionItem[] }) {
                 <ConfirmForm
                   action={setContractStatus.bind(null, item.id, "CANCELLED")}
                   confirmText="Mark this contract as cancelled? This just changes its status — it won't delete the contract or its documents."
+                  actionLabel="Mark as cancelled"
                   ariaLabel={`Mark ${item.title} as cancelled`}
                   className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-foreground/70 hover:bg-black/5 dark:hover:bg-white/5"
                 >

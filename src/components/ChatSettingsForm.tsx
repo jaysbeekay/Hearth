@@ -112,6 +112,7 @@ export function ChatSettingsForm({
         <ConfirmForm
           action={removeChatSettings}
           confirmText="Remove your saved assistant provider settings? The assistant will be unavailable until you configure one again."
+          actionLabel="Remove settings"
           className="inline-flex items-center gap-2 text-sm text-muted hover:text-danger"
         >
           <Trash2 size={14} />

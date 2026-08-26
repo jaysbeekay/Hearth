@@ -98,6 +98,7 @@ export default async function VehicleDetailPage({
             <ConfirmForm
               action={deleteVehicle.bind(null, vehicle.id)}
               confirmText="Delete this vehicle and all its records and documents? This cannot be undone."
+              actionLabel="Delete vehicle"
               className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
               offline={{ entity: "vehicle", entityId: vehicle.id, label: `Delete vehicle: ${vehicle.label}` }}
             >
@@ -200,6 +201,7 @@ export default async function VehicleDetailPage({
                       <ConfirmForm
                         action={deleteVehicleItem.bind(null, vehicle.id, item.id)}
                         confirmText={`Delete "${item.title}" and its documents?`}
+                        actionLabel={`Delete "${item.title}"`}
                         className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
                       >
                         <Trash2 size={16} />

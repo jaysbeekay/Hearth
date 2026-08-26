@@ -102,6 +102,7 @@ export default async function PropertyDetailPage({
             <ConfirmForm
               action={deleteProperty.bind(null, property.id)}
               confirmText="Delete this property and all its items and documents? This cannot be undone."
+              actionLabel="Delete property"
               className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
               offline={{ entity: "property", entityId: property.id, label: `Delete property: ${property.label}` }}
             >
@@ -179,6 +180,7 @@ export default async function PropertyDetailPage({
                       <ConfirmForm
                         action={deleteHomeItem.bind(null, property.id, item.id)}
                         confirmText={`Delete "${item.title}" and its documents?`}
+                        actionLabel={`Delete "${item.title}"`}
                         className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
                       >
                         <Trash2 size={16} />
@@ -261,6 +263,7 @@ export default async function PropertyDetailPage({
                 <ConfirmForm
                   action={deletePropertyValuation.bind(null, property.id, v.id)}
                   confirmText="Remove this valuation? This can't be undone."
+                  actionLabel="Remove valuation"
                   ariaLabel={`Remove valuation from ${formatDate(v.valuedAt, dateFormat)}`}
                   className="rounded-lg border border-border p-2 text-danger hover:bg-danger/10"
                 >

@@ -105,6 +105,7 @@ export default async function TripDetailPage({
             <ConfirmForm
               action={deleteTrip.bind(null, trip.id)}
               confirmText="Delete this trip and all its segments and documents? This cannot be undone."
+              actionLabel="Delete trip"
               className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
               offline={{ entity: "trip", entityId: trip.id, label: `Delete trip: ${trip.title}` }}
             >
@@ -171,6 +172,7 @@ export default async function TripDetailPage({
                       <ConfirmForm
                         action={deleteTripSegment.bind(null, trip.id, segment.id)}
                         confirmText={`Delete "${segment.title}" and its documents?`}
+                        actionLabel={`Delete "${segment.title}"`}
                         className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
                       >
                         <Trash2 size={16} />

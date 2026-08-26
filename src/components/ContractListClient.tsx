@@ -336,6 +336,7 @@ export function ContractListClient({
                   <ConfirmForm
                     action={deleteContract.bind(null, contract.id)}
                     confirmText={`Delete this contract and all its documents? This cannot be undone.`}
+                    actionLabel="Delete contract"
                     ariaLabel={`Delete ${contract.title}`}
                     className="flex h-full w-full flex-col items-center justify-center gap-1 bg-danger text-xs font-medium text-white"
                     offline={{ entity: "contract", entityId: contract.id, label: `Delete contract: ${contract.title}` }}

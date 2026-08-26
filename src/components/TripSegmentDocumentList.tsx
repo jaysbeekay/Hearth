@@ -36,6 +36,7 @@ export function TripSegmentDocumentList({
           <ConfirmForm
             action={deleteSegmentDocumentAction.bind(null, doc.tripSegmentId, doc.id)}
             confirmText={`Delete ${doc.filename}? This can't be undone.`}
+            actionLabel="Delete document"
             ariaLabel={`Delete ${doc.filename}`}
             className="rounded-md p-2 text-muted hover:text-danger"
             offline={{

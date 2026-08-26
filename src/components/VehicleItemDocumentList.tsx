@@ -36,6 +36,7 @@ export function VehicleItemDocumentList({
           <ConfirmForm
             action={deleteVehicleItemDocumentAction.bind(null, doc.vehicleItemId, doc.id)}
             confirmText={`Delete ${doc.filename}? This can't be undone.`}
+            actionLabel="Delete document"
             ariaLabel={`Delete ${doc.filename}`}
             className="rounded-md p-2 text-muted hover:text-danger"
             offline={{

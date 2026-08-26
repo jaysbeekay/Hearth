@@ -38,6 +38,7 @@ export function PasskeyItem({
       <ConfirmForm
         action={deletePasskeyCredential.bind(null, credentialId)}
         confirmText={`Remove "${nickname ?? "this passkey"}"? You won't be able to sign in with it anymore.`}
+        actionLabel="Remove passkey"
         ariaLabel={`Remove passkey ${nickname ?? ""}`}
         className="rounded-md p-2 text-muted hover:text-danger"
       >

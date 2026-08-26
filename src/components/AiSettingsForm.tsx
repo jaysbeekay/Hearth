@@ -112,6 +112,7 @@ export function AiSettingsForm({
         <ConfirmForm
           action={removeAiSettings}
           confirmText="Remove your saved AI provider settings? Document extraction will fall back to local heuristics."
+          actionLabel="Remove settings"
           className="inline-flex items-center gap-2 text-sm text-muted hover:text-danger"
         >
           <Trash2 size={14} />

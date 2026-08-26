@@ -2,10 +2,18 @@
 
 import { useEffect, useRef, useState } from "react";
 import { MoreVertical, X } from "lucide-react";
+import { Dialog } from "@/components/Dialog";
+import { useFocusTrap } from "@/lib/useFocusTrap";
 
 export function DetailOverflowMenu({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  // Desktop dropdown isn't a modal overlay (no backdrop, closes on any
+  // outside click) so it doesn't go through the shared Dialog primitive —
+  // but it still needs the same "Tab can't escape into the page" guarantee
+  // the mobile sheet gets from Dialog, hence the trap applied directly here.
+  useFocusTrap(dropdownRef, open);
 
   useEffect(() => {
     if (!open) return;
@@ -29,7 +37,7 @@ export function DetailOverflowMenu({ children }: { children: React.ReactNode }) 
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-label="More actions"
-        aria-haspopup="menu"
+        aria-haspopup="dialog"
         aria-expanded={open}
         className="flex h-11 w-11 items-center justify-center rounded-lg border border-border hover:bg-black/5 dark:hover:bg-white/5"
       >
@@ -38,9 +46,14 @@ export function DetailOverflowMenu({ children }: { children: React.ReactNode }) 
 
       {open && (
         <>
-          {/* Desktop: dropdown anchored to the trigger button. */}
+          {/* Desktop: dropdown anchored to the trigger button. Not "menu"
+              role/semantics (#297) — these are plain action buttons/links,
+              not true ARIA menuitems with arrow-key navigation, so "dialog"
+              is the honest role. */}
           <div
-            role="menu"
+            ref={dropdownRef}
+            role="dialog"
+            aria-label="More actions"
             className="absolute right-0 z-10 mt-1 hidden w-48 overflow-hidden rounded-lg border border-border bg-surface shadow-md md:block"
           >
             {children}
@@ -48,15 +61,14 @@ export function DetailOverflowMenu({ children }: { children: React.ReactNode }) 
 
           {/* Mobile: bottom sheet, matching BottomNav's "More" pattern —
               easier to hit with a thumb than a small anchored dropdown. */}
-          <div
-            className="fixed inset-0 z-40 flex items-end bg-black/40 md:hidden"
-            onClick={() => setOpen(false)}
+          <Dialog
+            open={open}
+            onClose={() => setOpen(false)}
+            label="More actions"
+            backdropClassName="fixed inset-0 z-40 flex items-end bg-black/40 md:hidden"
+            panelClassName="w-full rounded-t-2xl border-t border-border bg-surface p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]"
           >
-            <div
-              role="menu"
-              className="w-full rounded-t-2xl border-t border-border bg-surface p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]"
-              onClick={(e) => e.stopPropagation()}
-            >
+            <>
               <div className="mb-1 flex items-center justify-end px-2 pt-1">
                 <button
                   type="button"
@@ -68,8 +80,8 @@ export function DetailOverflowMenu({ children }: { children: React.ReactNode }) 
                 </button>
               </div>
               {children}
-            </div>
-          </div>
+            </>
+          </Dialog>
         </>
       )}
     </div>
