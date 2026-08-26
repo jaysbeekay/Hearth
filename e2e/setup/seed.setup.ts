@@ -15,14 +15,17 @@ import {
 setup("seed admin + member users and a sample trip", async ({ page, browser }) => {
   fs.mkdirSync(AUTH_DIR, { recursive: true });
 
-  // Fresh DB has no users yet, so this lands on /setup. Enable the Travel
-  // module here so the rest of the suite can exercise it.
+  // Fresh DB has no users yet, so this lands on /setup. Enable every optional
+  // module so the route smoke tests exercise the real pages instead of their
+  // module-gating redirects.
   await page.goto("/setup");
   await expect(page).toHaveURL(/\/setup/);
   await page.locator('input[name="name"]').fill("E2E Admin");
   await page.locator('input[name="email"]').fill(ADMIN_EMAIL);
   await page.locator('input[name="password"]').fill(ADMIN_PASSWORD);
-  await page.locator('input[type="checkbox"][value="TRAVEL"]').check();
+  for (const moduleKey of ["HOME", "VEHICLES", "INVENTORY", "WEALTH", "TRAVEL"]) {
+    await page.locator(`input[type="checkbox"][value="${moduleKey}"]`).check();
+  }
   await page.locator('button[type="submit"]').click();
   await page.waitForURL(/\/dashboard/);
   await page.context().storageState({ path: ADMIN_AUTH_FILE });

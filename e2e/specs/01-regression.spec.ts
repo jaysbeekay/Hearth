@@ -7,10 +7,20 @@ const PAGES: Array<[string, string[]]> = [
   ["/dashboard", ["Dashboard"]],
   ["/contracts", ["Contracts"]],
   ["/products", ["Warranties"]],
+  ["/travel", ["Travel"]],
+  ["/home", ["Properties"]],
+  ["/vehicles", ["Vehicles"]],
+  ["/inventory", ["Inventory"]],
+  ["/wealth", ["Wealth"]],
+  ["/documents", ["Documents"]],
+  ["/documents/inbox", ["Documents"]],
+  ["/spend", ["Spend"]],
+  ["/import", ["Upload"]],
+  ["/calendar", ["Calendar"]],
+  ["/assistant", ["Assistant"]],
   ["/settings", ["Settings"]],
   ["/settings/webhooks", ["Webhook"]],
   ["/settings/modules", ["Travel"]],
-  ["/travel", ["Travel", "E2E Trip A"]],
 ];
 
 for (const [url, snippets] of PAGES) {
