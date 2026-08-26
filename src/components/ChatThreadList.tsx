@@ -33,6 +33,9 @@ export function ChatThreadList({
           <Plus size={16} />
           New chat
         </Link>
+        {/* #285 — the one deliberate exception to "everything is
+            household-wide", so it needs to be stated, not just true. */}
+        <p className="mt-2 text-center text-xs text-muted">Private to you — other household members can&apos;t see these.</p>
       </div>
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 pb-3">
         {threads.length === 0 && (

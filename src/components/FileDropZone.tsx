@@ -91,6 +91,8 @@ export function FileDropZone({
         <Upload size={20} className="text-muted" />
         <p className="text-sm font-medium">{label}</p>
         <p className="text-xs text-muted">{hint}</p>
+        {/* #285 — capture-time disclosure that this isn't private storage. */}
+        <p className="text-xs text-muted">Visible to your whole household once saved.</p>
         <input
           ref={inputRef}
           id={inputId}

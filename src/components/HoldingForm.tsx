@@ -102,6 +102,9 @@ export function HoldingForm({
         </div>
       </div>
 
+      {/* #285 — capture-time disclosure that this isn't private storage. */}
+      {!holding && <p className="text-xs text-muted">Visible to your whole household once saved.</p>}
+
       <SubmitButton>{holding ? "Save changes" : "Add holding"}</SubmitButton>
     </form>
   );

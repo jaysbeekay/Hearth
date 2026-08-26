@@ -28,6 +28,7 @@ import {
   formatDate,
 } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
+import { getHouseholdMemberCount } from "@/lib/household";
 
 export default async function ContractDetailPage({
   params,
@@ -38,7 +39,7 @@ export default async function ContractDetailPage({
 }) {
   const { id } = await params;
   const { docFallback } = await searchParams;
-  const [contract, { dateFormat, region }] = await Promise.all([
+  const [contract, { dateFormat, region }, memberCount] = await Promise.all([
     prisma.contract.findUnique({
       where: { id },
       include: {
@@ -48,6 +49,7 @@ export default async function ContractDetailPage({
       },
     }),
     getUserPreferences(),
+    getHouseholdMemberCount(),
   ]);
   if (!contract) notFound();
 
@@ -243,6 +245,7 @@ export default async function ContractDetailPage({
         updatedAt={contract.updatedAt}
         dateFormat={dateFormat}
         extractionConfirmedAt={contract.extractionConfirmedAt}
+        memberCount={memberCount}
       />
     </div>
   );

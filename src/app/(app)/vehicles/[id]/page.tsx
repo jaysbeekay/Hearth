@@ -16,6 +16,7 @@ import { ReminderHealthCard } from "@/components/ReminderHealthCard";
 import { getReminderHealth } from "@/lib/notifications/health";
 import { VEHICLE_ITEM_TYPE_LABELS, formatCurrency, formatDate } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
+import { getHouseholdMemberCount } from "@/lib/household";
 
 const ITEM_ICONS: Record<string, LucideIcon> = {
   SERVICE: Wrench,
@@ -33,7 +34,7 @@ export default async function VehicleDetailPage({
   await requireModuleEnabled("VEHICLES");
 
   const { id } = await params;
-  const [vehicle, { dateFormat, region }, linkedContracts] = await Promise.all([
+  const [vehicle, { dateFormat, region }, linkedContracts, memberCount] = await Promise.all([
     prisma.vehicle.findUnique({
       where: { id },
       include: {
@@ -43,6 +44,7 @@ export default async function VehicleDetailPage({
     }),
     getUserPreferences(),
     prisma.contract.findMany({ where: { vehicleId: id }, orderBy: { title: "asc" } }),
+    getHouseholdMemberCount(),
   ]);
   if (!vehicle) notFound();
 
@@ -243,6 +245,7 @@ export default async function VehicleDetailPage({
         createdAt={vehicle.createdAt}
         updatedAt={vehicle.updatedAt}
         dateFormat={dateFormat}
+        memberCount={memberCount}
       />
     </div>
   );

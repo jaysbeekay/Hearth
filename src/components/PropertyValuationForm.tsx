@@ -84,6 +84,8 @@ export function PropertyValuationForm({
         />
       </div>
       <FormMessage error={state?.error} success={state?.success} />
+      {/* #285 — capture-time disclosure that this isn't private storage. */}
+      <p className="text-xs text-muted">Visible to your whole household once saved.</p>
       <SubmitButton>
         <Plus size={16} />
         Save valuation

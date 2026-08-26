@@ -13,6 +13,7 @@ import { TripSegmentDocumentList } from "@/components/TripSegmentDocumentList";
 import { RecordMeta } from "@/components/RecordMeta";
 import { TRIP_SEGMENT_TYPE_LABELS, formatCurrency, formatDate } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
+import { getHouseholdMemberCount } from "@/lib/household";
 import { shouldAutoRefresh, FLIGHT_STATUS_LABELS, flightStatusColour, refreshFlightStatus } from "@/lib/integrations/flightStatus";
 import { FlightRefreshForm } from "@/components/FlightRefreshForm";
 
@@ -30,7 +31,7 @@ export default async function TripDetailPage({
   await requireModuleEnabled("TRAVEL");
 
   const { id } = await params;
-  const [trip, { dateFormat, region }] = await Promise.all([
+  const [trip, { dateFormat, region }, memberCount] = await Promise.all([
     prisma.trip.findUnique({
       where: { id },
       include: {
@@ -39,6 +40,7 @@ export default async function TripDetailPage({
       },
     }),
     getUserPreferences(),
+    getHouseholdMemberCount(),
   ]);
   if (!trip) notFound();
 
@@ -302,6 +304,7 @@ export default async function TripDetailPage({
         createdAt={trip.createdAt}
         updatedAt={trip.updatedAt}
         dateFormat={dateFormat}
+        memberCount={memberCount}
       />
     </div>
   );

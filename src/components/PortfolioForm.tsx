@@ -91,6 +91,9 @@ export function PortfolioForm({
         </p>
       </div>
 
+      {/* #285 — capture-time disclosure that this isn't private storage. */}
+      {!portfolio && <p className="text-xs text-muted">Visible to your whole household once saved.</p>}
+
       <SubmitButton>{portfolio ? "Save changes" : "Create portfolio"}</SubmitButton>
     </form>
   );

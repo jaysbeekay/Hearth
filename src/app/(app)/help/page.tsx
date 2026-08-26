@@ -30,6 +30,10 @@ const FAQ_SECTIONS: FaqSection[] = [
         q: "What's the difference between Admin, Member, and Read-only roles?",
         a: "Everyone in the household sees the same contracts, trips, properties, and other records — role doesn't affect visibility. It gates actions: Read-only blocks all writes, Member can create/edit/delete the household's own records, and Admin additionally gates household-administration actions like managing users, webhooks, backups, and module toggles.",
       },
+      {
+        q: "Is anything I add private to me, or can every household member see it?",
+        a: "Every contract, warranty, document, trip, property, vehicle, inventory item, and wealth record is visible to the whole household — there's no per-record or per-person privacy setting. The one exception is Assistant chat conversations, which stay private to whoever started them. If you're uploading something sensitive (a payslip, a passport scan), keep in mind everyone with a household account can see it.",
+      },
     ],
   },
   {

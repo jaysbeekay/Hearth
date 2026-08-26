@@ -20,6 +20,7 @@ import { getReminderHealth } from "@/lib/notifications/health";
 import { DocFallbackBanner } from "@/components/DocFallbackBanner";
 import { daysUntil, formatCurrency, formatDate } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
+import { getHouseholdMemberCount } from "@/lib/household";
 
 export default async function ProductDetailPage({
   params,
@@ -30,12 +31,13 @@ export default async function ProductDetailPage({
 }) {
   const { id } = await params;
   const { docFallback } = await searchParams;
-  const [product, { dateFormat, region }] = await Promise.all([
+  const [product, { dateFormat, region }, memberCount] = await Promise.all([
     prisma.product.findUnique({
       where: { id },
       include: { documents: { orderBy: { uploadedAt: "desc" } }, createdBy: true },
     }),
     getUserPreferences(),
+    getHouseholdMemberCount(),
   ]);
   if (!product) notFound();
 
@@ -156,6 +158,7 @@ export default async function ProductDetailPage({
         updatedAt={product.updatedAt}
         dateFormat={dateFormat}
         extractionConfirmedAt={product.extractionConfirmedAt}
+        memberCount={memberCount}
       />
     </div>
   );

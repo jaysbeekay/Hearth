@@ -24,6 +24,7 @@ import {
   formatPropertyAddress,
 } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
+import { getHouseholdMemberCount } from "@/lib/household";
 
 const ITEM_ICONS: Record<string, LucideIcon> = {
   MAINTENANCE: Wrench,
@@ -46,7 +47,7 @@ export default async function PropertyDetailPage({
   await requireModuleEnabled("HOME");
 
   const { id } = await params;
-  const [property, { dateFormat, preferredCurrency, region }, linkedContracts, linkedProducts] =
+  const [property, { dateFormat, preferredCurrency, region }, linkedContracts, linkedProducts, memberCount] =
     await Promise.all([
       prisma.property.findUnique({
         where: { id },
@@ -59,6 +60,7 @@ export default async function PropertyDetailPage({
       getUserPreferences(),
       prisma.contract.findMany({ where: { propertyId: id }, orderBy: { title: "asc" } }),
       prisma.product.findMany({ where: { propertyId: id }, orderBy: { description: "asc" } }),
+      getHouseholdMemberCount(),
     ]);
   if (!property) notFound();
 
@@ -318,6 +320,7 @@ export default async function PropertyDetailPage({
         createdAt={property.createdAt}
         updatedAt={property.updatedAt}
         dateFormat={dateFormat}
+        memberCount={memberCount}
       />
     </div>
   );

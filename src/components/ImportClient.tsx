@@ -275,6 +275,8 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
         <Upload size={22} className="text-muted" />
         <p className="text-sm font-medium">Drag a file here or click to browse</p>
         <p className="text-xs text-muted">Drop in more than one at a time if you have several — each is scanned and added to the queue below</p>
+        {/* #285 — capture-time disclosure that this isn't private storage. */}
+        <p className="text-xs text-muted">Visible to your whole household once saved.</p>
         <input
           ref={inputRef}
           id={inputId}
