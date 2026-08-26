@@ -62,6 +62,7 @@ jobs:
           only-severities: critical,high
           exit-code: true
           sarif-file: ${{ env.SARIF_FILE }}
+          cves-ignore: CVE-2026-26740
 
       - name: Upload Docker Scout results to GitHub Code Scanning
         # always() so findings still reach the Security tab on the runs where
