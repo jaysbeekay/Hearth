@@ -34,7 +34,7 @@ export function ProductDocumentThumbnail({
   }, [online, href]);
 
   if (!online && !blobUrl) {
-    return <FileText size={18} className="shrink-0 text-foreground/50" />;
+    return <FileText size={18} className="shrink-0 text-muted" />;
   }
 
   return (

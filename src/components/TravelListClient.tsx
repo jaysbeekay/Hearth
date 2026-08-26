@@ -80,7 +80,7 @@ export function TravelListClient({ trips, dateFormat, canWrite = true }: Props) 
 
       {trips.length === 0 ? (
         pendingOps.length === 0 && (
-          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-foreground/60">
+          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
             No trips yet. Add your first trip to start building an itinerary.
           </p>
         )

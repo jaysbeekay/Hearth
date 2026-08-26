@@ -35,7 +35,7 @@ export function PropertyValuationForm({
     <form action={formAction} className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="mb-1 block text-xs text-foreground/60">Date</label>
+          <label className="mb-1 block text-xs text-muted">Date</label>
           <DateInput
             name="valuedAt"
             required
@@ -44,7 +44,7 @@ export function PropertyValuationForm({
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs text-foreground/60">Estimated value</label>
+          <label className="mb-1 block text-xs text-muted">Estimated value</label>
           <input
             type="number"
             name="value"
@@ -59,11 +59,11 @@ export function PropertyValuationForm({
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="mb-1 block text-xs text-foreground/60">Currency</label>
+          <label className="mb-1 block text-xs text-muted">Currency</label>
           <CurrencySelect name="currency" defaultValue={state?.values?.currency ?? defaultCurrency} />
         </div>
         <div>
-          <label className="mb-1 block text-xs text-foreground/60">Source (optional)</label>
+          <label className="mb-1 block text-xs text-muted">Source (optional)</label>
           <input
             type="text"
             name="source"
@@ -74,7 +74,7 @@ export function PropertyValuationForm({
         </div>
       </div>
       <div>
-        <label className="mb-1 block text-xs text-foreground/60">Notes (optional)</label>
+        <label className="mb-1 block text-xs text-muted">Notes (optional)</label>
         <input
           type="text"
           name="notes"

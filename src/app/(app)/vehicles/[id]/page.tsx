@@ -77,7 +77,7 @@ export default async function VehicleDetailPage({
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <Link href="/vehicles" className="text-sm text-foreground/60 hover:text-foreground">
+        <Link href="/vehicles" className="text-sm text-muted hover:text-foreground">
           ← Back to vehicles
         </Link>
       </div>
@@ -164,7 +164,7 @@ export default async function VehicleDetailPage({
         </div>
 
         {items.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-foreground/60">
+          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
             No records yet. Add a service, repair, or registration record to start tracking.
           </p>
         ) : (
@@ -178,9 +178,9 @@ export default async function VehicleDetailPage({
                 >
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="flex min-w-0 items-start gap-3">
-                      <Icon size={20} className="mt-0.5 shrink-0 text-foreground/50" />
+                      <Icon size={20} className="mt-0.5 shrink-0 text-muted" />
                       <div className="min-w-0">
-                        <p className="text-sm text-foreground/60">
+                        <p className="text-sm text-muted">
                           {VEHICLE_ITEM_TYPE_LABELS[item.type] ?? item.type}
                         </p>
                         <p className="font-medium">{item.title}</p>

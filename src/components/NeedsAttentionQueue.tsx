@@ -37,12 +37,12 @@ export function NeedsAttentionQueue({ items }: { items: AttentionItem[] }) {
         const Icon = KIND_ICON[item.kind];
         const row = (
           <li className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface p-3 shadow-stripe md:flex-nowrap">
-            <Icon size={18} className="shrink-0 text-foreground/50" aria-hidden />
+            <Icon size={18} className="shrink-0 text-muted" aria-hidden />
 
             <Link href={item.href} className="min-w-0 flex-1 hover:underline">
               <p className="truncate text-sm font-medium">{item.title}</p>
               {item.subtitle && (
-                <p className="truncate text-xs text-foreground/60">{item.subtitle}</p>
+                <p className="truncate text-xs text-muted">{item.subtitle}</p>
               )}
             </Link>
 

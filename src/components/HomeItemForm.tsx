@@ -105,12 +105,12 @@ export function HomeItemForm({
           </p>
           <FileDropZone name="file" onFileSelected={handleFileChange} />
           {scanning && (
-            <p role="status" aria-live="polite" className="text-sm text-foreground/60">
+            <p role="status" aria-live="polite" className="text-sm text-muted">
               Scanning document…
             </p>
           )}
           {!scanning && scanMessage && (
-            <p role="status" aria-live="polite" className="text-sm text-foreground/60">
+            <p role="status" aria-live="polite" className="text-sm text-muted">
               {scanMessage}
             </p>
           )}

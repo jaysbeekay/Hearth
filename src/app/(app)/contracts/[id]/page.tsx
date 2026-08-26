@@ -66,7 +66,7 @@ export default async function ContractDetailPage({
       <div>
         <Link
           href="/contracts"
-          className="inline-flex items-center gap-1 text-sm text-foreground/60 hover:text-foreground"
+          className="inline-flex items-center gap-1 text-sm text-muted hover:text-foreground"
         >
           <ArrowLeft size={16} />
           Back to contracts
@@ -75,7 +75,7 @@ export default async function ContractDetailPage({
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-sm text-foreground/60">
+          <p className="text-sm text-muted">
             {CATEGORY_LABELS[contract.category] ?? contract.category}
           </p>
           <h1 className="text-2xl font-semibold">{contract.title}</h1>
@@ -191,7 +191,7 @@ export default async function ContractDetailPage({
       {contract.category === "RENTAL" && contract.rentalAgreement && (
         <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
           <div className="mb-3 flex items-center gap-2">
-            <Home size={18} className="text-foreground/50" />
+            <Home size={18} className="text-muted" />
             <h2 className="font-medium">Linked rental agreement</h2>
           </div>
           <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">

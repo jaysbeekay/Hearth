@@ -75,14 +75,14 @@ export default async function PropertyDetailPage({
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <Link href="/home" className="text-sm text-foreground/60 hover:text-foreground">
+        <Link href="/home" className="text-sm text-muted hover:text-foreground">
           ← Back to properties
         </Link>
       </div>
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-sm text-foreground/60">
+          <p className="text-sm text-muted">
             {formatPropertyAddress(property) || "No address set"}
           </p>
           <h1 className="text-2xl font-semibold">{property.label}</h1>
@@ -136,7 +136,7 @@ export default async function PropertyDetailPage({
         </div>
 
         {items.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-foreground/60">
+          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
             No items yet. Add a maintenance, improvement, or repair record to start tracking.
           </p>
         ) : (
@@ -150,9 +150,9 @@ export default async function PropertyDetailPage({
                 >
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="flex min-w-0 items-start gap-3">
-                      <Icon size={20} className="mt-0.5 shrink-0 text-foreground/50" />
+                      <Icon size={20} className="mt-0.5 shrink-0 text-muted" />
                       <div className="min-w-0">
-                        <p className="text-sm text-foreground/60">
+                        <p className="text-sm text-muted">
                           {HOME_ITEM_TYPE_LABELS[item.type] ?? item.type}
                         </p>
                         <p className="flex flex-wrap items-center gap-2 font-medium">
@@ -233,7 +233,7 @@ export default async function PropertyDetailPage({
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <TrendingUp size={18} className="text-foreground/50" />
+            <TrendingUp size={18} className="text-muted" />
             <h2 className="font-medium">Property valuations</h2>
           </div>
         </div>
@@ -253,10 +253,10 @@ export default async function PropertyDetailPage({
               <div key={v.id} className="flex items-center justify-between gap-4 p-4">
                 <div>
                   <p className="font-medium tabular-nums">{formatCurrency(v.value, v.currency, undefined, region)}</p>
-                  <p className="text-xs text-foreground/50">
+                  <p className="text-xs text-muted">
                     {formatDate(v.valuedAt, dateFormat)}{v.source ? ` · ${v.source}` : ""}
                   </p>
-                  {v.notes && <p className="mt-0.5 text-xs text-foreground/60">{v.notes}</p>}
+                  {v.notes && <p className="mt-0.5 text-xs text-muted">{v.notes}</p>}
                 </div>
                 <ConfirmForm
                   action={deletePropertyValuation.bind(null, property.id, v.id)}
@@ -284,7 +284,7 @@ export default async function PropertyDetailPage({
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <Home size={18} className="text-foreground/50" />
+            <Home size={18} className="text-muted" />
             <h2 className="font-medium">Rental tracking</h2>
           </div>
           {property.isRented ? (
@@ -304,7 +304,7 @@ export default async function PropertyDetailPage({
           )}
         </div>
         {property.isRented && (
-          <p className="mt-2 text-sm text-foreground/60">
+          <p className="mt-2 text-sm text-muted">
             This property is rented — track statements and reconcile rent income.
           </p>
         )}

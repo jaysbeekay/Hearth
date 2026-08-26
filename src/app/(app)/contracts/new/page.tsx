@@ -24,7 +24,7 @@ export default async function NewContractPage() {
       <BackLink href="/contracts" label="Back to contracts" />
       <div>
         <h1 className="text-2xl font-semibold">Add a contract</h1>
-        <p className="text-sm text-foreground/60">
+        <p className="text-sm text-muted">
           Capture the key details so you never miss a renewal or cancellation deadline.
         </p>
         <p className="mt-1 text-xs text-muted">

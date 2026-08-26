@@ -99,7 +99,7 @@ export default async function RentalOverviewPage({
       <div>
         <Link
           href={`/home/${property.id}`}
-          className="text-sm text-foreground/60 hover:text-foreground"
+          className="text-sm text-muted hover:text-foreground"
         >
           ← Back to property
         </Link>
@@ -107,7 +107,7 @@ export default async function RentalOverviewPage({
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-sm text-foreground/60">{property.label}</p>
+          <p className="text-sm text-muted">{property.label}</p>
           <h1 className="text-2xl font-semibold">Rental tracking</h1>
         </div>
         {property.isRented && (
@@ -123,7 +123,7 @@ export default async function RentalOverviewPage({
 
       {!property.isRented && agreements.length === 0 && (
         <div className="rounded-xl border border-dashed border-border p-10 text-center">
-          <p className="text-sm text-foreground/60">
+          <p className="text-sm text-muted">
             This property isn&apos;t set up for rental tracking yet.
           </p>
           <Link
@@ -151,7 +151,7 @@ export default async function RentalOverviewPage({
           </div>
 
           {agreements.length === 0 ? (
-            <p className="text-sm text-foreground/60">No rental agreements recorded yet.</p>
+            <p className="text-sm text-muted">No rental agreements recorded yet.</p>
           ) : (
             <div className="space-y-3">
               {agreements.map((ag, i) => (
@@ -164,7 +164,7 @@ export default async function RentalOverviewPage({
                       <p className="font-medium">
                         {formatCurrency(ag.weeklyRent, ag.currency, undefined, region)}/wk
                         {ag.managementFeePercent != null && (
-                          <span className="ml-2 text-sm font-normal text-foreground/60">
+                          <span className="ml-2 text-sm font-normal text-muted">
                             · {ag.managementFeePercent}% management fee
                           </span>
                         )}
@@ -214,7 +214,7 @@ export default async function RentalOverviewPage({
 
                   <div className="mt-4 border-t border-border pt-4">
                     <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-                      <Link2 size={14} className="text-foreground/50" />
+                      <Link2 size={14} className="text-muted" />
                       Linked contract
                     </div>
                     {ag.contract ? (
@@ -226,7 +226,7 @@ export default async function RentalOverviewPage({
                           >
                             {ag.contract.title}
                           </Link>
-                          <p className="text-xs text-foreground/50">
+                          <p className="text-xs text-muted">
                             {ag.contract.provider}
                             {ag.contract.cost != null &&
                               ` · ${formatCurrency(ag.contract.cost, ag.contract.currency, undefined, region)}`}
@@ -243,7 +243,7 @@ export default async function RentalOverviewPage({
                         </form>
                       </div>
                     ) : rentalContracts.length === 0 ? (
-                      <p className="text-sm text-foreground/60">
+                      <p className="text-sm text-muted">
                         No Rental-category contracts to link yet.
                       </p>
                     ) : (
@@ -292,7 +292,7 @@ export default async function RentalOverviewPage({
           </div>
 
           {statements.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-foreground/60">
+            <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
               No statements yet. Upload your first rental statement to start reconciling.
             </p>
           ) : (
@@ -326,7 +326,7 @@ export default async function RentalOverviewPage({
                             : "Period not set"}
                         </p>
                         {stmt.statementDate && (
-                          <p className="text-sm text-foreground/60">
+                          <p className="text-sm text-muted">
                             Statement date: {formatDate(stmt.statementDate, dateFormat)}
                           </p>
                         )}
@@ -389,7 +389,7 @@ export default async function RentalOverviewPage({
 
                     <div className="mt-4 border-t border-border pt-4">
                       <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-                        <FileText size={14} className="text-foreground/50" />
+                        <FileText size={14} className="text-muted" />
                         Documents
                       </div>
                       <RentalStatementDocumentList
@@ -434,14 +434,14 @@ function AmountCell({
 
   return (
     <div className="min-w-0">
-      <dt className="text-xs text-foreground/50">{label}</dt>
+      <dt className="text-xs text-muted">{label}</dt>
       <dd className={`text-sm font-medium break-words ${highlight ? "text-base" : ""}`}>
         {actual != null ? formatCurrency(actual, currency, undefined, region) : "—"}
       </dd>
       {expected != null && actual != null && (
         <dd
           className={`mt-0.5 text-xs ${
-            diffOk ? "text-success" : diffBad ? "text-danger" : "text-foreground/50"
+            diffOk ? "text-success" : diffBad ? "text-danger" : "text-muted"
           }`}
         >
           {diffOk
@@ -452,7 +452,7 @@ function AmountCell({
         </dd>
       )}
       {expected != null && actual == null && (
-        <dd className="mt-0.5 text-xs text-foreground/40">
+        <dd className="mt-0.5 text-xs text-muted">
           expected {formatCurrency(expected, currency, undefined, region)}
         </dd>
       )}

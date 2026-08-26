@@ -20,7 +20,7 @@ export default async function SetupPage() {
         <div className="flex flex-col items-center gap-2 text-center">
           <Flame size={32} className="text-accent" />
           <h1 className="text-2xl font-semibold">Set up Hearth</h1>
-          <p className="text-sm text-foreground/60">
+          <p className="text-sm text-muted">
             Create the first admin account for your household.
           </p>
         </div>

@@ -86,7 +86,7 @@ export default async function BackupsPage() {
       <section className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
         <div>
           <h2 className="font-medium">Backup destination</h2>
-          <p className="text-xs text-foreground/50 mt-0.5">
+          <p className="text-xs text-muted mt-0.5">
             Where encrypted database backups are written. Choose one destination.
           </p>
         </div>
@@ -118,7 +118,7 @@ export default async function BackupsPage() {
       <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <h2 className="mb-3 font-medium">Recent runs</h2>
         {logs.length === 0 ? (
-          <p className="text-sm text-foreground/60">No backups have run yet.</p>
+          <p className="text-sm text-muted">No backups have run yet.</p>
         ) : (
           <ul className="divide-y divide-border">
             {logs.map((log) => (
@@ -136,7 +136,7 @@ export default async function BackupsPage() {
                       · {log.status}
                     </span>
                   </p>
-                  <p className="text-xs text-foreground/50">
+                  <p className="text-xs text-muted">
                     {formatDate(log.startedAt, dateFormat)}
                     {log.sizeBytes ? ` · ${humanFileSize(log.sizeBytes)}` : ""}
                     {log.message ? ` · ${log.message}` : ""}

@@ -36,7 +36,7 @@ export function IcalTokenSection({ hasToken, appUrl }: Props) {
   return (
     <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
       <h2 className="mb-1 font-medium">Calendar feed</h2>
-      <p className="mb-3 text-sm text-foreground/60">
+      <p className="mb-3 text-sm text-muted">
         Subscribe to your household&apos;s contracts, warranties, and events in any calendar app
         that supports iCal (Apple Calendar, Google Calendar, Outlook, etc.).
       </p>
@@ -54,7 +54,7 @@ export function IcalTokenSection({ hasToken, appUrl }: Props) {
               Copy
             </button>
           </div>
-          <p className="text-xs text-foreground/60">
+          <p className="text-xs text-muted">
             Anyone with this URL can read your household&apos;s calendar, so treat it like a
             password. It isn&apos;t stored in a readable form and won&apos;t be shown again —
             generate a new one if you lose it.
@@ -63,7 +63,7 @@ export function IcalTokenSection({ hasToken, appUrl }: Props) {
       )}
 
       {active && !justGenerated && (
-        <p className="mb-3 text-sm text-foreground/60">
+        <p className="mb-3 text-sm text-muted">
           A calendar feed is active. Its URL isn&apos;t stored and can&apos;t be shown again —
           generate a new one to get a fresh URL, which replaces the old one.
         </p>

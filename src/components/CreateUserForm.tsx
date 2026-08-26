@@ -69,7 +69,7 @@ export function CreateUserForm({ smtpConfigured }: { smtpConfigured: boolean }) 
         </SelectWrapper>
       </div>
       {smtpConfigured && (
-        <p className="md:col-span-2 text-xs text-foreground/50">
+        <p className="md:col-span-2 text-xs text-muted">
           An invitation email will be sent so they can set their own password.
         </p>
       )}

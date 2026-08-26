@@ -11,7 +11,7 @@ export default async function NewTripPage() {
       <BackLink href="/travel" label="Back to travel" />
       <div>
         <h1 className="text-2xl font-semibold">Add a trip</h1>
-        <p className="text-sm text-foreground/60">
+        <p className="text-sm text-muted">
           Start an itinerary, then add flights, lodging, and activities.
         </p>
       </div>

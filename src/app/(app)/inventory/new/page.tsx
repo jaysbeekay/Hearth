@@ -12,7 +12,7 @@ export default async function NewInventoryItemPage() {
   return (
     <div className="max-w-xl space-y-6">
       <div>
-        <Link href="/inventory" className="text-sm text-foreground/60 hover:text-foreground">
+        <Link href="/inventory" className="text-sm text-muted hover:text-foreground">
           ← Back to inventory
         </Link>
       </div>

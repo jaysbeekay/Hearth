@@ -233,7 +233,7 @@ export function ProductListClient({
       {products.length === 0 ? (
         pendingOps.length === 0 && (
           <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border p-10 text-center">
-            <p className="text-sm text-foreground/60">
+            <p className="text-sm text-muted">
               {filtered
                 ? "No warranties match your search or filters."
                 : "No warranties yet. Add one manually, or upload an invoice and we'll fill in the details."}

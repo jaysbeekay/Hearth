@@ -21,7 +21,7 @@ export default async function EditTripPage({
     <div className="max-w-3xl space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Edit trip</h1>
-        <p className="text-sm text-foreground/60">{trip.title}</p>
+        <p className="text-sm text-muted">{trip.title}</p>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <TripForm action={boundAction} trip={trip} />

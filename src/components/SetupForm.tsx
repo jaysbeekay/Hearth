@@ -31,7 +31,7 @@ export function SetupForm({ setupTokenRequired = false }: { setupTokenRequired?:
             autoComplete="off"
             className={inputClass}
           />
-          <p className="text-xs text-foreground/60">
+          <p className="text-xs text-muted">
             The value of SETUP_TOKEN from your server&apos;s environment.
           </p>
         </div>
@@ -77,12 +77,12 @@ export function SetupForm({ setupTokenRequired = false }: { setupTokenRequired?:
           autoComplete="new-password"
           className={inputClass}
         />
-        <p className="text-xs text-foreground/60">At least 8 characters.</p>
+        <p className="text-xs text-muted">At least 8 characters.</p>
       </div>
 
       <fieldset className="space-y-2">
         <legend className="text-sm font-medium">What would you like to track?</legend>
-        <p className="text-xs text-foreground/60">
+        <p className="text-xs text-muted">
           Enable any extra modules now, or turn them on later from Settings. Records in every
           module are visible to your whole household, not just the person who added them.
         </p>
@@ -99,7 +99,7 @@ export function SetupForm({ setupTokenRequired = false }: { setupTokenRequired?:
               <FileText size={16} />
               Document management
             </span>
-            <span className="text-xs text-foreground/60">
+            <span className="text-xs text-muted">
               Contracts, warranties, and documents are always included — not optional.
             </span>
           </span>
@@ -122,7 +122,7 @@ export function SetupForm({ setupTokenRequired = false }: { setupTokenRequired?:
                   <Icon size={16} />
                   {label}
                 </span>
-                <span className="text-xs text-foreground/60">{description}</span>
+                <span className="text-xs text-muted">{description}</span>
               </span>
             </label>
           );

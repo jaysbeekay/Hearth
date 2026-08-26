@@ -99,12 +99,12 @@ export function RentalAgreementForm({
           </p>
           <FileDropZone name="leaseFile" onFileSelected={handleFileChange} />
           {scanning && (
-            <p role="status" aria-live="polite" className="text-sm text-foreground/60">
+            <p role="status" aria-live="polite" className="text-sm text-muted">
               Scanning lease document…
             </p>
           )}
           {!scanning && scanMessage && (
-            <p role="status" aria-live="polite" className="text-sm text-foreground/60">
+            <p role="status" aria-live="polite" className="text-sm text-muted">
               {scanMessage}
             </p>
           )}

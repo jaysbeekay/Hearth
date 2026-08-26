@@ -367,7 +367,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                 {(row.status === "ready" || row.status === "saving" || row.status === "error") &&
                   row.type === "CONTRACT" && (
                     <div className="grid gap-2 sm:grid-cols-2">
-                      <RowField label="Title" htmlFor={`${row.id}-title`}>
+                      <RowField label="Title" htmlFor={`${row.id}-title`} autoFilled={row.contractAutoFilled.title}>
                         <input
                           id={`${row.id}-title`}
                           value={row.contract.title}
@@ -381,7 +381,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                           className={fieldClass(row.contractAutoFilled.title)}
                         />
                       </RowField>
-                      <RowField label="Provider" htmlFor={`${row.id}-provider`}>
+                      <RowField label="Provider" htmlFor={`${row.id}-provider`} autoFilled={row.contractAutoFilled.provider}>
                         <input
                           id={`${row.id}-provider`}
                           value={row.contract.provider}
@@ -414,7 +414,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                           ))}
                         </select>
                       </RowField>
-                      <RowField label="Cost" htmlFor={`${row.id}-cost`}>
+                      <RowField label="Cost" htmlFor={`${row.id}-cost`} autoFilled={row.contractAutoFilled.cost}>
                         <input
                           id={`${row.id}-cost`}
                           value={row.contract.cost}
@@ -429,7 +429,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                           className={fieldClass(row.contractAutoFilled.cost)}
                         />
                       </RowField>
-                      <RowField label="Start date" htmlFor={`${row.id}-startDate`}>
+                      <RowField label="Start date" htmlFor={`${row.id}-startDate`} autoFilled={row.contractAutoFilled.startDate}>
                         <input
                           id={`${row.id}-startDate`}
                           type="date"
@@ -444,7 +444,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                           className={fieldClass(row.contractAutoFilled.startDate)}
                         />
                       </RowField>
-                      <RowField label="End date" htmlFor={`${row.id}-endDate`}>
+                      <RowField label="End date" htmlFor={`${row.id}-endDate`} autoFilled={row.contractAutoFilled.endDate}>
                         <input
                           id={`${row.id}-endDate`}
                           type="date"
@@ -465,7 +465,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                 {(row.status === "ready" || row.status === "saving" || row.status === "error") &&
                   row.type === "PRODUCT" && (
                     <div className="grid gap-2 sm:grid-cols-3">
-                      <RowField label="Description" htmlFor={`${row.id}-description`}>
+                      <RowField label="Description" htmlFor={`${row.id}-description`} autoFilled={row.productAutoFilled.description}>
                         <input
                           id={`${row.id}-description`}
                           value={row.product.description}
@@ -479,7 +479,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                           className={fieldClass(row.productAutoFilled.description)}
                         />
                       </RowField>
-                      <RowField label="Manufacturer" htmlFor={`${row.id}-manufacturer`}>
+                      <RowField label="Manufacturer" htmlFor={`${row.id}-manufacturer`} autoFilled={row.productAutoFilled.manufacturer}>
                         <input
                           id={`${row.id}-manufacturer`}
                           value={row.product.manufacturer}
@@ -493,7 +493,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                           className={fieldClass(row.productAutoFilled.manufacturer)}
                         />
                       </RowField>
-                      <RowField label="Price" htmlFor={`${row.id}-price`}>
+                      <RowField label="Price" htmlFor={`${row.id}-price`} autoFilled={row.productAutoFilled.price}>
                         <input
                           id={`${row.id}-price`}
                           value={row.product.price}
@@ -508,7 +508,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                           className={fieldClass(row.productAutoFilled.price)}
                         />
                       </RowField>
-                      <RowField label="Purchase date" htmlFor={`${row.id}-purchaseDate`}>
+                      <RowField label="Purchase date" htmlFor={`${row.id}-purchaseDate`} autoFilled={row.productAutoFilled.purchaseDate}>
                         <input
                           id={`${row.id}-purchaseDate`}
                           type="date"
@@ -543,7 +543,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                 {(row.status === "ready" || row.status === "saving" || row.status === "error") &&
                   row.type === "INVENTORY" && (
                     <div className="grid gap-2 sm:grid-cols-2">
-                      <RowField label="Label" htmlFor={`${row.id}-label`}>
+                      <RowField label="Label" htmlFor={`${row.id}-label`} autoFilled={row.inventoryAutoFilled.label}>
                         <input
                           id={`${row.id}-label`}
                           value={row.inventory.label}
@@ -557,7 +557,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                           className={fieldClass(row.inventoryAutoFilled.label)}
                         />
                       </RowField>
-                      <RowField label="Brand" htmlFor={`${row.id}-brand`}>
+                      <RowField label="Brand" htmlFor={`${row.id}-brand`} autoFilled={row.inventoryAutoFilled.brand}>
                         <input
                           id={`${row.id}-brand`}
                           value={row.inventory.brand}
@@ -571,7 +571,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                           className={fieldClass(row.inventoryAutoFilled.brand)}
                         />
                       </RowField>
-                      <RowField label="Category" htmlFor={`${row.id}-inv-category`}>
+                      <RowField label="Category" htmlFor={`${row.id}-inv-category`} autoFilled={row.inventoryAutoFilled.category}>
                         <select
                           id={`${row.id}-inv-category`}
                           value={row.inventory.category}
@@ -591,7 +591,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                           ))}
                         </select>
                       </RowField>
-                      <RowField label="Purchase price" htmlFor={`${row.id}-purchasePrice`}>
+                      <RowField label="Purchase price" htmlFor={`${row.id}-purchasePrice`} autoFilled={row.inventoryAutoFilled.purchasePrice}>
                         <input
                           id={`${row.id}-purchasePrice`}
                           value={row.inventory.purchasePrice}
@@ -649,16 +649,29 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
 function RowField({
   label,
   htmlFor,
+  autoFilled,
   children,
 }: {
   label: string;
   htmlFor: string;
+  autoFilled?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-0.5">
-      <label htmlFor={htmlFor} className="block text-[11px] font-medium text-muted">
+      <label htmlFor={htmlFor} className="flex items-center gap-1 text-[11px] font-medium text-muted">
         {label}
+        {autoFilled && (
+          <>
+            {/* #290: a colour tint/ring alone doesn't reach a screen reader
+                or a colour-blind reviewer — this badge and the sr-only text
+                that follows it do. */}
+            <span aria-hidden="true" className="rounded bg-accent/10 px-1 py-0.5 text-[9px] font-medium text-accent">
+              Auto
+            </span>
+            <span className="sr-only">(auto-filled from document — review before saving)</span>
+          </>
+        )}
       </label>
       {children}
     </div>

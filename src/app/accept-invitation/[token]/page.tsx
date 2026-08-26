@@ -38,7 +38,7 @@ export default async function AcceptInvitationPage({
           <KeyRound size={32} className="text-accent" />
           <h1 className="text-2xl font-semibold">Welcome to Hearth</h1>
           {!valid && (
-            <p className="text-sm text-foreground/60">
+            <p className="text-sm text-muted">
               This invitation link is invalid or has expired. Ask an admin to invite you again.
             </p>
           )}
@@ -49,7 +49,7 @@ export default async function AcceptInvitationPage({
             <AcceptInvitationForm token={token} />
           </div>
         ) : (
-          <p className="text-center text-sm text-foreground/60">
+          <p className="text-center text-sm text-muted">
             <Link href="/login" className="text-accent hover:underline">
               Back to sign in
             </Link>

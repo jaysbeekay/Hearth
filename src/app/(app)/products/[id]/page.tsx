@@ -54,14 +54,14 @@ export default async function ProductDetailPage({
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <Link href="/products" className="text-sm text-foreground/60 hover:text-foreground">
+        <Link href="/products" className="text-sm text-muted hover:text-foreground">
           ← Back to products
         </Link>
       </div>
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-sm text-foreground/60">
+          <p className="text-sm text-muted">
             {product.manufacturer ?? product.vendor ?? "Product"}
           </p>
           <h1 className="text-2xl font-semibold">{product.description}</h1>

@@ -26,16 +26,16 @@ export default async function EditRentalAgreementPage({
       <div>
         <Link
           href={`/home/${property.id}/rental`}
-          className="text-sm text-foreground/60 hover:text-foreground"
+          className="text-sm text-muted hover:text-foreground"
         >
           ← Back to rental overview
         </Link>
       </div>
 
       <div>
-        <p className="text-sm text-foreground/60">{property.label}</p>
+        <p className="text-sm text-muted">{property.label}</p>
         <h1 className="text-2xl font-semibold">Edit rental agreement</h1>
-        <p className="mt-1 text-sm text-foreground/60">
+        <p className="mt-1 text-sm text-muted">
           Correct a mistake in this agreement. To record new terms (new tenant or rent change),
           add a new agreement instead.
         </p>

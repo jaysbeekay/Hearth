@@ -36,14 +36,14 @@ function monthKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function monthLabel(key: string) {
+function monthLabel(key: string, region: string) {
   const [year, month] = key.split("-");
   const d = new Date(Number(year), Number(month) - 1, 1);
-  return d.toLocaleDateString("en-AU", { month: "long", year: "numeric" });
+  return d.toLocaleDateString(region, { month: "long", year: "numeric" });
 }
 
 export default async function CalendarPage() {
-  const [enabledModules, { dateFormat }] = await Promise.all([
+  const [enabledModules, { dateFormat, region }] = await Promise.all([
     getEnabledModuleKeys(),
     getUserPreferences(),
   ]);
@@ -65,14 +65,14 @@ export default async function CalendarPage() {
       <h1 className="text-2xl font-semibold">Calendar</h1>
 
       {months.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-foreground/60">
+        <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
           No dated events yet. Add contracts, products, trips, or vehicle records to see them here.
         </p>
       ) : (
         months.map(([key, monthEvents]) => (
           <section key={key}>
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-foreground/50">
-              {monthLabel(key)}
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted">
+              {monthLabel(key, region)}
             </h2>
             <div className="space-y-2">
               {monthEvents.map((event) => (
@@ -82,7 +82,7 @@ export default async function CalendarPage() {
                   className={`flex items-start gap-3 rounded-lg border border-border bg-surface p-3 shadow-stripe transition hover:border-accent/50 ${URGENCY_RING[event.urgency]}`}
                 >
                   <div className="mt-0.5 w-10 shrink-0 text-center">
-                    <p className="text-xs text-muted">{event.date.toLocaleDateString("en-AU", { month: "short" })}</p>
+                    <p className="text-xs text-muted">{event.date.toLocaleDateString(region, { month: "short" })}</p>
                     <p className="text-lg font-semibold leading-none">{event.date.getDate()}</p>
                   </div>
                   <div className="min-w-0 flex-1">

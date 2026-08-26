@@ -22,7 +22,7 @@ export function DetailField({
 
   return (
     <div className="min-w-0">
-      <dt className="text-xs text-foreground/50">{label}</dt>
+      <dt className="text-xs text-muted">{label}</dt>
       <dd className="flex items-center gap-1 text-sm font-medium">
         <span className="min-w-0 break-words">{value}</span>
         {copyable && !isEmpty && (
@@ -35,7 +35,7 @@ export function DetailField({
               });
             }}
             aria-label={copied ? `Copied ${label}` : `Copy ${label}`}
-            className="shrink-0 rounded p-1 text-foreground/40 hover:bg-black/5 hover:text-foreground dark:hover:bg-white/5"
+            className="shrink-0 rounded p-1 text-muted hover:bg-black/5 hover:text-foreground dark:hover:bg-white/5"
           >
             {copied ? <Check size={13} /> : <Copy size={13} />}
           </button>

@@ -36,7 +36,7 @@ export function ChatThreadList({
       </div>
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 pb-3">
         {threads.length === 0 && (
-          <p className="px-2 text-xs text-foreground/50">No conversations yet.</p>
+          <p className="px-2 text-xs text-muted">No conversations yet.</p>
         )}
         {threads.map((thread) => (
           <div
@@ -60,7 +60,7 @@ export function ChatThreadList({
               confirmText="Delete this conversation? This can't be undone."
               ariaLabel="Delete conversation"
               successMessage=""
-              className="shrink-0 rounded-md p-1 text-foreground/40 opacity-0 hover:text-danger group-hover:opacity-100"
+              className="shrink-0 rounded-md p-1 text-muted opacity-0 hover:text-danger group-hover:opacity-100"
             >
               <Trash2 size={14} />
             </ConfirmForm>

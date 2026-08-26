@@ -17,7 +17,7 @@ export function RecordMeta({
   const wasUpdated = updatedAt.getTime() !== createdAt.getTime();
 
   return (
-    <p className="text-xs text-foreground/40">
+    <p className="text-xs text-muted">
       Added by {createdByName} on {formatDate(createdAt, dateFormat)}
       {wasUpdated && ` · Last updated ${formatDate(updatedAt, dateFormat)}`}
       {extractionConfirmedAt &&

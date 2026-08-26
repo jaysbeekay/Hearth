@@ -21,7 +21,7 @@ export default async function PortfoliosPage() {
     <div className="max-w-3xl space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <Link href="/wealth" className="text-sm text-foreground/60 hover:text-foreground">← Back to wealth</Link>
+          <Link href="/wealth" className="text-sm text-muted hover:text-foreground">← Back to wealth</Link>
           <h1 className="mt-1 text-2xl font-semibold">Portfolios</h1>
         </div>
         <Link
@@ -34,7 +34,7 @@ export default async function PortfoliosPage() {
       </div>
 
       {portfolios.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-foreground/60">
+        <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
           No portfolios yet.
         </p>
       ) : (
@@ -44,8 +44,8 @@ export default async function PortfoliosPage() {
               <div className="flex items-start justify-between gap-4">
                 <Link href={`/wealth/portfolios/${p.id}`} className="min-w-0">
                   <p className="font-semibold hover:text-accent">{p.name}</p>
-                  {p.description && <p className="text-sm text-foreground/60">{p.description}</p>}
-                  <p className="mt-1 text-sm text-foreground/50">
+                  {p.description && <p className="text-sm text-muted">{p.description}</p>}
+                  <p className="mt-1 text-sm text-muted">
                     {p.holdings.length} holding{p.holdings.length !== 1 ? "s" : ""} · {p.currency}
                   </p>
                 </Link>

@@ -26,14 +26,14 @@ export default async function EditRentalStatementPage({
       <div>
         <Link
           href={`/home/${property.id}/rental`}
-          className="text-sm text-foreground/60 hover:text-foreground"
+          className="text-sm text-muted hover:text-foreground"
         >
           ← Back to rental overview
         </Link>
       </div>
 
       <div>
-        <p className="text-sm text-foreground/60">{property.label}</p>
+        <p className="text-sm text-muted">{property.label}</p>
         <h1 className="text-2xl font-semibold">Edit statement</h1>
       </div>
 

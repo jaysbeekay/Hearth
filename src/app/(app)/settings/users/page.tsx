@@ -37,10 +37,10 @@ export default async function ManageUsersPage() {
                 <p className="text-sm font-medium">
                   {user.name}{" "}
                   {user.id === session.user.id && (
-                    <span className="text-foreground/50">· {ROLE_LABELS[user.role] ?? user.role}</span>
+                    <span className="text-muted">· {ROLE_LABELS[user.role] ?? user.role}</span>
                   )}
                 </p>
-                <p className="text-xs text-foreground/50">
+                <p className="text-xs text-muted">
                   {user.email} · joined {formatDate(user.createdAt, dateFormat)}
                 </p>
               </div>
@@ -51,7 +51,7 @@ export default async function ManageUsersPage() {
                     action={deleteUser.bind(null, user.id)}
                     confirmText={`Remove ${user.name} from the household?`}
                     ariaLabel={`Remove ${user.name} from the household`}
-                    className="rounded-md p-2 text-foreground/50 hover:text-danger"
+                    className="rounded-md p-2 text-muted hover:text-danger"
                   >
                     <Trash2 size={16} />
                   </ConfirmForm>

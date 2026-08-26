@@ -78,14 +78,14 @@ export default async function TripDetailPage({
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <Link href="/travel" className="text-sm text-foreground/60 hover:text-foreground">
+        <Link href="/travel" className="text-sm text-muted hover:text-foreground">
           ← Back to travel
         </Link>
       </div>
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-sm text-foreground/60">{trip.destination || "No destination set"}</p>
+          <p className="text-sm text-muted">{trip.destination || "No destination set"}</p>
           <h1 className="text-2xl font-semibold">{trip.title}</h1>
           <p className="text-foreground/70">
             {trip.startDate || trip.endDate
@@ -135,7 +135,7 @@ export default async function TripDetailPage({
         </div>
 
         {displaySegments.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-foreground/60">
+          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
             No segments yet. Add a flight, lodging, or activity to build the itinerary.
           </p>
         ) : (
@@ -149,9 +149,9 @@ export default async function TripDetailPage({
                 >
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="flex min-w-0 items-start gap-3">
-                      <Icon size={20} className="mt-0.5 shrink-0 text-foreground/50" />
+                      <Icon size={20} className="mt-0.5 shrink-0 text-muted" />
                       <div className="min-w-0">
-                        <p className="text-sm text-foreground/60">
+                        <p className="text-sm text-muted">
                           {TRIP_SEGMENT_TYPE_LABELS[segment.type] ?? segment.type}
                         </p>
                         <p className="font-medium">{segment.title}</p>
@@ -213,7 +213,7 @@ export default async function TripDetailPage({
                             {FLIGHT_STATUS_LABELS[segment.flightStatus] ?? segment.flightStatus}
                           </span>
                           {segment.flightStatusAt && (
-                            <span className="text-xs text-foreground/50">
+                            <span className="text-xs text-muted">
                               Updated {formatDate(segment.flightStatusAt, dateFormat)}
                             </span>
                           )}
@@ -265,7 +265,7 @@ export default async function TripDetailPage({
 
                   {segment.type === "FLIGHT" && segment.flightNumber && !segment.flightStatus && (
                     <div className="mt-4 flex items-center justify-between rounded-lg border border-border p-3">
-                      <p className="text-xs text-foreground/50">No flight status data yet.</p>
+                      <p className="text-xs text-muted">No flight status data yet.</p>
                       <FlightRefreshForm
                         action={refreshFlightStatusAction.bind(null, segment.id, id)}
                       />

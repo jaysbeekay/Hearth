@@ -84,7 +84,7 @@ export function PortfolioForm({
             ))}
           </select>
         </SelectWrapper>
-        <p className="mt-1 text-xs text-foreground/60">
+        <p className="mt-1 text-xs text-muted">
           Determines how gains/losses are calculated when units are sold. Changing this
           recalculates cost basis for existing trades — check it matches how you report
           capital gains.

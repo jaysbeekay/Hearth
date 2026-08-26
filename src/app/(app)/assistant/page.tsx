@@ -31,7 +31,7 @@ export default async function AssistantPage({
       <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border p-12 text-center">
         <Bot size={32} className="text-foreground/30" />
         <h1 className="text-lg font-semibold">Assistant not configured</h1>
-        <p className="max-w-sm text-sm text-foreground/60">
+        <p className="max-w-sm text-sm text-muted">
           {isAdmin
             ? "Bring your own AI provider key to enable an assistant that can answer questions about your household's contracts, warranties, trips, vehicles, home, inventory, and wealth."
             : "Ask a household admin to configure an AI provider so the assistant can answer questions about your household's data."}
@@ -60,7 +60,7 @@ export default async function AssistantPage({
     <div className="flex flex-col gap-4">
       <div>
         <h1 className="text-2xl font-semibold">Assistant</h1>
-        <p className="text-sm text-foreground/60">
+        <p className="text-sm text-muted">
           Ask about your household data — it can also propose creating or updating a contract or
           product, but nothing is written without your explicit confirmation first.
         </p>

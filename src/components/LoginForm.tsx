@@ -90,7 +90,7 @@ export function LoginForm({
               placeholder="6-digit code or recovery code"
               className={inputClass}
             />
-            <p className="text-xs text-foreground/50">
+            <p className="text-xs text-muted">
               Enter the code from your authenticator app, or one of your recovery codes.
             </p>
           </div>
@@ -110,7 +110,7 @@ export function LoginForm({
               <div className="w-full border-t border-border" />
             </div>
             <div className="relative flex justify-center text-xs">
-              <span className="bg-background px-2 text-foreground/50">or</span>
+              <span className="bg-background px-2 text-muted">or</span>
             </div>
           </div>
 

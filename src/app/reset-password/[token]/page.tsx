@@ -31,7 +31,7 @@ export default async function ResetPasswordPage({
           <KeyRound size={32} className="text-accent" />
           <h1 className="text-2xl font-semibold">Choose a new password</h1>
           {!valid && (
-            <p className="text-sm text-foreground/60">
+            <p className="text-sm text-muted">
               This reset link is invalid or has expired. Request a new one below.
             </p>
           )}
@@ -42,7 +42,7 @@ export default async function ResetPasswordPage({
             <ResetPasswordForm token={token} />
           </div>
         ) : (
-          <p className="text-center text-sm text-foreground/60">
+          <p className="text-center text-sm text-muted">
             <Link href="/forgot-password" className="text-accent hover:underline">
               Request a new reset link
             </Link>

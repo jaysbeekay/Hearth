@@ -72,7 +72,7 @@ export function ChatSettingsForm({
             />
           </div>
         ) : (
-          <p className="text-xs text-foreground/50">
+          <p className="text-xs text-muted">
             No API key needed — Ollama uses the base URL configured in{" "}
             <a href="/settings/app" className="text-accent hover:underline">
               System settings
@@ -83,7 +83,7 @@ export function ChatSettingsForm({
 
         <div className="space-y-1">
           <label htmlFor="chatModel" className="text-sm font-medium">
-            Model <span className="text-foreground/50">(optional)</span>
+            Model <span className="text-muted">(optional)</span>
           </label>
           <input
             id="chatModel"
@@ -92,7 +92,7 @@ export function ChatSettingsForm({
             placeholder={CHAT_PROVIDER_DEFAULT_MODELS[selected]}
             className={inputClass}
           />
-          <p className="text-xs text-foreground/50">
+          <p className="text-xs text-muted">
             Leave blank to use the default: {CHAT_PROVIDER_DEFAULT_MODELS[selected]}
           </p>
         </div>
@@ -112,7 +112,7 @@ export function ChatSettingsForm({
         <ConfirmForm
           action={removeChatSettings}
           confirmText="Remove your saved assistant provider settings? The assistant will be unavailable until you configure one again."
-          className="inline-flex items-center gap-2 text-sm text-foreground/50 hover:text-danger"
+          className="inline-flex items-center gap-2 text-sm text-muted hover:text-danger"
         >
           <Trash2 size={14} />
           Remove

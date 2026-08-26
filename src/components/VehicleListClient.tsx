@@ -80,7 +80,7 @@ export function VehicleListClient({ vehicles, dateFormat, canWrite = true }: Pro
 
       {vehicles.length === 0 ? (
         pendingOps.length === 0 && (
-          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-foreground/60">
+          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
             No vehicles yet. Add your first vehicle to start tracking registration, insurance, and service history.
           </p>
         )

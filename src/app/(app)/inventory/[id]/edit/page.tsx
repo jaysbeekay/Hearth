@@ -22,7 +22,7 @@ export default async function EditInventoryItemPage({
   return (
     <div className="max-w-xl space-y-6">
       <div>
-        <Link href={`/inventory/${id}`} className="text-sm text-foreground/60 hover:text-foreground">
+        <Link href={`/inventory/${id}`} className="text-sm text-muted hover:text-foreground">
           ← Back to item
         </Link>
       </div>

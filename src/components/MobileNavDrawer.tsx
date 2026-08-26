@@ -147,7 +147,7 @@ export function MobileNavDrawer({
             </Link>
           ))}
 
-          <p className="mt-4 px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-foreground/40">
+          <p className="mt-4 px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted">
             Modules
           </p>
           {moduleItems.map(({ href, label, icon: Icon }) => (
@@ -167,7 +167,7 @@ export function MobileNavDrawer({
             </Link>
           ))}
 
-          <p className="mt-4 px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-foreground/40">
+          <p className="mt-4 px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted">
             Tools
           </p>
           {toolItems.map(({ href, label, icon: Icon }) => (

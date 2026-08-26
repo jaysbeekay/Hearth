@@ -68,7 +68,7 @@ export function BottomNav({
               href={href}
               className={cn(
                 "flex flex-1 flex-col items-center gap-1 py-2.5 text-xs font-medium",
-                active ? "text-accent" : "text-foreground/60",
+                active ? "text-accent" : "text-muted",
               )}
             >
               <Icon size={20} />
@@ -84,7 +84,7 @@ export function BottomNav({
           aria-expanded={moreOpen}
           className={cn(
             "flex flex-1 flex-col items-center gap-1 py-2.5 text-xs font-medium",
-            overflowActive ? "text-accent" : "text-foreground/60",
+            overflowActive ? "text-accent" : "text-muted",
           )}
         >
           <MoreHorizontal size={20} />
@@ -115,7 +115,7 @@ export function BottomNav({
               </button>
             </div>
             {overflowModules.length > 0 && (
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-foreground/40">
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
                 Modules
               </p>
             )}
@@ -138,7 +138,7 @@ export function BottomNav({
             </div>
 
             {overflowTools.length > 0 && (
-              <p className="mb-1.5 mt-3 text-xs font-semibold uppercase tracking-wide text-foreground/40">
+              <p className="mb-1.5 mt-3 text-xs font-semibold uppercase tracking-wide text-muted">
                 Tools
               </p>
             )}

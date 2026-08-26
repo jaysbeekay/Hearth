@@ -218,12 +218,12 @@ export function ProductForm({
             </p>
             <FileDropZone name="invoiceFile" onFileSelected={handleFileChange} />
             {scanning && (
-              <p role="status" aria-live="polite" className="text-sm text-foreground/60">
+              <p role="status" aria-live="polite" className="text-sm text-muted">
                 Scanning invoice…
               </p>
             )}
             {!scanning && scanMessage && (
-              <p role="status" aria-live="polite" className="text-sm text-foreground/60">
+              <p role="status" aria-live="polite" className="text-sm text-muted">
                 {scanMessage}
               </p>
             )}
@@ -325,7 +325,7 @@ export function ProductForm({
               {lookingUp ? "Looking up…" : "Look up product info"}
             </button>
           )}
-          {lookupMessage && <p className="mt-1 text-sm text-foreground/60">{lookupMessage}</p>}
+          {lookupMessage && <p className="mt-1 text-sm text-muted">{lookupMessage}</p>}
         </Field>
 
         <Field label="Purchase date" htmlFor="purchaseDate">

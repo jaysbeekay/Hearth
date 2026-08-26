@@ -74,7 +74,7 @@ export function HomeListClient({ properties, taxDeductibleSummary, region }: Pro
           <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
             {taxDeductibleSummary.map(({ label, amount, currency }) => (
               <div key={`${label}|${currency}`}>
-                <dt className="text-xs text-foreground/50">{label}</dt>
+                <dt className="text-xs text-muted">{label}</dt>
                 <dd className="text-sm font-medium">{formatCurrency(amount, currency, undefined, region)}</dd>
               </div>
             ))}
@@ -99,7 +99,7 @@ export function HomeListClient({ properties, taxDeductibleSummary, region }: Pro
 
       {properties.length === 0 ? (
         pendingOps.length === 0 && (
-          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-foreground/60">
+          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
             No properties yet. Add your first property to start tracking maintenance and improvements.
           </p>
         )

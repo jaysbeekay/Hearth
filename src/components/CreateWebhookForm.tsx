@@ -44,7 +44,7 @@ export function CreateWebhookForm() {
           Signing secret (optional)
         </label>
         <input id="secret" name="secret" type="password" className={inputClass} />
-        <p className="text-xs text-foreground/50">
+        <p className="text-xs text-muted">
           If set, each delivery includes an X-Webhook-Signature header (HMAC-SHA256 of the
           request body) so the receiver can verify it came from this app. Stored as-is in the
           database — leave blank to send unsigned.

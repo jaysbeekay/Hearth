@@ -13,7 +13,7 @@ export function HomeItemDocumentList({
   dateFormat?: string;
 }) {
   if (documents.length === 0) {
-    return <p className="text-sm text-foreground/60">No documents uploaded yet.</p>;
+    return <p className="text-sm text-muted">No documents uploaded yet.</p>;
   }
 
   return (
@@ -27,9 +27,9 @@ export function HomeItemDocumentList({
             size={doc.size}
             className="flex min-w-0 items-center gap-2 text-sm hover:text-accent"
           >
-            <FileText size={18} className="shrink-0 text-foreground/50" />
+            <FileText size={18} className="shrink-0 text-muted" />
             <span className="min-w-0 truncate">{doc.filename}</span>
-            <span className="shrink-0 text-foreground/50">
+            <span className="shrink-0 text-muted">
               {humanFileSize(doc.size)} · {formatDate(doc.uploadedAt, dateFormat)}
             </span>
           </DocumentLink>
@@ -37,7 +37,7 @@ export function HomeItemDocumentList({
             action={deleteItemDocumentAction.bind(null, doc.homeItemId, doc.id)}
             confirmText={`Delete ${doc.filename}? This can't be undone.`}
             ariaLabel={`Delete ${doc.filename}`}
-            className="rounded-md p-2 text-foreground/50 hover:text-danger"
+            className="rounded-md p-2 text-muted hover:text-danger"
             offline={{
               entity: "homeItemDocument",
               entityId: doc.id,

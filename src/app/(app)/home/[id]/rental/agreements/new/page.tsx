@@ -27,16 +27,16 @@ export default async function NewRentalAgreementPage({
       <div>
         <Link
           href={`/home/${property.id}/rental`}
-          className="text-sm text-foreground/60 hover:text-foreground"
+          className="text-sm text-muted hover:text-foreground"
         >
           ← Back to rental overview
         </Link>
       </div>
 
       <div>
-        <p className="text-sm text-foreground/60">{property.label}</p>
+        <p className="text-sm text-muted">{property.label}</p>
         <h1 className="text-2xl font-semibold">Add rental agreement</h1>
-        <p className="mt-1 text-sm text-foreground/60">
+        <p className="mt-1 text-sm text-muted">
           Record a new rental agreement period — add a new one whenever rent, tenant, or terms
           change so the history is preserved for reconciliation.
         </p>

@@ -20,7 +20,7 @@ export default async function NewProductPage() {
       <BackLink href="/products" label="Back to warranties" />
       <div>
         <h1 className="text-2xl font-semibold">Add a warranty</h1>
-        <p className="text-sm text-foreground/60">
+        <p className="text-sm text-muted">
           Capture the purchase details so you never miss a warranty deadline.
         </p>
         <p className="mt-1 text-xs text-muted">

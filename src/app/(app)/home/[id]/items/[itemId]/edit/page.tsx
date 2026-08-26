@@ -21,7 +21,7 @@ export default async function EditHomeItemPage({
     <div className="max-w-3xl space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Edit item</h1>
-        <p className="text-sm text-foreground/60">{item.title}</p>
+        <p className="text-sm text-muted">{item.title}</p>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <HomeItemForm action={boundAction} item={item} />
