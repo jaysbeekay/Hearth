@@ -25,6 +25,7 @@ import { TIMEZONE_OPTIONS } from "@/lib/timezones";
 import { POPULAR_CURRENCIES } from "@/components/CurrencySelect";
 import { env, isAppUrlConfigured, isSetupTokenRequired } from "@/lib/env";
 import { generateToken, hashToken } from "@/lib/crypto";
+import { isUsableOneTimeToken } from "@/lib/authTokens";
 import {
   checkRateLimit,
   clientAddress,
@@ -594,9 +595,12 @@ export async function resetPassword(
   });
   if (
     !resetToken ||
-    resetToken.purpose !== "RESET" ||
-    resetToken.usedAt ||
-    resetToken.expiresAt.getTime() < Date.now()
+    !isUsableOneTimeToken({
+      purpose: resetToken.purpose,
+      expectedPurpose: "RESET",
+      usedAt: resetToken.usedAt,
+      expiresAt: resetToken.expiresAt,
+    })
   ) {
     return { error: "This reset link is invalid or has expired." };
   }
@@ -632,9 +636,12 @@ export async function acceptInvitation(
   });
   if (
     !inviteToken ||
-    inviteToken.purpose !== "INVITE" ||
-    inviteToken.usedAt ||
-    inviteToken.expiresAt.getTime() < Date.now()
+    !isUsableOneTimeToken({
+      purpose: inviteToken.purpose,
+      expectedPurpose: "INVITE",
+      usedAt: inviteToken.usedAt,
+      expiresAt: inviteToken.expiresAt,
+    })
   ) {
     return { error: "This invitation link is invalid or has expired." };
   }
