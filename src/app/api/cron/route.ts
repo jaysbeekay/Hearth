@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runExpirationCheck } from "@/lib/notifications/scheduler";
+import { runPendingJobs } from "@/lib/jobs/runner";
 
 // Manual/external trigger for the expiration check, useful for testing or
 // for self-hosters who prefer an external cron over the built-in scheduler.
@@ -18,5 +19,6 @@ export async function POST(request: NextRequest) {
   }
 
   const result = await runExpirationCheck();
+  await runPendingJobs();
   return NextResponse.json(result);
 }

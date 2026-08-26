@@ -6,18 +6,17 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { productSchema } from "@/lib/validation/product";
 import {
-  deleteProductDir,
   deleteProductDocument as deleteProductDocumentFile,
   saveProductDocument,
 } from "@/lib/storage";
 import { ProductDocumentKind } from "@/generated/prisma/enums";
 import { formDataToStringValues } from "@/lib/form-state";
 import { formToProductInput } from "@/lib/formMappers";
-import { clearNotificationLogs } from "@/lib/notifications/logs";
-import { extractSearchableText } from "@/lib/documents/textExtraction";
+import { queueDocumentExtraction } from "@/lib/documents/queueExtraction";
 import { describeUploadRejection } from "@/lib/uploadValidation";
 import { extractionFieldsFromForm } from "@/lib/documents/extractionConfirmation";
 import { saveFileToInboxFallback } from "@/lib/documents/inboxFallback";
+import { createProductCommand, updateProductCommand, deleteProductCommand } from "@/lib/commands/products";
 
 export type ActionState = {
   error?: string;
@@ -69,11 +68,7 @@ async function attachProductDocument(
 
   const { storedName, size, sha256, mimeType } = await saveProductDocument(productId, file);
   // Only invoices carry meaningful text; skip OCR on plain product photos.
-  const extractedText =
-    kind === ProductDocumentKind.INVOICE
-      ? await extractSearchableText(Buffer.from(await file.arrayBuffer()), mimeType)
-      : null;
-  await prisma.productDocument.create({
+  const document = await prisma.productDocument.create({
     data: {
       productId,
       filename: file.name.slice(0, 255),
@@ -81,10 +76,11 @@ async function attachProductDocument(
       mimeType,
       size,
       kind,
-      extractedText,
+      extractionStatus: kind === ProductDocumentKind.INVOICE ? "PENDING" : "COMPLETED",
       sha256,
     },
   });
+  if (kind === ProductDocumentKind.INVOICE) await queueDocumentExtraction({ kind: "product", id: document.id, ownerId: productId, storedName, mimeType });
   return null;
 }
 
@@ -111,9 +107,7 @@ export async function createProduct(
     }
   }
 
-  const product = await prisma.product.create({
-    data: { ...parsed.data, createdById: user.id, ...extractionFieldsFromForm(formData) },
-  });
+  const product = await createProductCommand({ ...parsed.data, ...extractionFieldsFromForm(formData) }, user.id);
 
   let docFallback: "inbox" | "failed" | null = null;
   if (invoiceFile instanceof File && invoiceFile.size > 0) {
@@ -131,8 +125,6 @@ export async function createProduct(
     }
   }
 
-  revalidatePath("/products");
-  revalidatePath("/dashboard");
   redirect(`/products/${product.id}${docFallback ? `?docFallback=${docFallback}` : ""}`);
 }
 
@@ -151,25 +143,8 @@ export async function updateProduct(
     };
   }
 
-  const existing = await prisma.product.findUnique({ where: { id: productId } });
-  if (!existing) return { error: "Product not found." };
-
-  const warrantyEndDateChanged =
-    existing.warrantyEndDate?.getTime() !== parsed.data.warrantyEndDate?.getTime();
-
-  await prisma.$transaction([
-    prisma.product.update({
-      where: { id: productId },
-      data: { ...parsed.data, ...extractionFieldsFromForm(formData) },
-    }),
-    ...(warrantyEndDateChanged
-      ? [prisma.notificationLog.deleteMany({ where: { ownerType: "PRODUCT", ownerId: productId } })]
-      : []),
-  ]);
-
-  revalidatePath("/products");
-  revalidatePath(`/products/${productId}`);
-  revalidatePath("/dashboard");
+  try { await updateProductCommand(productId, { ...parsed.data, ...extractionFieldsFromForm(formData) }); }
+  catch (error) { return { error: error instanceof Error ? error.message : "Product not found." }; }
   redirect(`/products/${productId}`);
 }
 
@@ -210,12 +185,7 @@ export async function createProductFromAssistant(
   const parsed = productSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: firstIssueMessage(parsed.error) };
 
-  const product = await prisma.product.create({
-    data: { ...parsed.data, createdById: user.id },
-  });
-
-  revalidatePath("/products");
-  revalidatePath("/dashboard");
+  const product = await createProductCommand(parsed.data, user.id);
   return { success: true, productId: product.id };
 }
 
@@ -228,39 +198,16 @@ export async function updateProductFromAssistant(
   const parsed = productSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: firstIssueMessage(parsed.error) };
 
-  const existing = await prisma.product.findUnique({ where: { id: productId } });
-  if (!existing) return { success: false, error: "Product not found." };
-
-  const warrantyEndDateChanged =
-    existing.warrantyEndDate?.getTime() !== parsed.data.warrantyEndDate?.getTime();
-
-  await prisma.$transaction([
-    prisma.product.update({ where: { id: productId }, data: parsed.data }),
-    ...(warrantyEndDateChanged
-      ? [prisma.notificationLog.deleteMany({ where: { ownerType: "PRODUCT", ownerId: productId } })]
-      : []),
-  ]);
-
-  revalidatePath("/products");
-  revalidatePath(`/products/${productId}`);
-  revalidatePath("/dashboard");
+  try { await updateProductCommand(productId, parsed.data); }
+  catch (error) { return { success: false, error: error instanceof Error ? error.message : "Product not found." }; }
   return { success: true, productId };
 }
 
 export async function deleteProduct(productId: string): Promise<ActionState> {
   await requireUser();
 
-  const existing = await prisma.product.findUnique({ where: { id: productId } });
-  if (!existing) return { error: "Product not found." };
-
-  await prisma.product.delete({ where: { id: productId } });
-  // See the equivalent comment in deleteContract (contracts.ts) — NotificationLog
-  // is no longer FK-cascaded, so this cleanup is now explicit.
-  await clearNotificationLogs("PRODUCT", productId);
-  await deleteProductDir(productId);
-
-  revalidatePath("/products");
-  revalidatePath("/dashboard");
+  try { await deleteProductCommand(productId); }
+  catch (error) { return { error: error instanceof Error ? error.message : "Product not found." }; }
   redirect("/products");
 }
 

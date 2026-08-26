@@ -21,6 +21,8 @@ import { extractSearchableText } from "@/lib/documents/textExtraction";
 import { describeUploadRejection } from "@/lib/uploadValidation";
 import { computeInboxIntake } from "@/lib/documents/inboxIntake";
 import { getDocumentVersionChain } from "@/lib/documents/documentQueries";
+import { createContractCommand } from "@/lib/commands/contracts";
+import { createProductCommand } from "@/lib/commands/products";
 
 function formToInventoryItemInput(formData: FormData) {
   return {
@@ -65,9 +67,7 @@ export async function importContract(formData: FormData): Promise<ImportResult> 
     if (rejection) return { error: rejection };
   }
 
-  const contract = await prisma.contract.create({
-    data: { ...parsed.data, createdById: user.id },
-  });
+  const contract = await createContractCommand(parsed.data, user.id);
 
   if (file instanceof File && file.size > 0) {
     const { storedName, size, sha256, mimeType } = await saveDocument(contract.id, file);
@@ -83,8 +83,6 @@ export async function importContract(formData: FormData): Promise<ImportResult> 
     });
   }
 
-  revalidatePath("/contracts");
-  revalidatePath("/dashboard");
   return { success: "Saved", id: contract.id, href: `/contracts/${contract.id}` };
 }
 
@@ -100,9 +98,7 @@ export async function importProduct(formData: FormData): Promise<ImportResult> {
     if (rejection) return { error: rejection };
   }
 
-  const product = await prisma.product.create({
-    data: { ...parsed.data, createdById: user.id },
-  });
+  const product = await createProductCommand(parsed.data, user.id);
 
   if (file instanceof File && file.size > 0) {
     const { storedName, size, sha256, mimeType } = await saveProductDocument(product.id, file);
@@ -119,8 +115,6 @@ export async function importProduct(formData: FormData): Promise<ImportResult> {
     });
   }
 
-  revalidatePath("/products");
-  revalidatePath("/dashboard");
   return { success: "Saved", id: product.id, href: `/products/${product.id}` };
 }
 
