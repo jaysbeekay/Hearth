@@ -8,7 +8,7 @@ const PAGES: Array<[string, string[]]> = [
   ["/contracts", ["Contracts"]],
   ["/products", ["Warranties"]],
   ["/travel", ["Travel"]],
-  ["/home", ["Home"]],
+  ["/home", ["Properties"]],
   ["/vehicles", ["Vehicles"]],
   ["/inventory", ["Inventory"]],
   ["/wealth", ["Wealth"]],
