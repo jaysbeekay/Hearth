@@ -31,6 +31,7 @@ export default defineConfig({
       AUTH_SECRET,
       ENCRYPTION_KEY,
       APP_URL: BASE_URL,
+      CRON_SECRET: "e2e-cron-secret",
       PORT: String(PORT),
     },
   },

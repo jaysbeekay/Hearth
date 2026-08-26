@@ -34,11 +34,28 @@ test("TOTP setup returns a valid provisioning secret and rejects a wrong code", 
   await expect(page.locator("body")).toContainText(/invalid code|authenticator/i);
 });
 
-test("passkey registration options require an authenticated user and expose WebAuthn data", async ({ page }) => {
-  const response = await page.request.post("/api/auth/passkey/register/options");
-  expect(response.ok()).toBe(true);
-  const options = await response.json();
-  expect(options.challenge).toMatch(/^[A-Za-z0-9_-]+$/);
-  expect(options.rp.name).toBe("Hearth");
-  expect(options.user.name).toBe(ADMIN_EMAIL);
+test("passkey registration and authentication work with a virtual authenticator", async ({ page, context }) => {
+  const cdp = await context.newCDPSession(page);
+  await cdp.send("WebAuthn.enable");
+  const { authenticatorId } = await cdp.send("WebAuthn.addVirtualAuthenticator", {
+    options: {
+      protocol: "ctap2",
+      transport: "internal",
+      hasResidentKey: true,
+      hasUserVerification: true,
+      isUserVerified: true,
+    },
+  });
+
+  await page.goto("/settings/passkeys");
+  await page.locator("#passkey-nickname").fill("E2E virtual authenticator");
+  await page.getByRole("button", { name: "Add passkey" }).click();
+  await expect(page.locator("body")).toContainText("E2E virtual authenticator");
+  const credentials = await cdp.send("WebAuthn.getCredentials", { authenticatorId });
+  expect(credentials.credentials).toHaveLength(1);
+
+  await context.clearCookies();
+  await page.goto("/login");
+  await page.getByRole("button", { name: /passkey/i }).click();
+  await expect(page).toHaveURL(/\/dashboard/);
 });
