@@ -36,10 +36,23 @@ test("contract detail page with long field values doesn't overflow on a mobile v
   await expectNoHorizontalOverflow(page);
 });
 
+test("/assistant page doesn't overflow on a mobile viewport", async ({ page }) => {
+  await page.goto("/assistant");
+  await expectNoHorizontalOverflow(page);
+  await expect(page.locator("body")).toContainText("Assistant");
+});
+
+test("/documents page doesn't overflow on a mobile viewport", async ({ page }) => {
+  await page.goto("/documents");
+  await expectNoHorizontalOverflow(page);
+});
+
+
 test("/spend page doesn't overflow on a mobile viewport", async ({ page }) => {
   await page.goto("/spend");
   await expectNoHorizontalOverflow(page);
 });
+
 
 test("DetailOverflowMenu renders as a full-width bottom sheet on mobile", async ({ page }) => {
   await page.goto("/contracts/new");
