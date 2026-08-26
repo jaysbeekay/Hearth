@@ -25,6 +25,7 @@ import { TIMEZONE_OPTIONS } from "@/lib/timezones";
 import { POPULAR_CURRENCIES } from "@/components/CurrencySelect";
 import { env, isAppUrlConfigured, isSetupTokenRequired } from "@/lib/env";
 import { generateToken, hashToken } from "@/lib/crypto";
+import { buildConfiguredAppUrl, isUsableOneTimeToken } from "@/lib/authTokens";
 import {
   checkRateLimit,
   clientAddress,
@@ -325,7 +326,7 @@ export async function createUser(
 
   revalidatePath("/settings/users");
   try {
-    await sendInvitationEmail(user.email, `${env.appUrl}/accept-invitation/${token}`);
+    await sendInvitationEmail(user.email, buildConfiguredAppUrl(env.appUrl, `/accept-invitation/${token}`)!);
   } catch (error) {
     return {
       error: `${parsed.data.name} was added, but the invitation email failed to send (${
@@ -568,11 +569,14 @@ export async function requestPasswordReset(
         expiresAt: new Date(Date.now() + 60 * 60 * 1000),
       },
     });
-    try {
-      await sendPasswordResetEmail(user.email, `${env.appUrl}/reset-password/${token}`);
-    } catch {
-      // Swallowed: the response must stay identical whether or not the
-      // account exists, and regardless of transient SMTP failures.
+    const resetUrl = buildConfiguredAppUrl(env.appUrl, `/reset-password/${token}`);
+    if (resetUrl) {
+      try {
+        await sendPasswordResetEmail(user.email, resetUrl);
+      } catch {
+        // Swallowed: the response must stay identical whether or not the
+        // account exists, and regardless of transient SMTP failures.
+      }
     }
   }
 
@@ -594,9 +598,12 @@ export async function resetPassword(
   });
   if (
     !resetToken ||
-    resetToken.purpose !== "RESET" ||
-    resetToken.usedAt ||
-    resetToken.expiresAt.getTime() < Date.now()
+    !isUsableOneTimeToken({
+      purpose: resetToken.purpose,
+      expectedPurpose: "RESET",
+      usedAt: resetToken.usedAt,
+      expiresAt: resetToken.expiresAt,
+    })
   ) {
     return { error: "This reset link is invalid or has expired." };
   }
@@ -632,9 +639,12 @@ export async function acceptInvitation(
   });
   if (
     !inviteToken ||
-    inviteToken.purpose !== "INVITE" ||
-    inviteToken.usedAt ||
-    inviteToken.expiresAt.getTime() < Date.now()
+    !isUsableOneTimeToken({
+      purpose: inviteToken.purpose,
+      expectedPurpose: "INVITE",
+      usedAt: inviteToken.usedAt,
+      expiresAt: inviteToken.expiresAt,
+    })
   ) {
     return { error: "This invitation link is invalid or has expired." };
   }

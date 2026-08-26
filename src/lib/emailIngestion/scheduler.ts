@@ -6,6 +6,7 @@ import { saveInboxDocument } from "@/lib/storage";
 import { UploadRejectedError } from "@/lib/uploadValidation";
 import { extractSearchableText } from "@/lib/documents/textExtraction";
 import { computeInboxIntake } from "@/lib/documents/inboxIntake";
+import { getIngestibleAttachments } from "@/lib/emailIngestion/parser";
 
 // Bounds one poll's cost: a mailbox flooded with mail (or mail-bombed on
 // purpose) can only ever cost one connection and this many attachment
@@ -13,6 +14,27 @@ import { computeInboxIntake } from "@/lib/documents/inboxIntake";
 // bounding precedent, applied here since this endpoint has no per-caller
 // identity to throttle against).
 const MAX_MESSAGES_PER_RUN = 20;
+
+export interface EmailIngestionClient {
+  connect(): Promise<void>;
+  getMailboxLock(mailbox: string): Promise<{ release(): void }>;
+  search(query: { seen: boolean }, options: { uid: boolean }): Promise<number[] | false>;
+  download(uid: number, section?: unknown, options?: { uid: boolean }): Promise<{ content: Buffer }>;
+  messageFlagsAdd(uid: number, flags: string[], options: { uid: boolean }): Promise<void>;
+  logout(): Promise<void>;
+  close(): void;
+}
+
+export type EmailIngestionClientFactory = (config: {
+  host: string;
+  port: number;
+  secure: boolean;
+  user: string;
+  pass: string;
+}) => EmailIngestionClient;
+
+const defaultClientFactory: EmailIngestionClientFactory = (config) =>
+  new ImapFlow({ ...config, auth: { user: config.user, pass: config.pass }, logger: false }) as unknown as EmailIngestionClient;
 
 export interface EmailIngestionResult {
   checked: number;
@@ -25,19 +47,15 @@ async function alreadyProcessed(messageId: string): Promise<boolean> {
   return row != null;
 }
 
-export async function runEmailIngestion(): Promise<EmailIngestionResult> {
+export async function runEmailIngestion(
+  clientFactory: EmailIngestionClientFactory = defaultClientFactory,
+): Promise<EmailIngestionResult> {
   if (!(await isEmailIngestionConfigured())) {
     return { checked: 0, ingested: 0, skipped: 0 };
   }
 
   const config = await getEmailIngestConfig();
-  const client = new ImapFlow({
-    host: config.host,
-    port: config.port,
-    secure: config.secure,
-    auth: { user: config.user, pass: config.pass },
-    logger: false,
-  });
+  const client = clientFactory(config);
 
   let checked = 0;
   let ingested = 0;
@@ -65,13 +83,10 @@ export async function runEmailIngestion(): Promise<EmailIngestionResult> {
           const fromAddress = parsed.from?.value?.[0]?.address ?? null;
           let ingestedAny = false;
 
-          for (const attachment of parsed.attachments) {
-            if (!(attachment.content instanceof Buffer) || attachment.content.length === 0) {
-              continue;
-            }
+          for (const attachment of getIngestibleAttachments(parsed)) {
             const file = new File(
               [new Uint8Array(attachment.content)],
-              attachment.filename || "attachment",
+              attachment.filename,
               { type: attachment.contentType },
             );
 
