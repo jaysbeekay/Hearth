@@ -37,8 +37,8 @@ test("deleting a contract removes its document files from disk", async ({ page }
   // Delete the contract
   await page.goto(`/contracts/${contractId}`);
   await page.getByRole("button", { name: "More actions" }).click();
-  await page.locator('button:has-text("Delete")').click();
-  await page.locator('button[data-test="confirm-delete"]').click();
+  await page.locator('[role="menu"]:visible').getByRole("button", { name: "Delete", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm", exact: true }).click();
   await page.waitForURL(/\/contracts$/);
 
   // Verify file directory is gone
@@ -71,8 +71,8 @@ test("deleting a product removes its document files from disk", async ({ page })
   // Delete the product
   await page.goto(`/products/${productId}`);
   await page.getByRole("button", { name: "More actions" }).click();
-  await page.locator('button:has-text("Delete")').click();
-  await page.locator('button[data-test="confirm-delete"]').click();
+  await page.locator('[role="menu"]:visible').getByRole("button", { name: "Delete", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm", exact: true }).click();
   await page.waitForURL(/\/products$/);
 
   // Verify file directory is gone
