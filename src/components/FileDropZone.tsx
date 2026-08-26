@@ -84,6 +84,7 @@ export function FileDropZone({
         }}
         className={cn(
           "flex cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed p-6 text-center transition",
+          "has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent has-[:focus-visible]:outline-offset-2",
           dragOver ? "border-accent bg-accent/5" : "border-border hover:border-accent/50",
         )}
       >

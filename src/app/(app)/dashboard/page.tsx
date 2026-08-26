@@ -93,6 +93,15 @@ export default async function DashboardPage() {
     );
   }
 
+  // #303: a contract with a cost but no billing frequency contributes $0 to
+  // "Est. monthly spend" (monthlyEquivalent has no frequency to convert
+  // from) — without this notice that reads as the total being wrong rather
+  // than as an unset field.
+  const missingFrequencyCount = active.filter(
+    (c) => c.cost != null && c.billingFrequency == null,
+  ).length;
+  const hasMissingFrequencySpend = missingFrequencyCount > 0;
+
   const productsWithDays = products.map((p) => ({
     product: p,
     days: daysUntil(p.warrantyEndDate),
@@ -200,7 +209,7 @@ export default async function DashboardPage() {
             <StatCard
               label="Est. monthly spend"
               value={formatCurrency(monthlySpend, preferredCurrency, undefined, region)}
-              tone={hasUnconvertedSpend ? "warning" : "default"}
+              tone={hasUnconvertedSpend || hasMissingFrequencySpend ? "warning" : "default"}
               href="/spend"
             />
           </div>
@@ -211,6 +220,16 @@ export default async function DashboardPage() {
                 This total excludes contracts billed in{" "}
                 {[...unconvertedCurrencies].join(", ")} — an exchange rate to{" "}
                 {preferredCurrency} isn&apos;t available right now.
+              </p>
+            </div>
+          )}
+          {hasMissingFrequencySpend && (
+            <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
+              <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden />
+              <p>
+                {missingFrequencyCount} active {missingFrequencyCount === 1 ? "contract has" : "contracts have"} a
+                cost but no billing frequency set — {missingFrequencyCount === 1 ? "it isn't" : "they aren't"}{" "}
+                counted in Est. monthly spend yet.
               </p>
             </div>
           )}

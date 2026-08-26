@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { linkButtonClass, toolbarButtonClass, exportMenuItemClass } from "@/lib/buttonStyles";
 import { useRouter } from "next/navigation";
@@ -56,23 +56,26 @@ export function ProductListClient({
   const filtered = Boolean(q || expiring || expired || needsReview || missingDocument);
 
   // #207 — completeness filter chips, same toggle pattern as ContractListClient.
-  function toggleCompletenessFilter(key: "expiring" | "expired" | "needsReview" | "missingDocument", value: string) {
-    const params = new URLSearchParams();
-    if (q) params.set("q", q);
-    if (expiring) params.set("expiring", expiring);
-    if (expired) params.set("expired", expired);
-    if (needsReview) params.set("needsReview", needsReview);
-    if (missingDocument) params.set("missingDocument", missingDocument);
+  const toggleCompletenessFilter = useCallback(
+    (key: "expiring" | "expired" | "needsReview" | "missingDocument", value: string) => {
+      const params = new URLSearchParams();
+      if (q) params.set("q", q);
+      if (expiring) params.set("expiring", expiring);
+      if (expired) params.set("expired", expired);
+      if (needsReview) params.set("needsReview", needsReview);
+      if (missingDocument) params.set("missingDocument", missingDocument);
 
-    const isActive = params.get(key) === value;
-    if (key === "expiring" || key === "expired") {
-      params.delete("expiring");
-      params.delete("expired");
-    }
-    if (!isActive) params.set(key, value);
-    else params.delete(key);
-    router.push(`/products${params.toString() ? `?${params.toString()}` : ""}`);
-  }
+      const isActive = params.get(key) === value;
+      if (key === "expiring" || key === "expired") {
+        params.delete("expiring");
+        params.delete("expired");
+      }
+      if (!isActive) params.set(key, value);
+      else params.delete(key);
+      router.push(`/products${params.toString() ? `?${params.toString()}` : ""}`);
+    },
+    [q, expiring, expired, needsReview, missingDocument, router],
+  );
 
   const summary = useMemo(() => {
     let expiringSoon = 0;
@@ -88,12 +91,27 @@ export function ProductListClient({
       if (product.extractionPending) needsReview++;
     }
     return [
-      { label: "expiring within 30 days", value: expiringSoon, tone: "warning" as const },
-      { label: "expired", value: expired, tone: "danger" as const },
-      { label: "needs review", value: needsReview, tone: "warning" as const },
+      {
+        label: "expiring within 30 days",
+        value: expiringSoon,
+        tone: "warning" as const,
+        onClick: () => toggleCompletenessFilter("expiring", "30"),
+      },
+      {
+        label: "expired",
+        value: expired,
+        tone: "danger" as const,
+        onClick: () => toggleCompletenessFilter("expired", "true"),
+      },
+      {
+        label: "needs review",
+        value: needsReview,
+        tone: "warning" as const,
+        onClick: () => toggleCompletenessFilter("needsReview", "true"),
+      },
       { label: "added this week", value: recentlyAdded },
     ];
-  }, [products]);
+  }, [products, toggleCompletenessFilter]);
 
   return (
     <div className="space-y-6">

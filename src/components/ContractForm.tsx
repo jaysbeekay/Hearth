@@ -80,6 +80,14 @@ export function ContractForm({
   // see extractionFieldsFromForm in src/lib/actions/contracts.ts.
   const [extractionUsed, setExtractionUsed] = useState(false);
   const [confirmExtraction, setConfirmExtraction] = useState(false);
+  // #303: a cost without a billing frequency contributes nothing to the
+  // dashboard's "Est. monthly spend" — nudge before that surprises the user.
+  const [costMissingFrequency, setCostMissingFrequency] = useState(
+    () => !!contract?.cost && !contract?.billingFrequency,
+  );
+  function checkCostMissingFrequency() {
+    setCostMissingFrequency(!!costRef.current?.value && !billingFrequencyRef.current?.value);
+  }
 
   // Editing a record that was created offline and hasn't synced yet — there's
   // no server-side row to update, so submitting rewrites the queued
@@ -129,6 +137,7 @@ export function ContractForm({
     applyIfEmpty(contactNameRef.current, fields.contactName, highlight);
     applyIfEmpty(contactPhoneRef.current, fields.contactPhone, highlight);
     applyIfEmpty(contactEmailRef.current, fields.contactEmail, highlight);
+    checkCostMissingFrequency();
   }
 
   async function handleFileChange(file: File | null) {
@@ -308,6 +317,7 @@ export function ContractForm({
               min={0}
               step="0.01"
               defaultValue={effectiveValues?.cost ?? contract?.cost ?? ""}
+              onChange={checkCostMissingFrequency}
               className={inputClass}
             />
           </Field>
@@ -319,13 +329,22 @@ export function ContractForm({
             />
           </Field>
 
-          <Field label="Billing frequency" htmlFor="billingFrequency">
+          <Field
+            label="Billing frequency"
+            htmlFor="billingFrequency"
+            hint={
+              costMissingFrequency
+                ? "This cost won't count toward the dashboard's Est. monthly spend until a frequency is set."
+                : undefined
+            }
+          >
             <SelectWrapper>
               <select
                 ref={billingFrequencyRef}
                 id="billingFrequency"
                 name="billingFrequency"
                 defaultValue={effectiveValues?.billingFrequency ?? contract?.billingFrequency ?? ""}
+                onChange={checkCostMissingFrequency}
                 className={selectClass}
               >
                 <option value="">Not set</option>

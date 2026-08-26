@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, X } from "lucide-react";
+import { Search, X, Loader2 } from "lucide-react";
 import type { SearchResult } from "@/app/api/search/route";
 
 const OPEN_EVENT = "hearth:open-search";
@@ -33,6 +33,7 @@ export function GlobalSearch() {
   const inputRef = useRef<HTMLInputElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+  const filterButtonRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   function closeSearch() {
     setOpen(false);
@@ -157,10 +158,15 @@ export function GlobalSearch() {
               } else if (e.key === "Escape") {
                 closeSearch();
               } else if (e.key === "Tab") {
-                // Trap focus inside the dialog: only the input and the
-                // close button are real tab stops.
+                // Trap focus inside the dialog: input -> filter chips ->
+                // close button, wrapping (#300 — chips used to be skipped
+                // entirely since this jumped straight to the close button).
                 e.preventDefault();
-                closeButtonRef.current?.focus();
+                if (e.shiftKey) {
+                  closeButtonRef.current?.focus();
+                } else {
+                  (filterButtonRefs.current[0] ?? closeButtonRef.current)?.focus();
+                }
               }
             }}
             placeholder="Search contracts, products, documents…"
@@ -173,7 +179,12 @@ export function GlobalSearch() {
             onKeyDown={(e) => {
               if (e.key === "Tab") {
                 e.preventDefault();
-                inputRef.current?.focus();
+                if (e.shiftKey) {
+                  const lastFilterButton = filterButtonRefs.current[filterButtonRefs.current.length - 1];
+                  (lastFilterButton ?? inputRef.current)?.focus();
+                } else {
+                  inputRef.current?.focus();
+                }
               }
             }}
             aria-label="Close search"
@@ -184,12 +195,25 @@ export function GlobalSearch() {
         </div>
 
         <div className="flex flex-wrap gap-1.5 border-b border-border px-3 py-2">
-          {SEARCH_FILTERS.map((f) => (
+          {SEARCH_FILTERS.map((f, i) => (
             <button
               key={f.value}
+              ref={(el) => {
+                filterButtonRefs.current[i] = el;
+              }}
               type="button"
               aria-pressed={filter === f.value}
               onClick={() => setFilter((current) => (current === f.value ? null : f.value))}
+              onKeyDown={(e) => {
+                if (e.key !== "Tab") return;
+                if (e.shiftKey && i === 0) {
+                  e.preventDefault();
+                  inputRef.current?.focus();
+                } else if (!e.shiftKey && i === SEARCH_FILTERS.length - 1) {
+                  e.preventDefault();
+                  closeButtonRef.current?.focus();
+                }
+              }}
               className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
                 filter === f.value
                   ? "border-accent bg-accent/10 text-accent"
@@ -201,10 +225,29 @@ export function GlobalSearch() {
           ))}
         </div>
 
+        {/* #306 — a polite live region announcing result outcomes, decoupled
+            from the visible copy below so a screen reader hears every
+            update (loading/empty text alone wouldn't re-announce on a
+            result-count change with the same wording). */}
+        <p role="status" aria-live="polite" className="sr-only">
+          {loading
+            ? "Searching…"
+            : showEmpty
+              ? "No results"
+              : hasResults
+                ? `${flatResults.length} result${flatResults.length === 1 ? "" : "s"} in ${groupEntries.length} group${groupEntries.length === 1 ? "" : "s"}`
+                : ""}
+        </p>
+
         <div id="global-search-listbox" role="listbox" className="max-h-[60vh] overflow-y-auto p-2">
           {!textOk && !filter && (
             <p className="px-3 py-6 text-center text-sm text-muted">
               Type at least 2 characters, or pick a filter, to search.
+            </p>
+          )}
+          {loading && (
+            <p className="flex items-center justify-center gap-2 px-3 py-6 text-center text-sm text-muted">
+              <Loader2 size={14} className="animate-spin" aria-hidden /> Searching…
             </p>
           )}
           {showEmpty && (
@@ -213,7 +256,7 @@ export function GlobalSearch() {
             </p>
           )}
           {groupEntries.map(([group, results]) => (
-            <div key={group} className="mb-2">
+            <div key={group} role="group" aria-label={group} className="mb-2">
               <p className="px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-muted">
                 {group}
               </p>
