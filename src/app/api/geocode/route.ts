@@ -1,26 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-
-interface NominatimAddress {
-  house_number?: string;
-  road?: string;
-  suburb?: string;
-  neighbourhood?: string;
-  city_district?: string;
-  city?: string;
-  town?: string;
-  village?: string;
-  state?: string;
-  postcode?: string;
-  country?: string;
-}
-
-interface NominatimResult {
-  display_name: string;
-  lat: string;
-  lon: string;
-  address?: NominatimAddress;
-}
+import { normaliseGeocodeResult, type NominatimResult } from "@/lib/geocode";
 
 export async function GET(request: NextRequest) {
   const session = await auth();
@@ -47,21 +27,5 @@ export async function GET(request: NextRequest) {
   }
 
   const results = (await res.json()) as NominatimResult[];
-  return NextResponse.json(
-    results.map((r) => {
-      const a = r.address ?? {};
-      const street = [a.house_number, a.road].filter(Boolean).join(" ");
-      const suburb = a.suburb || a.neighbourhood || a.city_district || a.city || a.town || a.village || "";
-      return {
-        display_name: r.display_name,
-        lat: Number(r.lat),
-        lng: Number(r.lon),
-        street,
-        suburb,
-        state: a.state ?? "",
-        postcode: a.postcode ?? "",
-        country: a.country ?? "",
-      };
-    }),
-  );
+  return NextResponse.json(results.map(normaliseGeocodeResult));
 }

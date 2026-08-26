@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { createMcpServer } from "@/lib/mcp/server";
+import { checkMcpAuth } from "@/lib/mcp/auth";
 
 // Read-only MCP server for hooking up a local LLM agent (e.g. Ollama running
 // a tool-calling model) to query contracts. Stateless: each request gets its
@@ -9,14 +10,9 @@ import { createMcpServer } from "@/lib/mcp/server";
 // rather than via an MCP session, so there's no "initialize" handshake to
 // carry between requests.
 function checkAuth(request: NextRequest): NextResponse | null {
-  const token = process.env.MCP_TOKEN;
-  if (!token) {
-    return NextResponse.json({ error: "Set MCP_TOKEN to enable this endpoint" }, { status: 404 });
-  }
-  if (request.headers.get("authorization") !== `Bearer ${token}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  return null;
+  const result = checkMcpAuth(process.env.MCP_TOKEN, request.headers.get("authorization"));
+  if (result.ok) return null;
+  return NextResponse.json({ error: result.error }, { status: result.status });
 }
 
 async function handle(request: NextRequest) {
