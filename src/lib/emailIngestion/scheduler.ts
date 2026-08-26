@@ -15,6 +15,27 @@ import { getIngestibleAttachments } from "@/lib/emailIngestion/parser";
 // identity to throttle against).
 const MAX_MESSAGES_PER_RUN = 20;
 
+export interface EmailIngestionClient {
+  connect(): Promise<void>;
+  getMailboxLock(mailbox: string): Promise<{ release(): void }>;
+  search(query: { seen: boolean }, options: { uid: boolean }): Promise<number[] | false>;
+  download(uid: number, section?: unknown, options?: { uid: boolean }): Promise<{ content: Buffer }>;
+  messageFlagsAdd(uid: number, flags: string[], options: { uid: boolean }): Promise<void>;
+  logout(): Promise<void>;
+  close(): void;
+}
+
+export type EmailIngestionClientFactory = (config: {
+  host: string;
+  port: number;
+  secure: boolean;
+  user: string;
+  pass: string;
+}) => EmailIngestionClient;
+
+const defaultClientFactory: EmailIngestionClientFactory = (config) =>
+  new ImapFlow({ ...config, auth: { user: config.user, pass: config.pass }, logger: false }) as unknown as EmailIngestionClient;
+
 export interface EmailIngestionResult {
   checked: number;
   ingested: number;
@@ -26,19 +47,15 @@ async function alreadyProcessed(messageId: string): Promise<boolean> {
   return row != null;
 }
 
-export async function runEmailIngestion(): Promise<EmailIngestionResult> {
+export async function runEmailIngestion(
+  clientFactory: EmailIngestionClientFactory = defaultClientFactory,
+): Promise<EmailIngestionResult> {
   if (!(await isEmailIngestionConfigured())) {
     return { checked: 0, ingested: 0, skipped: 0 };
   }
 
   const config = await getEmailIngestConfig();
-  const client = new ImapFlow({
-    host: config.host,
-    port: config.port,
-    secure: config.secure,
-    auth: { user: config.user, pass: config.pass },
-    logger: false,
-  });
+  const client = clientFactory(config);
 
   let checked = 0;
   let ingested = 0;
