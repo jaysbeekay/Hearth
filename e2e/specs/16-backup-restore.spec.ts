@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { mkdir, readdir, readFile, rm, stat } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { createClient } from "@libsql/client";
 import path from "node:path";
 import { ADMIN_AUTH_FILE, DATABASE_URL, BASE_URL } from "../env";
 import { decryptBuffer } from "../../src/lib/crypto";
@@ -40,5 +41,11 @@ test("local backup is encrypted, restorable, and pruned to retention", async ({ 
   const restored = decryptBuffer(encrypted);
   expect(restored.subarray(0, 16).toString()).toBe("SQLite format 3\0");
   expect(restored.length).toBeGreaterThan(100);
+  const restoredPath = path.join(backupDir, "restored.db");
+  await writeFile(restoredPath, restored);
+  const restoredDb = createClient({ url: `file:${restoredPath}` });
+  const users = await restoredDb.execute("SELECT COUNT(*) AS count FROM users");
+  expect(Number(users.rows[0].count)).toBeGreaterThanOrEqual(2);
+  restoredDb.close();
   expect(await stat(path.join(backupDir, files[0]))).toBeTruthy();
 });
