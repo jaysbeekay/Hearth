@@ -36,6 +36,7 @@ test("deleting a contract removes its document files from disk", async ({ page }
 
   // Delete the contract
   await page.goto(`/contracts/${contractId}`);
+  await page.getByRole("button", { name: "More actions" }).click();
   await page.locator('button:has-text("Delete")').click();
   await page.locator('button[data-test="confirm-delete"]').click();
   await page.waitForURL(/\/contracts$/);
@@ -46,8 +47,7 @@ test("deleting a contract removes its document files from disk", async ({ page }
 
 test("deleting a product removes its document files from disk", async ({ page }) => {
   await page.goto("/products/new");
-  await page.locator("#title").fill("Delete Test Product");
-  await page.locator("#category").selectOption("APPLIANCE");
+  await page.locator("#description").fill("Delete Test Product");
   await page.locator("main button[type=submit]").click();
   await page.waitForURL(/\/products\/(?!new$)[^/]+$/);
   const productId = new URL(page.url()).pathname.split("/").pop()!;
@@ -70,6 +70,7 @@ test("deleting a product removes its document files from disk", async ({ page })
 
   // Delete the product
   await page.goto(`/products/${productId}`);
+  await page.getByRole("button", { name: "More actions" }).click();
   await page.locator('button:has-text("Delete")').click();
   await page.locator('button[data-test="confirm-delete"]').click();
   await page.waitForURL(/\/products$/);
