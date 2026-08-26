@@ -23,8 +23,8 @@ setup("seed admin + member users and a sample trip", async ({ page, browser }) =
   await page.locator('input[name="name"]').fill("E2E Admin");
   await page.locator('input[name="email"]').fill(ADMIN_EMAIL);
   await page.locator('input[name="password"]').fill(ADMIN_PASSWORD);
-  for (const module of ["HOME", "VEHICLES", "INVENTORY", "WEALTH", "TRAVEL"]) {
-    await page.locator(`input[type="checkbox"][value="${module}"]`).check();
+  for (const moduleKey of ["HOME", "VEHICLES", "INVENTORY", "WEALTH", "TRAVEL"]) {
+    await page.locator(`input[type="checkbox"][value="${moduleKey}"]`).check();
   }
   await page.locator('button[type="submit"]').click();
   await page.waitForURL(/\/dashboard/);
