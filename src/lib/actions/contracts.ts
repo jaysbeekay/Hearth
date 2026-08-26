@@ -6,17 +6,16 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { contractSchema } from "@/lib/validation/contract";
 import {
-  deleteContractDir,
   deleteDocument as deleteDocumentFile,
   saveDocument,
 } from "@/lib/storage";
 import { formDataToStringValues } from "@/lib/form-state";
 import { formToContractInput } from "@/lib/formMappers";
-import { extractSearchableText } from "@/lib/documents/textExtraction";
+import { queueDocumentExtraction } from "@/lib/documents/queueExtraction";
 import { describeUploadRejection } from "@/lib/uploadValidation";
-import { clearNotificationLogs } from "@/lib/notifications/logs";
 import { extractionFieldsFromForm } from "@/lib/documents/extractionConfirmation";
 import { saveFileToInboxFallback } from "@/lib/documents/inboxFallback";
+import { createContractCommand, updateContractCommand, deleteContractCommand } from "@/lib/commands/contracts";
 
 export type ActionState = {
   error?: string;
@@ -63,18 +62,18 @@ async function attachDocument(contractId: string, file: File): Promise<ActionSta
   if (rejection) return { error: rejection };
 
   const { storedName, size, sha256, mimeType } = await saveDocument(contractId, file);
-  const extractedText = await extractSearchableText(Buffer.from(await file.arrayBuffer()), mimeType);
-  await prisma.document.create({
+  const document = await prisma.document.create({
     data: {
       contractId,
       filename: file.name.slice(0, 255),
       storedName,
       mimeType,
       size,
-      extractedText,
+      extractionStatus: "PENDING",
       sha256,
     },
   });
+  await queueDocumentExtraction({ kind: "contract", id: document.id, ownerId: contractId, storedName, mimeType });
   return null;
 }
 
@@ -98,9 +97,7 @@ export async function createContract(
     if (rejection) return { error: rejection };
   }
 
-  const contract = await prisma.contract.create({
-    data: { ...parsed.data, createdById: user.id, ...extractionFieldsFromForm(formData) },
-  });
+  const contract = await createContractCommand({ ...parsed.data, ...extractionFieldsFromForm(formData) }, user.id);
 
   let docFallback: "inbox" | "failed" | null = null;
   if (file instanceof File && file.size > 0) {
@@ -111,8 +108,6 @@ export async function createContract(
     }
   }
 
-  revalidatePath("/contracts");
-  revalidatePath("/dashboard");
   redirect(`/contracts/${contract.id}${docFallback ? `?docFallback=${docFallback}` : ""}`);
 }
 
@@ -131,25 +126,8 @@ export async function updateContract(
     };
   }
 
-  const existing = await prisma.contract.findUnique({ where: { id: contractId } });
-  if (!existing) return { error: "Contract not found." };
-
-  const endDateChanged =
-    existing.endDate?.getTime() !== parsed.data.endDate?.getTime();
-
-  await prisma.$transaction([
-    prisma.contract.update({
-      where: { id: contractId },
-      data: { ...parsed.data, ...extractionFieldsFromForm(formData) },
-    }),
-    ...(endDateChanged
-      ? [prisma.notificationLog.deleteMany({ where: { ownerType: "CONTRACT", ownerId: contractId } })]
-      : []),
-  ]);
-
-  revalidatePath("/contracts");
-  revalidatePath(`/contracts/${contractId}`);
-  revalidatePath("/dashboard");
+  try { await updateContractCommand(contractId, { ...parsed.data, ...extractionFieldsFromForm(formData) }); }
+  catch (error) { return { error: error instanceof Error ? error.message : "Contract not found." }; }
   redirect(`/contracts/${contractId}`);
 }
 
@@ -191,12 +169,7 @@ export async function createContractFromAssistant(
   const parsed = contractSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: firstIssueMessage(parsed.error) };
 
-  const contract = await prisma.contract.create({
-    data: { ...parsed.data, createdById: user.id },
-  });
-
-  revalidatePath("/contracts");
-  revalidatePath("/dashboard");
+  const contract = await createContractCommand(parsed.data, user.id);
   return { success: true, contractId: contract.id };
 }
 
@@ -209,39 +182,16 @@ export async function updateContractFromAssistant(
   const parsed = contractSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: firstIssueMessage(parsed.error) };
 
-  const existing = await prisma.contract.findUnique({ where: { id: contractId } });
-  if (!existing) return { success: false, error: "Contract not found." };
-
-  const endDateChanged = existing.endDate?.getTime() !== parsed.data.endDate?.getTime();
-
-  await prisma.$transaction([
-    prisma.contract.update({ where: { id: contractId }, data: parsed.data }),
-    ...(endDateChanged
-      ? [prisma.notificationLog.deleteMany({ where: { ownerType: "CONTRACT", ownerId: contractId } })]
-      : []),
-  ]);
-
-  revalidatePath("/contracts");
-  revalidatePath(`/contracts/${contractId}`);
-  revalidatePath("/dashboard");
+  try { await updateContractCommand(contractId, parsed.data); }
+  catch (error) { return { success: false, error: error instanceof Error ? error.message : "Contract not found." }; }
   return { success: true, contractId };
 }
 
 export async function deleteContract(contractId: string): Promise<ActionState> {
   await requireUser();
 
-  const existing = await prisma.contract.findUnique({ where: { id: contractId } });
-  if (!existing) return { error: "Contract not found." };
-
-  await prisma.contract.delete({ where: { id: contractId } });
-  // NotificationLog is no longer FK-linked to Contract (it's polymorphic
-  // across contract/product/vehicle owners, see #201), so this cleanup is
-  // no longer an automatic cascade — has to happen explicitly.
-  await clearNotificationLogs("CONTRACT", contractId);
-  await deleteContractDir(contractId);
-
-  revalidatePath("/contracts");
-  revalidatePath("/dashboard");
+  try { await deleteContractCommand(contractId); }
+  catch (error) { return { error: error instanceof Error ? error.message : "Contract not found." }; }
   redirect("/contracts");
 }
 

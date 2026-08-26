@@ -23,23 +23,20 @@ export async function fetchEquityPrices(symbols: string[]): Promise<PriceResult[
   try {
     const yahooFinance = await getYahooFinance();
     const results: PriceResult[] = [];
-    for (const symbol of symbols) {
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const quote = (await yahooFinance.quote(symbol, {}, { validateResult: false })) as any;
-        if (quote?.regularMarketPrice != null) {
-          results.push({
-            ticker: symbol,
-            price: quote.regularMarketPrice as number,
-            currency: ((quote.currency as string | undefined) ?? "USD").toUpperCase(),
-            changePct: (quote.regularMarketChangePercent as number | undefined) ?? null,
-            source: "yahoo",
-          });
-        }
-      } catch {
-        // individual symbol failure — skip
+    // Keep upstream pressure bounded while avoiding one network round-trip at a time.
+    const queue = [...symbols];
+    const workers = Array.from({ length: Math.min(4, queue.length) }, async () => {
+      while (queue.length) {
+        const symbol = queue.shift();
+        if (!symbol) return;
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const quote = (await yahooFinance.quote(symbol, {}, { validateResult: false })) as any;
+          if (quote?.regularMarketPrice != null) results.push({ ticker: symbol, price: quote.regularMarketPrice as number, currency: ((quote.currency as string | undefined) ?? "USD").toUpperCase(), changePct: (quote.regularMarketChangePercent as number | undefined) ?? null, source: "yahoo" });
+        } catch { /* individual symbol failure — skip */ }
       }
-    }
+    });
+    await Promise.all(workers);
     return results;
   } catch {
     return [];
@@ -195,17 +192,19 @@ export async function fetchAndStorePriceHistory(
     const rows = (await yahooFinance.historical(ticker, { period1: fetchFrom, period2: now, interval: "1d" }, { validateResult: false })) as any[];
     if (!rows?.length) return;
 
-    for (const row of rows) {
-      if (!row.date || row.close == null) continue;
-      const date = normaliseDate(new Date(row.date));
-      const close = row.close as number;
-      const adjClose = (row.adjClose ?? null) as number | null;
-      await prisma.priceHistory.upsert({
-        where: { ticker_date: { ticker, date } },
-        create: { ticker, date, close, adjClose, source: "yahoo" },
-        update: { close, adjClose },
-      });
-    }
+    const validRows = rows.filter((row) => row.date && row.close != null);
+    const queue = [...validRows];
+    const workers = Array.from({ length: Math.min(4, queue.length) }, async () => {
+      while (queue.length) {
+        const row = queue.shift();
+        if (!row) return;
+        const date = normaliseDate(new Date(row.date));
+        const close = row.close as number;
+        const adjClose = (row.adjClose ?? null) as number | null;
+        await prisma.priceHistory.upsert({ where: { ticker_date: { ticker, date } }, create: { ticker, date, close, adjClose, source: "yahoo" }, update: { close, adjClose } });
+      }
+    });
+    await Promise.all(workers);
   } catch {
     // best-effort — don't break the page if historical fetch fails
   }

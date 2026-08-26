@@ -20,6 +20,8 @@ import {
   propertyValuationSchema,
 } from "@/lib/validation/wealth";
 import { fetchHistoricalPrice } from "@/lib/prices";
+import { createContractCommand, updateContractCommand, deleteContractCommand } from "@/lib/commands/contracts";
+import { createProductCommand, updateProductCommand, deleteProductCommand } from "@/lib/commands/products";
 import { extractSearchableText } from "@/lib/documents/textExtraction";
 import { ProductDocumentKind } from "@/generated/prisma/enums";
 import {
@@ -40,8 +42,6 @@ import {
   deleteVehicleItemDocument,
   deleteInventoryItemDocument,
   deleteTradeDocument,
-  deleteContractDir,
-  deleteProductDir,
   deleteTripSegmentDir,
   deleteHomeItemDir,
   deleteInventoryItemDir,
@@ -109,25 +109,17 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
   contract: defineEntity({
     schema: contractSchema,
     create: async (data, { userId }) => {
-      const contract = await prisma.contract.create({ data: { ...data, createdById: userId } });
-      revalidatePath("/contracts");
+      const contract = await createContractCommand(data, userId);
       return { id: contract.id };
     },
     update: async (id, data, ctx) => {
       const existing = await prisma.contract.findUnique({ where: { id } });
       if (!existing) throw new Error("Contract not found");
       assertNotStale(existing, ctx);
-      await prisma.contract.update({ where: { id }, data });
-      revalidatePath("/contracts");
-      revalidatePath(`/contracts/${id}`);
+      await updateContractCommand(id, data);
     },
     remove: async (id) => {
-      const existing = await prisma.contract.findUnique({ where: { id } });
-      if (!existing) throw new Error("Contract not found");
-      await prisma.contract.delete({ where: { id } });
-      await deleteContractDir(id);
-      revalidatePath("/contracts");
-      revalidatePath("/dashboard");
+      await deleteContractCommand(id);
     },
     saveFile: async (contractId, file) => {
       validateFile(file);
@@ -143,25 +135,17 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
   product: defineEntity({
     schema: productSchema,
     create: async (data, { userId }) => {
-      const product = await prisma.product.create({ data: { ...data, createdById: userId } });
-      revalidatePath("/products");
+      const product = await createProductCommand(data, userId);
       return { id: product.id };
     },
     update: async (id, data, ctx) => {
       const existing = await prisma.product.findUnique({ where: { id } });
       if (!existing) throw new Error("Product not found");
       assertNotStale(existing, ctx);
-      await prisma.product.update({ where: { id }, data });
-      revalidatePath("/products");
-      revalidatePath(`/products/${id}`);
+      await updateProductCommand(id, data);
     },
     remove: async (id) => {
-      const existing = await prisma.product.findUnique({ where: { id } });
-      if (!existing) throw new Error("Product not found");
-      await prisma.product.delete({ where: { id } });
-      await deleteProductDir(id);
-      revalidatePath("/products");
-      revalidatePath("/dashboard");
+      await deleteProductCommand(id);
     },
     // Products carry two independent file fields (invoiceFile / photoFile);
     // only invoices are OCR'd for search, matching attachProductDocument().

@@ -13,6 +13,23 @@ const MAX_OCR_PAGES = 5;
 // (i.e. a scanned document), and we fall back to rasterizing + OCR instead.
 const MIN_TEXT_LAYER_LENGTH = 40;
 
+// OCR is CPU/process-heavy. Keep concurrent extraction bounded per app
+// process so bursts of uploads cannot exhaust memory or child-process slots.
+const MAX_CONCURRENT_EXTRACTIONS = 2;
+let activeExtractions = 0;
+const extractionWaiters: (() => void)[] = [];
+
+async function acquireExtractionSlot(): Promise<() => void> {
+  if (activeExtractions >= MAX_CONCURRENT_EXTRACTIONS) {
+    await new Promise<void>((resolve) => extractionWaiters.push(resolve));
+  }
+  activeExtractions += 1;
+  return () => {
+    activeExtractions -= 1;
+    extractionWaiters.shift()?.();
+  };
+}
+
 async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
   const dir = await mkdtemp(path.join(tmpdir(), "doc-extract-"));
   try {
@@ -106,10 +123,13 @@ export async function extractSearchableText(
   buffer: Buffer,
   mimeType: string,
 ): Promise<string | null> {
+  const release = await acquireExtractionSlot();
   try {
     const text = (await extractText(buffer, mimeType)).trim();
     return text ? text.slice(0, MAX_SEARCHABLE_TEXT_LENGTH) : null;
   } catch {
     return null;
+  } finally {
+    release();
   }
 }

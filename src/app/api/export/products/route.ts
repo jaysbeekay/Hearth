@@ -21,8 +21,13 @@ export async function GET(request: NextRequest) {
 
   if (format === "pdf") {
     const doc = new PDFDocument({ margin: 40, size: "A4" });
-    const chunks: Buffer[] = [];
-    doc.on("data", (chunk: Buffer) => chunks.push(chunk));
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        doc.on("data", (chunk: Buffer) => controller.enqueue(new Uint8Array(chunk)));
+        doc.on("end", () => controller.close());
+        doc.on("error", (error) => controller.error(error));
+      },
+    });
 
     doc.fontSize(18).text("Products & Warranties Export", { align: "center" });
     doc.moveDown(0.5);
@@ -40,10 +45,7 @@ export async function GET(request: NextRequest) {
     }
 
     doc.end();
-    await new Promise((resolve) => doc.on("end", resolve));
-    const pdf = Buffer.concat(chunks);
-
-    return new NextResponse(pdf, {
+    return new NextResponse(stream, {
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": "attachment; filename=\"products.pdf\"",

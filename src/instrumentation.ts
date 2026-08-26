@@ -102,12 +102,10 @@ export async function register() {
   if (!globalForCron.__priceCronStarted) {
     globalForCron.__priceCronStarted = true;
 
-    const { refreshAllPortfolioPrices } = await import("@/lib/prices");
+    const { enqueueJob } = await import("@/lib/jobs/runner");
     // Every 15 minutes — refreshAllPortfolioPrices skips tickers whose cache is still fresh
     cron.schedule("*/15 * * * *", () => {
-      refreshAllPortfolioPrices().catch((error) => {
-        console.error("[prices] scheduled refresh failed:", error);
-      });
+      enqueueJob("PRICE_REFRESH").catch((error) => console.error("[prices] enqueue failed:", error));
     });
 
     console.log("[prices] price refresh scheduler started (every 15 min)");

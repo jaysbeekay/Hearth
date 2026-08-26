@@ -305,6 +305,7 @@ model Document {
   mimeType      String
   size          Int
   extractedText String?
+  extractionStatus String @default("PENDING")
   // File-hash and version-chain fields (#206/#207/#208 foundation) — sha256
   // enables exact-duplicate detection, supersedesId links a re-upload to the
   // document it replaces (linear chain, enforced @unique so a document has
@@ -331,6 +332,7 @@ model InboxDocument {
   mimeType      String
   size          Int
   extractedText String?
+  extractionStatus String @default("PENDING")
   sha256        String?
 
   // Null for email-ingested documents (#195), which have no acting web user.
@@ -447,6 +449,7 @@ model ProductDocument {
   size          Int
   kind          ProductDocumentKind  @default(OTHER)
   extractedText String?
+  extractionStatus String @default("PENDING")
   sha256        String?
   isImportant   Boolean              @default(false)
   supersedesId  String?              @unique
@@ -938,6 +941,23 @@ model PriceHistory {
 
   @@unique([ticker, date])
   @@map("price_history")
+}
+
+model BackgroundJob {
+  id          String   @id @default(cuid())
+  type        String
+  payload     String
+  status      String   @default("PENDING")
+  attempts    Int      @default(0)
+  availableAt DateTime @default(now())
+  leasedUntil DateTime?
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  lastError   String?
+  createdAt   DateTime @default(now())
+
+  @@index([status, availableAt])
+  @@map("background_jobs")
 }
 
 model PropertyValuation {
