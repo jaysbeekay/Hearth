@@ -138,9 +138,7 @@ past `BACKUP_RETENTION_COUNT`. Also triggerable from Settings (admin) or `POST /
 (`Authorization: Bearer` — endpoint 404s if unset, same pattern as `CRON_SECRET`). Never
 add a write tool here or return credentials/raw document bytes.
 
-**Wealth module** (`src/lib/wealth.ts`, `src/lib/prices.ts`): live price feeds from Yahoo
-Finance (equities) and CoinGecko (crypto), cached and refreshed every 15 min. FIFO cost
-basis is computed from trade history, not stored — recomputed per view.
+**Wealth module** (`src/lib/wealth.ts`, `src/lib/prices.ts`): live price feeds from Yahoo\nFinance (equities) and CoinGecko (crypto), cached and refreshed every 15 min. Average-cost\nbasis is computed from trade history, not stored — recomputed per view.
 
 **Storage** (`src/lib/storage.ts`): uploaded documents are saved under generated UUID
 filenames on disk (never the user-supplied filename), keyed by owning record — prevents
