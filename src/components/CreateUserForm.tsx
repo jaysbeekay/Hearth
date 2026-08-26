@@ -1,13 +1,15 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { createUser, type ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
+import { ROLE_DESCRIPTIONS } from "@/lib/utils";
 
 export function CreateUserForm({ smtpConfigured }: { smtpConfigured: boolean }) {
   const [state, formAction] = useActionState<ActionState, FormData>(createUser, null);
+  const [selectedRole, setSelectedRole] = useState(state?.values?.role ?? "MEMBER");
 
   return (
     <form action={formAction} className="grid gap-3 md:grid-cols-2">
@@ -59,7 +61,8 @@ export function CreateUserForm({ smtpConfigured }: { smtpConfigured: boolean }) 
           <select
             id="role"
             name="role"
-            defaultValue={state?.values?.role ?? "MEMBER"}
+            defaultValue={selectedRole}
+            onChange={(e) => setSelectedRole(e.target.value)}
             className={selectClass}
           >
             <option value="MEMBER">Member</option>
@@ -67,6 +70,8 @@ export function CreateUserForm({ smtpConfigured }: { smtpConfigured: boolean }) 
             <option value="READONLY">Read-only</option>
           </select>
         </SelectWrapper>
+        {/* #291 — explains the role at the point of assigning it. */}
+        <p className="text-xs text-muted">{ROLE_DESCRIPTIONS[selectedRole]}</p>
       </div>
       {smtpConfigured && (
         <p className="md:col-span-2 text-xs text-muted">
