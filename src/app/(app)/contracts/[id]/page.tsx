@@ -114,7 +114,7 @@ export default async function ContractDetailPage({
           <DetailOverflowMenu>
             <ConfirmForm
               action={deleteContract.bind(null, contract.id)}
-              confirmText="Delete this contract and all its documents? This cannot be undone."
+              confirmText="Move this contract to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash."
               actionLabel="Delete contract"
               className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
               offline={{ entity: "contract", entityId: contract.id, label: `Delete contract: ${contract.title}` }}

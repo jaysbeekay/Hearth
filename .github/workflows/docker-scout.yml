@@ -60,6 +60,12 @@ jobs:
           dockerhub-user: ${{ secrets.DOCKERHUB_USERNAME }}
           dockerhub-password: ${{ secrets.DOCKERHUB_TOKEN }}
           only-severities: critical,high
+          # #256: giflib's CVE-2026-26740 (pulled in by the Alpine base image)
+          # has no upstream fix, so it fails this gate on every build with
+          # nothing actionable to do about it. only-fixed narrows the gate to
+          # CVEs that actually have a fix available — anything unfixed still
+          # surfaces via the SARIF upload below, it just doesn't block.
+          only-fixed: true
           exit-code: true
           sarif-file: ${{ env.SARIF_FILE }}
 

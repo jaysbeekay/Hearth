@@ -107,7 +107,7 @@ export default async function TripDetailPage({
           <DetailOverflowMenu>
             <ConfirmForm
               action={deleteTrip.bind(null, trip.id)}
-              confirmText="Delete this trip and all its segments and documents? This cannot be undone."
+              confirmText="Move this trip to Trash? Its segments and documents are kept, and you can restore it within 30 days from Settings → Trash."
               actionLabel="Delete trip"
               className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
               offline={{ entity: "trip", entityId: trip.id, label: `Delete trip: ${trip.title}` }}
