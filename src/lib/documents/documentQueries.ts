@@ -72,7 +72,7 @@ interface TableConfig {
   // the generated client's structural typing — same tradeoff already made
   // for the yahoo-finance calls in src/lib/prices.ts.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  findMany: (where: Record<string, string>) => Promise<any[]>;
+  findMany: (where: Record<string, unknown>) => Promise<any[]>;
 }
 
 const TABLES: TableConfig[] = [
@@ -150,6 +150,35 @@ export async function findDocumentsByHash(sha256: string): Promise<DocumentRef[]
     TABLES.map(async (t) => (await t.findMany({ sha256 })).map((row) => toRef(t.kind, t.ownerField, row))),
   );
   return results.flat();
+}
+
+/**
+ * Same lookup as findDocumentsByHash, batched across every hash needed at
+ * once — #252: the inbox page previously called findDocumentsByHash once
+ * per POSSIBLE_DUPLICATE row, so N pending duplicates meant N × 9 queries.
+ * This is 9 queries total regardless of N, each filtered with `sha256 IN
+ * (...)` against the same sha256 index findDocumentsByHash already uses.
+ */
+export async function findDocumentsByHashBatch(
+  hashes: string[],
+): Promise<Map<string, DocumentRef[]>> {
+  const uniqueHashes = [...new Set(hashes)];
+  const byHash = new Map<string, DocumentRef[]>(uniqueHashes.map((h) => [h, []]));
+  if (uniqueHashes.length === 0) return byHash;
+
+  const results = await Promise.all(
+    TABLES.map(async (t) =>
+      (await t.findMany({ sha256: { in: uniqueHashes } })).map((row) => ({
+        ref: toRef(t.kind, t.ownerField, row),
+        sha256: row.sha256 as string,
+      })),
+    ),
+  );
+
+  for (const { ref, sha256 } of results.flat()) {
+    byHash.get(sha256)?.push(ref);
+  }
+  return byHash;
 }
 
 /**
