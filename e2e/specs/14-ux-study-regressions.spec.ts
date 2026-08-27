@@ -93,8 +93,15 @@ test("the Missing document filter chip on the Contracts list filters correctly",
 });
 
 test("global search Important filter finds a starred contract's document", async ({ page }) => {
+  // Timestamped title (#315): a slow first attempt that times out on the
+  // final assertion *after* the contract was already created causes
+  // Playwright's automatic retry to re-run this test from scratch — a fixed
+  // title would then create a second, identically-named contract, which
+  // fails the retry deterministically on a strict-mode "2 elements"
+  // violation instead of letting it recover.
+  const title = `Search Important Regression Contract ${Date.now()}`;
   await page.goto("/contracts/new");
-  await page.locator("#title").fill("Search Important Regression Contract");
+  await page.locator("#title").fill(title);
   await page.locator("#provider").fill("Regression Provider");
   await Promise.all([
     page.waitForURL(/\/contracts\/(?!new$)[^/]+$/),
@@ -115,7 +122,7 @@ test("global search Important filter finds a starred contract's document", async
   await page.goto("/dashboard");
   await page.locator("aside").getByRole("button", { name: "Search" }).click();
   await page.getByRole("button", { name: "Important" }).click();
-  await expect(page.getByText("Search Important Regression Contract")).toBeVisible({ timeout: 10000 });
+  await expect(page.getByText(title)).toBeVisible({ timeout: 10000 });
 });
 
 test("copying an identifier from a detail page shows a confirmation state", async ({ page, context }) => {
