@@ -1067,6 +1067,17 @@ model BackgroundJob {
   finishedAt  DateTime?
   lastError   String?
   createdAt   DateTime @default(now())
+  // #250 — set to `type` at creation for singleton job types (only one
+  // PENDING/RUNNING instance makes sense at a time: REMINDER_CHECK,
+  // BACKUP_RUN, EMAIL_INGEST, PRICE_REFRESH) and cleared back to null once
+  // the job leaves PENDING/RUNNING. The @unique below then makes a second
+  // concurrent enqueue of the same singleton type fail at insert time
+  // instead of racing a separate findFirst-then-create check — the same
+  // atomic-claim technique #249's SyncOperationReceipt uses. SQLite treats
+  // each NULL as distinct in a unique index, so OCR_DOCUMENT rows (which
+  // legitimately run many at once, one per document, and never set this)
+  // never collide with each other.
+  activeDedupeKey String? @unique
 
   @@index([status, availableAt])
   @@map("background_jobs")

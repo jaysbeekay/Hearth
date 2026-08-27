@@ -41,73 +41,86 @@ export async function register() {
     );
   }
 
+  // #250 — each of reminders/backups/email-ingest used to get its own
+  // cron.schedule(actualCronString, runDirectly) registered once at boot,
+  // with the schedule string baked in from whatever Settings said at that
+  // moment: changing it later, or enabling/disabling backups or email
+  // ingestion, needed a restart to take effect. Nothing stopped two
+  // instances of the app running the same job concurrently either — there
+  // was no lease, just whichever process's timer fired.
+  //
+  // Both problems share one fix: instead of registering a schedule at boot,
+  // check every minute whether each job's *currently configured* schedule
+  // matches right now (cron.createTask(...).match() — doesn't start a real
+  // timer, just evaluates the pattern against a date), and if so enqueue it
+  // onto the same DB-leased BackgroundJob queue price refresh and OCR
+  // already use (src/lib/jobs/runner.ts) — one enqueue per due job, guarded
+  // against a previous run of the same type still being PENDING/RUNNING.
+  // The lease in claimJob() is what actually prevents two instances from
+  // running the same job at once; this loop only decides when to ask.
   const globalForCron = globalThis as unknown as {
-    __reminderCronStarted?: boolean;
-    __backupCronStarted?: boolean;
-    __priceCronStarted?: boolean;
-    __emailIngestCronStarted?: boolean;
+    __jobTickerStarted?: boolean;
+    __jobProcessorStarted?: boolean;
   };
 
   const cron = await import("node-cron");
-  const {
-    getReminderConfig,
-    isBackupConfigured,
-    getBackupScheduleConfig,
-    isEmailIngestionConfigured,
-    getEmailIngestConfig,
-  } = await import("@/lib/appSettings");
+  const { enqueueJobUnlessPending, runPendingJobs } = await import("@/lib/jobs/runner");
+  const { cronDue } = await import("@/lib/jobs/cronDue");
 
-  if (!globalForCron.__reminderCronStarted) {
-    globalForCron.__reminderCronStarted = true;
+  if (!globalForCron.__jobTickerStarted) {
+    globalForCron.__jobTickerStarted = true;
 
-    const { runExpirationCheck } = await import("@/lib/notifications/scheduler");
-    const { cron: reminderCron } = await getReminderConfig();
-    cron.schedule(reminderCron, () => {
-      runExpirationCheck().catch((error) => {
-        console.error("[notifications] scheduled expiration check failed:", error);
+    cron.schedule("* * * * *", async () => {
+      try {
+        const {
+          getReminderConfig,
+          isBackupConfigured,
+          getBackupScheduleConfig,
+          isEmailIngestionConfigured,
+          getEmailIngestConfig,
+        } = await import("@/lib/appSettings");
+        const now = new Date();
+
+        const { cron: reminderCron } = await getReminderConfig();
+        if (cronDue(reminderCron, now)) await enqueueJobUnlessPending("REMINDER_CHECK");
+
+        if (await isBackupConfigured()) {
+          const { cron: backupCron } = await getBackupScheduleConfig();
+          if (cronDue(backupCron, now)) await enqueueJobUnlessPending("BACKUP_RUN");
+        }
+
+        if (await isEmailIngestionConfigured()) {
+          const { cron: emailIngestCron } = await getEmailIngestConfig();
+          if (cronDue(emailIngestCron, now)) await enqueueJobUnlessPending("EMAIL_INGEST");
+        }
+
+        // Not user-configurable, so this could stay a fixed cron.schedule of
+        // its own — folded in here anyway so every scheduled job goes
+        // through the exact same enqueue path.
+        if (cronDue("*/15 * * * *", now)) await enqueueJobUnlessPending("PRICE_REFRESH");
+      } catch (error) {
+        console.error("[jobs] scheduled-job ticker failed:", error);
+      }
+    });
+
+    console.log("[jobs] scheduled-job ticker started (checks every minute)");
+  }
+
+  if (!globalForCron.__jobProcessorStarted) {
+    globalForCron.__jobProcessorStarted = true;
+
+    // The other half of "manual/API and scheduled triggers share the same
+    // lease and execution path" (#250's acceptance criteria): POST /api/cron
+    // already calls runPendingJobs() directly, but until now nothing called
+    // it on its own — a household with no external cron hitting that
+    // endpoint would have queued jobs (enqueueJobUnlessPending above,
+    // or the existing price-refresh/OCR queuing) sit PENDING forever.
+    cron.schedule("*/20 * * * * *", () => {
+      runPendingJobs().catch((error) => {
+        console.error("[jobs] scheduled job processing failed:", error);
       });
     });
 
-    console.log(`[notifications] reminder scheduler started (cron: "${reminderCron}")`);
-  }
-
-  if (!globalForCron.__backupCronStarted && (await isBackupConfigured())) {
-    globalForCron.__backupCronStarted = true;
-
-    const { runBackup } = await import("@/lib/backup/scheduler");
-    const { cron: backupCron } = await getBackupScheduleConfig();
-    cron.schedule(backupCron, () => {
-      runBackup().catch((error) => {
-        console.error("[backup] scheduled backup failed:", error);
-      });
-    });
-
-    console.log(`[backup] scheduler started (cron: "${backupCron}")`);
-  }
-
-  if (!globalForCron.__emailIngestCronStarted && (await isEmailIngestionConfigured())) {
-    globalForCron.__emailIngestCronStarted = true;
-
-    const { runEmailIngestion } = await import("@/lib/emailIngestion/scheduler");
-    const { cron: emailIngestCron } = await getEmailIngestConfig();
-    cron.schedule(emailIngestCron, () => {
-      runEmailIngestion().catch((error) => {
-        console.error("[email-ingest] scheduled ingestion failed:", error);
-      });
-    });
-
-    console.log(`[email-ingest] scheduler started (cron: "${emailIngestCron}")`);
-  }
-
-  if (!globalForCron.__priceCronStarted) {
-    globalForCron.__priceCronStarted = true;
-
-    const { enqueueJob } = await import("@/lib/jobs/runner");
-    // Every 15 minutes — refreshAllPortfolioPrices skips tickers whose cache is still fresh
-    cron.schedule("*/15 * * * *", () => {
-      enqueueJob("PRICE_REFRESH").catch((error) => console.error("[prices] enqueue failed:", error));
-    });
-
-    console.log("[prices] price refresh scheduler started (every 15 min)");
+    console.log("[jobs] job processor started (checks every 20s)");
   }
 }
