@@ -70,18 +70,14 @@ This skill teaches the core development patterns and conventions used in the Hea
 
 ## Testing Patterns
 
-- Test files use the pattern: `*.test.*` (e.g., `userService.test.ts`)
-- The testing framework is not specified; follow project or team standards.
-- Example test file:
-  ```typescript
-  // userService.test.ts
-  import { getUser } from '@/services/userService'
-
-  test('getUser returns user data', () => {
-    const user = getUser('123')
-    expect(user).toBeDefined()
-  })
-  ```
+- Unit tests: Vitest, under `tests/unit/*.test.ts` — run with `npm run test:unit`.
+- E2E tests: Playwright, under `e2e/specs/*.spec.ts` — run with `npm run test:e2e`
+  (full suite) or `npx playwright test e2e/specs/<file>` (single spec). These run
+  against a real dev server and a seeded SQLite DB, not mocks.
+- There is no dedicated unit test for every module — `tsc --noEmit`, `eslint`,
+  and the Playwright e2e suite are the primary correctness checks; add a
+  Vitest unit test for pure logic (e.g. cost-basis math, cron matching) where
+  it's cheaper than spinning up e2e coverage.
 
 ## Commands
 | Command        | Purpose                                 |
