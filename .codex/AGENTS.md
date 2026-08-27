@@ -1,6 +1,8 @@
 # ECC for Codex CLI
 
-This supplements the root `AGENTS.md` with a repo-local ECC baseline.
+This repo has no root `AGENTS.md` — `CLAUDE.md` at the repo root is the
+authoritative instructions file. This document is a repo-local ECC baseline
+for the Codex CLI specifically.
 
 ## Repo Skill
 
