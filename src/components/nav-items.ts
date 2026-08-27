@@ -20,7 +20,7 @@ const BASE_NAV_ITEMS: NavItem[] = [
   { href: "/products", label: "Warranties", icon: Package, group: "modules" },
   { href: "/documents", label: "Documents", icon: Files, group: "tools" },
   { href: "/assistant", label: "Assistant", icon: Bot, group: "tools" },
-  { href: "/calendar", label: "Calendar", icon: CalendarDays, group: "tools" },
+  { href: "/calendar", label: "Upcoming", icon: CalendarDays, group: "tools" },
   { href: "/spend", label: "Spending", icon: TrendingUp, group: "tools" },
 ];
 
