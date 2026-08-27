@@ -53,12 +53,18 @@ export function ContractForm({
   defaultCurrency,
   properties = [],
   vehicles = [],
+  defaultPropertyId,
+  defaultVehicleId,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   contract?: ContractModel;
   defaultCurrency?: string;
   properties?: { id: string; label: string }[];
   vehicles?: { id: string; label: string }[];
+  // #293 — pre-selects the link when arriving from "Add contract for this
+  // property/vehicle" on the asset's own detail page.
+  defaultPropertyId?: string;
+  defaultVehicleId?: string;
 }) {
   const offlineAwareAction = makeOfflineAwareAction(
     action,
@@ -379,7 +385,7 @@ export function ContractForm({
                 <select
                   id="propertyId"
                   name="propertyId"
-                  defaultValue={effectiveValues?.propertyId ?? contract?.propertyId ?? ""}
+                  defaultValue={effectiveValues?.propertyId ?? contract?.propertyId ?? defaultPropertyId ?? ""}
                   className={selectClass}
                 >
                   <option value="">Not linked to a property</option>
@@ -399,7 +405,7 @@ export function ContractForm({
                 <select
                   id="vehicleId"
                   name="vehicleId"
-                  defaultValue={effectiveValues?.vehicleId ?? contract?.vehicleId ?? ""}
+                  defaultValue={effectiveValues?.vehicleId ?? contract?.vehicleId ?? defaultVehicleId ?? ""}
                   className={selectClass}
                 >
                   <option value="">Not linked to a vehicle</option>

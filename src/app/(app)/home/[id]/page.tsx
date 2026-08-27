@@ -220,9 +220,22 @@ export default async function PropertyDetailPage({
         )}
       </div>
 
-      {(linkedContracts.length > 0 || linkedProducts.length > 0) && (
-        <div className="space-y-3">
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
           <h2 className="font-medium">Contracts &amp; warranties linked to this property</h2>
+          <Link
+            href={`/contracts/new?propertyId=${property.id}`}
+            className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
+          >
+            <Plus size={16} />
+            Add contract
+          </Link>
+        </div>
+        {linkedContracts.length === 0 && linkedProducts.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted">
+            No contracts or warranties linked yet.
+          </p>
+        ) : (
           <div className="grid gap-3 md:grid-cols-2">
             {linkedContracts.map((contract) => (
               <ContractCard key={contract.id} contract={contract} dateFormat={dateFormat} region={region} />
@@ -231,8 +244,8 @@ export default async function PropertyDetailPage({
               <ProductCard key={product.id} product={product} dateFormat={dateFormat} region={region} />
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Property valuations */}
       <div className="space-y-3">
