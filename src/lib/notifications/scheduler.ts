@@ -6,6 +6,7 @@ import { sendExpiryWebhooks, getEnabledWebhookEndpoints } from "@/lib/notificati
 import { parseThresholds } from "@/lib/notifications/thresholds";
 import { getNotificationLogsByOwner, recordNotificationOutcome } from "@/lib/notifications/logs";
 import { purgeExpiredTrash } from "@/lib/trash";
+import { purgeExpiredSyncReceipts } from "@/lib/syncReceipts";
 import type { NotificationChannel } from "@/generated/prisma/enums";
 
 function daysRemaining(endDate: Date, now: Date): number {
@@ -22,6 +23,10 @@ export async function runExpirationCheck(now: Date = new Date()) {
   // configured, so it still runs for households with none set up.
   await purgeExpiredTrash().catch((error) => {
     console.error("[trash] purge failed:", error);
+  });
+  // #249 — same opportunistic-purge reasoning as Trash above.
+  await purgeExpiredSyncReceipts().catch((error) => {
+    console.error("[sync] receipt purge failed:", error);
   });
 
   const { defaultDays } = await getReminderConfig();

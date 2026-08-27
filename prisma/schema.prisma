@@ -1013,6 +1013,26 @@ model PriceHistory {
   @@map("price_history")
 }
 
+// #249 — a lost /api/sync response otherwise makes the client resend the
+// same operation, re-executing a create/update/delete that already
+// succeeded (e.g. a second contract from one "Add contract" tap). Recording
+// the outcome per (userId, opId) lets a replay return the original result
+// instead of running the mutation again.
+model SyncOperationReceipt {
+  id        String   @id @default(cuid())
+  userId    String
+  opId      String
+  // Null while the operation this receipt claims is still executing —
+  // distinguishes "in flight" (a genuinely concurrent duplicate should wait
+  // or back off) from "done" (a replay should get this same outcome back).
+  success   Boolean?
+  error     String?
+  createdAt DateTime @default(now())
+
+  @@unique([userId, opId])
+  @@map("sync_operation_receipts")
+}
+
 model BackgroundJob {
   id          String   @id @default(cuid())
   type        String
