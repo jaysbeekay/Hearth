@@ -130,7 +130,34 @@ export async function updateInventoryItem(
   redirect(`/inventory/${itemId}`);
 }
 
+// #287 — soft-delete: see the equivalent comment on deleteContract (contracts.ts).
 export async function deleteInventoryItem(itemId: string): Promise<ActionState> {
+  await requireUser();
+
+  const existing = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
+  if (!existing) return { error: "Item not found." };
+
+  await prisma.inventoryItem.update({ where: { id: itemId }, data: { deletedAt: new Date() } });
+
+  revalidatePath("/inventory");
+  revalidatePath("/settings/trash");
+  redirect("/inventory");
+}
+
+export async function restoreInventoryItem(itemId: string): Promise<ActionState> {
+  await requireUser();
+
+  const existing = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
+  if (!existing) return { error: "Item not found." };
+
+  await prisma.inventoryItem.update({ where: { id: itemId }, data: { deletedAt: null } });
+
+  revalidatePath("/inventory");
+  revalidatePath("/settings/trash");
+  return { success: "Restored." };
+}
+
+export async function permanentlyDeleteInventoryItem(itemId: string): Promise<ActionState> {
   await requireUser();
 
   const existing = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
@@ -139,8 +166,8 @@ export async function deleteInventoryItem(itemId: string): Promise<ActionState> 
   await deleteInventoryItemDir(itemId);
   await prisma.inventoryItem.delete({ where: { id: itemId } });
 
-  revalidatePath("/inventory");
-  redirect("/inventory");
+  revalidatePath("/settings/trash");
+  return { success: "Deleted permanently." };
 }
 
 export async function addInventoryItemDocument(

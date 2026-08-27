@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
 
   // Contracts
   const contracts = await prisma.contract.findMany({
-    where: { endDate: { not: null } },
+    where: { endDate: { not: null }, deletedAt: null },
     select: { id: true, title: true, provider: true, endDate: true },
   });
   for (const c of contracts) {
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
 
   // Products
   const products = await prisma.product.findMany({
-    where: { warrantyEndDate: { not: null } },
+    where: { warrantyEndDate: { not: null }, deletedAt: null },
     select: { id: true, description: true, manufacturer: true, warrantyEndDate: true },
   });
   for (const p of products) {
@@ -67,6 +67,7 @@ export async function GET(request: NextRequest) {
   // Vehicles (rego + insurance)
   if (enabledModules.has("VEHICLES")) {
     const vehicles = await prisma.vehicle.findMany({
+      where: { deletedAt: null },
       select: { id: true, label: true, regoExpiry: true, insuranceExpiry: true },
     });
     for (const v of vehicles) {

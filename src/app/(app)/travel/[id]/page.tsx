@@ -43,7 +43,7 @@ export default async function TripDetailPage({
     getUserPreferences(),
     getHouseholdMemberCount(),
   ]);
-  if (!trip) notFound();
+  if (!trip || trip.deletedAt) notFound();
 
   const segments = [...trip.segments].sort((a, b) => {
     if (!a.startDate && !b.startDate) return 0;

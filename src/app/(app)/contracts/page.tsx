@@ -22,7 +22,7 @@ export default async function ContractsPage({
 }) {
   const { q, category, status, expiring, expired, needsReview, missingDocument } = await searchParams;
 
-  const where: Prisma.ContractWhereInput = {};
+  const where: Prisma.ContractWhereInput = { deletedAt: null };
   if (category) where.category = category as Prisma.ContractWhereInput["category"];
   if (status) where.status = status as Prisma.ContractWhereInput["status"];
   if (q) {

@@ -20,7 +20,7 @@ export default async function ProductsPage({
 }) {
   const { q, expiring, expired, needsReview, missingDocument } = await searchParams;
 
-  const where: Prisma.ProductWhereInput = {};
+  const where: Prisma.ProductWhereInput = { deletedAt: null };
   if (q) {
     where.OR = [
       { description: { contains: q } },

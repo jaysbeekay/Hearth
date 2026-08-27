@@ -44,10 +44,10 @@ export default async function VehicleDetailPage({
       },
     }),
     getUserPreferences(),
-    prisma.contract.findMany({ where: { vehicleId: id }, orderBy: { title: "asc" } }),
+    prisma.contract.findMany({ where: { vehicleId: id, deletedAt: null }, orderBy: { title: "asc" } }),
     getHouseholdMemberCount(),
   ]);
-  if (!vehicle) notFound();
+  if (!vehicle || vehicle.deletedAt) notFound();
 
   const [regoHealth, insuranceHealth] = await Promise.all([
     vehicle.regoExpiry

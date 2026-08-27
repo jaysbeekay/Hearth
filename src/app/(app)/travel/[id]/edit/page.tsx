@@ -13,7 +13,7 @@ export default async function EditTripPage({
 
   const { id } = await params;
   const trip = await prisma.trip.findUnique({ where: { id } });
-  if (!trip) notFound();
+  if (!trip || trip.deletedAt) notFound();
 
   const boundAction = updateTrip.bind(null, trip.id);
 

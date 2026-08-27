@@ -110,11 +110,13 @@ export async function getNetWorth(enabledModules: Set<ModuleKey>): Promise<NetWo
     }),
     enabledModules.has("HOME")
       ? prisma.property.findMany({
+          where: { deletedAt: null },
           include: { valuations: { orderBy: { valuedAt: "desc" }, take: 1 } },
         })
       : [],
     enabledModules.has("INVENTORY")
       ? prisma.inventoryItem.findMany({
+          where: { deletedAt: null },
           select: { purchasePrice: true, currency: true },
         })
       : [],

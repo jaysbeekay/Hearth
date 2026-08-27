@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, KeyRound, History } from "lucide-react";
+import { ArrowRight, KeyRound, History, Trash2 } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isEncryptionConfigured } from "@/lib/env";
@@ -136,6 +136,18 @@ export default async function SettingsPage() {
         </section>
 
         <IcalTokenSection hasToken={Boolean(user.icalTokenHash)} appUrl={appUrl} />
+
+        <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+          <h2 className="mb-3 font-medium">Trash</h2>
+          <p className="mb-3 text-sm text-muted">
+            Deleted contracts, warranties, vehicles, properties, trips, and inventory items stay
+            here for 30 days before they&apos;re removed for good.
+          </p>
+          <Link href="/settings/trash" className={quickLinkClass}>
+            <Trash2 size={16} />
+            View trash
+          </Link>
+        </section>
 
         <OfflineDocumentsPanel />
 

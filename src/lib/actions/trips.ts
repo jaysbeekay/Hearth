@@ -141,7 +141,34 @@ export async function updateTrip(
   redirect(`/travel/${tripId}`);
 }
 
+// #287 — soft-delete: see the equivalent comment on deleteContract (contracts.ts).
 export async function deleteTrip(tripId: string): Promise<ActionState> {
+  await requireUser();
+
+  const existing = await prisma.trip.findUnique({ where: { id: tripId } });
+  if (!existing) return { error: "Trip not found." };
+
+  await prisma.trip.update({ where: { id: tripId }, data: { deletedAt: new Date() } });
+
+  revalidatePath("/travel");
+  revalidatePath("/settings/trash");
+  redirect("/travel");
+}
+
+export async function restoreTrip(tripId: string): Promise<ActionState> {
+  await requireUser();
+
+  const existing = await prisma.trip.findUnique({ where: { id: tripId } });
+  if (!existing) return { error: "Trip not found." };
+
+  await prisma.trip.update({ where: { id: tripId }, data: { deletedAt: null } });
+
+  revalidatePath("/travel");
+  revalidatePath("/settings/trash");
+  return { success: "Restored." };
+}
+
+export async function permanentlyDeleteTrip(tripId: string): Promise<ActionState> {
   await requireUser();
 
   const existing = await prisma.trip.findUnique({
@@ -157,8 +184,8 @@ export async function deleteTrip(tripId: string): Promise<ActionState> {
 
   await prisma.trip.delete({ where: { id: tripId } });
 
-  revalidatePath("/travel");
-  redirect("/travel");
+  revalidatePath("/settings/trash");
+  return { success: "Deleted permanently." };
 }
 
 export async function addTripSegment(

@@ -52,7 +52,7 @@ export default async function ContractDetailPage({
     getUserPreferences(),
     getHouseholdMemberCount(),
   ]);
-  if (!contract) notFound();
+  if (!contract || contract.deletedAt) notFound();
 
   const days = daysUntil(contract.endDate);
   const cancelled = contract.status === "CANCELLED";

@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
 
   const [vehicles, { dateFormat, region }] = await Promise.all([
     prisma.vehicle.findMany({
+      where: { deletedAt: null },
       include: { items: { orderBy: { date: "desc" } } },
     }),
     getUserPreferences(),

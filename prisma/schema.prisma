@@ -301,9 +301,12 @@ model Contract {
   extractionConfirmedAt DateTime?
 
   createdById String
-  createdBy   User    @relation(fields: [createdById], references: [id])
+  createdBy   User      @relation(fields: [createdById], references: [id])
   updatedById String?
-  updatedBy   User?   @relation("ContractUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  // #287 — soft-delete: set instead of removing the row so the record
+  // (and its files) can be restored within the trash window.
+  deletedAt   DateTime?
+  updatedBy   User?     @relation("ContractUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   propertyId String?
   property   Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
@@ -450,9 +453,12 @@ model Product {
   extractionConfirmedAt DateTime?
 
   createdById String
-  createdBy   User    @relation(fields: [createdById], references: [id])
+  createdBy   User      @relation(fields: [createdById], references: [id])
   updatedById String?
-  updatedBy   User?   @relation("ProductUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  // #287 — soft-delete: set instead of removing the row so the record
+  // (and its files) can be restored within the trash window.
+  deletedAt   DateTime?
+  updatedBy   User?     @relation("ProductUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   propertyId String?
   property   Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
@@ -578,9 +584,12 @@ model Trip {
   notes       String?
 
   createdById String
-  createdBy   User    @relation(fields: [createdById], references: [id])
+  createdBy   User      @relation(fields: [createdById], references: [id])
   updatedById String?
-  updatedBy   User?   @relation("TripUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  // #287 — soft-delete: set instead of removing the row so the record
+  // (and its files) can be restored within the trash window.
+  deletedAt   DateTime?
+  updatedBy   User?     @relation("TripUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   segments TripSegment[]
 
@@ -664,9 +673,12 @@ model Property {
   occupancyStatus OccupancyStatus @default(OWNER_OCCUPIED)
 
   createdById String
-  createdBy   User    @relation(fields: [createdById], references: [id])
+  createdBy   User      @relation(fields: [createdById], references: [id])
   updatedById String?
-  updatedBy   User?   @relation("PropertyUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  // #287 — soft-delete: set instead of removing the row so the record
+  // (and its files) can be restored within the trash window.
+  deletedAt   DateTime?
+  updatedBy   User?     @relation("PropertyUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   items            HomeItem[]
   rentalAgreements RentalAgreement[]
@@ -794,9 +806,12 @@ model Vehicle {
   notes              String?
 
   createdById String
-  createdBy   User    @relation(fields: [createdById], references: [id])
+  createdBy   User      @relation(fields: [createdById], references: [id])
   updatedById String?
-  updatedBy   User?   @relation("VehicleUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  // #287 — soft-delete: set instead of removing the row so the record
+  // (and its files) can be restored within the trash window.
+  deletedAt   DateTime?
+  updatedBy   User?     @relation("VehicleUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   items     VehicleItem[]
   contracts Contract[]
@@ -862,9 +877,12 @@ model InventoryItem {
   documents InventoryItemDocument[]
 
   createdById String
-  createdBy   User    @relation(fields: [createdById], references: [id])
+  createdBy   User      @relation(fields: [createdById], references: [id])
   updatedById String?
-  updatedBy   User?   @relation("InventoryItemUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  // #287 — soft-delete: set instead of removing the row so the record
+  // (and its files) can be restored within the trash window.
+  deletedAt   DateTime?
+  updatedBy   User?     @relation("InventoryItemUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

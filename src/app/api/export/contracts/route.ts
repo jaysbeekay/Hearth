@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
 
   const [contracts, { dateFormat, region }] = await Promise.all([
     prisma.contract.findMany({
+      where: { deletedAt: null },
       orderBy: { endDate: "asc" },
     }),
     getUserPreferences(),

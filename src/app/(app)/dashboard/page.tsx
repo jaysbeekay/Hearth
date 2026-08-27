@@ -39,16 +39,21 @@ export default async function DashboardPage() {
   const [contracts, products, vehicles, trips, memberCount, documentStats, failedReminderLogs] =
     await Promise.all([
       prisma.contract.findMany({
+        where: { deletedAt: null },
         orderBy: { endDate: "asc" },
         include: { _count: { select: { documents: true } } },
       }),
       prisma.product.findMany({
+        where: { deletedAt: null },
         orderBy: { warrantyEndDate: "asc" },
         include: { _count: { select: { documents: true } } },
       }),
-      enabledModules.has("VEHICLES") ? prisma.vehicle.findMany({ orderBy: { createdAt: "desc" } }) : [],
+      enabledModules.has("VEHICLES")
+        ? prisma.vehicle.findMany({ where: { deletedAt: null }, orderBy: { createdAt: "desc" } })
+        : [],
       enabledModules.has("TRAVEL")
         ? prisma.trip.findMany({
+            where: { deletedAt: null },
             orderBy: { startDate: "asc" },
             include: { _count: { select: { segments: true } } },
           })

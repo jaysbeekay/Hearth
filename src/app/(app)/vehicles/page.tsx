@@ -9,6 +9,7 @@ export default async function VehiclesPage() {
 
   const [vehicles, { dateFormat }, session] = await Promise.all([
     prisma.vehicle.findMany({
+      where: { deletedAt: null },
       include: { _count: { select: { items: true } } },
       orderBy: { createdAt: "desc" },
     }),

@@ -9,6 +9,7 @@ export default async function TravelPage() {
 
   const [trips, { dateFormat }, session] = await Promise.all([
     prisma.trip.findMany({
+      where: { deletedAt: null },
       include: { _count: { select: { segments: true } } },
       orderBy: { startDate: "desc" },
     }),

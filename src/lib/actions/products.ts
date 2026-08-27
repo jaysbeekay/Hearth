@@ -16,7 +16,13 @@ import { queueDocumentExtraction } from "@/lib/documents/queueExtraction";
 import { describeUploadRejection } from "@/lib/uploadValidation";
 import { extractionFieldsFromForm } from "@/lib/documents/extractionConfirmation";
 import { saveFileToInboxFallback } from "@/lib/documents/inboxFallback";
-import { createProductCommand, updateProductCommand, deleteProductCommand } from "@/lib/commands/products";
+import {
+  createProductCommand,
+  updateProductCommand,
+  deleteProductCommand,
+  restoreProductCommand,
+  permanentlyDeleteProductCommand,
+} from "@/lib/commands/products";
 
 export type ActionState = {
   error?: string;
@@ -213,12 +219,38 @@ export async function updateProductFromAssistant(
   return { success: true, productId };
 }
 
+// #287 — soft-delete: see the equivalent comment on deleteContract.
 export async function deleteProduct(productId: string): Promise<ActionState> {
   await requireUser();
 
-  try { await deleteProductCommand(productId); }
-  catch (error) { return { error: error instanceof Error ? error.message : "Product not found." }; }
+  try {
+    await deleteProductCommand(productId);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Product not found." };
+  }
   redirect("/products");
+}
+
+export async function restoreProduct(productId: string): Promise<ActionState> {
+  await requireUser();
+
+  try {
+    await restoreProductCommand(productId);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Product not found." };
+  }
+  return { success: "Restored." };
+}
+
+export async function permanentlyDeleteProduct(productId: string): Promise<ActionState> {
+  await requireUser();
+
+  try {
+    await permanentlyDeleteProductCommand(productId);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Product not found." };
+  }
+  return { success: "Deleted permanently." };
 }
 
 export async function addProductDocument(

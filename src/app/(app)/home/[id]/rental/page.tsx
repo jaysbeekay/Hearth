@@ -89,7 +89,7 @@ export default async function RentalOverviewPage({
     }),
     getUserPreferences(),
   ]);
-  if (!property) notFound();
+  if (!property || property.deletedAt) notFound();
 
   const agreements = property.rentalAgreements;
   const statements = property.rentalStatements;

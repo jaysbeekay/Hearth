@@ -18,7 +18,7 @@ export default async function NewHomeItemPage({
     prisma.property.findUnique({ where: { id } }),
     getUserPreferences(),
   ]);
-  if (!property) notFound();
+  if (!property || property.deletedAt) notFound();
 
   const boundAction = addHomeItem.bind(null, property.id);
 

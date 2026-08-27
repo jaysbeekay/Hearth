@@ -9,6 +9,7 @@ export default async function InventoryPage() {
 
   const [items, { dateFormat, region }, session] = await Promise.all([
     prisma.inventoryItem.findMany({
+      where: { deletedAt: null },
       include: { _count: { select: { documents: true } } },
       orderBy: { createdAt: "desc" },
     }),

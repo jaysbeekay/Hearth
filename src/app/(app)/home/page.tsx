@@ -9,11 +9,12 @@ export default async function HomePage() {
 
   const [properties, taxDeductibleItems, { region }] = await Promise.all([
     prisma.property.findMany({
+      where: { deletedAt: null },
       include: { _count: { select: { items: true } } },
       orderBy: { createdAt: "desc" },
     }),
     prisma.homeItem.findMany({
-      where: { isTaxDeductible: true },
+      where: { isTaxDeductible: true, property: { deletedAt: null } },
       select: { cost: true, date: true, currency: true },
     }),
     getUserPreferences(),

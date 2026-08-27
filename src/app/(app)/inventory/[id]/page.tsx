@@ -48,7 +48,7 @@ export default async function InventoryItemPage({
     getUserPreferences(),
     getHouseholdMemberCount(),
   ]);
-  if (!item) notFound();
+  if (!item || item.deletedAt) notFound();
 
   return (
     <div className="max-w-2xl space-y-6">

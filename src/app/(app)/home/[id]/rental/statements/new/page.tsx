@@ -18,7 +18,7 @@ export default async function NewRentalStatementPage({
     prisma.property.findUnique({ where: { id } }),
     getUserPreferences(),
   ]);
-  if (!property) notFound();
+  if (!property || property.deletedAt) notFound();
 
   const boundAction = createRentalStatement.bind(null, property.id);
 

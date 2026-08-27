@@ -14,7 +14,7 @@ export default async function EditProductPage({
     prisma.product.findUnique({ where: { id } }),
     isModuleEnabled("HOME"),
   ]);
-  if (!product) notFound();
+  if (!product || product.deletedAt) notFound();
 
   const properties = homeEnabled
     ? await prisma.property.findMany({ select: { id: true, label: true }, orderBy: { label: "asc" } })

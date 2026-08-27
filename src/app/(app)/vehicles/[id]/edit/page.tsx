@@ -13,7 +13,7 @@ export default async function EditVehiclePage({
 
   const { id } = await params;
   const vehicle = await prisma.vehicle.findUnique({ where: { id } });
-  if (!vehicle) notFound();
+  if (!vehicle || vehicle.deletedAt) notFound();
 
   const boundAction = updateVehicle.bind(null, vehicle.id);
 

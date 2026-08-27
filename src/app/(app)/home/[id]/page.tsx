@@ -59,11 +59,11 @@ export default async function PropertyDetailPage({
         },
       }),
       getUserPreferences(),
-      prisma.contract.findMany({ where: { propertyId: id }, orderBy: { title: "asc" } }),
-      prisma.product.findMany({ where: { propertyId: id }, orderBy: { description: "asc" } }),
+      prisma.contract.findMany({ where: { propertyId: id, deletedAt: null }, orderBy: { title: "asc" } }),
+      prisma.product.findMany({ where: { propertyId: id, deletedAt: null }, orderBy: { description: "asc" } }),
       getHouseholdMemberCount(),
     ]);
-  if (!property) notFound();
+  if (!property || property.deletedAt) notFound();
 
   const latestValuation = property.valuations[0] ?? null;
   const valuationStale = !latestValuation || isValuationStale(latestValuation.valuedAt);

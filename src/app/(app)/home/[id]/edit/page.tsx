@@ -13,7 +13,7 @@ export default async function EditPropertyPage({
 
   const { id } = await params;
   const property = await prisma.property.findUnique({ where: { id } });
-  if (!property) notFound();
+  if (!property || property.deletedAt) notFound();
 
   const boundAction = updateProperty.bind(null, property.id);
 

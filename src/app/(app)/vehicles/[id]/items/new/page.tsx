@@ -18,7 +18,7 @@ export default async function NewVehicleItemPage({
     prisma.vehicle.findUnique({ where: { id } }),
     getUserPreferences(),
   ]);
-  if (!vehicle) notFound();
+  if (!vehicle || vehicle.deletedAt) notFound();
 
   const boundAction = addVehicleItem.bind(null, vehicle.id);
 

@@ -5,6 +5,7 @@ import { sendNtfyReminder } from "@/lib/notifications/ntfy";
 import { sendExpiryWebhooks, getEnabledWebhookEndpoints } from "@/lib/notifications/webhook";
 import { parseThresholds } from "@/lib/notifications/thresholds";
 import { getNotificationLogsByOwner, recordNotificationOutcome } from "@/lib/notifications/logs";
+import { purgeExpiredTrash } from "@/lib/trash";
 import type { NotificationChannel } from "@/generated/prisma/enums";
 
 function daysRemaining(endDate: Date, now: Date): number {
@@ -15,6 +16,14 @@ function daysRemaining(endDate: Date, now: Date): number {
 }
 
 export async function runExpirationCheck(now: Date = new Date()) {
+  // #287 — no dedicated job runner exists yet (#250), so Trash's 30-day
+  // purge piggybacks on this already-scheduled daily tick rather than
+  // needing its own cron. Independent of reminder channels being
+  // configured, so it still runs for households with none set up.
+  await purgeExpiredTrash().catch((error) => {
+    console.error("[trash] purge failed:", error);
+  });
+
   const { defaultDays } = await getReminderConfig();
   const emailEnabled = await isSmtpConfigured();
   const ntfyEnabled = await isNtfyConfigured();
@@ -24,7 +33,7 @@ export async function runExpirationCheck(now: Date = new Date()) {
   }
 
   const contracts = await prisma.contract.findMany({
-    where: { status: "ACTIVE", endDate: { not: null }, extractionPending: false },
+    where: { status: "ACTIVE", endDate: { not: null }, extractionPending: false, deletedAt: null },
   });
   const contractLogs = await getNotificationLogsByOwner(
     "CONTRACT",
@@ -127,7 +136,7 @@ export async function runExpirationCheck(now: Date = new Date()) {
   }
 
   const products = await prisma.product.findMany({
-    where: { warrantyEndDate: { not: null }, extractionPending: false },
+    where: { warrantyEndDate: { not: null }, extractionPending: false, deletedAt: null },
   });
   const productLogs = await getNotificationLogsByOwner(
     "PRODUCT",
@@ -220,7 +229,7 @@ export async function runExpirationCheck(now: Date = new Date()) {
   }
 
   const vehicles = await prisma.vehicle.findMany({
-    where: { OR: [{ regoExpiry: { not: null } }, { insuranceExpiry: { not: null } }] },
+    where: { OR: [{ regoExpiry: { not: null } }, { insuranceExpiry: { not: null } }], deletedAt: null },
   });
   const vehicleLogs = await getNotificationLogsByOwner(
     "VEHICLE",

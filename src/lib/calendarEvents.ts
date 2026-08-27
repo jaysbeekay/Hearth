@@ -30,11 +30,11 @@ export async function getCalendarEvents(
 
   const [contracts, products] = await Promise.all([
     prisma.contract.findMany({
-      where: { endDate: { not: null } },
+      where: { endDate: { not: null }, deletedAt: null },
       select: { id: true, title: true, provider: true, endDate: true },
     }),
     prisma.product.findMany({
-      where: { warrantyEndDate: { not: null } },
+      where: { warrantyEndDate: { not: null }, deletedAt: null },
       select: { id: true, description: true, manufacturer: true, warrantyEndDate: true },
     }),
   ]);
@@ -67,6 +67,7 @@ export async function getCalendarEvents(
 
   if (enabledModules.has("VEHICLES")) {
     const vehicles = await prisma.vehicle.findMany({
+      where: { deletedAt: null },
       include: { items: { where: { date: { not: null } }, select: { id: true, title: true, date: true, type: true, vehicleId: true } } },
     });
     for (const v of vehicles) {

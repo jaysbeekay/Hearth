@@ -39,7 +39,7 @@ export default async function ProductDetailPage({
     getUserPreferences(),
     getHouseholdMemberCount(),
   ]);
-  if (!product) notFound();
+  if (!product || product.deletedAt) notFound();
 
   const days = daysUntil(product.warrantyEndDate);
   const boundUpload = addProductDocument.bind(null, product.id);

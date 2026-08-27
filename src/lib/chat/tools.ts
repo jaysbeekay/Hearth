@@ -122,7 +122,7 @@ const listContractsTool = defineTool({
   }),
   run: async ({ status, category }) => {
     const contracts = await prisma.contract.findMany({
-      where: { ...(status && { status }), ...(category && { category }) },
+      where: { deletedAt: null, ...(status && { status }), ...(category && { category }) },
       select: CONTRACT_SELECT,
       orderBy: { endDate: "asc" },
     });
@@ -142,6 +142,7 @@ const searchContractsTool = defineTool({
   run: async ({ query }) => {
     const contracts = await prisma.contract.findMany({
       where: {
+        deletedAt: null,
         OR: [
           { title: { contains: query } },
           { provider: { contains: query } },
@@ -169,7 +170,7 @@ const upcomingRenewalsTool = defineTool({
   run: async ({ withinDays }) => {
     const horizon = withinDays ?? 30;
     const contracts = await prisma.contract.findMany({
-      where: { status: "ACTIVE", endDate: { not: null } },
+      where: { status: "ACTIVE", endDate: { not: null }, deletedAt: null },
       select: CONTRACT_SELECT,
     });
     return contracts
@@ -187,7 +188,7 @@ const spendSummaryTool = defineTool({
   schema: z.object({}),
   run: async () => {
     const active = await prisma.contract.findMany({
-      where: { status: "ACTIVE" },
+      where: { status: "ACTIVE", deletedAt: null },
       select: { category: true, cost: true, billingFrequency: true },
     });
     let total = 0;

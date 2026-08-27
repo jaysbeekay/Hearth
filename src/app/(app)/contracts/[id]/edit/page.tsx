@@ -15,7 +15,7 @@ export default async function EditContractPage({
     isModuleEnabled("HOME"),
     isModuleEnabled("VEHICLES"),
   ]);
-  if (!contract) notFound();
+  if (!contract || contract.deletedAt) notFound();
 
   const properties = homeEnabled
     ? await prisma.property.findMany({ select: { id: true, label: true }, orderBy: { label: "asc" } })

@@ -18,7 +18,7 @@ export default async function NewTripSegmentPage({
     prisma.trip.findUnique({ where: { id } }),
     getUserPreferences(),
   ]);
-  if (!trip) notFound();
+  if (!trip || trip.deletedAt) notFound();
 
   const boundAction = addTripSegment.bind(null, trip.id);
 

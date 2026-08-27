@@ -17,7 +17,7 @@ export default async function EditRentalStatementPage({
   if (!statement || statement.propertyId !== id) notFound();
 
   const property = await prisma.property.findUnique({ where: { id } });
-  if (!property) notFound();
+  if (!property || property.deletedAt) notFound();
 
   const boundAction = updateRentalStatement.bind(null, property.id, statementId);
 
