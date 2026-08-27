@@ -72,3 +72,6 @@ next-env.d.ts
 *.keystore
 !debug.keystore
 
+# scratch git worktrees created by Claude Code sessions
+/.claude/worktrees/
+
