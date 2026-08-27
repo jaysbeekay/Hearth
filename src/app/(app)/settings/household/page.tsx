@@ -35,13 +35,13 @@ export default async function HouseholdSettingsPage() {
   return (
     <div className="max-w-2xl space-y-6">
       <div>
-        <Link href="/settings" className="text-sm text-foreground/60 hover:text-foreground">
+        <Link href="/settings" className="text-sm text-muted hover:text-foreground">
           ← Back to Settings
         </Link>
       </div>
       <div>
         <h1 className="text-2xl font-semibold">Household &amp; System</h1>
-        <p className="mt-1 text-sm text-foreground/60">
+        <p className="mt-1 text-sm text-muted">
           Settings shared by the whole household, not just your own account.
         </p>
       </div>
@@ -52,7 +52,7 @@ export default async function HouseholdSettingsPage() {
             <Users size={18} />
             Manage household members
           </span>
-          <span className="text-xs font-normal text-foreground/50">
+          <span className="text-xs font-normal text-muted">
             {memberCount} {memberCount === 1 ? "member" : "members"}
           </span>
         </Link>
@@ -61,7 +61,7 @@ export default async function HouseholdSettingsPage() {
             <DatabaseBackup size={18} />
             Database backups
           </span>
-          <span className={`text-xs font-normal ${backupConfigured ? "text-foreground/50" : "text-warning"}`}>
+          <span className={`text-xs font-normal ${backupConfigured ? "text-muted" : "text-warning"}`}>
             {backupConfigured ? BACKUP_DESTINATION_LABELS[backupDestination] : "Not configured"}
           </span>
         </Link>
@@ -70,7 +70,7 @@ export default async function HouseholdSettingsPage() {
             <Webhook size={18} />
             Webhooks
           </span>
-          <span className="text-xs font-normal text-foreground/50">
+          <span className="text-xs font-normal text-muted">
             {webhookCount === 0 ? "None configured" : `${webhookCount} configured`}
           </span>
         </Link>
@@ -79,7 +79,7 @@ export default async function HouseholdSettingsPage() {
             <LayoutGrid size={18} />
             Modules
           </span>
-          <span className="text-xs font-normal text-foreground/50">
+          <span className="text-xs font-normal text-muted">
             {enabledModules.size} of {Object.keys(MODULE_REGISTRY).length} enabled
           </span>
         </Link>
@@ -88,7 +88,7 @@ export default async function HouseholdSettingsPage() {
             <Settings2 size={18} />
             System settings
           </span>
-          <span className={`text-xs font-normal ${notificationsConfigured ? "text-foreground/50" : "text-warning"}`}>
+          <span className={`text-xs font-normal ${notificationsConfigured ? "text-muted" : "text-warning"}`}>
             {notificationsConfigured ? "Notifications configured" : "Notifications not configured"}
           </span>
         </Link>

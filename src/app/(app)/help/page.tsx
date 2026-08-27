@@ -30,6 +30,10 @@ const FAQ_SECTIONS: FaqSection[] = [
         q: "What's the difference between Admin, Member, and Read-only roles?",
         a: "Everyone in the household sees the same contracts, trips, properties, and other records — role doesn't affect visibility. It gates actions: Read-only blocks all writes, Member can create/edit/delete the household's own records, and Admin additionally gates household-administration actions like managing users, webhooks, backups, and module toggles.",
       },
+      {
+        q: "Is anything I add private to me, or can every household member see it?",
+        a: "Every contract, warranty, document, trip, property, vehicle, inventory item, and wealth record is visible to the whole household — there's no per-record or per-person privacy setting. The one exception is Assistant chat conversations, which stay private to whoever started them. If you're uploading something sensitive (a payslip, a passport scan), keep in mind everyone with a household account can see it.",
+      },
     ],
   },
   {
@@ -145,7 +149,7 @@ export default function HelpPage() {
     <div className="max-w-3xl space-y-10">
       <div>
         <h1 className="text-2xl font-semibold">Help &amp; FAQ</h1>
-        <p className="mt-1 text-sm text-foreground/60">
+        <p className="mt-1 text-sm text-muted">
           Answers to common questions about using Hearth. Can&apos;t find what
           you need? Send us feedback below.
         </p>
@@ -153,7 +157,7 @@ export default function HelpPage() {
 
       {FAQ_SECTIONS.map((section) => (
         <div key={section.heading} className="space-y-4">
-          <h2 className="border-b border-border pb-2 text-sm font-semibold uppercase tracking-wide text-foreground/50">
+          <h2 className="border-b border-border pb-2 text-sm font-semibold uppercase tracking-wide text-muted">
             {section.heading}
           </h2>
           <div className="space-y-2">
@@ -165,7 +169,7 @@ export default function HelpPage() {
                 <summary className="cursor-pointer list-none text-sm font-medium marker:content-none">
                   <span className="flex items-center justify-between gap-3">
                     {entry.q}
-                    <span className="text-foreground/40 transition group-open:rotate-45">+</span>
+                    <span className="text-muted transition group-open:rotate-45">+</span>
                   </span>
                 </summary>
                 <p className="mt-2 text-sm text-foreground/70">{entry.a}</p>
@@ -178,7 +182,7 @@ export default function HelpPage() {
       <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <div className="mb-4">
           <h2 className="font-medium">Share feedback</h2>
-          <p className="mt-1 text-sm text-foreground/60">
+          <p className="mt-1 text-sm text-muted">
             Report a bug, describe an issue, or suggest an enhancement.
             Submissions are added to the GitHub review queue for the Hearth
             team.

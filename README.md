@@ -53,7 +53,7 @@ Everything else is optional. Set `SMTP_*` to enable email reminders, `NTFY_*` fo
 - Upload booking confirmations — AI extraction pre-fills confirmation codes, dates, locations, and costs
 - Shared household-wide so all members can view each other's trips
 
-**Home** *(opt-in module)*
+**Property** *(opt-in module)*
 - Track properties and log maintenance, repairs, and improvements against each one
 - Attach receipts/invoices and record costs, providers, and dates
 - Manage rental agreements and track rental income statements per property
@@ -61,7 +61,7 @@ Everything else is optional. Set `SMTP_*` to enable email reminders, `NTFY_*` fo
 **Wealth** *(opt-in module)*
 - Track share, ETF, and crypto portfolios — full CRUD for portfolios, holdings, and trades with document attachments
 - Live price feeds via Yahoo Finance (equities — ASX, NYSE, NASDAQ, LSE, TSX, etc.) and CoinGecko (crypto); prices are cached and auto-refreshed every 15 minutes
-- Average-cost cost basis calculation; unrealised gain/loss and gain% shown per holding and per portfolio
+- Cost basis calculation, configurable per portfolio between FIFO (default) and average cost; unrealised gain/loss and gain% shown per holding and per portfolio
 - Import trades from a broker CSV — auto-detects CommSec, SelfWealth, Stake, and generic formats; preview before confirming
 - Net worth dashboard combining portfolio value, property valuations (HOME module), and inventory items (INVENTORY module) with a live donut breakdown
 - Property valuations: record estimated values against each HOME property; staleness warning after 12 months

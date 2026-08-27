@@ -103,15 +103,15 @@ export default async function WealthPage() {
       {/* Net worth tiles */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div className="col-span-2 rounded-xl border border-border bg-surface p-4">
-          <p className="text-xs text-foreground/50">Total net worth</p>
+          <p className="text-xs text-muted">Total net worth</p>
           <p className="mt-1 text-3xl font-bold tabular-nums">{formatCurrency(data.totalNetWorth, "AUD", undefined, region, { showCode: true })}</p>
         </div>
         <div className="rounded-xl border border-border bg-surface p-4">
-          <p className="text-xs text-foreground/50">Shares / ETFs</p>
+          <p className="text-xs text-muted">Shares / ETFs</p>
           <p className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(data.sharesValue, "AUD", undefined, region, { showCode: true })}</p>
         </div>
         <div className="rounded-xl border border-border bg-surface p-4">
-          <p className="text-xs text-foreground/50">Property</p>
+          <p className="text-xs text-muted">Property</p>
           <p className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(data.propertyValue, "AUD", undefined, region, { showCode: true })}</p>
         </div>
       </div>
@@ -130,7 +130,7 @@ export default async function WealthPage() {
             </svg>
           </div>
           <div className="flex-1 space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-foreground/50 mb-3">Asset breakdown</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted mb-3">Asset breakdown</p>
             {segments.map((seg) => (
               <div key={seg.label} className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-2">
@@ -138,7 +138,7 @@ export default async function WealthPage() {
                   <span className="text-sm">{seg.label}</span>
                 </div>
                 <div className="flex items-center gap-3 tabular-nums text-sm">
-                  <span className="text-foreground/60">{((seg.value / total) * 100).toFixed(0)}%</span>
+                  <span className="text-muted">{((seg.value / total) * 100).toFixed(0)}%</span>
                   <span className="font-medium">{formatCurrency(seg.value, "AUD", undefined, region, { showCode: true })}</span>
                 </div>
               </div>
@@ -171,7 +171,7 @@ export default async function WealthPage() {
             })}
           </div>
           {allHoldings.length > 6 && (
-            <p className="text-center text-sm text-foreground/50">
+            <p className="text-center text-sm text-muted">
               Showing top 6 of {allHoldings.length} holdings.{" "}
               <Link href="/wealth/portfolios" className="text-accent hover:underline">View all</Link>
             </p>
@@ -179,7 +179,7 @@ export default async function WealthPage() {
         </section>
       ) : (
         <div className="space-y-4">
-          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-foreground/60">
+          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
             {hasPortfolios
               ? "No holdings yet. Add your first holding or import trades from a CSV."
               : "Create a portfolio to start tracking your shares and investments."}

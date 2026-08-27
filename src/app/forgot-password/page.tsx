@@ -16,7 +16,7 @@ export default async function ForgotPasswordPage() {
         <div className="flex flex-col items-center gap-2 text-center">
           <KeyRound size={32} className="text-accent" />
           <h1 className="text-2xl font-semibold">Reset your password</h1>
-          <p className="text-sm text-foreground/60">
+          <p className="text-sm text-muted">
             {smtpConfigured
               ? "Enter your email and we'll send you a link to reset your password."
               : "Password reset emails aren't set up for this household yet. Contact your administrator for help signing in."}
@@ -29,7 +29,7 @@ export default async function ForgotPasswordPage() {
           </div>
         )}
 
-        <p className="text-center text-sm text-foreground/60">
+        <p className="text-center text-sm text-muted">
           <Link href="/login" className="text-accent hover:underline">
             Back to sign in
           </Link>

@@ -18,7 +18,7 @@ export default async function NewHomeItemPage({
     prisma.property.findUnique({ where: { id } }),
     getUserPreferences(),
   ]);
-  if (!property) notFound();
+  if (!property || property.deletedAt) notFound();
 
   const boundAction = addHomeItem.bind(null, property.id);
 
@@ -27,7 +27,7 @@ export default async function NewHomeItemPage({
       <BackLink href={`/home/${property.id}`} label={`Back to ${property.label}`} />
       <div>
         <h1 className="text-2xl font-semibold">Add an item</h1>
-        <p className="text-sm text-foreground/60">{property.label}</p>
+        <p className="text-sm text-muted">{property.label}</p>
         <p className="mt-1 text-xs text-muted">
           Log a repair, maintenance visit, or improvement for this property, with receipts
           attached.

@@ -14,7 +14,7 @@ export default async function EditProductPage({
     prisma.product.findUnique({ where: { id } }),
     isModuleEnabled("HOME"),
   ]);
-  if (!product) notFound();
+  if (!product || product.deletedAt) notFound();
 
   const properties = homeEnabled
     ? await prisma.property.findMany({ select: { id: true, label: true }, orderBy: { label: "asc" } })
@@ -26,7 +26,7 @@ export default async function EditProductPage({
     <div className="max-w-3xl space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Edit product</h1>
-        <p className="text-sm text-foreground/60">{product.description}</p>
+        <p className="text-sm text-muted">{product.description}</p>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <ProductForm action={boundAction} product={product} properties={properties} />

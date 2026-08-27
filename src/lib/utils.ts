@@ -188,6 +188,14 @@ export const ROLE_LABELS: Record<string, string> = {
   READONLY: "Read-only",
 };
 
+// #291 — shown next to the role select at assignment time so "Member" vs
+// "Admin" vs "Read-only" isn't left for the admin to infer.
+export const ROLE_DESCRIPTIONS: Record<string, string> = {
+  READONLY: "Can see everything, can't change anything.",
+  MEMBER: "Can add, edit and delete household records.",
+  ADMIN: "Can also manage members, modules, and backups.",
+};
+
 export const TRIP_SEGMENT_TYPE_LABELS: Record<string, string> = {
   FLIGHT: "Flight",
   LODGING: "Lodging",

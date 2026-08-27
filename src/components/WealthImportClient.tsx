@@ -63,11 +63,11 @@ export function WealthImportClient({ portfolioId }: Props) {
     <div className="space-y-6">
       <div>
         <label className="block text-sm font-medium mb-2">Upload CSV file</label>
-        <p className="mb-3 text-sm text-foreground/60">
+        <p className="mb-3 text-sm text-muted">
           Supported formats: CommSec, SelfWealth, Stake, or generic (Date, Ticker, Type, Units, Price, Fees, Currency columns).
         </p>
         <label className="flex cursor-pointer items-center gap-3 rounded-lg border-2 border-dashed border-border px-4 py-6 hover:border-accent/50 transition-colors">
-          <Upload size={20} className="text-foreground/50" />
+          <Upload size={20} className="text-muted" />
           <span className="text-sm text-foreground/70">Choose CSV file…</span>
           <input type="file" accept=".csv" className="sr-only" onChange={handleFile} disabled={isParsing || isImporting} />
           {isParsing && <Loader2 size={16} className="animate-spin text-accent" />}
@@ -105,7 +105,7 @@ export function WealthImportClient({ portfolioId }: Props) {
           <div className="overflow-x-auto rounded-xl border border-border">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border text-left text-xs text-foreground/50">
+                <tr className="border-b border-border text-left text-xs text-muted">
                   <th className="px-3 py-2">Ticker</th>
                   <th className="px-3 py-2">Type</th>
                   <th className="px-3 py-2">Date</th>

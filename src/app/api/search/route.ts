@@ -62,6 +62,7 @@ export async function GET(request: NextRequest) {
     prisma.contract
       .findMany({
         where: {
+          deletedAt: null,
           AND: [
             ...(textOk
               ? [
@@ -69,6 +70,7 @@ export async function GET(request: NextRequest) {
                     OR: [
                       { title: contains },
                       { provider: contains },
+                      { contractNumber: contains },
                       { documents: { some: { extractedText: contains } } },
                     ],
                   },
@@ -80,17 +82,20 @@ export async function GET(request: NextRequest) {
             ...(filter === "important" ? [{ documents: { some: { isImportant: true } } }] : []),
           ],
         },
-        select: { id: true, title: true, provider: true },
+        select: { id: true, title: true, provider: true, contractNumber: true },
         take: LIMIT,
       })
       .then((rows) =>
         rows.map((r) => ({
           id: r.id,
           title: r.title,
-          subtitle: r.provider,
+          subtitle:
+            textOk && matchedViaFields(q, [r.contractNumber]) && !matchedViaFields(q, [r.title, r.provider])
+              ? [r.provider, `№ ${r.contractNumber}`].filter(Boolean).join(" · ")
+              : r.provider,
           href: `/contracts/${r.id}`,
           group: "Contracts",
-          matchedInDocument: !matchedViaFields(q, [r.title, r.provider]),
+          matchedInDocument: textOk ? !matchedViaFields(q, [r.title, r.provider, r.contractNumber]) : false,
         })),
       ),
   );
@@ -99,6 +104,7 @@ export async function GET(request: NextRequest) {
     prisma.product
       .findMany({
         where: {
+          deletedAt: null,
           AND: [
             ...(textOk
               ? [
@@ -108,6 +114,8 @@ export async function GET(request: NextRequest) {
                       { manufacturer: contains },
                       { model: contains },
                       { vendor: contains },
+                      { serialNumber: contains },
+                      { barcode: contains },
                       { documents: { some: { extractedText: contains } } },
                     ],
                   },
@@ -119,17 +127,31 @@ export async function GET(request: NextRequest) {
             ...(filter === "important" ? [{ documents: { some: { isImportant: true } } }] : []),
           ],
         },
-        select: { id: true, description: true, manufacturer: true, vendor: true },
+        select: {
+          id: true,
+          description: true,
+          manufacturer: true,
+          vendor: true,
+          serialNumber: true,
+          barcode: true,
+        },
         take: LIMIT,
       })
       .then((rows) =>
         rows.map((r) => ({
           id: r.id,
           title: r.description,
-          subtitle: r.manufacturer ?? undefined,
+          subtitle:
+            textOk &&
+            matchedViaFields(q, [r.serialNumber, r.barcode]) &&
+            !matchedViaFields(q, [r.description, r.manufacturer, r.vendor])
+              ? [r.manufacturer, `# ${r.serialNumber ?? r.barcode}`].filter(Boolean).join(" · ")
+              : (r.manufacturer ?? undefined),
           href: `/products/${r.id}`,
           group: "Products",
-          matchedInDocument: !matchedViaFields(q, [r.description, r.manufacturer, r.vendor]),
+          matchedInDocument: textOk
+            ? !matchedViaFields(q, [r.description, r.manufacturer, r.vendor, r.serialNumber, r.barcode])
+            : false,
         })),
       ),
   );
@@ -138,7 +160,7 @@ export async function GET(request: NextRequest) {
     queries.push(
       prisma.document
         .findMany({
-          where: { OR: [{ filename: contains }, { extractedText: contains }] },
+          where: { OR: [{ filename: contains }, { extractedText: contains }], contract: { deletedAt: null } },
           select: { id: true, filename: true, contract: { select: { id: true, title: true } } },
           take: LIMIT,
         })
@@ -156,7 +178,7 @@ export async function GET(request: NextRequest) {
     queries.push(
       prisma.productDocument
         .findMany({
-          where: { OR: [{ filename: contains }, { extractedText: contains }] },
+          where: { OR: [{ filename: contains }, { extractedText: contains }], product: { deletedAt: null } },
           select: { id: true, filename: true, product: { select: { id: true, description: true } } },
           take: LIMIT,
         })
@@ -177,21 +199,28 @@ export async function GET(request: NextRequest) {
       prisma.vehicle
         .findMany({
           where: {
+            deletedAt: null,
             OR: [
               { label: contains },
               { make: contains },
               { model: contains },
               { licensePlate: contains },
+              { vin: contains },
             ],
           },
-          select: { id: true, label: true, make: true, model: true },
+          select: { id: true, label: true, make: true, model: true, licensePlate: true, vin: true },
           take: LIMIT,
         })
         .then((rows) =>
           rows.map((r) => ({
             id: r.id,
             title: r.label,
-            subtitle: [r.make, r.model].filter(Boolean).join(" ") || undefined,
+            subtitle:
+              matchedViaFields(q, [r.vin, r.licensePlate]) && !matchedViaFields(q, [r.make, r.model])
+                ? [[r.make, r.model].filter(Boolean).join(" "), r.licensePlate ?? r.vin]
+                    .filter(Boolean)
+                    .join(" · ")
+                : [r.make, r.model].filter(Boolean).join(" ") || undefined,
             href: `/vehicles/${r.id}`,
             group: "Vehicles",
           })),
@@ -201,7 +230,7 @@ export async function GET(request: NextRequest) {
     queries.push(
       prisma.vehicleItemDocument
         .findMany({
-          where: { filename: contains },
+          where: { filename: contains, vehicleItem: { vehicle: { deletedAt: null } } },
           select: {
             id: true,
             filename: true,
@@ -225,7 +254,7 @@ export async function GET(request: NextRequest) {
     queries.push(
       prisma.trip
         .findMany({
-          where: { OR: [{ title: contains }, { destination: contains }] },
+          where: { deletedAt: null, OR: [{ title: contains }, { destination: contains }] },
           select: { id: true, title: true, destination: true },
           take: LIMIT,
         })
@@ -241,9 +270,27 @@ export async function GET(request: NextRequest) {
     );
 
     queries.push(
+      prisma.tripSegment
+        .findMany({
+          where: { confirmationCode: contains, trip: { deletedAt: null } },
+          select: { id: true, title: true, confirmationCode: true, tripId: true, trip: { select: { title: true } } },
+          take: LIMIT,
+        })
+        .then((rows) =>
+          rows.map((r) => ({
+            id: r.id,
+            title: r.title,
+            subtitle: [r.trip.title, `Conf. ${r.confirmationCode}`].filter(Boolean).join(" · "),
+            href: `/travel/${r.tripId}`,
+            group: "Travel",
+          })),
+        ),
+    );
+
+    queries.push(
       prisma.tripSegmentDocument
         .findMany({
-          where: { filename: contains },
+          where: { filename: contains, tripSegment: { trip: { deletedAt: null } } },
           select: {
             id: true,
             filename: true,
@@ -268,6 +315,7 @@ export async function GET(request: NextRequest) {
       prisma.property
         .findMany({
           where: {
+            deletedAt: null,
             OR: [
               { label: contains },
               { street: contains },
@@ -302,7 +350,7 @@ export async function GET(request: NextRequest) {
     queries.push(
       prisma.homeItem
         .findMany({
-          where: { OR: [{ title: contains }, { provider: contains }] },
+          where: { OR: [{ title: contains }, { provider: contains }], property: { deletedAt: null } },
           select: {
             id: true,
             title: true,
@@ -325,7 +373,7 @@ export async function GET(request: NextRequest) {
     queries.push(
       prisma.homeItemDocument
         .findMany({
-          where: { filename: contains },
+          where: { filename: contains, homeItem: { property: { deletedAt: null } } },
           select: {
             id: true,
             filename: true,
@@ -349,7 +397,7 @@ export async function GET(request: NextRequest) {
     queries.push(
       prisma.inventoryItem
         .findMany({
-          where: { OR: [{ label: contains }, { brand: contains }, { model: contains }] },
+          where: { deletedAt: null, OR: [{ label: contains }, { brand: contains }, { model: contains }] },
           select: { id: true, label: true, brand: true },
           take: LIMIT,
         })
@@ -367,7 +415,7 @@ export async function GET(request: NextRequest) {
     queries.push(
       prisma.inventoryItemDocument
         .findMany({
-          where: { filename: contains },
+          where: { filename: contains, inventoryItem: { deletedAt: null } },
           select: { id: true, filename: true, inventoryItem: { select: { id: true, label: true } } },
           take: LIMIT,
         })
@@ -417,7 +465,6 @@ export async function GET(request: NextRequest) {
           rows.map((r) => ({
             id: r.id,
             title: r.filename,
-            subtitle: "Needs review",
             href: "/documents/inbox",
             group: "Inbox",
             matchedInDocument: !matchedViaFields(q, [r.filename]),

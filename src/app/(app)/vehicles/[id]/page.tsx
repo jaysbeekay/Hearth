@@ -16,6 +16,7 @@ import { ReminderHealthCard } from "@/components/ReminderHealthCard";
 import { getReminderHealth } from "@/lib/notifications/health";
 import { VEHICLE_ITEM_TYPE_LABELS, formatCurrency, formatDate } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
+import { getHouseholdMemberCount } from "@/lib/household";
 
 const ITEM_ICONS: Record<string, LucideIcon> = {
   SERVICE: Wrench,
@@ -33,18 +34,20 @@ export default async function VehicleDetailPage({
   await requireModuleEnabled("VEHICLES");
 
   const { id } = await params;
-  const [vehicle, { dateFormat, region }, linkedContracts] = await Promise.all([
+  const [vehicle, { dateFormat, region }, linkedContracts, memberCount] = await Promise.all([
     prisma.vehicle.findUnique({
       where: { id },
       include: {
         createdBy: true,
+        updatedBy: true,
         items: { include: { documents: { orderBy: { uploadedAt: "desc" } } } },
       },
     }),
     getUserPreferences(),
-    prisma.contract.findMany({ where: { vehicleId: id }, orderBy: { title: "asc" } }),
+    prisma.contract.findMany({ where: { vehicleId: id, deletedAt: null }, orderBy: { title: "asc" } }),
+    getHouseholdMemberCount(),
   ]);
-  if (!vehicle) notFound();
+  if (!vehicle || vehicle.deletedAt) notFound();
 
   const [regoHealth, insuranceHealth] = await Promise.all([
     vehicle.regoExpiry
@@ -77,7 +80,7 @@ export default async function VehicleDetailPage({
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <Link href="/vehicles" className="text-sm text-foreground/60 hover:text-foreground">
+        <Link href="/vehicles" className="text-sm text-muted hover:text-foreground">
           ← Back to vehicles
         </Link>
       </div>
@@ -98,6 +101,7 @@ export default async function VehicleDetailPage({
             <ConfirmForm
               action={deleteVehicle.bind(null, vehicle.id)}
               confirmText="Delete this vehicle and all its records and documents? This cannot be undone."
+              actionLabel="Delete vehicle"
               className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
               offline={{ entity: "vehicle", entityId: vehicle.id, label: `Delete vehicle: ${vehicle.label}` }}
             >
@@ -140,16 +144,29 @@ export default async function VehicleDetailPage({
         <ReminderHealthCard title="Insurance reminder" health={insuranceHealth} dateFormat={dateFormat} />
       )}
 
-      {linkedContracts.length > 0 && (
-        <div className="space-y-3">
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
           <h2 className="font-medium">Contracts &amp; warranties linked to this vehicle</h2>
+          <Link
+            href={`/contracts/new?vehicleId=${vehicle.id}`}
+            className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
+          >
+            <Plus size={16} />
+            Add contract
+          </Link>
+        </div>
+        {linkedContracts.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted">
+            No contracts or warranties linked yet.
+          </p>
+        ) : (
           <div className="grid gap-3 md:grid-cols-2">
             {linkedContracts.map((contract) => (
               <ContractCard key={contract.id} contract={contract} dateFormat={dateFormat} region={region} />
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">
@@ -164,7 +181,7 @@ export default async function VehicleDetailPage({
         </div>
 
         {items.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-foreground/60">
+          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
             No records yet. Add a service, repair, or registration record to start tracking.
           </p>
         ) : (
@@ -178,9 +195,9 @@ export default async function VehicleDetailPage({
                 >
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="flex min-w-0 items-start gap-3">
-                      <Icon size={20} className="mt-0.5 shrink-0 text-foreground/50" />
+                      <Icon size={20} className="mt-0.5 shrink-0 text-muted" />
                       <div className="min-w-0">
-                        <p className="text-sm text-foreground/60">
+                        <p className="text-sm text-muted">
                           {VEHICLE_ITEM_TYPE_LABELS[item.type] ?? item.type}
                         </p>
                         <p className="font-medium">{item.title}</p>
@@ -200,6 +217,7 @@ export default async function VehicleDetailPage({
                       <ConfirmForm
                         action={deleteVehicleItem.bind(null, vehicle.id, item.id)}
                         confirmText={`Delete "${item.title}" and its documents?`}
+                        actionLabel={`Delete "${item.title}"`}
                         className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
                       >
                         <Trash2 size={16} />
@@ -238,9 +256,11 @@ export default async function VehicleDetailPage({
 
       <RecordMeta
         createdByName={vehicle.createdBy.name}
+        updatedByName={vehicle.updatedBy?.name}
         createdAt={vehicle.createdAt}
         updatedAt={vehicle.updatedAt}
         dateFormat={dateFormat}
+        memberCount={memberCount}
       />
     </div>
   );

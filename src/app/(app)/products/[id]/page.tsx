@@ -20,6 +20,7 @@ import { getReminderHealth } from "@/lib/notifications/health";
 import { DocFallbackBanner } from "@/components/DocFallbackBanner";
 import { daysUntil, formatCurrency, formatDate } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
+import { getHouseholdMemberCount } from "@/lib/household";
 
 export default async function ProductDetailPage({
   params,
@@ -30,14 +31,15 @@ export default async function ProductDetailPage({
 }) {
   const { id } = await params;
   const { docFallback } = await searchParams;
-  const [product, { dateFormat, region }] = await Promise.all([
+  const [product, { dateFormat, region }, memberCount] = await Promise.all([
     prisma.product.findUnique({
       where: { id },
-      include: { documents: { orderBy: { uploadedAt: "desc" } }, createdBy: true },
+      include: { documents: { orderBy: { uploadedAt: "desc" } }, createdBy: true, updatedBy: true },
     }),
     getUserPreferences(),
+    getHouseholdMemberCount(),
   ]);
-  if (!product) notFound();
+  if (!product || product.deletedAt) notFound();
 
   const days = daysUntil(product.warrantyEndDate);
   const boundUpload = addProductDocument.bind(null, product.id);
@@ -54,14 +56,14 @@ export default async function ProductDetailPage({
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <Link href="/products" className="text-sm text-foreground/60 hover:text-foreground">
+        <Link href="/products" className="text-sm text-muted hover:text-foreground">
           ← Back to products
         </Link>
       </div>
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-sm text-foreground/60">
+          <p className="text-sm text-muted">
             {product.manufacturer ?? product.vendor ?? "Product"}
           </p>
           <h1 className="text-2xl font-semibold">{product.description}</h1>
@@ -80,6 +82,7 @@ export default async function ProductDetailPage({
             <ConfirmForm
               action={deleteProduct.bind(null, product.id)}
               confirmText="Delete this warranty and all its documents? This cannot be undone."
+              actionLabel="Delete warranty"
               className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
               offline={{ entity: "product", entityId: product.id, label: `Delete product: ${product.description}` }}
             >
@@ -151,10 +154,12 @@ export default async function ProductDetailPage({
 
       <RecordMeta
         createdByName={product.createdBy.name}
+        updatedByName={product.updatedBy?.name}
         createdAt={product.createdAt}
         updatedAt={product.updatedAt}
         dateFormat={dateFormat}
         extractionConfirmedAt={product.extractionConfirmedAt}
+        memberCount={memberCount}
       />
     </div>
   );

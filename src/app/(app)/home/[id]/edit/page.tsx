@@ -13,7 +13,7 @@ export default async function EditPropertyPage({
 
   const { id } = await params;
   const property = await prisma.property.findUnique({ where: { id } });
-  if (!property) notFound();
+  if (!property || property.deletedAt) notFound();
 
   const boundAction = updateProperty.bind(null, property.id);
 
@@ -21,7 +21,7 @@ export default async function EditPropertyPage({
     <div className="max-w-3xl space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Edit property</h1>
-        <p className="text-sm text-foreground/60">{property.label}</p>
+        <p className="text-sm text-muted">{property.label}</p>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <PropertyForm action={boundAction} property={property} />

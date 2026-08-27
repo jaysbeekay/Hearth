@@ -42,10 +42,6 @@ import {
   deleteVehicleItemDocument,
   deleteInventoryItemDocument,
   deleteTradeDocument,
-  deleteTripSegmentDir,
-  deleteHomeItemDir,
-  deleteInventoryItemDir,
-  deleteVehicleItemDir,
   deleteTradeDir,
 } from "@/lib/storage";
 
@@ -117,8 +113,10 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       const existing = await prisma.contract.findUnique({ where: { id } });
       if (!existing) throw new Error("Contract not found");
       assertNotStale(existing, ctx);
-      await updateContractCommand(id, data);
+      await updateContractCommand(id, data, ctx.userId);
     },
+    // #287 — soft-delete, matching deleteContract in actions/contracts.ts:
+    // moves to Trash instead of removing the row and files outright.
     remove: async (id) => {
       await deleteContractCommand(id);
     },
@@ -143,8 +141,9 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       const existing = await prisma.product.findUnique({ where: { id } });
       if (!existing) throw new Error("Product not found");
       assertNotStale(existing, ctx);
-      await updateProductCommand(id, data);
+      await updateProductCommand(id, data, ctx.userId);
     },
+    // #287 — soft-delete, matching deleteProduct in actions/products.ts.
     remove: async (id) => {
       await deleteProductCommand(id);
     },
@@ -181,17 +180,13 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       revalidatePath("/vehicles");
       revalidatePath(`/vehicles/${id}`);
     },
+    // #287 — soft-delete, matching deleteVehicle in actions/vehicles.ts.
     remove: async (id) => {
-      const existing = await prisma.vehicle.findUnique({
-        where: { id },
-        include: { items: { select: { id: true } } },
-      });
+      const existing = await prisma.vehicle.findUnique({ where: { id } });
       if (!existing) throw new Error("Vehicle not found");
-      for (const item of existing.items) {
-        await deleteVehicleItemDir(item.id);
-      }
-      await prisma.vehicle.delete({ where: { id } });
+      await prisma.vehicle.update({ where: { id }, data: { deletedAt: new Date() } });
       revalidatePath("/vehicles");
+      revalidatePath("/settings/trash");
     },
   }),
 
@@ -240,17 +235,13 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       revalidatePath("/travel");
       revalidatePath(`/travel/${id}`);
     },
+    // #287 — soft-delete, matching deleteTrip in actions/trips.ts.
     remove: async (id) => {
-      const existing = await prisma.trip.findUnique({
-        where: { id },
-        include: { segments: { select: { id: true } } },
-      });
+      const existing = await prisma.trip.findUnique({ where: { id } });
       if (!existing) throw new Error("Trip not found");
-      for (const segment of existing.segments) {
-        await deleteTripSegmentDir(segment.id);
-      }
-      await prisma.trip.delete({ where: { id } });
+      await prisma.trip.update({ where: { id }, data: { deletedAt: new Date() } });
       revalidatePath("/travel");
+      revalidatePath("/settings/trash");
     },
   }),
 
@@ -299,17 +290,13 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       revalidatePath("/home");
       revalidatePath(`/home/${id}`);
     },
+    // #287 — soft-delete, matching deleteProperty in actions/home.ts.
     remove: async (id) => {
-      const existing = await prisma.property.findUnique({
-        where: { id },
-        include: { items: { select: { id: true } } },
-      });
+      const existing = await prisma.property.findUnique({ where: { id } });
       if (!existing) throw new Error("Property not found");
-      for (const item of existing.items) {
-        await deleteHomeItemDir(item.id);
-      }
-      await prisma.property.delete({ where: { id } });
+      await prisma.property.update({ where: { id }, data: { deletedAt: new Date() } });
       revalidatePath("/home");
+      revalidatePath("/settings/trash");
     },
   }),
 
@@ -413,12 +400,13 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       revalidatePath("/inventory");
       revalidatePath(`/inventory/${id}`);
     },
+    // #287 — soft-delete, matching deleteInventoryItem in actions/inventory.ts.
     remove: async (id) => {
       const existing = await prisma.inventoryItem.findUnique({ where: { id } });
       if (!existing) throw new Error("Item not found");
-      await deleteInventoryItemDir(id);
-      await prisma.inventoryItem.delete({ where: { id } });
+      await prisma.inventoryItem.update({ where: { id }, data: { deletedAt: new Date() } });
       revalidatePath("/inventory");
+      revalidatePath("/settings/trash");
     },
     saveFile: async (itemId, file) => {
       validateFile(file);

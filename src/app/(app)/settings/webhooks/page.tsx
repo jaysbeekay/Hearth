@@ -28,7 +28,7 @@ export default async function WebhooksPage() {
   return (
     <div className="max-w-2xl space-y-6">
       <h1 className="text-2xl font-semibold">Webhooks</h1>
-      <p className="text-sm text-foreground/60">
+      <p className="text-sm text-muted">
         Notify other platforms (e.g. Home Assistant, or an MCP agent like Hermes) when a
         contract or product warranty is approaching expiry. Each endpoint receives the same
         reminders as email/push, at the thresholds set on each contract or product.
@@ -37,7 +37,7 @@ export default async function WebhooksPage() {
       <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <h2 className="mb-3 font-medium">Endpoints</h2>
         {endpoints.length === 0 ? (
-          <p className="text-sm text-foreground/60">No webhook endpoints configured yet.</p>
+          <p className="text-sm text-muted">No webhook endpoints configured yet.</p>
         ) : (
           <ul className="divide-y divide-border">
             {endpoints.map((endpoint) => (
@@ -45,11 +45,11 @@ export default async function WebhooksPage() {
                 <div className="min-w-0">
                   <p className="text-sm font-medium">
                     {endpoint.name}{" "}
-                    <span className={endpoint.enabled ? "text-success" : "text-foreground/50"}>
+                    <span className={endpoint.enabled ? "text-success" : "text-muted"}>
                       · {endpoint.enabled ? "Enabled" : "Disabled"}
                     </span>
                   </p>
-                  <p className="truncate text-xs text-foreground/50">{endpoint.url}</p>
+                  <p className="truncate text-xs text-muted">{endpoint.url}</p>
                 </div>
                 <WebhookActions
                   endpointId={endpoint.id}
@@ -70,7 +70,7 @@ export default async function WebhooksPage() {
       <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <h2 className="mb-3 font-medium">Recent deliveries</h2>
         {logs.length === 0 ? (
-          <p className="text-sm text-foreground/60">No deliveries yet.</p>
+          <p className="text-sm text-muted">No deliveries yet.</p>
         ) : (
           <ul className="divide-y divide-border">
             {logs.map((log) => (
@@ -82,7 +82,7 @@ export default async function WebhooksPage() {
                       · {log.success ? "OK" : "Failed"}
                     </span>
                   </p>
-                  <p className="text-xs text-foreground/50">
+                  <p className="text-xs text-muted">
                     {formatDate(log.sentAt, dateFormat)}
                     {log.statusCode ? ` · HTTP ${log.statusCode}` : ""}
                     {log.message ? ` · ${log.message}` : ""}

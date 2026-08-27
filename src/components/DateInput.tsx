@@ -44,7 +44,7 @@ export function DateInput({
         }}
       />
       {parsed && (
-        <p id={hintId} className="mt-1 text-xs text-foreground/50">
+        <p id={hintId} className="mt-1 text-xs text-muted">
           {formatDate(parsed, dateFormat)}
         </p>
       )}

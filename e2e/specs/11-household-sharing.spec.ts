@@ -71,7 +71,7 @@ test.describe("household-wide sharing", () => {
     // also remove it, subject only to the READONLY role.
     await page.getByRole("button", { name: "More actions" }).click();
     await page.getByRole("button", { name: /Delete/ }).click();
-    await page.getByRole("button", { name: "Confirm" }).click();
+    await page.getByRole("button", { name: "Delete item" }).click();
 
     await page.waitForURL(/\/inventory$/);
     await expect(page.locator("body")).not.toContainText("Member-edited Drill");
@@ -89,7 +89,10 @@ test("the calendar shows records created by other household members", async ({ b
   await adminPage.goto("/contracts/new");
   await adminPage.locator("#title").fill("Admin Household Policy");
   await adminPage.locator("#provider").fill("Shared Insurer");
-  await adminPage.locator("#endDate").fill("2027-03-15");
+  // Within the calendar's default 30-day horizon (#288) so it shows up
+  // without the member having to pick a wider horizon.
+  const endDate = new Date(Date.now() + 20 * 86_400_000).toISOString().slice(0, 10);
+  await adminPage.locator("#endDate").fill(endDate);
   await adminPage.locator("main button[type=submit]").click();
   await adminPage.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
   await adminContext.close();

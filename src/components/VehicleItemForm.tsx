@@ -13,7 +13,7 @@ import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapp
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
-import { markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
+import { applyIfEmpty, markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 import { DateInput } from "@/components/DateInput";
 
 function toDateInputValue(date: Date | null | undefined) {
@@ -58,26 +58,16 @@ export function VehicleItemForm({
   const costRef = useRef<HTMLInputElement>(null);
 
   function applyExtractedFields(fields: ExtractedFields) {
+    // type has no "unset" option (always defaults to VEHICLE_ITEM_TYPES[0]),
+    // so it's always overwritten by design — there's no empty state to guard.
     if (fields.type && typeRef.current) {
       typeRef.current.value = fields.type;
       markAutoFilled(typeRef.current);
     }
-    if (fields.title && titleRef.current && !titleRef.current.value) {
-      titleRef.current.value = fields.title;
-      markAutoFilled(titleRef.current);
-    }
-    if (fields.provider && providerRef.current) {
-      providerRef.current.value = fields.provider;
-      markAutoFilled(providerRef.current);
-    }
-    if (fields.date && dateRef.current) {
-      dateRef.current.value = fields.date;
-      markAutoFilled(dateRef.current);
-    }
-    if (fields.cost && costRef.current) {
-      costRef.current.value = fields.cost;
-      markAutoFilled(costRef.current);
-    }
+    applyIfEmpty(titleRef.current, fields.title);
+    applyIfEmpty(providerRef.current, fields.provider);
+    applyIfEmpty(dateRef.current, fields.date);
+    applyIfEmpty(costRef.current, fields.cost);
   }
 
   async function handleFileChange(file: File | null) {
@@ -117,12 +107,12 @@ export function VehicleItemForm({
           </p>
           <FileDropZone name="file" onFileSelected={handleFileChange} />
           {scanning && (
-            <p role="status" aria-live="polite" className="text-sm text-foreground/60">
+            <p role="status" aria-live="polite" className="text-sm text-muted">
               Scanning document…
             </p>
           )}
           {!scanning && scanMessage && (
-            <p role="status" aria-live="polite" className="text-sm text-foreground/60">
+            <p role="status" aria-live="polite" className="text-sm text-muted">
               {scanMessage}
             </p>
           )}

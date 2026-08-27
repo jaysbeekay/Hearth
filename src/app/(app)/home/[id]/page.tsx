@@ -24,6 +24,7 @@ import {
   formatPropertyAddress,
 } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
+import { getHouseholdMemberCount } from "@/lib/household";
 
 const ITEM_ICONS: Record<string, LucideIcon> = {
   MAINTENANCE: Wrench,
@@ -46,21 +47,23 @@ export default async function PropertyDetailPage({
   await requireModuleEnabled("HOME");
 
   const { id } = await params;
-  const [property, { dateFormat, preferredCurrency, region }, linkedContracts, linkedProducts] =
+  const [property, { dateFormat, preferredCurrency, region }, linkedContracts, linkedProducts, memberCount] =
     await Promise.all([
       prisma.property.findUnique({
         where: { id },
         include: {
           createdBy: true,
+          updatedBy: true,
           items: { include: { documents: { orderBy: { uploadedAt: "desc" } } } },
           valuations: { orderBy: { valuedAt: "desc" } },
         },
       }),
       getUserPreferences(),
-      prisma.contract.findMany({ where: { propertyId: id }, orderBy: { title: "asc" } }),
-      prisma.product.findMany({ where: { propertyId: id }, orderBy: { description: "asc" } }),
+      prisma.contract.findMany({ where: { propertyId: id, deletedAt: null }, orderBy: { title: "asc" } }),
+      prisma.product.findMany({ where: { propertyId: id, deletedAt: null }, orderBy: { description: "asc" } }),
+      getHouseholdMemberCount(),
     ]);
-  if (!property) notFound();
+  if (!property || property.deletedAt) notFound();
 
   const latestValuation = property.valuations[0] ?? null;
   const valuationStale = !latestValuation || isValuationStale(latestValuation.valuedAt);
@@ -75,14 +78,14 @@ export default async function PropertyDetailPage({
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <Link href="/home" className="text-sm text-foreground/60 hover:text-foreground">
+        <Link href="/home" className="text-sm text-muted hover:text-foreground">
           ← Back to properties
         </Link>
       </div>
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-sm text-foreground/60">
+          <p className="text-sm text-muted">
             {formatPropertyAddress(property) || "No address set"}
           </p>
           <h1 className="text-2xl font-semibold">{property.label}</h1>
@@ -102,6 +105,7 @@ export default async function PropertyDetailPage({
             <ConfirmForm
               action={deleteProperty.bind(null, property.id)}
               confirmText="Delete this property and all its items and documents? This cannot be undone."
+              actionLabel="Delete property"
               className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
               offline={{ entity: "property", entityId: property.id, label: `Delete property: ${property.label}` }}
             >
@@ -136,7 +140,7 @@ export default async function PropertyDetailPage({
         </div>
 
         {items.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-foreground/60">
+          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
             No items yet. Add a maintenance, improvement, or repair record to start tracking.
           </p>
         ) : (
@@ -150,9 +154,9 @@ export default async function PropertyDetailPage({
                 >
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="flex min-w-0 items-start gap-3">
-                      <Icon size={20} className="mt-0.5 shrink-0 text-foreground/50" />
+                      <Icon size={20} className="mt-0.5 shrink-0 text-muted" />
                       <div className="min-w-0">
-                        <p className="text-sm text-foreground/60">
+                        <p className="text-sm text-muted">
                           {HOME_ITEM_TYPE_LABELS[item.type] ?? item.type}
                         </p>
                         <p className="flex flex-wrap items-center gap-2 font-medium">
@@ -179,6 +183,7 @@ export default async function PropertyDetailPage({
                       <ConfirmForm
                         action={deleteHomeItem.bind(null, property.id, item.id)}
                         confirmText={`Delete "${item.title}" and its documents?`}
+                        actionLabel={`Delete "${item.title}"`}
                         className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
                       >
                         <Trash2 size={16} />
@@ -215,9 +220,22 @@ export default async function PropertyDetailPage({
         )}
       </div>
 
-      {(linkedContracts.length > 0 || linkedProducts.length > 0) && (
-        <div className="space-y-3">
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
           <h2 className="font-medium">Contracts &amp; warranties linked to this property</h2>
+          <Link
+            href={`/contracts/new?propertyId=${property.id}`}
+            className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
+          >
+            <Plus size={16} />
+            Add contract
+          </Link>
+        </div>
+        {linkedContracts.length === 0 && linkedProducts.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted">
+            No contracts or warranties linked yet.
+          </p>
+        ) : (
           <div className="grid gap-3 md:grid-cols-2">
             {linkedContracts.map((contract) => (
               <ContractCard key={contract.id} contract={contract} dateFormat={dateFormat} region={region} />
@@ -226,14 +244,14 @@ export default async function PropertyDetailPage({
               <ProductCard key={product.id} product={product} dateFormat={dateFormat} region={region} />
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Property valuations */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <TrendingUp size={18} className="text-foreground/50" />
+            <TrendingUp size={18} className="text-muted" />
             <h2 className="font-medium">Property valuations</h2>
           </div>
         </div>
@@ -253,14 +271,15 @@ export default async function PropertyDetailPage({
               <div key={v.id} className="flex items-center justify-between gap-4 p-4">
                 <div>
                   <p className="font-medium tabular-nums">{formatCurrency(v.value, v.currency, undefined, region)}</p>
-                  <p className="text-xs text-foreground/50">
+                  <p className="text-xs text-muted">
                     {formatDate(v.valuedAt, dateFormat)}{v.source ? ` · ${v.source}` : ""}
                   </p>
-                  {v.notes && <p className="mt-0.5 text-xs text-foreground/60">{v.notes}</p>}
+                  {v.notes && <p className="mt-0.5 text-xs text-muted">{v.notes}</p>}
                 </div>
                 <ConfirmForm
                   action={deletePropertyValuation.bind(null, property.id, v.id)}
                   confirmText="Remove this valuation? This can't be undone."
+                  actionLabel="Remove valuation"
                   ariaLabel={`Remove valuation from ${formatDate(v.valuedAt, dateFormat)}`}
                   className="rounded-lg border border-border p-2 text-danger hover:bg-danger/10"
                 >
@@ -284,7 +303,7 @@ export default async function PropertyDetailPage({
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <Home size={18} className="text-foreground/50" />
+            <Home size={18} className="text-muted" />
             <h2 className="font-medium">Rental tracking</h2>
           </div>
           {property.isRented ? (
@@ -304,7 +323,7 @@ export default async function PropertyDetailPage({
           )}
         </div>
         {property.isRented && (
-          <p className="mt-2 text-sm text-foreground/60">
+          <p className="mt-2 text-sm text-muted">
             This property is rented — track statements and reconcile rent income.
           </p>
         )}
@@ -312,9 +331,11 @@ export default async function PropertyDetailPage({
 
       <RecordMeta
         createdByName={property.createdBy.name}
+        updatedByName={property.updatedBy?.name}
         createdAt={property.createdAt}
         updatedAt={property.updatedAt}
         dateFormat={dateFormat}
+        memberCount={memberCount}
       />
     </div>
   );

@@ -13,16 +13,19 @@ export function iso(date: Date | null | undefined): string | null {
 
 export async function queryProducts(query?: string) {
   const products = await prisma.product.findMany({
-    where: query
-      ? {
-          OR: [
-            { description: { contains: query } },
-            { manufacturer: { contains: query } },
-            { model: { contains: query } },
-            { vendor: { contains: query } },
-          ],
-        }
-      : undefined,
+    where: {
+      deletedAt: null,
+      ...(query
+        ? {
+            OR: [
+              { description: { contains: query } },
+              { manufacturer: { contains: query } },
+              { model: { contains: query } },
+              { vendor: { contains: query } },
+            ],
+          }
+        : {}),
+    },
     select: {
       id: true,
       description: true,
@@ -47,7 +50,10 @@ export async function queryProducts(query?: string) {
 
 export async function queryTrips(upcomingOnly?: boolean) {
   const trips = await prisma.trip.findMany({
-    where: upcomingOnly ? { OR: [{ endDate: null }, { endDate: { gte: new Date() } }] } : undefined,
+    where: {
+      deletedAt: null,
+      ...(upcomingOnly ? { OR: [{ endDate: null }, { endDate: { gte: new Date() } }] } : {}),
+    },
     select: {
       id: true,
       title: true,
@@ -72,6 +78,7 @@ export async function queryTrips(upcomingOnly?: boolean) {
 
 export async function queryVehicles(attentionOnly?: boolean) {
   const vehicles = await prisma.vehicle.findMany({
+    where: { deletedAt: null },
     select: {
       id: true,
       label: true,
@@ -100,6 +107,7 @@ export async function queryVehicles(attentionOnly?: boolean) {
 
 export async function queryProperties() {
   const properties = await prisma.property.findMany({
+    where: { deletedAt: null },
     select: {
       id: true,
       label: true,
@@ -149,15 +157,18 @@ export async function queryProperties() {
 
 export async function queryInventoryItems(query?: string) {
   const items = await prisma.inventoryItem.findMany({
-    where: query
-      ? {
-          OR: [
-            { label: { contains: query } },
-            { brand: { contains: query } },
-            { model: { contains: query } },
-          ],
-        }
-      : undefined,
+    where: {
+      deletedAt: null,
+      ...(query
+        ? {
+            OR: [
+              { label: { contains: query } },
+              { brand: { contains: query } },
+              { model: { contains: query } },
+            ],
+          }
+        : {}),
+    },
     select: {
       id: true,
       label: true,

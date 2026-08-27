@@ -125,7 +125,7 @@ export async function updateVehicle(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  await requireUser();
+  const user = await requireUser();
 
   const parsed = vehicleSchema.safeParse(formToVehicleInput(formData));
   if (!parsed.success) {
@@ -138,14 +138,41 @@ export async function updateVehicle(
   const existing = await prisma.vehicle.findUnique({ where: { id: vehicleId } });
   if (!existing) return { error: "Vehicle not found." };
 
-  await prisma.vehicle.update({ where: { id: vehicleId }, data: parsed.data });
+  await prisma.vehicle.update({ where: { id: vehicleId }, data: { ...parsed.data, updatedById: user.id } });
 
   revalidatePath("/vehicles");
   revalidatePath(`/vehicles/${vehicleId}`);
   redirect(`/vehicles/${vehicleId}`);
 }
 
+// #287 — soft-delete: see the equivalent comment on deleteContract (contracts.ts).
 export async function deleteVehicle(vehicleId: string): Promise<ActionState> {
+  await requireUser();
+
+  const existing = await prisma.vehicle.findUnique({ where: { id: vehicleId } });
+  if (!existing) return { error: "Vehicle not found." };
+
+  await prisma.vehicle.update({ where: { id: vehicleId }, data: { deletedAt: new Date() } });
+
+  revalidatePath("/vehicles");
+  revalidatePath("/settings/trash");
+  redirect("/vehicles");
+}
+
+export async function restoreVehicle(vehicleId: string): Promise<ActionState> {
+  await requireUser();
+
+  const existing = await prisma.vehicle.findUnique({ where: { id: vehicleId } });
+  if (!existing) return { error: "Vehicle not found." };
+
+  await prisma.vehicle.update({ where: { id: vehicleId }, data: { deletedAt: null } });
+
+  revalidatePath("/vehicles");
+  revalidatePath("/settings/trash");
+  return { success: "Restored." };
+}
+
+export async function permanentlyDeleteVehicle(vehicleId: string): Promise<ActionState> {
   await requireUser();
 
   const existing = await prisma.vehicle.findUnique({
@@ -163,8 +190,8 @@ export async function deleteVehicle(vehicleId: string): Promise<ActionState> {
   // is no longer FK-cascaded, so this cleanup is now explicit.
   await clearNotificationLogs("VEHICLE", vehicleId);
 
-  revalidatePath("/vehicles");
-  redirect("/vehicles");
+  revalidatePath("/settings/trash");
+  return { success: "Deleted permanently." };
 }
 
 export async function addVehicleItem(

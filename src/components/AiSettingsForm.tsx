@@ -72,7 +72,7 @@ export function AiSettingsForm({
             />
           </div>
         ) : (
-          <p className="text-xs text-foreground/50">
+          <p className="text-xs text-muted">
             No API key needed — Ollama uses the base URL configured in{" "}
             <a href="/settings/app" className="text-accent hover:underline">
               System settings
@@ -83,7 +83,7 @@ export function AiSettingsForm({
 
         <div className="space-y-1">
           <label htmlFor="model" className="text-sm font-medium">
-            Model <span className="text-foreground/50">(optional)</span>
+            Model <span className="text-muted">(optional)</span>
           </label>
           <input
             id="model"
@@ -92,7 +92,7 @@ export function AiSettingsForm({
             placeholder={AI_PROVIDER_DEFAULT_MODELS[selected]}
             className={inputClass}
           />
-          <p className="text-xs text-foreground/50">
+          <p className="text-xs text-muted">
             Leave blank to use the default: {AI_PROVIDER_DEFAULT_MODELS[selected]}
           </p>
         </div>
@@ -112,7 +112,8 @@ export function AiSettingsForm({
         <ConfirmForm
           action={removeAiSettings}
           confirmText="Remove your saved AI provider settings? Document extraction will fall back to local heuristics."
-          className="inline-flex items-center gap-2 text-sm text-foreground/50 hover:text-danger"
+          actionLabel="Remove settings"
+          className="inline-flex items-center gap-2 text-sm text-muted hover:text-danger"
         >
           <Trash2 size={14} />
           Remove

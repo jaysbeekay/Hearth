@@ -31,12 +31,16 @@ interface ContractFields {
   provider: string;
   category: string;
   cost: string;
+  startDate: string;
+  endDate: string;
 }
 
 interface ProductFields {
   description: string;
   manufacturer: string;
   price: string;
+  purchaseDate: string;
+  warrantyEndDate: string;
 }
 
 interface InventoryFields {
@@ -54,6 +58,10 @@ interface Row {
   error?: string;
   href?: string;
   scanMessage?: string;
+  // Set once at scan time (matches ContractForm/ProductForm's own
+  // extractionUsed flag) so the created record is held for review until the
+  // user confirms it on its detail page — see extractionFieldsFromForm.
+  extractionUsed: boolean;
   contract: ContractFields;
   product: ProductFields;
   inventory: InventoryFields;
@@ -107,35 +115,45 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
     const { fields, source } = await extract(type, file);
     const filledCount = Object.keys(fields).length;
     const scanMessage = extractionMessage(source, filledCount);
+    const extractionUsed = filledCount > 0;
     if (type === "CONTRACT") {
       updateRow(id, {
         status: "ready",
         scanMessage,
+        extractionUsed,
         contract: {
           title: fields.title ?? file.name.replace(/\.[^.]+$/, ""),
           provider: fields.provider ?? "",
           category: "OTHER",
           cost: fields.cost ?? "",
+          startDate: fields.startDate ?? "",
+          endDate: fields.endDate ?? "",
         },
         contractAutoFilled: {
           title: Boolean(fields.title),
           provider: Boolean(fields.provider),
           cost: Boolean(fields.cost),
+          startDate: Boolean(fields.startDate),
+          endDate: Boolean(fields.endDate),
         },
       });
     } else if (type === "PRODUCT") {
       updateRow(id, {
         status: "ready",
         scanMessage,
+        extractionUsed,
         product: {
           description: fields.description ?? file.name.replace(/\.[^.]+$/, ""),
           manufacturer: fields.manufacturer ?? "",
           price: fields.price ?? "",
+          purchaseDate: fields.purchaseDate ?? "",
+          warrantyEndDate: "",
         },
         productAutoFilled: {
           description: Boolean(fields.description),
           manufacturer: Boolean(fields.manufacturer),
           price: Boolean(fields.price),
+          purchaseDate: Boolean(fields.purchaseDate),
         },
       });
     } else {
@@ -166,8 +184,9 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
         file,
         type: "CONTRACT",
         status: "scanning",
-        contract: { title: "", provider: "", category: "OTHER", cost: "" },
-        product: { description: "", manufacturer: "", price: "" },
+        extractionUsed: false,
+        contract: { title: "", provider: "", category: "OTHER", cost: "", startDate: "", endDate: "" },
+        product: { description: "", manufacturer: "", price: "", purchaseDate: "", warrantyEndDate: "" },
         inventory: { label: "", category: "OTHER", brand: "", purchasePrice: "" },
         contractAutoFilled: {},
         productAutoFilled: {},
@@ -193,11 +212,19 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
       formData.append("category", row.contract.category);
       formData.append("renewalType", "MANUAL_RENEWAL");
       formData.append("cost", row.contract.cost);
+      formData.append("startDate", row.contract.startDate);
+      formData.append("endDate", row.contract.endDate);
+      formData.append("extractionUsed", row.extractionUsed ? "1" : "0");
+      formData.append("confirmExtraction", "0");
       result = await importContract(formData);
     } else if (row.type === "PRODUCT") {
       formData.append("description", row.product.description);
       formData.append("manufacturer", row.product.manufacturer);
       formData.append("price", row.product.price);
+      formData.append("purchaseDate", row.product.purchaseDate);
+      formData.append("warrantyEndDate", row.product.warrantyEndDate);
+      formData.append("extractionUsed", row.extractionUsed ? "1" : "0");
+      formData.append("confirmExtraction", "0");
       result = await importProduct(formData);
     } else if (row.type === "INVENTORY") {
       formData.append("label", row.inventory.label);
@@ -241,13 +268,15 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
           setDragOver(false);
           if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
         }}
-        className={`flex cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed p-8 text-center transition ${
+        className={`flex cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed p-8 text-center transition has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent has-[:focus-visible]:outline-offset-2 ${
           dragOver ? "border-accent bg-accent/5" : "border-border hover:border-accent/50"
         }`}
       >
         <Upload size={22} className="text-muted" />
         <p className="text-sm font-medium">Drag a file here or click to browse</p>
         <p className="text-xs text-muted">Drop in more than one at a time if you have several — each is scanned and added to the queue below</p>
+        {/* #285 — capture-time disclosure that this isn't private storage. */}
+        <p className="text-xs text-muted">Visible to your whole household once saved.</p>
         <input
           ref={inputRef}
           id={inputId}
@@ -310,7 +339,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                           <option value="CONTRACT">Contract</option>
                           <option value="PRODUCT">Product</option>
                           {inventoryEnabled && <option value="INVENTORY">Inventory item</option>}
-                          <option value="INBOX">Not sure yet</option>
+                          <option value="INBOX">Save to review later</option>
                         </select>
                         <button
                           type="button"
@@ -340,7 +369,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                 {(row.status === "ready" || row.status === "saving" || row.status === "error") &&
                   row.type === "CONTRACT" && (
                     <div className="grid gap-2 sm:grid-cols-2">
-                      <RowField label="Title" htmlFor={`${row.id}-title`}>
+                      <RowField label="Title" htmlFor={`${row.id}-title`} autoFilled={row.contractAutoFilled.title}>
                         <input
                           id={`${row.id}-title`}
                           value={row.contract.title}
@@ -354,7 +383,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                           className={fieldClass(row.contractAutoFilled.title)}
                         />
                       </RowField>
-                      <RowField label="Provider" htmlFor={`${row.id}-provider`}>
+                      <RowField label="Provider" htmlFor={`${row.id}-provider`} autoFilled={row.contractAutoFilled.provider}>
                         <input
                           id={`${row.id}-provider`}
                           value={row.contract.provider}
@@ -387,7 +416,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                           ))}
                         </select>
                       </RowField>
-                      <RowField label="Cost" htmlFor={`${row.id}-cost`}>
+                      <RowField label="Cost" htmlFor={`${row.id}-cost`} autoFilled={row.contractAutoFilled.cost}>
                         <input
                           id={`${row.id}-cost`}
                           value={row.contract.cost}
@@ -402,13 +431,43 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                           className={fieldClass(row.contractAutoFilled.cost)}
                         />
                       </RowField>
+                      <RowField label="Start date" htmlFor={`${row.id}-startDate`} autoFilled={row.contractAutoFilled.startDate}>
+                        <input
+                          id={`${row.id}-startDate`}
+                          type="date"
+                          value={row.contract.startDate}
+                          disabled={row.status === "saving"}
+                          onChange={(e) =>
+                            updateRow(row.id, {
+                              contract: { ...row.contract, startDate: e.target.value },
+                              contractAutoFilled: { ...row.contractAutoFilled, startDate: false },
+                            })
+                          }
+                          className={fieldClass(row.contractAutoFilled.startDate)}
+                        />
+                      </RowField>
+                      <RowField label="End date" htmlFor={`${row.id}-endDate`} autoFilled={row.contractAutoFilled.endDate}>
+                        <input
+                          id={`${row.id}-endDate`}
+                          type="date"
+                          value={row.contract.endDate}
+                          disabled={row.status === "saving"}
+                          onChange={(e) =>
+                            updateRow(row.id, {
+                              contract: { ...row.contract, endDate: e.target.value },
+                              contractAutoFilled: { ...row.contractAutoFilled, endDate: false },
+                            })
+                          }
+                          className={fieldClass(row.contractAutoFilled.endDate)}
+                        />
+                      </RowField>
                     </div>
                   )}
 
                 {(row.status === "ready" || row.status === "saving" || row.status === "error") &&
                   row.type === "PRODUCT" && (
                     <div className="grid gap-2 sm:grid-cols-3">
-                      <RowField label="Description" htmlFor={`${row.id}-description`}>
+                      <RowField label="Description" htmlFor={`${row.id}-description`} autoFilled={row.productAutoFilled.description}>
                         <input
                           id={`${row.id}-description`}
                           value={row.product.description}
@@ -422,7 +481,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                           className={fieldClass(row.productAutoFilled.description)}
                         />
                       </RowField>
-                      <RowField label="Manufacturer" htmlFor={`${row.id}-manufacturer`}>
+                      <RowField label="Manufacturer" htmlFor={`${row.id}-manufacturer`} autoFilled={row.productAutoFilled.manufacturer}>
                         <input
                           id={`${row.id}-manufacturer`}
                           value={row.product.manufacturer}
@@ -436,7 +495,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                           className={fieldClass(row.productAutoFilled.manufacturer)}
                         />
                       </RowField>
-                      <RowField label="Price" htmlFor={`${row.id}-price`}>
+                      <RowField label="Price" htmlFor={`${row.id}-price`} autoFilled={row.productAutoFilled.price}>
                         <input
                           id={`${row.id}-price`}
                           value={row.product.price}
@@ -451,13 +510,42 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                           className={fieldClass(row.productAutoFilled.price)}
                         />
                       </RowField>
+                      <RowField label="Purchase date" htmlFor={`${row.id}-purchaseDate`} autoFilled={row.productAutoFilled.purchaseDate}>
+                        <input
+                          id={`${row.id}-purchaseDate`}
+                          type="date"
+                          value={row.product.purchaseDate}
+                          disabled={row.status === "saving"}
+                          onChange={(e) =>
+                            updateRow(row.id, {
+                              product: { ...row.product, purchaseDate: e.target.value },
+                              productAutoFilled: { ...row.productAutoFilled, purchaseDate: false },
+                            })
+                          }
+                          className={fieldClass(row.productAutoFilled.purchaseDate)}
+                        />
+                      </RowField>
+                      <RowField label="Warranty end date" htmlFor={`${row.id}-warrantyEndDate`}>
+                        <input
+                          id={`${row.id}-warrantyEndDate`}
+                          type="date"
+                          value={row.product.warrantyEndDate}
+                          disabled={row.status === "saving"}
+                          onChange={(e) =>
+                            updateRow(row.id, {
+                              product: { ...row.product, warrantyEndDate: e.target.value },
+                            })
+                          }
+                          className={fieldClass(false)}
+                        />
+                      </RowField>
                     </div>
                   )}
 
                 {(row.status === "ready" || row.status === "saving" || row.status === "error") &&
                   row.type === "INVENTORY" && (
                     <div className="grid gap-2 sm:grid-cols-2">
-                      <RowField label="Label" htmlFor={`${row.id}-label`}>
+                      <RowField label="Label" htmlFor={`${row.id}-label`} autoFilled={row.inventoryAutoFilled.label}>
                         <input
                           id={`${row.id}-label`}
                           value={row.inventory.label}
@@ -471,7 +559,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                           className={fieldClass(row.inventoryAutoFilled.label)}
                         />
                       </RowField>
-                      <RowField label="Brand" htmlFor={`${row.id}-brand`}>
+                      <RowField label="Brand" htmlFor={`${row.id}-brand`} autoFilled={row.inventoryAutoFilled.brand}>
                         <input
                           id={`${row.id}-brand`}
                           value={row.inventory.brand}
@@ -485,7 +573,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                           className={fieldClass(row.inventoryAutoFilled.brand)}
                         />
                       </RowField>
-                      <RowField label="Category" htmlFor={`${row.id}-inv-category`}>
+                      <RowField label="Category" htmlFor={`${row.id}-inv-category`} autoFilled={row.inventoryAutoFilled.category}>
                         <select
                           id={`${row.id}-inv-category`}
                           value={row.inventory.category}
@@ -505,7 +593,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                           ))}
                         </select>
                       </RowField>
-                      <RowField label="Purchase price" htmlFor={`${row.id}-purchasePrice`}>
+                      <RowField label="Purchase price" htmlFor={`${row.id}-purchasePrice`} autoFilled={row.inventoryAutoFilled.purchasePrice}>
                         <input
                           id={`${row.id}-purchasePrice`}
                           value={row.inventory.purchasePrice}
@@ -529,7 +617,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                       Saved to your inbox as-is — classify it as a contract, product, or other
                       record later from{" "}
                       <a href="/documents/inbox" className="text-accent hover:underline">
-                        Needs review
+                        Inbox
                       </a>
                       .
                     </p>
@@ -563,16 +651,29 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
 function RowField({
   label,
   htmlFor,
+  autoFilled,
   children,
 }: {
   label: string;
   htmlFor: string;
+  autoFilled?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-0.5">
-      <label htmlFor={htmlFor} className="block text-[11px] font-medium text-muted">
+      <label htmlFor={htmlFor} className="flex items-center gap-1 text-[11px] font-medium text-muted">
         {label}
+        {autoFilled && (
+          <>
+            {/* #290: a colour tint/ring alone doesn't reach a screen reader
+                or a colour-blind reviewer — this badge and the sr-only text
+                that follows it do. */}
+            <span aria-hidden="true" className="rounded bg-accent/10 px-1 py-0.5 text-[9px] font-medium text-accent">
+              Auto
+            </span>
+            <span className="sr-only">(auto-filled from document — review before saving)</span>
+          </>
+        )}
       </label>
       {children}
     </div>

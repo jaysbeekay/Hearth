@@ -9,8 +9,10 @@ import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { InventoryItemDocumentList } from "@/components/InventoryItemDocumentList";
+import { RecordMeta } from "@/components/RecordMeta";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
+import { getHouseholdMemberCount } from "@/lib/household";
 
 export const metadata: Metadata = { title: "Inventory Item" };
 
@@ -34,22 +36,24 @@ export default async function InventoryItemPage({
   await requireModuleEnabled("INVENTORY");
 
   const { id } = await params;
-  const [item, { dateFormat, region }] = await Promise.all([
+  const [item, { dateFormat, region }, memberCount] = await Promise.all([
     prisma.inventoryItem.findUnique({
       where: { id },
       include: {
         createdBy: true,
+        updatedBy: true,
         documents: { orderBy: { uploadedAt: "desc" } },
       },
     }),
     getUserPreferences(),
+    getHouseholdMemberCount(),
   ]);
-  if (!item) notFound();
+  if (!item || item.deletedAt) notFound();
 
   return (
     <div className="max-w-2xl space-y-6">
       <div>
-        <Link href="/inventory" className="text-sm text-foreground/60 hover:text-foreground">
+        <Link href="/inventory" className="text-sm text-muted hover:text-foreground">
           ← Back to inventory
         </Link>
       </div>
@@ -74,6 +78,7 @@ export default async function InventoryItemPage({
             <ConfirmForm
               action={deleteInventoryItem.bind(null, id)}
               confirmText="Delete this item and all its documents? This can't be undone."
+              actionLabel="Delete item"
               className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
               offline={{ entity: "inventoryItem", entityId: id, label: `Delete item: ${item.label}` }}
             >
@@ -123,6 +128,15 @@ export default async function InventoryItemPage({
           <DocumentUploadForm action={addInventoryItemDocument.bind(null, id)} />
         </div>
       </section>
+
+      <RecordMeta
+        createdByName={item.createdBy.name}
+        createdAt={item.createdAt}
+        updatedAt={item.updatedAt}
+        updatedByName={item.updatedBy?.name}
+        dateFormat={dateFormat}
+        memberCount={memberCount}
+      />
     </div>
   );
 }

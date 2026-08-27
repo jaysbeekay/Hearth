@@ -252,8 +252,8 @@ export default async function DocumentsPage({
     size: d.size,
     uploadedAt: d.uploadedAt,
     mimeType: d.mimeType,
-    type: "Needs review",
-    parentTitle: "Needs review",
+    type: "Inbox",
+    parentTitle: "Inbox",
     parentHref: "/documents/inbox",
     downloadHref: `/api/documents/inbox/${d.id}`,
   }));

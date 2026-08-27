@@ -11,7 +11,7 @@ export default async function NewPropertyPage() {
       <BackLink href="/home" label="Back to properties" />
       <div>
         <h1 className="text-2xl font-semibold">Add a property</h1>
-        <p className="text-sm text-foreground/60">
+        <p className="text-sm text-muted">
           Track maintenance, improvements, and repairs for this property.
         </p>
       </div>

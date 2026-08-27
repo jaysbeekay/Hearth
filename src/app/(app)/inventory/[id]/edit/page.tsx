@@ -17,12 +17,12 @@ export default async function EditInventoryItemPage({
 
   const { id } = await params;
   const item = await prisma.inventoryItem.findUnique({ where: { id } });
-  if (!item) notFound();
+  if (!item || item.deletedAt) notFound();
 
   return (
     <div className="max-w-xl space-y-6">
       <div>
-        <Link href={`/inventory/${id}`} className="text-sm text-foreground/60 hover:text-foreground">
+        <Link href={`/inventory/${id}`} className="text-sm text-muted hover:text-foreground">
           ← Back to item
         </Link>
       </div>

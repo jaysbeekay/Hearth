@@ -30,7 +30,7 @@ export default async function SpendPage({
 
   const [contracts, homeItems, vehicleItems] = await Promise.all([
     prisma.contract.findMany({
-      where: { status: "ACTIVE" },
+      where: { status: "ACTIVE", deletedAt: null },
       select: {
         category: true,
         cost: true,
@@ -43,11 +43,13 @@ export default async function SpendPage({
     }),
     enabledModules.has("HOME")
       ? prisma.homeItem.findMany({
+          where: { property: { deletedAt: null } },
           select: { cost: true, date: true, currency: true, isTaxDeductible: true },
         })
       : [],
     enabledModules.has("VEHICLES")
       ? prisma.vehicleItem.findMany({
+          where: { vehicle: { deletedAt: null } },
           select: { cost: true, date: true, currency: true },
         })
       : [],

@@ -10,28 +10,11 @@ import { deleteHolding, deleteTrade, addTradeDocument, deleteTradeDocumentAction
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { DocumentLink } from "@/components/DocumentLink";
-import { ASSET_CLASS_LABELS, TRADE_TYPE_LABELS } from "@/lib/validation/wealth";
+import { ASSET_CLASS_LABELS, TRADE_TYPE_LABELS, COST_METHOD_LABELS } from "@/lib/validation/wealth";
 import { getUserPreferences } from "@/lib/userPreferences";
+import { holdingUnitsAndCost } from "@/lib/wealth";
 
 export const metadata: Metadata = { title: "Holding" };
-
-function holdingUnitsAndCost(trades: { type: string; units: number; pricePerUnit: number; fees: number | null }[]) {
-  let units = 0;
-  let cost = 0;
-  for (const t of trades) {
-    if (t.type === "BUY") {
-      units += t.units;
-      cost += t.units * t.pricePerUnit + (t.fees ?? 0);
-    } else if (t.type === "SELL") {
-      const sellUnits = Math.min(t.units, units);
-      if (units > 0) cost = cost * ((units - sellUnits) / units);
-      units = Math.max(0, units - sellUnits);
-    } else if (t.type === "SPLIT") {
-      units += t.units;
-    }
-  }
-  return { units, cost };
-}
 
 /** Running units held at or before a given timestamp. Trades must be sorted ascending by date. */
 function unitsAtTime(
@@ -219,7 +202,7 @@ export default async function HoldingPage({
 
   const sortedTrades = [...holding.trades].sort((a, b) => a.date.getTime() - b.date.getTime());
 
-  const { units, cost } = holdingUnitsAndCost(sortedTrades);
+  const { units, cost } = holdingUnitsAndCost(sortedTrades, holding.portfolio.costMethod);
 
   const currentPrice = priceEntry?.price ?? null;
   const currentValue = currentPrice != null && units > 0 ? units * currentPrice : null;
@@ -250,14 +233,14 @@ export default async function HoldingPage({
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <Link href={`/wealth/portfolios/${portfolioId}`} className="text-sm text-foreground/60 hover:text-foreground">
+        <Link href={`/wealth/portfolios/${portfolioId}`} className="text-sm text-muted hover:text-foreground">
           ← {holding.portfolio.name}
         </Link>
         <div className="mt-1 flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold">{holding.ticker}</h1>
-            {holding.name && <p className="text-sm text-foreground/60">{holding.name}</p>}
-            <p className="mt-0.5 text-xs text-foreground/40">{ASSET_CLASS_LABELS[holding.assetClass] ?? holding.assetClass}{holding.exchange ? ` · ${holding.exchange}` : ""}</p>
+            {holding.name && <p className="text-sm text-muted">{holding.name}</p>}
+            <p className="mt-0.5 text-xs text-muted">{ASSET_CLASS_LABELS[holding.assetClass] ?? holding.assetClass}{holding.exchange ? ` · ${holding.exchange}` : ""}</p>
           </div>
           <div className="flex items-center gap-2">
             <Link
@@ -270,6 +253,7 @@ export default async function HoldingPage({
             <ConfirmForm
               action={deleteHolding.bind(null, portfolioId, holdingId)}
               confirmText={`Delete ${holding.ticker} and all its trades? This cannot be undone.`}
+              actionLabel={`Delete ${holding.ticker}`}
               className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
             >
               <Trash2 size={16} />
@@ -282,13 +266,13 @@ export default async function HoldingPage({
       {/* Position summary */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div className="rounded-xl border border-border bg-surface p-4">
-          <p className="text-xs text-foreground/50">Units held</p>
+          <p className="text-xs text-muted">Units held</p>
           <p className="mt-1 text-lg font-semibold tabular-nums">
             {formatNumber(units, region)}
           </p>
         </div>
         <div className="rounded-xl border border-border bg-surface p-4">
-          <p className="text-xs text-foreground/50">Current price</p>
+          <p className="text-xs text-muted">Current price</p>
           <p className="mt-1 text-lg font-semibold tabular-nums">
             {currentPrice != null ? formatCurrency(currentPrice, currency, undefined, region, { showCode: true }) : "—"}
           </p>
@@ -299,13 +283,13 @@ export default async function HoldingPage({
           )}
         </div>
         <div className="rounded-xl border border-border bg-surface p-4">
-          <p className="text-xs text-foreground/50">Market value</p>
+          <p className="text-xs text-muted">Market value</p>
           <p className="mt-1 text-lg font-semibold tabular-nums">
             {currentValue != null ? formatCurrency(currentValue, currency, undefined, region, { showCode: true }) : "—"}
           </p>
         </div>
         <div className="rounded-xl border border-border bg-surface p-4">
-          <p className="text-xs text-foreground/50">Unrealised gain/loss</p>
+          <p className="text-xs text-muted">Unrealised gain/loss</p>
           <p className={`mt-1 text-lg font-semibold tabular-nums ${gainLoss == null ? "" : gainLoss >= 0 ? "text-success" : "text-danger"}`}>
             {gainLoss != null
               ? `${gainLoss >= 0 ? "+" : ""}${formatCurrency(gainLoss, currency, undefined, region, { showCode: true })}`
@@ -321,17 +305,19 @@ export default async function HoldingPage({
 
       <dl className="grid grid-cols-2 gap-4 rounded-xl border border-border bg-surface p-4 md:p-6 sm:grid-cols-3">
         <div className="min-w-0">
-          <dt className="text-xs text-foreground/50">Cost basis</dt>
+          <dt className="text-xs text-muted">
+            Cost basis <span className="text-muted">({COST_METHOD_LABELS[holding.portfolio.costMethod]})</span>
+          </dt>
           <dd className="text-sm font-medium tabular-nums break-words">{formatCurrency(cost, currency, undefined, region, { showCode: true })}</dd>
         </div>
         <div className="min-w-0">
-          <dt className="text-xs text-foreground/50">Avg cost / unit</dt>
+          <dt className="text-xs text-muted">Avg cost / unit</dt>
           <dd className="text-sm font-medium tabular-nums break-words">
             {units > 0 && cost > 0 ? formatCurrency(cost / units, currency, undefined, region, { showCode: true }) : "—"}
           </dd>
         </div>
         <div className="min-w-0">
-          <dt className="text-xs text-foreground/50">Trades</dt>
+          <dt className="text-xs text-muted">Trades</dt>
           <dd className="text-sm font-medium">{holding.trades.length}</dd>
         </div>
       </dl>
@@ -358,7 +344,7 @@ export default async function HoldingPage({
         </div>
 
         {tradesDesc.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-foreground/60">
+          <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted">
             No trades yet.
           </p>
         ) : (
@@ -384,21 +370,21 @@ export default async function HoldingPage({
                         <p className="text-sm font-medium tabular-nums">
                           {formatNumber(trade.units, region)} units @ {formatCurrency(trade.pricePerUnit, trade.currency, undefined, region, { showCode: true })}
                         </p>
-                        <p className="text-xs text-foreground/50">
+                        <p className="text-xs text-muted">
                           {formatDate(trade.date, dateFormat)}
                           {trade.fees != null && ` · fees ${formatCurrency(trade.fees, trade.currency, undefined, region, { showCode: true })}`}
                         </p>
                         {trade.marketPriceOnDate != null && (
-                          <p className="mt-0.5 text-xs text-foreground/40">
+                          <p className="mt-0.5 text-xs text-muted">
                             Market close {formatDate(trade.date, dateFormat)}: {formatCurrency(trade.marketPriceOnDate, trade.currency, undefined, region, { showCode: true })}
                             {slippage != null && (
-                              <span className={`ml-1 ${Math.abs(slippage) < 0.5 ? "text-foreground/40" : slippage > 0 ? "text-danger" : "text-success"}`}>
+                              <span className={`ml-1 ${Math.abs(slippage) < 0.5 ? "text-muted" : slippage > 0 ? "text-danger" : "text-success"}`}>
                                 ({slippage > 0 ? "+" : ""}{slippage.toFixed(2)}% vs close)
                               </span>
                             )}
                           </p>
                         )}
-                        {trade.notes && <p className="mt-1 text-xs text-foreground/60">{trade.notes}</p>}
+                        {trade.notes && <p className="mt-1 text-xs text-muted">{trade.notes}</p>}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -412,6 +398,7 @@ export default async function HoldingPage({
                       <ConfirmForm
                         action={deleteTrade.bind(null, holdingId, trade.id)}
                         confirmText="Delete this trade? This can't be undone."
+                        actionLabel="Delete trade"
                         ariaLabel={`Delete trade from ${formatDate(trade.date, dateFormat)}`}
                         className="rounded-lg border border-border p-2 text-danger hover:bg-danger/10"
                       >
@@ -437,6 +424,7 @@ export default async function HoldingPage({
                             <ConfirmForm
                               action={deleteTradeDocumentAction.bind(null, holdingId, trade.id, doc.id)}
                               confirmText={`Remove ${doc.filename}? This can't be undone.`}
+                              actionLabel="Remove document"
                               ariaLabel={`Remove ${doc.filename}`}
                               className="rounded p-1 text-danger hover:text-danger/70"
                               offline={{

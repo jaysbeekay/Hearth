@@ -39,26 +39,64 @@ export interface NetWorthData {
   currency: string;
 }
 
-export function holdingUnitsAndCost(trades: { type: string; units: number; pricePerUnit: number; fees: number | null }[]) {
-  let units = 0;
-  let cost = 0;
+export type CostMethod = "FIFO" | "AVERAGE";
+
+type CostBasisTrade = { type: string; units: number; pricePerUnit: number; fees: number | null };
+
+// Trades must be sorted ascending by date. FIFO tracks individual purchase
+// lots and consumes the oldest first on a sale; average cost pools everything
+// bought so far and reduces it proportionally. Both clamp a sale exceeding
+// units held to zero, rather than going negative. Configurable per portfolio
+// (#275) — the two methods diverge materially whenever units are bought at
+// different prices and then partially sold.
+export function holdingUnitsAndCost(trades: CostBasisTrade[], method: CostMethod = "FIFO") {
+  if (method === "AVERAGE") {
+    let units = 0;
+    let cost = 0;
+    for (const t of trades) {
+      if (t.type === "BUY") {
+        units += t.units;
+        cost += t.units * t.pricePerUnit + (t.fees ?? 0);
+      } else if (t.type === "SELL") {
+        const sellUnits = Math.min(t.units, units);
+        if (units > 0) {
+          cost = cost * ((units - sellUnits) / units);
+        }
+        units = Math.max(0, units - sellUnits);
+      } else if (t.type === "SPLIT") {
+        units += t.units;
+      }
+      // DIVIDEND: cash in, no unit change
+    }
+    return { units, cost };
+  }
+
+  const lots: { units: number; cost: number }[] = [];
   for (const t of trades) {
     if (t.type === "BUY") {
-      units += t.units;
-      cost += t.units * t.pricePerUnit + (t.fees ?? 0);
+      lots.push({ units: t.units, cost: t.units * t.pricePerUnit + (t.fees ?? 0) });
     } else if (t.type === "SELL") {
-      // reduce units; average cost basis reduces proportionally
-      const sellUnits = Math.min(t.units, units);
-      if (units > 0) {
-        cost = cost * ((units - sellUnits) / units);
+      let remaining = t.units;
+      while (remaining > 0 && lots.length > 0) {
+        const lot = lots[0];
+        if (lot.units <= remaining) {
+          remaining -= lot.units;
+          lots.shift();
+        } else {
+          lot.cost -= lot.cost * (remaining / lot.units);
+          lot.units -= remaining;
+          remaining = 0;
+        }
       }
-      units = Math.max(0, units - sellUnits);
     } else if (t.type === "SPLIT") {
-      units += t.units;
+      lots.push({ units: t.units, cost: 0 });
     }
     // DIVIDEND: cash in, no unit change
   }
-  return { units, cost };
+  return {
+    units: lots.reduce((s, l) => s + l.units, 0),
+    cost: lots.reduce((s, l) => s + l.cost, 0),
+  };
 }
 
 export async function getNetWorth(enabledModules: Set<ModuleKey>): Promise<NetWorthData> {
@@ -72,11 +110,13 @@ export async function getNetWorth(enabledModules: Set<ModuleKey>): Promise<NetWo
     }),
     enabledModules.has("HOME")
       ? prisma.property.findMany({
+          where: { deletedAt: null },
           include: { valuations: { orderBy: { valuedAt: "desc" }, take: 1 } },
         })
       : [],
     enabledModules.has("INVENTORY")
       ? prisma.inventoryItem.findMany({
+          where: { deletedAt: null },
           select: { purchasePrice: true, currency: true },
         })
       : [],
@@ -92,7 +132,7 @@ export async function getNetWorth(enabledModules: Set<ModuleKey>): Promise<NetWo
   // Build portfolio values
   const portfolioValues: PortfolioValue[] = portfolios.map((portfolio) => {
     const holdingValues: HoldingValue[] = portfolio.holdings.map((holding) => {
-      const { units, cost } = holdingUnitsAndCost(holding.trades);
+      const { units, cost } = holdingUnitsAndCost(holding.trades, portfolio.costMethod);
       const priceEntry = priceMap.get(holding.ticker);
       const currentPrice = priceEntry?.price ?? null;
       const currency = priceEntry?.currency ?? portfolio.currency;

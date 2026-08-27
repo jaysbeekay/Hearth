@@ -164,7 +164,10 @@ test("uploading a file identical to an already-filed document is flagged as a po
   await page.waitForSelector("text=duplicate-copy.pdf");
   const row = page.locator("div", { has: page.getByText("duplicate-copy.pdf") }).first();
   await row.locator("select").selectOption("INBOX");
-  await row.getByRole("button", { name: "Save" }).click();
+  // exact: true avoids matching the queue's own upload dropzone, whose
+  // accessible name ("...Visible to your whole household once saved.", #285)
+  // contains "saved" and would otherwise satisfy a substring match too.
+  await row.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText("Saved duplicate-copy.pdf")).toBeVisible();
 
   await page.goto("/documents/inbox");

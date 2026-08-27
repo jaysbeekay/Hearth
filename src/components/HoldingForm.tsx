@@ -52,7 +52,7 @@ export function HoldingForm({
           placeholder="e.g. CBA.AX, AAPL, bitcoin"
           className="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm uppercase outline-none focus:border-accent"
         />
-        <p className="mt-1 text-xs text-foreground/50">
+        <p className="mt-1 text-xs text-muted">
           ASX: append .AX (e.g. CBA.AX) · Crypto: use CoinGecko ID (e.g. bitcoin)
         </p>
       </div>
@@ -101,6 +101,9 @@ export function HoldingForm({
           </SelectWrapper>
         </div>
       </div>
+
+      {/* #285 — capture-time disclosure that this isn't private storage. */}
+      {!holding && <p className="text-xs text-muted">Visible to your whole household once saved.</p>}
 
       <SubmitButton>{holding ? "Save changes" : "Add holding"}</SubmitButton>
     </form>

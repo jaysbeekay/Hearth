@@ -121,7 +121,7 @@ export async function updateTrip(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  await requireUser();
+  const user = await requireUser();
 
   const parsed = tripSchema.safeParse(formToTripInput(formData));
   if (!parsed.success) {
@@ -134,14 +134,41 @@ export async function updateTrip(
   const existing = await prisma.trip.findUnique({ where: { id: tripId } });
   if (!existing) return { error: "Trip not found." };
 
-  await prisma.trip.update({ where: { id: tripId }, data: parsed.data });
+  await prisma.trip.update({ where: { id: tripId }, data: { ...parsed.data, updatedById: user.id } });
 
   revalidatePath("/travel");
   revalidatePath(`/travel/${tripId}`);
   redirect(`/travel/${tripId}`);
 }
 
+// #287 — soft-delete: see the equivalent comment on deleteContract (contracts.ts).
 export async function deleteTrip(tripId: string): Promise<ActionState> {
+  await requireUser();
+
+  const existing = await prisma.trip.findUnique({ where: { id: tripId } });
+  if (!existing) return { error: "Trip not found." };
+
+  await prisma.trip.update({ where: { id: tripId }, data: { deletedAt: new Date() } });
+
+  revalidatePath("/travel");
+  revalidatePath("/settings/trash");
+  redirect("/travel");
+}
+
+export async function restoreTrip(tripId: string): Promise<ActionState> {
+  await requireUser();
+
+  const existing = await prisma.trip.findUnique({ where: { id: tripId } });
+  if (!existing) return { error: "Trip not found." };
+
+  await prisma.trip.update({ where: { id: tripId }, data: { deletedAt: null } });
+
+  revalidatePath("/travel");
+  revalidatePath("/settings/trash");
+  return { success: "Restored." };
+}
+
+export async function permanentlyDeleteTrip(tripId: string): Promise<ActionState> {
   await requireUser();
 
   const existing = await prisma.trip.findUnique({
@@ -157,8 +184,8 @@ export async function deleteTrip(tripId: string): Promise<ActionState> {
 
   await prisma.trip.delete({ where: { id: tripId } });
 
-  revalidatePath("/travel");
-  redirect("/travel");
+  revalidatePath("/settings/trash");
+  return { success: "Deleted permanently." };
 }
 
 export async function addTripSegment(

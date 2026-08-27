@@ -23,7 +23,7 @@ export function VehicleCard({
   vehicle,
   dateFormat,
 }: {
-  vehicle: VehicleModel & { _count?: { items: number } };
+  vehicle: VehicleModel & { _count?: { items: number; contracts?: number } };
   dateFormat?: string;
 }) {
   const subtitle = [vehicle.make, vehicle.model, vehicle.year, vehicle.licensePlate]
@@ -49,6 +49,8 @@ export function VehicleCard({
         {vehicle._count != null && (
           <span className="text-sm text-muted tabular-nums">
             {vehicle._count.items} {vehicle._count.items === 1 ? "record" : "records"}
+            {/* #293 — linked-record count, mirroring PropertyCard's. */}
+            {vehicle._count.contracts != null && ` · ${vehicle._count.contracts} linked`}
           </span>
         )}
       </div>

@@ -118,6 +118,11 @@ enum ChatRole {
   TOOL
 }
 
+enum CostMethod {
+  FIFO
+  AVERAGE
+}
+
 enum AssetClass {
   SHARE
   ETF
@@ -175,39 +180,46 @@ enum OccupancyStatus {
 }
 
 model User {
-  id                String     @id @default(cuid())
-  name              String
-  email             String     @unique
-  passwordHash      String
-  role              Role       @default(MEMBER)
-  emailReminders    Boolean    @default(true)
+  id                    String               @id @default(cuid())
+  name                  String
+  email                 String               @unique
+  passwordHash          String
+  role                  Role                 @default(MEMBER)
+  emailReminders        Boolean              @default(true)
   // Bumped whenever a session must stop being trusted — password change,
   // role change. Every JWT carries the value it was minted with; a mismatch
   // invalidates the token (see the jwt callback in src/lib/auth.ts).
-  sessionVersion    Int        @default(0)
+  sessionVersion        Int                  @default(0)
   // SHA-256 of the iCal feed token, never the token itself. Kept on the
   // original column name so no data migration is needed for the rename.
-  icalTokenHash     String?    @unique @map("icalToken")
-  dateFormat        String     @default("DD/MM/YYYY")
-  preferredCurrency String     @default("AUD")
-  timezone          String     @default("UTC")
-  region            String     @default("en-AU")
-  createdAt         DateTime   @default(now())
-  contracts         Contract[]
-  products          Product[]
-  webhookEndpoints  WebhookEndpoint[]
-  trips             Trip[]
-  properties        Property[]
-  passkeys          PasskeyCredential[]
-  vehicles          Vehicle[]
-  inventoryItems    InventoryItem[]
-  portfolios        Portfolio[]
-  inboxDocuments    InboxDocument[]
-  chatThreads       ChatThread[]
-  passwordResetTokens PasswordResetToken[]
-  totpSecret          String?
-  totpEnabled         Boolean   @default(false)
-  totpRecoveryCodes   String?
+  icalTokenHash         String?              @unique @map("icalToken")
+  dateFormat            String               @default("DD/MM/YYYY")
+  preferredCurrency     String               @default("AUD")
+  timezone              String               @default("UTC")
+  region                String               @default("en-AU")
+  createdAt             DateTime             @default(now())
+  contracts             Contract[]
+  products              Product[]
+  webhookEndpoints      WebhookEndpoint[]
+  trips                 Trip[]
+  properties            Property[]
+  passkeys              PasskeyCredential[]
+  vehicles              Vehicle[]
+  inventoryItems        InventoryItem[]
+  portfolios            Portfolio[]
+  // #286 — last-editor tracking, separate from the createdBy relations above.
+  updatedContracts      Contract[]           @relation("ContractUpdatedBy")
+  updatedProducts       Product[]            @relation("ProductUpdatedBy")
+  updatedTrips          Trip[]               @relation("TripUpdatedBy")
+  updatedProperties     Property[]           @relation("PropertyUpdatedBy")
+  updatedVehicles       Vehicle[]            @relation("VehicleUpdatedBy")
+  updatedInventoryItems InventoryItem[]      @relation("InventoryItemUpdatedBy")
+  inboxDocuments        InboxDocument[]
+  chatThreads           ChatThread[]
+  passwordResetTokens   PasswordResetToken[]
+  totpSecret            String?
+  totpEnabled           Boolean              @default(false)
+  totpRecoveryCodes     String?
 
   @@map("users")
 }
@@ -261,47 +273,52 @@ model PasskeyChallenge {
 }
 
 model Contract {
-  id                String        @id @default(cuid())
-  title             String
-  category          ContractCategory
-  provider          String
-  contractNumber    String?
-  startDate         DateTime?
-  endDate           DateTime?
-  renewalType       RenewalType   @default(MANUAL_RENEWAL)
-  noticePeriodDays  Int?
-  cost              Float?
-  currency          String        @default("AUD")
-  billingFrequency  BillingFrequency?
-  status            ContractStatus @default(ACTIVE)
-  contactName       String?
-  contactPhone      String?
-  contactEmail      String?
-  notes             String?
-  reminderDaysBefore String?      @default("30,14,7,1")
-  isTaxDeductible   Boolean       @default(false)
+  id                    String            @id @default(cuid())
+  title                 String
+  category              ContractCategory
+  provider              String
+  contractNumber        String?
+  startDate             DateTime?
+  endDate               DateTime?
+  renewalType           RenewalType       @default(MANUAL_RENEWAL)
+  noticePeriodDays      Int?
+  cost                  Float?
+  currency              String            @default("AUD")
+  billingFrequency      BillingFrequency?
+  status                ContractStatus    @default(ACTIVE)
+  contactName           String?
+  contactPhone          String?
+  contactEmail          String?
+  notes                 String?
+  reminderDaysBefore    String?           @default("30,14,7,1")
+  isTaxDeductible       Boolean           @default(false)
   // #200: true when a document scan populated critical fields this session
   // and the user saved without checking "confirm these are correct" — the
   // scheduler (see notifications/scheduler.ts) skips reminders for this
   // contract until it's cleared, either by re-confirming on the form or via
   // the detail page's standalone "Confirm details" action.
-  extractionPending Boolean       @default(false)
+  extractionPending     Boolean           @default(false)
   extractionConfirmedAt DateTime?
 
-  createdById       String
-  createdBy         User          @relation(fields: [createdById], references: [id])
+  createdById String
+  createdBy   User      @relation(fields: [createdById], references: [id])
+  updatedById String?
+  // #287 — soft-delete: set instead of removing the row so the record
+  // (and its files) can be restored within the trash window.
+  deletedAt   DateTime?
+  updatedBy   User?     @relation("ContractUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
-  propertyId        String?
-  property          Property?     @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  propertyId String?
+  property   Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
 
-  vehicleId         String?
-  vehicle           Vehicle?      @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  vehicleId String?
+  vehicle   Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
 
-  documents         Document[]
-  rentalAgreement   RentalAgreement?
+  documents       Document[]
+  rentalAgreement RentalAgreement?
 
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("contracts")
 }
@@ -332,11 +349,11 @@ model Document {
 }
 
 // Holds a document saved before its destination (Contract, Product, ...) is
-// known — the "Not sure yet" import path. Classifying one creates the real
+// known — the "Save to review later" import path. Classifying one creates the real
 // row in the matching per-entity document table and deletes this one; it is
 // never a permanent home for a file, only a queue.
 model InboxDocument {
-  id            String        @id @default(cuid())
+  id            String  @id @default(cuid())
   filename      String
   storedName    String
   mimeType      String
@@ -346,23 +363,23 @@ model InboxDocument {
   sha256        String?
 
   // Null for email-ingested documents (#195), which have no acting web user.
-  uploadedById  String?
-  uploadedBy    User?         @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  uploadedById String?
+  uploadedBy   User?   @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
 
-  source        InboxSource   @default(WEB)
+  source      InboxSource         @default(WEB)
   // Sender address for EMAIL-sourced documents, kept for provenance/review —
   // never used for authorization or auto-filing.
-  fromAddress   String?
+  fromAddress String?
   // Best-guess target type from cheap heuristic-only scoring at ingestion
   // time (#195) — pre-selects the classify dropdown, never auto-files.
-  guessedType   InboxTargetType?
+  guessedType InboxTargetType?
   // #199/#206: computed once at ingestion (see computeInboxIntake) from
   // extraction success, guessedType, and a sha256 match against every filed
   // document table — never recomputed afterward, so a status set here stays
   // stable even if e.g. the matched duplicate is later deleted.
-  status        InboxDocumentStatus @default(NEEDS_CLASSIFICATION)
+  status      InboxDocumentStatus @default(NEEDS_CLASSIFICATION)
 
-  uploadedAt    DateTime      @default(now())
+  uploadedAt DateTime @default(now())
 
   @@index([sha256])
   @@map("inbox_documents")
@@ -418,54 +435,59 @@ model NotificationLog {
 }
 
 model Product {
-  id                 String    @id @default(cuid())
-  description        String
-  manufacturer       String?
-  model              String?
-  vendor             String?
-  serialNumber       String?
-  barcode            String?
-  purchaseDate       DateTime?
-  warrantyEndDate    DateTime?
-  price              Float?
-  currency           String    @default("AUD")
-  notes              String?
-  reminderDaysBefore String?   @default("30,14,7,1")
+  id                    String    @id @default(cuid())
+  description           String
+  manufacturer          String?
+  model                 String?
+  vendor                String?
+  serialNumber          String?
+  barcode               String?
+  purchaseDate          DateTime?
+  warrantyEndDate       DateTime?
+  price                 Float?
+  currency              String    @default("AUD")
+  notes                 String?
+  reminderDaysBefore    String?   @default("30,14,7,1")
   // See the equivalent Contract fields for the full explanation (#200).
-  extractionPending  Boolean   @default(false)
+  extractionPending     Boolean   @default(false)
   extractionConfirmedAt DateTime?
 
-  createdById        String
-  createdBy          User      @relation(fields: [createdById], references: [id])
+  createdById String
+  createdBy   User      @relation(fields: [createdById], references: [id])
+  updatedById String?
+  // #287 — soft-delete: set instead of removing the row so the record
+  // (and its files) can be restored within the trash window.
+  deletedAt   DateTime?
+  updatedBy   User?     @relation("ProductUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
-  propertyId         String?
-  property           Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  propertyId String?
+  property   Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
 
-  documents          ProductDocument[]
+  documents ProductDocument[]
 
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("products")
 }
 
 model ProductDocument {
-  id            String               @id @default(cuid())
+  id            String              @id @default(cuid())
   productId     String
-  product       Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product       Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
   filename      String
   storedName    String
   mimeType      String
   size          Int
-  kind          ProductDocumentKind  @default(OTHER)
+  kind          ProductDocumentKind @default(OTHER)
   extractedText String?
   extractionStatus String @default("PENDING")
   sha256        String?
-  isImportant   Boolean              @default(false)
-  supersedesId  String?              @unique
-  supersedes    ProductDocument?     @relation("ProductDocumentVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
-  supersededBy  ProductDocument?     @relation("ProductDocumentVersions")
-  uploadedAt    DateTime             @default(now())
+  isImportant   Boolean             @default(false)
+  supersedesId  String?             @unique
+  supersedes    ProductDocument?    @relation("ProductDocumentVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy  ProductDocument?    @relation("ProductDocumentVersions")
+  uploadedAt    DateTime            @default(now())
 
   @@index([sha256])
   @@map("product_documents")
@@ -494,22 +516,22 @@ model BackupLog {
 }
 
 model WebhookEndpoint {
-  id          String       @id @default(cuid())
-  name        String
-  url         String
+  id              String  @id @default(cuid())
+  name            String
+  url             String
   // Encrypted with ENCRYPTION_KEY when one is configured. secretEncrypted
   // records which form this row is in, so instances that predate the key
   // keep working and get upgraded on next write (same pattern as AppSetting).
   secret          String?
-  secretEncrypted Boolean  @default(false)
-  enabled     Boolean      @default(true)
+  secretEncrypted Boolean @default(false)
+  enabled         Boolean @default(true)
 
   createdById String
-  createdBy   User         @relation(fields: [createdById], references: [id])
+  createdBy   User   @relation(fields: [createdById], references: [id])
 
-  logs        WebhookLog[]
+  logs WebhookLog[]
 
-  createdAt   DateTime     @default(now())
+  createdAt DateTime @default(now())
 
   @@map("webhook_endpoints")
 }
@@ -554,7 +576,7 @@ model ModuleEnablement {
 }
 
 model Trip {
-  id          String        @id @default(cuid())
+  id          String    @id @default(cuid())
   title       String
   destination String?
   startDate   DateTime?
@@ -562,20 +584,25 @@ model Trip {
   notes       String?
 
   createdById String
-  createdBy   User          @relation(fields: [createdById], references: [id])
+  createdBy   User      @relation(fields: [createdById], references: [id])
+  updatedById String?
+  // #287 — soft-delete: set instead of removing the row so the record
+  // (and its files) can be restored within the trash window.
+  deletedAt   DateTime?
+  updatedBy   User?     @relation("TripUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
-  segments    TripSegment[]
+  segments TripSegment[]
 
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("trips")
 }
 
 model TripSegment {
-  id               String                @id @default(cuid())
+  id               String          @id @default(cuid())
   tripId           String
-  trip             Trip                  @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  trip             Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
   type             TripSegmentType
   title            String
   provider         String?
@@ -584,30 +611,30 @@ model TripSegment {
   endDate          DateTime?
   location         String?
   cost             Float?
-  currency         String                @default("AUD")
+  currency         String          @default("AUD")
   notes            String?
 
   // Flight-specific fields (populated from AviationStack when type=FLIGHT)
-  flightNumber     String?
-  departureIata    String?
-  arrivalIata      String?
-  flightStatus     String?
-  scheduledDep     DateTime?
-  scheduledArr     DateTime?
-  estimatedDep     DateTime?
-  estimatedArr     DateTime?
-  actualDep        DateTime?
-  actualArr        DateTime?
-  depTerminal      String?
-  depGate          String?
-  arrTerminal      String?
-  arrGate          String?
-  flightStatusAt   DateTime?
+  flightNumber   String?
+  departureIata  String?
+  arrivalIata    String?
+  flightStatus   String?
+  scheduledDep   DateTime?
+  scheduledArr   DateTime?
+  estimatedDep   DateTime?
+  estimatedArr   DateTime?
+  actualDep      DateTime?
+  actualArr      DateTime?
+  depTerminal    String?
+  depGate        String?
+  arrTerminal    String?
+  arrGate        String?
+  flightStatusAt DateTime?
 
-  documents        TripSegmentDocument[]
+  documents TripSegmentDocument[]
 
-  createdAt        DateTime              @default(now())
-  updatedAt        DateTime              @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("trip_segments")
 }
@@ -646,14 +673,19 @@ model Property {
   occupancyStatus OccupancyStatus @default(OWNER_OCCUPIED)
 
   createdById String
-  createdBy   User    @relation(fields: [createdById], references: [id])
+  createdBy   User      @relation(fields: [createdById], references: [id])
+  updatedById String?
+  // #287 — soft-delete: set instead of removing the row so the record
+  // (and its files) can be restored within the trash window.
+  deletedAt   DateTime?
+  updatedBy   User?     @relation("PropertyUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
-  items             HomeItem[]
-  rentalAgreements  RentalAgreement[]
-  rentalStatements  RentalStatement[]
-  valuations        PropertyValuation[]
-  contracts         Contract[]
-  products          Product[]
+  items            HomeItem[]
+  rentalAgreements RentalAgreement[]
+  rentalStatements RentalStatement[]
+  valuations       PropertyValuation[]
+  contracts        Contract[]
+  products         Product[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -720,22 +752,22 @@ model RentalStatementDocument {
 }
 
 model HomeItem {
-  id         String             @id @default(cuid())
-  propertyId String
-  property   Property           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  type       HomeItemType
-  title      String
-  provider   String?
-  date       DateTime?
-  cost       Float?
-  currency   String             @default("AUD")
-  isTaxDeductible Boolean       @default(false)
-  notes      String?
+  id              String       @id @default(cuid())
+  propertyId      String
+  property        Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  type            HomeItemType
+  title           String
+  provider        String?
+  date            DateTime?
+  cost            Float?
+  currency        String       @default("AUD")
+  isTaxDeductible Boolean      @default(false)
+  notes           String?
 
-  documents  HomeItemDocument[]
+  documents HomeItemDocument[]
 
-  createdAt  DateTime           @default(now())
-  updatedAt  DateTime           @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("home_items")
 }
@@ -773,34 +805,39 @@ model Vehicle {
   reminderDaysBefore String?   @default("30,14,7,1")
   notes              String?
 
-  createdById        String
-  createdBy          User      @relation(fields: [createdById], references: [id])
+  createdById String
+  createdBy   User      @relation(fields: [createdById], references: [id])
+  updatedById String?
+  // #287 — soft-delete: set instead of removing the row so the record
+  // (and its files) can be restored within the trash window.
+  deletedAt   DateTime?
+  updatedBy   User?     @relation("VehicleUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
-  items              VehicleItem[]
-  contracts          Contract[]
+  items     VehicleItem[]
+  contracts Contract[]
 
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("vehicles")
 }
 
 model VehicleItem {
-  id          String          @id @default(cuid())
-  vehicleId   String
-  vehicle     Vehicle         @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-  type        VehicleItemType
-  title       String
-  provider    String?
-  date        DateTime?
-  cost        Float?
-  currency    String          @default("AUD")
-  notes       String?
+  id        String          @id @default(cuid())
+  vehicleId String
+  vehicle   Vehicle         @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  type      VehicleItemType
+  title     String
+  provider  String?
+  date      DateTime?
+  cost      Float?
+  currency  String          @default("AUD")
+  notes     String?
 
-  documents   VehicleItemDocument[]
+  documents VehicleItemDocument[]
 
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("vehicle_items")
 }
@@ -837,13 +874,18 @@ model InventoryItem {
   location      String?
   notes         String?
 
-  documents     InventoryItemDocument[]
+  documents InventoryItemDocument[]
 
-  createdById   String
-  createdBy     User                  @relation(fields: [createdById], references: [id])
+  createdById String
+  createdBy   User      @relation(fields: [createdById], references: [id])
+  updatedById String?
+  // #287 — soft-delete: set instead of removing the row so the record
+  // (and its files) can be restored within the trash window.
+  deletedAt   DateTime?
+  updatedBy   User?     @relation("InventoryItemUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("inventory_items")
 }
@@ -868,15 +910,16 @@ model InventoryItemDocument {
 }
 
 model Portfolio {
-  id          String    @id @default(cuid())
+  id          String     @id @default(cuid())
   name        String
   description String?
-  currency    String    @default("AUD")
+  currency    String     @default("AUD")
+  costMethod  CostMethod @default(FIFO)
   createdById String
-  createdBy   User      @relation(fields: [createdById], references: [id])
+  createdBy   User       @relation(fields: [createdById], references: [id])
   holdings    Holding[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
   @@map("portfolios")
 }
@@ -898,21 +941,21 @@ model Holding {
 }
 
 model Trade {
-  id                 String          @id @default(cuid())
-  holdingId          String
-  holding            Holding         @relation(fields: [holdingId], references: [id], onDelete: Cascade)
-  type               TradeType
-  date               DateTime
-  units              Float
-  pricePerUnit       Float
-  marketPriceOnDate  Float?
-  fees               Float?
-  currency           String          @default("AUD")
-  fxRate             Float?
-  notes              String?
-  documents          TradeDocument[]
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
+  id                String          @id @default(cuid())
+  holdingId         String
+  holding           Holding         @relation(fields: [holdingId], references: [id], onDelete: Cascade)
+  type              TradeType
+  date              DateTime
+  units             Float
+  pricePerUnit      Float
+  marketPriceOnDate Float?
+  fees              Float?
+  currency          String          @default("AUD")
+  fxRate            Float?
+  notes             String?
+  documents         TradeDocument[]
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
 
   @@map("trades")
 }

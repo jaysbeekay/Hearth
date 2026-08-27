@@ -23,7 +23,7 @@ export function HoldingCard({ holding, portfolioId, region }: Props) {
         <div className="min-w-0">
           <p className="font-semibold truncate">{holding.ticker}</p>
           {holding.name && (
-            <p className="text-xs text-foreground/60 truncate">{holding.name}</p>
+            <p className="text-xs text-muted truncate">{holding.name}</p>
           )}
         </div>
         <span className="shrink-0 rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
@@ -33,15 +33,15 @@ export function HoldingCard({ holding, portfolioId, region }: Props) {
 
       <dl className="mt-3 grid grid-cols-2 gap-3">
         <div>
-          <dt className="text-xs text-foreground/50">Units</dt>
+          <dt className="text-xs text-muted">Units</dt>
           <dd className="text-sm font-medium tabular-nums">{formatNumber(holding.unitsHeld, region)}</dd>
         </div>
         <div>
-          <dt className="text-xs text-foreground/50">Current price</dt>
+          <dt className="text-xs text-muted">Current price</dt>
           <dd className="flex items-center gap-1 text-sm font-medium tabular-nums">
             {holding.currentPrice != null
               ? formatCurrency(holding.currentPrice, holding.currency, undefined, region, { showCode: true })
-              : <span className="text-foreground/40">—</span>}
+              : <span className="text-muted">—</span>}
             {holding.changePct != null && (
               <span className={`text-xs ${holding.changePct >= 0 ? "text-success" : "text-danger"}`}>
                 {holding.changePct >= 0 ? "+" : ""}{holding.changePct.toFixed(2)}%
@@ -50,14 +50,14 @@ export function HoldingCard({ holding, portfolioId, region }: Props) {
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-foreground/50">Market value</dt>
+          <dt className="text-xs text-muted">Market value</dt>
           <dd className="text-sm font-medium tabular-nums">
             {hasValue ? formatCurrency(holding.currentValue!, holding.currency, undefined, region, { showCode: true }) : "—"}
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-foreground/50">Gain / loss</dt>
-          <dd className={`flex items-center gap-0.5 text-sm font-medium tabular-nums ${hasValue ? (isPositive ? "text-success" : "text-danger") : "text-foreground/40"}`}>
+          <dt className="text-xs text-muted">Gain / loss</dt>
+          <dd className={`flex items-center gap-0.5 text-sm font-medium tabular-nums ${hasValue ? (isPositive ? "text-success" : "text-danger") : "text-muted"}`}>
             {hasValue ? (
               <>
                 {isPositive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}

@@ -29,7 +29,7 @@ export default async function NewTradePage({
   return (
     <div className="max-w-xl space-y-6">
       <div>
-        <Link href={`/wealth/portfolios/${portfolioId}/holdings/${holdingId}`} className="text-sm text-foreground/60 hover:text-foreground">
+        <Link href={`/wealth/portfolios/${portfolioId}/holdings/${holdingId}`} className="text-sm text-muted hover:text-foreground">
           ← {holding.ticker}
         </Link>
         <h1 className="mt-1 text-2xl font-semibold">Add trade</h1>

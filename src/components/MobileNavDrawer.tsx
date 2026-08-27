@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { getNavItems } from "@/components/nav-items";
 import type { ModuleKey } from "@/lib/modules/registry";
 import { SignOutButton } from "@/components/SignOutButton";
+import { Dialog } from "@/components/Dialog";
 
 const OPEN_EVENT = "hearth:open-nav-drawer";
 // Width from the left screen edge a touch can start in and still count as
@@ -57,15 +58,6 @@ export function MobileNavDrawer({
     return () => window.removeEventListener(OPEN_EVENT, onOpen);
   }, []);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [open]);
-
   // Directionally this can't collide with SwipeableListItem's own drag
   // handling — that only reacts to leftward motion (delta < 0), while this
   // only opens on a rightward drag that starts within EDGE_ZONE of the
@@ -101,20 +93,15 @@ export function MobileNavDrawer({
     };
   }, [open]);
 
-  if (!open) return null;
-
   return (
-    <div
-      className="fixed inset-0 z-40 flex bg-black/40 md:hidden"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Navigation menu"
-      onClick={close}
+    <Dialog
+      open={open}
+      onClose={close}
+      label="Navigation menu"
+      backdropClassName="fixed inset-0 z-40 flex bg-black/40 md:hidden"
+      panelClassName="flex h-full w-72 max-w-[80vw] flex-col border-r border-border bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
     >
-      <div
-        className="flex h-full w-72 max-w-[80vw] flex-col border-r border-border bg-surface pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <>
         <div className="flex items-center justify-between px-4 py-4">
           <div className="flex items-center gap-2">
             <Flame size={20} className="text-accent" />
@@ -147,7 +134,7 @@ export function MobileNavDrawer({
             </Link>
           ))}
 
-          <p className="mt-4 px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-foreground/40">
+          <p className="mt-4 px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted">
             Modules
           </p>
           {moduleItems.map(({ href, label, icon: Icon }) => (
@@ -167,7 +154,7 @@ export function MobileNavDrawer({
             </Link>
           ))}
 
-          <p className="mt-4 px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-foreground/40">
+          <p className="mt-4 px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted">
             Tools
           </p>
           {toolItems.map(({ href, label, icon: Icon }) => (
@@ -220,7 +207,7 @@ export function MobileNavDrawer({
             <SignOutButton className="mt-2 flex items-center gap-2 text-sm text-muted hover:text-foreground" />
           </div>
         </div>
-      </div>
-    </div>
+      </>
+    </Dialog>
   );
 }

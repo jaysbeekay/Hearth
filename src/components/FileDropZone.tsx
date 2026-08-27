@@ -84,12 +84,15 @@ export function FileDropZone({
         }}
         className={cn(
           "flex cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed p-6 text-center transition",
+          "has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent has-[:focus-visible]:outline-offset-2",
           dragOver ? "border-accent bg-accent/5" : "border-border hover:border-accent/50",
         )}
       >
         <Upload size={20} className="text-muted" />
         <p className="text-sm font-medium">{label}</p>
         <p className="text-xs text-muted">{hint}</p>
+        {/* #285 — capture-time disclosure that this isn't private storage. */}
+        <p className="text-xs text-muted">Visible to your whole household once saved.</p>
         <input
           ref={inputRef}
           id={inputId}

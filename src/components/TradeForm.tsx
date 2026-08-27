@@ -149,7 +149,7 @@ export function TradeForm({
             className={inputClass}
           />
           {ticker && selectedDate && (
-            <div className="mt-1 flex items-center gap-2 text-xs text-foreground/50">
+            <div className="mt-1 flex items-center gap-2 text-xs text-muted">
               {priceHintLoading ? (
                 <span>Fetching market price…</span>
               ) : marketPrice != null ? (
@@ -222,7 +222,7 @@ export function TradeForm({
       <div>
         <p className="block text-sm font-medium mb-1">Attach document (optional)</p>
         <FileDropZone name="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" />
-        <p className="mt-1 text-xs text-foreground/40">PDF, image, or Word — max 15MB</p>
+        <p className="mt-1 text-xs text-muted">PDF, image, or Word — max 15MB</p>
       </div>
 
       <SubmitButton>{trade ? "Save changes" : "Add trade"}</SubmitButton>

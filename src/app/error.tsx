@@ -16,7 +16,7 @@ export default function RootError({
         <div className="flex flex-col items-center gap-2">
           <AlertTriangle size={32} className="text-accent" />
           <h1 className="text-2xl font-semibold">Something went wrong</h1>
-          <p className="text-sm text-foreground/60">
+          <p className="text-sm text-muted">
             {error.message || "That action couldn't be completed. Please try again."}
           </p>
         </div>

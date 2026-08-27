@@ -24,7 +24,7 @@ export default async function NewHoldingPage({
   return (
     <div className="max-w-xl space-y-6">
       <div>
-        <Link href={`/wealth/portfolios/${id}`} className="text-sm text-foreground/60 hover:text-foreground">← Back to {portfolio.name}</Link>
+        <Link href={`/wealth/portfolios/${id}`} className="text-sm text-muted hover:text-foreground">← Back to {portfolio.name}</Link>
         <h1 className="mt-1 text-2xl font-semibold">Add holding</h1>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">

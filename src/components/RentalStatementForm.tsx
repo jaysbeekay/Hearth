@@ -10,7 +10,7 @@ import { Field } from "@/components/FormField";
 import { inputClass } from "@/components/SelectWrapper";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
-import { markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
+import { applyIfEmpty, extractionMessage } from "@/lib/autoFillHighlight";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
 import { DateInput } from "@/components/DateInput";
 
@@ -69,34 +69,13 @@ export function RentalStatementForm({
   const netAmountRef = useRef<HTMLInputElement>(null);
 
   function applyExtractedFields(fields: ExtractedFields) {
-    if (fields.periodStart && periodStartRef.current) {
-      periodStartRef.current.value = fields.periodStart;
-      markAutoFilled(periodStartRef.current);
-    }
-    if (fields.periodEnd && periodEndRef.current) {
-      periodEndRef.current.value = fields.periodEnd;
-      markAutoFilled(periodEndRef.current);
-    }
-    if (fields.statementDate && statementDateRef.current) {
-      statementDateRef.current.value = fields.statementDate;
-      markAutoFilled(statementDateRef.current);
-    }
-    if (fields.grossRent && grossRentRef.current) {
-      grossRentRef.current.value = fields.grossRent;
-      markAutoFilled(grossRentRef.current);
-    }
-    if (fields.managementFee && managementFeeRef.current) {
-      managementFeeRef.current.value = fields.managementFee;
-      markAutoFilled(managementFeeRef.current);
-    }
-    if (fields.otherDeductions && otherDeductionsRef.current) {
-      otherDeductionsRef.current.value = fields.otherDeductions;
-      markAutoFilled(otherDeductionsRef.current);
-    }
-    if (fields.netAmount && netAmountRef.current) {
-      netAmountRef.current.value = fields.netAmount;
-      markAutoFilled(netAmountRef.current);
-    }
+    applyIfEmpty(periodStartRef.current, fields.periodStart);
+    applyIfEmpty(periodEndRef.current, fields.periodEnd);
+    applyIfEmpty(statementDateRef.current, fields.statementDate);
+    applyIfEmpty(grossRentRef.current, fields.grossRent);
+    applyIfEmpty(managementFeeRef.current, fields.managementFee);
+    applyIfEmpty(otherDeductionsRef.current, fields.otherDeductions);
+    applyIfEmpty(netAmountRef.current, fields.netAmount);
   }
 
   async function handleFileChange(file: File | null) {
@@ -136,12 +115,12 @@ export function RentalStatementForm({
           </p>
           <FileDropZone name="file" onFileSelected={handleFileChange} />
           {scanning && (
-            <p role="status" aria-live="polite" className="text-sm text-foreground/60">
+            <p role="status" aria-live="polite" className="text-sm text-muted">
               Scanning document…
             </p>
           )}
           {!scanning && scanMessage && (
-            <p role="status" aria-live="polite" className="text-sm text-foreground/60">
+            <p role="status" aria-live="polite" className="text-sm text-muted">
               {scanMessage}
             </p>
           )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import { linkButtonClass, toolbarButtonClass, exportMenuItemClass } from "@/lib/buttonStyles";
 import { useRouter } from "next/navigation";
@@ -74,25 +74,28 @@ export function ContractListClient({
   // #207 — completeness filter chips. expiring/expired are mutually
   // exclusive (clicking one clears the other); needsReview/missingDocument
   // are independent and can be combined with any other filter.
-  function toggleCompletenessFilter(key: "expiring" | "expired" | "needsReview" | "missingDocument", value: string) {
-    const params = new URLSearchParams();
-    if (q) params.set("q", q);
-    if (category) params.set("category", category);
-    if (status) params.set("status", status);
-    if (expiring) params.set("expiring", expiring);
-    if (expired) params.set("expired", expired);
-    if (needsReview) params.set("needsReview", needsReview);
-    if (missingDocument) params.set("missingDocument", missingDocument);
+  const toggleCompletenessFilter = useCallback(
+    (key: "expiring" | "expired" | "needsReview" | "missingDocument", value: string) => {
+      const params = new URLSearchParams();
+      if (q) params.set("q", q);
+      if (category) params.set("category", category);
+      if (status) params.set("status", status);
+      if (expiring) params.set("expiring", expiring);
+      if (expired) params.set("expired", expired);
+      if (needsReview) params.set("needsReview", needsReview);
+      if (missingDocument) params.set("missingDocument", missingDocument);
 
-    const isActive = params.get(key) === value;
-    if (key === "expiring" || key === "expired") {
-      params.delete("expiring");
-      params.delete("expired");
-    }
-    if (!isActive) params.set(key, value);
-    else params.delete(key);
-    router.push(`/contracts${params.toString() ? `?${params.toString()}` : ""}`);
-  }
+      const isActive = params.get(key) === value;
+      if (key === "expiring" || key === "expired") {
+        params.delete("expiring");
+        params.delete("expired");
+      }
+      if (!isActive) params.set(key, value);
+      else params.delete(key);
+      router.push(`/contracts${params.toString() ? `?${params.toString()}` : ""}`);
+    },
+    [q, category, status, expiring, expired, needsReview, missingDocument, router],
+  );
 
   useEffect(() => {
     cachePageData("contracts:list", contracts).catch(() => {});
@@ -117,12 +120,27 @@ export function ContractListClient({
       if (contract.extractionPending) needsReview++;
     }
     return [
-      { label: "expiring within 30 days", value: expiringSoon, tone: "warning" as const },
-      { label: "expired", value: expired, tone: "danger" as const },
-      { label: "needs review", value: needsReview, tone: "warning" as const },
+      {
+        label: "expiring within 30 days",
+        value: expiringSoon,
+        tone: "warning" as const,
+        onClick: () => toggleCompletenessFilter("expiring", "30"),
+      },
+      {
+        label: "expired",
+        value: expired,
+        tone: "danger" as const,
+        onClick: () => toggleCompletenessFilter("expired", "true"),
+      },
+      {
+        label: "needs review",
+        value: needsReview,
+        tone: "warning" as const,
+        onClick: () => toggleCompletenessFilter("needsReview", "true"),
+      },
       { label: "added this week", value: recentlyAdded },
     ];
-  }, [contracts]);
+  }, [contracts, toggleCompletenessFilter]);
 
   return (
     <div className="space-y-6">
@@ -289,7 +307,7 @@ export function ContractListClient({
       {contracts.length === 0 ? (
         pendingOps.length === 0 && (
           <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border p-10 text-center">
-            <p className="text-sm text-foreground/60">
+            <p className="text-sm text-muted">
               {filtered
                 ? "No contracts match your search or filters."
                 : "No contracts yet. Add one manually, or upload a document and we'll fill in the details."}
@@ -318,6 +336,7 @@ export function ContractListClient({
                   <ConfirmForm
                     action={deleteContract.bind(null, contract.id)}
                     confirmText={`Delete this contract and all its documents? This cannot be undone.`}
+                    actionLabel="Delete contract"
                     ariaLabel={`Delete ${contract.title}`}
                     className="flex h-full w-full flex-col items-center justify-center gap-1 bg-danger text-xs font-medium text-white"
                     offline={{ entity: "contract", entityId: contract.id, label: `Delete contract: ${contract.title}` }}

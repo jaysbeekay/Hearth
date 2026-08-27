@@ -77,7 +77,7 @@ export function FeedbackForm({ configured }: { configured: boolean }) {
         />
       </div>
 
-      <p className="text-xs text-foreground/50">
+      <p className="text-xs text-muted">
         Feedback is sent to the configured GitHub repository for review. Do not
         include passwords, document contents, or other sensitive household
         information.

@@ -131,7 +131,7 @@ export function TotpSection({ enabled }: { enabled: boolean }) {
   if (step === "scanning") {
     return (
       <div className="space-y-3">
-        <p className="text-sm text-foreground/60">
+        <p className="text-sm text-muted">
           Scan this QR code with your authenticator app (Google Authenticator, 1Password, Authy,
           etc.), then enter the 6-digit code it shows.
         </p>
@@ -144,7 +144,7 @@ export function TotpSection({ enabled }: { enabled: boolean }) {
           />
         )}
         {secret && (
-          <p className="text-xs text-foreground/50">
+          <p className="text-xs text-muted">
             Can&apos;t scan? Enter this code manually: <span className="font-mono">{secret}</span>
           </p>
         )}
@@ -192,7 +192,7 @@ export function TotpSection({ enabled }: { enabled: boolean }) {
         <p className="text-sm font-medium text-success">
           Two-factor authentication is now enabled.
         </p>
-        <p className="text-sm text-foreground/60">
+        <p className="text-sm text-muted">
           Save these recovery codes somewhere safe. Each one can be used once to sign in if you
           lose access to your authenticator app. They won&apos;t be shown again.
         </p>

@@ -162,16 +162,36 @@ function FilterChip({
 function RowField({
   label,
   htmlFor,
+  autoFilled,
+  isAi,
   children,
 }: {
   label: string;
   htmlFor: string;
+  autoFilled?: boolean;
+  isAi?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-0.5">
-      <label htmlFor={htmlFor} className="block text-[11px] font-medium text-muted">
+      <label htmlFor={htmlFor} className="flex items-center gap-1 text-[11px] font-medium text-muted">
         {label}
+        {autoFilled && (
+          <>
+            {/* #290: a colour tint/ring alone doesn't reach a screen reader
+                or a colour-blind reviewer — this badge and the sr-only text
+                that follows it do. */}
+            <span
+              aria-hidden="true"
+              className={`rounded px-1 py-0.5 text-[9px] font-medium ${
+                isAi ? "bg-info/10 text-info" : "bg-accent/10 text-accent"
+              }`}
+            >
+              Auto
+            </span>
+            <span className="sr-only">(auto-filled from document — review before saving)</span>
+          </>
+        )}
       </label>
       {children}
     </div>
@@ -518,7 +538,7 @@ export function InboxReviewClient({
               (row.status === "ready" || row.status === "saving" || row.status === "error") &&
               row.type === "CONTRACT" && (
                 <div className="grid gap-2 sm:grid-cols-2">
-                  <RowField label="Title" htmlFor={`${doc.id}-title`}>
+                  <RowField label="Title" htmlFor={`${doc.id}-title`} autoFilled={row.contractAutoFilled.title} isAi={rowIsAi}>
                     <input
                       id={`${doc.id}-title`}
                       value={row.contract.title}
@@ -532,7 +552,7 @@ export function InboxReviewClient({
                       className={fieldClass(row.contractAutoFilled.title, rowIsAi)}
                     />
                   </RowField>
-                  <RowField label="Provider" htmlFor={`${doc.id}-provider`}>
+                  <RowField label="Provider" htmlFor={`${doc.id}-provider`} autoFilled={row.contractAutoFilled.provider} isAi={rowIsAi}>
                     <input
                       id={`${doc.id}-provider`}
                       value={row.contract.provider}
@@ -563,7 +583,7 @@ export function InboxReviewClient({
                       ))}
                     </select>
                   </RowField>
-                  <RowField label="Cost" htmlFor={`${doc.id}-cost`}>
+                  <RowField label="Cost" htmlFor={`${doc.id}-cost`} autoFilled={row.contractAutoFilled.cost} isAi={rowIsAi}>
                     <input
                       id={`${doc.id}-cost`}
                       value={row.contract.cost}
@@ -585,7 +605,7 @@ export function InboxReviewClient({
               (row.status === "ready" || row.status === "saving" || row.status === "error") &&
               row.type === "PRODUCT" && (
                 <div className="grid gap-2 sm:grid-cols-3">
-                  <RowField label="Description" htmlFor={`${doc.id}-description`}>
+                  <RowField label="Description" htmlFor={`${doc.id}-description`} autoFilled={row.productAutoFilled.description} isAi={rowIsAi}>
                     <input
                       id={`${doc.id}-description`}
                       value={row.product.description}
@@ -599,7 +619,7 @@ export function InboxReviewClient({
                       className={fieldClass(row.productAutoFilled.description, rowIsAi)}
                     />
                   </RowField>
-                  <RowField label="Manufacturer" htmlFor={`${doc.id}-manufacturer`}>
+                  <RowField label="Manufacturer" htmlFor={`${doc.id}-manufacturer`} autoFilled={row.productAutoFilled.manufacturer} isAi={rowIsAi}>
                     <input
                       id={`${doc.id}-manufacturer`}
                       value={row.product.manufacturer}
@@ -613,7 +633,7 @@ export function InboxReviewClient({
                       className={fieldClass(row.productAutoFilled.manufacturer, rowIsAi)}
                     />
                   </RowField>
-                  <RowField label="Price" htmlFor={`${doc.id}-price`}>
+                  <RowField label="Price" htmlFor={`${doc.id}-price`} autoFilled={row.productAutoFilled.price} isAi={rowIsAi}>
                     <input
                       id={`${doc.id}-price`}
                       value={row.product.price}
@@ -635,7 +655,7 @@ export function InboxReviewClient({
               (row.status === "ready" || row.status === "saving" || row.status === "error") &&
               row.type === "INVENTORY" && (
                 <div className="grid gap-2 sm:grid-cols-2">
-                  <RowField label="Label" htmlFor={`${doc.id}-label`}>
+                  <RowField label="Label" htmlFor={`${doc.id}-label`} autoFilled={row.inventoryAutoFilled.label} isAi={rowIsAi}>
                     <input
                       id={`${doc.id}-label`}
                       value={row.inventory.label}
@@ -649,7 +669,7 @@ export function InboxReviewClient({
                       className={fieldClass(row.inventoryAutoFilled.label, rowIsAi)}
                     />
                   </RowField>
-                  <RowField label="Brand" htmlFor={`${doc.id}-brand`}>
+                  <RowField label="Brand" htmlFor={`${doc.id}-brand`} autoFilled={row.inventoryAutoFilled.brand} isAi={rowIsAi}>
                     <input
                       id={`${doc.id}-brand`}
                       value={row.inventory.brand}
@@ -663,7 +683,7 @@ export function InboxReviewClient({
                       className={fieldClass(row.inventoryAutoFilled.brand, rowIsAi)}
                     />
                   </RowField>
-                  <RowField label="Category" htmlFor={`${doc.id}-inv-category`}>
+                  <RowField label="Category" htmlFor={`${doc.id}-inv-category`} autoFilled={row.inventoryAutoFilled.category} isAi={rowIsAi}>
                     <select
                       id={`${doc.id}-inv-category`}
                       value={row.inventory.category}
@@ -683,7 +703,7 @@ export function InboxReviewClient({
                       ))}
                     </select>
                   </RowField>
-                  <RowField label="Purchase price" htmlFor={`${doc.id}-purchasePrice`}>
+                  <RowField label="Purchase price" htmlFor={`${doc.id}-purchasePrice`} autoFilled={row.inventoryAutoFilled.purchasePrice} isAi={rowIsAi}>
                     <input
                       id={`${doc.id}-purchasePrice`}
                       value={row.inventory.purchasePrice}

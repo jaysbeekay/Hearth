@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Settings, HelpCircle, MoreHorizontal, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getNavItems } from "@/components/nav-items";
 import type { ModuleKey } from "@/lib/modules/registry";
+import { Dialog } from "@/components/Dialog";
 
 function isActive(href: string, pathname: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -37,15 +38,6 @@ export function BottomNav({
     setMoreOpen(false);
   }
 
-  useEffect(() => {
-    if (!moreOpen) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setMoreOpen(false);
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [moreOpen]);
-
   const primary = PRIMARY_HREFS.map((href) => items.find((i) => i.href === href)).filter(
     (i): i is NonNullable<typeof i> => i != null,
   );
@@ -68,7 +60,7 @@ export function BottomNav({
               href={href}
               className={cn(
                 "flex flex-1 flex-col items-center gap-1 py-2.5 text-xs font-medium",
-                active ? "text-accent" : "text-foreground/60",
+                active ? "text-accent" : "text-muted",
               )}
             >
               <Icon size={20} />
@@ -84,7 +76,7 @@ export function BottomNav({
           aria-expanded={moreOpen}
           className={cn(
             "flex flex-1 flex-col items-center gap-1 py-2.5 text-xs font-medium",
-            overflowActive ? "text-accent" : "text-foreground/60",
+            overflowActive ? "text-accent" : "text-muted",
           )}
         >
           <MoreHorizontal size={20} />
@@ -92,17 +84,14 @@ export function BottomNav({
         </button>
       </nav>
 
-      {moreOpen && (
-        <div
-          className="fixed inset-0 z-40 flex items-end bg-black/40 md:hidden"
-          onClick={() => setMoreOpen(false)}
-        >
-          <div
-            role="dialog"
-            aria-label="More navigation options"
-            className="w-full rounded-t-2xl border-t border-border bg-surface p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
-            onClick={(e) => e.stopPropagation()}
-          >
+      <Dialog
+        open={moreOpen}
+        onClose={() => setMoreOpen(false)}
+        label="More navigation options"
+        backdropClassName="fixed inset-0 z-40 flex items-end bg-black/40 md:hidden"
+        panelClassName="w-full rounded-t-2xl border-t border-border bg-surface p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+      >
+        <>
             <div className="mb-3 flex items-center justify-between">
               <span className="text-sm font-medium text-muted">More</span>
               <button
@@ -115,7 +104,7 @@ export function BottomNav({
               </button>
             </div>
             {overflowModules.length > 0 && (
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-foreground/40">
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
                 Modules
               </p>
             )}
@@ -138,7 +127,7 @@ export function BottomNav({
             </div>
 
             {overflowTools.length > 0 && (
-              <p className="mb-1.5 mt-3 text-xs font-semibold uppercase tracking-wide text-foreground/40">
+              <p className="mb-1.5 mt-3 text-xs font-semibold uppercase tracking-wide text-muted">
                 Tools
               </p>
             )}
@@ -183,9 +172,8 @@ export function BottomNav({
                 Help
               </Link>
             </div>
-          </div>
-        </div>
-      )}
+        </>
+      </Dialog>
     </>
   );
 }

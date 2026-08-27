@@ -18,7 +18,7 @@ export default async function NewTripSegmentPage({
     prisma.trip.findUnique({ where: { id } }),
     getUserPreferences(),
   ]);
-  if (!trip) notFound();
+  if (!trip || trip.deletedAt) notFound();
 
   const boundAction = addTripSegment.bind(null, trip.id);
 
@@ -27,7 +27,7 @@ export default async function NewTripSegmentPage({
       <BackLink href={`/travel/${trip.id}`} label={`Back to ${trip.title}`} />
       <div>
         <h1 className="text-2xl font-semibold">Add a segment</h1>
-        <p className="text-sm text-foreground/60">{trip.title}</p>
+        <p className="text-sm text-muted">{trip.title}</p>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <TripSegmentForm action={boundAction} tripId={trip.id} defaultCurrency={preferredCurrency} />

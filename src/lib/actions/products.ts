@@ -16,7 +16,13 @@ import { queueDocumentExtraction } from "@/lib/documents/queueExtraction";
 import { describeUploadRejection } from "@/lib/uploadValidation";
 import { extractionFieldsFromForm } from "@/lib/documents/extractionConfirmation";
 import { saveFileToInboxFallback } from "@/lib/documents/inboxFallback";
-import { createProductCommand, updateProductCommand, deleteProductCommand } from "@/lib/commands/products";
+import {
+  createProductCommand,
+  updateProductCommand,
+  deleteProductCommand,
+  restoreProductCommand,
+  permanentlyDeleteProductCommand,
+} from "@/lib/commands/products";
 
 export type ActionState = {
   error?: string;
@@ -133,7 +139,7 @@ export async function updateProduct(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  await requireUser();
+  const user = await requireUser();
 
   const parsed = productSchema.safeParse(formToProductInput(formData));
   if (!parsed.success) {
@@ -143,8 +149,15 @@ export async function updateProduct(
     };
   }
 
-  try { await updateProductCommand(productId, { ...parsed.data, ...extractionFieldsFromForm(formData) }); }
-  catch (error) { return { error: error instanceof Error ? error.message : "Product not found." }; }
+  try {
+    await updateProductCommand(
+      productId,
+      { ...parsed.data, ...extractionFieldsFromForm(formData) },
+      user.id,
+    );
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Product not found." };
+  }
   redirect(`/products/${productId}`);
 }
 
@@ -193,22 +206,51 @@ export async function updateProductFromAssistant(
   productId: string,
   data: Record<string, unknown>,
 ): Promise<AssistantActionResult> {
-  await requireUser();
+  const user = await requireUser();
 
   const parsed = productSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: firstIssueMessage(parsed.error) };
 
-  try { await updateProductCommand(productId, parsed.data); }
-  catch (error) { return { success: false, error: error instanceof Error ? error.message : "Product not found." }; }
+  try {
+    await updateProductCommand(productId, parsed.data, user.id);
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Product not found." };
+  }
   return { success: true, productId };
 }
 
+// #287 — soft-delete: see the equivalent comment on deleteContract.
 export async function deleteProduct(productId: string): Promise<ActionState> {
   await requireUser();
 
-  try { await deleteProductCommand(productId); }
-  catch (error) { return { error: error instanceof Error ? error.message : "Product not found." }; }
+  try {
+    await deleteProductCommand(productId);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Product not found." };
+  }
   redirect("/products");
+}
+
+export async function restoreProduct(productId: string): Promise<ActionState> {
+  await requireUser();
+
+  try {
+    await restoreProductCommand(productId);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Product not found." };
+  }
+  return { success: "Restored." };
+}
+
+export async function permanentlyDeleteProduct(productId: string): Promise<ActionState> {
+  await requireUser();
+
+  try {
+    await permanentlyDeleteProductCommand(productId);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Product not found." };
+  }
+  return { success: "Deleted permanently." };
 }
 
 export async function addProductDocument(

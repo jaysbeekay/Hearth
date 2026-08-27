@@ -150,7 +150,7 @@ export async function updateProperty(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  await requireUser();
+  const user = await requireUser();
 
   const parsed = propertySchema.safeParse(formToPropertyInput(formData));
   if (!parsed.success) {
@@ -163,14 +163,41 @@ export async function updateProperty(
   const existing = await prisma.property.findUnique({ where: { id: propertyId } });
   if (!existing) return { error: "Property not found." };
 
-  await prisma.property.update({ where: { id: propertyId }, data: parsed.data });
+  await prisma.property.update({ where: { id: propertyId }, data: { ...parsed.data, updatedById: user.id } });
 
   revalidatePath("/home");
   revalidatePath(`/home/${propertyId}`);
   redirect(`/home/${propertyId}`);
 }
 
+// #287 — soft-delete: see the equivalent comment on deleteContract (contracts.ts).
 export async function deleteProperty(propertyId: string): Promise<ActionState> {
+  await requireUser();
+
+  const existing = await prisma.property.findUnique({ where: { id: propertyId } });
+  if (!existing) return { error: "Property not found." };
+
+  await prisma.property.update({ where: { id: propertyId }, data: { deletedAt: new Date() } });
+
+  revalidatePath("/home");
+  revalidatePath("/settings/trash");
+  redirect("/home");
+}
+
+export async function restoreProperty(propertyId: string): Promise<ActionState> {
+  await requireUser();
+
+  const existing = await prisma.property.findUnique({ where: { id: propertyId } });
+  if (!existing) return { error: "Property not found." };
+
+  await prisma.property.update({ where: { id: propertyId }, data: { deletedAt: null } });
+
+  revalidatePath("/home");
+  revalidatePath("/settings/trash");
+  return { success: "Restored." };
+}
+
+export async function permanentlyDeleteProperty(propertyId: string): Promise<ActionState> {
   await requireUser();
 
   const existing = await prisma.property.findUnique({
@@ -186,8 +213,8 @@ export async function deleteProperty(propertyId: string): Promise<ActionState> {
 
   await prisma.property.delete({ where: { id: propertyId } });
 
-  revalidatePath("/home");
-  redirect("/home");
+  revalidatePath("/settings/trash");
+  return { success: "Deleted permanently." };
 }
 
 export async function addHomeItem(

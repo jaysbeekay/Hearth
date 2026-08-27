@@ -18,7 +18,7 @@ export default async function NewVehicleItemPage({
     prisma.vehicle.findUnique({ where: { id } }),
     getUserPreferences(),
   ]);
-  if (!vehicle) notFound();
+  if (!vehicle || vehicle.deletedAt) notFound();
 
   const boundAction = addVehicleItem.bind(null, vehicle.id);
 
@@ -27,7 +27,7 @@ export default async function NewVehicleItemPage({
       <BackLink href={`/vehicles/${vehicle.id}`} label={`Back to ${vehicle.label}`} />
       <div>
         <h1 className="text-2xl font-semibold">Add a record</h1>
-        <p className="text-sm text-foreground/60">{vehicle.label}</p>
+        <p className="text-sm text-muted">{vehicle.label}</p>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <VehicleItemForm action={boundAction} vehicleId={vehicle.id} defaultCurrency={preferredCurrency} />

@@ -7,7 +7,7 @@ import { findDocumentsByHash, type DocumentKind } from "@/lib/documents/document
 import { InboxReviewClient, type DuplicateMatch } from "@/components/InboxReviewClient";
 import { DocumentsTabs } from "@/components/DocumentsTabs";
 
-export const metadata: Metadata = { title: "Needs review" };
+export const metadata: Metadata = { title: "Inbox" };
 
 // Only these three kinds are ones the inbox can natively file into (matches
 // classifyInboxDocument's boundary), so only they get a real link + an
@@ -26,7 +26,7 @@ export default async function InboxPage() {
     getUserPreferences(),
   ]);
   const stats = await getDocumentStats(enabledModules);
-  const filedCount = stats.total - stats.needsReview;
+  const filedCount = stats.total - stats.inboxCount;
 
   // Live-recomputed rather than trusting a stored reference — the matched
   // document may have been deleted since this row's status was set (#206).

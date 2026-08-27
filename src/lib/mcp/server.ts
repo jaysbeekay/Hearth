@@ -92,7 +92,7 @@ export async function createMcpServer() {
     },
     async ({ status, category }) => {
       const contracts = await prisma.contract.findMany({
-        where: { ...(status && { status }), ...(category && { category }) },
+        where: { deletedAt: null, ...(status && { status }), ...(category && { category }) },
         select: CONTRACT_SELECT,
         orderBy: { endDate: "asc" },
       });
@@ -111,7 +111,7 @@ export async function createMcpServer() {
     },
     async ({ id }) => {
       const contract = await prisma.contract.findUnique({
-        where: { id },
+        where: { id, deletedAt: null },
         select: {
           ...CONTRACT_SELECT,
           documents: {
@@ -140,6 +140,7 @@ export async function createMcpServer() {
     async ({ query }) => {
       const contracts = await prisma.contract.findMany({
         where: {
+          deletedAt: null,
           OR: [
             { title: { contains: query } },
             { provider: { contains: query } },
@@ -164,7 +165,7 @@ export async function createMcpServer() {
     async ({ withinDays }) => {
       const horizon = withinDays ?? 30;
       const contracts = await prisma.contract.findMany({
-        where: { status: "ACTIVE", endDate: { not: null } },
+        where: { status: "ACTIVE", endDate: { not: null }, deletedAt: null },
         select: CONTRACT_SELECT,
       });
       const upcoming = contracts
@@ -185,7 +186,7 @@ export async function createMcpServer() {
     },
     async () => {
       const active = await prisma.contract.findMany({
-        where: { status: "ACTIVE" },
+        where: { status: "ACTIVE", deletedAt: null },
         select: { category: true, cost: true, billingFrequency: true },
       });
 

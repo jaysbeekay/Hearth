@@ -28,6 +28,7 @@ import {
   formatDate,
 } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
+import { getHouseholdMemberCount } from "@/lib/household";
 
 export default async function ContractDetailPage({
   params,
@@ -38,18 +39,20 @@ export default async function ContractDetailPage({
 }) {
   const { id } = await params;
   const { docFallback } = await searchParams;
-  const [contract, { dateFormat, region }] = await Promise.all([
+  const [contract, { dateFormat, region }, memberCount] = await Promise.all([
     prisma.contract.findUnique({
       where: { id },
       include: {
         documents: { orderBy: { uploadedAt: "desc" } },
         createdBy: true,
+        updatedBy: true,
         rentalAgreement: { include: { property: true } },
       },
     }),
     getUserPreferences(),
+    getHouseholdMemberCount(),
   ]);
-  if (!contract) notFound();
+  if (!contract || contract.deletedAt) notFound();
 
   const days = daysUntil(contract.endDate);
   const cancelled = contract.status === "CANCELLED";
@@ -66,7 +69,7 @@ export default async function ContractDetailPage({
       <div>
         <Link
           href="/contracts"
-          className="inline-flex items-center gap-1 text-sm text-foreground/60 hover:text-foreground"
+          className="inline-flex items-center gap-1 text-sm text-muted hover:text-foreground"
         >
           <ArrowLeft size={16} />
           Back to contracts
@@ -75,7 +78,7 @@ export default async function ContractDetailPage({
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-sm text-foreground/60">
+          <p className="text-sm text-muted">
             {CATEGORY_LABELS[contract.category] ?? contract.category}
           </p>
           <h1 className="text-2xl font-semibold">{contract.title}</h1>
@@ -101,6 +104,7 @@ export default async function ContractDetailPage({
                 ? "Mark this contract as active again?"
                 : "Mark this contract as cancelled? This just changes its status — it won't delete the contract or its documents."
             }
+            actionLabel={cancelled ? "Mark as active" : "Mark as cancelled"}
             ariaLabel={cancelled ? "Mark contract as active" : "Mark contract as cancelled"}
             className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
           >
@@ -111,6 +115,7 @@ export default async function ContractDetailPage({
             <ConfirmForm
               action={deleteContract.bind(null, contract.id)}
               confirmText="Delete this contract and all its documents? This cannot be undone."
+              actionLabel="Delete contract"
               className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
               offline={{ entity: "contract", entityId: contract.id, label: `Delete contract: ${contract.title}` }}
             >
@@ -191,7 +196,7 @@ export default async function ContractDetailPage({
       {contract.category === "RENTAL" && contract.rentalAgreement && (
         <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
           <div className="mb-3 flex items-center gap-2">
-            <Home size={18} className="text-foreground/50" />
+            <Home size={18} className="text-muted" />
             <h2 className="font-medium">Linked rental agreement</h2>
           </div>
           <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">
@@ -237,10 +242,12 @@ export default async function ContractDetailPage({
 
       <RecordMeta
         createdByName={contract.createdBy.name}
+        updatedByName={contract.updatedBy?.name}
         createdAt={contract.createdAt}
         updatedAt={contract.updatedAt}
         dateFormat={dateFormat}
         extractionConfirmedAt={contract.extractionConfirmedAt}
+        memberCount={memberCount}
       />
     </div>
   );

@@ -50,13 +50,13 @@ export function OfflineDocumentsPanel() {
         )}
       </div>
       {docs.length === 0 ? (
-        <p className="text-sm text-foreground/60">
+        <p className="text-sm text-muted">
           No documents downloaded for offline use yet — tap the download icon next to any
           document to make it available without a connection.
         </p>
       ) : (
         <>
-          <p className="mb-2 text-xs text-foreground/50">
+          <p className="mb-2 text-xs text-muted">
             {docs.length} {docs.length === 1 ? "document" : "documents"} · {humanFileSize(totalBytes)}{" "}
             stored on this device
           </p>
@@ -64,15 +64,15 @@ export function OfflineDocumentsPanel() {
             {docs.map((doc) => (
               <li key={doc.url} className="flex items-center justify-between gap-3 py-2">
                 <span className="flex min-w-0 items-center gap-2 text-sm">
-                  <FileDown size={16} className="shrink-0 text-foreground/50" />
+                  <FileDown size={16} className="shrink-0 text-muted" />
                   <span className="min-w-0 truncate">{doc.filename}</span>
-                  <span className="shrink-0 text-foreground/50">{humanFileSize(doc.size)}</span>
+                  <span className="shrink-0 text-muted">{humanFileSize(doc.size)}</span>
                 </span>
                 <button
                   type="button"
                   onClick={() => handleRemove(doc.url)}
                   aria-label={`Remove ${doc.filename} from offline storage`}
-                  className="rounded-md p-2 text-foreground/50 hover:text-danger"
+                  className="rounded-md p-2 text-muted hover:text-danger"
                 >
                   <Trash2 size={16} />
                 </button>

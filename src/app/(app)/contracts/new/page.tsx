@@ -6,17 +6,30 @@ import { isModuleEnabled } from "@/lib/modules/enablement";
 import { prisma } from "@/lib/prisma";
 import { BackLink } from "@/components/BackLink";
 
-export default async function NewContractPage() {
-  const [{ preferredCurrency }, homeEnabled, vehiclesEnabled] = await Promise.all([
+export default async function NewContractPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ propertyId?: string; vehicleId?: string }>;
+}) {
+  const [{ preferredCurrency }, homeEnabled, vehiclesEnabled, { propertyId, vehicleId }] = await Promise.all([
     getUserPreferences(),
     isModuleEnabled("HOME"),
     isModuleEnabled("VEHICLES"),
+    searchParams,
   ]);
   const properties = homeEnabled
-    ? await prisma.property.findMany({ select: { id: true, label: true }, orderBy: { label: "asc" } })
+    ? await prisma.property.findMany({
+        where: { deletedAt: null },
+        select: { id: true, label: true },
+        orderBy: { label: "asc" },
+      })
     : [];
   const vehicles = vehiclesEnabled
-    ? await prisma.vehicle.findMany({ select: { id: true, label: true }, orderBy: { label: "asc" } })
+    ? await prisma.vehicle.findMany({
+        where: { deletedAt: null },
+        select: { id: true, label: true },
+        orderBy: { label: "asc" },
+      })
     : [];
 
   return (
@@ -24,7 +37,7 @@ export default async function NewContractPage() {
       <BackLink href="/contracts" label="Back to contracts" />
       <div>
         <h1 className="text-2xl font-semibold">Add a contract</h1>
-        <p className="text-sm text-foreground/60">
+        <p className="text-sm text-muted">
           Capture the key details so you never miss a renewal or cancellation deadline.
         </p>
         <p className="mt-1 text-xs text-muted">
@@ -42,6 +55,8 @@ export default async function NewContractPage() {
           defaultCurrency={preferredCurrency}
           properties={properties}
           vehicles={vehicles}
+          defaultPropertyId={propertyId}
+          defaultVehicleId={vehicleId}
         />
       </div>
     </div>

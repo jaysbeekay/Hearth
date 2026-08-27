@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, KeyRound, History } from "lucide-react";
+import { ArrowRight, KeyRound, History, Trash2 } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isEncryptionConfigured } from "@/lib/env";
@@ -14,6 +14,7 @@ import { NotificationPreferencesForm } from "@/components/NotificationPreference
 import { PreferencesForm } from "@/components/PreferencesForm";
 import { OfflineDocumentsPanel } from "@/components/OfflineDocumentsPanel";
 import { UnconfiguredNotice } from "@/components/UnconfiguredNotice";
+import { ROLE_LABELS } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -40,7 +41,7 @@ export default async function SettingsPage() {
   return (
     <div className="max-w-4xl space-y-6">
       <h1 className="text-2xl font-semibold">Settings</h1>
-      <p className="text-sm text-foreground/60">
+      <p className="text-sm text-muted">
         These settings only affect your own account, not the rest of the household.
       </p>
 
@@ -49,16 +50,16 @@ export default async function SettingsPage() {
           <h2 className="mb-3 font-medium">Profile</h2>
           <dl className="grid grid-cols-2 gap-4">
             <div className="min-w-0">
-              <dt className="text-xs text-foreground/50">Name</dt>
+              <dt className="text-xs text-muted">Name</dt>
               <dd className="text-sm font-medium break-words">{user.name}</dd>
             </div>
             <div className="min-w-0">
-              <dt className="text-xs text-foreground/50">Email</dt>
+              <dt className="text-xs text-muted">Email</dt>
               <dd className="text-sm font-medium break-words">{user.email}</dd>
             </div>
             <div className="min-w-0">
-              <dt className="text-xs text-foreground/50">Role</dt>
-              <dd className="text-sm font-medium">{user.role}</dd>
+              <dt className="text-xs text-muted">Role</dt>
+              <dd className="text-sm font-medium">{ROLE_LABELS[user.role] ?? user.role}</dd>
             </div>
           </dl>
           {user.role === "ADMIN" && (
@@ -74,7 +75,7 @@ export default async function SettingsPage() {
 
         <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-3 font-medium">Notifications</h2>
-          <p className="mb-3 text-sm text-foreground/60">
+          <p className="mb-3 text-sm text-muted">
             Expiry reminders are sent by email{ntfyConfigured ? " and push (ntfy)" : ""}.{" "}
             {!smtpConfigured && !ntfyConfigured && (
               <span className="text-warning">
@@ -96,7 +97,7 @@ export default async function SettingsPage() {
 
         <section className="rounded-xl border border-border bg-surface p-4 md:p-6 md:col-span-2">
           <h2 className="mb-3 font-medium">Preferences</h2>
-          <p className="mb-3 text-sm text-foreground/60">
+          <p className="mb-3 text-sm text-muted">
             Localisation used throughout the app — dates, default currency for new records, your
             timezone, and the region convention used for number formatting (decimal/thousands
             separators). This doesn&apos;t change the app&apos;s display language.
@@ -135,6 +136,18 @@ export default async function SettingsPage() {
         </section>
 
         <IcalTokenSection hasToken={Boolean(user.icalTokenHash)} appUrl={appUrl} />
+
+        <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+          <h2 className="mb-3 font-medium">Trash</h2>
+          <p className="mb-3 text-sm text-muted">
+            Deleted contracts, warranties, vehicles, properties, trips, and inventory items stay
+            here for 30 days before they&apos;re removed for good.
+          </p>
+          <Link href="/settings/trash" className={quickLinkClass}>
+            <Trash2 size={16} />
+            View trash
+          </Link>
+        </section>
 
         <OfflineDocumentsPanel />
 

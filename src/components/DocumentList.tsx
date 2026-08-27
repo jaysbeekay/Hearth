@@ -11,8 +11,9 @@ function DeleteButton({ doc }: { doc: DocumentModel }) {
     <ConfirmForm
       action={deleteDocumentAction.bind(null, doc.contractId, doc.id)}
       confirmText={`Delete ${doc.filename}? This can't be undone.`}
+      actionLabel="Delete document"
       ariaLabel={`Delete ${doc.filename}`}
-      className="rounded-md p-2 text-foreground/50 hover:text-danger"
+      className="rounded-md p-2 text-muted hover:text-danger"
       offline={{
         entity: "contractDocument",
         entityId: doc.id,
@@ -33,7 +34,7 @@ export function DocumentList({
   dateFormat?: string;
 }) {
   if (documents.length === 0) {
-    return <p className="text-sm text-foreground/60">No documents uploaded yet.</p>;
+    return <p className="text-sm text-muted">No documents uploaded yet.</p>;
   }
 
   // #206 — group into version chains via supersedesId rather than listing
@@ -73,9 +74,9 @@ export function DocumentList({
                 size={doc.size}
                 className="flex min-w-0 items-center gap-2 text-sm hover:text-accent"
               >
-                <FileText size={18} className="shrink-0 text-foreground/50" />
+                <FileText size={18} className="shrink-0 text-muted" />
                 <span className="min-w-0 truncate">{doc.filename}</span>
-                <span className="shrink-0 text-foreground/50">
+                <span className="shrink-0 text-muted">
                   {humanFileSize(doc.size)} · {formatDate(doc.uploadedAt, dateFormat)}
                 </span>
                 {older.length > 0 && (
@@ -103,7 +104,7 @@ export function DocumentList({
                       filename={v.filename}
                       mimeType={v.mimeType}
                       size={v.size}
-                      className="flex min-w-0 items-center gap-2 text-xs text-foreground/60 hover:text-accent"
+                      className="flex min-w-0 items-center gap-2 text-xs text-muted hover:text-accent"
                     >
                       <History size={14} className="shrink-0" />
                       <span className="min-w-0 truncate">{v.filename}</span>

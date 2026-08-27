@@ -40,7 +40,7 @@ export function ImportantToggle({
       }}
       className={cn(
         "rounded-md p-2 hover:bg-black/5 dark:hover:bg-white/5",
-        optimistic ? "text-warning" : "text-foreground/40",
+        optimistic ? "text-warning" : "text-muted",
       )}
     >
       <Star size={16} fill={optimistic ? "currentColor" : "none"} />

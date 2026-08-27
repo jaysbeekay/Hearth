@@ -11,6 +11,7 @@ import { refreshPricesForTickers } from "@/lib/prices";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { HoldingCard } from "@/components/HoldingCard";
 import type { ModuleKey } from "@/lib/modules/registry";
+import { COST_METHOD_LABELS } from "@/lib/validation/wealth";
 
 export const metadata: Metadata = { title: "Portfolio" };
 
@@ -43,11 +44,11 @@ export default async function PortfolioPage({
   return (
     <div className="max-w-4xl space-y-6">
       <div>
-        <Link href="/wealth/portfolios" className="text-sm text-foreground/60 hover:text-foreground">← Portfolios</Link>
+        <Link href="/wealth/portfolios" className="text-sm text-muted hover:text-foreground">← Portfolios</Link>
         <div className="mt-1 flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold">{portfolio.name}</h1>
-            {portfolio.description && <p className="text-sm text-foreground/60">{portfolio.description}</p>}
+            {portfolio.description && <p className="text-sm text-muted">{portfolio.description}</p>}
           </div>
           <Link
             href={`/wealth/portfolios/${id}/edit`}
@@ -62,15 +63,17 @@ export default async function PortfolioPage({
       {portfolioValue && (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           <div className="rounded-xl border border-border bg-surface p-4">
-            <p className="text-xs text-foreground/50">Market value</p>
+            <p className="text-xs text-muted">Market value</p>
             <p className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(portfolioValue.totalValue, portfolio.currency, undefined, region, { showCode: true })}</p>
           </div>
           <div className="rounded-xl border border-border bg-surface p-4">
-            <p className="text-xs text-foreground/50">Cost basis</p>
+            <p className="text-xs text-muted">
+              Cost basis <span className="text-muted">({COST_METHOD_LABELS[portfolio.costMethod]})</span>
+            </p>
             <p className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(portfolioValue.totalCost, portfolio.currency, undefined, region, { showCode: true })}</p>
           </div>
           <div className="rounded-xl border border-border bg-surface p-4">
-            <p className="text-xs text-foreground/50">Total gain / loss</p>
+            <p className="text-xs text-muted">Total gain / loss</p>
             <p className={`mt-1 text-xl font-semibold tabular-nums ${(portfolioValue.totalValue - portfolioValue.totalCost) >= 0 ? "text-success" : "text-danger"}`}>
               {formatCurrency(portfolioValue.totalValue - portfolioValue.totalCost, portfolio.currency, undefined, region, { showCode: true })}
             </p>
@@ -100,7 +103,7 @@ export default async function PortfolioPage({
         </div>
 
         {!portfolioValue?.holdings.length ? (
-          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-foreground/60">
+          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
             No holdings yet. Add a holding manually or import a CSV of your trade history.
           </p>
         ) : (

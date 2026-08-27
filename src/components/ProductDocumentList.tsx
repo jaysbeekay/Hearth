@@ -28,7 +28,7 @@ export function ProductDocumentList({
   const [preview, setPreview] = useState<ProductDocumentModel | null>(null);
 
   if (documents.length === 0) {
-    return <p className="text-sm text-foreground/60">No documents uploaded yet.</p>;
+    return <p className="text-sm text-muted">No documents uploaded yet.</p>;
   }
 
   return (
@@ -48,10 +48,10 @@ export function ProductDocumentList({
                 filename={doc.filename}
               />
             ) : (
-              <FileText size={18} className="shrink-0 text-foreground/50" />
+              <FileText size={18} className="shrink-0 text-muted" />
             )}
             <span className="min-w-0 truncate">{doc.filename}</span>
-            <span className="shrink-0 text-foreground/50">
+            <span className="shrink-0 text-muted">
               {KIND_LABELS[doc.kind] ?? doc.kind} · {humanFileSize(doc.size)} ·{" "}
               {formatDate(doc.uploadedAt, dateFormat)}
             </span>
@@ -62,7 +62,7 @@ export function ProductDocumentList({
                 type="button"
                 onClick={() => setPreview(doc)}
                 aria-label={`Preview ${doc.filename}`}
-                className="rounded-md p-2 text-foreground/50 hover:bg-black/5 dark:hover:bg-white/5"
+                className="rounded-md p-2 text-muted hover:bg-black/5 dark:hover:bg-white/5"
               >
                 <Eye size={16} />
               </button>
@@ -75,8 +75,9 @@ export function ProductDocumentList({
             <ConfirmForm
               action={deleteProductDocumentAction.bind(null, doc.productId, doc.id)}
               confirmText={`Delete ${doc.filename}? This can't be undone.`}
+              actionLabel="Delete document"
               ariaLabel={`Delete ${doc.filename}`}
-              className="rounded-md p-2 text-foreground/50 hover:text-danger"
+              className="rounded-md p-2 text-muted hover:text-danger"
               offline={{
                 entity: "productDocument",
                 entityId: doc.id,

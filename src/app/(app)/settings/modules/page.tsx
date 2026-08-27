@@ -18,7 +18,7 @@ export default async function ModulesPage() {
   return (
     <div className="max-w-2xl space-y-6">
       <h1 className="text-2xl font-semibold">Modules</h1>
-      <p className="text-sm text-foreground/60">
+      <p className="text-sm text-muted">
         Enable or disable optional features. Disabling a module hides it from navigation but
         keeps its data intact. Records in every module are visible to your whole household, not
         just the person who added them.
@@ -35,7 +35,7 @@ export default async function ModulesPage() {
                     <Icon size={16} />
                     {label}
                   </p>
-                  <p className="text-xs text-foreground/50">{description}</p>
+                  <p className="text-xs text-muted">{description}</p>
                 </div>
                 <ModuleToggle moduleKey={key} enabled={enabled} />
               </li>

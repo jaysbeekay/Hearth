@@ -16,7 +16,7 @@ const PAGES: Array<[string, string[]]> = [
   ["/documents/inbox", ["Documents"]],
   ["/spend", ["Spend"]],
   ["/import", ["Upload"]],
-  ["/calendar", ["Calendar"]],
+  ["/calendar", ["Upcoming"]],
   ["/assistant", ["Assistant"]],
   ["/settings", ["Settings"]],
   ["/settings/webhooks", ["Webhook"]],

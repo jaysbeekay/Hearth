@@ -33,10 +33,13 @@ export function ChatThreadList({
           <Plus size={16} />
           New chat
         </Link>
+        {/* #285 — the one deliberate exception to "everything is
+            household-wide", so it needs to be stated, not just true. */}
+        <p className="mt-2 text-center text-xs text-muted">Private to you — other household members can&apos;t see these.</p>
       </div>
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 pb-3">
         {threads.length === 0 && (
-          <p className="px-2 text-xs text-foreground/50">No conversations yet.</p>
+          <p className="px-2 text-xs text-muted">No conversations yet.</p>
         )}
         {threads.map((thread) => (
           <div
@@ -58,9 +61,10 @@ export function ChatThreadList({
             <ConfirmForm
               action={() => deleteChatThread(thread.id)}
               confirmText="Delete this conversation? This can't be undone."
+              actionLabel="Delete conversation"
               ariaLabel="Delete conversation"
               successMessage=""
-              className="shrink-0 rounded-md p-1 text-foreground/40 opacity-0 hover:text-danger group-hover:opacity-100"
+              className="shrink-0 rounded-md p-1 text-muted opacity-0 hover:text-danger group-hover:opacity-100"
             >
               <Trash2 size={14} />
             </ConfirmForm>

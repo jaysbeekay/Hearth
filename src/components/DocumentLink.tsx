@@ -81,7 +81,7 @@ export function DocumentLink({
         disabled={downloading || cached}
         aria-label={cached ? `${filename} is available offline` : `Download ${filename} for offline use`}
         title={cached ? "Available offline" : "Download for offline use"}
-        className={`shrink-0 rounded-md p-1.5 ${cached ? "text-success" : "text-foreground/40 hover:text-foreground"}`}
+        className={`shrink-0 rounded-md p-1.5 ${cached ? "text-success" : "text-muted hover:text-foreground"}`}
       >
         <Download size={14} />
       </button>

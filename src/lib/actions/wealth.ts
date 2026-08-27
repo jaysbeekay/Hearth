@@ -24,7 +24,7 @@ import type { ActionState } from "@/lib/actions/auth";
 import { parse } from "csv-parse/sync";
 import { describeUploadRejection } from "@/lib/uploadValidation";
 
-const PORTFOLIO_FIELDS = ["name", "description", "currency"];
+const PORTFOLIO_FIELDS = ["name", "description", "currency", "costMethod"];
 const HOLDING_FIELDS = ["ticker", "name", "assetClass", "exchange"];
 const TRADE_FIELDS = ["type", "date", "units", "pricePerUnit", "fees", "currency", "fxRate", "notes"];
 const VALUATION_FIELDS = ["valuedAt", "value", "currency", "source", "notes"];
@@ -52,6 +52,7 @@ export async function createPortfolio(
     name: formData.get("name"),
     description: formData.get("description"),
     currency: formData.get("currency") || "AUD",
+    costMethod: formData.get("costMethod") || "FIFO",
   });
   if (!parsed.success) {
     return {
@@ -76,6 +77,7 @@ export async function updatePortfolio(
     name: formData.get("name"),
     description: formData.get("description"),
     currency: formData.get("currency") || "AUD",
+    costMethod: formData.get("costMethod") || "FIFO",
   });
   if (!parsed.success) {
     return {

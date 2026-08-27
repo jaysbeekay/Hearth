@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
 
   const [properties, { dateFormat, region }] = await Promise.all([
     prisma.property.findMany({
+      where: { deletedAt: null },
       include: { items: { orderBy: { date: "desc" } } },
     }),
     getUserPreferences(),

@@ -23,7 +23,7 @@ import {
   serializeFormData,
   type QueuedOperation,
 } from "@/lib/offlineQueue";
-import { markAutoFilled, extractionMessage, isAiExtractionSource } from "@/lib/autoFillHighlight";
+import { applyIfEmpty, extractionMessage, isAiExtractionSource } from "@/lib/autoFillHighlight";
 import { DateInput } from "@/components/DateInput";
 
 function toDateInputValue(date: Date | null | undefined) {
@@ -53,12 +53,18 @@ export function ContractForm({
   defaultCurrency,
   properties = [],
   vehicles = [],
+  defaultPropertyId,
+  defaultVehicleId,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   contract?: ContractModel;
   defaultCurrency?: string;
   properties?: { id: string; label: string }[];
   vehicles?: { id: string; label: string }[];
+  // #293 — pre-selects the link when arriving from "Add contract for this
+  // property/vehicle" on the asset's own detail page.
+  defaultPropertyId?: string;
+  defaultVehicleId?: string;
 }) {
   const offlineAwareAction = makeOfflineAwareAction(
     action,
@@ -80,6 +86,14 @@ export function ContractForm({
   // see extractionFieldsFromForm in src/lib/actions/contracts.ts.
   const [extractionUsed, setExtractionUsed] = useState(false);
   const [confirmExtraction, setConfirmExtraction] = useState(false);
+  // #303: a cost without a billing frequency contributes nothing to the
+  // dashboard's "Est. monthly spend" — nudge before that surprises the user.
+  const [costMissingFrequency, setCostMissingFrequency] = useState(
+    () => !!contract?.cost && !contract?.billingFrequency,
+  );
+  function checkCostMissingFrequency() {
+    setCostMissingFrequency(!!costRef.current?.value && !billingFrequencyRef.current?.value);
+  }
 
   // Editing a record that was created offline and hasn't synced yet — there's
   // no server-side row to update, so submitting rewrites the queued
@@ -119,46 +133,17 @@ export function ContractForm({
 
   function applyExtractedFields(fields: ExtractedFields, source: "byok" | "heuristic" | "llm" | "none") {
     const highlight = isAiExtractionSource(source) ? "ai" : "heuristic";
-    if (fields.title && titleRef.current && !titleRef.current.value) {
-      titleRef.current.value = fields.title;
-      markAutoFilled(titleRef.current, highlight);
-    }
-    if (fields.provider && providerRef.current) {
-      providerRef.current.value = fields.provider;
-      markAutoFilled(providerRef.current, highlight);
-    }
-    if (fields.contractNumber && contractNumberRef.current) {
-      contractNumberRef.current.value = fields.contractNumber;
-      markAutoFilled(contractNumberRef.current, highlight);
-    }
-    if (fields.startDate && startDateRef.current) {
-      startDateRef.current.value = fields.startDate;
-      markAutoFilled(startDateRef.current, highlight);
-    }
-    if (fields.endDate && endDateRef.current) {
-      endDateRef.current.value = fields.endDate;
-      markAutoFilled(endDateRef.current, highlight);
-    }
-    if (fields.cost && costRef.current) {
-      costRef.current.value = fields.cost;
-      markAutoFilled(costRef.current, highlight);
-    }
-    if (fields.billingFrequency && billingFrequencyRef.current) {
-      billingFrequencyRef.current.value = fields.billingFrequency;
-      markAutoFilled(billingFrequencyRef.current, highlight);
-    }
-    if (fields.contactName && contactNameRef.current) {
-      contactNameRef.current.value = fields.contactName;
-      markAutoFilled(contactNameRef.current, highlight);
-    }
-    if (fields.contactPhone && contactPhoneRef.current) {
-      contactPhoneRef.current.value = fields.contactPhone;
-      markAutoFilled(contactPhoneRef.current, highlight);
-    }
-    if (fields.contactEmail && contactEmailRef.current) {
-      contactEmailRef.current.value = fields.contactEmail;
-      markAutoFilled(contactEmailRef.current, highlight);
-    }
+    applyIfEmpty(titleRef.current, fields.title, highlight);
+    applyIfEmpty(providerRef.current, fields.provider, highlight);
+    applyIfEmpty(contractNumberRef.current, fields.contractNumber, highlight);
+    applyIfEmpty(startDateRef.current, fields.startDate, highlight);
+    applyIfEmpty(endDateRef.current, fields.endDate, highlight);
+    applyIfEmpty(costRef.current, fields.cost, highlight);
+    applyIfEmpty(billingFrequencyRef.current, fields.billingFrequency, highlight);
+    applyIfEmpty(contactNameRef.current, fields.contactName, highlight);
+    applyIfEmpty(contactPhoneRef.current, fields.contactPhone, highlight);
+    applyIfEmpty(contactEmailRef.current, fields.contactEmail, highlight);
+    checkCostMissingFrequency();
   }
 
   async function handleFileChange(file: File | null) {
@@ -211,12 +196,12 @@ export function ContractForm({
           </p>
           <FileDropZone name="file" onFileSelected={handleFileChange} />
           {scanning && (
-            <p role="status" aria-live="polite" className="text-sm text-foreground/60">
+            <p role="status" aria-live="polite" className="text-sm text-muted">
               Scanning document…
             </p>
           )}
           {!scanning && scanMessage && (
-            <p role="status" aria-live="polite" className="text-sm text-foreground/60">
+            <p role="status" aria-live="polite" className="text-sm text-muted">
               {scanMessage}
             </p>
           )}
@@ -338,6 +323,7 @@ export function ContractForm({
               min={0}
               step="0.01"
               defaultValue={effectiveValues?.cost ?? contract?.cost ?? ""}
+              onChange={checkCostMissingFrequency}
               className={inputClass}
             />
           </Field>
@@ -349,13 +335,22 @@ export function ContractForm({
             />
           </Field>
 
-          <Field label="Billing frequency" htmlFor="billingFrequency">
+          <Field
+            label="Billing frequency"
+            htmlFor="billingFrequency"
+            hint={
+              costMissingFrequency
+                ? "This cost won't count toward the dashboard's Est. monthly spend until a frequency is set."
+                : undefined
+            }
+          >
             <SelectWrapper>
               <select
                 ref={billingFrequencyRef}
                 id="billingFrequency"
                 name="billingFrequency"
                 defaultValue={effectiveValues?.billingFrequency ?? contract?.billingFrequency ?? ""}
+                onChange={checkCostMissingFrequency}
                 className={selectClass}
               >
                 <option value="">Not set</option>
@@ -390,7 +385,7 @@ export function ContractForm({
                 <select
                   id="propertyId"
                   name="propertyId"
-                  defaultValue={effectiveValues?.propertyId ?? contract?.propertyId ?? ""}
+                  defaultValue={effectiveValues?.propertyId ?? contract?.propertyId ?? defaultPropertyId ?? ""}
                   className={selectClass}
                 >
                   <option value="">Not linked to a property</option>
@@ -410,7 +405,7 @@ export function ContractForm({
                 <select
                   id="vehicleId"
                   name="vehicleId"
-                  defaultValue={effectiveValues?.vehicleId ?? contract?.vehicleId ?? ""}
+                  defaultValue={effectiveValues?.vehicleId ?? contract?.vehicleId ?? defaultVehicleId ?? ""}
                   className={selectClass}
                 >
                   <option value="">Not linked to a vehicle</option>

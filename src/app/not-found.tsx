@@ -11,7 +11,7 @@ export default function NotFound() {
         <div className="flex flex-col items-center gap-2">
           <FileQuestion size={32} className="text-accent" />
           <h1 className="text-2xl font-semibold">Page not found</h1>
-          <p className="text-sm text-foreground/60">
+          <p className="text-sm text-muted">
             The page you&apos;re looking for doesn&apos;t exist or may have moved.
           </p>
         </div>

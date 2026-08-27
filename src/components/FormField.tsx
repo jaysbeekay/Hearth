@@ -17,7 +17,7 @@ export function Field({
         {label} {required && <span className="text-danger">*</span>}
       </label>
       {children}
-      {hint && <p className="text-xs text-foreground/50">{hint}</p>}
+      {hint && <p className="text-xs text-muted">{hint}</p>}
     </div>
   );
 }

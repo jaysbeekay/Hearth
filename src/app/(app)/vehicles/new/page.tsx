@@ -11,7 +11,7 @@ export default async function NewVehiclePage() {
       <BackLink href="/vehicles" label="Back to vehicles" />
       <div>
         <h1 className="text-2xl font-semibold">Add a vehicle</h1>
-        <p className="text-sm text-foreground/60">
+        <p className="text-sm text-muted">
           Track registration, insurance, and service history for this vehicle.
         </p>
       </div>

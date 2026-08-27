@@ -39,16 +39,21 @@ export default async function DashboardPage() {
   const [contracts, products, vehicles, trips, memberCount, documentStats, failedReminderLogs] =
     await Promise.all([
       prisma.contract.findMany({
+        where: { deletedAt: null },
         orderBy: { endDate: "asc" },
         include: { _count: { select: { documents: true } } },
       }),
       prisma.product.findMany({
+        where: { deletedAt: null },
         orderBy: { warrantyEndDate: "asc" },
         include: { _count: { select: { documents: true } } },
       }),
-      enabledModules.has("VEHICLES") ? prisma.vehicle.findMany({ orderBy: { createdAt: "desc" } }) : [],
+      enabledModules.has("VEHICLES")
+        ? prisma.vehicle.findMany({ where: { deletedAt: null }, orderBy: { createdAt: "desc" } })
+        : [],
       enabledModules.has("TRAVEL")
         ? prisma.trip.findMany({
+            where: { deletedAt: null },
             orderBy: { startDate: "asc" },
             include: { _count: { select: { segments: true } } },
           })
@@ -92,6 +97,15 @@ export default async function DashboardPage() {
       `[dashboard] "Est. monthly spend" excludes contracts billed in ${[...unconvertedCurrencies].join(", ")} — FX rate(s) to ${preferredCurrency} unavailable.`,
     );
   }
+
+  // #303: a contract with a cost but no billing frequency contributes $0 to
+  // "Est. monthly spend" (monthlyEquivalent has no frequency to convert
+  // from) — without this notice that reads as the total being wrong rather
+  // than as an unset field.
+  const missingFrequencyCount = active.filter(
+    (c) => c.cost != null && c.billingFrequency == null,
+  ).length;
+  const hasMissingFrequencySpend = missingFrequencyCount > 0;
 
   const productsWithDays = products.map((p) => ({
     product: p,
@@ -157,9 +171,9 @@ export default async function DashboardPage() {
         <h2 className="text-lg font-semibold">Documents</h2>
         <div className="grid grid-cols-2 gap-3">
           <StatCard
-            label="Needs review"
-            value={String(documentStats.needsReview)}
-            tone={documentStats.needsReview > 0 ? "warning" : "default"}
+            label="Inbox"
+            value={String(documentStats.inboxCount)}
+            tone={documentStats.inboxCount > 0 ? "warning" : "default"}
             href="/documents/inbox"
           />
           <StatCard
@@ -200,7 +214,7 @@ export default async function DashboardPage() {
             <StatCard
               label="Est. monthly spend"
               value={formatCurrency(monthlySpend, preferredCurrency, undefined, region)}
-              tone={hasUnconvertedSpend ? "warning" : "default"}
+              tone={hasUnconvertedSpend || hasMissingFrequencySpend ? "warning" : "default"}
               href="/spend"
             />
           </div>
@@ -214,9 +228,19 @@ export default async function DashboardPage() {
               </p>
             </div>
           )}
+          {hasMissingFrequencySpend && (
+            <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
+              <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden />
+              <p>
+                {missingFrequencyCount} active {missingFrequencyCount === 1 ? "contract has" : "contracts have"} a
+                cost but no billing frequency set — {missingFrequencyCount === 1 ? "it isn't" : "they aren't"}{" "}
+                counted in Est. monthly spend yet.
+              </p>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <StatCard label="Products tracked" value={String(products.length)} href="/products" />
+            <StatCard label="Warranties tracked" value={String(products.length)} href="/products" />
             <StatCard
               label="Warranties expiring in 30 days"
               value={String(warrantiesExpiringSoon.length)}
