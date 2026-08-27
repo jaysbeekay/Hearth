@@ -95,7 +95,11 @@ export function DocumentsExplorer({
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by filename or record…"
+          // #252: docs is now one bounded, paginated page rather than the
+          // household's entire document history, so this only searches
+          // what's currently loaded — the global search bar (⌘K) covers
+          // every document regardless of page.
+          placeholder="Search this page by filename or record…"
           className={`${inputClass} sm:max-w-xs`}
         />
         <SelectWrapper>

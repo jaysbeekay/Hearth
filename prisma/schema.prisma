@@ -344,6 +344,10 @@ model Document {
   supersededBy  Document? @relation("DocumentVersions")
   uploadedAt    DateTime  @default(now())
 
+  // #252 — contractId backs every "this contract's documents" lookup;
+  // uploadedAt backs the Documents page's date-sorted, now-paginated feed.
+  @@index([contractId])
+  @@index([uploadedAt])
   @@index([sha256])
   @@map("documents")
 }
@@ -381,6 +385,10 @@ model InboxDocument {
 
   uploadedAt DateTime @default(now())
 
+  // #252 — status backs the inbox review queue's per-status filtering;
+  // uploadedAt backs its date-sorted, now-paginated feed.
+  @@index([status])
+  @@index([uploadedAt])
   @@index([sha256])
   @@map("inbox_documents")
 }
@@ -489,6 +497,8 @@ model ProductDocument {
   supersededBy  ProductDocument?    @relation("ProductDocumentVersions")
   uploadedAt    DateTime            @default(now())
 
+  @@index([productId])
+  @@index([uploadedAt])
   @@index([sha256])
   @@map("product_documents")
 }
@@ -654,6 +664,8 @@ model TripSegmentDocument {
   supersededBy  TripSegmentDocument? @relation("TripSegmentDocumentVersions")
   uploadedAt    DateTime             @default(now())
 
+  @@index([tripSegmentId])
+  @@index([uploadedAt])
   @@index([sha256])
   @@map("trip_segment_documents")
 }
@@ -747,6 +759,8 @@ model RentalStatementDocument {
   supersededBy      RentalStatementDocument? @relation("RentalStatementDocumentVersions")
   uploadedAt        DateTime                 @default(now())
 
+  @@index([rentalStatementId])
+  @@index([uploadedAt])
   @@index([sha256])
   @@map("rental_statement_documents")
 }
@@ -787,6 +801,8 @@ model HomeItemDocument {
   supersededBy HomeItemDocument? @relation("HomeItemDocumentVersions")
   uploadedAt   DateTime          @default(now())
 
+  @@index([homeItemId])
+  @@index([uploadedAt])
   @@index([sha256])
   @@map("home_item_documents")
 }
@@ -857,6 +873,8 @@ model VehicleItemDocument {
   supersededBy  VehicleItemDocument? @relation("VehicleItemDocumentVersions")
   uploadedAt    DateTime             @default(now())
 
+  @@index([vehicleItemId])
+  @@index([uploadedAt])
   @@index([sha256])
   @@map("vehicle_item_documents")
 }
@@ -905,6 +923,8 @@ model InventoryItemDocument {
   supersededBy    InventoryItemDocument? @relation("InventoryItemDocumentVersions")
   uploadedAt      DateTime               @default(now())
 
+  @@index([inventoryItemId])
+  @@index([uploadedAt])
   @@index([sha256])
   @@map("inventory_item_documents")
 }
@@ -975,6 +995,8 @@ model TradeDocument {
   supersededBy TradeDocument? @relation("TradeDocumentVersions")
   uploadedAt   DateTime       @default(now())
 
+  @@index([tradeId])
+  @@index([uploadedAt])
   @@index([sha256])
   @@map("trade_documents")
 }
