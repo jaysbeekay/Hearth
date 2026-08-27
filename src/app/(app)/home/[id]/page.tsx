@@ -104,7 +104,7 @@ export default async function PropertyDetailPage({
           <DetailOverflowMenu>
             <ConfirmForm
               action={deleteProperty.bind(null, property.id)}
-              confirmText="Delete this property and all its items and documents? This cannot be undone."
+              confirmText="Move this property to Trash? Its items and documents are kept, and you can restore it within 30 days from Settings → Trash."
               actionLabel="Delete property"
               className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
               offline={{ entity: "property", entityId: property.id, label: `Delete property: ${property.label}` }}
