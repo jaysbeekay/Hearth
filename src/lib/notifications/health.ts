@@ -2,6 +2,7 @@ import { isSmtpConfigured, isNtfyConfigured, getReminderConfig } from "@/lib/app
 import { getEnabledWebhookEndpoints } from "@/lib/notifications/webhook";
 import { parseThresholds } from "@/lib/notifications/thresholds";
 import { getNotificationLogsByOwner } from "@/lib/notifications/logs";
+import { prisma } from "@/lib/prisma";
 import type { NotificationOwnerType } from "@/generated/prisma/enums";
 
 export interface ReminderHealth {
@@ -74,5 +75,170 @@ export async function getReminderHealth(params: {
           error: lastFailureLog.error,
         }
       : null,
+  };
+}
+
+export interface UncoveredRecord {
+  ownerType: NotificationOwnerType;
+  title: string;
+  href: string;
+  /** Why this record has no working reminder coverage right now. */
+  reason: "No reminder thresholds set" | "Last delivery attempt failed";
+}
+
+export interface HouseholdReminderHealth {
+  channels: { email: boolean; ntfy: boolean; webhook: boolean };
+  deliveryReady: boolean;
+  /** Last 30 days, across every channel and record. */
+  recentSent: number;
+  recentFailed: number;
+  /** Most recent SENT or FAILED log across the household — the closest
+   * proxy for "did the scheduler do anything lately" available without a
+   * dedicated job-run log (no job runner exists yet, see #250). */
+  lastActivityAt: Date | null;
+  /** Active/non-cancelled, non-trashed records expiring within 90 days that
+   * have no working path to a delivered reminder — only computed when at
+   * least one channel is configured, since with none configured every
+   * expiring record is equally uncovered for the same one reason. */
+  uncovered: UncoveredRecord[];
+}
+
+const UNCOVERED_HORIZON_DAYS = 90;
+
+/**
+ * Household-wide rollup of the same signals ReminderHealthCard shows per
+ * record (#292) — so confirming "reminders are actually working" doesn't
+ * require opening every record that happens to be expiring soon.
+ */
+export async function getHouseholdReminderHealth(): Promise<HouseholdReminderHealth> {
+  const [{ defaultDays }, emailEnabled, ntfyEnabled, webhookEndpoints] = await Promise.all([
+    getReminderConfig(),
+    isSmtpConfigured(),
+    isNtfyConfigured(),
+    getEnabledWebhookEndpoints(),
+  ]);
+  const deliveryReady = emailEnabled || ntfyEnabled || webhookEndpoints.length > 0;
+
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const [recentSent, recentFailed, lastLog] = await Promise.all([
+    prisma.notificationLog.count({ where: { status: "SENT", sentAt: { gte: since } } }),
+    prisma.notificationLog.count({ where: { status: "FAILED", sentAt: { gte: since } } }),
+    prisma.notificationLog.findFirst({ orderBy: { sentAt: "desc" }, select: { sentAt: true } }),
+  ]);
+
+  const uncovered: UncoveredRecord[] = [];
+  if (deliveryReady) {
+    const now = new Date();
+    const horizon = new Date(now.getTime() + UNCOVERED_HORIZON_DAYS * 24 * 60 * 60 * 1000);
+
+    const [contracts, products, vehicles] = await Promise.all([
+      prisma.contract.findMany({
+        where: { status: "ACTIVE", deletedAt: null, endDate: { gte: now, lte: horizon } },
+        select: { id: true, title: true, endDate: true, reminderDaysBefore: true },
+      }),
+      prisma.product.findMany({
+        where: { deletedAt: null, warrantyEndDate: { gte: now, lte: horizon } },
+        select: { id: true, description: true, warrantyEndDate: true, reminderDaysBefore: true },
+      }),
+      prisma.vehicle.findMany({
+        where: {
+          deletedAt: null,
+          OR: [{ regoExpiry: { gte: now, lte: horizon } }, { insuranceExpiry: { gte: now, lte: horizon } }],
+        },
+        select: {
+          id: true,
+          label: true,
+          regoExpiry: true,
+          insuranceExpiry: true,
+          reminderDaysBefore: true,
+        },
+      }),
+    ]);
+
+    async function checkOne(params: {
+      ownerType: NotificationOwnerType;
+      ownerId: string;
+      field?: string;
+      targetDate: Date | null;
+      reminderDaysBefore: string | null;
+      title: string;
+      href: string;
+    }) {
+      const thresholds = parseThresholds(params.reminderDaysBefore, defaultDays);
+      if (thresholds.length === 0) {
+        uncovered.push({
+          ownerType: params.ownerType,
+          title: params.title,
+          href: params.href,
+          reason: "No reminder thresholds set",
+        });
+        return;
+      }
+      const health = await getReminderHealth(params);
+      const failedAfterLastSent =
+        health.lastFailure && (!health.lastSent || health.lastFailure.sentAt > health.lastSent.sentAt);
+      if (failedAfterLastSent) {
+        uncovered.push({
+          ownerType: params.ownerType,
+          title: params.title,
+          href: params.href,
+          reason: "Last delivery attempt failed",
+        });
+      }
+    }
+
+    for (const c of contracts) {
+      await checkOne({
+        ownerType: "CONTRACT",
+        ownerId: c.id,
+        targetDate: c.endDate,
+        reminderDaysBefore: c.reminderDaysBefore,
+        title: c.title,
+        href: `/contracts/${c.id}`,
+      });
+    }
+    for (const p of products) {
+      await checkOne({
+        ownerType: "PRODUCT",
+        ownerId: p.id,
+        targetDate: p.warrantyEndDate,
+        reminderDaysBefore: p.reminderDaysBefore,
+        title: p.description,
+        href: `/products/${p.id}`,
+      });
+    }
+    for (const v of vehicles) {
+      if (v.regoExpiry && v.regoExpiry >= now && v.regoExpiry <= horizon) {
+        await checkOne({
+          ownerType: "VEHICLE",
+          ownerId: v.id,
+          field: "regoExpiry",
+          targetDate: v.regoExpiry,
+          reminderDaysBefore: v.reminderDaysBefore,
+          title: `${v.label} — Registration`,
+          href: `/vehicles/${v.id}`,
+        });
+      }
+      if (v.insuranceExpiry && v.insuranceExpiry >= now && v.insuranceExpiry <= horizon) {
+        await checkOne({
+          ownerType: "VEHICLE",
+          ownerId: v.id,
+          field: "insuranceExpiry",
+          targetDate: v.insuranceExpiry,
+          reminderDaysBefore: v.reminderDaysBefore,
+          title: `${v.label} — Insurance`,
+          href: `/vehicles/${v.id}`,
+        });
+      }
+    }
+  }
+
+  return {
+    channels: { email: emailEnabled, ntfy: ntfyEnabled, webhook: webhookEndpoints.length > 0 },
+    deliveryReady,
+    recentSent,
+    recentFailed,
+    lastActivityAt: lastLog?.sentAt ?? null,
+    uncovered,
   };
 }
