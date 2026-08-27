@@ -7,6 +7,8 @@ import { parseThresholds } from "@/lib/notifications/thresholds";
 import { getNotificationLogsByOwner, recordNotificationOutcome } from "@/lib/notifications/logs";
 import { purgeExpiredTrash } from "@/lib/trash";
 import { purgeExpiredSyncReceipts } from "@/lib/syncReceipts";
+import { reconcileDocumentStore } from "@/lib/documentStore";
+import "@/lib/storage"; // registers each domain's reconcile target as a module side effect
 import type { NotificationChannel } from "@/generated/prisma/enums";
 
 function daysRemaining(endDate: Date, now: Date): number {
@@ -27,6 +29,11 @@ export async function runExpirationCheck(now: Date = new Date()) {
   // #249 — same opportunistic-purge reasoning as Trash above.
   await purgeExpiredSyncReceipts().catch((error) => {
     console.error("[sync] receipt purge failed:", error);
+  });
+  // #251 — same reasoning again: no dedicated job runner yet (#250), so the
+  // document-store reconciliation sweep piggybacks on this tick too.
+  await reconcileDocumentStore().catch((error) => {
+    console.error("[documentStore] reconciliation failed:", error);
   });
 
   const { defaultDays } = await getReminderConfig();
