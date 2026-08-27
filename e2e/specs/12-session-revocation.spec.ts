@@ -63,7 +63,7 @@ test("deleting an account invalidates its session immediately", async ({ browser
   await adminPage.goto("/settings/users");
   const row = adminPage.locator("li", { hasText: TEMP_EMAIL });
   await row.getByRole("button", { name: /Remove .* from the household/ }).click();
-  await adminPage.getByRole("button", { name: "Confirm" }).click();
+  await adminPage.getByRole("button", { name: "Remove Revocation Target", exact: true }).click();
   await expect(adminPage.locator("body")).not.toContainText(TEMP_EMAIL);
 
   // The JWT is still cryptographically valid — only the database lookup
