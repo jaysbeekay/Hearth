@@ -46,6 +46,13 @@ function textPdfBytes(lines: string[]): Buffer {
 test("capturing a document saves it to the Inbox, and classifying it with extracted dates leaves it pending field-level review", async ({
   page,
 }) => {
+  // Playwright's default per-test budget (30s, since this repo sets no
+  // top-level `timeout`) is tight for a flow with two full extraction
+  // passes plus several navigations under a loaded CI runner — this test
+  // otherwise reliably timed out mid-assertion, not because any single
+  // step was actually broken.
+  test.setTimeout(90_000);
+
   // Unique per run — CI retries a failed test once, and a fixed filename/
   // title would collide with whatever the aborted first attempt already
   // created, breaking every locator below with a strict-mode "resolved to
@@ -74,7 +81,7 @@ test("capturing a document saves it to the Inbox, and classifying it with extrac
   });
   await expect(row).toBeVisible();
 
-  await expect(row.getByText("Scanning…")).toHaveCount(0, { timeout: 15_000 });
+  await expect(row.getByText("Scanning…")).toHaveCount(0, { timeout: 30_000 });
 
   // Force Contract regardless of computeInboxIntake's guess, so the field
   // locators below are unambiguous. Only re-select (which re-triggers a
@@ -94,8 +101,8 @@ test("capturing a document saves it to the Inbox, and classifying it with extrac
 
   const startDateInput = row.locator('input[id$="-startDate"]');
   const endDateInput = row.locator('input[id$="-endDate"]');
-  await expect(startDateInput).toHaveValue("2026-06-01", { timeout: 15_000 });
-  await expect(endDateInput).toHaveValue("2027-06-01", { timeout: 15_000 });
+  await expect(startDateInput).toHaveValue("2026-06-01", { timeout: 30_000 });
+  await expect(endDateInput).toHaveValue("2027-06-01", { timeout: 30_000 });
 
   await row.locator('input[id$="-title"]').fill(policyTitle);
   const providerInput = row.locator('input[id$="-provider"]');
