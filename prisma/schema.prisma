@@ -675,8 +675,13 @@ model TripSegment {
 // segment (a real quota concern on AviationStack's free tier).
 model AirportCoordinate {
   iata String @id
-  lat  Float
-  lng  Float
+  // Null lat/lng is a negative-cache entry: the code didn't resolve (bad
+  // IATA code, or a transient API/network failure) — see flightDistance.ts.
+  // createdAt doubles as "last attempted at" for the negative-cache TTL;
+  // a successful (non-null) lookup never needs re-checking, since airport
+  // coordinates don't change.
+  lat  Float?
+  lng  Float?
 
   createdAt DateTime @default(now())
 
