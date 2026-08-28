@@ -156,6 +156,10 @@ enum VehicleItemType {
   REPAIR
   ROADWORTHY
   MODIFICATION
+  // #230 — purchase receipts, invoices, and finance agreements had nowhere
+  // dedicated to live; a vehicle item type mirrors how service records
+  // already work rather than adding a bespoke section.
+  PURCHASE
   OTHER
 }
 

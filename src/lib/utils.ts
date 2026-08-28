@@ -214,6 +214,7 @@ export const VEHICLE_ITEM_TYPE_LABELS: Record<string, string> = {
   REPAIR: "Repair",
   ROADWORTHY: "Roadworthy",
   MODIFICATION: "Modification",
+  PURCHASE: "Purchase",
   OTHER: "Other",
 };
 
