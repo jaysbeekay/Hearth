@@ -77,19 +77,25 @@ test("capturing a document saves it to the Inbox, and classifying it with extrac
   await expect(row.getByText("Scanning…")).toHaveCount(0, { timeout: 15_000 });
 
   // Force Contract regardless of computeInboxIntake's guess, so the field
-  // locators below are unambiguous — this also re-triggers a scan. Wait for
-  // "Scanning…" to actually *appear* first, not just be absent — the row
-  // is already "ready" from the initial scan at this point, so checking
-  // only for absence can resolve before the new scan's request has even
-  // started, racing ahead of the extraction this test depends on.
-  await row.getByLabel(/File .* as/).selectOption("CONTRACT");
-  await expect(row.getByText("Scanning…")).toBeVisible({ timeout: 5_000 });
-  await expect(row.getByText("Scanning…")).toHaveCount(0, { timeout: 20_000 });
+  // locators below are unambiguous. Only re-select (which re-triggers a
+  // scan) if it isn't already Contract — a <select>'s onChange doesn't
+  // fire for choosing its already-selected option, so forcing it
+  // unconditionally would be a no-op there anyway. Deliberately doesn't
+  // assert on the "Scanning…" indicator at all: on a document this small,
+  // the whole extraction can complete well under one polling interval,
+  // so that text can appear and vanish between two checks — asserting on
+  // it is asserting on a coin flip, not the outcome that actually matters.
+  // Waiting directly on the field values with a generous timeout is
+  // correct regardless of how fast or slow the scan is.
+  const typeSelect = row.getByLabel(/File .* as/);
+  if ((await typeSelect.inputValue()) !== "CONTRACT") {
+    await typeSelect.selectOption("CONTRACT");
+  }
 
   const startDateInput = row.locator('input[id$="-startDate"]');
   const endDateInput = row.locator('input[id$="-endDate"]');
-  await expect(startDateInput).toHaveValue("2026-06-01", { timeout: 10_000 });
-  await expect(endDateInput).toHaveValue("2027-06-01", { timeout: 10_000 });
+  await expect(startDateInput).toHaveValue("2026-06-01", { timeout: 15_000 });
+  await expect(endDateInput).toHaveValue("2027-06-01", { timeout: 15_000 });
 
   await row.locator('input[id$="-title"]').fill(policyTitle);
   const providerInput = row.locator('input[id$="-provider"]');
