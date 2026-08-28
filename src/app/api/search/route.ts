@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { formatPropertyAddress } from "@/lib/utils";
+import { searchDocumentsFts, hitOwnerIds, hitDocIds, sortByHitRank } from "@/lib/documents/documentSearch";
 
 export interface SearchResult {
   id: string;
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest) {
 
   const textOk = q.length >= 2;
   if (!textOk && !filter) {
-    return NextResponse.json({ groups: {} });
+    return NextResponse.json({ groups: {} }, { headers: { "Cache-Control": "no-store" } });
   }
 
   const now = new Date();
@@ -57,6 +58,14 @@ export async function GET(request: NextRequest) {
   const enabledModules = await getEnabledModuleKeys();
   const contains = { contains: q };
   const queries: Promise<SearchResult[]>[] = [];
+
+  // #314 — one ranked, indexed FTS5 query across all 9 document tables'
+  // filename/extracted-text content, replacing the per-table `contains`
+  // scans this file used to run. Each per-kind block below resolves its
+  // hits' docIds through that kind's own Prisma delegate (applying the same
+  // owner-liveness filters as before) and re-sorts back into FTS rank order,
+  // since that resolution step can drop hits and doesn't preserve rank.
+  const ftsHits = textOk ? await searchDocumentsFts(q, { limit: 60 }) : [];
 
   queries.push(
     prisma.contract
@@ -71,7 +80,7 @@ export async function GET(request: NextRequest) {
                       { title: contains },
                       { provider: contains },
                       { contractNumber: contains },
-                      { documents: { some: { extractedText: contains } } },
+                      { id: { in: hitOwnerIds(ftsHits, "CONTRACT") } },
                     ],
                   },
                 ]
@@ -116,7 +125,7 @@ export async function GET(request: NextRequest) {
                       { vendor: contains },
                       { serialNumber: contains },
                       { barcode: contains },
-                      { documents: { some: { extractedText: contains } } },
+                      { id: { in: hitOwnerIds(ftsHits, "PRODUCT") } },
                     ],
                   },
                 ]
@@ -157,41 +166,49 @@ export async function GET(request: NextRequest) {
   );
 
   if (textOk) {
-    queries.push(
-      prisma.document
-        .findMany({
-          where: { OR: [{ filename: contains }, { extractedText: contains }], contract: { deletedAt: null } },
-          select: { id: true, filename: true, contract: { select: { id: true, title: true } } },
-          take: LIMIT,
-        })
-        .then((rows) =>
-          rows.map((r) => ({
-            id: r.id,
-            title: r.filename,
-            subtitle: r.contract.title,
-            href: `/contracts/${r.contract.id}`,
-            group: "Documents",
-          })),
-        ),
-    );
+    const contractDocIds = hitDocIds(ftsHits, "CONTRACT");
+    if (contractDocIds.length > 0) {
+      queries.push(
+        prisma.document
+          .findMany({
+            where: { id: { in: contractDocIds }, contract: { deletedAt: null } },
+            select: { id: true, filename: true, contract: { select: { id: true, title: true } } },
+          })
+          .then((rows) =>
+            sortByHitRank(rows, ftsHits)
+              .slice(0, LIMIT)
+              .map((r) => ({
+                id: r.id,
+                title: r.filename,
+                subtitle: r.contract.title,
+                href: `/contracts/${r.contract.id}`,
+                group: "Documents",
+              })),
+          ),
+      );
+    }
 
-    queries.push(
-      prisma.productDocument
-        .findMany({
-          where: { OR: [{ filename: contains }, { extractedText: contains }], product: { deletedAt: null } },
-          select: { id: true, filename: true, product: { select: { id: true, description: true } } },
-          take: LIMIT,
-        })
-        .then((rows) =>
-          rows.map((r) => ({
-            id: r.id,
-            title: r.filename,
-            subtitle: r.product.description,
-            href: `/products/${r.product.id}`,
-            group: "Documents",
-          })),
-        ),
-    );
+    const productDocIds = hitDocIds(ftsHits, "PRODUCT");
+    if (productDocIds.length > 0) {
+      queries.push(
+        prisma.productDocument
+          .findMany({
+            where: { id: { in: productDocIds }, product: { deletedAt: null } },
+            select: { id: true, filename: true, product: { select: { id: true, description: true } } },
+          })
+          .then((rows) =>
+            sortByHitRank(rows, ftsHits)
+              .slice(0, LIMIT)
+              .map((r) => ({
+                id: r.id,
+                title: r.filename,
+                subtitle: r.product.description,
+                href: `/products/${r.product.id}`,
+                group: "Documents",
+              })),
+          ),
+      );
+    }
   }
 
   if (enabledModules.has("VEHICLES") && textOk) {
@@ -227,27 +244,31 @@ export async function GET(request: NextRequest) {
         ),
     );
 
-    queries.push(
-      prisma.vehicleItemDocument
-        .findMany({
-          where: { filename: contains, vehicleItem: { vehicle: { deletedAt: null } } },
-          select: {
-            id: true,
-            filename: true,
-            vehicleItem: { select: { vehicleId: true, vehicle: { select: { label: true } } } },
-          },
-          take: LIMIT,
-        })
-        .then((rows) =>
-          rows.map((r) => ({
-            id: r.id,
-            title: r.filename,
-            subtitle: r.vehicleItem.vehicle.label,
-            href: `/vehicles/${r.vehicleItem.vehicleId}`,
-            group: "Documents",
-          })),
-        ),
-    );
+    const vehicleItemDocIds = hitDocIds(ftsHits, "VEHICLE_ITEM");
+    if (vehicleItemDocIds.length > 0) {
+      queries.push(
+        prisma.vehicleItemDocument
+          .findMany({
+            where: { id: { in: vehicleItemDocIds }, vehicleItem: { vehicle: { deletedAt: null } } },
+            select: {
+              id: true,
+              filename: true,
+              vehicleItem: { select: { vehicleId: true, vehicle: { select: { label: true } } } },
+            },
+          })
+          .then((rows) =>
+            sortByHitRank(rows, ftsHits)
+              .slice(0, LIMIT)
+              .map((r) => ({
+                id: r.id,
+                title: r.filename,
+                subtitle: r.vehicleItem.vehicle.label,
+                href: `/vehicles/${r.vehicleItem.vehicleId}`,
+                group: "Documents",
+              })),
+          ),
+      );
+    }
   }
 
   if (enabledModules.has("TRAVEL") && textOk) {
@@ -287,27 +308,31 @@ export async function GET(request: NextRequest) {
         ),
     );
 
-    queries.push(
-      prisma.tripSegmentDocument
-        .findMany({
-          where: { filename: contains, tripSegment: { trip: { deletedAt: null } } },
-          select: {
-            id: true,
-            filename: true,
-            tripSegment: { select: { tripId: true, trip: { select: { title: true } } } },
-          },
-          take: LIMIT,
-        })
-        .then((rows) =>
-          rows.map((r) => ({
-            id: r.id,
-            title: r.filename,
-            subtitle: r.tripSegment.trip.title,
-            href: `/travel/${r.tripSegment.tripId}`,
-            group: "Documents",
-          })),
-        ),
-    );
+    const tripSegmentDocIds = hitDocIds(ftsHits, "TRIP_SEGMENT");
+    if (tripSegmentDocIds.length > 0) {
+      queries.push(
+        prisma.tripSegmentDocument
+          .findMany({
+            where: { id: { in: tripSegmentDocIds }, tripSegment: { trip: { deletedAt: null } } },
+            select: {
+              id: true,
+              filename: true,
+              tripSegment: { select: { tripId: true, trip: { select: { title: true } } } },
+            },
+          })
+          .then((rows) =>
+            sortByHitRank(rows, ftsHits)
+              .slice(0, LIMIT)
+              .map((r) => ({
+                id: r.id,
+                title: r.filename,
+                subtitle: r.tripSegment.trip.title,
+                href: `/travel/${r.tripSegment.tripId}`,
+                group: "Documents",
+              })),
+          ),
+      );
+    }
   }
 
   if (enabledModules.has("HOME") && textOk) {
@@ -370,27 +395,60 @@ export async function GET(request: NextRequest) {
         ),
     );
 
-    queries.push(
-      prisma.homeItemDocument
-        .findMany({
-          where: { filename: contains, homeItem: { property: { deletedAt: null } } },
-          select: {
-            id: true,
-            filename: true,
-            homeItem: { select: { id: true, propertyId: true, title: true } },
-          },
-          take: LIMIT,
-        })
-        .then((rows) =>
-          rows.map((r) => ({
-            id: r.id,
-            title: r.filename,
-            subtitle: r.homeItem.title,
-            href: `/home/${r.homeItem.propertyId}/items/${r.homeItem.id}`,
-            group: "Documents",
-          })),
-        ),
-    );
+    const homeItemDocIds = hitDocIds(ftsHits, "HOME_ITEM");
+    if (homeItemDocIds.length > 0) {
+      queries.push(
+        prisma.homeItemDocument
+          .findMany({
+            where: { id: { in: homeItemDocIds }, homeItem: { property: { deletedAt: null } } },
+            select: {
+              id: true,
+              filename: true,
+              homeItem: { select: { id: true, propertyId: true, title: true } },
+            },
+          })
+          .then((rows) =>
+            sortByHitRank(rows, ftsHits)
+              .slice(0, LIMIT)
+              .map((r) => ({
+                id: r.id,
+                title: r.filename,
+                subtitle: r.homeItem.title,
+                href: `/home/${r.homeItem.propertyId}/items/${r.homeItem.id}`,
+                group: "Documents",
+              })),
+          ),
+      );
+    }
+
+    // #314 — rental statements had zero search coverage before this change.
+    const rentalStatementDocIds = hitDocIds(ftsHits, "RENTAL_STATEMENT");
+    if (rentalStatementDocIds.length > 0) {
+      queries.push(
+        prisma.rentalStatementDocument
+          .findMany({
+            where: { id: { in: rentalStatementDocIds }, rentalStatement: { property: { deletedAt: null } } },
+            select: {
+              id: true,
+              filename: true,
+              rentalStatement: {
+                select: { id: true, propertyId: true, property: { select: { label: true } } },
+              },
+            },
+          })
+          .then((rows) =>
+            sortByHitRank(rows, ftsHits)
+              .slice(0, LIMIT)
+              .map((r) => ({
+                id: r.id,
+                title: r.filename,
+                subtitle: r.rentalStatement.property.label,
+                href: `/home/${r.rentalStatement.propertyId}/rental/statements/${r.rentalStatement.id}`,
+                group: "Documents",
+              })),
+          ),
+      );
+    }
   }
 
   if (enabledModules.has("INVENTORY") && textOk) {
@@ -412,23 +470,27 @@ export async function GET(request: NextRequest) {
         ),
     );
 
-    queries.push(
-      prisma.inventoryItemDocument
-        .findMany({
-          where: { filename: contains, inventoryItem: { deletedAt: null } },
-          select: { id: true, filename: true, inventoryItem: { select: { id: true, label: true } } },
-          take: LIMIT,
-        })
-        .then((rows) =>
-          rows.map((r) => ({
-            id: r.id,
-            title: r.filename,
-            subtitle: r.inventoryItem.label,
-            href: `/inventory/${r.inventoryItem.id}`,
-            group: "Documents",
-          })),
-        ),
-    );
+    const inventoryItemDocIds = hitDocIds(ftsHits, "INVENTORY_ITEM");
+    if (inventoryItemDocIds.length > 0) {
+      queries.push(
+        prisma.inventoryItemDocument
+          .findMany({
+            where: { id: { in: inventoryItemDocIds }, inventoryItem: { deletedAt: null } },
+            select: { id: true, filename: true, inventoryItem: { select: { id: true, label: true } } },
+          })
+          .then((rows) =>
+            sortByHitRank(rows, ftsHits)
+              .slice(0, LIMIT)
+              .map((r) => ({
+                id: r.id,
+                title: r.filename,
+                subtitle: r.inventoryItem.label,
+                href: `/inventory/${r.inventoryItem.id}`,
+                group: "Documents",
+              })),
+          ),
+      );
+    }
   }
 
   if (enabledModules.has("WEALTH") && textOk) {
@@ -448,29 +510,66 @@ export async function GET(request: NextRequest) {
           })),
         ),
     );
+
+    // #314 — trade documents had zero search coverage before this change.
+    // Portfolio/Holding/Trade have no deletedAt column, so no liveness
+    // filter is needed here — a hard-deleted Trade already cascades its
+    // TradeDocument rows away, which the fts_trade_documents_ad trigger
+    // already keeps in sync.
+    const tradeDocIds = hitDocIds(ftsHits, "TRADE");
+    if (tradeDocIds.length > 0) {
+      queries.push(
+        prisma.tradeDocument
+          .findMany({
+            where: { id: { in: tradeDocIds } },
+            select: {
+              id: true,
+              filename: true,
+              trade: {
+                select: { id: true, holding: { select: { id: true, portfolioId: true, ticker: true } } },
+              },
+            },
+          })
+          .then((rows) =>
+            sortByHitRank(rows, ftsHits)
+              .slice(0, LIMIT)
+              .map((r) => ({
+                id: r.id,
+                title: r.filename,
+                subtitle: r.trade.holding.ticker,
+                href: `/wealth/portfolios/${r.trade.holding.portfolioId}/holdings/${r.trade.holding.id}/trades/${r.trade.id}`,
+                group: "Documents",
+              })),
+          ),
+      );
+    }
   }
 
   // #199 — an unfiled document is still findable by name/content, so a
   // household member who half-remembers uploading something isn't limited
   // to browsing the Documents inbox tab to rediscover it.
   if (textOk) {
-    queries.push(
-      prisma.inboxDocument
-        .findMany({
-          where: { OR: [{ filename: contains }, { extractedText: contains }] },
-          select: { id: true, filename: true },
-          take: LIMIT,
-        })
-        .then((rows) =>
-          rows.map((r) => ({
-            id: r.id,
-            title: r.filename,
-            href: "/documents/inbox",
-            group: "Inbox",
-            matchedInDocument: !matchedViaFields(q, [r.filename]),
-          })),
-        ),
-    );
+    const inboxDocIds = hitDocIds(ftsHits, "INBOX");
+    if (inboxDocIds.length > 0) {
+      queries.push(
+        prisma.inboxDocument
+          .findMany({
+            where: { id: { in: inboxDocIds } },
+            select: { id: true, filename: true },
+          })
+          .then((rows) =>
+            sortByHitRank(rows, ftsHits)
+              .slice(0, LIMIT)
+              .map((r) => ({
+                id: r.id,
+                title: r.filename,
+                href: "/documents/inbox",
+                group: "Inbox",
+                matchedInDocument: !matchedViaFields(q, [r.filename]),
+              })),
+          ),
+      );
+    }
   }
 
   const results = (await Promise.all(queries)).flat();
@@ -479,5 +578,5 @@ export async function GET(request: NextRequest) {
     (groups[r.group] ??= []).push(r);
   }
 
-  return NextResponse.json({ groups });
+  return NextResponse.json({ groups }, { headers: { "Cache-Control": "no-store" } });
 }

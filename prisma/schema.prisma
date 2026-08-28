@@ -323,6 +323,13 @@ model Contract {
   @@map("contracts")
 }
 
+// #314: has FTS5 sync triggers (fts_documents_ai/au/ad) defined in migration
+// 20260828000000_add_document_search_fts, not modeled here since Prisma has
+// no schema syntax for triggers. If a future change to this model forces
+// Prisma's SQLite RedefineTables fallback (rebuilds the table via CREATE
+// new_X/DROP TABLE X/rename), those triggers are silently dropped — the new
+// migration must re-create all three verbatim, or e2e/prepare-db.ts's
+// document_search_fts integrity check fails CI.
 model Document {
   id            String    @id @default(cuid())
   contractId    String
@@ -356,6 +363,8 @@ model Document {
 // known — the "Save to review later" import path. Classifying one creates the real
 // row in the matching per-entity document table and deletes this one; it is
 // never a permanent home for a file, only a queue.
+// #314: has FTS5 sync triggers (fts_inbox_documents_*) — see the comment on
+// the Document model above for what that means for future schema changes.
 model InboxDocument {
   id            String  @id @default(cuid())
   filename      String
@@ -479,6 +488,8 @@ model Product {
   @@map("products")
 }
 
+// #314: has FTS5 sync triggers (fts_product_documents_*) — see the comment
+// on the Document model above for what that means for future schema changes.
 model ProductDocument {
   id            String              @id @default(cuid())
   productId     String
@@ -649,6 +660,9 @@ model TripSegment {
   @@map("trip_segments")
 }
 
+// #314: has FTS5 sync triggers (fts_trip_segment_documents_*) — see the
+// comment on the Document model above for what that means for future schema
+// changes.
 model TripSegmentDocument {
   id            String               @id @default(cuid())
   tripSegmentId String
@@ -744,6 +758,9 @@ model RentalStatement {
   @@map("rental_statements")
 }
 
+// #314: has FTS5 sync triggers (fts_rental_statement_documents_*) — see the
+// comment on the Document model above for what that means for future schema
+// changes.
 model RentalStatementDocument {
   id                String                   @id @default(cuid())
   rentalStatementId String
@@ -786,6 +803,8 @@ model HomeItem {
   @@map("home_items")
 }
 
+// #314: has FTS5 sync triggers (fts_home_item_documents_*) — see the comment
+// on the Document model above for what that means for future schema changes.
 model HomeItemDocument {
   id           String            @id @default(cuid())
   homeItemId   String
@@ -858,6 +877,9 @@ model VehicleItem {
   @@map("vehicle_items")
 }
 
+// #314: has FTS5 sync triggers (fts_vehicle_item_documents_*) — see the
+// comment on the Document model above for what that means for future schema
+// changes.
 model VehicleItemDocument {
   id            String               @id @default(cuid())
   vehicleItemId String
@@ -908,6 +930,9 @@ model InventoryItem {
   @@map("inventory_items")
 }
 
+// #314: has FTS5 sync triggers (fts_inventory_item_documents_*) — see the
+// comment on the Document model above for what that means for future schema
+// changes.
 model InventoryItemDocument {
   id              String                 @id @default(cuid())
   inventoryItemId String
@@ -980,6 +1005,8 @@ model Trade {
   @@map("trades")
 }
 
+// #314: has FTS5 sync triggers (fts_trade_documents_*) — see the comment on
+// the Document model above for what that means for future schema changes.
 model TradeDocument {
   id           String         @id @default(cuid())
   tradeId      String
