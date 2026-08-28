@@ -25,6 +25,11 @@ test("previewing a PDF document from the Documents page doesn't hit a CSP violat
     }
   });
 
+  // Timestamped filename (#315's lesson applied here too): a slow first
+  // attempt that times out after the document was already created would
+  // otherwise make Playwright's retry collide with a duplicate filename.
+  const filename = `preview-csp-test-${Date.now()}.pdf`;
+
   await page.goto("/contracts/new");
   await page.locator("#title").fill("Preview CSP Regression Contract");
   await page.locator("#provider").fill("Regression Provider");
@@ -33,18 +38,18 @@ test("previewing a PDF document from the Documents page doesn't hit a CSP violat
     page.locator('form:has(#title) button[type="submit"]').click(),
   ]);
   await page.locator('input[type="file"]').first().setInputFiles({
-    name: "preview-csp-test.pdf",
+    name: filename,
     mimeType: "application/pdf",
     buffer: VALID_PDF,
   });
   await page.locator('form:has(input[type="file"]) button[type="submit"]').first().click();
-  await page.waitForSelector("text=preview-csp-test.pdf");
+  await page.waitForSelector(`text=${filename}`);
 
   await page.goto("/documents");
-  await page.waitForSelector("text=preview-csp-test.pdf");
-  await page.getByRole("button", { name: "Preview preview-csp-test.pdf" }).click();
+  await page.waitForSelector(`text=${filename}`);
+  await page.getByRole("button", { name: `Preview ${filename}` }).click();
 
-  const dialog = page.getByRole("dialog", { name: "Preview of preview-csp-test.pdf" });
+  const dialog = page.getByRole("dialog", { name: `Preview of ${filename}` });
   await expect(dialog).toBeVisible();
   await expect(dialog.locator("iframe")).toBeVisible();
   // Chrome's built-in PDF viewer inside the iframe surfaces its own "Failed
@@ -56,6 +61,8 @@ test("previewing a PDF document from the Documents page doesn't hit a CSP violat
 });
 
 test("previewing an image document from the Documents page renders it", async ({ page }) => {
+  const filename = `preview-image-test-${Date.now()}.png`;
+
   await page.goto("/contracts/new");
   await page.locator("#title").fill("Preview Image Regression Contract");
   await page.locator("#provider").fill("Regression Provider");
@@ -68,18 +75,18 @@ test("previewing an image document from the Documents page renders it", async ({
     "base64",
   );
   await page.locator('input[type="file"]').first().setInputFiles({
-    name: "preview-image-test.png",
+    name: filename,
     mimeType: "image/png",
     buffer: png,
   });
   await page.locator('form:has(input[type="file"]) button[type="submit"]').first().click();
-  await page.waitForSelector("text=preview-image-test.png");
+  await page.waitForSelector(`text=${filename}`);
 
   await page.goto("/documents");
-  await page.waitForSelector("text=preview-image-test.png");
-  await page.getByRole("button", { name: "Preview preview-image-test.png" }).click();
+  await page.waitForSelector(`text=${filename}`);
+  await page.getByRole("button", { name: `Preview ${filename}` }).click();
 
-  const dialog = page.getByRole("dialog", { name: "Preview of preview-image-test.png" });
+  const dialog = page.getByRole("dialog", { name: `Preview of ${filename}` });
   await expect(dialog).toBeVisible();
   await expect(dialog.locator("img")).toBeVisible();
 });
