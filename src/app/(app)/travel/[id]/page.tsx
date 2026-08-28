@@ -11,10 +11,11 @@ import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { TripSegmentDocumentList } from "@/components/TripSegmentDocumentList";
 import { RecordMeta } from "@/components/RecordMeta";
-import { TRIP_SEGMENT_TYPE_LABELS, formatCurrency, formatDate } from "@/lib/utils";
+import { TRIP_SEGMENT_TYPE_LABELS, formatCurrency, formatDate, formatDistance } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { getHouseholdMemberCount } from "@/lib/household";
 import { shouldAutoRefresh, FLIGHT_STATUS_LABELS, flightStatusColour, refreshFlightStatus } from "@/lib/integrations/flightStatus";
+import { computeSegmentDistance } from "@/lib/integrations/flightDistance";
 import { FlightRefreshForm } from "@/components/FlightRefreshForm";
 
 const SEGMENT_ICONS: Record<string, LucideIcon> = {
@@ -59,8 +60,16 @@ export default async function TripDetailPage({
       .map((s) => refreshFlightStatus(s.id)),
   );
 
+  // #13 — unlike flight status, distance never goes stale once computed, so
+  // this isn't gated by shouldAutoRefresh's near-departure window: any
+  // flight segment with both airports known but no cached distance yet
+  // (including past trips) gets one lookup attempt per page view.
+  const needsDistance = (s: (typeof segments)[number]) =>
+    s.type === "FLIGHT" && s.distanceKm == null && Boolean(s.departureIata) && Boolean(s.arrivalIata);
+  await Promise.all(segments.filter(needsDistance).map((s) => computeSegmentDistance(s.id)));
+
   // Re-fetch segments if any were refreshed so we display current data
-  const refreshedAny = segments.some((s) => shouldAutoRefresh(s));
+  const refreshedAny = segments.some((s) => shouldAutoRefresh(s)) || segments.some(needsDistance);
   const displaySegments = refreshedAny
     ? await prisma.tripSegment
         .findMany({
@@ -206,6 +215,9 @@ export default async function TripDetailPage({
                           value={`${segment.departureIata} → ${segment.arrivalIata}`}
                         />
                       )}
+                    {segment.type === "FLIGHT" && segment.distanceKm != null && (
+                      <Detail label="Distance" value={formatDistance(segment.distanceKm)} />
+                    )}
                   </dl>
 
                   {segment.type === "FLIGHT" && segment.flightStatus && (

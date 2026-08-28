@@ -655,6 +655,11 @@ model TripSegment {
   arrTerminal    String?
   arrGate        String?
   flightStatusAt DateTime?
+  // #13 — great-circle distance between departureIata/arrivalIata, computed
+  // once (via AviationStackConfig's existing BYOK key) and cached here since
+  // airport coordinates never change. Null until both IATA codes are known
+  // and a lookup has succeeded; feeds the /travel distance summary.
+  distanceKm     Float?
 
   documents TripSegmentDocument[]
 
@@ -662,6 +667,20 @@ model TripSegment {
   updatedAt DateTime @updatedAt
 
   @@map("trip_segments")
+}
+
+// #13 — a small, permanent cache: an IATA airport code's coordinates never
+// change, so each one is looked up via AviationStack at most once, ever,
+// across every household's flight segments rather than re-fetched per
+// segment (a real quota concern on AviationStack's free tier).
+model AirportCoordinate {
+  iata String @id
+  lat  Float
+  lng  Float
+
+  createdAt DateTime @default(now())
+
+  @@map("airport_coordinates")
 }
 
 // #314: has FTS5 sync triggers (fts_trip_segment_documents_*) — see the
