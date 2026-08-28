@@ -77,20 +77,25 @@ test("capturing a document saves it to the Inbox, and classifying it with extrac
   await expect(row.getByText("Scanning…")).toHaveCount(0, { timeout: 15_000 });
 
   // Force Contract regardless of computeInboxIntake's guess, so the field
-  // locators below are unambiguous — this also re-triggers a scan.
+  // locators below are unambiguous — this also re-triggers a scan. Wait for
+  // "Scanning…" to actually *appear* first, not just be absent — the row
+  // is already "ready" from the initial scan at this point, so checking
+  // only for absence can resolve before the new scan's request has even
+  // started, racing ahead of the extraction this test depends on.
   await row.getByLabel(/File .* as/).selectOption("CONTRACT");
-  await expect(row.getByText("Scanning…")).toHaveCount(0, { timeout: 15_000 });
+  await expect(row.getByText("Scanning…")).toBeVisible({ timeout: 5_000 });
+  await expect(row.getByText("Scanning…")).toHaveCount(0, { timeout: 20_000 });
+
+  const startDateInput = row.locator('input[id$="-startDate"]');
+  const endDateInput = row.locator('input[id$="-endDate"]');
+  await expect(startDateInput).toHaveValue("2026-06-01", { timeout: 10_000 });
+  await expect(endDateInput).toHaveValue("2027-06-01", { timeout: 10_000 });
 
   await row.locator('input[id$="-title"]').fill(policyTitle);
   const providerInput = row.locator('input[id$="-provider"]');
   if (!(await providerInput.inputValue())) {
     await providerInput.fill("ACME Insurance Pty Ltd");
   }
-
-  const startDateInput = row.locator('input[id$="-startDate"]');
-  const endDateInput = row.locator('input[id$="-endDate"]');
-  await expect(startDateInput).toHaveValue("2026-06-01");
-  await expect(endDateInput).toHaveValue("2027-06-01");
 
   await row.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText(`Filed ${filename}`)).toBeVisible();
