@@ -109,6 +109,16 @@ export function formatNumber(value: number, region: string = DEFAULT_REGION, max
   return value.toLocaleString(region, { maximumFractionDigits });
 }
 
+const KM_TO_MILES = 0.621371;
+
+// #13 — shown in both units rather than gated behind a new unit-preference
+// setting: distance is a small, infrequent display (one flight segment
+// detail, one travel-page summary), not worth a household-wide toggle for.
+export function formatDistance(km: number, region: string = DEFAULT_REGION): string {
+  const miles = km * KM_TO_MILES;
+  return `${Math.round(km).toLocaleString(region)} km / ${Math.round(miles).toLocaleString(region)} mi`;
+}
+
 export function daysUntil(date: Date | string | null | undefined): number | null {
   if (!date) return null;
   const target = typeof date === "string" ? new Date(date) : date;
