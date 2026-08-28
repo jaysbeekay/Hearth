@@ -1,0 +1,117 @@
+import { test, expect } from "@playwright/test";
+import { ADMIN_AUTH_FILE } from "../env";
+
+test.use({ storageState: ADMIN_AUTH_FILE, viewport: { width: 375, height: 812 } });
+
+// A minimal, real (byte-accurate xref) single-page PDF with an actual text
+// content stream, so the server's pdftotext-based extraction pipeline finds
+// real fields — not just a garbage buffer that always yields an empty scan.
+function textPdfBytes(lines: string[]): Buffer {
+  const content =
+    "BT /F1 12 Tf " +
+    lines
+      .map((line, i) => `${i === 0 ? "20 260" : "0 -20"} Td (${line.replace(/([()\\])/g, "\\$1")}) Tj`)
+      .join(" ") +
+    " ET";
+
+  const objects = [
+    "<</Type/Catalog/Pages 2 0 R>>",
+    "<</Type/Pages/Kids[3 0 R]/Count 1>>",
+    "<</Type/Page/Parent 2 0 R/MediaBox[0 0 400 400]/Resources<</Font<</F1 4 0 R>>>>/Contents 5 0 R>>",
+    "<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>",
+    `<</Length ${Buffer.byteLength(content, "latin1")}>>stream\n${content}\nendstream`,
+  ];
+
+  let pdf = "%PDF-1.4\n";
+  const offsets: number[] = [];
+  objects.forEach((obj, i) => {
+    offsets.push(Buffer.byteLength(pdf, "latin1"));
+    pdf += `${i + 1} 0 obj${obj}endobj\n`;
+  });
+
+  const xrefOffset = Buffer.byteLength(pdf, "latin1");
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const off of offsets) pdf += `${off.toString().padStart(10, "0")} 00000 n \n`;
+  pdf += `trailer<</Size ${objects.length + 1}/Root 1 0 R>>\nstartxref\n${xrefOffset}\n%%EOF`;
+
+  return Buffer.from(pdf, "latin1");
+}
+
+// #327 — camera capture saves straight to the Inbox (not routed through a
+// generic untyped queue), and Inbox classification supports the same
+// policy/warranty date fields as Import with the same field-level
+// provenance capture. This exercises that whole path end to end: capture ->
+// Inbox -> classify as a contract with real extracted dates -> the filed
+// record lands in "needs review" (#331) showing exactly those fields.
+test("capturing a document saves it to the Inbox, and classifying it with extracted dates leaves it pending field-level review", async ({
+  page,
+}) => {
+  await page.goto("/dashboard");
+
+  const cameraInput = page.locator('input[type="file"][accept="image/*"]');
+  await cameraInput.setInputFiles({
+    name: "camera-capture-test.pdf",
+    mimeType: "application/pdf",
+    buffer: textPdfBytes([
+      "ACME Insurance Pty Ltd",
+      "Start Date: 2026-06-01",
+      "End Date: 2027-06-01",
+    ]),
+  });
+  await expect(page.getByText("Saved to your Inbox for review.")).toBeVisible();
+
+  await page.goto("/documents/inbox");
+  const row = page.locator("div.rounded-xl.border.border-border.bg-surface", {
+    hasText: "camera-capture-test.pdf",
+  });
+  await expect(row).toBeVisible();
+
+  await expect(row.getByText("Scanning…")).toHaveCount(0, { timeout: 15_000 });
+
+  // Force Contract regardless of computeInboxIntake's guess, so the field
+  // locators below are unambiguous — this also re-triggers a scan.
+  await row.getByLabel(/File .* as/).selectOption("CONTRACT");
+  await expect(row.getByText("Scanning…")).toHaveCount(0, { timeout: 15_000 });
+
+  await row.locator('input[id$="-title"]').fill("Camera Capture Test Policy");
+  const providerInput = row.locator('input[id$="-provider"]');
+  if (!(await providerInput.inputValue())) {
+    await providerInput.fill("ACME Insurance Pty Ltd");
+  }
+
+  const startDateInput = row.locator('input[id$="-startDate"]');
+  const endDateInput = row.locator('input[id$="-endDate"]');
+  await expect(startDateInput).toHaveValue("2026-06-01");
+  await expect(endDateInput).toHaveValue("2027-06-01");
+
+  await row.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText("Filed camera-capture-test.pdf")).toBeVisible();
+
+  // Filing from the Inbox doesn't navigate away — find the new contract
+  // from the list instead.
+  await page.goto("/contracts");
+  await page.getByRole("link", { name: "Camera Capture Test Policy" }).click();
+  await page.waitForURL(/\/contracts\/[^/]+$/);
+
+  await expect(page.locator("body")).toContainText("Camera Capture Test Policy");
+  await expect(page.getByText(/Needs review/)).toBeVisible();
+  await expect(page.getByText("Confirm reviewed details")).toBeVisible();
+  await expect(page.locator('input[id="reviewField:startDate"]')).toHaveValue("2026-06-01");
+  await expect(page.locator('input[id="reviewField:endDate"]')).toHaveValue("2027-06-01");
+
+  // Corrections made right here in the review panel must actually stick —
+  // not just re-confirm the original extracted value.
+  await page.locator('input[id="reviewField:endDate"]').fill("2027-08-15");
+
+  await page.getByRole("button", { name: "Confirm reviewed details" }).click();
+  // The confirmation flash lives inside the review panel itself, which
+  // unmounts on the same revalidation that would show it — assert the
+  // resulting state instead: the panel is gone and RecordMeta shows the
+  // confirmation timestamp.
+  await expect(page.getByText(/Needs review/)).not.toBeVisible();
+  await expect(page.getByText("Confirm reviewed details")).not.toBeVisible();
+  await expect(page.getByText(/Auto-filled details confirmed/)).toBeVisible();
+
+  const endDateRow = page.locator("dt", { hasText: "End date" }).locator("xpath=following-sibling::dd[1]");
+  await expect(endDateRow).toHaveText(/15 Aug(ust)? 2027/);
+});

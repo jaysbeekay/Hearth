@@ -105,9 +105,14 @@ export async function createInventoryItem(
     if (rejection) return { error: rejection };
   }
 
-  const item = await prisma.inventoryItem.create({
-    data: { ...parsed.data, createdById: user.id },
-  });
+  let item;
+  try {
+    item = await prisma.inventoryItem.create({
+      data: { ...parsed.data, createdById: user.id },
+    });
+  } catch {
+    return { error: "Linked warranty no longer exists.", values: formDataToStringValues(formData, INVENTORY_ITEM_FORM_FIELDS) };
+  }
 
   if (file instanceof File && file.size > 0) {
     await attachDocument(item.id, file, parseDocumentCategory(formData.get("documentCategory")));
@@ -135,7 +140,11 @@ export async function updateInventoryItem(
   const existing = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
   if (!existing) return { error: "Item not found." };
 
-  await prisma.inventoryItem.update({ where: { id: itemId }, data: { ...parsed.data, updatedById: user.id } });
+  try {
+    await prisma.inventoryItem.update({ where: { id: itemId }, data: { ...parsed.data, updatedById: user.id } });
+  } catch {
+    return { error: "Linked warranty no longer exists.", values: formDataToStringValues(formData, INVENTORY_ITEM_FORM_FIELDS) };
+  }
 
   revalidatePath("/inventory");
   revalidatePath(`/inventory/${itemId}`);

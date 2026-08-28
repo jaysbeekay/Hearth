@@ -16,6 +16,7 @@ import { describeUploadRejection } from "@/lib/uploadValidation";
 import { extractionFieldsFromForm } from "@/lib/documents/extractionConfirmation";
 import {
   saveExtractionReviewFieldsFromForm,
+  reviewAndConfirmExtraction,
 } from "@/lib/documents/extractionReview";
 import { saveFileToInboxFallback } from "@/lib/documents/inboxFallback";
 import { parseDocumentCategory } from "@/lib/documents/categories";
@@ -177,6 +178,26 @@ export async function confirmContractExtraction(contractId: string): Promise<Act
       data: { reviewedAt, reviewedById: user.id },
     }),
   ]);
+
+  revalidatePath(`/contracts/${contractId}`);
+  revalidatePath("/dashboard");
+  return { success: "Details confirmed." };
+}
+
+/**
+ * Field-level review counterpart to confirmContractExtraction (#331) — takes
+ * the review panel's (possibly corrected) field values instead of
+ * confirming the extracted values as-is.
+ */
+export async function reviewContractExtraction(
+  contractId: string,
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await requireUser();
+
+  const result = await reviewAndConfirmExtraction("CONTRACT", contractId, user.id, formData);
+  if (result.error) return { error: result.error };
 
   revalidatePath(`/contracts/${contractId}`);
   revalidatePath("/dashboard");

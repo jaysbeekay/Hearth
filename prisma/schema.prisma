@@ -491,6 +491,10 @@ model Product {
 
   documents              ProductDocument[]
   extractionReviewFields ExtractionReviewField[]
+  // #241 — Inventory items can register their warranty against this Product;
+  // SetNull on delete so a purged Product just clears the item's link
+  // instead of blocking or cascading deletion of unrelated inventory.
+  warrantyForItems       InventoryItem[]          @relation("InventoryItemWarrantyProduct")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -998,6 +1002,7 @@ model InventoryItem {
 
   documents         InventoryItemDocument[]
   warrantyProductId String?
+  warrantyProduct   Product?                @relation("InventoryItemWarrantyProduct", fields: [warrantyProductId], references: [id], onDelete: SetNull)
 
   createdById String
   createdBy   User      @relation(fields: [createdById], references: [id])

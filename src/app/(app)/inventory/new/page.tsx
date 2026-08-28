@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { prisma } from "@/lib/prisma";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { createInventoryItem } from "@/lib/actions/inventory";
 import { InventoryItemForm } from "@/components/InventoryItemForm";
@@ -8,6 +9,12 @@ export const metadata: Metadata = { title: "Add Item" };
 
 export default async function NewInventoryItemPage() {
   await requireModuleEnabled("INVENTORY");
+
+  const products = await prisma.product.findMany({
+    where: { deletedAt: null },
+    select: { id: true, description: true },
+    orderBy: { description: "asc" },
+  });
 
   return (
     <div className="max-w-xl space-y-6">
@@ -27,7 +34,7 @@ export default async function NewInventoryItemPage() {
           .
         </p>
       </div>
-      <InventoryItemForm action={createInventoryItem} />
+      <InventoryItemForm action={createInventoryItem} products={products} />
     </div>
   );
 }

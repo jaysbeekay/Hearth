@@ -15,7 +15,7 @@ import { formToProductInput } from "@/lib/formMappers";
 import { queueDocumentExtraction } from "@/lib/documents/queueExtraction";
 import { describeUploadRejection } from "@/lib/uploadValidation";
 import { extractionFieldsFromForm } from "@/lib/documents/extractionConfirmation";
-import { saveExtractionReviewFieldsFromForm } from "@/lib/documents/extractionReview";
+import { saveExtractionReviewFieldsFromForm, reviewAndConfirmExtraction } from "@/lib/documents/extractionReview";
 import { saveFileToInboxFallback } from "@/lib/documents/inboxFallback";
 import { parseDocumentCategory } from "@/lib/documents/categories";
 import {
@@ -193,6 +193,25 @@ export async function confirmProductExtraction(productId: string): Promise<Actio
       data: { reviewedAt, reviewedById: user.id },
     }),
   ]);
+
+  revalidatePath(`/products/${productId}`);
+  revalidatePath("/dashboard");
+  return { success: "Details confirmed." };
+}
+
+/**
+ * Field-level review counterpart to confirmProductExtraction (#331) — see
+ * the equivalent reviewContractExtraction in contracts.ts.
+ */
+export async function reviewProductExtraction(
+  productId: string,
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await requireUser();
+
+  const result = await reviewAndConfirmExtraction("PRODUCT", productId, user.id, formData);
+  if (result.error) return { error: result.error };
 
   revalidatePath(`/products/${productId}`);
   revalidatePath("/dashboard");

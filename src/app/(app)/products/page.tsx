@@ -6,7 +6,7 @@ import { ProductListClient } from "@/components/ProductListClient";
 import type { Prisma } from "@/generated/prisma/client";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 
-export const metadata: Metadata = { title: "Warranties" };
+export const metadata: Metadata = { title: "Purchases & warranties" };
 
 export default async function ProductsPage({
   searchParams,
@@ -17,9 +17,11 @@ export default async function ProductsPage({
     expired?: string;
     needsReview?: string;
     missingDocument?: string;
+    // #328 — dashboard's "Warranties missing info" stat card deep-links here.
+    missingInfo?: string;
   }>;
 }) {
-  const { q, expiring, expired, needsReview, missingDocument } = await searchParams;
+  const { q, expiring, expired, needsReview, missingDocument, missingInfo } = await searchParams;
 
   const where: Prisma.ProductWhereInput = { deletedAt: null };
   if (q) {
@@ -45,6 +47,13 @@ export default async function ProductsPage({
   }
   if (needsReview === "true") where.extractionPending = true;
   if (missingDocument === "true") where.documents = { none: {} };
+  // Nested under `where.AND` (rather than `where.OR`, already used by `q`
+  // above) so the two never collide. Deliberately narrower than the
+  // Search API's full missingDate/missingReminder/missingRelationship/
+  // missingIdentifier set — see the equivalent comment in contracts/page.tsx.
+  if (missingInfo === "true") {
+    where.AND = [{ OR: [{ warrantyEndDate: null }, { AND: [{ serialNumber: null }, { barcode: null }] }] }];
+  }
 
   const [products, inventoryEnabled, { dateFormat, region }, session] = await Promise.all([
     prisma.product.findMany({

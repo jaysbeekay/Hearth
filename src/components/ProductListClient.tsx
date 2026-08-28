@@ -122,7 +122,7 @@ export function ProductListClient({
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Warranties</h1>
+        <h1 className="text-2xl font-semibold">Purchases & warranties</h1>
         <div className="flex items-center gap-2">
           <details className="relative">
             <summary className={toolbarButtonClass}>

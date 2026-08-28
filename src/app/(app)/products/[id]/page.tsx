@@ -1,16 +1,19 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Pencil, Trash2, Home } from "lucide-react";
+import { Pencil, Trash2, Home, Package } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
   addProductDocument,
   deleteProduct,
   confirmProductExtraction,
+  reviewProductExtraction,
 } from "@/lib/actions/products";
+import { getPendingExtractionReview } from "@/lib/documents/extractionReview";
 import { ExpiryBadge } from "@/components/ExpiryBadge";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DetailStatusBanner } from "@/components/DetailStatusBanner";
+import { ExtractionReviewPanel } from "@/components/ExtractionReviewPanel";
 import { DetailField as Detail } from "@/components/DetailField";
 import { ProductDocumentUploadForm } from "@/components/ProductDocumentUploadForm";
 import { ProductDocumentList } from "@/components/ProductDocumentList";
@@ -39,12 +42,17 @@ export default async function ProductDetailPage({
         createdBy: true,
         updatedBy: true,
         property: true,
+        warrantyForItems: { where: { deletedAt: null }, select: { id: true, label: true } },
       },
     }),
     getUserPreferences(),
     getHouseholdMemberCount(),
   ]);
   if (!product || product.deletedAt) notFound();
+
+  const pendingReview = product.extractionPending
+    ? await getPendingExtractionReview("PRODUCT", product.id)
+    : [];
 
   const days = daysUntil(product.warrantyEndDate);
   const boundUpload = addProductDocument.bind(null, product.id);
@@ -116,11 +124,15 @@ export default async function ProductDetailPage({
         editHref={`/products/${product.id}/edit`}
         renewLabel="Review warranty"
         needsReview={
-          product.extractionPending
+          product.extractionPending && pendingReview.length === 0
             ? { onConfirm: confirmProductExtraction.bind(null, product.id) }
             : undefined
         }
       />
+
+      {pendingReview.length > 0 && (
+        <ExtractionReviewPanel fields={pendingReview} action={reviewProductExtraction.bind(null, product.id)} />
+      )}
 
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">
@@ -142,19 +154,36 @@ export default async function ProductDetailPage({
         <ReminderHealthCard health={reminderHealth} dateFormat={dateFormat} />
       )}
 
-      {product.property && (
+      {(product.property || product.warrantyForItems.length > 0) && (
         <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-3 font-medium">Linked to</h2>
-          <Link
-            href={`/home/${product.property.id}`}
-            className="flex items-center gap-3 rounded-lg border border-border p-3 hover:bg-black/5 dark:hover:bg-white/5"
-          >
-            <Home size={18} className="text-muted" />
-            <span>
-              <span className="block text-sm font-medium">{product.property.label}</span>
-              <span className="block text-xs text-muted">Home or property</span>
-            </span>
-          </Link>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {product.property && (
+              <Link
+                href={`/home/${product.property.id}`}
+                className="flex items-center gap-3 rounded-lg border border-border p-3 hover:bg-black/5 dark:hover:bg-white/5"
+              >
+                <Home size={18} className="text-muted" />
+                <span>
+                  <span className="block text-sm font-medium">{product.property.label}</span>
+                  <span className="block text-xs text-muted">Home or property</span>
+                </span>
+              </Link>
+            )}
+            {product.warrantyForItems.map((invItem) => (
+              <Link
+                key={invItem.id}
+                href={`/inventory/${invItem.id}`}
+                className="flex items-center gap-3 rounded-lg border border-border p-3 hover:bg-black/5 dark:hover:bg-white/5"
+              >
+                <Package size={18} className="text-muted" />
+                <span>
+                  <span className="block text-sm font-medium">{invItem.label}</span>
+                  <span className="block text-xs text-muted">Inventory item — warranty registered here</span>
+                </span>
+              </Link>
+            ))}
+          </div>
         </div>
       )}
 

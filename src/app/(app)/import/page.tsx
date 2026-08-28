@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { prisma } from "@/lib/prisma";
 import { ImportClient } from "@/components/ImportClient";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 
@@ -6,6 +7,15 @@ export const metadata: Metadata = { title: "Upload documents" };
 
 export default async function ImportPage() {
   const enabledModules = await getEnabledModuleKeys();
+
+  const [properties, vehicles] = await Promise.all([
+    enabledModules.has("HOME")
+      ? prisma.property.findMany({ where: { deletedAt: null }, select: { id: true, label: true } })
+      : [],
+    enabledModules.has("VEHICLES")
+      ? prisma.vehicle.findMany({ where: { deletedAt: null }, select: { id: true, label: true } })
+      : [],
+  ]);
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -16,7 +26,7 @@ export default async function ImportPage() {
           Hearth scans each one, you confirm what it is, review the details, and save.
         </p>
       </div>
-      <ImportClient enabledModules={[...enabledModules]} />
+      <ImportClient enabledModules={[...enabledModules]} properties={properties} vehicles={vehicles} />
     </div>
   );
 }

@@ -25,6 +25,39 @@ function matchedViaFields(q: string, fields: (string | null | undefined)[]) {
   return fields.some((f) => f?.toLowerCase().includes(needle));
 }
 
+// #328 — every row returned under a missing* filter satisfies that filter's
+// where-clause by construction, so the reason is fixed per (domain, filter)
+// pair rather than needing a per-row check.
+const CONTRACT_MISSING_REASONS: Record<string, string> = {
+  missingDate: "Missing end date",
+  missingReminder: "Missing reminder threshold",
+  missingRelationship: "Not linked to a home or vehicle",
+  missingIdentifier: "Missing policy/contract number",
+};
+const PRODUCT_MISSING_REASONS: Record<string, string> = {
+  missingDate: "Missing warranty end date",
+  missingReminder: "Missing reminder threshold",
+  missingRelationship: "Not linked to a home",
+  missingIdentifier: "Missing serial number/barcode",
+};
+const VEHICLE_MISSING_REASONS: Record<string, string> = {
+  missingDate: "Missing rego, insurance, or service date",
+  missingReminder: "Missing reminder threshold",
+  missingIdentifier: "Missing VIN/license plate",
+};
+const INVENTORY_MISSING_REASONS: Record<string, string> = {
+  missingIdentifier: "Missing serial number",
+};
+
+// #332 — nav/headings now use task-oriented aliases ("Policies &
+// contracts", "Purchases & warranties") instead of the bare "Contracts"/
+// "Warranties" #174 originally picked. A query consisting of just the old
+// (or new) generic category word finds every record of that type, not only
+// ones whose title/provider/description happens to literally contain the
+// word — matching what a user typing that word almost certainly means.
+const CONTRACT_ALIASES = new Set(["contract", "contracts", "policy", "policies"]);
+const PRODUCT_ALIASES = new Set(["warranty", "warranties", "purchase", "purchases"]);
+
 export async function GET(request: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -33,11 +66,18 @@ export async function GET(request: NextRequest) {
 
   const q = request.nextUrl.searchParams.get("q")?.trim() ?? "";
 
-  // #205 — memory-fragment filters. Scoped to Contract/Product, the two
-  // record types with both an expiry date and the extraction-review/
-  // document infrastructure these filters key off; other domains stay
-  // text-search-only rather than growing bespoke "expiring"/"needsReview"
-  // semantics for shapes that don't naturally have them.
+  // #205/#328 — memory-fragment / completeness filters. Each filter only
+  // applies to the record types that have the underlying concept:
+  // - expiring/needsReview/noDocument/important: Contract, Product (the
+  //   two types with an expiry date and the extraction-review/document
+  //   infrastructure these key off).
+  // - missingDate/missingReminder/missingRelationship/missingIdentifier:
+  //   Contract, Product, and (expiring/missingDate/missingReminder/
+  //   missingIdentifier only — no extraction review or property/vehicle
+  //   link) Vehicle. InventoryItem only supports missingIdentifier (no
+  //   dates, reminders, or relationships). Property/Trip have none of
+  //   these concepts and stay text-search-only rather than growing
+  //   bespoke semantics for shapes that don't naturally have them.
   const FILTER_VALUES = ["expiring", "needsReview", "noDocument", "important", "missingDate", "missingReminder", "missingRelationship", "missingIdentifier"] as const;
   type SearchFilter = (typeof FILTER_VALUES)[number];
   const filterParam = request.nextUrl.searchParams.get("filter");
@@ -57,6 +97,9 @@ export async function GET(request: NextRequest) {
 
   const enabledModules = await getEnabledModuleKeys();
   const contains = { contains: q };
+  const qNormalized = q.toLowerCase();
+  const isContractAlias = textOk && CONTRACT_ALIASES.has(qNormalized);
+  const isProductAlias = textOk && PRODUCT_ALIASES.has(qNormalized);
   const queries: Promise<SearchResult[]>[] = [];
 
   // #314 — one ranked, indexed FTS5 query across all 9 document tables'
@@ -73,7 +116,7 @@ export async function GET(request: NextRequest) {
         where: {
           deletedAt: null,
           AND: [
-            ...(textOk
+            ...(textOk && !isContractAlias
               ? [
                   {
                     OR: [
@@ -96,19 +139,24 @@ export async function GET(request: NextRequest) {
           ],
         },
         select: { id: true, title: true, provider: true, contractNumber: true },
+        // Most-recent-first: relevant always, but load-bearing for
+        // isContractAlias/missing* results, which can return far more rows
+        // than LIMIT with no relevance signal to rank by otherwise.
+        orderBy: { createdAt: "desc" },
         take: LIMIT,
       })
       .then((rows) =>
         rows.map((r) => ({
           id: r.id,
           title: r.title,
-          subtitle:
-            textOk && matchedViaFields(q, [r.contractNumber]) && !matchedViaFields(q, [r.title, r.provider])
+          subtitle: filter && CONTRACT_MISSING_REASONS[filter]
+            ? CONTRACT_MISSING_REASONS[filter]
+            : !isContractAlias && textOk && matchedViaFields(q, [r.contractNumber]) && !matchedViaFields(q, [r.title, r.provider])
               ? [r.provider, `№ ${r.contractNumber}`].filter(Boolean).join(" · ")
               : r.provider,
           href: `/contracts/${r.id}`,
           group: "Contracts",
-          matchedInDocument: textOk ? !matchedViaFields(q, [r.title, r.provider, r.contractNumber]) : false,
+          matchedInDocument: textOk && !isContractAlias ? !matchedViaFields(q, [r.title, r.provider, r.contractNumber]) : false,
         })),
       ),
   );
@@ -119,7 +167,7 @@ export async function GET(request: NextRequest) {
         where: {
           deletedAt: null,
           AND: [
-            ...(textOk
+            ...(textOk && !isProductAlias
               ? [
                   {
                     OR: [
@@ -152,21 +200,25 @@ export async function GET(request: NextRequest) {
           serialNumber: true,
           barcode: true,
         },
+        // See the equivalent comment on the contract query above.
+        orderBy: { createdAt: "desc" },
         take: LIMIT,
       })
       .then((rows) =>
         rows.map((r) => ({
           id: r.id,
           title: r.description,
-          subtitle:
-            textOk &&
-            matchedViaFields(q, [r.serialNumber, r.barcode]) &&
-            !matchedViaFields(q, [r.description, r.manufacturer, r.vendor])
+          subtitle: filter && PRODUCT_MISSING_REASONS[filter]
+            ? PRODUCT_MISSING_REASONS[filter]
+            : !isProductAlias &&
+              textOk &&
+              matchedViaFields(q, [r.serialNumber, r.barcode]) &&
+              !matchedViaFields(q, [r.description, r.manufacturer, r.vendor])
               ? [r.manufacturer, `# ${r.serialNumber ?? r.barcode}`].filter(Boolean).join(" · ")
               : (r.manufacturer ?? undefined),
           href: `/products/${r.id}`,
           group: "Products",
-          matchedInDocument: textOk
+          matchedInDocument: textOk && !isProductAlias
             ? !matchedViaFields(q, [r.description, r.manufacturer, r.vendor, r.serialNumber, r.barcode])
             : false,
         })),
@@ -219,18 +271,47 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  if (enabledModules.has("VEHICLES") && textOk) {
+  if (enabledModules.has("VEHICLES") && (textOk || filter)) {
     queries.push(
       prisma.vehicle
         .findMany({
           where: {
             deletedAt: null,
-            OR: [
-              { label: contains },
-              { make: contains },
-              { model: contains },
-              { licensePlate: contains },
-              { vin: contains },
+            AND: [
+              ...(textOk
+                ? [
+                    {
+                      OR: [
+                        { label: contains },
+                        { make: contains },
+                        { model: contains },
+                        { licensePlate: contains },
+                        { vin: contains },
+                      ],
+                    },
+                  ]
+                : []),
+              // Vehicles track three independent expiry-ish dates (rego,
+              // insurance, next service) instead of Contract/Product's
+              // single one — "expiring"/"missingDate" treat any of them
+              // as satisfying the filter, since a vehicle with even one
+              // upcoming date is being actively tracked.
+              ...(filter === "expiring"
+                ? [{ OR: [
+                    { regoExpiry: { gte: now, lte: soon } },
+                    { insuranceExpiry: { gte: now, lte: soon } },
+                    { nextServiceDue: { gte: now, lte: soon } },
+                  ] }]
+                : []),
+              ...(filter === "missingDate"
+                ? [{ regoExpiry: null, insuranceExpiry: null, nextServiceDue: null }]
+                : []),
+              ...(filter === "missingReminder" ? [{ reminderDaysBefore: null }] : []),
+              ...(filter === "missingIdentifier" ? [{ vin: null, licensePlate: null }] : []),
+              // No "needsReview"/"noDocument"/"important" or
+              // "missingRelationship" equivalent — vehicles have no
+              // extraction-review flag and aren't linked to a home the way
+              // a contract/product can be.
             ],
           },
           select: { id: true, label: true, make: true, model: true, licensePlate: true, vin: true },
@@ -240,8 +321,9 @@ export async function GET(request: NextRequest) {
           rows.map((r) => ({
             id: r.id,
             title: r.label,
-            subtitle:
-              matchedViaFields(q, [r.vin, r.licensePlate]) && !matchedViaFields(q, [r.make, r.model])
+            subtitle: filter && VEHICLE_MISSING_REASONS[filter]
+              ? VEHICLE_MISSING_REASONS[filter]
+              : textOk && matchedViaFields(q, [r.vin, r.licensePlate]) && !matchedViaFields(q, [r.make, r.model])
                 ? [[r.make, r.model].filter(Boolean).join(" "), r.licensePlate ?? r.vin]
                     .filter(Boolean)
                     .join(" · ")
@@ -252,7 +334,7 @@ export async function GET(request: NextRequest) {
         ),
     );
 
-    const vehicleItemDocIds = hitDocIds(ftsHits, "VEHICLE_ITEM");
+    const vehicleItemDocIds = textOk ? hitDocIds(ftsHits, "VEHICLE_ITEM") : [];
     if (vehicleItemDocIds.length > 0) {
       queries.push(
         prisma.vehicleItemDocument
@@ -459,11 +541,20 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  if (enabledModules.has("INVENTORY") && textOk) {
+  if (enabledModules.has("INVENTORY") && (textOk || filter === "missingIdentifier")) {
     queries.push(
       prisma.inventoryItem
         .findMany({
-          where: { deletedAt: null, OR: [{ label: contains }, { brand: contains }, { model: contains }] },
+          where: {
+            deletedAt: null,
+            AND: [
+              ...(textOk ? [{ OR: [{ label: contains }, { brand: contains }, { model: contains }] }] : []),
+              // Inventory items have no expiry date, reminder, or
+              // property/vehicle link — only missingIdentifier applies
+              // (serialNumber); the other filters would flag every item.
+              ...(filter === "missingIdentifier" ? [{ serialNumber: null }] : []),
+            ],
+          },
           select: { id: true, label: true, brand: true },
           take: LIMIT,
         })
@@ -471,14 +562,14 @@ export async function GET(request: NextRequest) {
           rows.map((r) => ({
             id: r.id,
             title: r.label,
-            subtitle: r.brand ?? undefined,
+            subtitle: filter && INVENTORY_MISSING_REASONS[filter] ? INVENTORY_MISSING_REASONS[filter] : (r.brand ?? undefined),
             href: `/inventory/${r.id}`,
             group: "Inventory",
           })),
         ),
     );
 
-    const inventoryItemDocIds = hitDocIds(ftsHits, "INVENTORY_ITEM");
+    const inventoryItemDocIds = textOk ? hitDocIds(ftsHits, "INVENTORY_ITEM") : [];
     if (inventoryItemDocIds.length > 0) {
       queries.push(
         prisma.inventoryItemDocument

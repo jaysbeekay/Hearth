@@ -96,3 +96,118 @@ export async function markExtractionReviewFieldsReviewed(
     data: { reviewedAt: new Date(), reviewedById: actorId },
   });
 }
+
+export interface PendingReviewField {
+  fieldName: string;
+  currentValue: string;
+  source: string;
+  confidence: number | null;
+}
+
+// #331 — the only fields a field-level review can correct: matches exactly
+// what InboxReviewClient/ImportClient record provenance for (see
+// appendReviewFields in each). Never widen this to an arbitrary
+// formData-supplied column name — it goes straight into a Prisma update.
+const CONTRACT_REVIEWABLE_FIELDS = ["title", "provider", "cost", "startDate", "endDate"] as const;
+const PRODUCT_REVIEWABLE_FIELDS = ["description", "manufacturer", "price", "purchaseDate", "warrantyEndDate"] as const;
+
+function reviewableFieldsFor(ownerType: ExtractionReviewOwnerType): readonly string[] {
+  return ownerType === "CONTRACT" ? CONTRACT_REVIEWABLE_FIELDS : PRODUCT_REVIEWABLE_FIELDS;
+}
+
+function fieldToInputValue(fieldName: string, value: unknown): string {
+  if (value == null) return "";
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return String(value);
+}
+
+// Field-level values shown in the review panel are read from the live
+// record, not the ExtractionReviewField snapshot — so a manual edit made
+// via the normal Edit form between extraction and review already shows up
+// pre-filled, and re-confirming never clobbers it with a stale value.
+export async function getPendingExtractionReview(
+  ownerType: ExtractionReviewOwnerType,
+  ownerId: string,
+): Promise<PendingReviewField[]> {
+  const pending = await prisma.extractionReviewField.findMany({
+    where: { ownerType, ownerId, reviewedAt: null },
+  });
+  if (pending.length === 0) return [];
+
+  const allowed = reviewableFieldsFor(ownerType);
+  const relevant = pending.filter((f) => allowed.includes(f.fieldName));
+  if (relevant.length === 0) return [];
+
+  const record =
+    ownerType === "CONTRACT"
+      ? await prisma.contract.findUnique({ where: { id: ownerId } })
+      : await prisma.product.findUnique({ where: { id: ownerId } });
+  if (!record) return [];
+
+  return relevant.map((f) => ({
+    fieldName: f.fieldName,
+    currentValue: fieldToInputValue(f.fieldName, (record as Record<string, unknown>)[f.fieldName]),
+    source: f.source,
+    confidence: f.confidence,
+  }));
+}
+
+function coerceReviewedValue(fieldName: string, raw: string): string | number | Date | null {
+  const trimmed = raw.trim();
+  if (trimmed === "") return null;
+  if (fieldName === "cost" || fieldName === "price") {
+    const n = Number(trimmed);
+    return Number.isFinite(n) ? n : null;
+  }
+  if (fieldName === "startDate" || fieldName === "endDate" || fieldName === "purchaseDate" || fieldName === "warrantyEndDate") {
+    const d = new Date(trimmed);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  return trimmed.slice(0, 500);
+}
+
+// Applies any corrections submitted from the review panel, marks every
+// pending field reviewed, and clears extractionPending — the single action
+// behind both the field-level review UI and the plain "Confirm details"
+// fallback (which submits no corrections, just confirms as-is).
+export async function reviewAndConfirmExtraction(
+  ownerType: ExtractionReviewOwnerType,
+  ownerId: string,
+  actorId: string,
+  formData: FormData,
+): Promise<{ error?: string }> {
+  const allowed = reviewableFieldsFor(ownerType);
+  const pending = await prisma.extractionReviewField.findMany({
+    where: { ownerType, ownerId, reviewedAt: null },
+  });
+
+  const updateData: Record<string, string | number | Date | null> = {};
+  for (const field of pending) {
+    if (!allowed.includes(field.fieldName)) continue;
+    const raw = formData.get(`reviewField:${field.fieldName}`);
+    if (typeof raw !== "string") continue;
+    updateData[field.fieldName] = coerceReviewedValue(field.fieldName, raw);
+  }
+
+  const reviewedAt = new Date();
+  try {
+    await prisma.$transaction([
+      prisma.extractionReviewField.updateMany({
+        where: { ownerType, ownerId, reviewedAt: null },
+        data: { reviewedAt, reviewedById: actorId },
+      }),
+      ownerType === "CONTRACT"
+        ? prisma.contract.update({
+            where: { id: ownerId },
+            data: { ...updateData, extractionPending: false, extractionConfirmedAt: reviewedAt, updatedById: actorId },
+          })
+        : prisma.product.update({
+            where: { id: ownerId },
+            data: { ...updateData, extractionPending: false, extractionConfirmedAt: reviewedAt, updatedById: actorId },
+          }),
+    ]);
+  } catch {
+    return { error: "Record no longer exists." };
+  }
+  return {};
+}
