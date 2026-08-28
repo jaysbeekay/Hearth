@@ -93,7 +93,12 @@ export function DocumentPreviewModal({
           ) : !objectUrl ? (
             <p className="text-sm text-muted">Loading preview…</p>
           ) : doc.mimeType === "application/pdf" ? (
-            <embed src={objectUrl} type="application/pdf" className="h-[70vh] w-full" />
+            // #229 — <embed type="application/pdf"> is silently blocked by
+            // the app's CSP (object-src 'none', a deliberate hardening
+            // against plugin-injection vectors — not something to relax).
+            // <iframe> renders the browser's built-in PDF viewer the same
+            // way and is governed by frame-src instead (see proxy.ts).
+            <iframe src={objectUrl} title={doc.filename} className="h-[70vh] w-full border-0" />
           ) : (
             // eslint-disable-next-line @next/next/no-img-element -- blob: URL, not an optimizable remote image
             <img src={objectUrl} alt={doc.filename} className="max-h-[70vh] max-w-full object-contain" />
