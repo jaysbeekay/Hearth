@@ -12,18 +12,28 @@ test.describe.serial("Completeness filters", () => {
   test("dashboard 'Contracts missing info' stat links to a correctly filtered list", async ({
     page,
   }) => {
+    // Computed inside the test body (not module scope) so it's fresh even
+    // on a CI retry that reuses the worker process — CI retries a failed
+    // test once, and a stale module-level stamp would collide with records
+    // the aborted first attempt already created, breaking locators below
+    // with a strict-mode "resolved to 2+ elements" violation instead of
+    // the real assertion.
+    const stamp = Date.now();
+    const completeTitle = `Completeness Filter Complete Contract ${stamp}`;
+    const incompleteTitle = `Completeness Filter Incomplete Contract ${stamp}`;
+
     // Complete: has everything.
     await page.goto("/contracts/new");
-    await page.locator("#title").fill("Completeness Filter Complete Contract");
+    await page.locator("#title").fill(completeTitle);
     await page.locator("#provider").fill("Complete Provider");
-    await page.locator("#contractNumber").fill("POL-COMPLETE-1");
+    await page.locator("#contractNumber").fill(`POL-COMPLETE-${stamp}`);
     await page.locator("#endDate").fill("2030-01-01");
     await page.locator("main button[type=submit]").click();
     await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
 
     // Incomplete: missing end date, contract number, and any link.
     await page.goto("/contracts/new");
-    await page.locator("#title").fill("Completeness Filter Incomplete Contract");
+    await page.locator("#title").fill(incompleteTitle);
     await page.locator("#provider").fill("Incomplete Provider");
     await page.locator("main button[type=submit]").click();
     await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
@@ -36,13 +46,17 @@ test.describe.serial("Completeness filters", () => {
 
     await statCard.click();
     await page.waitForURL(/\/contracts\?missingInfo=true/);
-    await expect(page.locator("body")).toContainText("Completeness Filter Incomplete Contract");
-    await expect(page.locator("body")).not.toContainText("Completeness Filter Complete Contract");
+    await expect(page.locator("body")).toContainText(incompleteTitle);
+    await expect(page.locator("body")).not.toContainText(completeTitle);
   });
 
   test("Global Search 'Missing date' and 'Missing identifier' filters reach vehicles, not just contracts/products", async ({
     page,
   }) => {
+    const stamp = Date.now();
+    const completeLabel = `Completeness Filter Complete Vehicle ${stamp}`;
+    const incompleteLabel = `Completeness Filter Incomplete Vehicle ${stamp}`;
+
     await page.goto("/settings/modules");
     const vehiclesRow = page.locator("li", { hasText: "Vehicles" });
     if (await vehiclesRow.getByRole("button", { name: "Enable" }).count()) {
@@ -52,7 +66,7 @@ test.describe.serial("Completeness filters", () => {
 
     // Complete: has every date and identifier the filters check.
     await page.goto("/vehicles/new");
-    await page.locator("#label").fill("Completeness Filter Complete Vehicle");
+    await page.locator("#label").fill(completeLabel);
     await page.locator("#vin").fill("1HGCM82633A123456");
     await page.locator("#regoExpiry").fill("2030-01-01");
     await page.locator("#insuranceExpiry").fill("2030-01-01");
@@ -62,7 +76,7 @@ test.describe.serial("Completeness filters", () => {
 
     // Incomplete: no rego/insurance/service dates, no VIN/plate.
     await page.goto("/vehicles/new");
-    await page.locator("#label").fill("Completeness Filter Incomplete Vehicle");
+    await page.locator("#label").fill(incompleteLabel);
     await page.getByRole("button", { name: "Add vehicle" }).click();
     await page.waitForURL(/\/vehicles\/(?!new$)[^/]+$/);
 
@@ -70,15 +84,15 @@ test.describe.serial("Completeness filters", () => {
     await page.locator("aside").getByRole("button", { name: "Search" }).click();
 
     await page.getByRole("button", { name: "Missing date" }).click();
-    await expect(page.getByText("Completeness Filter Incomplete Vehicle")).toBeVisible();
-    await expect(page.getByText("Completeness Filter Complete Vehicle")).not.toBeVisible();
+    await expect(page.getByText(incompleteLabel)).toBeVisible();
+    await expect(page.getByText(completeLabel)).not.toBeVisible();
     // The result explains why it needs attention, not just that it does.
     await expect(page.getByText("Missing rego, insurance, or service date")).toBeVisible();
 
     await page.getByRole("button", { name: "Missing date" }).click(); // deselect
     await page.getByRole("button", { name: "Missing identifier" }).click();
-    await expect(page.getByText("Completeness Filter Incomplete Vehicle")).toBeVisible();
-    await expect(page.getByText("Completeness Filter Complete Vehicle")).not.toBeVisible();
+    await expect(page.getByText(incompleteLabel)).toBeVisible();
+    await expect(page.getByText(completeLabel)).not.toBeVisible();
     await expect(page.getByText("Missing VIN/license plate")).toBeVisible();
   });
 });

@@ -46,11 +46,19 @@ function textPdfBytes(lines: string[]): Buffer {
 test("capturing a document saves it to the Inbox, and classifying it with extracted dates leaves it pending field-level review", async ({
   page,
 }) => {
+  // Unique per run — CI retries a failed test once, and a fixed filename/
+  // title would collide with whatever the aborted first attempt already
+  // created, breaking every locator below with a strict-mode "resolved to
+  // 2 elements" violation instead of the real assertion.
+  const stamp = Date.now();
+  const filename = `camera-capture-test-${stamp}.pdf`;
+  const policyTitle = `Camera Capture Test Policy ${stamp}`;
+
   await page.goto("/dashboard");
 
   const cameraInput = page.locator('input[type="file"][accept="image/*"]');
   await cameraInput.setInputFiles({
-    name: "camera-capture-test.pdf",
+    name: filename,
     mimeType: "application/pdf",
     buffer: textPdfBytes([
       "ACME Insurance Pty Ltd",
@@ -62,7 +70,7 @@ test("capturing a document saves it to the Inbox, and classifying it with extrac
 
   await page.goto("/documents/inbox");
   const row = page.locator("div.rounded-xl.border.border-border.bg-surface", {
-    hasText: "camera-capture-test.pdf",
+    hasText: filename,
   });
   await expect(row).toBeVisible();
 
@@ -73,7 +81,7 @@ test("capturing a document saves it to the Inbox, and classifying it with extrac
   await row.getByLabel(/File .* as/).selectOption("CONTRACT");
   await expect(row.getByText("Scanning…")).toHaveCount(0, { timeout: 15_000 });
 
-  await row.locator('input[id$="-title"]').fill("Camera Capture Test Policy");
+  await row.locator('input[id$="-title"]').fill(policyTitle);
   const providerInput = row.locator('input[id$="-provider"]');
   if (!(await providerInput.inputValue())) {
     await providerInput.fill("ACME Insurance Pty Ltd");
@@ -85,15 +93,15 @@ test("capturing a document saves it to the Inbox, and classifying it with extrac
   await expect(endDateInput).toHaveValue("2027-06-01");
 
   await row.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(page.getByText("Filed camera-capture-test.pdf")).toBeVisible();
+  await expect(page.getByText(`Filed ${filename}`)).toBeVisible();
 
   // Filing from the Inbox doesn't navigate away — find the new contract
   // from the list instead.
   await page.goto("/contracts");
-  await page.getByRole("link", { name: "Camera Capture Test Policy" }).click();
+  await page.getByRole("link", { name: policyTitle }).click();
   await page.waitForURL(/\/contracts\/[^/]+$/);
 
-  await expect(page.locator("body")).toContainText("Camera Capture Test Policy");
+  await expect(page.locator("body")).toContainText(policyTitle);
   await expect(page.getByText(/Needs review/)).toBeVisible();
   await expect(page.getByText("Confirm reviewed details")).toBeVisible();
   await expect(page.locator('input[id="reviewField:startDate"]')).toHaveValue("2026-06-01");

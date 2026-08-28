@@ -315,6 +315,8 @@ export async function GET(request: NextRequest) {
             ],
           },
           select: { id: true, label: true, make: true, model: true, licensePlate: true, vin: true },
+          // See the equivalent comment on the contract query above.
+          orderBy: { createdAt: "desc" },
           take: LIMIT,
         })
         .then((rows) =>
@@ -556,6 +558,8 @@ export async function GET(request: NextRequest) {
             ],
           },
           select: { id: true, label: true, brand: true },
+          // See the equivalent comment on the contract query above.
+          orderBy: { createdAt: "desc" },
           take: LIMIT,
         })
         .then((rows) =>

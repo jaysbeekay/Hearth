@@ -8,6 +8,22 @@ test.use({ storageState: ADMIN_AUTH_FILE });
 // (InventoryItem.warrantyProductId -> Product) rather than a free-text ID.
 test.describe.serial("Inventory warranty linking", () => {
   let productId: string;
+  // Set fresh in beforeAll (not a module-level const) — CI retries a
+  // failed test once, re-running this whole serial group from the start
+  // inside the *same* worker process, where a module-level const would
+  // stay stale across the retry. beforeAll re-runs on every attempt, so
+  // this is guaranteed fresh even then; without it, a retry after a
+  // mid-group failure would collide with records the aborted first
+  // attempt already created, breaking every locator below with a
+  // strict-mode "resolved to 2 elements" violation instead of the real
+  // assertion.
+  let warrantyName: string;
+  let itemName: string;
+  test.beforeAll(() => {
+    const stamp = Date.now();
+    warrantyName = `Warranty Link Test Warranty ${stamp}`;
+    itemName = `Warranty Link Test Item ${stamp}`;
+  });
 
   test("enable the Inventory module", async ({ page }) => {
     await page.goto("/settings/modules");
@@ -22,7 +38,7 @@ test.describe.serial("Inventory warranty linking", () => {
 
   test("create a warranty", async ({ page }) => {
     await page.goto("/products/new");
-    await page.locator("#description").fill("Warranty Link Test Warranty");
+    await page.locator("#description").fill(warrantyName);
     await page.locator("main button[type=submit]").click();
     await page.waitForURL(/\/products\/(?!new$)[^/]+$/);
 
@@ -32,21 +48,21 @@ test.describe.serial("Inventory warranty linking", () => {
 
   test("create an inventory item linking that warranty", async ({ page }) => {
     await page.goto("/inventory/new");
-    await page.locator("#label").fill("Warranty Link Test Item");
+    await page.locator("#label").fill(itemName);
     await page.locator("label", { hasText: "Warranty registered" }).locator("input").check();
     await page
       .locator("#warrantyProductId")
-      .selectOption({ label: "Warranty Link Test Warranty" });
+      .selectOption({ label: warrantyName });
     await page.getByRole("button", { name: "Add item" }).click();
     await page.waitForURL(/\/inventory\/(?!new$)[^/]+$/);
 
-    await expect(page.locator("body")).toContainText("Warranty Link Test Item");
+    await expect(page.locator("body")).toContainText(itemName);
   });
 
   test("the linked warranty shows the inventory item back-reference", async ({ page }) => {
     await page.goto(`/products/${productId}`);
     await expect(page.getByText("Linked to")).toBeVisible();
-    await expect(page.getByText("Warranty Link Test Item")).toBeVisible();
+    await expect(page.getByText(itemName)).toBeVisible();
     await expect(page.getByText("Inventory item — warranty registered here")).toBeVisible();
   });
 
@@ -62,18 +78,18 @@ test.describe.serial("Inventory warranty linking", () => {
     // Permanently delete from Trash so the FK's SetNull actually fires
     // (soft-delete alone leaves the row, and the link, intact).
     await page.goto("/settings/trash");
-    const row = page.locator("li", { hasText: "Warranty Link Test Warranty" });
+    const row = page.locator("li", { hasText: warrantyName });
     await row.getByRole("button", { name: "Delete permanently" }).click();
     await page
       .getByRole("alertdialog")
       .getByRole("button", { name: "Delete permanently" })
       .click();
-    await expect(page.locator("body")).not.toContainText("Warranty Link Test Warranty");
+    await expect(page.locator("body")).not.toContainText(warrantyName);
 
     await page.goto("/inventory");
-    const itemLink = page.locator("a", { hasText: "Warranty Link Test Item" });
+    const itemLink = page.locator("a", { hasText: itemName });
     await itemLink.click();
     await page.waitForURL(/\/inventory\/[^/]+$/);
-    await expect(page.locator("body")).toContainText("Warranty Link Test Item");
+    await expect(page.locator("body")).toContainText(itemName);
   });
 });
