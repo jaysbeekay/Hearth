@@ -300,34 +300,42 @@ export default async function PropertyDetailPage({
         </div>
       </div>
 
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <Home size={18} className="text-muted" />
-            <h2 className="font-medium">Rental tracking</h2>
+      {/* #232 — offering rental tracking on a property that isn't rented
+          (and never has been) is a dead-end prompt. Show the card once the
+          owner marks the property RENTED, or once tracking already has data
+          (isRented — set independently of occupancyStatus when a rental
+          agreement is created, so existing tracking stays visible even if
+          occupancyStatus later changes). */}
+      {(property.occupancyStatus === "RENTED" || property.isRented) && (
+        <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <Home size={18} className="text-muted" />
+              <h2 className="font-medium">Rental tracking</h2>
+            </div>
+            {property.isRented ? (
+              <Link
+                href={`/home/${property.id}/rental`}
+                className="text-sm font-medium text-accent hover:underline"
+              >
+                View rental overview →
+              </Link>
+            ) : (
+              <Link
+                href={`/home/${property.id}/rental`}
+                className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
+              >
+                Set up rental tracking
+              </Link>
+            )}
           </div>
-          {property.isRented ? (
-            <Link
-              href={`/home/${property.id}/rental`}
-              className="text-sm font-medium text-accent hover:underline"
-            >
-              View rental overview →
-            </Link>
-          ) : (
-            <Link
-              href={`/home/${property.id}/rental`}
-              className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
-            >
-              Set up rental tracking
-            </Link>
+          {property.isRented && (
+            <p className="mt-2 text-sm text-muted">
+              This property is rented — track statements and reconcile rent income.
+            </p>
           )}
         </div>
-        {property.isRented && (
-          <p className="mt-2 text-sm text-muted">
-            This property is rented — track statements and reconcile rent income.
-          </p>
-        )}
-      </div>
+      )}
 
       <RecordMeta
         createdByName={property.createdBy.name}
