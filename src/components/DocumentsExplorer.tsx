@@ -8,6 +8,7 @@ import { linkButtonClass } from "@/lib/buttonStyles";
 import { DocumentLink } from "@/components/DocumentLink";
 import { DocumentPreviewModal, isPreviewable } from "@/components/DocumentPreviewModal";
 import { formatDate, humanFileSize } from "@/lib/utils";
+import { DOCUMENT_CATEGORIES, DOCUMENT_CATEGORY_LABELS, type DocumentCategory } from "@/lib/documents/categories";
 
 export interface DocRow {
   id: string;
@@ -16,6 +17,7 @@ export interface DocRow {
   uploadedAt: Date;
   mimeType: string;
   type: string;
+  category?: string | null;
   parentTitle: string;
   parentHref: string;
   downloadHref: string;
@@ -42,6 +44,7 @@ export function DocumentsExplorer({
 }) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("date-desc");
+  const [category, setCategory] = useState<"ALL" | DocumentCategory>("ALL");
   const [preview, setPreview] = useState<DocRow | null>(null);
 
   const visible = useMemo(() => {
@@ -51,8 +54,9 @@ export function DocumentsExplorer({
           (d) => d.filename.toLowerCase().includes(q) || d.parentTitle.toLowerCase().includes(q),
         )
       : docs;
+    const categorized = category === "ALL" ? matched : matched.filter((d) => d.category === category);
 
-    const sorted = [...matched];
+    const sorted = [...categorized];
     switch (sort) {
       case "date-asc":
         sorted.sort((a, b) => a.uploadedAt.getTime() - b.uploadedAt.getTime());
@@ -67,7 +71,7 @@ export function DocumentsExplorer({
         sorted.sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime());
     }
     return sorted;
-  }, [docs, query, sort]);
+  }, [docs, query, sort, category]);
 
   if (docs.length === 0) {
     if (emptyMessage) {
@@ -102,7 +106,21 @@ export function DocumentsExplorer({
           placeholder="Search this page by filename or record…"
           className={`${inputClass} sm:max-w-xs`}
         />
-        <SelectWrapper>
+        <div className="flex flex-wrap gap-2">
+          <SelectWrapper>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value as "ALL" | DocumentCategory)}
+              aria-label="Filter by document type"
+              className="rounded-lg border border-border bg-background px-3 h-9 text-sm outline-none focus:border-accent appearance-none pr-8"
+            >
+              <option value="ALL">All document types</option>
+              {DOCUMENT_CATEGORIES.map((key) => (
+                <option key={key} value={key}>{DOCUMENT_CATEGORY_LABELS[key]}</option>
+              ))}
+            </select>
+          </SelectWrapper>
+          <SelectWrapper>
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value as SortKey)}
@@ -114,12 +132,13 @@ export function DocumentsExplorer({
               </option>
             ))}
           </select>
-        </SelectWrapper>
+          </SelectWrapper>
+        </div>
       </div>
 
       {visible.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted">
-          No documents match &quot;{query}&quot;.
+          No documents match the selected filters.
         </p>
       ) : (
         <>
@@ -129,8 +148,8 @@ export function DocumentsExplorer({
               <thead>
                 <tr className="border-b border-border text-left text-xs text-muted">
                   <th className="px-4 py-2 font-medium">File</th>
-                  <th className="px-4 py-2 font-medium">Type</th>
-                  <th className="px-4 py-2 font-medium">Belongs to</th>
+                  <th className="px-4 py-2 font-medium">Document type</th>
+                  <th className="px-4 py-2 font-medium">Linked record</th>
                   <th className="px-4 py-2 font-medium">Uploaded</th>
                   <th className="px-4 py-2 text-right font-medium">Size</th>
                   <th className="px-4 py-2" />
@@ -152,7 +171,10 @@ export function DocumentsExplorer({
                       </DocumentLink>
                     </td>
                     <td className="px-4 py-2">
-                      <span className="rounded-full bg-info/10 px-2 py-0.5 text-xs font-medium text-info">
+                      <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
+                        {doc.category ? DOCUMENT_CATEGORY_LABELS[doc.category as DocumentCategory] ?? doc.category : "Uncategorized"}
+                      </span>
+                      <span className="ml-2 rounded-full bg-info/10 px-2 py-0.5 text-xs font-medium text-info">
                         {doc.type}
                       </span>
                     </td>
@@ -218,6 +240,7 @@ export function DocumentsExplorer({
                   <span className="rounded-full bg-info/10 px-2 py-0.5 font-medium text-info">
                     {doc.type}
                   </span>
+                  <span>{doc.category ? DOCUMENT_CATEGORY_LABELS[doc.category as DocumentCategory] ?? doc.category : "Uncategorized"}</span>
                   <Link href={doc.parentHref} className="text-accent hover:underline">
                     {doc.parentTitle}
                   </Link>

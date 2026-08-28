@@ -26,6 +26,9 @@ export const inventoryItemSchema = z.object({
   currency: z.string().trim().min(1).max(10).default("AUD"),
   location: z.preprocess(emptyToUndefined, z.string().trim().max(100).optional()),
   notes: z.preprocess(emptyToUndefined, z.string().trim().max(5000).optional()),
+  warrantyRegistered: z.coerce.boolean().default(false),
+  warrantyExtended: z.coerce.boolean().default(false),
+  warrantyProductId: z.preprocess(emptyToUndefined, z.string().trim().max(100).optional()),
 });
 
 export type InventoryItemInput = z.infer<typeof inventoryItemSchema>;

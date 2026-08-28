@@ -276,6 +276,21 @@ export function InventoryItemForm({
         />
       </Field>
 
+      <fieldset className="space-y-3 rounded-lg border border-border p-4">
+        <legend className="px-1 text-sm font-medium">Warranty tracking</legend>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="warrantyRegistered" defaultChecked={effectiveValues?.warrantyRegistered === "on" || item?.warrantyRegistered} />
+          Warranty registered
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="warrantyExtended" defaultChecked={effectiveValues?.warrantyExtended === "on" || item?.warrantyExtended} />
+          Extended warranty purchased
+        </label>
+        <Field label="Linked product/warranty ID (optional)" htmlFor="warrantyProductId">
+          <input id="warrantyProductId" name="warrantyProductId" defaultValue={effectiveValues?.warrantyProductId ?? item?.warrantyProductId ?? ""} className={inputClass} placeholder="Product record ID" />
+        </Field>
+      </fieldset>
+
       <FormMessage error={state?.error} success={state?.success} />
 
       <div className="flex justify-end gap-3">

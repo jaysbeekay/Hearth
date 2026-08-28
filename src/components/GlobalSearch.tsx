@@ -16,6 +16,10 @@ const SEARCH_FILTERS: { value: string; label: string }[] = [
   { value: "needsReview", label: "Needs review" },
   { value: "noDocument", label: "No document attached" },
   { value: "important", label: "Important" },
+  { value: "missingDate", label: "Missing date" },
+  { value: "missingReminder", label: "Missing reminder" },
+  { value: "missingRelationship", label: "Missing link" },
+  { value: "missingIdentifier", label: "Missing identifier" },
 ];
 
 export function openGlobalSearch() {

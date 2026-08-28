@@ -6,9 +6,10 @@ import { linkButtonClass, toolbarButtonClass, exportMenuItemClass } from "@/lib/
 import { useRouter } from "next/navigation";
 import { Plus, ChevronDown, X, Upload } from "lucide-react";
 import { ProductCard } from "@/components/ProductCard";
+import { InventoryCard } from "@/components/InventoryCard";
 import { PendingRecordCard } from "@/components/PendingRecordCard";
 import { ListSummaryStrip } from "@/components/ListSummaryStrip";
-import type { ProductModel } from "@/generated/prisma/models";
+import type { InventoryItemModel, ProductModel } from "@/generated/prisma/models";
 import { daysUntil } from "@/lib/utils";
 import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
@@ -16,6 +17,8 @@ import { usePendingCreates } from "@/lib/usePendingCreates";
 
 interface Props {
   products: ProductModel[];
+  inventoryItems?: (InventoryItemModel & { _count: { documents: number } })[];
+  inventoryEnabled?: boolean;
   q?: string;
   expiring?: string;
   expired?: string;
@@ -28,6 +31,8 @@ interface Props {
 
 export function ProductListClient({
   products,
+  inventoryItems = [],
+  inventoryEnabled = true,
   q,
   expiring,
   expired,
@@ -54,6 +59,7 @@ export function ProductListClient({
   }, [router]);
 
   const filtered = Boolean(q || expiring || expired || needsReview || missingDocument);
+  const showInventorySection = inventoryEnabled && (inventoryItems.length > 0 || !filtered);
 
   // #207 — completeness filter chips, same toggle pattern as ContractListClient.
   const toggleCompletenessFilter = useCallback(
@@ -192,7 +198,7 @@ export function ProductListClient({
       {filtered && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-muted">
-            {products.length} {products.length === 1 ? "product" : "products"}
+              {products.length} {products.length === 1 ? "warranty" : "warranties"}
           </span>
           {q && (
             <button
@@ -258,6 +264,39 @@ export function ProductListClient({
             <ProductCard key={product.id} product={product} dateFormat={dateFormat} region={region} />
           ))}
         </div>
+      )}
+
+      {showInventorySection && (
+        <section className="space-y-3 border-t border-border pt-6">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold">Inventory items</h2>
+              <p className="text-sm text-muted">Household purchases and valuables catalogued separately from warranties.</p>
+            </div>
+            {canWrite && (
+              <Link
+                href="/inventory/new"
+                aria-disabled={!online}
+                tabIndex={!online ? -1 : undefined}
+                className={linkButtonClass("secondary", { online })}
+              >
+                <Plus size={16} />
+                Add item
+              </Link>
+            )}
+          </div>
+          {inventoryItems.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted">
+              No inventory items yet.
+            </p>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+              {inventoryItems.map((item) => (
+                <InventoryCard key={item.id} item={item} dateFormat={dateFormat} region={region} />
+              ))}
+            </div>
+          )}
+        </section>
       )}
     </div>
   );

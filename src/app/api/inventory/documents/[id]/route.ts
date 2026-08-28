@@ -13,8 +13,11 @@ export async function GET(
   }
 
   const { id } = await params;
-  const doc = await prisma.inventoryItemDocument.findUnique({ where: { id } });
-  if (!doc) {
+  const doc = await prisma.inventoryItemDocument.findUnique({
+    where: { id },
+    include: { inventoryItem: { select: { deletedAt: true } } },
+  });
+  if (!doc || doc.deletedAt || doc.inventoryItem.deletedAt) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

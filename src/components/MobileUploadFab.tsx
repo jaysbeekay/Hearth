@@ -65,11 +65,12 @@ export function MobileUploadFab() {
 
       <label
         htmlFor={inputId}
-        aria-label="Take a photo to upload"
+        aria-label="Take a photo and save it to the shared household Inbox"
         aria-disabled={uploading}
         className="flex size-14 cursor-pointer items-center justify-center rounded-full bg-accent text-accent-foreground shadow-lg hover:opacity-90 has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent"
       >
         {uploading ? <Loader2 size={24} className="animate-spin" /> : <Camera size={24} />}
+        <span className="sr-only">Photo will be saved to the shared household Inbox for review.</span>
         <input
           ref={inputRef}
           id={inputId}

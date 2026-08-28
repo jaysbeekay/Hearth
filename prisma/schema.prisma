@@ -318,8 +318,9 @@ model Contract {
   vehicleId String?
   vehicle   Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
 
-  documents       Document[]
-  rentalAgreement RentalAgreement?
+  documents              Document[]
+  extractionReviewFields ExtractionReviewField[]
+  rentalAgreement        RentalAgreement?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -335,31 +336,35 @@ model Contract {
 // migration must re-create all three verbatim, or e2e/prepare-db.ts's
 // document_search_fts integrity check fails CI.
 model Document {
-  id            String    @id @default(cuid())
-  contractId    String
-  contract      Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  filename      String
-  storedName    String
-  mimeType      String
-  size          Int
-  extractedText String?
-  extractionStatus String @default("PENDING")
+  id               String    @id @default(cuid())
+  contractId       String
+  contract         Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  filename         String
+  storedName       String
+  mimeType         String
+  size             Int
+  extractedText    String?
+  extractionStatus String    @default("PENDING")
   // File-hash and version-chain fields (#206/#207/#208 foundation) — sha256
   // enables exact-duplicate detection, supersedesId links a re-upload to the
   // document it replaces (linear chain, enforced @unique so a document has
   // at most one successor), isImportant is the user-starred flag.
-  sha256        String?
-  isImportant   Boolean   @default(false)
-  supersedesId  String?   @unique
-  supersedes    Document? @relation("DocumentVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
-  supersededBy  Document? @relation("DocumentVersions")
-  uploadedAt    DateTime  @default(now())
+  sha256           String?
+  category         String?
+  isImportant      Boolean   @default(false)
+  deletedAt        DateTime?
+  supersedesId     String?   @unique
+  supersedes       Document? @relation("DocumentVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy     Document? @relation("DocumentVersions")
+  uploadedAt       DateTime  @default(now())
 
   // #252 — contractId backs every "this contract's documents" lookup;
   // uploadedAt backs the Documents page's date-sorted, now-paginated feed.
   @@index([contractId])
   @@index([uploadedAt])
   @@index([sha256])
+  @@index([category])
+  @@index([deletedAt])
   @@map("documents")
 }
 
@@ -370,14 +375,14 @@ model Document {
 // #314: has FTS5 sync triggers (fts_inbox_documents_*) — see the comment on
 // the Document model above for what that means for future schema changes.
 model InboxDocument {
-  id            String  @id @default(cuid())
-  filename      String
-  storedName    String
-  mimeType      String
-  size          Int
-  extractedText String?
-  extractionStatus String @default("PENDING")
-  sha256        String?
+  id               String  @id @default(cuid())
+  filename         String
+  storedName       String
+  mimeType         String
+  size             Int
+  extractedText    String?
+  extractionStatus String  @default("PENDING")
+  sha256           String?
 
   // Null for email-ingested documents (#195), which have no acting web user.
   uploadedById String?
@@ -484,7 +489,8 @@ model Product {
   propertyId String?
   property   Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
 
-  documents ProductDocument[]
+  documents              ProductDocument[]
+  extractionReviewFields ExtractionReviewField[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -495,27 +501,60 @@ model Product {
 // #314: has FTS5 sync triggers (fts_product_documents_*) — see the comment
 // on the Document model above for what that means for future schema changes.
 model ProductDocument {
-  id            String              @id @default(cuid())
-  productId     String
-  product       Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
-  filename      String
-  storedName    String
-  mimeType      String
-  size          Int
-  kind          ProductDocumentKind @default(OTHER)
-  extractedText String?
-  extractionStatus String @default("PENDING")
-  sha256        String?
-  isImportant   Boolean             @default(false)
-  supersedesId  String?             @unique
-  supersedes    ProductDocument?    @relation("ProductDocumentVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
-  supersededBy  ProductDocument?    @relation("ProductDocumentVersions")
-  uploadedAt    DateTime            @default(now())
+  id               String              @id @default(cuid())
+  productId        String
+  product          Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  filename         String
+  storedName       String
+  mimeType         String
+  size             Int
+  kind             ProductDocumentKind @default(OTHER)
+  extractedText    String?
+  extractionStatus String              @default("PENDING")
+  sha256           String?
+  category         String?
+  isImportant      Boolean             @default(false)
+  deletedAt        DateTime?
+  supersedesId     String?             @unique
+  supersedes       ProductDocument?    @relation("ProductDocumentVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy     ProductDocument?    @relation("ProductDocumentVersions")
+  uploadedAt       DateTime            @default(now())
 
   @@index([productId])
   @@index([uploadedAt])
   @@index([sha256])
+  @@index([category])
+  @@index([deletedAt])
   @@map("product_documents")
+}
+
+model ExtractionReviewField {
+  id           String                    @id @default(cuid())
+  ownerType    ExtractionReviewOwnerType
+  ownerId      String
+  contractId   String?
+  contract     Contract?                 @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  productId    String?
+  product      Product?                  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  fieldName    String
+  value        String?
+  source       String
+  confidence   Float?
+  reviewedAt   DateTime?
+  reviewedById String?
+  createdAt    DateTime                  @default(now())
+  updatedAt    DateTime                  @updatedAt
+
+  @@unique([ownerType, ownerId, fieldName])
+  @@index([contractId])
+  @@index([productId])
+  @@index([ownerType, ownerId])
+  @@map("extraction_review_fields")
+}
+
+enum ExtractionReviewOwnerType {
+  CONTRACT
+  PRODUCT
 }
 
 model AppSetting {
@@ -822,6 +861,7 @@ model HomeItem {
   currency        String       @default("AUD")
   isTaxDeductible Boolean      @default(false)
   notes           String?
+  deletedAt       DateTime?
 
   documents HomeItemDocument[]
 
@@ -842,7 +882,9 @@ model HomeItemDocument {
   mimeType     String
   size         Int
   sha256       String?
+  category     String?
   isImportant  Boolean           @default(false)
+  deletedAt    DateTime?
   supersedesId String?           @unique
   supersedes   HomeItemDocument? @relation("HomeItemDocumentVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
   supersededBy HomeItemDocument? @relation("HomeItemDocumentVersions")
@@ -851,6 +893,8 @@ model HomeItemDocument {
   @@index([homeItemId])
   @@index([uploadedAt])
   @@index([sha256])
+  @@index([category])
+  @@index([deletedAt])
   @@map("home_item_documents")
 }
 
@@ -899,6 +943,7 @@ model VehicleItem {
   cost      Float?
   currency  String          @default("AUD")
   notes     String?
+  deletedAt DateTime?
 
   documents VehicleItemDocument[]
 
@@ -920,7 +965,9 @@ model VehicleItemDocument {
   mimeType      String
   size          Int
   sha256        String?
+  category      String?
   isImportant   Boolean              @default(false)
+  deletedAt     DateTime?
   supersedesId  String?              @unique
   supersedes    VehicleItemDocument? @relation("VehicleItemDocumentVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
   supersededBy  VehicleItemDocument? @relation("VehicleItemDocumentVersions")
@@ -929,23 +976,28 @@ model VehicleItemDocument {
   @@index([vehicleItemId])
   @@index([uploadedAt])
   @@index([sha256])
+  @@index([category])
+  @@index([deletedAt])
   @@map("vehicle_item_documents")
 }
 
 model InventoryItem {
-  id            String                @id @default(cuid())
-  label         String
-  category      InventoryItemCategory @default(OTHER)
-  brand         String?
-  model         String?
-  serialNumber  String?
-  purchaseDate  DateTime?
-  purchasePrice Float?
-  currency      String                @default("AUD")
-  location      String?
-  notes         String?
+  id                 String                @id @default(cuid())
+  label              String
+  category           InventoryItemCategory @default(OTHER)
+  brand              String?
+  model              String?
+  serialNumber       String?
+  purchaseDate       DateTime?
+  purchasePrice      Float?
+  currency           String                @default("AUD")
+  location           String?
+  warrantyRegistered Boolean               @default(false)
+  warrantyExtended   Boolean               @default(false)
+  notes              String?
 
-  documents InventoryItemDocument[]
+  documents         InventoryItemDocument[]
+  warrantyProductId String?
 
   createdById String
   createdBy   User      @relation(fields: [createdById], references: [id])
@@ -958,6 +1010,7 @@ model InventoryItem {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([warrantyProductId])
   @@map("inventory_items")
 }
 
@@ -973,7 +1026,9 @@ model InventoryItemDocument {
   mimeType        String
   size            Int
   sha256          String?
+  category        String?
   isImportant     Boolean                @default(false)
+  deletedAt       DateTime?
   supersedesId    String?                @unique
   supersedes      InventoryItemDocument? @relation("InventoryItemDocumentVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
   supersededBy    InventoryItemDocument? @relation("InventoryItemDocumentVersions")
@@ -982,6 +1037,8 @@ model InventoryItemDocument {
   @@index([inventoryItemId])
   @@index([uploadedAt])
   @@index([sha256])
+  @@index([category])
+  @@index([deletedAt])
   @@map("inventory_item_documents")
 }
 
@@ -1114,17 +1171,17 @@ model SyncOperationReceipt {
 }
 
 model BackgroundJob {
-  id          String   @id @default(cuid())
-  type        String
-  payload     String
-  status      String   @default("PENDING")
-  attempts    Int      @default(0)
-  availableAt DateTime @default(now())
-  leasedUntil DateTime?
-  startedAt   DateTime?
-  finishedAt  DateTime?
-  lastError   String?
-  createdAt   DateTime @default(now())
+  id              String    @id @default(cuid())
+  type            String
+  payload         String
+  status          String    @default("PENDING")
+  attempts        Int       @default(0)
+  availableAt     DateTime  @default(now())
+  leasedUntil     DateTime?
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  lastError       String?
+  createdAt       DateTime  @default(now())
   // #250 — set to `type` at creation for singleton job types (only one
   // PENDING/RUNNING instance makes sense at a time: REMINDER_CHECK,
   // BACKUP_RUN, EMAIL_INGEST, PRICE_REFRESH) and cleared back to null once
@@ -1135,7 +1192,7 @@ model BackgroundJob {
   // each NULL as distinct in a unique index, so OCR_DOCUMENT rows (which
   // legitimately run many at once, one per document, and never set this)
   // never collide with each other.
-  activeDedupeKey String? @unique
+  activeDedupeKey String?   @unique
 
   @@index([status, availableAt])
   @@map("background_jobs")

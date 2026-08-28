@@ -15,6 +15,7 @@ import { isModuleEnabled } from "@/lib/modules/enablement";
 import { clearNotificationLogs } from "@/lib/notifications/logs";
 import type { ActionState } from "@/lib/actions/auth";
 import { describeUploadRejection } from "@/lib/uploadValidation";
+import { parseDocumentCategory } from "@/lib/documents/categories";
 
 const VEHICLE_FORM_FIELDS = [
   "label",
@@ -53,7 +54,11 @@ async function requireUser() {
   return session.user;
 }
 
-async function attachVehicleItemDocument(vehicleItemId: string, file: File): Promise<ActionState | null> {
+async function attachVehicleItemDocument(
+  vehicleItemId: string,
+  file: File,
+  category: string | null = null,
+): Promise<ActionState | null> {
   const rejection = await describeUploadRejection(file);
   if (rejection) return { error: rejection };
 
@@ -66,6 +71,7 @@ async function attachVehicleItemDocument(vehicleItemId: string, file: File): Pro
       mimeType,
       size,
       sha256,
+      category,
     },
   });
   return null;
@@ -225,7 +231,7 @@ export async function addVehicleItem(
   });
 
   if (file instanceof File && file.size > 0) {
-    await attachVehicleItemDocument(item.id, file);
+    await attachVehicleItemDocument(item.id, file, parseDocumentCategory(formData.get("documentCategory")));
   }
 
   revalidatePath(`/vehicles/${vehicleId}`);
@@ -263,11 +269,36 @@ export async function deleteVehicleItem(vehicleId: string, itemId: string): Prom
   const existing = await prisma.vehicleItem.findUnique({ where: { id: itemId } });
   if (!existing || existing.vehicleId !== vehicleId) return { error: "Item not found." };
 
-  await prisma.vehicleItem.delete({ where: { id: itemId } });
-  await deleteVehicleItemDir(itemId);
+  await prisma.vehicleItem.update({ where: { id: itemId }, data: { deletedAt: new Date() } });
 
   revalidatePath(`/vehicles/${vehicleId}`);
-  return { success: "Item removed." };
+  revalidatePath("/settings/trash");
+  return { success: "Item moved to Trash." };
+}
+
+export async function restoreVehicleItem(itemId: string): Promise<ActionState> {
+  await requireUser();
+
+  const item = await prisma.vehicleItem.findUnique({ where: { id: itemId } });
+  if (!item) return { error: "Item not found." };
+
+  await prisma.vehicleItem.update({ where: { id: itemId }, data: { deletedAt: null } });
+  revalidatePath(`/vehicles/${item.vehicleId}`);
+  revalidatePath("/settings/trash");
+  return { success: "Restored." };
+}
+
+export async function permanentlyDeleteVehicleItem(itemId: string): Promise<ActionState> {
+  await requireUser();
+
+  const item = await prisma.vehicleItem.findUnique({ where: { id: itemId } });
+  if (!item) return { error: "Item not found." };
+
+  await deleteVehicleItemDir(itemId);
+  await prisma.vehicleItem.delete({ where: { id: itemId } });
+  revalidatePath(`/vehicles/${item.vehicleId}`);
+  revalidatePath("/settings/trash");
+  return { success: "Deleted permanently." };
 }
 
 export async function addVehicleItemDocument(
@@ -285,7 +316,7 @@ export async function addVehicleItemDocument(
   const item = await prisma.vehicleItem.findUnique({ where: { id: itemId } });
   if (!item) return { error: "Item not found." };
 
-  const error = await attachVehicleItemDocument(itemId, file);
+  const error = await attachVehicleItemDocument(itemId, file, parseDocumentCategory(formData.get("documentCategory")));
   if (error) return error;
 
   revalidatePath(`/vehicles/${item.vehicleId}`);
@@ -305,9 +336,38 @@ export async function deleteVehicleItemDocumentAction(
 
   const item = await prisma.vehicleItem.findUnique({ where: { id: itemId } });
 
-  await prisma.vehicleItemDocument.delete({ where: { id: documentId } });
-  await deleteVehicleItemDocumentFile(itemId, doc.storedName);
+  await prisma.vehicleItemDocument.update({ where: { id: documentId }, data: { deletedAt: new Date() } });
 
   if (item) revalidatePath(`/vehicles/${item.vehicleId}`);
-  return { success: "Document removed." };
+  revalidatePath("/settings/trash");
+  return { success: "Document moved to Trash." };
+}
+
+export async function restoreVehicleItemDocument(documentId: string): Promise<ActionState> {
+  await requireUser();
+
+  const doc = await prisma.vehicleItemDocument.findUnique({ where: { id: documentId } });
+  if (!doc) return { error: "Document not found." };
+  const item = await prisma.vehicleItem.findUnique({ where: { id: doc.vehicleItemId } });
+
+  await prisma.vehicleItemDocument.update({ where: { id: documentId }, data: { deletedAt: null } });
+  if (item) revalidatePath(`/vehicles/${item.vehicleId}`);
+  revalidatePath("/documents");
+  revalidatePath("/settings/trash");
+  return { success: "Restored." };
+}
+
+export async function permanentlyDeleteVehicleItemDocument(documentId: string): Promise<ActionState> {
+  await requireUser();
+
+  const doc = await prisma.vehicleItemDocument.findUnique({ where: { id: documentId } });
+  if (!doc) return { error: "Document not found." };
+  const item = await prisma.vehicleItem.findUnique({ where: { id: doc.vehicleItemId } });
+
+  await prisma.vehicleItemDocument.delete({ where: { id: documentId } });
+  await deleteVehicleItemDocumentFile(doc.vehicleItemId, doc.storedName);
+  if (item) revalidatePath(`/vehicles/${item.vehicleId}`);
+  revalidatePath("/documents");
+  revalidatePath("/settings/trash");
+  return { success: "Deleted permanently." };
 }

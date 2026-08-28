@@ -14,6 +14,7 @@ import { formDataToStringValues } from "@/lib/form-state";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import type { ActionState } from "@/lib/actions/auth";
 import { describeUploadRejection } from "@/lib/uploadValidation";
+import { parseDocumentCategory } from "@/lib/documents/categories";
 
 const INVENTORY_ITEM_FORM_FIELDS = [
   "label",
@@ -26,6 +27,9 @@ const INVENTORY_ITEM_FORM_FIELDS = [
   "currency",
   "location",
   "notes",
+  "warrantyRegistered",
+  "warrantyExtended",
+  "warrantyProductId",
 ];
 
 function firstIssueMessage(error: { issues: { message: string }[] }) {
@@ -52,10 +56,17 @@ function formToInventoryItemInput(formData: FormData) {
     currency: formData.get("currency") || "AUD",
     location: formData.get("location"),
     notes: formData.get("notes"),
+    warrantyRegistered: formData.get("warrantyRegistered") === "on",
+    warrantyExtended: formData.get("warrantyExtended") === "on",
+    warrantyProductId: formData.get("warrantyProductId"),
   };
 }
 
-async function attachDocument(inventoryItemId: string, file: File): Promise<ActionState | null> {
+async function attachDocument(
+  inventoryItemId: string,
+  file: File,
+  category: string | null = null,
+): Promise<ActionState | null> {
   const rejection = await describeUploadRejection(file);
   if (rejection) return { error: rejection };
 
@@ -68,6 +79,7 @@ async function attachDocument(inventoryItemId: string, file: File): Promise<Acti
       mimeType,
       size,
       sha256,
+      category,
     },
   });
   return null;
@@ -98,7 +110,7 @@ export async function createInventoryItem(
   });
 
   if (file instanceof File && file.size > 0) {
-    await attachDocument(item.id, file);
+    await attachDocument(item.id, file, parseDocumentCategory(formData.get("documentCategory")));
   }
 
   revalidatePath("/inventory");
@@ -185,7 +197,7 @@ export async function addInventoryItemDocument(
   const item = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
   if (!item) return { error: "Item not found." };
 
-  const error = await attachDocument(itemId, file);
+  const error = await attachDocument(itemId, file, parseDocumentCategory(formData.get("documentCategory")));
   if (error) return error;
 
   revalidatePath(`/inventory/${itemId}`);
@@ -204,9 +216,36 @@ export async function deleteInventoryItemDocumentAction(
   const item = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
   if (!item) return { error: "Item not found." };
 
-  await prisma.inventoryItemDocument.delete({ where: { id: documentId } });
-  await deleteInventoryItemDocumentFile(itemId, doc.storedName);
+  await prisma.inventoryItemDocument.update({ where: { id: documentId }, data: { deletedAt: new Date() } });
 
   revalidatePath(`/inventory/${itemId}`);
-  return { success: "Document removed." };
+  revalidatePath("/settings/trash");
+  return { success: "Document moved to Trash." };
+}
+
+export async function restoreInventoryItemDocument(documentId: string): Promise<ActionState> {
+  await requireUser();
+
+  const doc = await prisma.inventoryItemDocument.findUnique({ where: { id: documentId } });
+  if (!doc) return { error: "Document not found." };
+
+  await prisma.inventoryItemDocument.update({ where: { id: documentId }, data: { deletedAt: null } });
+  revalidatePath(`/inventory/${doc.inventoryItemId}`);
+  revalidatePath("/documents");
+  revalidatePath("/settings/trash");
+  return { success: "Restored." };
+}
+
+export async function permanentlyDeleteInventoryItemDocument(documentId: string): Promise<ActionState> {
+  await requireUser();
+
+  const doc = await prisma.inventoryItemDocument.findUnique({ where: { id: documentId } });
+  if (!doc) return { error: "Document not found." };
+
+  await prisma.inventoryItemDocument.delete({ where: { id: documentId } });
+  await deleteInventoryItemDocumentFile(doc.inventoryItemId, doc.storedName);
+  revalidatePath(`/inventory/${doc.inventoryItemId}`);
+  revalidatePath("/documents");
+  revalidatePath("/settings/trash");
+  return { success: "Deleted permanently." };
 }

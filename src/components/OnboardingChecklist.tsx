@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Check, Circle, Plus, Sparkles, X } from "lucide-react";
+import { Check, Circle, FileUp, Plus, Sparkles, X } from "lucide-react";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
 import { useDismissible } from "@/lib/useDismissible";
 import { linkButtonClass } from "@/lib/buttonStyles";
@@ -52,13 +52,13 @@ export function OnboardingChecklist({
         </p>
       </div>
       <div className="flex flex-wrap items-center justify-center gap-2">
-        <Link href="/contracts/new" className={linkButtonClass("primary")}>
-          <Plus size={16} />
-          Add a contract
+        <Link href="/import" className={linkButtonClass("primary")}>
+          <FileUp size={16} />
+          Upload a document
         </Link>
-        <Link href="/products/new" className={secondaryOnAccentClass}>
+        <Link href="/contracts/new" className={secondaryOnAccentClass}>
           <Plus size={16} />
-          Add a warranty
+          Add a record manually
         </Link>
         {enabledModules.map((key) => {
           const mod = MODULE_REGISTRY[key as keyof typeof MODULE_REGISTRY];

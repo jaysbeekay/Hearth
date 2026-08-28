@@ -7,6 +7,11 @@ import {
   deleteHomeItemDir,
   deleteTripSegmentDir,
   deleteInventoryItemDir,
+  deleteDocument,
+  deleteProductDocument,
+  deleteHomeItemDocument,
+  deleteVehicleItemDocument,
+  deleteInventoryItemDocument,
 } from "@/lib/storage";
 
 // #287 — how long a soft-deleted record sits in Trash before it's purged for
@@ -28,7 +33,21 @@ function expiryCutoff(): Date {
 export async function purgeExpiredTrash(): Promise<void> {
   const cutoff = expiryCutoff();
 
-  const [contracts, products, vehicles, properties, trips, inventoryItems] = await Promise.all([
+  const [
+    contracts,
+    products,
+    vehicles,
+    properties,
+    trips,
+    inventoryItems,
+    contractDocuments,
+    productDocuments,
+    homeItems,
+    homeItemDocuments,
+    vehicleItems,
+    vehicleItemDocuments,
+    inventoryItemDocuments,
+  ] = await Promise.all([
     prisma.contract.findMany({ where: { deletedAt: { lt: cutoff } }, select: { id: true } }),
     prisma.product.findMany({ where: { deletedAt: { lt: cutoff } }, select: { id: true } }),
     prisma.vehicle.findMany({
@@ -44,7 +63,43 @@ export async function purgeExpiredTrash(): Promise<void> {
       select: { id: true, segments: { select: { id: true } } },
     }),
     prisma.inventoryItem.findMany({ where: { deletedAt: { lt: cutoff } }, select: { id: true } }),
+    prisma.document.findMany({ where: { deletedAt: { lt: cutoff } }, select: { id: true, contractId: true, storedName: true } }),
+    prisma.productDocument.findMany({ where: { deletedAt: { lt: cutoff } }, select: { id: true, productId: true, storedName: true } }),
+    prisma.homeItem.findMany({ where: { deletedAt: { lt: cutoff } }, select: { id: true } }),
+    prisma.homeItemDocument.findMany({ where: { deletedAt: { lt: cutoff } }, select: { id: true, homeItemId: true, storedName: true } }),
+    prisma.vehicleItem.findMany({ where: { deletedAt: { lt: cutoff } }, select: { id: true } }),
+    prisma.vehicleItemDocument.findMany({ where: { deletedAt: { lt: cutoff } }, select: { id: true, vehicleItemId: true, storedName: true } }),
+    prisma.inventoryItemDocument.findMany({ where: { deletedAt: { lt: cutoff } }, select: { id: true, inventoryItemId: true, storedName: true } }),
   ]);
+
+  for (const d of contractDocuments) {
+    await prisma.document.delete({ where: { id: d.id } });
+    await deleteDocument(d.contractId, d.storedName);
+  }
+  for (const d of productDocuments) {
+    await prisma.productDocument.delete({ where: { id: d.id } });
+    await deleteProductDocument(d.productId, d.storedName);
+  }
+  for (const d of homeItemDocuments) {
+    await prisma.homeItemDocument.delete({ where: { id: d.id } });
+    await deleteHomeItemDocument(d.homeItemId, d.storedName);
+  }
+  for (const i of homeItems) {
+    await deleteHomeItemDir(i.id);
+    await prisma.homeItem.delete({ where: { id: i.id } });
+  }
+  for (const d of vehicleItemDocuments) {
+    await prisma.vehicleItemDocument.delete({ where: { id: d.id } });
+    await deleteVehicleItemDocument(d.vehicleItemId, d.storedName);
+  }
+  for (const i of vehicleItems) {
+    await deleteVehicleItemDir(i.id);
+    await prisma.vehicleItem.delete({ where: { id: i.id } });
+  }
+  for (const d of inventoryItemDocuments) {
+    await prisma.inventoryItemDocument.delete({ where: { id: d.id } });
+    await deleteInventoryItemDocument(d.inventoryItemId, d.storedName);
+  }
 
   for (const c of contracts) {
     await prisma.contract.delete({ where: { id: c.id } });
@@ -77,7 +132,20 @@ export async function purgeExpiredTrash(): Promise<void> {
 
 export interface TrashEntry {
   id: string;
-  domain: "contract" | "product" | "vehicle" | "property" | "trip" | "inventoryItem";
+  domain:
+    | "contract"
+    | "product"
+    | "vehicle"
+    | "property"
+    | "trip"
+    | "inventoryItem"
+    | "contractDocument"
+    | "productDocument"
+    | "homeItem"
+    | "homeItemDocument"
+    | "vehicleItem"
+    | "vehicleItemDocument"
+    | "inventoryItemDocument";
   label: string;
   subtitle: string | null;
   deletedAt: Date;
@@ -86,7 +154,21 @@ export interface TrashEntry {
 // Everything currently in Trash, for the Settings > Trash page — run after
 // purgeExpiredTrash() so nothing already past its window shows as "restorable".
 export async function getTrashEntries(): Promise<TrashEntry[]> {
-  const [contracts, products, vehicles, properties, trips, inventoryItems] = await Promise.all([
+  const [
+    contracts,
+    products,
+    vehicles,
+    properties,
+    trips,
+    inventoryItems,
+    contractDocuments,
+    productDocuments,
+    homeItems,
+    homeItemDocuments,
+    vehicleItems,
+    vehicleItemDocuments,
+    inventoryItemDocuments,
+  ] = await Promise.all([
     prisma.contract.findMany({
       where: { deletedAt: { not: null } },
       select: { id: true, title: true, provider: true, deletedAt: true },
@@ -110,6 +192,34 @@ export async function getTrashEntries(): Promise<TrashEntry[]> {
     prisma.inventoryItem.findMany({
       where: { deletedAt: { not: null } },
       select: { id: true, label: true, brand: true, deletedAt: true },
+    }),
+    prisma.document.findMany({
+      where: { deletedAt: { not: null } },
+      select: { id: true, filename: true, contract: { select: { title: true } }, deletedAt: true },
+    }),
+    prisma.productDocument.findMany({
+      where: { deletedAt: { not: null } },
+      select: { id: true, filename: true, product: { select: { description: true } }, deletedAt: true },
+    }),
+    prisma.homeItem.findMany({
+      where: { deletedAt: { not: null } },
+      select: { id: true, title: true, property: { select: { label: true } }, deletedAt: true },
+    }),
+    prisma.homeItemDocument.findMany({
+      where: { deletedAt: { not: null } },
+      select: { id: true, filename: true, homeItem: { select: { title: true } }, deletedAt: true },
+    }),
+    prisma.vehicleItem.findMany({
+      where: { deletedAt: { not: null } },
+      select: { id: true, title: true, vehicle: { select: { label: true } }, deletedAt: true },
+    }),
+    prisma.vehicleItemDocument.findMany({
+      where: { deletedAt: { not: null } },
+      select: { id: true, filename: true, vehicleItem: { select: { title: true } }, deletedAt: true },
+    }),
+    prisma.inventoryItemDocument.findMany({
+      where: { deletedAt: { not: null } },
+      select: { id: true, filename: true, inventoryItem: { select: { label: true } }, deletedAt: true },
     }),
   ]);
 
@@ -155,6 +265,55 @@ export async function getTrashEntries(): Promise<TrashEntry[]> {
       label: i.label,
       subtitle: i.brand,
       deletedAt: i.deletedAt!,
+    })),
+    ...contractDocuments.map((d) => ({
+      id: d.id,
+      domain: "contractDocument" as const,
+      label: d.filename,
+      subtitle: d.contract.title,
+      deletedAt: d.deletedAt!,
+    })),
+    ...productDocuments.map((d) => ({
+      id: d.id,
+      domain: "productDocument" as const,
+      label: d.filename,
+      subtitle: d.product.description,
+      deletedAt: d.deletedAt!,
+    })),
+    ...homeItems.map((i) => ({
+      id: i.id,
+      domain: "homeItem" as const,
+      label: i.title,
+      subtitle: i.property.label,
+      deletedAt: i.deletedAt!,
+    })),
+    ...homeItemDocuments.map((d) => ({
+      id: d.id,
+      domain: "homeItemDocument" as const,
+      label: d.filename,
+      subtitle: d.homeItem.title,
+      deletedAt: d.deletedAt!,
+    })),
+    ...vehicleItems.map((i) => ({
+      id: i.id,
+      domain: "vehicleItem" as const,
+      label: i.title,
+      subtitle: i.vehicle.label,
+      deletedAt: i.deletedAt!,
+    })),
+    ...vehicleItemDocuments.map((d) => ({
+      id: d.id,
+      domain: "vehicleItemDocument" as const,
+      label: d.filename,
+      subtitle: d.vehicleItem.title,
+      deletedAt: d.deletedAt!,
+    })),
+    ...inventoryItemDocuments.map((d) => ({
+      id: d.id,
+      domain: "inventoryItemDocument" as const,
+      label: d.filename,
+      subtitle: d.inventoryItem.label,
+      deletedAt: d.deletedAt!,
     })),
   ];
 

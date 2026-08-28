@@ -58,6 +58,7 @@ interface Row {
   error?: string;
   href?: string;
   scanMessage?: string;
+  source: ExtractionSource;
   // Set once at scan time (matches ContractForm/ProductForm's own
   // extractionUsed flag) so the created record is held for review until the
   // user confirms it on its detail page — see extractionFieldsFromForm.
@@ -95,6 +96,25 @@ function fieldClass(autoFilled?: boolean) {
   }`;
 }
 
+function appendReviewFields(
+  formData: FormData,
+  fields: ContractFields | ProductFields | InventoryFields,
+  autoFilled: Partial<Record<string, boolean>>,
+  source: ExtractionSource,
+) {
+  const reviewFields = Object.entries(autoFilled)
+    .filter(([, used]) => used)
+    .map(([fieldName]) => ({
+      fieldName,
+      value: fields[fieldName as keyof typeof fields] ?? "",
+      source,
+      confidence: source === "none" ? 0 : source === "heuristic" ? 0.7 : 0.85,
+    }));
+  if (reviewFields.length > 0) {
+    formData.append("extractionReviewFields", JSON.stringify(reviewFields));
+  }
+}
+
 export function ImportClient({ enabledModules = [] }: { enabledModules?: string[] }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [dragOver, setDragOver] = useState(false);
@@ -120,6 +140,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
       updateRow(id, {
         status: "ready",
         scanMessage,
+        source,
         extractionUsed,
         contract: {
           title: fields.title ?? file.name.replace(/\.[^.]+$/, ""),
@@ -141,6 +162,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
       updateRow(id, {
         status: "ready",
         scanMessage,
+        source,
         extractionUsed,
         product: {
           description: fields.description ?? file.name.replace(/\.[^.]+$/, ""),
@@ -160,6 +182,8 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
       updateRow(id, {
         status: "ready",
         scanMessage,
+        source,
+        extractionUsed,
         inventory: {
           label: fields.label ?? file.name.replace(/\.[^.]+$/, ""),
           category: fields.category ?? "OTHER",
@@ -184,6 +208,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
         file,
         type: "CONTRACT",
         status: "scanning",
+        source: "none",
         extractionUsed: false,
         contract: { title: "", provider: "", category: "OTHER", cost: "", startDate: "", endDate: "" },
         product: { description: "", manufacturer: "", price: "", purchaseDate: "", warrantyEndDate: "" },
@@ -216,6 +241,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
       formData.append("endDate", row.contract.endDate);
       formData.append("extractionUsed", row.extractionUsed ? "1" : "0");
       formData.append("confirmExtraction", "0");
+      appendReviewFields(formData, row.contract, row.contractAutoFilled, row.source);
       result = await importContract(formData);
     } else if (row.type === "PRODUCT") {
       formData.append("description", row.product.description);
@@ -225,6 +251,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
       formData.append("warrantyEndDate", row.product.warrantyEndDate);
       formData.append("extractionUsed", row.extractionUsed ? "1" : "0");
       formData.append("confirmExtraction", "0");
+      appendReviewFields(formData, row.product, row.productAutoFilled, row.source);
       result = await importProduct(formData);
     } else if (row.type === "INVENTORY") {
       formData.append("label", row.inventory.label);
@@ -327,6 +354,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                     ) : (
                       <>
                         <select
+                          aria-label={`File ${row.file.name} as`}
                           value={row.type}
                           disabled={row.status === "scanning" || row.status === "saving"}
                           onChange={(e) => {

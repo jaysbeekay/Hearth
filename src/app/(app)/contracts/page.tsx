@@ -48,7 +48,7 @@ export default async function ContractsPage({
   const [contracts, { dateFormat, region }, session] = await Promise.all([
     prisma.contract.findMany({
       where,
-      include: { _count: { select: { documents: true } } },
+      include: { _count: { select: { documents: { where: { deletedAt: null } } } } },
       orderBy: [{ status: "asc" }, { endDate: "asc" }],
     }),
     getUserPreferences(),

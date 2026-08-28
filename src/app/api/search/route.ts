@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
   // document infrastructure these filters key off; other domains stay
   // text-search-only rather than growing bespoke "expiring"/"needsReview"
   // semantics for shapes that don't naturally have them.
-  const FILTER_VALUES = ["expiring", "needsReview", "noDocument", "important"] as const;
+  const FILTER_VALUES = ["expiring", "needsReview", "noDocument", "important", "missingDate", "missingReminder", "missingRelationship", "missingIdentifier"] as const;
   type SearchFilter = (typeof FILTER_VALUES)[number];
   const filterParam = request.nextUrl.searchParams.get("filter");
   const filter: SearchFilter | undefined = (FILTER_VALUES as readonly string[]).includes(
@@ -89,6 +89,10 @@ export async function GET(request: NextRequest) {
             ...(filter === "needsReview" ? [{ extractionPending: true }] : []),
             ...(filter === "noDocument" ? [{ documents: { none: {} } }] : []),
             ...(filter === "important" ? [{ documents: { some: { isImportant: true } } }] : []),
+            ...(filter === "missingDate" ? [{ endDate: null }] : []),
+            ...(filter === "missingReminder" ? [{ reminderDaysBefore: null }] : []),
+            ...(filter === "missingRelationship" ? [{ propertyId: null, vehicleId: null }] : []),
+            ...(filter === "missingIdentifier" ? [{ contractNumber: null }] : []),
           ],
         },
         select: { id: true, title: true, provider: true, contractNumber: true },
@@ -134,6 +138,10 @@ export async function GET(request: NextRequest) {
             ...(filter === "needsReview" ? [{ extractionPending: true }] : []),
             ...(filter === "noDocument" ? [{ documents: { none: {} } }] : []),
             ...(filter === "important" ? [{ documents: { some: { isImportant: true } } }] : []),
+            ...(filter === "missingDate" ? [{ warrantyEndDate: null }] : []),
+            ...(filter === "missingReminder" ? [{ reminderDaysBefore: null }] : []),
+            ...(filter === "missingRelationship" ? [{ propertyId: null }] : []),
+            ...(filter === "missingIdentifier" ? [{ OR: [{ serialNumber: null }, { barcode: null }] }] : []),
           ],
         },
         select: {

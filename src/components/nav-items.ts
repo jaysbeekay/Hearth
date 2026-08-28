@@ -26,7 +26,7 @@ const BASE_NAV_ITEMS: NavItem[] = [
 
 export function getNavItems(enabledModules: Set<ModuleKey>, chatConfigured: boolean): NavItem[] {
   const moduleItems = Object.values(MODULE_REGISTRY)
-    .filter((module) => enabledModules.has(module.key))
+    .filter((module) => module.key !== "INVENTORY" && enabledModules.has(module.key))
     .map(({ href, label, icon }): NavItem => ({ href, label, icon, group: "modules" }));
 
   return [...BASE_NAV_ITEMS, ...moduleItems].filter(

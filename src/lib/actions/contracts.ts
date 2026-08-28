@@ -14,7 +14,11 @@ import { formToContractInput } from "@/lib/formMappers";
 import { queueDocumentExtraction } from "@/lib/documents/queueExtraction";
 import { describeUploadRejection } from "@/lib/uploadValidation";
 import { extractionFieldsFromForm } from "@/lib/documents/extractionConfirmation";
+import {
+  saveExtractionReviewFieldsFromForm,
+} from "@/lib/documents/extractionReview";
 import { saveFileToInboxFallback } from "@/lib/documents/inboxFallback";
+import { parseDocumentCategory } from "@/lib/documents/categories";
 import {
   createContractCommand,
   updateContractCommand,
@@ -63,7 +67,11 @@ async function requireUser() {
   return session.user;
 }
 
-async function attachDocument(contractId: string, file: File): Promise<ActionState | null> {
+async function attachDocument(
+  contractId: string,
+  file: File,
+  category: string | null = null,
+): Promise<ActionState | null> {
   const rejection = await describeUploadRejection(file);
   if (rejection) return { error: rejection };
 
@@ -77,6 +85,7 @@ async function attachDocument(contractId: string, file: File): Promise<ActionSta
       size,
       extractionStatus: "PENDING",
       sha256,
+      category,
     },
   });
   await queueDocumentExtraction({ kind: "contract", id: document.id, ownerId: contractId, storedName, mimeType });
@@ -104,10 +113,11 @@ export async function createContract(
   }
 
   const contract = await createContractCommand({ ...parsed.data, ...extractionFieldsFromForm(formData) }, user.id);
+  await saveExtractionReviewFieldsFromForm("CONTRACT", contract.id, formData);
 
   let docFallback: "inbox" | "failed" | null = null;
   if (file instanceof File && file.size > 0) {
-    const attachResult = await attachDocument(contract.id, file);
+    const attachResult = await attachDocument(contract.id, file, parseDocumentCategory(formData.get("documentCategory")));
     if (attachResult?.error) {
       const fallback = await saveFileToInboxFallback(file, user.id);
       docFallback = fallback ? "inbox" : "failed";
@@ -138,6 +148,7 @@ export async function updateContract(
       { ...parsed.data, ...extractionFieldsFromForm(formData) },
       user.id,
     );
+    await saveExtractionReviewFieldsFromForm("CONTRACT", contractId, formData);
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Contract not found." };
   }
@@ -150,15 +161,22 @@ export async function updateContract(
  * where a user reviews the already-saved values in place (#200).
  */
 export async function confirmContractExtraction(contractId: string): Promise<ActionState> {
-  await requireUser();
+  const user = await requireUser();
 
   const existing = await prisma.contract.findUnique({ where: { id: contractId } });
   if (!existing) return { error: "Contract not found." };
 
-  await prisma.contract.update({
-    where: { id: contractId },
-    data: { extractionPending: false, extractionConfirmedAt: new Date() },
-  });
+  const reviewedAt = new Date();
+  await prisma.$transaction([
+    prisma.contract.update({
+      where: { id: contractId },
+      data: { extractionPending: false, extractionConfirmedAt: reviewedAt, updatedById: user.id },
+    }),
+    prisma.extractionReviewField.updateMany({
+      where: { ownerType: "CONTRACT", ownerId: contractId, reviewedAt: null },
+      data: { reviewedAt, reviewedById: user.id },
+    }),
+  ]);
 
   revalidatePath(`/contracts/${contractId}`);
   revalidatePath("/dashboard");
@@ -255,7 +273,7 @@ export async function addDocument(
   const contract = await prisma.contract.findUnique({ where: { id: contractId } });
   if (!contract) return { error: "Contract not found." };
 
-  const error = await attachDocument(contractId, file);
+  const error = await attachDocument(contractId, file, parseDocumentCategory(formData.get("documentCategory")));
   if (error) return error;
 
   revalidatePath(`/contracts/${contractId}`);
@@ -273,11 +291,38 @@ export async function deleteDocumentAction(
     return { error: "Document not found." };
   }
 
-  await prisma.document.delete({ where: { id: documentId } });
-  await deleteDocumentFile(contractId, doc.storedName);
+  await prisma.document.update({ where: { id: documentId }, data: { deletedAt: new Date() } });
 
   revalidatePath(`/contracts/${contractId}`);
-  return { success: "Document removed." };
+  revalidatePath("/settings/trash");
+  return { success: "Document moved to Trash." };
+}
+
+export async function restoreDocument(documentId: string): Promise<ActionState> {
+  await requireUser();
+
+  const doc = await prisma.document.findUnique({ where: { id: documentId } });
+  if (!doc) return { error: "Document not found." };
+
+  await prisma.document.update({ where: { id: documentId }, data: { deletedAt: null } });
+  revalidatePath(`/contracts/${doc.contractId}`);
+  revalidatePath("/documents");
+  revalidatePath("/settings/trash");
+  return { success: "Restored." };
+}
+
+export async function permanentlyDeleteDocument(documentId: string): Promise<ActionState> {
+  await requireUser();
+
+  const doc = await prisma.document.findUnique({ where: { id: documentId } });
+  if (!doc) return { error: "Document not found." };
+
+  await prisma.document.delete({ where: { id: documentId } });
+  await deleteDocumentFile(doc.contractId, doc.storedName);
+  revalidatePath(`/contracts/${doc.contractId}`);
+  revalidatePath("/documents");
+  revalidatePath("/settings/trash");
+  return { success: "Deleted permanently." };
 }
 
 export async function setDocumentImportant(

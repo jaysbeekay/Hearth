@@ -41,7 +41,10 @@ export default async function VehicleDetailPage({
       include: {
         createdBy: true,
         updatedBy: true,
-        items: { include: { documents: { orderBy: { uploadedAt: "desc" } } } },
+        items: {
+          where: { deletedAt: null },
+          include: { documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" } } },
+        },
       },
     }),
     getUserPreferences(),
