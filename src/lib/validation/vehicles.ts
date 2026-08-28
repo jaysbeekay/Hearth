@@ -22,6 +22,7 @@ export const vehicleSchema = z.object({
   vin: z.preprocess(emptyToUndefined, z.string().trim().max(50).optional()),
   regoExpiry: z.preprocess(emptyToUndefined, z.coerce.date().optional()),
   insuranceExpiry: z.preprocess(emptyToUndefined, z.coerce.date().optional()),
+  nextServiceDue: z.preprocess(emptyToUndefined, z.coerce.date().optional()),
   reminderDaysBefore: z.preprocess(emptyToUndefined, z.string().trim().max(100).optional()),
   notes: z.preprocess(emptyToUndefined, z.string().trim().max(5000).optional()),
 });

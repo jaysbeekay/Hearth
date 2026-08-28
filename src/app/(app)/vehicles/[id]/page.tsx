@@ -50,7 +50,7 @@ export default async function VehicleDetailPage({
   ]);
   if (!vehicle || vehicle.deletedAt) notFound();
 
-  const [regoHealth, insuranceHealth] = await Promise.all([
+  const [regoHealth, insuranceHealth, serviceHealth] = await Promise.all([
     vehicle.regoExpiry
       ? getReminderHealth({
           ownerType: "VEHICLE",
@@ -66,6 +66,15 @@ export default async function VehicleDetailPage({
           ownerId: vehicle.id,
           field: "insuranceExpiry",
           targetDate: vehicle.insuranceExpiry,
+          reminderDaysBefore: vehicle.reminderDaysBefore,
+        })
+      : null,
+    vehicle.nextServiceDue
+      ? getReminderHealth({
+          ownerType: "VEHICLE",
+          ownerId: vehicle.id,
+          field: "nextServiceDue",
+          targetDate: vehicle.nextServiceDue,
           reminderDaysBefore: vehicle.reminderDaysBefore,
         })
       : null,
@@ -130,6 +139,9 @@ export default async function VehicleDetailPage({
               value={formatDate(vehicle.insuranceExpiry, dateFormat)}
             />
           )}
+          {vehicle.nextServiceDue && (
+            <Detail label="Next service due" value={formatDate(vehicle.nextServiceDue, dateFormat)} />
+          )}
           {vehicle.vin && <Detail label="VIN" value={vehicle.vin} copyable />}
           {vehicle.colour && <Detail label="Colour" value={vehicle.colour} />}
         </dl>
@@ -143,6 +155,9 @@ export default async function VehicleDetailPage({
       )}
       {insuranceHealth && (
         <ReminderHealthCard title="Insurance reminder" health={insuranceHealth} dateFormat={dateFormat} />
+      )}
+      {serviceHealth && (
+        <ReminderHealthCard title="Service reminder" health={serviceHealth} dateFormat={dateFormat} />
       )}
 
       <div className="space-y-3">

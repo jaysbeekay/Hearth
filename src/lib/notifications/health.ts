@@ -143,13 +143,18 @@ export async function getHouseholdReminderHealth(): Promise<HouseholdReminderHea
       prisma.vehicle.findMany({
         where: {
           deletedAt: null,
-          OR: [{ regoExpiry: { gte: now, lte: horizon } }, { insuranceExpiry: { gte: now, lte: horizon } }],
+          OR: [
+            { regoExpiry: { gte: now, lte: horizon } },
+            { insuranceExpiry: { gte: now, lte: horizon } },
+            { nextServiceDue: { gte: now, lte: horizon } },
+          ],
         },
         select: {
           id: true,
           label: true,
           regoExpiry: true,
           insuranceExpiry: true,
+          nextServiceDue: true,
           reminderDaysBefore: true,
         },
       }),
@@ -227,6 +232,17 @@ export async function getHouseholdReminderHealth(): Promise<HouseholdReminderHea
           targetDate: v.insuranceExpiry,
           reminderDaysBefore: v.reminderDaysBefore,
           title: `${v.label} — Insurance`,
+          href: `/vehicles/${v.id}`,
+        });
+      }
+      if (v.nextServiceDue && v.nextServiceDue >= now && v.nextServiceDue <= horizon) {
+        await checkOne({
+          ownerType: "VEHICLE",
+          ownerId: v.id,
+          field: "nextServiceDue",
+          targetDate: v.nextServiceDue,
+          reminderDaysBefore: v.reminderDaysBefore,
+          title: `${v.label} — Service`,
           href: `/vehicles/${v.id}`,
         });
       }

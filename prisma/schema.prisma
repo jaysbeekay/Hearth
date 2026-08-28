@@ -841,6 +841,9 @@ model Vehicle {
   vin                String?
   regoExpiry         DateTime?
   insuranceExpiry    DateTime?
+  // #240 — reuses the same reminderDaysBefore threshold config as
+  // regoExpiry/insuranceExpiry rather than a separate setting.
+  nextServiceDue     DateTime?
   reminderDaysBefore String?   @default("30,14,7,1")
   notes              String?
 

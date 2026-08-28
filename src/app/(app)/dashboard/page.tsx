@@ -121,7 +121,12 @@ export default async function DashboardPage() {
   const vehiclesNeedingAttention = vehicles.filter((v) => {
     const rego = daysUntil(v.regoExpiry);
     const insurance = daysUntil(v.insuranceExpiry);
-    return (rego != null && rego <= 30) || (insurance != null && insurance <= 30);
+    const service = daysUntil(v.nextServiceDue);
+    return (
+      (rego != null && rego <= 30) ||
+      (insurance != null && insurance <= 30) ||
+      (service != null && service <= 30)
+    );
   });
 
   // Every overdue-or-soon-to-expire record in one urgency-sorted list, each

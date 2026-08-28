@@ -88,6 +88,7 @@ export async function queryVehicles(attentionOnly?: boolean) {
       licensePlate: true,
       regoExpiry: true,
       insuranceExpiry: true,
+      nextServiceDue: true,
       notes: true,
     },
   });
@@ -95,8 +96,10 @@ export async function queryVehicles(attentionOnly?: boolean) {
     ...v,
     regoExpiry: iso(v.regoExpiry),
     insuranceExpiry: iso(v.insuranceExpiry),
+    nextServiceDue: iso(v.nextServiceDue),
     daysUntilRegoExpiry: daysUntil(v.regoExpiry),
     daysUntilInsuranceExpiry: daysUntil(v.insuranceExpiry),
+    daysUntilNextServiceDue: daysUntil(v.nextServiceDue),
   }));
   if (!attentionOnly) return withDays;
   const needsAttention = (days: number | null) => days != null && days <= 30;
