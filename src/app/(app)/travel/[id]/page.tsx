@@ -63,13 +63,19 @@ export default async function TripDetailPage({
   // #13 — unlike flight status, distance never goes stale once computed, so
   // this isn't gated by shouldAutoRefresh's near-departure window: any
   // flight segment with both airports known but no cached distance yet
-  // (including past trips) gets one lookup attempt per page view.
+  // (including past trips) gets one lookup attempt. #326 review: NOT
+  // awaited — each AviationStack call carries a 10s timeout, and gating
+  // first paint on N of them (one per uncomputed segment) is a real latency
+  // risk this page shouldn't take on for a nice-to-have enrichment. The
+  // computed distance shows up on the next view instead of this one; the
+  // negative-cache TTL in flightDistance.ts keeps a background retry storm
+  // from ever building up behind it.
   const needsDistance = (s: (typeof segments)[number]) =>
     s.type === "FLIGHT" && s.distanceKm == null && Boolean(s.departureIata) && Boolean(s.arrivalIata);
-  await Promise.all(segments.filter(needsDistance).map((s) => computeSegmentDistance(s.id)));
+  void Promise.all(segments.filter(needsDistance).map((s) => computeSegmentDistance(s.id))).catch(() => {});
 
   // Re-fetch segments if any were refreshed so we display current data
-  const refreshedAny = segments.some((s) => shouldAutoRefresh(s)) || segments.some(needsDistance);
+  const refreshedAny = segments.some((s) => shouldAutoRefresh(s));
   const displaySegments = refreshedAny
     ? await prisma.tripSegment
         .findMany({

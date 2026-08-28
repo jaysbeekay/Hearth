@@ -31,6 +31,31 @@ interface AviationStackAirportsResponse {
 // coordinates don't change); a failed one is retried at most once per TTL.
 const NEGATIVE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
+type CachedAirport = { lat: number | null; lng: number | null; createdAt: Date } | null;
+type CacheDecision =
+  | { action: "use"; coord: { lat: number; lng: number } }
+  | { action: "skip" } // negative cache still within TTL — don't hit the network
+  | { action: "fetch" }; // no cache row, or a negative one past its TTL
+
+/**
+ * Pure decision logic for getAirportCoordinate's cache check — pulled out
+ * so the caching behavior (the part #326's review flagged as the actual
+ * risk) is directly unit-testable without mocking Prisma or fetch.
+ */
+export function airportCacheDecision(cached: CachedAirport, now: number = Date.now()): CacheDecision {
+  if (!cached) return { action: "fetch" };
+  if (cached.lat != null && cached.lng != null) return { action: "use", coord: { lat: cached.lat, lng: cached.lng } };
+  if (now - cached.createdAt.getTime() < NEGATIVE_CACHE_TTL_MS) return { action: "skip" };
+  return { action: "fetch" };
+}
+
+// #326 review: Number.isFinite(200) is true — an out-of-range coordinate
+// from a malformed API response would otherwise pass validation and get
+// permanently cached, silently corrupting every distance computed from it.
+export function isValidCoordinate(lat: number, lng: number): boolean {
+  return Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+}
+
 /**
  * Airport coordinates never change, so a successful lookup is a permanent
  * cache — each IATA code is looked up via AviationStack at most once, ever,
@@ -39,10 +64,9 @@ const NEGATIVE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
  */
 async function getAirportCoordinate(iata: string, apiKey: string): Promise<{ lat: number; lng: number } | null> {
   const cached = await prisma.airportCoordinate.findUnique({ where: { iata } });
-  if (cached) {
-    if (cached.lat != null && cached.lng != null) return { lat: cached.lat, lng: cached.lng };
-    if (Date.now() - cached.createdAt.getTime() < NEGATIVE_CACHE_TTL_MS) return null;
-  }
+  const decision = airportCacheDecision(cached);
+  if (decision.action === "use") return decision.coord;
+  if (decision.action === "skip") return null;
 
   let lat: number | null = null;
   let lng: number | null = null;
@@ -57,7 +81,7 @@ async function getAirportCoordinate(iata: string, apiKey: string): Promise<{ lat
       const airport = body.data?.[0];
       const rawLat = Number(airport?.latitude);
       const rawLng = Number(airport?.longitude);
-      if (airport && Number.isFinite(rawLat) && Number.isFinite(rawLng)) {
+      if (airport && isValidCoordinate(rawLat, rawLng)) {
         lat = rawLat;
         lng = rawLng;
       }
