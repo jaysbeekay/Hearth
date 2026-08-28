@@ -150,8 +150,18 @@ export default function HelpPage() {
       <div>
         <h1 className="text-2xl font-semibold">Help &amp; FAQ</h1>
         <p className="mt-1 text-sm text-muted">
-          Answers to common questions about using Hearth. Can&apos;t find what
-          you need? Send us feedback below.
+          Answers to common questions about using Hearth. For the full user
+          manual — setup, self-hosting, and every feature in more depth —
+          see the{" "}
+          <a
+            href="https://github.com/jaysbeekay/Hearth#readme"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-accent hover:underline"
+          >
+            README on GitHub
+          </a>
+          . Can&apos;t find what you need? Send us feedback below.
         </p>
       </div>
 
