@@ -24,6 +24,8 @@ import { getDocumentVersionChain } from "@/lib/documents/documentQueries";
 import { createContractCommand } from "@/lib/commands/contracts";
 import { createProductCommand } from "@/lib/commands/products";
 import { extractionFieldsFromForm } from "@/lib/documents/extractionConfirmation";
+import { saveExtractionReviewFieldsFromForm } from "@/lib/documents/extractionReview";
+import { parseDocumentCategory } from "@/lib/documents/categories";
 
 function formToInventoryItemInput(formData: FormData) {
   return {
@@ -69,6 +71,7 @@ export async function importContract(formData: FormData): Promise<ImportResult> 
   }
 
   const contract = await createContractCommand(parsed.data, user.id, extractionFieldsFromForm(formData));
+  await saveExtractionReviewFieldsFromForm("CONTRACT", contract.id, formData);
 
   if (file instanceof File && file.size > 0) {
     const { storedName, size, sha256, mimeType } = await saveDocument(contract.id, file);
@@ -80,6 +83,7 @@ export async function importContract(formData: FormData): Promise<ImportResult> 
         mimeType,
         size,
         sha256,
+        category: parseDocumentCategory(formData.get("documentCategory")) ?? "POLICY",
       },
     });
   }
@@ -100,6 +104,7 @@ export async function importProduct(formData: FormData): Promise<ImportResult> {
   }
 
   const product = await createProductCommand(parsed.data, user.id, extractionFieldsFromForm(formData));
+  await saveExtractionReviewFieldsFromForm("PRODUCT", product.id, formData);
 
   if (file instanceof File && file.size > 0) {
     const { storedName, size, sha256, mimeType } = await saveProductDocument(product.id, file);
@@ -112,6 +117,7 @@ export async function importProduct(formData: FormData): Promise<ImportResult> {
         size,
         kind: ProductDocumentKind.INVOICE,
         sha256,
+        category: parseDocumentCategory(formData.get("documentCategory")) ?? "INVOICE",
       },
     });
   }
@@ -146,6 +152,7 @@ export async function importInventoryItem(formData: FormData): Promise<ImportRes
         mimeType,
         size,
         sha256,
+        category: parseDocumentCategory(formData.get("documentCategory")) ?? "RECEIPT",
       },
     });
   }

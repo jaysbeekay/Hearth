@@ -42,7 +42,7 @@ export default async function InventoryItemPage({
       include: {
         createdBy: true,
         updatedBy: true,
-        documents: { orderBy: { uploadedAt: "desc" } },
+        documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" } },
       },
     }),
     getUserPreferences(),
@@ -113,6 +113,16 @@ export default async function InventoryItemPage({
             <div className="min-w-0">
               <dt className="text-xs text-muted">Purchase price</dt>
               <dd className="font-medium break-words">{formatCurrency(item.purchasePrice, item.currency, undefined, region)}</dd>
+            </div>
+          )}
+          {(item.warrantyRegistered || item.warrantyExtended || item.warrantyProductId) && (
+            <div className="min-w-0">
+              <dt className="text-xs text-muted">Warranty status</dt>
+              <dd className="font-medium break-words">
+                {[item.warrantyRegistered && "Registered", item.warrantyExtended && "Extended"]
+                  .filter(Boolean)
+                  .join(" · ") || "Linked warranty"}
+              </dd>
             </div>
           )}
         </dl>

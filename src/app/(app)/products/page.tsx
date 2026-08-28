@@ -4,8 +4,9 @@ import { auth } from "@/lib/auth";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { ProductListClient } from "@/components/ProductListClient";
 import type { Prisma } from "@/generated/prisma/client";
+import { isModuleEnabled } from "@/lib/modules/enablement";
 
-export const metadata: Metadata = { title: "Warranties" };
+export const metadata: Metadata = { title: "Products & purchases" };
 
 export default async function ProductsPage({
   searchParams,
@@ -45,19 +46,28 @@ export default async function ProductsPage({
   if (needsReview === "true") where.extractionPending = true;
   if (missingDocument === "true") where.documents = { none: {} };
 
-  const [products, { dateFormat, region }, session] = await Promise.all([
+  const [products, inventoryEnabled, { dateFormat, region }, session] = await Promise.all([
     prisma.product.findMany({
       where,
       include: { _count: { select: { documents: true } } },
       orderBy: [{ warrantyEndDate: "asc" }],
     }),
+    isModuleEnabled("INVENTORY"),
     getUserPreferences(),
     auth(),
   ]);
+  const inventoryItems = inventoryEnabled
+    ? await prisma.inventoryItem.findMany({
+        where: { deletedAt: null },
+        include: { _count: { select: { documents: true } } },
+        orderBy: { updatedAt: "desc" },
+      })
+    : [];
 
   return (
     <ProductListClient
       products={products}
+      inventoryItems={inventoryItems}
       q={q}
       expiring={expiring}
       expired={expired}

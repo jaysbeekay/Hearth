@@ -15,7 +15,9 @@ import { formToProductInput } from "@/lib/formMappers";
 import { queueDocumentExtraction } from "@/lib/documents/queueExtraction";
 import { describeUploadRejection } from "@/lib/uploadValidation";
 import { extractionFieldsFromForm } from "@/lib/documents/extractionConfirmation";
+import { saveExtractionReviewFieldsFromForm } from "@/lib/documents/extractionReview";
 import { saveFileToInboxFallback } from "@/lib/documents/inboxFallback";
+import { parseDocumentCategory } from "@/lib/documents/categories";
 import {
   createProductCommand,
   updateProductCommand,
@@ -68,6 +70,7 @@ async function attachProductDocument(
   productId: string,
   file: File,
   kind: ProductDocumentKind,
+  category: string | null = null,
 ): Promise<ActionState | null> {
   const rejection = await describeUploadRejection(file);
   if (rejection) return { error: rejection };
@@ -84,6 +87,7 @@ async function attachProductDocument(
       kind,
       extractionStatus: kind === ProductDocumentKind.INVOICE ? "PENDING" : "COMPLETED",
       sha256,
+      category,
     },
   });
   if (kind === ProductDocumentKind.INVOICE) await queueDocumentExtraction({ kind: "product", id: document.id, ownerId: productId, storedName, mimeType });
@@ -114,17 +118,23 @@ export async function createProduct(
   }
 
   const product = await createProductCommand({ ...parsed.data, ...extractionFieldsFromForm(formData) }, user.id);
+  await saveExtractionReviewFieldsFromForm("PRODUCT", product.id, formData);
 
   let docFallback: "inbox" | "failed" | null = null;
   if (invoiceFile instanceof File && invoiceFile.size > 0) {
-    const result = await attachProductDocument(product.id, invoiceFile, ProductDocumentKind.INVOICE);
+    const result = await attachProductDocument(
+      product.id,
+      invoiceFile,
+      ProductDocumentKind.INVOICE,
+      parseDocumentCategory(formData.get("documentCategory")) ?? "INVOICE",
+    );
     if (result?.error) {
       const fallback = await saveFileToInboxFallback(invoiceFile, user.id);
       docFallback = fallback ? "inbox" : "failed";
     }
   }
   if (photoFile instanceof File && photoFile.size > 0) {
-    const result = await attachProductDocument(product.id, photoFile, ProductDocumentKind.PHOTO);
+    const result = await attachProductDocument(product.id, photoFile, ProductDocumentKind.PHOTO, "PHOTO");
     if (result?.error) {
       const fallback = await saveFileToInboxFallback(photoFile, user.id);
       docFallback = fallback ? "inbox" : (docFallback ?? "failed");
@@ -155,6 +165,7 @@ export async function updateProduct(
       { ...parsed.data, ...extractionFieldsFromForm(formData) },
       user.id,
     );
+    await saveExtractionReviewFieldsFromForm("PRODUCT", productId, formData);
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Product not found." };
   }
@@ -166,15 +177,22 @@ export async function updateProduct(
  * the equivalent confirmContractExtraction in contracts.ts (#200).
  */
 export async function confirmProductExtraction(productId: string): Promise<ActionState> {
-  await requireUser();
+  const user = await requireUser();
 
   const existing = await prisma.product.findUnique({ where: { id: productId } });
   if (!existing) return { error: "Product not found." };
 
-  await prisma.product.update({
-    where: { id: productId },
-    data: { extractionPending: false, extractionConfirmedAt: new Date() },
-  });
+  const reviewedAt = new Date();
+  await prisma.$transaction([
+    prisma.product.update({
+      where: { id: productId },
+      data: { extractionPending: false, extractionConfirmedAt: reviewedAt, updatedById: user.id },
+    }),
+    prisma.extractionReviewField.updateMany({
+      where: { ownerType: "PRODUCT", ownerId: productId, reviewedAt: null },
+      data: { reviewedAt, reviewedById: user.id },
+    }),
+  ]);
 
   revalidatePath(`/products/${productId}`);
   revalidatePath("/dashboard");
@@ -269,7 +287,12 @@ export async function addProductDocument(
   const product = await prisma.product.findUnique({ where: { id: productId } });
   if (!product) return { error: "Product not found." };
 
-  const error = await attachProductDocument(productId, file, kind);
+  const error = await attachProductDocument(
+    productId,
+    file,
+    kind,
+    parseDocumentCategory(formData.get("documentCategory")),
+  );
   if (error) return error;
 
   revalidatePath(`/products/${productId}`);
@@ -287,11 +310,38 @@ export async function deleteProductDocumentAction(
     return { error: "Document not found." };
   }
 
-  await prisma.productDocument.delete({ where: { id: documentId } });
-  await deleteProductDocumentFile(productId, doc.storedName);
+  await prisma.productDocument.update({ where: { id: documentId }, data: { deletedAt: new Date() } });
 
   revalidatePath(`/products/${productId}`);
-  return { success: "Document removed." };
+  revalidatePath("/settings/trash");
+  return { success: "Document moved to Trash." };
+}
+
+export async function restoreProductDocument(documentId: string): Promise<ActionState> {
+  await requireUser();
+
+  const doc = await prisma.productDocument.findUnique({ where: { id: documentId } });
+  if (!doc) return { error: "Document not found." };
+
+  await prisma.productDocument.update({ where: { id: documentId }, data: { deletedAt: null } });
+  revalidatePath(`/products/${doc.productId}`);
+  revalidatePath("/documents");
+  revalidatePath("/settings/trash");
+  return { success: "Restored." };
+}
+
+export async function permanentlyDeleteProductDocument(documentId: string): Promise<ActionState> {
+  await requireUser();
+
+  const doc = await prisma.productDocument.findUnique({ where: { id: documentId } });
+  if (!doc) return { error: "Document not found." };
+
+  await prisma.productDocument.delete({ where: { id: documentId } });
+  await deleteProductDocumentFile(doc.productId, doc.storedName);
+  revalidatePath(`/products/${doc.productId}`);
+  revalidatePath("/documents");
+  revalidatePath("/settings/trash");
+  return { success: "Deleted permanently." };
 }
 
 export async function setProductDocumentImportant(

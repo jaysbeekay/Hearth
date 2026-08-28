@@ -80,11 +80,15 @@ interface ContractFields {
   provider: string;
   category: string;
   cost: string;
+  startDate: string;
+  endDate: string;
 }
 interface ProductFields {
   description: string;
   manufacturer: string;
   price: string;
+  purchaseDate: string;
+  warrantyEndDate: string;
 }
 interface InventoryFields {
   label: string;
@@ -111,8 +115,8 @@ function emptyRowState(initialType: EntityType = "CONTRACT"): RowState {
   return {
     status: "scanning",
     type: initialType,
-    contract: { title: "", provider: "", category: "OTHER", cost: "" },
-    product: { description: "", manufacturer: "", price: "" },
+    contract: { title: "", provider: "", category: "OTHER", cost: "", startDate: "", endDate: "" },
+    product: { description: "", manufacturer: "", price: "", purchaseDate: "", warrantyEndDate: "" },
     inventory: { label: "", category: "OTHER", brand: "", purchasePrice: "" },
     contractAutoFilled: {},
     productAutoFilled: {},
@@ -129,6 +133,26 @@ function fieldClass(autoFilled?: boolean, isAi?: boolean) {
   return `rounded-md border px-2 py-1.5 text-sm outline-none focus:border-accent ${
     isAi ? "border-info/40 bg-info/5 ring-1 ring-info/40" : "border-accent/40 bg-accent/5 ring-1 ring-accent/40"
   }`;
+}
+
+function appendReviewFields(
+  formData: FormData,
+  fields: ContractFields | ProductFields | InventoryFields,
+  autoFilled: Partial<Record<string, boolean>>,
+  source: ExtractionSource | undefined,
+) {
+  const effectiveSource = source ?? "none";
+  const reviewFields = Object.entries(autoFilled)
+    .filter(([, used]) => used)
+    .map(([fieldName]) => ({
+      fieldName,
+      value: fields[fieldName as keyof typeof fields] ?? "",
+      source: effectiveSource,
+      confidence: effectiveSource === "none" ? 0 : effectiveSource === "heuristic" ? 0.7 : 0.85,
+    }));
+  if (reviewFields.length > 0) {
+    formData.append("extractionReviewFields", JSON.stringify(reviewFields));
+  }
 }
 
 // #199 — lets a household with many pending documents jump straight to e.g.
@@ -263,11 +287,15 @@ export function InboxReviewClient({
           provider: fields.provider ?? "",
           category: "OTHER",
           cost: fields.cost ?? "",
+          startDate: fields.startDate ?? "",
+          endDate: fields.endDate ?? "",
         },
         contractAutoFilled: {
           title: Boolean(fields.title),
           provider: Boolean(fields.provider),
           cost: Boolean(fields.cost),
+          startDate: Boolean(fields.startDate),
+          endDate: Boolean(fields.endDate),
         },
       });
     } else if (type === "PRODUCT") {
@@ -279,11 +307,15 @@ export function InboxReviewClient({
           description: fields.description ?? filename.replace(/\.[^.]+$/, ""),
           manufacturer: fields.manufacturer ?? "",
           price: fields.price ?? "",
+          purchaseDate: fields.purchaseDate ?? "",
+          warrantyEndDate: fields.warrantyEndDate ?? "",
         },
         productAutoFilled: {
           description: Boolean(fields.description),
           manufacturer: Boolean(fields.manufacturer),
           price: Boolean(fields.price),
+          purchaseDate: Boolean(fields.purchaseDate),
+          warrantyEndDate: Boolean(fields.warrantyEndDate),
         },
       });
     } else {
@@ -317,10 +349,20 @@ export function InboxReviewClient({
       fields.append("category", row.contract.category);
       fields.append("renewalType", "MANUAL_RENEWAL");
       fields.append("cost", row.contract.cost);
+      fields.append("startDate", row.contract.startDate);
+      fields.append("endDate", row.contract.endDate);
+      fields.append("extractionUsed", Object.values(row.contractAutoFilled).some(Boolean) ? "1" : "0");
+      fields.append("confirmExtraction", "0");
+      appendReviewFields(fields, row.contract, row.contractAutoFilled, row.source);
     } else if (row.type === "PRODUCT") {
       fields.append("description", row.product.description);
       fields.append("manufacturer", row.product.manufacturer);
       fields.append("price", row.product.price);
+      fields.append("purchaseDate", row.product.purchaseDate);
+      fields.append("warrantyEndDate", row.product.warrantyEndDate);
+      fields.append("extractionUsed", Object.values(row.productAutoFilled).some(Boolean) ? "1" : "0");
+      fields.append("confirmExtraction", "0");
+      appendReviewFields(fields, row.product, row.productAutoFilled, row.source);
     } else {
       fields.append("label", row.inventory.label);
       fields.append("category", row.inventory.category);
@@ -447,6 +489,7 @@ export function InboxReviewClient({
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <select
+                  aria-label={`File ${doc.filename} as`}
                   value={row.type}
                   disabled={row.status === "scanning" || row.status === "saving"}
                   onChange={(e) => {
@@ -598,6 +641,36 @@ export function InboxReviewClient({
                       className={fieldClass(row.contractAutoFilled.cost, rowIsAi)}
                     />
                   </RowField>
+                  <RowField label="Start date" htmlFor={`${doc.id}-startDate`} autoFilled={row.contractAutoFilled.startDate} isAi={rowIsAi}>
+                    <input
+                      id={`${doc.id}-startDate`}
+                      type="date"
+                      value={row.contract.startDate}
+                      disabled={row.status === "saving"}
+                      onChange={(e) =>
+                        updateRow(doc.id, {
+                          contract: { ...row.contract, startDate: e.target.value },
+                          contractAutoFilled: { ...row.contractAutoFilled, startDate: false },
+                        })
+                      }
+                      className={fieldClass(row.contractAutoFilled.startDate, rowIsAi)}
+                    />
+                  </RowField>
+                  <RowField label="End date" htmlFor={`${doc.id}-endDate`} autoFilled={row.contractAutoFilled.endDate} isAi={rowIsAi}>
+                    <input
+                      id={`${doc.id}-endDate`}
+                      type="date"
+                      value={row.contract.endDate}
+                      disabled={row.status === "saving"}
+                      onChange={(e) =>
+                        updateRow(doc.id, {
+                          contract: { ...row.contract, endDate: e.target.value },
+                          contractAutoFilled: { ...row.contractAutoFilled, endDate: false },
+                        })
+                      }
+                      className={fieldClass(row.contractAutoFilled.endDate, rowIsAi)}
+                    />
+                  </RowField>
                 </div>
               )}
 
@@ -646,6 +719,36 @@ export function InboxReviewClient({
                       }
                       inputMode="decimal"
                       className={fieldClass(row.productAutoFilled.price, rowIsAi)}
+                    />
+                  </RowField>
+                  <RowField label="Purchase date" htmlFor={`${doc.id}-purchaseDate`} autoFilled={row.productAutoFilled.purchaseDate} isAi={rowIsAi}>
+                    <input
+                      id={`${doc.id}-purchaseDate`}
+                      type="date"
+                      value={row.product.purchaseDate}
+                      disabled={row.status === "saving"}
+                      onChange={(e) =>
+                        updateRow(doc.id, {
+                          product: { ...row.product, purchaseDate: e.target.value },
+                          productAutoFilled: { ...row.productAutoFilled, purchaseDate: false },
+                        })
+                      }
+                      className={fieldClass(row.productAutoFilled.purchaseDate, rowIsAi)}
+                    />
+                  </RowField>
+                  <RowField label="Warranty end date" htmlFor={`${doc.id}-warrantyEndDate`} autoFilled={row.productAutoFilled.warrantyEndDate} isAi={rowIsAi}>
+                    <input
+                      id={`${doc.id}-warrantyEndDate`}
+                      type="date"
+                      value={row.product.warrantyEndDate}
+                      disabled={row.status === "saving"}
+                      onChange={(e) =>
+                        updateRow(doc.id, {
+                          product: { ...row.product, warrantyEndDate: e.target.value },
+                          productAutoFilled: { ...row.productAutoFilled, warrantyEndDate: false },
+                        })
+                      }
+                      className={fieldClass(row.productAutoFilled.warrantyEndDate, rowIsAi)}
                     />
                   </RowField>
                 </div>

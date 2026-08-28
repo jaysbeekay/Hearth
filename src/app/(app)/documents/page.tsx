@@ -41,12 +41,13 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
   const sources: TypeSource[] = [
     {
       type: "Contracts",
-      count: () => prisma.document.count(),
+      count: () => prisma.document.count({ where: { deletedAt: null } }),
       fetchPage: (skip, take) =>
         prisma.document
           .findMany({
             skip,
             take,
+            where: { deletedAt: null },
             orderBy: { uploadedAt: "desc" },
             select: {
               id: true,
@@ -54,6 +55,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               size: true,
               uploadedAt: true,
               mimeType: true,
+              category: true,
               contract: { select: { id: true, title: true } },
             },
           })
@@ -64,6 +66,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               size: r.size,
               uploadedAt: r.uploadedAt,
               mimeType: r.mimeType,
+              category: r.category,
               type: "Contracts",
               parentTitle: r.contract.title,
               parentHref: `/contracts/${r.contract.id}`,
@@ -73,12 +76,13 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
     },
     {
       type: "Warranties",
-      count: () => prisma.productDocument.count(),
+      count: () => prisma.productDocument.count({ where: { deletedAt: null } }),
       fetchPage: (skip, take) =>
         prisma.productDocument
           .findMany({
             skip,
             take,
+            where: { deletedAt: null },
             orderBy: { uploadedAt: "desc" },
             select: {
               id: true,
@@ -86,6 +90,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               size: true,
               uploadedAt: true,
               mimeType: true,
+              category: true,
               product: { select: { id: true, description: true } },
             },
           })
@@ -96,6 +101,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               size: r.size,
               uploadedAt: r.uploadedAt,
               mimeType: r.mimeType,
+              category: r.category,
               type: "Warranties",
               parentTitle: r.product.description,
               parentHref: `/products/${r.product.id}`,
@@ -108,12 +114,13 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
   if (enabledModules.has("VEHICLES")) {
     sources.push({
       type: "Vehicles",
-      count: () => prisma.vehicleItemDocument.count(),
+      count: () => prisma.vehicleItemDocument.count({ where: { deletedAt: null } }),
       fetchPage: (skip, take) =>
         prisma.vehicleItemDocument
           .findMany({
             skip,
             take,
+            where: { deletedAt: null },
             orderBy: { uploadedAt: "desc" },
             select: {
               id: true,
@@ -121,6 +128,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               size: true,
               uploadedAt: true,
               mimeType: true,
+              category: true,
               vehicleItem: { select: { vehicleId: true, vehicle: { select: { label: true } } } },
             },
           })
@@ -131,6 +139,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               size: r.size,
               uploadedAt: r.uploadedAt,
               mimeType: r.mimeType,
+              category: r.category,
               type: "Vehicles",
               parentTitle: r.vehicleItem.vehicle.label,
               parentHref: `/vehicles/${r.vehicleItem.vehicleId}`,
@@ -179,7 +188,10 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
     sources.push({
       type: "Property",
       count: () =>
-        Promise.all([prisma.homeItemDocument.count(), prisma.rentalStatementDocument.count()]).then(
+        Promise.all([
+          prisma.homeItemDocument.count({ where: { deletedAt: null } }),
+          prisma.rentalStatementDocument.count(),
+        ]).then(
           ([a, b]) => a + b,
         ),
       fetchPage: (skip, take) =>
@@ -187,6 +199,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
           prisma.homeItemDocument.findMany({
             skip,
             take,
+            where: { deletedAt: null },
             orderBy: { uploadedAt: "desc" },
             select: {
               id: true,
@@ -194,6 +207,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               size: true,
               uploadedAt: true,
               mimeType: true,
+              category: true,
               homeItem: { select: { id: true, title: true, propertyId: true } },
             },
           }),
@@ -217,6 +231,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
             size: r.size,
             uploadedAt: r.uploadedAt,
             mimeType: r.mimeType,
+            category: r.category,
             type: "Property",
             parentTitle: r.homeItem.title,
             parentHref: `/home/${r.homeItem.propertyId}/items/${r.homeItem.id}`,
@@ -243,12 +258,13 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
   if (enabledModules.has("INVENTORY")) {
     sources.push({
       type: "Inventory",
-      count: () => prisma.inventoryItemDocument.count(),
+      count: () => prisma.inventoryItemDocument.count({ where: { deletedAt: null } }),
       fetchPage: (skip, take) =>
         prisma.inventoryItemDocument
           .findMany({
             skip,
             take,
+            where: { deletedAt: null },
             orderBy: { uploadedAt: "desc" },
             select: {
               id: true,
@@ -256,6 +272,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               size: true,
               uploadedAt: true,
               mimeType: true,
+              category: true,
               inventoryItem: { select: { id: true, label: true } },
             },
           })
@@ -265,7 +282,8 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               filename: r.filename,
               size: r.size,
               uploadedAt: r.uploadedAt,
-              mimeType: r.mimeType,
+            mimeType: r.mimeType,
+            category: r.category,
               type: "Inventory",
               parentTitle: r.inventoryItem.label,
               parentHref: `/inventory/${r.inventoryItem.id}`,

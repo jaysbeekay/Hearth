@@ -7,6 +7,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { SelectWrapper } from "@/components/SelectWrapper";
 import { FileDropZone } from "@/components/FileDropZone";
+import { DOCUMENT_CATEGORIES, DOCUMENT_CATEGORY_LABELS } from "@/lib/documents/categories";
 
 export function ProductDocumentUploadForm({
   action,
@@ -30,6 +31,20 @@ export function ProductDocumentUploadForm({
           <option value="PHOTO">Photo</option>
           <option value="MANUAL">Manual</option>
           <option value="OTHER">Other</option>
+        </select>
+      </SelectWrapper>
+      <SelectWrapper>
+        <select
+          name="documentCategory"
+          defaultValue="OTHER"
+          aria-label="Document type"
+          className="h-9 rounded-lg border border-border bg-background px-3 pr-8 text-sm outline-none appearance-none focus:border-accent"
+        >
+          {DOCUMENT_CATEGORIES.map((category) => (
+            <option key={category} value={category}>
+              {DOCUMENT_CATEGORY_LABELS[category]}
+            </option>
+          ))}
         </select>
       </SelectWrapper>
       <FileDropZone name="file" required />

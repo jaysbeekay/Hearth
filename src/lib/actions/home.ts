@@ -17,6 +17,7 @@ import { formDataToStringValues } from "@/lib/form-state";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import type { ActionState } from "@/lib/actions/auth";
 import { describeUploadRejection } from "@/lib/uploadValidation";
+import { parseDocumentCategory } from "@/lib/documents/categories";
 
 const PROPERTY_FORM_FIELDS = [
   "label",
@@ -77,7 +78,11 @@ async function requireUser() {
   return session.user;
 }
 
-async function attachItemDocument(homeItemId: string, file: File): Promise<ActionState | null> {
+async function attachItemDocument(
+  homeItemId: string,
+  file: File,
+  category: string | null = null,
+): Promise<ActionState | null> {
   const rejection = await describeUploadRejection(file);
   if (rejection) return { error: rejection };
 
@@ -90,6 +95,7 @@ async function attachItemDocument(homeItemId: string, file: File): Promise<Actio
       mimeType,
       size,
       sha256,
+      category,
     },
   });
   return null;
@@ -246,7 +252,7 @@ export async function addHomeItem(
   });
 
   if (file instanceof File && file.size > 0) {
-    await attachItemDocument(item.id, file);
+    await attachItemDocument(item.id, file, parseDocumentCategory(formData.get("documentCategory")));
   }
 
   revalidatePath(`/home/${propertyId}`);
@@ -284,11 +290,36 @@ export async function deleteHomeItem(propertyId: string, itemId: string): Promis
   const existing = await prisma.homeItem.findUnique({ where: { id: itemId } });
   if (!existing || existing.propertyId !== propertyId) return { error: "Item not found." };
 
-  await prisma.homeItem.delete({ where: { id: itemId } });
-  await deleteHomeItemDir(itemId);
+  await prisma.homeItem.update({ where: { id: itemId }, data: { deletedAt: new Date() } });
 
   revalidatePath(`/home/${propertyId}`);
-  return { success: "Item removed." };
+  revalidatePath("/settings/trash");
+  return { success: "Item moved to Trash." };
+}
+
+export async function restoreHomeItem(itemId: string): Promise<ActionState> {
+  await requireUser();
+
+  const item = await prisma.homeItem.findUnique({ where: { id: itemId } });
+  if (!item) return { error: "Item not found." };
+
+  await prisma.homeItem.update({ where: { id: itemId }, data: { deletedAt: null } });
+  revalidatePath(`/home/${item.propertyId}`);
+  revalidatePath("/settings/trash");
+  return { success: "Restored." };
+}
+
+export async function permanentlyDeleteHomeItem(itemId: string): Promise<ActionState> {
+  await requireUser();
+
+  const item = await prisma.homeItem.findUnique({ where: { id: itemId } });
+  if (!item) return { error: "Item not found." };
+
+  await deleteHomeItemDir(itemId);
+  await prisma.homeItem.delete({ where: { id: itemId } });
+  revalidatePath(`/home/${item.propertyId}`);
+  revalidatePath("/settings/trash");
+  return { success: "Deleted permanently." };
 }
 
 export async function addItemDocument(
@@ -306,7 +337,7 @@ export async function addItemDocument(
   const item = await prisma.homeItem.findUnique({ where: { id: itemId } });
   if (!item) return { error: "Item not found." };
 
-  const error = await attachItemDocument(itemId, file);
+  const error = await attachItemDocument(itemId, file, parseDocumentCategory(formData.get("documentCategory")));
   if (error) return error;
 
   revalidatePath(`/home/${item.propertyId}`);
@@ -326,11 +357,40 @@ export async function deleteItemDocumentAction(
 
   const item = await prisma.homeItem.findUnique({ where: { id: itemId } });
 
-  await prisma.homeItemDocument.delete({ where: { id: documentId } });
-  await deleteHomeItemDocumentFile(itemId, doc.storedName);
+  await prisma.homeItemDocument.update({ where: { id: documentId }, data: { deletedAt: new Date() } });
 
   if (item) revalidatePath(`/home/${item.propertyId}`);
-  return { success: "Document removed." };
+  revalidatePath("/settings/trash");
+  return { success: "Document moved to Trash." };
+}
+
+export async function restoreHomeItemDocument(documentId: string): Promise<ActionState> {
+  await requireUser();
+
+  const doc = await prisma.homeItemDocument.findUnique({ where: { id: documentId } });
+  if (!doc) return { error: "Document not found." };
+  const item = await prisma.homeItem.findUnique({ where: { id: doc.homeItemId } });
+
+  await prisma.homeItemDocument.update({ where: { id: documentId }, data: { deletedAt: null } });
+  if (item) revalidatePath(`/home/${item.propertyId}`);
+  revalidatePath("/documents");
+  revalidatePath("/settings/trash");
+  return { success: "Restored." };
+}
+
+export async function permanentlyDeleteHomeItemDocument(documentId: string): Promise<ActionState> {
+  await requireUser();
+
+  const doc = await prisma.homeItemDocument.findUnique({ where: { id: documentId } });
+  if (!doc) return { error: "Document not found." };
+  const item = await prisma.homeItem.findUnique({ where: { id: doc.homeItemId } });
+
+  await prisma.homeItemDocument.delete({ where: { id: documentId } });
+  await deleteHomeItemDocumentFile(doc.homeItemId, doc.storedName);
+  if (item) revalidatePath(`/home/${item.propertyId}`);
+  revalidatePath("/documents");
+  revalidatePath("/settings/trash");
+  return { success: "Deleted permanently." };
 }
 
 // ─── Rental agreement ────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Pencil, Trash2, Ban, RotateCcw, Home, ArrowLeft } from "lucide-react";
+import { Pencil, Trash2, Ban, RotateCcw, Home, ArrowLeft, Car } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
   addDocument,
@@ -43,9 +43,11 @@ export default async function ContractDetailPage({
     prisma.contract.findUnique({
       where: { id },
       include: {
-        documents: { orderBy: { uploadedAt: "desc" } },
+        documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" } },
         createdBy: true,
         updatedBy: true,
+        property: true,
+        vehicle: true,
         rentalAgreement: { include: { property: true } },
       },
     }),
@@ -190,6 +192,38 @@ export default async function ContractDetailPage({
         <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-2 font-medium">Notes</h2>
           <p className="whitespace-pre-wrap text-sm text-foreground/80">{contract.notes}</p>
+        </div>
+      )}
+
+      {(contract.property || contract.vehicle) && (
+        <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+          <h2 className="mb-3 font-medium">Linked to</h2>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {contract.property && (
+              <Link
+                href={`/home/${contract.property.id}`}
+                className="flex items-center gap-3 rounded-lg border border-border p-3 hover:bg-black/5 dark:hover:bg-white/5"
+              >
+                <Home size={18} className="text-muted" />
+                <span>
+                  <span className="block text-sm font-medium">{contract.property.label}</span>
+                  <span className="block text-xs text-muted">Home or property</span>
+                </span>
+              </Link>
+            )}
+            {contract.vehicle && (
+              <Link
+                href={`/vehicles/${contract.vehicle.id}`}
+                className="flex items-center gap-3 rounded-lg border border-border p-3 hover:bg-black/5 dark:hover:bg-white/5"
+              >
+                <Car size={18} className="text-muted" />
+                <span>
+                  <span className="block text-sm font-medium">{contract.vehicle.label}</span>
+                  <span className="block text-xs text-muted">Vehicle</span>
+                </span>
+              </Link>
+            )}
+          </div>
         </div>
       )}
 

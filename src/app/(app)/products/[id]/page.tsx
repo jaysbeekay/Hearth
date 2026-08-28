@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, Home } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import {
   addProductDocument,
@@ -34,7 +34,12 @@ export default async function ProductDetailPage({
   const [product, { dateFormat, region }, memberCount] = await Promise.all([
     prisma.product.findUnique({
       where: { id },
-      include: { documents: { orderBy: { uploadedAt: "desc" } }, createdBy: true, updatedBy: true },
+      include: {
+        documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" } },
+        createdBy: true,
+        updatedBy: true,
+        property: true,
+      },
     }),
     getUserPreferences(),
     getHouseholdMemberCount(),
@@ -135,6 +140,22 @@ export default async function ProductDetailPage({
 
       {product.warrantyEndDate && (
         <ReminderHealthCard health={reminderHealth} dateFormat={dateFormat} />
+      )}
+
+      {product.property && (
+        <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+          <h2 className="mb-3 font-medium">Linked to</h2>
+          <Link
+            href={`/home/${product.property.id}`}
+            className="flex items-center gap-3 rounded-lg border border-border p-3 hover:bg-black/5 dark:hover:bg-white/5"
+          >
+            <Home size={18} className="text-muted" />
+            <span>
+              <span className="block text-sm font-medium">{product.property.label}</span>
+              <span className="block text-xs text-muted">Home or property</span>
+            </span>
+          </Link>
+        </div>
       )}
 
       {product.notes && (

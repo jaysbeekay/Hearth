@@ -43,6 +43,8 @@ export function ConfirmForm({
     triggerRef.current?.focus();
   }
 
+  const destructive = /\b(delete|remove|trash|discard|permanently)\b/i.test(actionLabel);
+
   return (
     <>
       <button
@@ -64,6 +66,11 @@ export function ConfirmForm({
         <p id="confirm-dialog-text" className="text-sm text-foreground">
           {confirmText}
         </p>
+        {destructive && !/household/i.test(confirmText) && (
+          <p className="mt-2 text-xs text-muted">
+            This affects shared household data for everyone with access.
+          </p>
+        )}
         <div className="mt-4 flex justify-end gap-2">
           <button
             type="button"

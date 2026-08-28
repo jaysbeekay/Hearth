@@ -14,7 +14,7 @@ export async function GET(
 
   const { id } = await params;
   const doc = await prisma.inventoryItemDocument.findUnique({ where: { id } });
-  if (!doc) {
+  if (!doc || doc.deletedAt) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

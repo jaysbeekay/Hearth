@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { FileText, Package, Car, Home, Plane, Box, RotateCcw, Trash2 } from "lucide-react";
+import { FileText, Package, Car, Home, Plane, Box, RotateCcw, Trash2, Wrench } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { getTrashEntries, purgeExpiredTrash, TRASH_RETENTION_DAYS, type TrashEntry } from "@/lib/trash";
@@ -10,18 +10,30 @@ import { ConfirmForm } from "@/components/ConfirmForm";
 import {
   restoreContract,
   permanentlyDeleteContract,
+  restoreDocument,
+  permanentlyDeleteDocument,
 } from "@/lib/actions/contracts";
 import {
   restoreProduct,
   permanentlyDeleteProduct,
+  restoreProductDocument,
+  permanentlyDeleteProductDocument,
 } from "@/lib/actions/products";
 import {
   restoreVehicle,
   permanentlyDeleteVehicle,
+  restoreVehicleItem,
+  permanentlyDeleteVehicleItem,
+  restoreVehicleItemDocument,
+  permanentlyDeleteVehicleItemDocument,
 } from "@/lib/actions/vehicles";
 import {
   restoreProperty,
   permanentlyDeleteProperty,
+  restoreHomeItem,
+  permanentlyDeleteHomeItem,
+  restoreHomeItemDocument,
+  permanentlyDeleteHomeItemDocument,
 } from "@/lib/actions/home";
 import {
   restoreTrip,
@@ -30,6 +42,8 @@ import {
 import {
   restoreInventoryItem,
   permanentlyDeleteInventoryItem,
+  restoreInventoryItemDocument,
+  permanentlyDeleteInventoryItemDocument,
 } from "@/lib/actions/inventory";
 
 export const metadata: Metadata = { title: "Trash" };
@@ -44,6 +58,13 @@ const DOMAIN_META: Record<
   property: { label: "Property", icon: Home, restore: restoreProperty, permanentlyDelete: permanentlyDeleteProperty },
   trip: { label: "Trip", icon: Plane, restore: restoreTrip, permanentlyDelete: permanentlyDeleteTrip },
   inventoryItem: { label: "Inventory item", icon: Box, restore: restoreInventoryItem, permanentlyDelete: permanentlyDeleteInventoryItem },
+  contractDocument: { label: "Policy document", icon: FileText, restore: restoreDocument, permanentlyDelete: permanentlyDeleteDocument },
+  productDocument: { label: "Warranty document", icon: FileText, restore: restoreProductDocument, permanentlyDelete: permanentlyDeleteProductDocument },
+  homeItem: { label: "Property item", icon: Wrench, restore: restoreHomeItem, permanentlyDelete: permanentlyDeleteHomeItem },
+  homeItemDocument: { label: "Property item document", icon: FileText, restore: restoreHomeItemDocument, permanentlyDelete: permanentlyDeleteHomeItemDocument },
+  vehicleItem: { label: "Vehicle item", icon: Wrench, restore: restoreVehicleItem, permanentlyDelete: permanentlyDeleteVehicleItem },
+  vehicleItemDocument: { label: "Vehicle item document", icon: FileText, restore: restoreVehicleItemDocument, permanentlyDelete: permanentlyDeleteVehicleItemDocument },
+  inventoryItemDocument: { label: "Inventory document", icon: FileText, restore: restoreInventoryItemDocument, permanentlyDelete: permanentlyDeleteInventoryItemDocument },
 };
 
 // A plain <form action> requires a void-returning action; the domain
