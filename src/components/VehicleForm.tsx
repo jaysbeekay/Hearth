@@ -171,6 +171,17 @@ export function VehicleForm({
           />
         </Field>
 
+        <Field label="Next service due" htmlFor="nextServiceDue">
+          <DateInput
+            id="nextServiceDue"
+            name="nextServiceDue"
+            defaultValue={
+              effectiveValues?.nextServiceDue ?? toDateInputValue(vehicle?.nextServiceDue)
+            }
+            className={inputClass}
+          />
+        </Field>
+
         <Field label="Reminder days before" htmlFor="reminderDaysBefore">
           <input
             id="reminderDaysBefore"

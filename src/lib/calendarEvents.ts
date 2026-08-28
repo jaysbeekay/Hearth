@@ -102,6 +102,18 @@ export async function getCalendarEvents(
           daysUntilDate: days,
         });
       }
+      if (v.nextServiceDue) {
+        const days = daysUntil(v.nextServiceDue);
+        events.push({
+          id: `service-${v.id}`,
+          date: v.nextServiceDue,
+          title: `${v.label} — Service due`,
+          href: `/vehicles/${v.id}`,
+          kind: "vehicleExpiry",
+          urgency: urgencyFor(days),
+          daysUntilDate: days,
+        });
+      }
       for (const item of v.items) {
         if (!item.date) continue;
         const days = daysUntil(item.date);

@@ -44,6 +44,7 @@ export function VehicleCard({
         <div className="flex flex-wrap gap-2">
           <ExpiryWarning label="Rego" date={vehicle.regoExpiry} />
           <ExpiryWarning label="Insurance" date={vehicle.insuranceExpiry} />
+          <ExpiryWarning label="Service" date={vehicle.nextServiceDue} />
         </div>
 
         {vehicle._count != null && (
@@ -55,7 +56,7 @@ export function VehicleCard({
         )}
       </div>
 
-      {(vehicle.regoExpiry || vehicle.insuranceExpiry) && (
+      {(vehicle.regoExpiry || vehicle.insuranceExpiry || vehicle.nextServiceDue) && (
         <div className="mt-2 flex flex-wrap gap-4">
           {vehicle.regoExpiry && (
             <p className="text-xs text-muted">Rego: {formatDate(vehicle.regoExpiry, dateFormat)}</p>
@@ -63,6 +64,11 @@ export function VehicleCard({
           {vehicle.insuranceExpiry && (
             <p className="text-xs text-muted">
               Insurance: {formatDate(vehicle.insuranceExpiry, dateFormat)}
+            </p>
+          )}
+          {vehicle.nextServiceDue && (
+            <p className="text-xs text-muted">
+              Service: {formatDate(vehicle.nextServiceDue, dateFormat)}
             </p>
           )}
         </div>

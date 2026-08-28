@@ -64,11 +64,11 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  // Vehicles (rego + insurance)
+  // Vehicles (rego + insurance + next service)
   if (enabledModules.has("VEHICLES")) {
     const vehicles = await prisma.vehicle.findMany({
       where: { deletedAt: null },
-      select: { id: true, label: true, regoExpiry: true, insuranceExpiry: true },
+      select: { id: true, label: true, regoExpiry: true, insuranceExpiry: true, nextServiceDue: true },
     });
     for (const v of vehicles) {
       if (v.regoExpiry) {
@@ -88,6 +88,16 @@ export async function GET(request: NextRequest) {
           end: new Date(v.insuranceExpiry.getTime() + 86_400_000),
           allDay: true,
           summary: `${v.label} insurance expires`,
+          url: `${appUrl}/vehicles/${v.id}`,
+        });
+      }
+      if (v.nextServiceDue) {
+        calendar.createEvent({
+          id: `vehicle-service-${v.id}`,
+          start: v.nextServiceDue,
+          end: new Date(v.nextServiceDue.getTime() + 86_400_000),
+          allDay: true,
+          summary: `${v.label} service due`,
           url: `${appUrl}/vehicles/${v.id}`,
         });
       }

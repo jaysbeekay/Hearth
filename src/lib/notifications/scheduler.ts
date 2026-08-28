@@ -241,7 +241,10 @@ export async function runExpirationCheck(now: Date = new Date()) {
   }
 
   const vehicles = await prisma.vehicle.findMany({
-    where: { OR: [{ regoExpiry: { not: null } }, { insuranceExpiry: { not: null } }], deletedAt: null },
+    where: {
+      OR: [{ regoExpiry: { not: null } }, { insuranceExpiry: { not: null } }, { nextServiceDue: { not: null } }],
+      deletedAt: null,
+    },
   });
   const vehicleLogs = await getNotificationLogsByOwner(
     "VEHICLE",
@@ -252,6 +255,7 @@ export async function runExpirationCheck(now: Date = new Date()) {
     const expiries: { field: string; date: Date | null; detail: string }[] = [
       { field: "regoExpiry", date: vehicle.regoExpiry, detail: "Registration expires in" },
       { field: "insuranceExpiry", date: vehicle.insuranceExpiry, detail: "Insurance expires in" },
+      { field: "nextServiceDue", date: vehicle.nextServiceDue, detail: "Next service due in" },
     ];
 
     for (const { field, date, detail } of expiries) {

@@ -131,6 +131,27 @@ test.describe.serial("Vehicles module", () => {
     await expect(page.locator("body")).not.toContainText("Test Purchase Record");
   });
 
+  // #240 — reuses the same reminderDaysBefore/threshold/channel pipeline as
+  // regoExpiry/insuranceExpiry, so this checks the surfacing (detail page,
+  // reminder health card, list-page badge), not the delivery pipeline
+  // itself, matching this file's existing level of coverage for the sibling
+  // expiry fields.
+  test("setting a next service date surfaces a service reminder", async ({ page }) => {
+    const soon = new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10);
+
+    await page.goto(`/vehicles/${vehicleId}/edit`);
+    await page.locator("#nextServiceDue").fill(soon);
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await page.waitForURL(/\/vehicles\/(?!new$)[^/]+$/);
+
+    await expect(page.getByText("Next service due")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Service reminder" })).toBeVisible();
+
+    await page.goto("/vehicles");
+    const card = page.locator("a", { hasText: "Test Vehicle" });
+    await expect(card.getByText(/^Service in \d+d$/)).toBeVisible();
+  });
+
   test("delete the vehicle", async ({ page }) => {
     await page.goto(`/vehicles/${vehicleId}`);
     await page.getByRole("button", { name: "More actions" }).click();

@@ -26,6 +26,7 @@ const VEHICLE_FORM_FIELDS = [
   "vin",
   "regoExpiry",
   "insuranceExpiry",
+  "nextServiceDue",
   "reminderDaysBefore",
   "notes",
 ];
@@ -81,6 +82,7 @@ function formToVehicleInput(formData: FormData) {
     vin: formData.get("vin"),
     regoExpiry: formData.get("regoExpiry"),
     insuranceExpiry: formData.get("insuranceExpiry"),
+    nextServiceDue: formData.get("nextServiceDue"),
     reminderDaysBefore: formData.get("reminderDaysBefore"),
     notes: formData.get("notes"),
   };

@@ -91,10 +91,12 @@ export function buildVehicleAttentionItems(vehicles: Vehicle[]): AttentionItem[]
   for (const vehicle of vehicles) {
     const rego = daysUntil(vehicle.regoExpiry);
     const insurance = daysUntil(vehicle.insuranceExpiry);
+    const service = daysUntil(vehicle.nextServiceDue);
     const candidates = [
       rego != null && rego <= 30 ? { field: "rego" as const, days: rego } : null,
       insurance != null && insurance <= 30 ? { field: "insurance" as const, days: insurance } : null,
-    ].filter((c): c is { field: "rego" | "insurance"; days: number } => c != null);
+      service != null && service <= 30 ? { field: "service" as const, days: service } : null,
+    ].filter((c): c is { field: "rego" | "insurance" | "service"; days: number } => c != null);
     if (candidates.length === 0) continue;
 
     // Whichever is more pressing (most overdue, or soonest) drives the label.
@@ -103,11 +105,16 @@ export function buildVehicleAttentionItems(vehicles: Vehicle[]): AttentionItem[]
       id: vehicle.id,
       kind: "vehicle",
       title: vehicle.label,
-      subtitle: candidates.length > 1 ? "Rego and insurance both due soon" : undefined,
+      subtitle: candidates.length > 1 ? `${candidates.length} things due soon` : undefined,
       days: driving.days,
       href: `/vehicles/${vehicle.id}`,
       action: {
-        label: driving.field === "rego" ? "Renew registration" : "Renew insurance",
+        label:
+          driving.field === "rego"
+            ? "Renew registration"
+            : driving.field === "insurance"
+              ? "Renew insurance"
+              : "Book service",
         href: `/vehicles/${vehicle.id}/edit`,
       },
     });
