@@ -16,6 +16,9 @@ const { auth } = NextAuth(authConfig);
 //  - img-src blob:/data:: document thumbnails and camera captures render from
 //    object URLs before upload.
 //  - img-src cartocdn: PropertyMap's basemap tiles (see PropertyMap.tsx).
+//  - frame-src blob:: PDF document preview (DocumentPreviewModal.tsx) renders
+//    a fetched, decrypted-at-rest document into an <iframe> over a same-origin
+//    blob: URL — no remote origin is ever framed.
 //  - 'unsafe-eval' in development only, for the webpack dev runtime.
 function buildCsp(nonce: string, { isDev, isHttps }: { isDev: boolean; isHttps: boolean }) {
   const scriptSrc = [
@@ -37,6 +40,7 @@ function buildCsp(nonce: string, { isDev, isHttps }: { isDev: boolean; isHttps: 
     "worker-src 'self' blob:",
     "manifest-src 'self'",
     "object-src 'none'",
+    "frame-src 'self' blob:",
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
