@@ -9,6 +9,11 @@ interface SubmittedReviewField {
   confidence?: number | null;
 }
 
+// No legitimate extraction produces anywhere near this many fields — caps
+// the array before it enters a single $transaction, so a maliciously large
+// submitted payload can't blow up transaction size/memory.
+const MAX_REVIEW_FIELDS = 100;
+
 function parseSubmittedReviewFields(formData: FormData): SubmittedReviewField[] {
   const raw = formData.get("extractionReviewFields");
   if (typeof raw !== "string" || !raw.trim()) return [];
@@ -17,6 +22,7 @@ function parseSubmittedReviewFields(formData: FormData): SubmittedReviewField[] 
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];
     return parsed
+      .slice(0, MAX_REVIEW_FIELDS)
       .filter((field): field is SubmittedReviewField => {
         return (
           field != null &&
