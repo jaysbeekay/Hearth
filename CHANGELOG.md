@@ -7,8 +7,107 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-08-27
+
+### Added
+
+- **Trash.** Deleting a contract, product, vehicle, property, trip, or
+  inventory item now archives it to Settings → Trash with a 30-day retention
+  window instead of deleting permanently, with restore and
+  permanently-delete actions. Soft-deleted records are excluded from every
+  surface — lists, detail pages, dashboard, the reminder scheduler, exports,
+  calendar/iCal, global search, the MCP server's read-only tools, and the AI
+  Assistant's chat tools (#287).
+- **Configurable Wealth cost-basis method.** Each portfolio can now use FIFO
+  (default) or average cost; cost basis is still computed from trade history
+  on each view rather than stored (#275, #284, #301).
+- **Household reminder delivery-health summary** in Settings, surfacing
+  recent notification delivery status per channel (#292).
+- **"Last changed by" attribution** on contracts, products, vehicles,
+  properties, trips, and inventory items, including edits made through
+  offline sync (#286).
+- **Quick-create a pre-linked contract** directly from a property or vehicle
+  detail page (#293).
+- **Camera-first capture** from the mobile upload FAB (#299).
+- **Upcoming view.** Calendar is now an "Upcoming" view with 30/60/90-day
+  horizons (#288).
+- **Optional AI egress-proxy support.** Document extraction and the chat
+  Assistant's outbound calls to a configured AI provider can now be routed
+  through [Pipelock](https://github.com/luckyPipewrench/pipelock), a local
+  agent-firewall proxy that inspects traffic for secret exfiltration, SSRF,
+  and prompt injection — a network-level complement to the existing
+  prompt-level hardening. Opt-in via `AI_EGRESS_PROXY_URL` (#218, #219).
+- **Dual-mode mobile apps.** The packaged iOS/Android apps can now run
+  standalone — native SQLite-backed local storage, no server required — or
+  connected to a self-hosted Hearth server, covering records, documents,
+  search, Wealth, rentals, reminders, backups, and settings in both modes
+  (#148, #214).
+- **Durable, database-leased background job runner.** Reminders, backups,
+  email ingestion, price refresh, and OCR now all run through one queue with
+  atomic per-type dedup (a unique constraint claim, not a check-then-act
+  race) and a lease that lets any instance pick up a stalled job — replacing
+  four separate `cron.schedule()` registrations whose schedules were baked
+  in at boot and couldn't pick up a Settings change without a restart.
+  `/api/cron` now enqueues onto the same queue instead of running reminder
+  checks directly (#250, #308).
+- **Bounded Documents/Inbox browsing.** The Documents and Inbox pages now
+  paginate instead of loading every row across all 9 document tables, inbox
+  duplicate-hash lookups are batched into one query per table instead of one
+  per row, and new indexes cover every high-frequency owner/date/status
+  filter (#252).
+
+### Changed
+
+- **Document storage consolidated behind a shared `DocumentStore`.** All 9
+  document kinds (contracts, products, trips, home, vehicles, rental
+  statements, inventory, inbox, trades) now go through one class instead of
+  9 near-duplicate save/read/delete implementations, with a reconciliation
+  pass that flags orphaned files and DB rows pointing at missing files
+  instead of failing silently (#251).
+- **PDF and CSV exports now stream** instead of buffering the full result in
+  memory before sending it.
+- **Terminology unified** across the nav, dashboard, and module labels
+  (#289).
+- **Household-wide record visibility is now disclosed** at capture time and
+  on record detail pages, rather than being implicit (#285).
+- **Member-management roles are now explained** at assignment and removal
+  time (#291).
+- **The Docker Scout CI gate no longer blocks on `CVE-2026-26740`**
+  (`giflib`, from the `node:26-alpine` base image), since Alpine has not
+  shipped a fix and no `package.json` override can reach a base-image
+  package — the finding is now an acknowledged exception rather than a
+  perpetual red build (#256).
+
 ### Fixed
 
+- **`/api/sync` could create duplicate records on a replayed or concurrent
+  request** — offline devices replaying a queued operation after
+  reconnecting, or two tabs syncing at once, could each create their own
+  copy of the same record. Each operation now claims an idempotency receipt
+  (a unique-constrained insert, not a check-then-act query) before it runs,
+  so a retry of an already-applied operation is a no-op (#249).
+- **A wrong-owned database file wasn't auto-repaired** — the startup
+  ownership check only inspected the data directory's own uid, so a
+  correctly-owned directory with a wrong-owned `app.db` inside it (e.g. from
+  a `docker cp` done as root, or a restored backup) skipped the repair
+  entirely and surfaced a raw Prisma stack trace instead of the actionable
+  error the directory case already gave (#223, #224).
+- **Expiry badges wrapped onto two lines**, and long unbreakable content
+  (e.g. a long contract title in the dashboard's Needs Attention queue)
+  could inflate the whole page shell past the viewport, on mobile.
+- **Needs Attention row titles truncated unreadably** on mobile — the badge
+  and action buttons competed with the title for the same line.
+- **WCAG contrast, region/locale, and color-only auto-fill signaling**
+  fixes; auto-filled fields now pair color with text and an "Auto" badge
+  (#290, #295, #302).
+- **Dashboard spend notice, list summary chips, and search
+  accessibility/coverage bugs** (#294, #296, #300, #303, #305, #306).
+- **The bulk-import review gate and an extraction-overwrite bug** where
+  re-scanning a document silently discarded a user's prior correction
+  (#284, #301).
+- **Destructive confirm dialogs lacked a focus trap.** Added a shared
+  focus-trap `Dialog` primitive, used by every destructive-confirm dialog
+  (#297, #298).
 - **Seven high-severity CVEs in transitive dependencies.** `mailparser` moves to
   3.9.16, which pins `html-to-text` 10.0.1 and so pulls `deepmerge-ts` off the
   vulnerable 7.1.5 (uncontrolled recursion) onto 8.0.2 — this one is reachable
