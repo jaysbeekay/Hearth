@@ -5,6 +5,7 @@ export const VEHICLE_ITEM_TYPES = [
   "REPAIR",
   "ROADWORTHY",
   "MODIFICATION",
+  "PURCHASE",
   "OTHER",
 ] as const;
 

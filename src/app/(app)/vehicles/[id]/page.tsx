@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Pencil, Trash2, Plus, Wrench, Tag, RotateCw, Zap } from "lucide-react";
+import { Pencil, Trash2, Plus, Wrench, Tag, RotateCw, Zap, Receipt } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
@@ -23,6 +23,7 @@ const ITEM_ICONS: Record<string, LucideIcon> = {
   REPAIR: Wrench,
   ROADWORTHY: RotateCw,
   MODIFICATION: Zap,
+  PURCHASE: Receipt,
   OTHER: Tag,
 };
 
