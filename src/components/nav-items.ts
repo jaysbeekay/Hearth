@@ -16,8 +16,8 @@ export interface NavItem {
 
 const BASE_NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, group: "dashboard" },
-  { href: "/contracts", label: "Policies & contracts", icon: FileText, group: "modules" },
-  { href: "/products", label: "Products & purchases", icon: Package, group: "modules" },
+  { href: "/contracts", label: "Contracts", icon: FileText, group: "modules" },
+  { href: "/products", label: "Warranties", icon: Package, group: "modules" },
   { href: "/documents", label: "Documents", icon: Files, group: "tools" },
   { href: "/assistant", label: "Assistant", icon: Bot, group: "tools" },
   { href: "/calendar", label: "Upcoming", icon: CalendarDays, group: "tools" },

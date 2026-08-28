@@ -18,6 +18,7 @@ import { usePendingCreates } from "@/lib/usePendingCreates";
 interface Props {
   products: ProductModel[];
   inventoryItems?: (InventoryItemModel & { _count: { documents: number } })[];
+  inventoryEnabled?: boolean;
   q?: string;
   expiring?: string;
   expired?: string;
@@ -31,6 +32,7 @@ interface Props {
 export function ProductListClient({
   products,
   inventoryItems = [],
+  inventoryEnabled = true,
   q,
   expiring,
   expired,
@@ -57,7 +59,7 @@ export function ProductListClient({
   }, [router]);
 
   const filtered = Boolean(q || expiring || expired || needsReview || missingDocument);
-  const showInventorySection = inventoryItems.length > 0 || !filtered;
+  const showInventorySection = inventoryEnabled && (inventoryItems.length > 0 || !filtered);
 
   // #207 — completeness filter chips, same toggle pattern as ContractListClient.
   const toggleCompletenessFilter = useCallback(
@@ -120,7 +122,7 @@ export function ProductListClient({
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Products & purchases</h1>
+        <h1 className="text-2xl font-semibold">Warranties</h1>
         <div className="flex items-center gap-2">
           <details className="relative">
             <summary className={toolbarButtonClass}>

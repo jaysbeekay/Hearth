@@ -85,7 +85,13 @@ test.describe.serial("Vehicles module", () => {
     await expect(page.locator("body")).toContainText("Updated Service Record");
   });
 
-  test("deleting the service record removes its files from disk", async ({ page }) => {
+  // #287's soft-delete applies here too: deleting a service record moves it
+  // to Trash and leaves its files untouched until "Delete permanently" is
+  // used from there — mirrors the contract/product lifecycle checked in
+  // 17-parent-delete-cleanup.spec.ts.
+  test("deleting the service record moves it to Trash without touching its files, until permanently deleted", async ({
+    page,
+  }) => {
     const fileDir = path.join(UPLOADS_DIR, "vehicle-items", itemId);
     expect(fs.existsSync(fileDir)).toBe(true);
 
@@ -96,7 +102,21 @@ test.describe.serial("Vehicles module", () => {
     await row.getByRole("button", { name: "Delete", exact: true }).click();
     await page.getByRole("button", { name: 'Delete "Updated Service Record"' }).click();
 
+    // Soft-deleted: gone from the active list, but the files are untouched.
     await expect(page.locator("body")).not.toContainText("Updated Service Record");
+    expect(fs.existsSync(fileDir)).toBe(true);
+
+    await page.goto("/settings/trash");
+    await expect(page.locator("body")).toContainText("Updated Service Record");
+
+    const trashRow = page.locator("li", { hasText: "Updated Service Record" });
+    await trashRow.getByRole("button", { name: "Delete permanently" }).click();
+    await page
+      .getByRole("alertdialog")
+      .getByRole("button", { name: "Delete permanently" })
+      .click();
+    await expect(page.locator("body")).not.toContainText("Updated Service Record");
+
     expect(fs.existsSync(fileDir)).toBe(false);
   });
 
