@@ -7,6 +7,20 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`giflib`'s `CVE-2026-26740` (HIGH) actually resolved in the built
+  image**, not just suppressed at the CI gate. The `only-fixed` Docker Scout
+  exception added for this CVE in 0.18.0 (#256) turned out not to work:
+  Scout still reports a fixed version exists upstream (`5.2.2-r2`), so
+  `only-fixed` didn't exclude it — the gate kept failing on every build
+  (#336). Alpine's `v3.24` stable repo still hasn't backported the fix as of
+  2026-08-29, so the `Dockerfile` now pins `giflib` to `5.2.2-r2` from
+  Alpine's `edge/main` repo specifically (soname-compatible with the
+  `leptonica`/tesseract-ocr dependency that actually links it), alongside a
+  routine base-image digest bump. Verified with a local `docker scout cves`
+  scan: 0 critical/high/medium/low findings.
+
 ## [0.18.0] - 2026-08-27
 
 ### Added
