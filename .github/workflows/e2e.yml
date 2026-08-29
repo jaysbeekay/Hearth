@@ -40,6 +40,19 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
+      # The app's document text-extraction pipeline (src/lib/documents/
+      # textExtraction.ts) shells out to pdftotext/pdftoppm (poppler-utils)
+      # and tesseract — installed in the production Dockerfile's image, but
+      # this job runs `next dev` directly on the bare runner, not that
+      # image, so it needs its own copy. Every failure mode in that
+      # pipeline collapses to an empty string rather than throwing (by
+      # design — extraction must never block saving a document), so a
+      # missing binary here doesn't error, it just silently makes every
+      # extraction-dependent e2e assertion see "" (see
+      # 30-camera-inbox-review.spec.ts).
+      - name: Install poppler-utils and tesseract-ocr
+        run: sudo apt-get update && sudo apt-get install -y poppler-utils tesseract-ocr
+
       - name: Run e2e suite
         run: npm run test:e2e
 

@@ -31,10 +31,16 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   hydrates, so a test click landing right after navigation could silently
   no-op and time out waiting for the search input — the four affected specs
   now retry the click until the dialog actually opens. Also fixed a
-  malformed hand-built PDF fixture (`30-camera-inbox-review.spec.ts`) whose
-  invalid `endstream`/`endobj` boundary depended on the parser's lenient
-  recovery mode to extract any text at all — CI's `poppler-utils` build
-  didn't recover, so every field-extraction assertion saw an empty string.
+  malformed hand-built PDF fixture (`30-camera-inbox-review.spec.ts`) with
+  an invalid `endstream`/`endobj` boundary, and — the actual reason that
+  spec's field-extraction assertions always saw an empty string —
+  `e2e.yml` never installed `poppler-utils`/`tesseract-ocr` on the bare
+  `ubuntu-latest` runner it runs `next dev` on, so every call into
+  `textExtraction.ts`'s pdftotext/tesseract pipeline silently failed
+  (by design — a missing binary must never block saving a document, so
+  every failure mode there already collapsed to `""` rather than
+  throwing). Those binaries are otherwise only installed inside the
+  production Dockerfile's image, which this job never builds.
 
 ## [0.18.0] - 2026-08-27
 
