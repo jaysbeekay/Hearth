@@ -43,9 +43,11 @@ type ExtractedFields = Partial<Record<"category" | "label" | "brand" | "model" |
 export function InventoryItemForm({
   action,
   item,
+  products = [],
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   item?: InventoryItemModel;
+  products?: { id: string; description: string }[];
 }) {
   const offlineAwareAction = makeOfflineAwareAction(
     action,
@@ -286,8 +288,22 @@ export function InventoryItemForm({
           <input type="checkbox" name="warrantyExtended" defaultChecked={effectiveValues?.warrantyExtended === "on" || item?.warrantyExtended} />
           Extended warranty purchased
         </label>
-        <Field label="Linked product/warranty ID (optional)" htmlFor="warrantyProductId">
-          <input id="warrantyProductId" name="warrantyProductId" defaultValue={effectiveValues?.warrantyProductId ?? item?.warrantyProductId ?? ""} className={inputClass} placeholder="Product record ID" />
+        <Field label="Linked warranty (optional)" htmlFor="warrantyProductId">
+          <SelectWrapper>
+            <select
+              id="warrantyProductId"
+              name="warrantyProductId"
+              defaultValue={effectiveValues?.warrantyProductId ?? item?.warrantyProductId ?? ""}
+              className={selectClass}
+            >
+              <option value="">No linked warranty</option>
+              {products.map((product) => (
+                <option key={product.id} value={product.id}>
+                  {product.description}
+                </option>
+              ))}
+            </select>
+          </SelectWrapper>
         </Field>
       </fieldset>
 

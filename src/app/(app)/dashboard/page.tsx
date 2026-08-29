@@ -129,6 +129,17 @@ export default async function DashboardPage() {
     );
   });
 
+  // #328 — a completeness gap (no end date, no policy/serial number),
+  // independent of urgency: mirrors the narrower missingInfo filter
+  // contracts/products list pages support (see the comment there for why
+  // reminder/relationship gaps aren't folded into this aggregate).
+  const contractsMissingInfo = active.filter(
+    (c) => c.endDate == null || c.contractNumber == null,
+  ).length;
+  const warrantiesMissingInfo = products.filter(
+    (p) => p.warrantyEndDate == null || (p.serialNumber == null && p.barcode == null),
+  ).length;
+
   // Every overdue-or-soon-to-expire record in one urgency-sorted list, each
   // with its next action already decided rather than left for the user to
   // work out (#170). Cancelled contracts are excluded via `active`, same
@@ -222,6 +233,12 @@ export default async function DashboardPage() {
               tone={hasUnconvertedSpend || hasMissingFrequencySpend ? "warning" : "default"}
               href="/spend"
             />
+            <StatCard
+              label="Contracts missing info"
+              value={String(contractsMissingInfo)}
+              tone={contractsMissingInfo > 0 ? "warning" : "default"}
+              href="/contracts?missingInfo=true"
+            />
           </div>
           {hasUnconvertedSpend && (
             <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
@@ -266,6 +283,12 @@ export default async function DashboardPage() {
                 href="/vehicles"
               />
             )}
+            <StatCard
+              label="Warranties missing info"
+              value={String(warrantiesMissingInfo)}
+              tone={warrantiesMissingInfo > 0 ? "warning" : "default"}
+              href="/products?missingInfo=true"
+            />
           </div>
         </>
       )}

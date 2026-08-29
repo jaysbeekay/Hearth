@@ -104,7 +104,13 @@ interface RowState {
   scanMessage?: string;
   source?: ExtractionSource;
   contract: ContractFields;
+  // #327 — link a filed policy/warranty to a home or vehicle during review.
+  // Kept outside ContractFields/ProductFields since it's a user selection,
+  // not an extracted field (appendReviewFields only tracks the latter).
+  contractPropertyId: string;
+  contractVehicleId: string;
   product: ProductFields;
+  productPropertyId: string;
   inventory: InventoryFields;
   contractAutoFilled: Partial<Record<keyof ContractFields, boolean>>;
   productAutoFilled: Partial<Record<keyof ProductFields, boolean>>;
@@ -116,7 +122,10 @@ function emptyRowState(initialType: EntityType = "CONTRACT"): RowState {
     status: "scanning",
     type: initialType,
     contract: { title: "", provider: "", category: "OTHER", cost: "", startDate: "", endDate: "" },
+    contractPropertyId: "",
+    contractVehicleId: "",
     product: { description: "", manufacturer: "", price: "", purchaseDate: "", warrantyEndDate: "" },
+    productPropertyId: "",
     inventory: { label: "", category: "OTHER", brand: "", purchasePrice: "" },
     contractAutoFilled: {},
     productAutoFilled: {},
@@ -237,10 +246,14 @@ export function InboxReviewClient({
   docs,
   dateFormat,
   inventoryEnabled,
+  properties = [],
+  vehicles = [],
 }: {
   docs: InboxDocSummary[];
   dateFormat?: string;
   inventoryEnabled: boolean;
+  properties?: { id: string; label: string }[];
+  vehicles?: { id: string; label: string }[];
 }) {
   const [visibleIds, setVisibleIds] = useState(() => docs.map((d) => d.id));
   const [rows, setRows] = useState<Record<string, RowState>>(() =>
@@ -351,6 +364,8 @@ export function InboxReviewClient({
       fields.append("cost", row.contract.cost);
       fields.append("startDate", row.contract.startDate);
       fields.append("endDate", row.contract.endDate);
+      if (row.contractPropertyId) fields.append("propertyId", row.contractPropertyId);
+      if (row.contractVehicleId) fields.append("vehicleId", row.contractVehicleId);
       fields.append("extractionUsed", Object.values(row.contractAutoFilled).some(Boolean) ? "1" : "0");
       fields.append("confirmExtraction", "0");
       appendReviewFields(fields, row.contract, row.contractAutoFilled, row.source);
@@ -360,6 +375,7 @@ export function InboxReviewClient({
       fields.append("price", row.product.price);
       fields.append("purchaseDate", row.product.purchaseDate);
       fields.append("warrantyEndDate", row.product.warrantyEndDate);
+      if (row.productPropertyId) fields.append("propertyId", row.productPropertyId);
       fields.append("extractionUsed", Object.values(row.productAutoFilled).some(Boolean) ? "1" : "0");
       fields.append("confirmExtraction", "0");
       appendReviewFields(fields, row.product, row.productAutoFilled, row.source);
@@ -671,6 +687,41 @@ export function InboxReviewClient({
                       className={fieldClass(row.contractAutoFilled.endDate, rowIsAi)}
                     />
                   </RowField>
+                  {(properties.length > 0 || vehicles.length > 0) && (
+                    <RowField label="Link to (optional)" htmlFor={`${doc.id}-contractLink`}>
+                      <select
+                        id={`${doc.id}-contractLink`}
+                        value={
+                          row.contractPropertyId
+                            ? `property:${row.contractPropertyId}`
+                            : row.contractVehicleId
+                              ? `vehicle:${row.contractVehicleId}`
+                              : ""
+                        }
+                        disabled={row.status === "saving"}
+                        onChange={(e) => {
+                          const [kind, linkId] = e.target.value.split(":");
+                          updateRow(doc.id, {
+                            contractPropertyId: kind === "property" ? linkId : "",
+                            contractVehicleId: kind === "vehicle" ? linkId : "",
+                          });
+                        }}
+                        className={fieldClass(false)}
+                      >
+                        <option value="">Not linked</option>
+                        {properties.map((p) => (
+                          <option key={p.id} value={`property:${p.id}`}>
+                            {p.label} (home)
+                          </option>
+                        ))}
+                        {vehicles.map((v) => (
+                          <option key={v.id} value={`vehicle:${v.id}`}>
+                            {v.label} (vehicle)
+                          </option>
+                        ))}
+                      </select>
+                    </RowField>
+                  )}
                 </div>
               )}
 
@@ -751,6 +802,24 @@ export function InboxReviewClient({
                       className={fieldClass(row.productAutoFilled.warrantyEndDate, rowIsAi)}
                     />
                   </RowField>
+                  {properties.length > 0 && (
+                    <RowField label="Link to home (optional)" htmlFor={`${doc.id}-productLink`}>
+                      <select
+                        id={`${doc.id}-productLink`}
+                        value={row.productPropertyId}
+                        disabled={row.status === "saving"}
+                        onChange={(e) => updateRow(doc.id, { productPropertyId: e.target.value })}
+                        className={fieldClass(false)}
+                      >
+                        <option value="">Not linked</option>
+                        {properties.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.label}
+                          </option>
+                        ))}
+                      </select>
+                    </RowField>
+                  )}
                 </div>
               )}
 

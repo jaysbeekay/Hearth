@@ -18,7 +18,18 @@ test.use({ storageState: ADMIN_AUTH_FILE });
 
 async function openGlobalSearch(page: import("@playwright/test").Page, query: string) {
   await page.goto("/dashboard");
-  await page.locator("aside").getByRole("button", { name: "Search" }).click();
+  const searchButton = page.locator("aside").getByRole("button", { name: "Search" });
+  // The Search button opens GlobalSearch's dialog via a client-only event
+  // listener that isn't wired up until React hydrates. Right after goto(),
+  // the button is already painted (SSR) but a click can land before that
+  // listener exists and silently no-op — the same class of race documented
+  // in 07-mobile-responsive.spec.ts for the nav drawer's edge-swipe
+  // listener. Retrying the click until the dialog actually opens beats
+  // guessing how long hydration takes.
+  await expect(async () => {
+    await searchButton.click();
+    await expect(page.getByRole("combobox")).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 15_000 });
   await page.getByRole("combobox").fill(query);
 }
 

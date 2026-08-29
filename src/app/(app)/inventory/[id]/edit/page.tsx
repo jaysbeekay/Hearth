@@ -16,7 +16,14 @@ export default async function EditInventoryItemPage({
   await requireModuleEnabled("INVENTORY");
 
   const { id } = await params;
-  const item = await prisma.inventoryItem.findUnique({ where: { id } });
+  const [item, products] = await Promise.all([
+    prisma.inventoryItem.findUnique({ where: { id } }),
+    prisma.product.findMany({
+      where: { deletedAt: null },
+      select: { id: true, description: true },
+      orderBy: { description: "asc" },
+    }),
+  ]);
   if (!item || item.deletedAt) notFound();
 
   return (
@@ -27,7 +34,7 @@ export default async function EditInventoryItemPage({
         </Link>
       </div>
       <h1 className="text-2xl font-semibold">Edit item</h1>
-      <InventoryItemForm action={updateInventoryItem.bind(null, id)} item={item} />
+      <InventoryItemForm action={updateInventoryItem.bind(null, id)} item={item} products={products} />
     </div>
   );
 }

@@ -7,11 +7,14 @@ import {
   deleteContract,
   setContractStatus,
   confirmContractExtraction,
+  reviewContractExtraction,
 } from "@/lib/actions/contracts";
+import { getPendingExtractionReview } from "@/lib/documents/extractionReview";
 import { ExpiryBadge } from "@/components/ExpiryBadge";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DetailStatusBanner } from "@/components/DetailStatusBanner";
+import { ExtractionReviewPanel } from "@/components/ExtractionReviewPanel";
 import { DetailField as Detail } from "@/components/DetailField";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { DocumentList } from "@/components/DocumentList";
@@ -55,6 +58,10 @@ export default async function ContractDetailPage({
     getHouseholdMemberCount(),
   ]);
   if (!contract || contract.deletedAt) notFound();
+
+  const pendingReview = contract.extractionPending
+    ? await getPendingExtractionReview("CONTRACT", contract.id)
+    : [];
 
   const days = daysUntil(contract.endDate);
   const cancelled = contract.status === "CANCELLED";
@@ -138,11 +145,15 @@ export default async function ContractDetailPage({
           editHref={`/contracts/${contract.id}/edit`}
           renewLabel="Renew policy"
           needsReview={
-            contract.extractionPending
+            contract.extractionPending && pendingReview.length === 0
               ? { onConfirm: confirmContractExtraction.bind(null, contract.id) }
               : undefined
           }
         />
+      )}
+
+      {pendingReview.length > 0 && (
+        <ExtractionReviewPanel fields={pendingReview} action={reviewContractExtraction.bind(null, contract.id)} />
       )}
 
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">

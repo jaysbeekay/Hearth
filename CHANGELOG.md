@@ -7,6 +7,41 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`giflib`'s `CVE-2026-26740` (HIGH) actually resolved in the built
+  image**, not just suppressed at the CI gate. The `only-fixed` Docker Scout
+  exception added for this CVE in 0.18.0 (#256) turned out not to work:
+  Scout still reports a fixed version exists upstream (`5.2.2-r2`), so
+  `only-fixed` didn't exclude it — the gate kept failing on every build
+  (#336). Alpine's `v3.24` stable repo still hasn't backported the fix as of
+  2026-08-29, so the `Dockerfile` now pins `giflib` to `5.2.2-r2` from
+  Alpine's `edge/main` repo specifically (soname-compatible with the
+  `leptonica`/tesseract-ocr dependency that actually links it), alongside a
+  routine base-image digest bump. Verified with a local `docker scout cves`
+  scan: 0 critical/high/medium/low findings.
+- **A contract card's swipe-to-delete action could be untappable on
+  mobile.** The revealed delete button sat in normal document flow with no
+  stacking context of its own, so for any card scrolled to where it visually
+  overlapped the persistent bottom nav / upload FAB (both `fixed` at
+  `z-30`), taps landed on the FAB instead — `SwipeableListItem` now lifts
+  the row to `z-40` while swiped open.
+- **E2E suite reliability**: Global Search's sidebar button opens its dialog
+  via a client-only event listener that isn't wired up until React
+  hydrates, so a test click landing right after navigation could silently
+  no-op and time out waiting for the search input — the four affected specs
+  now retry the click until the dialog actually opens. Also fixed a
+  malformed hand-built PDF fixture (`30-camera-inbox-review.spec.ts`) with
+  an invalid `endstream`/`endobj` boundary, and — the actual reason that
+  spec's field-extraction assertions always saw an empty string —
+  `e2e.yml` never installed `poppler-utils`/`tesseract-ocr` on the bare
+  `ubuntu-latest` runner it runs `next dev` on, so every call into
+  `textExtraction.ts`'s pdftotext/tesseract pipeline silently failed
+  (by design — a missing binary must never block saving a document, so
+  every failure mode there already collapsed to `""` rather than
+  throwing). Those binaries are otherwise only installed inside the
+  production Dockerfile's image, which this job never builds.
+
 ## [0.18.0] - 2026-08-27
 
 ### Added

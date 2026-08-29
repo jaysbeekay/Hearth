@@ -120,7 +120,14 @@ test("global search Important filter finds a starred contract's document", async
   ).toBeVisible();
 
   await page.goto("/dashboard");
-  await page.locator("aside").getByRole("button", { name: "Search" }).click();
+  // The Search button opens GlobalSearch's dialog via a client-only event
+  // listener that isn't wired up until React hydrates, so a click right
+  // after goto() can land before it exists and silently no-op — retry
+  // until the dialog is actually open (see 26-document-search.spec.ts).
+  await expect(async () => {
+    await page.locator("aside").getByRole("button", { name: "Search" }).click();
+    await expect(page.getByRole("combobox")).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 15_000 });
   await page.getByRole("button", { name: "Important" }).click();
   await expect(page.getByText(title)).toBeVisible({ timeout: 10000 });
 });

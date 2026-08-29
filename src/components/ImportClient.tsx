@@ -64,7 +64,14 @@ interface Row {
   // user confirms it on its detail page — see extractionFieldsFromForm.
   extractionUsed: boolean;
   contract: ContractFields;
+  // #327 — link a filed policy/warranty to a home or vehicle during review,
+  // instead of only being settable later via Edit. Kept outside
+  // ContractFields/ProductFields since it's a user selection, not an
+  // extracted field (appendReviewFields only tracks the latter).
+  contractPropertyId: string;
+  contractVehicleId: string;
   product: ProductFields;
+  productPropertyId: string;
   inventory: InventoryFields;
   contractAutoFilled: Partial<Record<keyof ContractFields, boolean>>;
   productAutoFilled: Partial<Record<keyof ProductFields, boolean>>;
@@ -115,7 +122,15 @@ function appendReviewFields(
   }
 }
 
-export function ImportClient({ enabledModules = [] }: { enabledModules?: string[] }) {
+export function ImportClient({
+  enabledModules = [],
+  properties = [],
+  vehicles = [],
+}: {
+  enabledModules?: string[];
+  properties?: { id: string; label: string }[];
+  vehicles?: { id: string; label: string }[];
+}) {
   const [rows, setRows] = useState<Row[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const inputId = useId();
@@ -211,7 +226,10 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
         source: "none",
         extractionUsed: false,
         contract: { title: "", provider: "", category: "OTHER", cost: "", startDate: "", endDate: "" },
+        contractPropertyId: "",
+        contractVehicleId: "",
         product: { description: "", manufacturer: "", price: "", purchaseDate: "", warrantyEndDate: "" },
+        productPropertyId: "",
         inventory: { label: "", category: "OTHER", brand: "", purchasePrice: "" },
         contractAutoFilled: {},
         productAutoFilled: {},
@@ -239,6 +257,8 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
       formData.append("cost", row.contract.cost);
       formData.append("startDate", row.contract.startDate);
       formData.append("endDate", row.contract.endDate);
+      if (row.contractPropertyId) formData.append("propertyId", row.contractPropertyId);
+      if (row.contractVehicleId) formData.append("vehicleId", row.contractVehicleId);
       formData.append("extractionUsed", row.extractionUsed ? "1" : "0");
       formData.append("confirmExtraction", "0");
       appendReviewFields(formData, row.contract, row.contractAutoFilled, row.source);
@@ -249,6 +269,7 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
       formData.append("price", row.product.price);
       formData.append("purchaseDate", row.product.purchaseDate);
       formData.append("warrantyEndDate", row.product.warrantyEndDate);
+      if (row.productPropertyId) formData.append("propertyId", row.productPropertyId);
       formData.append("extractionUsed", row.extractionUsed ? "1" : "0");
       formData.append("confirmExtraction", "0");
       appendReviewFields(formData, row.product, row.productAutoFilled, row.source);
@@ -489,6 +510,41 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                           className={fieldClass(row.contractAutoFilled.endDate)}
                         />
                       </RowField>
+                      {(properties.length > 0 || vehicles.length > 0) && (
+                        <RowField label="Link to (optional)" htmlFor={`${row.id}-contractLink`}>
+                          <select
+                            id={`${row.id}-contractLink`}
+                            value={
+                              row.contractPropertyId
+                                ? `property:${row.contractPropertyId}`
+                                : row.contractVehicleId
+                                  ? `vehicle:${row.contractVehicleId}`
+                                  : ""
+                            }
+                            disabled={row.status === "saving"}
+                            onChange={(e) => {
+                              const [kind, linkId] = e.target.value.split(":");
+                              updateRow(row.id, {
+                                contractPropertyId: kind === "property" ? linkId : "",
+                                contractVehicleId: kind === "vehicle" ? linkId : "",
+                              });
+                            }}
+                            className={fieldClass(false)}
+                          >
+                            <option value="">Not linked</option>
+                            {properties.map((p) => (
+                              <option key={p.id} value={`property:${p.id}`}>
+                                {p.label} (home)
+                              </option>
+                            ))}
+                            {vehicles.map((v) => (
+                              <option key={v.id} value={`vehicle:${v.id}`}>
+                                {v.label} (vehicle)
+                              </option>
+                            ))}
+                          </select>
+                        </RowField>
+                      )}
                     </div>
                   )}
 
@@ -567,6 +623,24 @@ export function ImportClient({ enabledModules = [] }: { enabledModules?: string[
                           className={fieldClass(false)}
                         />
                       </RowField>
+                      {properties.length > 0 && (
+                        <RowField label="Link to home (optional)" htmlFor={`${row.id}-productLink`}>
+                          <select
+                            id={`${row.id}-productLink`}
+                            value={row.productPropertyId}
+                            disabled={row.status === "saving"}
+                            onChange={(e) => updateRow(row.id, { productPropertyId: e.target.value })}
+                            className={fieldClass(false)}
+                          >
+                            <option value="">Not linked</option>
+                            {properties.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.label}
+                              </option>
+                            ))}
+                          </select>
+                        </RowField>
+                      )}
                     </div>
                   )}
 

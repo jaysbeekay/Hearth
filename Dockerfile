@@ -4,7 +4,7 @@
 # selects the right architecture.
 #
 # To update: docker buildx imagetools inspect node:26-alpine
-FROM node:26-alpine@sha256:233761595746769ebfdb6090f44fc7cdf818ae0ce62d2b37e0367723b9823e36 AS base
+FROM node:26-alpine@sha256:2d984a15c9b54fd0aeb608b8e0d0d83529eb34d2966db27a1fb4f1edc3d298a3 AS base
 WORKDIR /app
 
 FROM base AS deps
@@ -43,7 +43,16 @@ ENV HOME=/home/node
 # comment there for why the entrypoint starts as root.
 RUN apk update && \
     apk upgrade --no-cache && \
-    apk add --no-cache tesseract-ocr tesseract-ocr-data-eng poppler-utils su-exec
+    apk add --no-cache tesseract-ocr tesseract-ocr-data-eng poppler-utils su-exec && \
+    # giflib's CVE-2026-26740 (HIGH, #336): the fixed 5.2.2-r2 build hasn't
+    # been backported to the v3.24 stable repo as of 2026-08-29 — only
+    # edge/main has it — so the `apk upgrade` above can't clear it no matter
+    # how often this image is rebuilt. giflib itself isn't installed
+    # directly; leptonica (tesseract-ocr's dependency) links libgif.so.7, and
+    # edge's build keeps that soname unchanged, so pulling just this one
+    # package from edge is a safe drop-in. Re-check whether this is still
+    # needed next time the base image is bumped.
+    apk add --no-cache --repository=https://dl-cdn.alpinelinux.org/alpine/edge/main 'giflib=5.2.2-r2'
 
 # The base image ships a full npm CLI under /usr/local/lib/node_modules/npm,
 # bundled with npm's own vendored dependencies (tar, brace-expansion,

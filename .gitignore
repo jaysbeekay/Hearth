@@ -75,3 +75,5 @@ next-env.d.ts
 # scratch git worktrees created by Claude Code sessions
 /.claude/worktrees/
 
+# local Claude Code settings (plugin enablement etc.) — machine-specific
+/.claude/settings.json

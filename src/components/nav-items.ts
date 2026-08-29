@@ -2,9 +2,10 @@ import { LayoutDashboard, FileText, Package, CalendarDays, TrendingUp, Files, Bo
 import { MODULE_REGISTRY, type ModuleKey } from "@/lib/modules/registry";
 
 // "dashboard" stands alone (not part of either group); "modules" are
-// record-type sections (Contracts, Warranties, plus whichever optional
-// modules are enabled); "tools" are cross-cutting views that work across
-// all record types (Documents, Calendar, Spending, Assistant).
+// record-type sections (Policies & contracts, Purchases & warranties, plus
+// whichever optional modules are enabled); "tools" are cross-cutting views
+// that work across all record types (Documents, Calendar, Spending,
+// Assistant).
 export type NavGroup = "dashboard" | "modules" | "tools";
 
 export interface NavItem {
@@ -16,8 +17,17 @@ export interface NavItem {
 
 const BASE_NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, group: "dashboard" },
-  { href: "/contracts", label: "Contracts", icon: FileText, group: "modules" },
-  { href: "/products", label: "Warranties", icon: Package, group: "modules" },
+  // #332 supersedes #174's "Contracts"/"Warranties" nav/heading/title
+  // decision — deliberately, not silently: #174 was itself only about
+  // keeping nav/heading/title consistent with EACH OTHER (whatever the
+  // term), not about the specific word. #332's task-oriented aliases keep
+  // that same consistency (see ContractListClient/ProductListClient's
+  // headings and each page's metadata.title), while search still
+  // recognizes the old terms (see CONTRACT_ALIASES/PRODUCT_ALIASES in
+  // src/app/api/search/route.ts) and the /contracts, /products routes and
+  // Contract/Product model names are untouched.
+  { href: "/contracts", label: "Policies & contracts", icon: FileText, group: "modules" },
+  { href: "/products", label: "Purchases & warranties", icon: Package, group: "modules" },
   { href: "/documents", label: "Documents", icon: Files, group: "tools" },
   { href: "/assistant", label: "Assistant", icon: Bot, group: "tools" },
   { href: "/calendar", label: "Upcoming", icon: CalendarDays, group: "tools" },
