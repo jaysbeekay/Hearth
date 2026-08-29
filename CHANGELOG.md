@@ -7,6 +7,34 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-08-29
+
+### Added
+
+- **Inventory items can link to a warranty product directly**, via a real
+  foreign key (not a free-text ID) with a picker in the item form; a
+  warranted product's detail page shows every inventory item registered
+  against it (#241).
+- **Field-level extraction review.** The one-click "Confirm details" action
+  is replaced by a per-field editable view (value, source, confidence)
+  whenever a document has pending extraction fields — a manual correction
+  already made is never clobbered by re-confirming — falling back to the
+  old one-click confirm for documents with no field-level rows (#331).
+- **Import and Inbox review rows can link a filed contract/product to a
+  home or vehicle at review time**, not only afterward via Edit (#327).
+- **Completeness filters (missing date/reminder/identifier) now cover
+  Vehicles and Inventory items**, with two new "missing info" dashboard
+  stat cards linking into a narrower, non-noisy combined signal, and
+  search results explaining why a record matched a filter (#328).
+
+### Changed
+
+- **Terminology.** Contracts/Products nav, headings, and page titles now
+  read "Policies & contracts" / "Purchases & warranties"; Global Search
+  recognizes both the old ("contract", "warranty") and new ("policy",
+  "purchase") generic terms as "show me that whole section" (#332,
+  supersedes #174).
+
 ### Fixed
 
 - **`giflib`'s `CVE-2026-26740` (HIGH) actually resolved in the built
