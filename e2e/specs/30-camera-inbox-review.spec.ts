@@ -19,7 +19,16 @@ function textPdfBytes(lines: string[]): Buffer {
     "<</Type/Pages/Kids[3 0 R]/Count 1>>",
     "<</Type/Page/Parent 2 0 R/MediaBox[0 0 400 400]/Resources<</Font<</F1 4 0 R>>>>/Contents 5 0 R>>",
     "<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>",
-    `<</Length ${Buffer.byteLength(content, "latin1")}>>stream\n${content}\nendstream`,
+    // Trailing \n matters: without it this object's text ends in
+    // "endstream", and the object loop below appends "endobj" right after
+    // with no separator, gluing them into the single invalid token
+    // "endstreamendobj". A build of poppler that recovers leniently from
+    // that (as a local dev machine's often does) still extracts the text
+    // fine, masking the bug — but CI's poppler-utils build doesn't recover,
+    // so `extractedText` comes back empty and every field assertion below
+    // sees "" instead of a real value. A conformant PDF doesn't need any
+    // parser's leniency to begin with.
+    `<</Length ${Buffer.byteLength(content, "latin1")}>>stream\n${content}\nendstream\n`,
   ];
 
   let pdf = "%PDF-1.4\n";

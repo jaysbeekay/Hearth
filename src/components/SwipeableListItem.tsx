@@ -48,7 +48,19 @@ export function SwipeableListItem({
   }
 
   return (
-    <div className="relative overflow-hidden rounded-lg md:overflow-visible">
+    <div
+      className={`relative overflow-hidden rounded-lg md:overflow-visible ${open ? "z-40" : ""}`}
+    >
+      {/*
+       * The bottom nav and mobile upload FAB are `fixed` with `z-30`, which
+       * paints above any normal-flow row regardless of scroll position —
+       * for a row scrolled near the bottom of the viewport, that put this
+       * revealed action visually on screen but behind the FAB, so a real
+       * tap (and this component's own e2e test) landed on the FAB's link
+       * instead. `z-40` on the wrapper while open lifts the whole row (and
+       * this action) above both, without exceeding the z-50 confirm dialog
+       * that `revealAction`'s click opens.
+       */}
       <div
         className="absolute inset-y-0 right-0 flex items-stretch md:hidden"
         style={{ width: REVEAL_WIDTH }}

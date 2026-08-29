@@ -26,7 +26,14 @@ test("Global Search's old-term aliases surface every contract/product of that ty
   await page.waitForURL(/\/products\/(?!new$)[^/]+$/);
 
   await page.goto("/dashboard");
-  await page.locator("aside").getByRole("button", { name: "Search" }).click();
+  // The Search button opens GlobalSearch's dialog via a client-only event
+  // listener that isn't wired up until React hydrates, so a click right
+  // after goto() can land before it exists and silently no-op — retry
+  // until the dialog is actually open (see 26-document-search.spec.ts).
+  await expect(async () => {
+    await page.locator("aside").getByRole("button", { name: "Search" }).click();
+    await expect(page.getByRole("combobox")).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 15_000 });
 
   // Old term "contract" finds the contract even though that literal word
   // appears nowhere in its title/provider.

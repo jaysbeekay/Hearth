@@ -20,6 +20,21 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   `leptonica`/tesseract-ocr dependency that actually links it), alongside a
   routine base-image digest bump. Verified with a local `docker scout cves`
   scan: 0 critical/high/medium/low findings.
+- **A contract card's swipe-to-delete action could be untappable on
+  mobile.** The revealed delete button sat in normal document flow with no
+  stacking context of its own, so for any card scrolled to where it visually
+  overlapped the persistent bottom nav / upload FAB (both `fixed` at
+  `z-30`), taps landed on the FAB instead — `SwipeableListItem` now lifts
+  the row to `z-40` while swiped open.
+- **E2E suite reliability**: Global Search's sidebar button opens its dialog
+  via a client-only event listener that isn't wired up until React
+  hydrates, so a test click landing right after navigation could silently
+  no-op and time out waiting for the search input — the four affected specs
+  now retry the click until the dialog actually opens. Also fixed a
+  malformed hand-built PDF fixture (`30-camera-inbox-review.spec.ts`) whose
+  invalid `endstream`/`endobj` boundary depended on the parser's lenient
+  recovery mode to extract any text at all — CI's `poppler-utils` build
+  didn't recover, so every field-extraction assertion saw an empty string.
 
 ## [0.18.0] - 2026-08-27
 
