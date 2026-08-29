@@ -48,7 +48,12 @@ export const env = {
   },
   githubFeedback: {
     token: optional("GITHUB_FEEDBACK_TOKEN"),
-    repository: optional("GITHUB_FEEDBACK_REPOSITORY"),
+    // Defaults to this project's own repo — in-app feedback is meant to
+    // reach the maintainer, not whichever repo a self-hoster happens to
+    // set up, so no self-hoster should need to configure this. The
+    // override stays available only for a fork that wants its own issues
+    // repo instead.
+    repository: optional("GITHUB_FEEDBACK_REPOSITORY", "jaysbeekay/Hearth"),
   },
   backup: {
     cron: optional("BACKUP_CRON_SCHEDULE", "0 3 * * *"),
@@ -122,6 +127,9 @@ export const isSetupTokenRequired = () => env.setupToken.length > 0;
 export const isGithubOAuthConfigured = () =>
   Boolean(env.github.clientId && env.github.clientSecret);
 
+// The repository has a working default (this project's own repo), so only
+// the token — a real secret, which can never ship with a default — gates
+// whether feedback submission is live.
 export const isGithubFeedbackConfigured = () =>
   Boolean(
     env.githubFeedback.token &&

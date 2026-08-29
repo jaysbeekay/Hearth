@@ -64,8 +64,7 @@ export async function submitFeedback(
 
   if (!isGithubFeedbackConfigured()) {
     return {
-      error:
-        "Feedback is not configured yet. Ask an administrator to set GITHUB_FEEDBACK_TOKEN and GITHUB_FEEDBACK_REPOSITORY.",
+      error: "Feedback is not configured yet. Ask an administrator to set GITHUB_FEEDBACK_TOKEN.",
       values: formDataToStringValues(formData, FEEDBACK_FORM_FIELDS),
     };
   }

@@ -50,6 +50,10 @@ services:
       BARCODE_LOOKUP_ENABLED: ${BARCODE_LOOKUP_ENABLED:-}
       BARCODE_LOOKUP_API_KEY: ${BARCODE_LOOKUP_API_KEY:-}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      # Optional: enables the in-app feedback form on Help & FAQ — see
+      # .env.example. No GITHUB_FEEDBACK_REPOSITORY needed; it already
+      # defaults to this project's own repo.
+      GITHUB_FEEDBACK_TOKEN: ${GITHUB_FEEDBACK_TOKEN:-}
       BACKUP_CRON_SCHEDULE: ${BACKUP_CRON_SCHEDULE:-0 3 * * *}
       BACKUP_RETENTION_COUNT: ${BACKUP_RETENTION_COUNT:-7}
       BACKUP_S3_ENDPOINT: ${BACKUP_S3_ENDPOINT:-}
