@@ -76,9 +76,6 @@ export const RATE_LIMITS = {
   chat: { limit: 60, windowMs: 5 * 60_000 },
   // Daily companion to chat, same rationale as documentExtractionDaily.
   chatDaily: { limit: 500, windowMs: 24 * 60 * 60_000 },
-  // Feedback creates a public GitHub issue, so keep accidental repeats and
-  // issue spam bounded per signed-in household member.
-  feedback: { limit: 5, windowMs: 60 * 60_000 },
 } as const satisfies Record<string, RateLimitRule>;
 
 export type RateLimitName = keyof typeof RATE_LIMITS;

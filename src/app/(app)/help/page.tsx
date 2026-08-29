@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import { FeedbackForm } from "@/components/FeedbackForm";
-import { isGithubFeedbackConfigured } from "@/lib/env";
+import { linkButtonClass } from "@/lib/buttonStyles";
 
 export const metadata: Metadata = { title: "Help" };
 
@@ -161,7 +160,7 @@ export default function HelpPage() {
           >
             README on GitHub
           </a>
-          . Can&apos;t find what you need? Send us feedback below.
+          . Can&apos;t find what you need? Report it on GitHub below.
         </p>
       </div>
 
@@ -193,12 +192,20 @@ export default function HelpPage() {
         <div className="mb-4">
           <h2 className="font-medium">Share feedback</h2>
           <p className="mt-1 text-sm text-muted">
-            Report a bug, describe an issue, or suggest an enhancement.
-            Submissions are added to the GitHub review queue for the Hearth
-            team.
+            Found a bug, or have an idea for an improvement? Report it
+            directly on Hearth&apos;s GitHub repository — pick &quot;Bug
+            report&quot; or &quot;Feature request&quot; and fill in the
+            template. You&apos;ll need a free GitHub account to submit it.
           </p>
         </div>
-        <FeedbackForm configured={isGithubFeedbackConfigured()} />
+        <a
+          href="https://github.com/jaysbeekay/Hearth/issues/new/choose"
+          target="_blank"
+          rel="noopener noreferrer"
+          className={linkButtonClass("primary")}
+        >
+          Report a bug or suggest an enhancement
+        </a>
       </section>
     </div>
   );
