@@ -7,6 +7,27 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+## [0.19.1] - 2026-08-30
+
+### Changed
+
+- **In-app feedback simplified to a direct link.** The GitHub-API-backed
+  feedback form (server action posting issues via a PAT) is replaced by a
+  "Report a bug or suggest an enhancement" button on the Help page linking
+  straight to GitHub's own bug/enhancement template chooser — no token, no
+  server-side GitHub API call, and no admin configuration required.
+  `GITHUB_FEEDBACK_TOKEN`/`GITHUB_FEEDBACK_REPOSITORY` and the feedback
+  rate-limit rule are removed.
+
+### Fixed
+
+- **Warranty-to-property linking was undiscoverable when there was nothing
+  to link to.** The Property picker on the warranty form was silently
+  hidden whenever the household had zero properties, or the Property
+  module was disabled, with no indication linking was even possible — it
+  now shows an inline hint pointing to adding a property or enabling the
+  module in each case (#239).
+
 ## [0.19.0] - 2026-08-29
 
 ### Added
