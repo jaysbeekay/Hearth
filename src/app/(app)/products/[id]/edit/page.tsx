@@ -29,7 +29,12 @@ export default async function EditProductPage({
         <p className="text-sm text-muted">{product.description}</p>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
-        <ProductForm action={boundAction} product={product} properties={properties} />
+        <ProductForm
+          action={boundAction}
+          product={product}
+          properties={properties}
+          homeEnabled={homeEnabled}
+        />
       </div>
     </div>
   );

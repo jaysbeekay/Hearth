@@ -43,7 +43,12 @@ export default async function NewProductPage() {
         </p>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
-        <ProductForm action={createProduct} defaultCurrency={preferredCurrency} properties={properties} />
+        <ProductForm
+          action={createProduct}
+          defaultCurrency={preferredCurrency}
+          properties={properties}
+          homeEnabled={enabledModules.has("HOME")}
+        />
       </div>
     </div>
   );

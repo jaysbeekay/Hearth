@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { addMonths } from "date-fns";
 import { ScanBarcode, Upload } from "lucide-react";
@@ -37,11 +38,13 @@ export function ProductForm({
   product,
   defaultCurrency,
   properties = [],
+  homeEnabled = false,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   product?: ProductModel;
   defaultCurrency?: string;
   properties?: { id: string; label: string }[];
+  homeEnabled?: boolean;
 }) {
   const offlineAwareAction = makeOfflineAwareAction(
     action,
@@ -371,7 +374,7 @@ export function ProductForm({
           />
         </Field>
 
-        {properties.length > 0 && (
+        {properties.length > 0 ? (
           <Field label="Property" htmlFor="propertyId">
             <SelectWrapper>
               <select
@@ -389,6 +392,22 @@ export function ProductForm({
               </select>
             </SelectWrapper>
           </Field>
+        ) : homeEnabled ? (
+          <div className="md:col-span-2 text-xs text-muted">
+            No properties yet —{" "}
+            <Link href="/home/new" className="text-accent hover:underline">
+              add one
+            </Link>{" "}
+            to link this warranty to a home.
+          </div>
+        ) : (
+          <div className="md:col-span-2 text-xs text-muted">
+            Enable the Property module in{" "}
+            <Link href="/settings/modules" className="text-accent hover:underline">
+              Settings
+            </Link>{" "}
+            to link warranties to a home.
+          </div>
         )}
       </div>
 
