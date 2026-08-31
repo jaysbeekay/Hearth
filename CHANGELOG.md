@@ -33,6 +33,22 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 - `MAP_TILE_URL`, `MAP_TILE_ATTRIBUTION` and `MAP_TILE_SUBDOMAINS` choose
   the property map's tile source; the Content-Security-Policy follows the
   configured host (#338).
+- **Standalone mobile mode caught up with the connected app.** The offline
+  standalone shell (`ios-shell/www`, shared by the Android and iOS Capacitor
+  builds) hadn't been updated since it first shipped and had drifted behind
+  87 commits of web-app changes. It now has: a warranty-to-property picker
+  (with the same "no properties yet" / "enable the Property module" hints as
+  the connected app, #239), inventory-to-warranty linking with a reverse
+  "Linked inventory" list on the warranty's detail page (#241), a vehicle
+  "Next service due" date wired into the same reminder/calendar/attention
+  pipeline as rego and insurance expiry, "Missing info" completeness filters
+  and dashboard stat cards for policies and warranties (#328), and the
+  "Policies & contracts" / "Purchases & warranties" terminology (#332). The
+  standalone SQLite schema version moves to 8 for the new columns, migrated
+  automatically for existing installs. Flight-status tracking, per-field
+  extraction review, and inline home/vehicle linking during inbox review stay
+  connected-mode only — see the code comments in `ios-shell/www/app.js` for
+  why each doesn't have a standalone equivalent.
 
 ### Changed
 
@@ -83,6 +99,7 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   default is OpenStreetMap (#338).
 - Document delete confirmations said "This can't be undone" although
   documents go to Trash (#371).
+
 
 ## [0.19.2] - 2026-10-23
 

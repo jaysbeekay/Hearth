@@ -141,6 +141,7 @@ CREATE TABLE IF NOT EXISTS vehicles (
   vin TEXT,
   rego_expiry TEXT,
   insurance_expiry TEXT,
+  next_service_due TEXT,
   reminder_days_before TEXT DEFAULT '30,14,7,1',
   notes TEXT,
   created_at TEXT NOT NULL,
@@ -242,6 +243,9 @@ CREATE TABLE IF NOT EXISTS inventory_items (
   purchase_price REAL,
   currency TEXT NOT NULL DEFAULT 'AUD',
   location TEXT,
+  warranty_product_id TEXT,
+  warranty_registered INTEGER NOT NULL DEFAULT 0,
+  warranty_extended INTEGER NOT NULL DEFAULT 0,
   notes TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
@@ -369,7 +373,7 @@ CREATE TABLE IF NOT EXISTS schema_metadata (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
-INSERT OR REPLACE INTO schema_metadata (key, value) VALUES ('standalone_schema_version', '7');
+INSERT OR REPLACE INTO schema_metadata (key, value) VALUES ('standalone_schema_version', '8');
 `;
 
 const $ = (id) => document.getElementById(id);
@@ -407,13 +411,13 @@ const BACKUP_TABLES = [
   { key: "profile", table: "local_profile", columns: ["id", "display_name", "default_currency", "created_at", "updated_at", "version"] },
   { key: "contracts", table: "contracts", columns: ["id", "title", "category", "provider", "contract_number", "start_date", "end_date", "renewal_type", "notice_period_days", "cost", "currency", "billing_frequency", "status", "contact_name", "contact_phone", "contact_email", "notes", "reminder_days_before", "is_tax_deductible", "extraction_pending", "extraction_confirmed_at", "property_id", "vehicle_id", "created_at", "updated_at", "deleted_at", "version"] },
   { key: "products", table: "products", columns: ["id", "description", "manufacturer", "model", "vendor", "serial_number", "barcode", "purchase_date", "warranty_end_date", "price", "currency", "notes", "reminder_days_before", "extraction_pending", "extraction_confirmed_at", "property_id", "created_at", "updated_at", "deleted_at", "version"] },
-  { key: "vehicles", table: "vehicles", columns: ["id", "label", "make", "model", "year", "colour", "license_plate", "vin", "rego_expiry", "insurance_expiry", "reminder_days_before", "notes", "created_at", "updated_at", "deleted_at", "version"] },
+  { key: "vehicles", table: "vehicles", columns: ["id", "label", "make", "model", "year", "colour", "license_plate", "vin", "rego_expiry", "insurance_expiry", "next_service_due", "reminder_days_before", "notes", "created_at", "updated_at", "deleted_at", "version"] },
   { key: "vehicleItems", table: "vehicle_items", columns: ["id", "vehicle_id", "type", "title", "provider", "date", "cost", "currency", "notes", "deleted_at", "created_at", "updated_at", "version"] },
   { key: "properties", table: "properties", columns: ["id", "label", "street", "suburb", "state", "postcode", "country", "notes", "is_rented", "occupancy_status", "estimated_value", "currency", "created_at", "updated_at", "deleted_at", "version"] },
   { key: "homeItems", table: "home_items", columns: ["id", "property_id", "type", "title", "provider", "date", "cost", "currency", "is_tax_deductible", "notes", "created_at", "updated_at", "deleted_at", "version"] },
   { key: "rentalAgreements", table: "rental_agreements", columns: ["id", "property_id", "contract_id", "tenant_name", "weekly_rent", "management_fee_percent", "lease_start", "lease_end", "bond_amount", "currency", "notes", "created_at", "updated_at", "deleted_at", "version"] },
   { key: "rentalStatements", table: "rental_statements", columns: ["id", "property_id", "period_start", "period_end", "statement_date", "gross_rent", "management_fee", "other_deductions", "net_amount", "currency", "notes", "created_at", "updated_at", "deleted_at", "version"] },
-  { key: "inventoryItems", table: "inventory_items", columns: ["id", "label", "category", "brand", "model", "serial_number", "purchase_date", "purchase_price", "currency", "location", "notes", "created_at", "updated_at", "deleted_at", "version"] },
+  { key: "inventoryItems", table: "inventory_items", columns: ["id", "label", "category", "brand", "model", "serial_number", "purchase_date", "purchase_price", "currency", "location", "warranty_product_id", "warranty_registered", "warranty_extended", "notes", "created_at", "updated_at", "deleted_at", "version"] },
   { key: "trips", table: "trips", columns: ["id", "title", "destination", "start_date", "end_date", "notes", "created_at", "updated_at", "deleted_at", "version"] },
   { key: "tripSegments", table: "trip_segments", columns: ["id", "trip_id", "type", "title", "provider", "confirmation_code", "start_date", "end_date", "location", "cost", "currency", "notes", "created_at", "updated_at", "deleted_at", "version"] },
   { key: "portfolios", table: "portfolios", columns: ["id", "name", "description", "currency", "created_at", "updated_at", "deleted_at", "version"] },
@@ -563,7 +567,11 @@ async function ensureStandaloneSchema() {
   await ensureColumn("contracts", "extraction_confirmed_at", "TEXT");
   await ensureColumn("products", "extraction_pending", "INTEGER NOT NULL DEFAULT 0");
   await ensureColumn("products", "extraction_confirmed_at", "TEXT");
-  await run("INSERT OR REPLACE INTO schema_metadata (key, value) VALUES ('standalone_schema_version', '7')");
+  await ensureColumn("vehicles", "next_service_due", "TEXT");
+  await ensureColumn("inventory_items", "warranty_product_id", "TEXT");
+  await ensureColumn("inventory_items", "warranty_registered", "INTEGER NOT NULL DEFAULT 0");
+  await ensureColumn("inventory_items", "warranty_extended", "INTEGER NOT NULL DEFAULT 0");
+  await run("INSERT OR REPLACE INTO schema_metadata (key, value) VALUES ('standalone_schema_version', '8')");
 }
 
 async function ensureColumn(table, column, definition) {
@@ -813,9 +821,11 @@ function ownerTypeForRecordType(type) {
 }
 
 function typeLabel(type) {
+  // Mirrors src/components/nav-items.ts's #332 rename — keep these two in
+  // sync with that file's BASE_NAV_ITEMS labels.
   return {
-    contracts: "Contracts",
-    products: "Warranties",
+    contracts: "Policies & contracts",
+    products: "Purchases & warranties",
     vehicles: "Vehicles",
     vehicleItems: "Vehicle items",
     properties: "Home",
@@ -911,9 +921,11 @@ function attentionForRecord(type, row) {
   if (type === "vehicles") {
     const rego = daysUntil(row.rego_expiry);
     const insurance = daysUntil(row.insurance_expiry);
+    const service = daysUntil(row.next_service_due);
     const urgent = [
       rego != null && rego <= 30 ? ["Rego", rego] : null,
       insurance != null && insurance <= 30 ? ["Insurance", insurance] : null,
+      service != null && service <= 30 ? ["Service", service] : null,
     ].filter(Boolean);
     if (urgent.length === 0) return null;
     const expired = urgent.some((entry) => entry[1] < 0);
@@ -1154,6 +1166,8 @@ function renderDashboard() {
   const inventoryValue = moduleEnabled("inventoryItems") ? cache.inventoryItems.reduce((sum, row) => sum + (Number(row.purchase_price) || 0), 0) : 0;
   const propertyValue = moduleEnabled("properties") ? cache.properties.reduce((sum, row) => sum + (Number(row.estimated_value) || 0), 0) : 0;
   const holdingsValue = moduleEnabled("portfolios") ? cache.holdings.reduce((sum, row) => sum + holdingValue(row), 0) : 0;
+  const contractsMissingInfo = activeContracts.filter((row) => missingInfo("contracts", row)).length;
+  const productsMissingInfo = cache.products.filter((row) => missingInfo("products", row)).length;
   return `
     <section class="hero-card">
       <p class="kicker">Today</p>
@@ -1170,6 +1184,8 @@ function renderDashboard() {
       ${moduleEnabled("inventoryItems") ? statCard("Inventory", cache.inventoryItems.length, "records", "inventoryItems") : ""}
       ${moduleEnabled("trips") ? statCard("Trips", cache.trips.length, "records", "trips") : ""}
       ${moduleEnabled("portfolios") ? statCard("Portfolios", cache.portfolios.length, "records", "portfolios") : ""}
+      ${statCard("Policies missing info", contractsMissingInfo, "records", "contracts", "missing-info")}
+      ${statCard("Warranties missing info", productsMissingInfo, "records", "products", "missing-info")}
     </section>
 
     <section class="grid-2">
@@ -1328,6 +1344,7 @@ function calendarEvents() {
   for (const row of cache.vehicles) {
     add(row.rego_expiry, "Rego expiry", recordTitle("vehicles", row), "vehicles", row.id);
     add(row.insurance_expiry, "Insurance expiry", recordTitle("vehicles", row), "vehicles", row.id);
+    add(row.next_service_due, "Service due", recordTitle("vehicles", row), "vehicles", row.id);
   }
   for (const row of cache.trips) add(row.start_date, "Trip starts", recordTitle("trips", row), "trips", row.id);
   for (const row of cache.tripSegments) add(row.start_date, typeLabel(row.type), recordTitle("tripSegments", row), "tripSegments", row.id);
@@ -1410,6 +1427,7 @@ function reminderTargets() {
     ...cache.vehicles.flatMap((row) => [
       reminderTarget("vehicles", row, "Rego", row.rego_expiry, row.reminder_days_before),
       reminderTarget("vehicles", row, "Insurance", row.insurance_expiry, row.reminder_days_before),
+      reminderTarget("vehicles", row, "Service", row.next_service_due, row.reminder_days_before),
     ]),
   ].sort((a, b) => {
     const aDate = a.health.sortDate ?? "9999-12-31";
@@ -1449,6 +1467,7 @@ function reminderTarget(type, row, kind, dueDate, thresholds) {
 function reminderFieldForKind(kind) {
   if (kind === "Rego") return "regoExpiry";
   if (kind === "Insurance") return "insuranceExpiry";
+  if (kind === "Service") return "nextServiceDue";
   return "";
 }
 
@@ -1768,8 +1787,8 @@ function assistantResults() {
 
 function renderSettings() {
   const moduleRows = [
-    ["Contracts", cache.contracts.length],
-    ["Products", cache.products.length],
+    ["Policies & contracts", cache.contracts.length],
+    ["Purchases & warranties", cache.products.length],
   ];
   return `
     <section class="hero-card">
@@ -1952,9 +1971,9 @@ function monthlyEquivalent(cost, frequency) {
   return cost * factor;
 }
 
-function statCard(label, value, nav, recordType = "") {
+function statCard(label, value, nav, recordType = "", recordFilter = "") {
   return `
-    <button class="stat-card" data-nav="${escapeAttr(nav)}" data-record-type="${escapeAttr(recordType)}">
+    <button class="stat-card" data-nav="${escapeAttr(nav)}" data-record-type="${escapeAttr(recordType)}" data-record-filter="${escapeAttr(recordFilter)}">
       <strong>${escapeHtml(value)}</strong>
       <span>${escapeHtml(label)}</span>
     </button>
@@ -1986,8 +2005,8 @@ function renderRecords() {
   const optionalTabs = visibleOptionalModules().map((module) => recordTab(module.recordType, module.title)).join("");
   return `
     <section class="tabs" aria-label="Record types">
-      ${recordTab("contracts", "Contracts")}
-      ${recordTab("products", "Warranties")}
+      ${recordTab("contracts", "Policies & contracts")}
+      ${recordTab("products", "Purchases & warranties")}
       ${optionalTabs}
     </section>
     <section class="search-row">
@@ -1998,6 +2017,7 @@ function renderRecords() {
       ${filterChip("all", "All")}
       ${filterChip("attention", "Needs attention")}
       ${filterChip("missing-docs", "Missing document")}
+      ${filterChip("missing-info", "Missing info")}
     </section>
     <section id="record-results" class="list">
       ${rows.length === 0 ? empty("No matching records", "Add a record or adjust the search/filter.") : rows.map((row) => renderRecordCard(state.recordType, row)).join("")}
@@ -2020,8 +2040,19 @@ function filteredRecords() {
     if (queryText && !recordSearchText(state.recordType, row).includes(queryText)) return false;
     if (state.recordFilter === "attention" && !attentionForRecord(state.recordType, row)) return false;
     if (state.recordFilter === "missing-docs" && hasDocument(state.recordType, row.id)) return false;
+    if (state.recordFilter === "missing-info" && !missingInfo(state.recordType, row)) return false;
     return true;
   });
+}
+
+// Mirrors the main app's #328 completeness signal (dashboard/page.tsx):
+// a narrow, non-noisy gap — missing an end/expiry date OR a policy/serial
+// identifier — deliberately not folding in reminder/relationship gaps,
+// which would flag almost every record.
+function missingInfo(type, row) {
+  if (type === "contracts") return row.end_date == null || row.contract_number == null;
+  if (type === "products") return row.warranty_end_date == null || (row.serial_number == null && row.barcode == null);
+  return false;
 }
 
 function recordSearchText(type, row) {
@@ -2141,9 +2172,11 @@ function renderDetail() {
     </section>
     ${type === "vehicles" ? renderChildRecords("Vehicle records", "vehicleItems", cache.vehicleItems.filter((item) => item.vehicle_id === row.id), row.id, "No vehicle records", "Track services, registration, insurance and repairs here.") : ""}
     ${type === "properties" ? renderPropertyRentalSummary(row.id) : ""}
+    ${type === "properties" ? renderChildRecords("Warranties", "products", cache.products.filter((item) => item.property_id === row.id), row.id, "No warranties linked", "Register a warranty to this home so it shows up here.") : ""}
     ${type === "properties" ? renderChildRecords("Rental agreements", "rentalAgreements", cache.rentalAgreements.filter((item) => item.property_id === row.id), row.id, "No rental agreements", "Track leases, rent, bond and tenancy notes for this property.") : ""}
     ${type === "properties" ? renderChildRecords("Rental statements", "rentalStatements", cache.rentalStatements.filter((item) => item.property_id === row.id), row.id, "No rental statements", "Track rental income, fees, deductions and attached statements.") : ""}
     ${type === "properties" ? renderChildRecords("Home records", "homeItems", cache.homeItems.filter((item) => item.property_id === row.id), row.id, "No home records", "Track rates, insurance, repairs and improvements here.") : ""}
+    ${type === "products" ? renderLinkedInventoryItems(row.id) : ""}
     ${type === "trips" ? renderChildRecords("Trip segments", "tripSegments", cache.tripSegments.filter((item) => item.trip_id === row.id), row.id, "No trip segments", "Track flights, accommodation, transport and activities here.") : ""}
     ${type === "portfolios" ? renderTradeCsvImportSection(row.id) : ""}
     ${type === "portfolios" ? renderChildRecords("Holdings", "holdings", cache.holdings.filter((item) => item.portfolio_id === row.id), row.id, "No holdings", "Track shares, ETFs, funds and crypto here.") : ""}
@@ -2248,6 +2281,7 @@ function renderDetailRows(type, row) {
       ["Warranty", readableDate(row.warranty_end_date)],
       ["Reminder days", row.reminder_days_before || "30,14,7,1"],
       ["Price", money(row.price, row.currency)],
+      ["Property", row.property_id ? recordTitle("properties", getRecord("properties", row.property_id)) : null],
       ["Notes", row.notes],
     ],
     vehicles: [
@@ -2259,6 +2293,7 @@ function renderDetailRows(type, row) {
       ["VIN", row.vin],
       ["Rego expiry", readableDate(row.rego_expiry)],
       ["Insurance", readableDate(row.insurance_expiry)],
+      ["Next service due", readableDate(row.next_service_due)],
       ["Reminder days", row.reminder_days_before || "30,14,7,1"],
       ["Notes", row.notes],
     ],
@@ -2313,6 +2348,9 @@ function renderDetailRows(type, row) {
       ["Purchase date", readableDate(row.purchase_date)],
       ["Purchase price", money(row.purchase_price, row.currency)],
       ["Location", row.location],
+      ["Warranty", row.warranty_product_id ? recordTitle("products", getRecord("products", row.warranty_product_id)) : null],
+      ["Warranty registered", row.warranty_registered ? "Yes" : null],
+      ["Extended warranty", row.warranty_extended ? "Yes" : null],
       ["Notes", row.notes],
     ],
     trips: [
@@ -2391,6 +2429,7 @@ function renderRecordReminderHealth(type, row) {
         : [
             reminderTarget(type, row, "Rego", row.rego_expiry, row.reminder_days_before),
             reminderTarget(type, row, "Insurance", row.insurance_expiry, row.reminder_days_before),
+            reminderTarget(type, row, "Service", row.next_service_due, row.reminder_days_before),
           ];
   return `
     <div class="subsection">
@@ -2408,6 +2447,24 @@ function renderRecordReminderHealth(type, row) {
         `).join("")}
       </div>
     </div>
+  `;
+}
+
+// Read-only reverse lookup — inventory items point at their warranty via
+// warranty_product_id, so this warranty has no "Add" affordance of its own
+// (the link is set from the inventory item's form instead).
+function renderLinkedInventoryItems(productId) {
+  if (!moduleEnabled("inventoryItems")) return "";
+  const items = cache.inventoryItems.filter((item) => item.warranty_product_id === productId);
+  return `
+    <section class="card form-card">
+      <div class="section-title">
+        <h2>Linked inventory</h2>
+      </div>
+      <div class="list">
+        ${items.length === 0 ? empty("No inventory items linked", "Pick this warranty from an inventory item's form to link it here.") : items.map((row) => renderRecordCard("inventoryItems", row)).join("")}
+      </div>
+    </section>
   `;
 }
 
@@ -2705,6 +2762,7 @@ function formFields(type, row) {
     `;
   }
   if (type === "products") {
+    const propertyId = row?.property_id ?? state.form?.parentId ?? "";
     return `
       <div class="field-grid">
         <label>Description<input name="description" value="${escapeAttr(row?.description)}" required /></label>
@@ -2718,6 +2776,7 @@ function formFields(type, row) {
         <label>Price<input name="price" type="number" min="0" step="0.01" value="${escapeAttr(row?.price ?? "")}" /></label>
         <label>Reminder days before<input name="reminderDaysBefore" inputmode="numeric" value="${escapeAttr(row?.reminder_days_before ?? "30,14,7,1")}" placeholder="30,14,7,1" /></label>
         <label class="checkbox-row"><input name="needsReview" type="checkbox" ${Number(row?.extraction_pending ?? 0) === 1 ? "checked" : ""} /> Needs review — hold reminders until confirmed</label>
+        ${propertyPickerOrHint(propertyId)}
         <label>Notes<textarea name="notes">${escapeHtml(row?.notes)}</textarea></label>
       </div>
     `;
@@ -2734,6 +2793,7 @@ function formFields(type, row) {
         <label>VIN<input name="vin" value="${escapeAttr(row?.vin)}" /></label>
         <label>Rego expiry<input name="regoExpiry" type="date" value="${escapeAttr(dateInputValue(row?.rego_expiry))}" /></label>
         <label>Insurance expiry<input name="insuranceExpiry" type="date" value="${escapeAttr(dateInputValue(row?.insurance_expiry))}" /></label>
+        <label>Next service due<input name="nextServiceDue" type="date" value="${escapeAttr(dateInputValue(row?.next_service_due))}" /></label>
         <label>Reminder days before<input name="reminderDaysBefore" inputmode="numeric" value="${escapeAttr(row?.reminder_days_before ?? "30,14,7,1")}" placeholder="30,14,7,1" /></label>
         <label>Notes<textarea name="notes">${escapeHtml(row?.notes)}</textarea></label>
       </div>
@@ -2824,6 +2884,9 @@ function formFields(type, row) {
         <label>Purchase date<input name="purchaseDate" type="date" value="${escapeAttr(dateInputValue(row?.purchase_date))}" /></label>
         <label>Purchase price<input name="purchasePrice" type="number" min="0" step="0.01" value="${escapeAttr(row?.purchase_price ?? "")}" /></label>
         <label>Location<input name="location" value="${escapeAttr(row?.location)}" /></label>
+        <label>Warranty<select name="warrantyProductId">${productOptions(row?.warranty_product_id)}</select></label>
+        <label class="checkbox-row"><input name="warrantyRegistered" type="checkbox" ${row?.warranty_registered ? "checked" : ""} /> Warranty registered with manufacturer</label>
+        <label class="checkbox-row"><input name="warrantyExtended" type="checkbox" ${row?.warranty_extended ? "checked" : ""} /> Extended warranty purchased</label>
         <label>Notes<textarea name="notes">${escapeHtml(row?.notes)}</textarea></label>
       </div>
     `;
@@ -2907,6 +2970,39 @@ function contractOptions(selected) {
   return [
     `<option value="" ${selected ? "" : "selected"}>Not linked</option>`,
     ...cache.contracts.map((contract) => `<option value="${escapeAttr(contract.id)}" ${contract.id === selected ? "selected" : ""}>${escapeHtml(recordTitle("contracts", contract))}</option>`),
+  ].join("");
+}
+
+// Mirrors src/components/ProductForm.tsx's #239 fix: the property picker is
+// only useful once a property exists and the Home module is on — otherwise
+// show a hint instead of silently hiding the field with no explanation.
+function propertyPickerOrHint(propertyId) {
+  if (cache.properties.length > 0) {
+    return `
+      <label>Property<select name="propertyId">${propertyOptions(propertyId)}</select></label>
+    `;
+  }
+  if (moduleEnabled("properties")) {
+    return `
+      <div class="field-hint">No properties yet — <button type="button" class="link-button" data-form-type="properties">add one</button> to link this warranty to a home.</div>
+    `;
+  }
+  return `
+    <div class="field-hint">Enable the Home module in <button type="button" class="link-button" data-nav="settings">Settings</button> to link warranties to a home.</div>
+  `;
+}
+
+function propertyOptions(selected) {
+  return [
+    `<option value="" ${selected ? "" : "selected"}>Not linked</option>`,
+    ...cache.properties.map((property) => `<option value="${escapeAttr(property.id)}" ${property.id === selected ? "selected" : ""}>${escapeHtml(recordTitle("properties", property))}</option>`),
+  ].join("");
+}
+
+function productOptions(selected) {
+  return [
+    `<option value="" ${selected ? "" : "selected"}>Not linked</option>`,
+    ...cache.products.map((product) => `<option value="${escapeAttr(product.id)}" ${product.id === selected ? "selected" : ""}>${escapeHtml(recordTitle("products", product))}</option>`),
   ].join("");
 }
 
@@ -3013,17 +3109,18 @@ async function saveProduct(form) {
     reminderDaysOrDefault(fieldValue(form, "reminderDaysBefore")),
     extractionPending,
     extractionConfirmedAt,
+    valueOrNull(fieldValue(form, "propertyId")),
     nowIso(),
   ];
   if (exists) {
     await run(
-      "UPDATE products SET description = ?, manufacturer = ?, model = ?, vendor = ?, serial_number = ?, barcode = ?, purchase_date = ?, warranty_end_date = ?, price = ?, notes = ?, reminder_days_before = ?, extraction_pending = ?, extraction_confirmed_at = ?, updated_at = ?, version = version + 1 WHERE id = ?",
+      "UPDATE products SET description = ?, manufacturer = ?, model = ?, vendor = ?, serial_number = ?, barcode = ?, purchase_date = ?, warranty_end_date = ?, price = ?, notes = ?, reminder_days_before = ?, extraction_pending = ?, extraction_confirmed_at = ?, property_id = ?, updated_at = ?, version = version + 1 WHERE id = ?",
       [...values, id],
     );
   } else {
     await run(
-      "INSERT INTO products (id, description, manufacturer, model, vendor, serial_number, barcode, purchase_date, warranty_end_date, price, currency, notes, reminder_days_before, extraction_pending, extraction_confirmed_at, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)",
-      [id, ...values.slice(0, 9), defaultCurrency(), ...values.slice(9, 13), values[13], values[13]],
+      "INSERT INTO products (id, description, manufacturer, model, vendor, serial_number, barcode, purchase_date, warranty_end_date, price, currency, notes, reminder_days_before, extraction_pending, extraction_confirmed_at, property_id, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)",
+      [id, ...values.slice(0, 9), defaultCurrency(), ...values.slice(9, 14), values[14], values[14]],
     );
   }
   await maybeStoreFormFile(form, "product", id);
@@ -3042,19 +3139,20 @@ async function saveVehicle(form) {
     valueOrNull(fieldValue(form, "vin")),
     valueOrNull(fieldValue(form, "regoExpiry")),
     valueOrNull(fieldValue(form, "insuranceExpiry")),
+    valueOrNull(fieldValue(form, "nextServiceDue")),
     valueOrNull(fieldValue(form, "notes")),
     reminderDaysOrDefault(fieldValue(form, "reminderDaysBefore")),
     nowIso(),
   ];
   if (exists) {
     await run(
-      "UPDATE vehicles SET label = ?, make = ?, model = ?, year = ?, colour = ?, license_plate = ?, vin = ?, rego_expiry = ?, insurance_expiry = ?, notes = ?, reminder_days_before = ?, updated_at = ?, version = version + 1 WHERE id = ?",
+      "UPDATE vehicles SET label = ?, make = ?, model = ?, year = ?, colour = ?, license_plate = ?, vin = ?, rego_expiry = ?, insurance_expiry = ?, next_service_due = ?, notes = ?, reminder_days_before = ?, updated_at = ?, version = version + 1 WHERE id = ?",
       [...values, id],
     );
   } else {
     await run(
-      "INSERT INTO vehicles (id, label, make, model, year, colour, license_plate, vin, rego_expiry, insurance_expiry, notes, reminder_days_before, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)",
-      [id, ...values.slice(0, 11), values[11], values[11]],
+      "INSERT INTO vehicles (id, label, make, model, year, colour, license_plate, vin, rego_expiry, insurance_expiry, next_service_due, notes, reminder_days_before, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)",
+      [id, ...values.slice(0, 10), values[10], values[11], values[12], values[12]],
     );
   }
   await maybeStoreFormFile(form, "vehicle", id);
@@ -3209,13 +3307,16 @@ async function saveInventoryItem(form) {
     valueOrNull(fieldValue(form, "purchaseDate")),
     numberOrNull(fieldValue(form, "purchasePrice")),
     valueOrNull(fieldValue(form, "location")),
+    valueOrNull(fieldValue(form, "warrantyProductId")),
+    fieldChecked(form, "warrantyRegistered") ? 1 : 0,
+    fieldChecked(form, "warrantyExtended") ? 1 : 0,
     valueOrNull(fieldValue(form, "notes")),
     nowIso(),
   ];
   if (exists) {
-    await run("UPDATE inventory_items SET label = ?, category = ?, brand = ?, model = ?, serial_number = ?, purchase_date = ?, purchase_price = ?, location = ?, notes = ?, updated_at = ?, version = version + 1 WHERE id = ?", [...values, id]);
+    await run("UPDATE inventory_items SET label = ?, category = ?, brand = ?, model = ?, serial_number = ?, purchase_date = ?, purchase_price = ?, location = ?, warranty_product_id = ?, warranty_registered = ?, warranty_extended = ?, notes = ?, updated_at = ?, version = version + 1 WHERE id = ?", [...values, id]);
   } else {
-    await run("INSERT INTO inventory_items (id, label, category, brand, model, serial_number, purchase_date, purchase_price, currency, location, notes, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)", [id, ...values.slice(0, 7), defaultCurrency(), values[7], values[8], values[9], values[9]]);
+    await run("INSERT INTO inventory_items (id, label, category, brand, model, serial_number, purchase_date, purchase_price, currency, location, warranty_product_id, warranty_registered, warranty_extended, notes, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)", [id, ...values.slice(0, 7), defaultCurrency(), values[7], values[8], values[9], values[10], values[11], values[12], values[12]]);
   }
   await maybeStoreFormFile(form, "inventory_item", id);
 }
@@ -3943,7 +4044,10 @@ mobileView.addEventListener("click", async (event) => {
   const button = event.target.closest("button");
   if (!button) return;
   if (button.dataset.nav) {
-    if (button.dataset.recordType) state.recordType = button.dataset.recordType;
+    if (button.dataset.recordType) {
+      state.recordType = button.dataset.recordType;
+      state.recordFilter = button.dataset.recordFilter || "all";
+    }
     routeTo(button.dataset.nav);
     return;
   }

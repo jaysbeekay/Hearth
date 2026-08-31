@@ -66,6 +66,7 @@ test.beforeEach(async ({ page }) => {
           license_plate: "HEARTH",
           rego_expiry: "2099-04-20",
           insurance_expiry: "2099-05-20",
+          next_service_due: "2099-06-01",
           reminder_days_before: "30,14,7,1",
           updated_at: "2099-01-01T00:00:00.000Z",
         },
@@ -151,6 +152,9 @@ test.beforeEach(async ({ page }) => {
           purchase_price: 1800,
           currency: "AUD",
           location: "Office",
+          warranty_product_id: "product-1",
+          warranty_registered: 1,
+          warranty_extended: 0,
           updated_at: "2099-01-01T00:00:00.000Z",
         },
       ],
@@ -400,12 +404,14 @@ test("standalone shell exposes baseline modules and tools from More", async ({ p
 });
 
 test("standalone shell routes core records, documents, search, and wealth trade history", async ({ page }) => {
+  // #332's terminology rename applies to the view title (typeLabel); the
+  // space-constrained bottom nav keeps the original short labels.
   await page.locator(".bottom-nav").getByRole("button", { name: "Contracts" }).click();
-  await expect(page.locator("#view-title")).toHaveText("Contracts");
+  await expect(page.locator("#view-title")).toHaveText("Policies & contracts");
   await expect(page.getByRole("button", { name: /Broadband Plan/ })).toBeVisible();
 
   await page.locator(".bottom-nav").getByRole("button", { name: "Warranties" }).click();
-  await expect(page.locator("#view-title")).toHaveText("Warranties");
+  await expect(page.locator("#view-title")).toHaveText("Purchases & warranties");
   await expect(page.getByRole("button", { name: /Laptop/ })).toBeVisible();
 
   await page.locator(".bottom-nav").getByRole("button", { name: "Documents" }).click();
@@ -663,4 +669,61 @@ test("standalone document import accepts content-sniffed files with generic mobi
     return (window as Window & { __hearthStandaloneTest?: { sqliteRuns: { statement: string; values: unknown[] }[] } }).__hearthStandaloneTest?.sqliteRuns ?? [];
   });
   expect(runs.some((run) => run.statement.includes("INSERT INTO inbox_documents") && run.values.includes("octet-stream.pdf") && run.values.includes("application/pdf"))).toBe(true);
+});
+
+test("standalone records view uses the policies/warranties terminology", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "Contracts" }).click();
+  await expect(page.locator(".tabs").getByRole("button", { name: "Policies & contracts" })).toBeVisible();
+  await expect(page.locator(".tabs").getByRole("button", { name: "Purchases & warranties" })).toBeVisible();
+});
+
+test("standalone warranty form links a warranty to a property", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "Warranties" }).click();
+  await page.getByRole("button", { name: /Laptop/ }).click();
+  await page.getByRole("button", { name: "Edit" }).click();
+  await expect(page.locator('select[name="propertyId"]')).toBeVisible();
+  await page.locator('select[name="propertyId"]').selectOption("property-1");
+  await page.locator('form[data-save-type="products"]').getByRole("button", { name: "Save" }).click();
+
+  const runs = await page.evaluate(() => {
+    return (window as Window & { __hearthStandaloneTest?: { sqliteRuns: { statement: string; values: unknown[] }[] } }).__hearthStandaloneTest?.sqliteRuns ?? [];
+  });
+  expect(
+    runs.some(
+      (run) => run.statement.includes("UPDATE products SET") && run.statement.includes("property_id = ?") && run.values.includes("property-1"),
+    ),
+  ).toBe(true);
+});
+
+test("standalone inventory item links to a warranty, and the warranty lists it back", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-record-type="inventoryItems"]').click();
+  await page.getByRole("button", { name: /Camera/ }).click();
+  await expect(page.getByText("Warranty registered")).toBeVisible();
+
+  await page.locator(".bottom-nav").getByRole("button", { name: "Warranties" }).click();
+  await page.getByRole("button", { name: /Laptop/ }).click();
+  await expect(page.getByRole("heading", { name: "Linked inventory" })).toBeVisible();
+  await expect(page.locator(".list").getByRole("button", { name: /Camera/ })).toBeVisible();
+});
+
+test("standalone vehicle service-due date feeds the detail page, calendar and reminders", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-record-type="vehicles"]').click();
+  await page.getByRole("button", { name: /Family Car/ }).click();
+  await expect(page.getByText("Next service due")).toBeVisible();
+
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="reminders"]').click();
+  await expect(
+    page.locator(".record-card").filter({ hasText: "Family Car" }).filter({ hasText: "Service" }),
+  ).toHaveCount(1);
+});
+
+test("standalone dashboard's missing-info stat card deep-links into a pre-filtered warranty list", async ({ page }) => {
+  await expect(page.getByRole("button", { name: /Warranties missing info/ })).toBeVisible();
+  await page.getByRole("button", { name: /Warranties missing info/ }).click();
+  await expect(page.locator(".tabs").getByRole("button", { name: "Purchases & warranties" })).toHaveClass(/active/);
+  await expect(page.locator(".chip.active")).toHaveText("Missing info");
+  await expect(page.locator(".list").getByRole("button", { name: /Laptop/ })).toBeVisible();
 });
