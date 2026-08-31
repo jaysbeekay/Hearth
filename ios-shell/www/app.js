@@ -11,6 +11,17 @@ const SQLite = Plugins.CapacitorSQLite;
 const Filesystem = Plugins.Filesystem;
 const Preferences = Plugins.Preferences;
 const LocalNotifications = Plugins.LocalNotifications;
+const Purchases = Plugins.Purchases;
+
+// RevenueCat public SDK keys — safe to embed client-side (same class of key
+// as a Stripe publishable key), but these are placeholders until a
+// RevenueCat project + App Store Connect/Play Console non-consumable
+// products are created and wired together. See docs/ (or the PR that added
+// this) for the exact dashboard setup steps.
+const REVENUECAT_API_KEY_IOS = "appl_REPLACE_WITH_REVENUECAT_IOS_KEY";
+const REVENUECAT_API_KEY_ANDROID = "goog_REPLACE_WITH_REVENUECAT_ANDROID_KEY";
+const STANDALONE_ENTITLEMENT_ID = "standalone_mode";
+const STANDALONE_PRODUCT_ID = "standalone_unlock";
 
 const DB = "hearth_standalone";
 const ENCRYPTED_MODE = "secret";
@@ -380,8 +391,10 @@ const $ = (id) => document.getElementById(id);
 const modeScreen = $("mode-screen");
 const connectedScreen = $("connected-screen");
 const standaloneScreen = $("standalone-screen");
+const paywallScreen = $("paywall-screen");
 const connectedStatus = $("connected-status");
 const standaloneStatus = $("standalone-status");
+const paywallStatus = $("paywall-status");
 const mobileView = $("mobile-view");
 const viewTitle = $("view-title");
 const viewKicker = $("view-kicker");
@@ -474,6 +487,7 @@ function show(screen) {
   modeScreen.hidden = screen !== "mode";
   connectedScreen.hidden = screen !== "connected";
   standaloneScreen.hidden = screen !== "standalone";
+  paywallScreen.hidden = screen !== "paywall";
 }
 
 async function prefGet(key) {
@@ -1061,7 +1075,83 @@ function sniffMimeType(bytes) {
   return null;
 }
 
+let purchasesConfigured = false;
+
+// One-time in-app purchase gate: standalone/local-hosting mode requires
+// buying "standalone_unlock" (see REVENUECAT_* constants above); connecting
+// to a self-hosted server stays free and never touches this SDK at all.
+async function ensurePurchasesConfigured() {
+  if (!Purchases) throw new Error("In-app purchase bridge unavailable.");
+  if (purchasesConfigured) return;
+  const platform = Capacitor.getPlatform();
+  const apiKey = platform === "ios" ? REVENUECAT_API_KEY_IOS : REVENUECAT_API_KEY_ANDROID;
+  await Purchases.configure({ apiKey, appUserID: null });
+  purchasesConfigured = true;
+}
+
+async function isStandaloneUnlocked() {
+  await ensurePurchasesConfigured();
+  const { customerInfo } = await Purchases.getCustomerInfo();
+  return Boolean(customerInfo.entitlements.active[STANDALONE_ENTITLEMENT_ID]);
+}
+
+async function fetchStandalonePackage() {
+  await ensurePurchasesConfigured();
+  const offerings = await Purchases.getOfferings();
+  const packages = offerings.current?.availablePackages ?? [];
+  return packages.find((pkg) => pkg.product.identifier === STANDALONE_PRODUCT_ID) ?? packages[0] ?? null;
+}
+
+async function purchaseStandaloneUnlock() {
+  const pkg = await fetchStandalonePackage();
+  if (!pkg) throw new Error("Standalone unlock is not available for purchase right now.");
+  const { customerInfo } = await Purchases.purchasePackage({ aPackage: pkg });
+  return Boolean(customerInfo.entitlements.active[STANDALONE_ENTITLEMENT_ID]);
+}
+
+async function restoreStandalonePurchase() {
+  await ensurePurchasesConfigured();
+  const { customerInfo } = await Purchases.restorePurchases();
+  return Boolean(customerInfo.entitlements.active[STANDALONE_ENTITLEMENT_ID]);
+}
+
+function showPaywallStatus(message, ok = false) {
+  showStatus(paywallStatus, message, ok);
+}
+
+async function showPaywall() {
+  show("paywall");
+  const priceEl = $("paywall-price");
+  const buyButton = $("paywall-buy-button");
+  priceEl.textContent = "Loading price…";
+  buyButton.disabled = true;
+  try {
+    const pkg = await fetchStandalonePackage();
+    if (pkg) {
+      priceEl.textContent = `${pkg.product.priceString} — one-time purchase, unlocks forever on this device.`;
+      buyButton.disabled = false;
+    } else {
+      priceEl.textContent = "Standalone unlock is not available for purchase right now.";
+    }
+  } catch (error) {
+    priceEl.textContent = "Could not load purchase details.";
+    showPaywallStatus(error.message || "Could not load purchase details.");
+  }
+}
+
 async function openStandalone() {
+  const unlocked = await isStandaloneUnlocked().catch((error) => {
+    showPaywallStatus(error.message || "Could not check purchase status.");
+    return false;
+  });
+  if (unlocked) {
+    await enterStandaloneApp();
+    return;
+  }
+  await showPaywall();
+}
+
+async function enterStandaloneApp() {
   show("standalone");
   await prefSet(MODE_KEY, "standalone");
   await initDb();
@@ -1751,7 +1841,7 @@ function renderAssistantHints() {
 
 function renderHelp() {
   const helpItems = [
-    ["Standalone vs connected", "Use standalone for private records on this device only. Use connected mode when you want the full self-hosted household app, users, integrations and server automation."],
+    ["Standalone vs connected", "Standalone mode (private records on this device only) is a one-time purchase. Connecting to your own self-hosted Hearth server — the full household app, users, integrations and server automation — is always free."],
     ["Adding records", "Use Dashboard quick add for common entries, Records for module lists, or Documents to import a file first and file it later."],
     ["Documents", "Standalone stores PDF, Word and image files in app-protected storage and keeps document metadata in encrypted SQLite."],
     ["Reminders", "Standalone can schedule local device reminders for contracts, warranties, vehicles and leases. Server email/ntfy reminders stay connected-only."],
@@ -3990,6 +4080,42 @@ $("choose-standalone").addEventListener("click", async () => {
 
 $("choose-connected").addEventListener("click", async () => {
   await openConnected();
+});
+
+$("paywall-buy-button").addEventListener("click", async () => {
+  const button = $("paywall-buy-button");
+  button.disabled = true;
+  showPaywallStatus("Processing purchase…", true);
+  try {
+    const unlocked = await purchaseStandaloneUnlock();
+    if (unlocked) {
+      await enterStandaloneApp();
+      return;
+    }
+    showPaywallStatus("Purchase completed, but standalone mode is still locked. Try Restore purchases.");
+  } catch (error) {
+    showPaywallStatus(error?.userCancelled ? "Purchase cancelled." : error.message || "Purchase failed.");
+  } finally {
+    button.disabled = false;
+  }
+});
+
+$("paywall-restore-button").addEventListener("click", async () => {
+  const button = $("paywall-restore-button");
+  button.disabled = true;
+  showPaywallStatus("Restoring purchases…", true);
+  try {
+    const unlocked = await restoreStandalonePurchase();
+    if (unlocked) {
+      await enterStandaloneApp();
+      return;
+    }
+    showPaywallStatus("No previous purchase found for this account.");
+  } catch (error) {
+    showPaywallStatus(error.message || "Could not restore purchases.");
+  } finally {
+    button.disabled = false;
+  }
 });
 
 switchModeButton.addEventListener("click", async () => {

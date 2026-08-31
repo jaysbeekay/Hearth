@@ -286,6 +286,7 @@ test.beforeEach(async ({ page }) => {
 
     (window as Window & { Capacitor?: unknown; __hearthStandaloneTest?: unknown }).__hearthStandaloneTest = { sqliteRuns, scheduledNotifications, fileWrites };
     (window as Window & { Capacitor?: unknown; __hearthStandaloneTest?: unknown }).Capacitor = {
+      getPlatform: () => "ios",
       Plugins: {
         CapacitorSQLite: {
           createConnection: async () => ({}),
@@ -344,6 +345,16 @@ test.beforeEach(async ({ page }) => {
         ServerConfig: {
           getServerUrl: async () => ({ url: "" }),
           importClientCertificate: async () => ({ label: "Test certificate" }),
+        },
+        // This suite exercises standalone mode's data/UI, not the purchase
+        // gate itself (see paywall.spec.ts) — always entitled here so the
+        // existing "Use on this device" flow below reaches standalone mode.
+        Purchases: {
+          configure: async () => ({}),
+          getCustomerInfo: async () => ({ customerInfo: { entitlements: { active: { standalone_mode: { identifier: "standalone_mode", isActive: true } } } } }),
+          getOfferings: async () => ({ current: null, all: {} }),
+          purchasePackage: async () => ({ productIdentifier: "standalone_unlock", customerInfo: { entitlements: { active: { standalone_mode: { identifier: "standalone_mode", isActive: true } } } } }),
+          restorePurchases: async () => ({ customerInfo: { entitlements: { active: { standalone_mode: { identifier: "standalone_mode", isActive: true } } } } }),
         },
       },
     };

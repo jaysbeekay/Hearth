@@ -70,6 +70,7 @@ const requiredDependencies = [
   "@capacitor/local-notifications",
   "@capacitor/preferences",
   "@capacitor/network",
+  "@revenuecat/purchases-capacitor",
 ];
 for (const dependency of requiredDependencies) {
   if (!packageJson.dependencies?.[dependency]) fail(`package.json missing ${dependency}`);
@@ -91,7 +92,7 @@ for (const marker of [
   "ServerConfig.setServerUrl",
   "autoConnectIfSaved",
   "CREATE TABLE IF NOT EXISTS trades",
-  "standalone_schema_version', '7'",
+  "standalone_schema_version', '8'",
   "CREATE TABLE IF NOT EXISTS rental_agreements",
   "CREATE TABLE IF NOT EXISTS rental_statements",
   "function toggleImportantDocument",
@@ -119,6 +120,13 @@ for (const marker of [
   "Using Hearth on mobile",
   "Local profile",
   "Default currency",
+  "const Purchases = Plugins.Purchases",
+  "function ensurePurchasesConfigured",
+  "function isStandaloneUnlocked",
+  "function purchaseStandaloneUnlock",
+  "function restoreStandalonePurchase",
+  "STANDALONE_ENTITLEMENT_ID",
+  "STANDALONE_PRODUCT_ID",
 ]) {
   assertIncludes(shell, marker, "standalone shell");
 }
@@ -147,6 +155,7 @@ for (const plugin of [
   "LocalNotifications",
   "Preferences",
   "Network",
+  "Purchases",
 ]) {
   assertIncludes(androidPlugins, plugin, "Android Capacitor plugins");
 }

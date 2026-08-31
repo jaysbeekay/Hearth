@@ -49,6 +49,20 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   extraction review, and inline home/vehicle linking during inbox review stay
   connected-mode only — see the code comments in `ios-shell/www/app.js` for
   why each doesn't have a standalone equivalent.
+- **Standalone mobile mode is now a paid unlock; connected mode stays free.**
+  Connecting the app to your own self-hosted server is unchanged and free.
+  Using Hearth fully offline on-device (standalone mode) now requires a
+  one-time, non-consumable in-app purchase, handled via RevenueCat
+  (`@revenuecat/purchases-capacitor`) so App Store and Play Store billing
+  share one entitlement check. The purchase is checked once per app launch
+  (cached locally by the RevenueCat SDK afterward, so it still works
+  offline) and gates both the initial "Use on this device" choice and the
+  app's boot-time resume of a previous standalone session. A new paywall
+  screen shows the live price, a Buy button, and a Restore purchases button.
+  Requires a RevenueCat project and matching App Store Connect / Google Play
+  Console non-consumable products to be set up before shipping — see the
+  comments beside `REVENUECAT_API_KEY_IOS`/`REVENUECAT_API_KEY_ANDROID` in
+  `ios-shell/www/app.js`, which are placeholders pending that setup.
 
 ### Changed
 
