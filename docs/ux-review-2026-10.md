@@ -330,3 +330,153 @@ useful on a fresh install
 4. B1 + A5 + A8 – shorten the forms and make confirmation the default path.
 5. D1 + E1 + E2 – list toolbar and mobile overlap.
 6. C3 + C4 – settings restructure and Inventory decision (larger, plan separately).
+
+---
+
+# Part 2: walking the real moments
+
+The first pass audited screens. This pass follows a household through the moments the
+app exists for, and asks what each person actually needs at that moment. Every claim is
+tied to code or to the walkthrough.
+
+## Moment 1. A renewal notice arrives (the single most common event)
+
+The insurer emails "your policy renews on 20 Oct at $1,340". Today the user must open the
+contract, press "Renew policy" (which is just Edit), overwrite the end date, overwrite the
+cost, and lose last year's figure. There is no history, no "premium went up 12%", and the
+old policy PDF and the new one sit side by side with no relationship unless the file is
+byte-identical (the version chain only triggers on a duplicate hash).
+
+- `renewalType` ("Auto-renews / Manual / Fixed term") and `noticePeriodDays` are stored
+  and displayed but used nowhere: not by the scheduler, the calendar, the status badge or
+  the attention queue (grep confirms the only consumers are forms, labels, MCP and chat
+  tool schemas). So an auto-renewing policy shows "Expired 5d ago" every year, and a
+  contract with a 30-day notice period gets its reminders at the end date, i.e. after the
+  cancellation window has closed. For an app whose form copy promises "never miss a
+  renewal or cancellation deadline", this is the biggest functional gap.
+
+**What the user needs.** A first-class "Renew" action on the detail page and in the
+queue that: pre-fills a new term of the same length, asks for the new cost, archives the
+previous term (dates, cost, document) as history, and attaches the new document. For
+`AUTO_RENEW`, roll the end date forward automatically when it passes and log it. For
+notice periods, compute the real deadline (end date minus notice period) and drive
+reminders and the "Expires in N days" copy from that, with the label "Cancel by 20 Sep".
+
+## Moment 2. A reminder lands on the phone
+
+The email says: `Reminder: "Home & Contents Insurance" contract expires in 14 days` and
+the body ends with "Log in to Hearth to review it." There is no link to the record, no
+link at all. The ntfy push has no Click URL either. The date is hard-coded to `en-AU`
+formatting regardless of the household's preference. If the user does find the record by
+hand, signing in drops them on the dashboard (finding A7), and the record offers "Renew
+policy" (Edit) or "Mark as cancelled".
+
+**What the user needs.** One tap from the notification to the record, and on the record
+three honest choices: "Renewed", "Cancelled", or "Remind me again in N days". None of the
+three exists today: there is no snooze or acknowledge state anywhere in the schema, so the
+only way to silence an item is to edit the date or cancel the contract. Add a
+`snoozedUntil` on contracts, products and vehicles, surface "Snooze" on queue rows and
+detail banners, and put the deep link plus the two main actions into every email and push
+(ntfy supports a Click header and action buttons).
+
+## Moment 3. The thing has expired and nobody did anything
+
+Reminders stop at day 0 (`if (remaining < 0) continue;`), but the dashboard keeps the
+item in "Needs attention" as "Expired N days ago" indefinitely. Products and vehicles have
+no status or archive field at all (only `deletedAt`), so a TV whose warranty ended three
+years ago sits in the attention queue forever with an "Upload document" button, and the
+only way out is to delete the record. Vehicles with a past service date behave the same.
+
+**What the user needs.** Expiry should be a terminal, calm state, not a permanent alarm.
+Auto-archive warranties after expiry plus a grace period (keep them searchable, drop them
+from the queue), add an "Archived" status to products and vehicles, and keep expired
+contracts in the queue only until they are renewed, cancelled or snoozed.
+
+## Moment 4. The partner is invited
+
+The admin adds a member. With email configured they get a 48-hour link; after setting a
+password the page says "Password set. You can now sign in" with a button to the login
+page, so they type the email and new password again. They land on the dashboard, which
+leads with "Documents: Inbox 0 / Total 7" and two stat grids, and the Upcoming view they
+most likely want is behind "More". Nothing tells them what is theirs to do. The role
+description text appears only to the admin at invite time.
+
+**What the user needs.** Sign the member in automatically after accepting the invite and
+land them on "Upcoming", with a one-time banner: "You're a Member of the Example household.
+Everything here is shared; you can add and edit anything." Promote Upcoming into the
+mobile bar (replace Documents, which the camera button already serves) because the
+consuming member's recurring question is "when is X due", not "where is the PDF".
+
+## Moment 5. Day one with a shoebox of paper
+
+The admin drags fifteen PDFs onto Upload. Each is scanned as a contract (finding A4),
+every category defaults to "Other" (B2), every row needs a type decision and a provider,
+"Save all" files everything as unconfirmed so all fifteen reappear in the queue as
+"Needs review" (A8), and without a configured AI provider the heuristics find little on
+scanned paper. Then the user discovers that the car insurance they just filed as a contract
+is also a date field on the Vehicle ("Insurance expiry"), that the home insurance has no
+link to the property unless they go back and edit, and that "Warranty" is also a contract
+category, duplicating the whole Warranties module.
+
+- Vehicle `insuranceExpiry` and a `CAR_INSURANCE` contract linked to that vehicle are two
+  independent records with two independent reminders and no sync (confirmed: no code path
+  touches `insuranceExpiry` from the contracts actions).
+- `CATEGORY_LABELS` includes `WARRANTY` for contracts.
+
+**What the user needs.** One place for each fact. Derive the vehicle's insurance expiry
+from its linked insurance contract (and rego from a linked registration record) rather
+than asking twice; remove "Warranty" from contract categories and redirect to the warranty
+form; let the import table set category and link in bulk ("apply to all selected"); and
+show one clear banner after Save all: "15 records added. 4 need a quick check" with a
+single review screen instead of fifteen queue rows.
+
+## Moment 6. "Send me the policy" (at the mechanic, on the phone)
+
+The user opens the contract on their phone, finds the document row, and gets a download.
+There is no inline preview on the detail page (the eye icon exists only on the Documents
+page), no Web Share integration anywhere (`navigator.share` is unused), and the camera
+button covers the document row's own actions on short screens (E1). Sharing a PDF to
+WhatsApp or email, the thing a phone is for, takes a download, a Files app, and a share
+from there.
+
+**What the user needs.** Preview and Share on every document row, using the Web Share
+API with a file payload on supported mobile browsers and a copy-link fallback.
+
+## Moment 7. Setting up reminders, which is the whole point
+
+The nudge "Reminders aren't configured" leads to a System settings page whose first
+section is SMTP host, port, username, password, TLS. Most households do not have an SMTP
+relay. The alternative, ntfy, requires installing a third-party app and sharing one topic
+across the household, and there is no per-person channel choice (the only per-user
+preference is the single `emailReminders` boolean). The app is installable as a PWA with
+a service worker already in place, yet offers no Web Push, which is the one channel that
+needs no external account and would notify each member on their own device.
+
+**What the user needs.** A "Turn on reminders" step on the dashboard that offers, in
+order: browser/PWA push (one tap, per device), then email, then ntfy, with a test send
+right there. Keep SMTP and ntfy as the advanced path.
+
+## Moment 8. Queue ordering under real load
+
+With a handful of records the queue reads well. With a year of data, "Needs review" rows,
+"Reminder failed" rows and the "not configured" nudge all sort above anything with a
+date (`sortKey(null)` is negative infinity), so a policy expiring tomorrow can sit beneath
+six housekeeping rows. There is also no way to dismiss a per-record row.
+
+**What the user needs.** Two sections: "Due" (sorted by real deadline, including notice
+periods) and "Housekeeping" (review, failures, configuration), each collapsible, each
+with Snooze.
+
+## Priorities from the user's seat
+
+1. Make renewal real: Renew action with history, auto-renew roll-forward, notice-period
+   deadlines. This turns the app's promise into behaviour.
+2. Make reminders reach a person and lead somewhere: deep links and actions in email and
+   push, honour the callback URL on login, add Web Push.
+3. Give every alarm an off switch: snooze, archive, expiry as a terminal state.
+4. One fact, one place: vehicle/property dates derived from linked contracts; drop the
+   duplicate "Warranty" contract category.
+5. Day-one bulk import that ends in one review screen, not fifteen queue rows.
+6. Member onboarding: auto sign-in after invite, land on Upcoming, promote Upcoming in
+   the mobile bar.
+7. Preview and Share on documents.
