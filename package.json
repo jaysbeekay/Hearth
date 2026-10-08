@@ -19,7 +19,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1075.0",
     "@capacitor-community/sqlite": "^8.1.0",
-    "@capacitor/android": "8.4.1",
+    "@capacitor/android": "^8.5.3",
     "@capacitor/app": "^8.1.0",
     "@capacitor/core": "^8.4.1",
     "@capacitor/filesystem": "^8.1.2",
@@ -40,7 +40,7 @@
     "@zxing/browser": "^0.2.0",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
-    "csv-parse": "^7.0.1",
+    "csv-parse": "^7.0.3",
     "csv-stringify": "^6.8.1",
     "date-fns": "^4.4.0",
     "dotenv": "^17.4.2",
@@ -53,7 +53,7 @@
     "next": "^16.3.3",
     "next-auth": "^5.0.0-beta.32",
     "node-cron": "^4.4.1",
-    "nodemailer": "^9.0.1",
+    "nodemailer": "^10.0.16",
     "otpauth": "^9.5.1",
     "pdfkit": "^0.19.1",
     "prisma": "^7.9.1",
@@ -66,41 +66,47 @@
     "zod": "^4.4.3"
   },
   "overrides": {
-    "nodemailer": "^9.0.1",
-    "@hono/node-server": "^2.0.12",
+    "nodemailer": "^10.0.16",
+    "@hono/node-server": "^2.1.4",
     "postcss": "^8.5.24",
     "browserslist": "^4.28.8",
-    "fast-uri": "^3.1.6",
+    "fast-uri": "^3.1.8",
     "minimatch@3.1.5": {
-      "brace-expansion": "1.1.18"
+      "brace-expansion": "^1.1.21"
     },
+    "brace-expansion": "^5.0.12",
     "@prisma/config": {
       "deepmerge-ts": "^8.0.2"
     },
-    "hono": "^4.12.34",
-    "ip-address": "^10.4.0",
+    "hono": "^4.13.13",
+    "ip-address": "^10.7.3",
     "nanoid": "^3.3.18",
-    "sharp": "^0.35.3"
+    "sharp": "^0.35.5",
+    "mysql2": "^3.24.5",
+    "proxy-addr": "^2.0.8",
+    "qs": "^6.16.0",
+    "@xmldom/xmldom": "^0.9.12",
+    "source-map-js": "^1.2.2",
+    "uuid": "^11.1.1"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.4.1",
     "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
-    "@types/node": "^20",
+    "@types/node": "^22",
     "@types/node-cron": "^3.0.11",
-    "@types/nodemailer": "^8.0.1",
     "@types/pdfkit": "^0.17.6",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/ssh2-sftp-client": "^9.0.6",
     "eslint": "^9",
-    "eslint-config-next": "16.2.9",
+    "eslint-config-next": "16.4.0",
     "prettier": "^3.8.4",
     "tailwindcss": "^4",
     "tsx": "^4.22.4",
     "typescript": "^5",
-    "vitest": "^3.2.7"
+    "vitest": "^5.0.3"
   }
 }
