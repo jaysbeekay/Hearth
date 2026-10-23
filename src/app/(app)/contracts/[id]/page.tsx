@@ -185,7 +185,11 @@ export default async function ContractDetailPage({
       </div>
 
       {!cancelled && contract.endDate && (
-        <ReminderHealthCard health={reminderHealth} dateFormat={dateFormat} />
+        <ReminderHealthCard
+          health={reminderHealth}
+          dateFormat={dateFormat}
+          testTarget={{ kind: "contract", id: contract.id }}
+        />
       )}
 
       {(contract.contactName || contract.contactPhone || contract.contactEmail) && (

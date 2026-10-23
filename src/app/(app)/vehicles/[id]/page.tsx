@@ -154,13 +154,28 @@ export default async function VehicleDetailPage({
       </div>
 
       {regoHealth && (
-        <ReminderHealthCard title="Registration reminder" health={regoHealth} dateFormat={dateFormat} />
+        <ReminderHealthCard
+          title="Registration reminder"
+          health={regoHealth}
+          dateFormat={dateFormat}
+          testTarget={{ kind: "vehicle", id: vehicle.id, field: "regoExpiry" }}
+        />
       )}
       {insuranceHealth && (
-        <ReminderHealthCard title="Insurance reminder" health={insuranceHealth} dateFormat={dateFormat} />
+        <ReminderHealthCard
+          title="Insurance reminder"
+          health={insuranceHealth}
+          dateFormat={dateFormat}
+          testTarget={{ kind: "vehicle", id: vehicle.id, field: "insuranceExpiry" }}
+        />
       )}
       {serviceHealth && (
-        <ReminderHealthCard title="Service reminder" health={serviceHealth} dateFormat={dateFormat} />
+        <ReminderHealthCard
+          title="Service reminder"
+          health={serviceHealth}
+          dateFormat={dateFormat}
+          testTarget={{ kind: "vehicle", id: vehicle.id, field: "nextServiceDue" }}
+        />
       )}
 
       <div className="space-y-3">

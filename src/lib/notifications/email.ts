@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { getSmtpConfig, isSmtpConfigured } from "@/lib/appSettings";
+import { buildReminderEmail, type ReminderInput } from "@/lib/notifications/reminderContent";
 
 export async function sendTestEmail(to: string) {
   if (!(await isSmtpConfigured())) throw new Error("SMTP is not configured.");
@@ -67,14 +68,7 @@ export async function sendInvitationEmail(to: string, inviteUrl: string) {
   });
 }
 
-export async function sendReminderEmail(opts: {
-  to: string;
-  kind: "contract" | "warranty";
-  title: string;
-  detail: string;
-  daysRemaining: number;
-  endDate: Date;
-}) {
+export async function sendReminderEmail(to: string, input: ReminderInput) {
   if (!(await isSmtpConfigured())) return;
 
   const smtp = await getSmtpConfig();
@@ -85,34 +79,8 @@ export async function sendReminderEmail(opts: {
     auth: smtp.user ? { user: smtp.user, pass: smtp.pass } : undefined,
   });
 
-  const subject = stripNewlines(
-    `Reminder: "${opts.title}" ${opts.kind} expires in ${opts.daysRemaining} day${
-      opts.daysRemaining === 1 ? "" : "s"
-    }`,
-  );
-
-  const formattedDate = opts.endDate.toLocaleDateString("en-AU", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-
-  await transporter.sendMail({
-    from: smtp.from,
-    to: opts.to,
-    subject,
-    text: `Your ${opts.kind} "${opts.title}" (${opts.detail}) expires on ${formattedDate} (${opts.daysRemaining} day(s) from now).\n\nLog in to Hearth to review it.`,
-    html: `<p>Your ${opts.kind} <strong>${escapeHtml(opts.title)}</strong> (${escapeHtml(
-      opts.detail,
-    )}) expires on <strong>${formattedDate}</strong> (${opts.daysRemaining} day(s) from now).</p><p>Log in to Hearth to review it.</p>`,
-  });
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+  // Wording, date format and the link back to the record come from the
+  // shared builder (#352), so every channel says the same thing.
+  const { subject, text, html } = buildReminderEmail(input);
+  await transporter.sendMail({ from: smtp.from, to, subject: stripNewlines(subject), text, html });
 }

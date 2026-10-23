@@ -151,7 +151,11 @@ export default async function ProductDetailPage({
       </div>
 
       {product.warrantyEndDate && (
-        <ReminderHealthCard health={reminderHealth} dateFormat={dateFormat} />
+        <ReminderHealthCard
+          health={reminderHealth}
+          dateFormat={dateFormat}
+          testTarget={{ kind: "warranty", id: product.id }}
+        />
       )}
 
       {(product.property || product.warrantyForItems.length > 0) && (

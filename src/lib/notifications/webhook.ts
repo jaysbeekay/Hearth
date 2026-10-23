@@ -1,8 +1,8 @@
 import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
-import { env } from "@/lib/env";
 import { decodeWebhookSecret } from "@/lib/webhookSecret";
 import { assertSafeOutboundUrl, UnsafeOutboundUrlError } from "@/lib/net/outbound";
+import { buildReminderWebhookBody, type ReminderInput } from "@/lib/notifications/reminderContent";
 
 const WEBHOOK_TIMEOUT_MS = 10_000;
 
@@ -63,28 +63,16 @@ export async function getEnabledWebhookEndpoints() {
   return prisma.webhookEndpoint.findMany({ where: { enabled: true } });
 }
 
-export async function sendExpiryWebhooks(opts: {
-  kind: "contract" | "warranty";
-  id: string;
-  title: string;
-  detail: string;
-  daysRemaining: number;
-  endDate: Date;
-}) {
+export async function sendExpiryWebhooks(input: ReminderInput) {
   const endpoints = await getEnabledWebhookEndpoints();
   if (endpoints.length === 0) return;
 
-  const event = opts.kind === "contract" ? "contract.expiring" : "warranty.expiring";
-  const body = JSON.stringify({
-    event,
-    kind: opts.kind,
-    id: opts.id,
-    title: opts.title,
-    detail: opts.detail,
-    daysRemaining: opts.daysRemaining,
-    endDate: opts.endDate.toISOString().slice(0, 10),
-    url: `${env.appUrl.replace(/\/$/, "")}/${opts.kind === "contract" ? "contracts" : "products"}/${opts.id}`,
-  });
+  // #352 — vehicles get their own `vehicle.expiring` event and /vehicles
+  // link (they used to go out as `contract.expiring` with a /contracts URL),
+  // and `url` is null rather than a localhost guess when APP_URL is unset.
+  const payload = buildReminderWebhookBody(input);
+  const event = String(payload.event);
+  const body = JSON.stringify(payload);
 
   const results = await Promise.all(endpoints.map((endpoint) => deliver(endpoint, event, body)));
   if (results.some((ok) => !ok)) {

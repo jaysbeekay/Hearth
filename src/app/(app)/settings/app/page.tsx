@@ -276,7 +276,11 @@ export default async function AppSettingsPage() {
           />
         </section>
 
-        <HouseholdReminderHealthCard health={reminderHealth} dateFormat={dateFormat} />
+        <HouseholdReminderHealthCard
+          health={reminderHealth}
+          dateFormat={dateFormat}
+          appUrlConfigured={isAppUrlConfigured()}
+        />
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 import { BellOff, BellRing, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { TestConnectionButton } from "@/components/TestConnectionButton";
-import { sendTestReminder } from "@/lib/actions/reminders";
+import { sendTestReminder, type TestReminderTarget } from "@/lib/actions/reminders";
 import type { ReminderHealth } from "@/lib/notifications/health";
 
 const CHANNEL_LABELS: Record<string, string> = { EMAIL: "email", NTFY: "ntfy", WEBHOOK: "webhook" };
@@ -22,10 +22,13 @@ export function ReminderHealthCard({
   title = "Reminder health",
   health,
   dateFormat,
+  testTarget,
 }: {
   title?: string;
   health: ReminderHealth;
   dateFormat?: string | null;
+  /** #352 — the record whose real reminder "Send test reminder" sends. */
+  testTarget?: TestReminderTarget;
 }) {
   return (
     <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
@@ -38,7 +41,10 @@ export function ReminderHealthCard({
           )}
           {title}
         </h2>
-        <TestConnectionButton action={sendTestReminder} label="Send test reminder" />
+        <TestConnectionButton
+          action={testTarget ? sendTestReminder.bind(null, testTarget) : () => sendTestReminder()}
+          label="Send test reminder"
+        />
       </div>
 
       <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">
