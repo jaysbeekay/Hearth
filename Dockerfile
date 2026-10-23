@@ -4,7 +4,7 @@
 # selects the right architecture.
 #
 # To update: docker buildx imagetools inspect node:26-alpine
-FROM node:26-alpine@sha256:2d984a15c9b54fd0aeb608b8e0d0d83529eb34d2966db27a1fb4f1edc3d298a3 AS base
+FROM node:26-alpine@sha256:40cd011b55415bc894e45b02fdd5a5dfde056921b7d23a64c74f80497af48797 AS base
 WORKDIR /app
 
 FROM base AS deps
