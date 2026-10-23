@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { Pencil, Trash2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
-import { deleteInventoryItem, addInventoryItemDocument } from "@/lib/actions/inventory";
+import { deleteInventoryItem, addInventoryItemDocument, restoreInventoryItem } from "@/lib/actions/inventory";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
@@ -77,6 +77,7 @@ export default async function InventoryItemPage({
           <DetailOverflowMenu>
             <ConfirmForm
               action={deleteInventoryItem.bind(null, id)}
+              undo={{ action: restoreInventoryItem.bind(null, id), href: `/inventory/${id}` }}
               confirmText="Move this item to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash."
               actionLabel="Delete item"
               className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"

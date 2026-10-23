@@ -4,7 +4,7 @@ import { Pencil, Trash2, Plus, Wrench, Tag, RotateCw, Zap, Receipt } from "lucid
 import type { LucideIcon } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
-import { deleteVehicle, deleteVehicleItem, addVehicleItemDocument } from "@/lib/actions/vehicles";
+import { deleteVehicle, deleteVehicleItem, addVehicleItemDocument, restoreVehicle, restoreVehicleItem } from "@/lib/actions/vehicles";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailField as Detail } from "@/components/DetailField";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
@@ -113,6 +113,7 @@ export default async function VehicleDetailPage({
           <DetailOverflowMenu>
             <ConfirmForm
               action={deleteVehicle.bind(null, vehicle.id)}
+              undo={{ action: restoreVehicle.bind(null, vehicle.id), href: `/vehicles/${vehicle.id}` }}
               confirmText="Move this vehicle to Trash? Its records and documents are kept, and you can restore it within 30 days from Settings → Trash."
               actionLabel="Delete vehicle"
               className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
@@ -250,6 +251,7 @@ export default async function VehicleDetailPage({
                       </Link>
                       <ConfirmForm
                         action={deleteVehicleItem.bind(null, vehicle.id, item.id)}
+                        undo={{ action: restoreVehicleItem.bind(null, item.id) }}
                         confirmText={`Delete "${item.title}" and its documents?`}
                         actionLabel={`Delete "${item.title}"`}
                         className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Eye, FileText, Trash2 } from "lucide-react";
 import type { ProductDocumentModel } from "@/generated/prisma/models";
-import { deleteProductDocumentAction, setProductDocumentImportant } from "@/lib/actions/products";
+import { deleteProductDocumentAction, setProductDocumentImportant, restoreProductDocument } from "@/lib/actions/products";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DocumentLink } from "@/components/DocumentLink";
 import { DocumentPreviewModal, isPreviewable } from "@/components/DocumentPreviewModal";
@@ -74,7 +74,8 @@ export function ProductDocumentList({
             />
             <ConfirmForm
               action={deleteProductDocumentAction.bind(null, doc.productId, doc.id)}
-              confirmText={`Delete ${doc.filename}? This can't be undone.`}
+              undo={{ action: restoreProductDocument.bind(null, doc.id) }}
+              confirmText={`Move ${doc.filename} to Trash? You can restore it within 30 days from Settings → Trash.`}
               actionLabel="Delete document"
               ariaLabel={`Delete ${doc.filename}`}
               className="rounded-md p-2 text-muted hover:text-danger"

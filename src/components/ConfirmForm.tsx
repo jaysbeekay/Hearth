@@ -1,8 +1,9 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { showToast } from "@/components/Toast";
-import { enqueueOperation } from "@/lib/offlineQueue";
+import { deleteOperation, enqueueOperation } from "@/lib/offlineQueue";
 import { buttonVariants, compactButtonClass } from "@/lib/buttonStyles";
 import { cn } from "@/lib/utils";
 import { Dialog } from "@/components/Dialog";
@@ -16,6 +17,7 @@ export function ConfirmForm({
   ariaLabel,
   successMessage = "Removed.",
   offline,
+  undo,
 }: {
   action: () => Promise<unknown>;
   confirmText: string;
@@ -33,7 +35,12 @@ export function ConfirmForm({
   // is needed for entities scoped under a parent record, e.g. a document
   // delete needs its owning contract/product/item id for the ownership check.
   offline?: { entity: string; entityId: string; label: string; parentId?: string };
+  // #371 — for trash-backed deletes: the success toast offers Undo, which
+  // calls the matching restore action. `href` is where to go back to when
+  // the delete navigated away (deleting from a record's own detail page).
+  undo?: { action: () => Promise<unknown>; href?: string };
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -44,6 +51,34 @@ export function ConfirmForm({
   }
 
   const destructive = /\b(delete|remove|trash|discard|permanently)\b/i.test(actionLabel);
+
+  function showDoneToast() {
+    if (!successMessage) return;
+    if (!undo) {
+      showToast(successMessage);
+      return;
+    }
+    showToast(successMessage, "success", {
+      action: {
+        label: "Undo",
+        onClick: async () => {
+          try {
+            const result = await undo.action();
+            const error = (result as { error?: string } | undefined)?.error;
+            if (error) {
+              showToast(error, "error");
+              return;
+            }
+            showToast("Restored.");
+            if (undo.href) router.push(undo.href);
+            else router.refresh();
+          } catch {
+            showToast("Couldn't restore it — find it in Settings → Trash.", "error");
+          }
+        },
+      },
+    });
+  }
 
   return (
     <>
@@ -87,7 +122,7 @@ export function ConfirmForm({
               setPending(true);
               try {
                 if (offline && typeof navigator !== "undefined" && !navigator.onLine) {
-                  await enqueueOperation({
+                  const opId = await enqueueOperation({
                     label: offline.label,
                     entity: offline.entity,
                     operation: "delete",
@@ -95,12 +130,25 @@ export function ConfirmForm({
                     parentId: offline.parentId,
                   });
                   window.dispatchEvent(new Event("offline-queued"));
-                  showToast("Delete queued — will sync when you reconnect.");
+                  // Nothing has reached the server yet, so undoing just
+                  // drops the queued delete.
+                  showToast("Delete queued — will sync when you reconnect.", "success", {
+                    action: opId
+                      ? {
+                          label: "Undo",
+                          onClick: async () => {
+                            await deleteOperation(opId);
+                            window.dispatchEvent(new Event("offline-queued"));
+                            showToast("Delete cancelled.");
+                          },
+                        }
+                      : undefined,
+                  });
                   close();
                   return;
                 }
                 await action();
-                if (successMessage) showToast(successMessage);
+                showDoneToast();
                 close();
               } catch (err) {
                 // Server actions that redirect() throw a special signal
@@ -108,6 +156,9 @@ export function ConfirmForm({
                 // real failure worth surfacing.
                 const digest = (err as { digest?: string })?.digest;
                 if (typeof digest === "string" && digest.startsWith("NEXT_REDIRECT")) {
+                  // A delete from a record's own page redirects away; the
+                  // toast container lives in the layout, so it survives.
+                  showDoneToast();
                   throw err;
                 }
                 showToast("Something went wrong. Please try again.", "error");

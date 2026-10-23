@@ -11,7 +11,7 @@ import { PendingRecordCard } from "@/components/PendingRecordCard";
 import { SwipeableListItem } from "@/components/SwipeableListItem";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { ListSummaryStrip } from "@/components/ListSummaryStrip";
-import { deleteContract } from "@/lib/actions/contracts";
+import { deleteContract, restoreContract } from "@/lib/actions/contracts";
 import type { ContractModel } from "@/generated/prisma/models";
 import { CATEGORY_LABELS, daysUntil } from "@/lib/utils";
 import { cachePageData } from "@/lib/offlineCache";
@@ -335,6 +335,7 @@ export function ContractListClient({
                 revealAction={
                   <ConfirmForm
                     action={deleteContract.bind(null, contract.id)}
+                    undo={{ action: restoreContract.bind(null, contract.id) }}
                     confirmText={`Move this contract to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash.`}
                     actionLabel="Delete contract"
                     ariaLabel={`Delete ${contract.title}`}
