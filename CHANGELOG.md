@@ -7,6 +7,35 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+## [0.19.2] - 2026-10-23
+
+### Security
+
+- **Dependency vulnerability sweep.** `npm audit` drops from 38 findings
+  (6 critical, 19 high) to 3 low-severity entries in production
+  dependencies (#340):
+  - `next` 16.3.3 → 16.4.2: critical RCE in `next/og` `ImageResponse`,
+    SSRF in Image Optimization, cache poisoning, and a further critical
+    advisory against 16.0.0–16.4.0 that now blocks `next build`.
+  - `nodemailer` 9 → 10: quadratic-time DoS in address parsing and a DNS
+    cache cross-tenant credential leak.
+  - `@capacitor/android` → 8.5.3: remote content could load at the app
+    origin via the internal HTTP proxy path.
+  - `yahoo-finance2` 3 → 4: drops the bundled `zod` 3, which carries a
+    high-severity resource-exhaustion advisory with no fixed 3.x release.
+  - `zod` → 4.6.7, `qs` → 6.16.1, `body-parser` → 2.4.0, `ip-address` →
+    10.7.4, `@xmldom/xmldom` → 0.9.12, plus updated overrides for `hono`,
+    `fast-uri`, `sharp`, `mysql2`, `proxy-addr`, `uuid`,
+    `brace-expansion` and `source-map-js`.
+  - `@modelcontextprotocol/sdk`, `prisma`, `@serwist/next` and
+    `@libsql/client` brought up to date within their ranges.
+  - Dev tooling: `vitest` 3 → 5 (critical prototype-pollution RCE in
+    `tinypool`).
+
+  The remaining low-severity entries come from `@simplewebauthn/server`
+  9.x and don't apply to Hearth's passkey setup (no attestation is
+  verified); the upgrade is tracked in #376.
+
 ## [0.19.1] - 2026-08-30
 
 ### Changed
