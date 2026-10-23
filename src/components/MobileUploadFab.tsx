@@ -7,12 +7,11 @@ import { Camera, Upload, Loader2 } from "lucide-react";
 import { saveToInbox } from "@/lib/actions/import";
 import { showToast } from "@/components/Toast";
 
-// A persistent one-tap capture action on mobile, since photographing and
-// uploading a receipt/document is a primary, frequent action for this app,
-// not something that should require digging through "More" first (#173).
-// Hidden on /import itself since the user is already there, and on every
-// /new and /edit form route — those routes end in a fixed-position submit
-// button at roughly this same screen position, which the FAB would cover.
+// A one-tap capture action on mobile, since photographing and uploading a
+// receipt/document is a primary, frequent action for this app, not
+// something that should require digging through "More" first (#173).
+// Rendered only on the dashboard and Documents pages (#348): on list,
+// detail, form and settings pages it covered content and controls.
 //
 // #299: the main FAB opens the rear camera directly (accept + capture on a
 // hidden input) rather than routing through the generic /import queue,
@@ -29,8 +28,13 @@ export function MobileUploadFab() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
 
-  if (pathname.startsWith("/import")) return null;
-  if (pathname.endsWith("/new") || pathname.endsWith("/edit")) return null;
+  // #348 — only on the pages whose main job is capturing documents. Shown
+  // everywhere, it sat over list cards, detail-page buttons and settings
+  // text; elsewhere, uploading stays one tap away via the dashboard, the
+  // Documents tab and each record's own upload area.
+  if (!(pathname === "/dashboard" || pathname === "/documents" || pathname.startsWith("/documents/"))) {
+    return null;
+  }
 
   async function handleCapture(file: File) {
     setUploading(true);
@@ -53,6 +57,10 @@ export function MobileUploadFab() {
   }
 
   return (
+    <>
+    {/* In-flow spacer, so the end of the page can scroll clear of the
+        fixed buttons instead of staying underneath them. */}
+    <div aria-hidden className="h-32 md:hidden" />
     <div className="fixed right-4 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-30 flex flex-col items-end gap-2 md:hidden">
       <Link
         href="/import"
@@ -86,5 +94,6 @@ export function MobileUploadFab() {
         />
       </label>
     </div>
+    </>
   );
 }

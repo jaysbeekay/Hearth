@@ -253,6 +253,9 @@ services:
       OLLAMA_MODEL: ${OLLAMA_MODEL:-}
       BARCODE_LOOKUP_ENABLED: ${BARCODE_LOOKUP_ENABLED:-}
       BARCODE_LOOKUP_API_KEY: ${BARCODE_LOOKUP_API_KEY:-}
+      MAP_TILE_URL: ${MAP_TILE_URL:-}
+      MAP_TILE_ATTRIBUTION: ${MAP_TILE_ATTRIBUTION:-}
+      MAP_TILE_SUBDOMAINS: ${MAP_TILE_SUBDOMAINS:-}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
       BACKUP_CRON_SCHEDULE: ${BACKUP_CRON_SCHEDULE:-0 3 * * *}
       BACKUP_RETENTION_COUNT: ${BACKUP_RETENTION_COUNT:-7}
@@ -668,6 +671,9 @@ for the full list with defaults. Notable ones:
 | `AI_EGRESS_PROXY_URL` | Optional. Routes outbound AI provider calls (document extraction and the chat assistant) through a local agent-firewall proxy such as Pipelock, instead of calling the provider directly — see "Routing AI traffic through an agent firewall" above. |
 | `BARCODE_LOOKUP_ENABLED` | Optional. Set to `true` to look up a scanned product barcode online and auto-fill its name/manufacturer — see "Barcode scanning for products" above. |
 | `BARCODE_LOOKUP_API_KEY` | Optional. A paid UPCitemdb API key for higher-limit barcode lookups, instead of the free keyless trial endpoint. |
+| `MAP_TILE_URL` | Optional. Leaflet tile URL template for the Property map, e.g. `https://{s}.tiles.example/{z}/{x}/{y}.png?key=…`. Defaults to OpenStreetMap's standard tiles. The Content-Security-Policy follows the configured host. |
+| `MAP_TILE_ATTRIBUTION` | Optional. Attribution HTML for a custom `MAP_TILE_URL`; defaults to the OpenStreetMap credit. |
+| `MAP_TILE_SUBDOMAINS` | Optional. Values for `{s}` in `MAP_TILE_URL`, e.g. `abcd`. |
 | `ENCRYPTION_KEY` | Optional. Generate with `openssl rand -base64 32`. Set to enable users bringing their own AI provider key for document extraction, and a prerequisite for offsite database backups — see "Bring your own AI key" and "Database backups" above. |
 | `BLOCK_PRIVATE_NETWORK_TARGETS` | Optional. Set to `true` to refuse outbound requests (webhooks, ntfy, Ollama) to addresses on your own network. Off by default — LAN IPs and local hostnames are supported destinations. Cloud instance-metadata addresses are always refused either way. |
 | `SETUP_TOKEN` | Optional. Generate with `openssl rand -hex 16`. If set, the first-run setup screen also asks for this value, so a server that's reachable before you've created your account can't be claimed by someone else — see "Security notes" below. Ignored once setup is complete. |

@@ -27,8 +27,10 @@ export function AiSettingsForm({
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(saveAiSettings, null);
   const configured = Boolean(provider);
-  const [selected, setSelected] = useState<AiProviderId>(provider ?? "ANTHROPIC");
-  const needsApiKey = !AI_PROVIDERS_WITHOUT_API_KEY.includes(selected);
+  // #346 — nothing is pre-selected when no provider is saved: defaulting to
+  // the first provider read as "your data is already going there".
+  const [selected, setSelected] = useState<AiProviderId | "">(provider ?? "");
+  const needsApiKey = selected !== "" && !AI_PROVIDERS_WITHOUT_API_KEY.includes(selected);
 
   return (
     <div className="space-y-4">
@@ -42,9 +44,10 @@ export function AiSettingsForm({
               id="provider"
               name="provider"
               defaultValue={selected}
-              onChange={(e) => setSelected(e.target.value as AiProviderId)}
+              onChange={(e) => setSelected(e.target.value as AiProviderId | "")}
               className={selectClass}
             >
+              {!configured && <option value="">Not configured (local extraction only)</option>}
               {Object.entries(AI_PROVIDER_LABELS).map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}
@@ -54,48 +57,52 @@ export function AiSettingsForm({
           </SelectWrapper>
         </div>
 
-        {needsApiKey ? (
-          <div className="space-y-1">
-            <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
-              Documents will be sent to {AI_PROVIDER_LABELS[selected]} for processing.
-            </p>
-            <label htmlFor="apiKey" className="text-sm font-medium">
-              API key
-            </label>
-            <input
-              id="apiKey"
-              name="apiKey"
-              type="password"
-              autoComplete="off"
-              placeholder={apiKeyIsSet ? "Enter a new key to replace the saved one" : "sk-..."}
-              className={inputClass}
-            />
-          </div>
-        ) : (
-          <p className="text-xs text-muted">
-            No API key needed — Ollama uses the base URL configured in{" "}
-            <a href="/settings/app" className="text-accent hover:underline">
-              System settings
-            </a>
-            .
-          </p>
-        )}
+        {selected !== "" && (
+          <>
+            {needsApiKey ? (
+              <div className="space-y-1">
+                <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
+                  Documents will be sent to {AI_PROVIDER_LABELS[selected]} for processing.
+                </p>
+                <label htmlFor="apiKey" className="text-sm font-medium">
+                  API key
+                </label>
+                <input
+                  id="apiKey"
+                  name="apiKey"
+                  type="password"
+                  autoComplete="off"
+                  placeholder={apiKeyIsSet ? "Enter a new key to replace the saved one" : "sk-..."}
+                  className={inputClass}
+                />
+              </div>
+            ) : (
+              <p className="text-xs text-muted">
+                No API key needed — Ollama uses the base URL configured in{" "}
+                <a href="/settings/app" className="text-accent hover:underline">
+                  System settings
+                </a>
+                .
+              </p>
+            )}
 
-        <div className="space-y-1">
-          <label htmlFor="model" className="text-sm font-medium">
-            Model <span className="text-muted">(optional)</span>
-          </label>
-          <input
-            id="model"
-            name="model"
-            defaultValue={model ?? ""}
-            placeholder={AI_PROVIDER_DEFAULT_MODELS[selected]}
-            className={inputClass}
-          />
-          <p className="text-xs text-muted">
-            Leave blank to use the default: {AI_PROVIDER_DEFAULT_MODELS[selected]}
-          </p>
-        </div>
+            <div className="space-y-1">
+              <label htmlFor="model" className="text-sm font-medium">
+                Model <span className="text-muted">(optional)</span>
+              </label>
+              <input
+                id="model"
+                name="model"
+                defaultValue={model ?? ""}
+                placeholder={AI_PROVIDER_DEFAULT_MODELS[selected]}
+                className={inputClass}
+              />
+              <p className="text-xs text-muted">
+                Leave blank to use the default: {AI_PROVIDER_DEFAULT_MODELS[selected]}
+              </p>
+            </div>
+          </>
+        )}
 
         <FormMessage error={state?.error} success={state?.success} />
         <div className="flex items-center justify-between">
@@ -104,7 +111,7 @@ export function AiSettingsForm({
           ) : (
             <span />
           )}
-          <SubmitButton>{configured ? "Update" : "Save"}</SubmitButton>
+          {selected !== "" && <SubmitButton>{configured ? "Update" : "Save"}</SubmitButton>}
         </div>
       </form>
 

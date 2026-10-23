@@ -2,6 +2,12 @@ import NextAuth from "next-auth";
 import { NextResponse, type NextRequest } from "next/server";
 import { authConfig, isPublicPath } from "@/lib/auth.config";
 import { hasMismatchedOrigin } from "@/lib/originCheck";
+import { env } from "@/lib/env";
+import { resolveMapTiles, tileImgSrc } from "@/lib/mapTiles";
+
+// PropertyMap's tile host (#338) — the OpenStreetMap default, or whatever
+// MAP_TILE_URL points at. Resolved once; env vars don't change at runtime.
+const MAP_TILE_IMG_SRC = tileImgSrc(resolveMapTiles(env.mapTiles).url);
 
 const { auth } = NextAuth(authConfig);
 
@@ -15,7 +21,7 @@ const { auth } = NextAuth(authConfig);
 //    attributes, for which there is no nonce path.
 //  - img-src blob:/data:: document thumbnails and camera captures render from
 //    object URLs before upload.
-//  - img-src cartocdn: PropertyMap's basemap tiles (see PropertyMap.tsx).
+//  - img-src map tile host: PropertyMap's basemap tiles (src/lib/mapTiles.ts).
 //  - frame-src blob:: PDF document preview (DocumentPreviewModal.tsx) renders
 //    a fetched, decrypted-at-rest document into an <iframe> over a same-origin
 //    blob: URL — no remote origin is ever framed.
@@ -32,7 +38,7 @@ function buildCsp(nonce: string, { isDev, isHttps }: { isDev: boolean; isHttps: 
     "default-src 'self'",
     `script-src ${scriptSrc}`,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https://*.basemaps.cartocdn.com",
+    `img-src 'self' data: blob:${MAP_TILE_IMG_SRC ? ` ${MAP_TILE_IMG_SRC}` : ""}`,
     "font-src 'self' data:",
     // Every outbound integration — AI providers, ntfy, webhooks, geocoding — is
     // called server-side, so the browser only ever talks to its own origin.
@@ -128,7 +134,9 @@ export default auth((request) => {
     // URL echoed that token into the login page's address, its history entry
     // and anything logging URLs. Only callbackUrl is carried across.
     const signInUrl = new URL("/login", request.nextUrl.origin);
-    signInUrl.searchParams.set("callbackUrl", request.nextUrl.href);
+    // A relative path, not the full href: the login page and action only
+    // accept same-origin paths back (#341, src/lib/callbackUrl.ts).
+    signInUrl.searchParams.set("callbackUrl", `${request.nextUrl.pathname}${request.nextUrl.search}`);
     return withSecurityHeaders(NextResponse.redirect(signInUrl), csp, isHttps);
   }
 
@@ -148,6 +156,11 @@ export default auth((request) => {
 
 export const config = {
   matcher: [
-    "/((?!api/auth|_next/static|_next/image|favicon.ico|manifest.json|icons).*)",
+    // Static files in public/ that the browser fetches before (or without)
+    // a session must bypass the auth redirect: icon.svg is the favicon,
+    // apple-touch and manifest icon on /login and /setup, sw.js is the
+    // Serwist service worker a signed-out PWA still needs to update, and
+    // leaflet/ holds PropertyMap's marker images (#343).
+    "/((?!api/auth|_next/static|_next/image|favicon.ico|manifest.json|icons|icon.svg|sw.js|swe-worker|leaflet/).*)",
   ],
 };

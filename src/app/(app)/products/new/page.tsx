@@ -4,12 +4,14 @@ import { ProductForm } from "@/components/ProductForm";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { prisma } from "@/lib/prisma";
+import { isBarcodeLookupConfigured } from "@/lib/appSettings";
 import { BackLink } from "@/components/BackLink";
 
 export default async function NewProductPage() {
-  const [{ preferredCurrency }, enabledModules] = await Promise.all([
+  const [{ preferredCurrency }, enabledModules, barcodeLookupEnabled] = await Promise.all([
     getUserPreferences(),
     getEnabledModuleKeys(),
+    isBarcodeLookupConfigured(),
   ]);
   const properties = enabledModules.has("HOME")
     ? await prisma.property.findMany({ select: { id: true, label: true }, orderBy: { label: "asc" } })
@@ -48,6 +50,7 @@ export default async function NewProductPage() {
           defaultCurrency={preferredCurrency}
           properties={properties}
           homeEnabled={enabledModules.has("HOME")}
+          barcodeLookupEnabled={barcodeLookupEnabled}
         />
       </div>
     </div>

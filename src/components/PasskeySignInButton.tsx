@@ -4,7 +4,7 @@ import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { startAuthentication } from "@simplewebauthn/browser";
 
-export function PasskeySignInButton() {
+export function PasskeySignInButton({ callbackUrl = "/dashboard" }: { callbackUrl?: string }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -39,7 +39,7 @@ export function PasskeySignInButton() {
       });
 
       if (result?.ok) {
-        window.location.href = "/dashboard";
+        window.location.href = callbackUrl;
       } else {
         setError("Passkey sign-in failed. The passkey may not match an account.");
       }

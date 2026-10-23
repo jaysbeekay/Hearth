@@ -12,9 +12,15 @@ import { GithubSignInButton } from "@/components/GithubSignInButton";
 export function LoginForm({
   smtpConfigured = false,
   githubConfigured = false,
+  passkeysAvailable = false,
+  callbackUrl = "/dashboard",
 }: {
   smtpConfigured?: boolean;
   githubConfigured?: boolean;
+  /** #344 — APP_URL is set and at least one passkey is registered. */
+  passkeysAvailable?: boolean;
+  /** Already reduced to a same-origin path by the login page (#341). */
+  callbackUrl?: string;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(login, null);
   const totpRequired = Boolean(state?.totpRequired);
@@ -30,6 +36,7 @@ export function LoginForm({
   return (
     <div className="space-y-4">
       <form action={formAction} className="space-y-4">
+        <input type="hidden" name="callbackUrl" value={callbackUrl} />
         <div className="space-y-1">
           <label htmlFor="email" className="text-sm font-medium">
             Email
@@ -103,7 +110,7 @@ export function LoginForm({
         </SubmitButton>
       </form>
 
-      {!totpRequired && (
+      {!totpRequired && (passkeysAvailable || githubConfigured) && (
         <>
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
@@ -114,8 +121,8 @@ export function LoginForm({
             </div>
           </div>
 
-          <PasskeySignInButton />
-          {githubConfigured && <GithubSignInButton />}
+          {passkeysAvailable && <PasskeySignInButton callbackUrl={callbackUrl} />}
+          {githubConfigured && <GithubSignInButton callbackUrl={callbackUrl} />}
         </>
       )}
     </div>

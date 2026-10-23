@@ -7,6 +7,10 @@ import { useDismissible } from "@/lib/useDismissible";
 import { linkButtonClass } from "@/lib/buttonStyles";
 
 const DISMISS_KEY = "hearth:onboarding-checklist-dismissed";
+// #345 — set when the "Review optional modules" step is followed, so a
+// household that deliberately wants no optional modules can still complete
+// the step (it used to require enabling at least one).
+const MODULES_REVIEWED_KEY = "hearth:onboarding-modules-reviewed";
 
 // Solid bg-surface rather than the shared secondary variant's bg-transparent
 // — these buttons sit on this card's own bg-accent/5 tint, so a transparent
@@ -24,13 +28,19 @@ export function OnboardingChecklist({
   remindersConfigured: boolean;
 }) {
   const [dismissed, dismiss] = useDismissible(DISMISS_KEY);
+  const [modulesReviewed, markModulesReviewed] = useDismissible(MODULES_REVIEWED_KEY);
 
   if (dismissed) return null;
 
   const steps = [
     { label: "Invite a household member", href: "/settings/users", done: memberCount > 1 },
     { label: "Set up reminders", href: "/settings/app", done: remindersConfigured },
-    { label: "Enable the modules you need", href: "/settings/modules", done: enabledModules.length > 0 },
+    {
+      label: "Review optional modules",
+      href: "/settings/modules",
+      done: enabledModules.length > 0 || modulesReviewed,
+      onClick: markModulesReviewed,
+    },
   ];
 
   return (
@@ -78,6 +88,7 @@ export function OnboardingChecklist({
           <li key={step.label}>
             <Link
               href={step.href}
+              onClick={"onClick" in step ? step.onClick : undefined}
               className="flex min-h-11 items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm hover:border-accent/50"
             >
               {step.done ? (

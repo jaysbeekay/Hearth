@@ -17,7 +17,7 @@ import { describeUploadRejection } from "@/lib/uploadValidation";
 import { extractionFieldsFromForm } from "@/lib/documents/extractionConfirmation";
 import { saveExtractionReviewFieldsFromForm, reviewAndConfirmExtraction } from "@/lib/documents/extractionReview";
 import { saveFileToInboxFallback } from "@/lib/documents/inboxFallback";
-import { parseDocumentCategory } from "@/lib/documents/categories";
+import { parseDocumentCategory, type DocumentCategory } from "@/lib/documents/categories";
 import {
   createProductCommand,
   updateProductCommand,
@@ -59,11 +59,30 @@ async function requireUser() {
   return session.user;
 }
 
-function parseDocumentKind(value: FormDataEntryValue | null): ProductDocumentKind {
+function parseDocumentKind(value: FormDataEntryValue | null): ProductDocumentKind | null {
   const allowed = Object.values(ProductDocumentKind) as string[];
   return typeof value === "string" && allowed.includes(value)
     ? (value as ProductDocumentKind)
-    : ProductDocumentKind.OTHER;
+    : null;
+}
+
+// #350 — the upload form now offers a single "Document type" select (the
+// same categories every record type uses) instead of a second, unlabelled
+// warranty-only "kind" select. The legacy kind is derived from it, so a
+// "Photo" upload still becomes the warranty's hero image and an
+// invoice/receipt is still OCR'd for search.
+function kindFromCategory(category: DocumentCategory | null): ProductDocumentKind {
+  switch (category) {
+    case "INVOICE":
+    case "RECEIPT":
+      return ProductDocumentKind.INVOICE;
+    case "PHOTO":
+      return ProductDocumentKind.PHOTO;
+    case "MANUAL":
+      return ProductDocumentKind.MANUAL;
+    default:
+      return ProductDocumentKind.OTHER;
+  }
 }
 
 async function attachProductDocument(
@@ -301,17 +320,14 @@ export async function addProductDocument(
   if (!(file instanceof File) || file.size === 0) {
     return { error: "Choose a file to upload." };
   }
-  const kind = parseDocumentKind(formData.get("kind"));
+  const category = parseDocumentCategory(formData.get("documentCategory"));
+  // An explicit kind still wins, for callers that send one.
+  const kind = parseDocumentKind(formData.get("kind")) ?? kindFromCategory(category);
 
   const product = await prisma.product.findUnique({ where: { id: productId } });
   if (!product) return { error: "Product not found." };
 
-  const error = await attachProductDocument(
-    productId,
-    file,
-    kind,
-    parseDocumentCategory(formData.get("documentCategory")),
-  );
+  const error = await attachProductDocument(productId, file, kind, category);
   if (error) return error;
 
   revalidatePath(`/products/${productId}`);
