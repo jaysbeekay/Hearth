@@ -31,6 +31,9 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
     `@libsql/client` brought up to date within their ranges.
   - Dev tooling: `vitest` 3 → 5 (critical prototype-pollution RCE in
     `tinypool`).
+  - Docker image: base image repinned to Node 26.12.1 (`node:26-alpine`),
+    fixing a critical out-of-bounds write and a high-severity TLS
+    certificate host-mismatch validation issue in Node 26.8.1.
 
   The remaining low-severity entries come from `@simplewebauthn/server`
   9.x and don't apply to Hearth's passkey setup (no attestation is
