@@ -13,6 +13,8 @@ import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { HomeItemDocumentList } from "@/components/HomeItemDocumentList";
 import { RecordMeta } from "@/components/RecordMeta";
 import { PropertyMap } from "@/components/PropertyMap";
+import { env } from "@/lib/env";
+import { resolveMapTiles } from "@/lib/mapTiles";
 import { PropertyValuationForm } from "@/components/PropertyValuationForm";
 import { ContractCard } from "@/components/ContractCard";
 import { ProductCard } from "@/components/ProductCard";
@@ -120,7 +122,12 @@ export default async function PropertyDetailPage({
       </div>
 
       {property.lat != null && property.lng != null && (
-        <PropertyMap lat={property.lat} lng={property.lng} label={property.label} />
+        <PropertyMap
+          lat={property.lat}
+          lng={property.lng}
+          label={property.label}
+          tiles={resolveMapTiles(env.mapTiles)}
+        />
       )}
 
       {property.notes && (

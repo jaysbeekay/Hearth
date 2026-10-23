@@ -40,6 +40,13 @@ export const env = {
     enabled: optional("BARCODE_LOOKUP_ENABLED", "false") === "true",
     apiKey: optional("BARCODE_LOOKUP_API_KEY"),
   },
+  // Raster map tiles for the Property map (#338). Empty means the
+  // OpenStreetMap default in src/lib/mapTiles.ts.
+  mapTiles: {
+    url: optional("MAP_TILE_URL"),
+    attribution: optional("MAP_TILE_ATTRIBUTION"),
+    subdomains: optional("MAP_TILE_SUBDOMAINS"),
+  },
   encryptionKey: optional("ENCRYPTION_KEY"),
   setupToken: optional("SETUP_TOKEN"),
   github: {

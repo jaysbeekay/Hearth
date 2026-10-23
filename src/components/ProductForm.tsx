@@ -39,12 +39,15 @@ export function ProductForm({
   defaultCurrency,
   properties = [],
   homeEnabled = false,
+  barcodeLookupEnabled = false,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   product?: ProductModel;
   defaultCurrency?: string;
   properties?: { id: string; label: string }[];
   homeEnabled?: boolean;
+  /** #349 — only offer "Look up product info" when the server can do it. */
+  barcodeLookupEnabled?: boolean;
 }) {
   const offlineAwareAction = makeOfflineAwareAction(
     action,
@@ -195,7 +198,7 @@ export function ProductForm({
   function handleBarcodeDetected(code: string) {
     if (barcodeRef.current) barcodeRef.current.value = code;
     setScannerOpen(false);
-    if (!product) handleBarcodeLookup(code);
+    if (!product && barcodeLookupEnabled) handleBarcodeLookup(code);
   }
 
   if (pendingOp === undefined) {
@@ -318,7 +321,7 @@ export function ProductForm({
               <ScanBarcode size={16} />
             </button>
           </div>
-          {!product && (
+          {!product && barcodeLookupEnabled && (
             <button
               type="button"
               onClick={() => handleBarcodeLookup()}

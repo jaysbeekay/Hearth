@@ -2,15 +2,19 @@
 
 import { useEffect, useRef } from "react";
 import type { Map as LeafletMap } from "leaflet";
+import type { MapTileConfig } from "@/lib/mapTiles";
 
 export function PropertyMap({
   lat,
   lng,
   label,
+  tiles,
 }: {
   lat: number;
   lng: number;
   label: string;
+  /** Resolved server-side from MAP_TILE_* (src/lib/mapTiles.ts, #338). */
+  tiles: MapTileConfig;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
@@ -32,15 +36,16 @@ export function PropertyMap({
       });
 
       const map = L.map(containerRef.current).setView([lat, lng], 15);
-      // CARTO's free basemap tiles, not OSM's own raw tile server — OSM's
-      // tile usage policy reserves tile.openstreetmap.org for light/
-      // evaluation use, not production embedding (#130).
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-        attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors ' +
-          '&copy; <a href="https://carto.com/attributions">CARTO</a>',
+      // See src/lib/mapTiles.ts for why this is OpenStreetMap by default and
+      // configurable via MAP_TILE_URL (#338, superseding CARTO from #130).
+      L.tileLayer(tiles.url, {
+        attribution: tiles.attribution,
         maxZoom: 19,
-        subdomains: "abcd",
+        ...(tiles.subdomains ? { subdomains: tiles.subdomains } : {}),
+        // The app sends `Referrer-Policy: no-referrer` everywhere (proxy.ts),
+        // but OpenStreetMap's tile servers refuse requests with no Referer.
+        // Send only the app's origin, and only on these tile requests.
+        referrerPolicy: "strict-origin",
       }).addTo(map);
       L.marker([lat, lng]).addTo(map).bindPopup(label);
       mapRef.current = map;
@@ -51,7 +56,7 @@ export function PropertyMap({
       mapRef.current?.remove();
       mapRef.current = null;
     };
-  }, [lat, lng, label]);
+  }, [lat, lng, label, tiles.url, tiles.attribution, tiles.subdomains]);
 
   return (
     <div

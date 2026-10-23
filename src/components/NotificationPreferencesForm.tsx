@@ -19,7 +19,7 @@ export function NotificationPreferencesForm({ emailReminders }: { emailReminders
           className="size-4 rounded border-border accent-accent"
         />
         <label htmlFor="emailReminders" className="text-sm">
-          Email me about contracts expiring soon
+          Email me expiry reminders (contracts, warranties, vehicles)
         </label>
         <button type="submit" className={`ml-auto ${compactButtonClass()}`}>
           Save

@@ -2,11 +2,11 @@
 
 import { signIn } from "next-auth/react";
 
-export function GithubSignInButton() {
+export function GithubSignInButton({ callbackUrl = "/dashboard" }: { callbackUrl?: string }) {
   return (
     <button
       type="button"
-      onClick={() => signIn("github", { callbackUrl: "/dashboard" })}
+      onClick={() => signIn("github", { callbackUrl })}
       className="flex w-full items-center justify-center gap-2 rounded-lg border border-border py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
     >
       <svg viewBox="0 0 24 24" fill="currentColor" className="size-4" aria-hidden>

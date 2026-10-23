@@ -36,6 +36,7 @@ import {
 import { isSmtpConfigured } from "@/lib/appSettings";
 import { sendInvitationEmail, sendPasswordResetEmail } from "@/lib/notifications/email";
 import { logSecurityEvent } from "@/lib/securityEventLog";
+import { safeCallbackPath } from "@/lib/callbackUrl";
 
 export type ActionState = {
   error?: string;
@@ -160,8 +161,15 @@ export async function login(
   // attacker lock every household member out by guessing against each in
   // turn, and keying on the address alone would lock out a whole household
   // behind one NAT.
-  const address = clientAddress(await headers());
+  const requestHeaders = await headers();
+  const address = clientAddress(requestHeaders);
   const throttleKey = `${parsed.data.email}|${address}`;
+  // #341 — re-validated here rather than trusted from the hidden field: it's
+  // client-supplied, and an unchecked value would make this an open redirect.
+  const redirectTo = safeCallbackPath(
+    formData.get("callbackUrl"),
+    requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host"),
+  );
   const limitName = totpCode ? "totp" : "login";
   // Only failures count — see checkRateLimit's note. A successful signIn()
   // throws a redirect, so an attempt-counting model would never get to clear
@@ -190,7 +198,7 @@ export async function login(
       // try (and fail) to verify as a real code instead of treating it as
       // absent.
       ...(totpCode ? { totpCode } : {}),
-      redirectTo: "/dashboard",
+      redirectTo,
     });
   } catch (error) {
     if (error instanceof CredentialsSignin) {
