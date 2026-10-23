@@ -6,6 +6,7 @@ import { importContract, importProduct, importInventoryItem, saveToInbox } from 
 import { CATEGORY_LABELS } from "@/lib/utils";
 import { INVENTORY_ITEM_CATEGORIES } from "@/lib/validation/inventory";
 import { showToast } from "@/components/Toast";
+import { LinkedToField } from "@/components/LinkedToField";
 import { extractionMessage } from "@/lib/autoFillHighlight";
 import { buttonVariants, compactButtonClass } from "@/lib/buttonStyles";
 import { cn } from "@/lib/utils";
@@ -131,6 +132,8 @@ export function ImportClient({
   properties?: { id: string; label: string }[];
   vehicles?: { id: string; label: string }[];
 }) {
+  const homeEnabled = enabledModules.includes("HOME");
+  const vehiclesEnabled = enabledModules.includes("VEHICLES");
   const [rows, setRows] = useState<Row[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const inputId = useId();
@@ -510,41 +513,22 @@ export function ImportClient({
                           className={fieldClass(row.contractAutoFilled.endDate)}
                         />
                       </RowField>
-                      {(properties.length > 0 || vehicles.length > 0) && (
-                        <RowField label="Link to (optional)" htmlFor={`${row.id}-contractLink`}>
-                          <select
-                            id={`${row.id}-contractLink`}
-                            value={
-                              row.contractPropertyId
-                                ? `property:${row.contractPropertyId}`
-                                : row.contractVehicleId
-                                  ? `vehicle:${row.contractVehicleId}`
-                                  : ""
-                            }
-                            disabled={row.status === "saving"}
-                            onChange={(e) => {
-                              const [kind, linkId] = e.target.value.split(":");
-                              updateRow(row.id, {
-                                contractPropertyId: kind === "property" ? linkId : "",
-                                contractVehicleId: kind === "vehicle" ? linkId : "",
-                              });
-                            }}
-                            className={fieldClass(false)}
-                          >
-                            <option value="">Not linked</option>
-                            {properties.map((p) => (
-                              <option key={p.id} value={`property:${p.id}`}>
-                                {p.label} (home)
-                              </option>
-                            ))}
-                            {vehicles.map((v) => (
-                              <option key={v.id} value={`vehicle:${v.id}`}>
-                                {v.label} (vehicle)
-                              </option>
-                            ))}
-                          </select>
-                        </RowField>
-                      )}
+                      <LinkedToField
+                        id={`${row.id}-contractLink`}
+                        properties={properties}
+                        vehicles={vehicles}
+                        homeEnabled={homeEnabled}
+                        vehiclesEnabled={vehiclesEnabled}
+                        recordNoun="contract"
+                        disabled={row.status === "saving"}
+                        onChange={({ propertyId, vehicleId }) =>
+                          updateRow(row.id, { contractPropertyId: propertyId, contractVehicleId: vehicleId })
+                        }
+                        hintLinksInNewTab
+                        wrapperClassName={ROW_FIELD_WRAPPER}
+                        labelClassName={ROW_FIELD_LABEL}
+                        selectClassName={fieldClass(false)}
+                      />
                     </div>
                   )}
 
@@ -623,24 +607,18 @@ export function ImportClient({
                           className={fieldClass(false)}
                         />
                       </RowField>
-                      {properties.length > 0 && (
-                        <RowField label="Link to home (optional)" htmlFor={`${row.id}-productLink`}>
-                          <select
-                            id={`${row.id}-productLink`}
-                            value={row.productPropertyId}
-                            disabled={row.status === "saving"}
-                            onChange={(e) => updateRow(row.id, { productPropertyId: e.target.value })}
-                            className={fieldClass(false)}
-                          >
-                            <option value="">Not linked</option>
-                            {properties.map((p) => (
-                              <option key={p.id} value={p.id}>
-                                {p.label}
-                              </option>
-                            ))}
-                          </select>
-                        </RowField>
-                      )}
+                      <LinkedToField
+                        id={`${row.id}-productLink`}
+                        properties={properties}
+                        homeEnabled={homeEnabled}
+                        recordNoun="warranty"
+                        disabled={row.status === "saving"}
+                        onChange={({ propertyId }) => updateRow(row.id, { productPropertyId: propertyId })}
+                        hintLinksInNewTab
+                        wrapperClassName={ROW_FIELD_WRAPPER}
+                        labelClassName={ROW_FIELD_LABEL}
+                        selectClassName={fieldClass(false)}
+                      />
                     </div>
                   )}
 
@@ -750,6 +728,9 @@ export function ImportClient({
   );
 }
 
+const ROW_FIELD_WRAPPER = "space-y-0.5";
+const ROW_FIELD_LABEL = "flex items-center gap-1 text-[11px] font-medium text-muted";
+
 function RowField({
   label,
   htmlFor,
@@ -762,8 +743,8 @@ function RowField({
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-0.5">
-      <label htmlFor={htmlFor} className="flex items-center gap-1 text-[11px] font-medium text-muted">
+    <div className={ROW_FIELD_WRAPPER}>
+      <label htmlFor={htmlFor} className={ROW_FIELD_LABEL}>
         {label}
         {autoFilled && (
           <>

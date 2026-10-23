@@ -15,6 +15,7 @@ export function DetailStatusBanner({
   documentsHref,
   editHref,
   renewLabel,
+  secondaryAction,
   needsReview,
 }: {
   days: number | null;
@@ -22,6 +23,8 @@ export function DetailStatusBanner({
   documentsHref: string;
   editHref: string;
   renewLabel: string;
+  /** Shown beside Renew/Upload in the expiry row — e.g. contract "Mark as cancelled" (#370). */
+  secondaryAction?: React.ReactNode;
   /** Set when extractionPending is true — some critical fields were auto-filled and haven't been confirmed yet. */
   needsReview?: { onConfirm: () => Promise<ActionState> };
 }) {
@@ -46,23 +49,26 @@ export function DetailStatusBanner({
             <AlertTriangle size={16} className="shrink-0" aria-hidden />
             {message}
           </p>
-          {hasDocuments ? (
-            <Link
-              href={editHref}
-              className="inline-flex items-center gap-2 rounded-lg bg-current/10 px-3 py-1.5 text-xs font-medium hover:opacity-80"
-            >
-              <RotateCw size={14} />
-              {renewLabel}
-            </Link>
-          ) : (
-            <Link
-              href={documentsHref}
-              className="inline-flex items-center gap-2 rounded-lg bg-current/10 px-3 py-1.5 text-xs font-medium hover:opacity-80"
-            >
-              <Upload size={14} />
-              Upload document
-            </Link>
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            {secondaryAction}
+            {hasDocuments ? (
+              <Link
+                href={editHref}
+                className="inline-flex items-center gap-2 rounded-lg bg-current/10 px-3 py-1.5 text-xs font-medium hover:opacity-80"
+              >
+                <RotateCw size={14} />
+                {renewLabel}
+              </Link>
+            ) : (
+              <Link
+                href={documentsHref}
+                className="inline-flex items-center gap-2 rounded-lg bg-current/10 px-3 py-1.5 text-xs font-medium hover:opacity-80"
+              >
+                <Upload size={14} />
+                Upload document
+              </Link>
+            )}
+          </div>
         </div>
       )}
       {needsReview && (

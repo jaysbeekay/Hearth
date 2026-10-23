@@ -1,10 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { env } from "@/lib/env";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { getCalendarEvents } from "@/lib/calendarEvents";
 import { formatDate } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { ExpiryBadge } from "@/components/ExpiryBadge";
+import { CalendarSubscribeButton } from "@/components/CalendarSubscribeButton";
 import type { CalendarEvent } from "@/lib/calendarEvents";
 
 export const metadata: Metadata = { title: "Upcoming" };
@@ -49,10 +54,14 @@ export default async function CalendarPage({
 }: {
   searchParams: Promise<{ horizon?: string }>;
 }) {
-  const [enabledModules, { dateFormat, region }, { horizon: horizonParam }] = await Promise.all([
+  const session = await auth();
+  if (!session?.user) redirect("/login");
+
+  const [enabledModules, { dateFormat, region }, { horizon: horizonParam }, user] = await Promise.all([
     getEnabledModuleKeys(),
     getUserPreferences(),
     searchParams,
+    prisma.user.findUnique({ where: { id: session.user.id }, select: { icalTokenHash: true } }),
   ]);
   const parsedHorizon = Number(horizonParam);
   const horizon = HORIZONS.includes(parsedHorizon as (typeof HORIZONS)[number])
@@ -77,12 +86,15 @@ export default async function CalendarPage({
 
   return (
     <div className="max-w-3xl space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold">Upcoming</h1>
-        <p className="text-sm text-muted">
-          Everything expiring or coming up across contracts, warranties, vehicles, trips, and
-          property — pick a horizon to answer &quot;what&apos;s expiring in the next N days&quot;.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl font-semibold">Upcoming</h1>
+          <p className="text-sm text-muted">
+            Everything expiring or coming up across contracts, warranties, vehicles, trips, and
+            property — pick a horizon to answer &quot;what&apos;s expiring in the next N days&quot;.
+          </p>
+        </div>
+        <CalendarSubscribeButton hasToken={Boolean(user?.icalTokenHash)} appUrl={env.appUrl} />
       </div>
 
       <div className="flex flex-wrap gap-2">

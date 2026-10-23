@@ -1,7 +1,6 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { addMonths } from "date-fns";
 import { ScanBarcode, Upload } from "lucide-react";
@@ -20,7 +19,8 @@ import {
   type QueuedOperation,
 } from "@/lib/offlineQueue";
 import { Field } from "@/components/FormField";
-import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
+import { inputClass, selectClass } from "@/components/SelectWrapper";
+import { LinkedToField } from "@/components/LinkedToField";
 import { applyIfEmpty, markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 import { DateInput } from "@/components/DateInput";
 
@@ -377,41 +377,16 @@ export function ProductForm({
           />
         </Field>
 
-        {properties.length > 0 ? (
-          <Field label="Property" htmlFor="propertyId">
-            <SelectWrapper>
-              <select
-                id="propertyId"
-                name="propertyId"
-                defaultValue={effectiveValues?.propertyId ?? product?.propertyId ?? ""}
-                className={selectClass}
-              >
-                <option value="">Not linked to a property</option>
-                {properties.map((property) => (
-                  <option key={property.id} value={property.id}>
-                    {property.label}
-                  </option>
-                ))}
-              </select>
-            </SelectWrapper>
-          </Field>
-        ) : homeEnabled ? (
-          <div className="md:col-span-2 text-xs text-muted">
-            No properties yet —{" "}
-            <Link href="/home/new" className="text-accent hover:underline">
-              add one
-            </Link>{" "}
-            to link this warranty to a home.
-          </div>
-        ) : (
-          <div className="md:col-span-2 text-xs text-muted">
-            Enable the Property module in{" "}
-            <Link href="/settings/modules" className="text-accent hover:underline">
-              Settings
-            </Link>{" "}
-            to link warranties to a home.
-          </div>
-        )}
+        <LinkedToField
+          id="linkedTo"
+          properties={properties}
+          homeEnabled={homeEnabled}
+          recordNoun="warranty"
+          defaultValue={{ propertyId: effectiveValues?.propertyId ?? product?.propertyId ?? "" }}
+          withHiddenInputs
+          selectClassName={selectClass}
+          chevron
+        />
       </div>
 
       <Field label="Notes" htmlFor="notes">

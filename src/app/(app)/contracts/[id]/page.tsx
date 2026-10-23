@@ -66,6 +66,11 @@ export default async function ContractDetailPage({
   const days = daysUntil(contract.endDate);
   const cancelled = contract.status === "CANCELLED";
   const boundUpload = addDocument.bind(null, contract.id);
+  const statusAction = setContractStatus.bind(null, contract.id, cancelled ? "ACTIVE" : "CANCELLED");
+  const statusLabel = cancelled ? "Mark as active" : "Mark as cancelled";
+  const statusConfirmText = cancelled
+    ? "Mark this contract as active again?"
+    : "Mark this contract as cancelled? This just changes its status — it won't delete the contract or its documents.";
   const reminderHealth = await getReminderHealth({
     ownerType: "CONTRACT",
     ownerId: contract.id,
@@ -102,25 +107,20 @@ export default async function ContractDetailPage({
             <Pencil size={16} />
             Edit
           </Link>
-          <ConfirmForm
-            action={setContractStatus.bind(
-              null,
-              contract.id,
-              cancelled ? "ACTIVE" : "CANCELLED",
-            )}
-            confirmText={
-              cancelled
-                ? "Mark this contract as active again?"
-                : "Mark this contract as cancelled? This just changes its status — it won't delete the contract or its documents."
-            }
-            actionLabel={cancelled ? "Mark as active" : "Mark as cancelled"}
-            ariaLabel={cancelled ? "Mark contract as active" : "Mark contract as cancelled"}
-            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
-          >
-            {cancelled ? <RotateCcw size={16} /> : <Ban size={16} />}
-            {cancelled ? "Mark as active" : "Mark as cancelled"}
-          </ConfirmForm>
+          {/* #370 — status changes are rare, so they sit in the overflow
+              menu next to Delete (and in the expiry banner when it's
+              relevant), keeping the header to one row on mobile. */}
           <DetailOverflowMenu>
+            <ConfirmForm
+              action={statusAction}
+              confirmText={statusConfirmText}
+              actionLabel={statusLabel}
+              ariaLabel={cancelled ? "Mark contract as active" : "Mark contract as cancelled"}
+              className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/5"
+            >
+              {cancelled ? <RotateCcw size={16} /> : <Ban size={16} />}
+              {statusLabel}
+            </ConfirmForm>
             <ConfirmForm
               action={deleteContract.bind(null, contract.id)}
               confirmText="Move this contract to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash."
@@ -144,6 +144,20 @@ export default async function ContractDetailPage({
           documentsHref="#documents"
           editHref={`/contracts/${contract.id}/edit`}
           renewLabel="Renew policy"
+          // Expiring is exactly when "I'm not renewing this" is the other
+          // likely answer, so offer it beside Renew.
+          secondaryAction={
+            <ConfirmForm
+              action={statusAction}
+              confirmText={statusConfirmText}
+              actionLabel={statusLabel}
+              ariaLabel="Mark contract as cancelled"
+              className="inline-flex items-center gap-2 rounded-lg bg-current/10 px-3 py-1.5 text-xs font-medium hover:opacity-80"
+            >
+              <Ban size={14} />
+              Not renewing? Mark as cancelled
+            </ConfirmForm>
+          }
           needsReview={
             contract.extractionPending && pendingReview.length === 0
               ? { onConfirm: confirmContractExtraction.bind(null, contract.id) }

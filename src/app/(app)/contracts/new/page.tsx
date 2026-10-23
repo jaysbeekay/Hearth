@@ -57,6 +57,8 @@ export default async function NewContractPage({
           vehicles={vehicles}
           defaultPropertyId={propertyId}
           defaultVehicleId={vehicleId}
+          homeEnabled={homeEnabled}
+          vehiclesEnabled={vehiclesEnabled}
         />
       </div>
     </div>

@@ -113,6 +113,8 @@ export default async function InboxPage({
         inventoryEnabled={enabledModules.has("INVENTORY")}
         properties={properties}
         vehicles={vehicles}
+        homeEnabled={enabledModules.has("HOME")}
+        vehiclesEnabled={enabledModules.has("VEHICLES")}
       />
 
       {(page > 0 || hasMore) && (

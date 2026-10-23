@@ -30,7 +30,8 @@ test.describe.serial("contracts and warranties can link to a property", () => {
     await page.goto("/contracts/new");
     await page.locator("#title").fill("Property-Linked Insurance");
     await page.locator("#provider").fill("Test Insurer");
-    const propertySelect = page.locator("#propertyId");
+    // #370 — one grouped "Linked to" select for homes and vehicles.
+    const propertySelect = page.getByLabel("Linked to");
     await expect(propertySelect).toBeVisible();
     await propertySelect.selectOption({ label: "Linking Test Property" });
     await page.locator("main button[type=submit]").click();
