@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { env, isEncryptionConfigured } from "@/lib/env";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import type { BackupDestinationChoice } from "@/lib/backupDestination";
-import { householdDay, resolveTimeZone, type CalendarDay } from "@/lib/duePolicy";
+import { householdDay, resolveTimeZone, serverTimeZone, type CalendarDay } from "@/lib/duePolicy";
 
 // Keys whose values are encrypted at rest using ENCRYPTION_KEY.
 const ENCRYPTED_KEYS = new Set([
@@ -319,13 +319,13 @@ export async function getReminderConfig() {
 // The household's timezone decides which calendar day "today" is for Due
 // day counts (ADR 0002), so every member sees the same count. Per-user
 // timezones are only for displaying times. Falls back to the server's TZ,
-// then UTC.
+// then the zone Node is running in, then UTC.
 export function getServerDefaultTimeZone(): string {
-  return resolveTimeZone(env.timeZone);
+  return serverTimeZone(env.timeZone);
 }
 
 export async function getHouseholdTimeZone(): Promise<string> {
-  return resolveTimeZone(await getAppSetting("household.timezone"), env.timeZone);
+  return resolveTimeZone(await getAppSetting("household.timezone"), getServerDefaultTimeZone());
 }
 
 export async function getHouseholdToday(now: Date = new Date()): Promise<CalendarDay> {

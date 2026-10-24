@@ -7,7 +7,9 @@ export const env = {
   uploadsDir: optional("UPLOADS_DIR", "./data/uploads"),
   reminderDefaultDays: optional("REMINDER_DEFAULT_DAYS", "30,14,7,1"),
   reminderCron: optional("REMINDER_CRON_SCHEDULE", "0 8 * * *"),
-  // The household timezone until an admin sets one in Settings.
+  // The household timezone until an admin sets one in Settings. Raw value:
+  // serverTimeZone() drops a POSIX leading ":" and falls back to the zone
+  // Node is running in.
   timeZone: optional("TZ"),
   smtp: {
     host: optional("SMTP_HOST"),

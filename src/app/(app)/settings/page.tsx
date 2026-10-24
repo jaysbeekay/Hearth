@@ -110,7 +110,7 @@ export default async function SettingsPage() {
             region={user.region}
           />
           <p className="mt-4 text-xs text-muted">
-            Days to deadlines are counted in the household timezone, {householdTimeZone}.{" "}
+            The household timezone is {householdTimeZone}. Reminders and due dates will use it.{" "}
             {user.role === "ADMIN" ? (
               <Link href="/settings/household" className="underline">Change it in Household &amp; System settings.</Link>
             ) : (

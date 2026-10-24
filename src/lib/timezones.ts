@@ -34,3 +34,15 @@ export const TIMEZONE_OPTIONS = [
   "America/Sao_Paulo",
   "Pacific/Honolulu",
 ] as const;
+
+/**
+ * Choices for the household timezone: the common zones above, then every
+ * other zone this runtime knows. `current` (a stored value) is always
+ * included so the select never silently shows something else.
+ */
+export function householdTimeZoneChoices(current: string): { common: string[]; others: string[] } {
+  const common: string[] = [...TIMEZONE_OPTIONS];
+  const others = Intl.supportedValuesOf("timeZone").filter((tz) => !common.includes(tz));
+  if (current && !common.includes(current) && !others.includes(current)) others.unshift(current);
+  return { common, others };
+}

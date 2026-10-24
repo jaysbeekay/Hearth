@@ -1,7 +1,15 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { dueEntries, householdDay, isDue, resolveTimeZone, type DueEntry, type DueRecord } from "@/lib/duePolicy";
+import {
+  dueEntries,
+  householdDay,
+  isDue,
+  resolveTimeZone,
+  serverTimeZone,
+  type DueEntry,
+  type DueRecord,
+} from "@/lib/duePolicy";
 
 // The shared cases (ADR 0002): the standalone shell runs this same file
 // against its own port (#386), so every Due rule is pinned there rather
@@ -39,6 +47,27 @@ describe("household day helpers", () => {
     expect(resolveTimeZone("", "Australia/Perth")).toBe("Australia/Perth");
     expect(resolveTimeZone("Not/AZone", undefined)).toBe("UTC");
     expect(resolveTimeZone("Europe/Paris", "Australia/Perth")).toBe("Europe/Paris");
+  });
+
+  it("serverTimeZone takes TZ (a POSIX leading colon dropped), else the zone Node runs in", () => {
+    const processZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    expect(serverTimeZone("Australia/Sydney")).toBe("Australia/Sydney");
+    expect(serverTimeZone(":Australia/Sydney")).toBe("Australia/Sydney");
+    expect(serverTimeZone(undefined)).toBe(processZone);
+    expect(serverTimeZone("")).toBe(processZone);
+    expect(serverTimeZone("Not/AZone")).toBe(processZone);
+  });
+
+  it("householdDay throws a clear error for an invalid now", () => {
+    expect(() => householdDay(new Date("not a date"), "UTC")).toThrow(/householdDay needs a valid Date/);
+  });
+
+  it("dueEntries takes Date objects as their UTC date", () => {
+    const ctx = { today: "2026-10-24", defaultReminderDays: "30,14,7,1" };
+    expect(dueEntries({ kind: "tenancy", leaseEnd: new Date("2026-11-03T00:00:00Z") }, ctx)).toEqual([
+      { field: "leaseEnd", date: "2026-11-03", daysLeft: 10, state: "due-soon", label: "Lease ends 3 Nov" },
+    ]);
+    expect(dueEntries({ kind: "tenancy", leaseEnd: new Date("invalid") }, ctx)).toEqual([]);
   });
 
   it("householdDay follows the zone across midnight, including daylight saving", () => {

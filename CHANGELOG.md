@@ -21,11 +21,12 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
-- **Household timezone.** Admins pick it in Settings → Household & System;
-  it falls back to the server's `TZ`, then UTC. It decides which day it is
-  for the whole household when counting days to deadlines, while each
-  member's own timezone still only changes how times are shown. Members
-  see it read-only on their Settings page (#383).
+- **Household timezone.** Admins pick any timezone in Settings → Household
+  & System; until then it follows the server's `TZ`, else the server's own
+  zone, else UTC. Reminders and due dates will count days in it, so every
+  member sees the same count, while each member's own timezone still only
+  changes how times are shown. Members see it read-only on their Settings
+  page (#383).
 - **One set of Due rules.** `src/lib/duePolicy.ts` works out every
   record's Due entries (a Contract's notice deadline or end date, a
   Warranty's end date, a Vehicle's rego, insurance and service dates, a

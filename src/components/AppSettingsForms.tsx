@@ -9,7 +9,6 @@ import { Field } from "@/components/FormField";
 import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 import { TestConnectionButton } from "@/components/TestConnectionButton";
 import { BACKUP_DESTINATION_LABELS, type BackupDestinationChoice } from "@/lib/backupDestination";
-import { TIMEZONE_OPTIONS } from "@/lib/timezones";
 
 const checkboxClass = "size-4 rounded border-border accent-accent";
 
@@ -438,28 +437,36 @@ export function HouseholdTimeZoneForm({
   action,
   current,
   serverDefault,
+  choices,
 }: {
   action: (s: ActionState, f: FormData) => Promise<ActionState>;
   /** The saved setting, or "" when the server default applies. */
   current: string;
   serverDefault: string;
+  /** From householdTimeZoneChoices(current), so `current` is always listed. */
+  choices: { common: string[]; others: string[] };
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(action, null);
   return (
     <form action={formAction} className="space-y-4">
-      <Field
-        label="Timezone"
-        htmlFor="householdTimeZone"
-        hint="Days left on contracts, warranties and vehicles are counted in this timezone for everyone"
-      >
+      <Field label="Timezone" htmlFor="householdTimeZone">
         <SelectWrapper>
           <select id="householdTimeZone" name="householdTimeZone" defaultValue={current} className={selectClass}>
             <option value="">Server default ({serverDefault})</option>
-            {TIMEZONE_OPTIONS.map((tz) => (
-              <option key={tz} value={tz}>
-                {tz}
-              </option>
-            ))}
+            <optgroup label="Common">
+              {choices.common.map((tz) => (
+                <option key={tz} value={tz}>
+                  {tz}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="All timezones">
+              {choices.others.map((tz) => (
+                <option key={tz} value={tz}>
+                  {tz}
+                </option>
+              ))}
+            </optgroup>
           </select>
         </SelectWrapper>
       </Field>

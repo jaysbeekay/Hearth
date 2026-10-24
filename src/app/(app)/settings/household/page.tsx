@@ -14,6 +14,7 @@ import {
 } from "@/lib/appSettings";
 import { saveHouseholdTimeZone } from "@/lib/actions/app-settings";
 import { HouseholdTimeZoneForm } from "@/components/AppSettingsForms";
+import { householdTimeZoneChoices } from "@/lib/timezones";
 import { BACKUP_DESTINATION_LABELS } from "@/lib/backupDestination";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
@@ -116,14 +117,15 @@ export default async function HouseholdSettingsPage() {
         <div>
           <h2 className="font-medium">Household timezone</h2>
           <p className="text-xs text-muted mt-0.5">
-            Decides which day it is for the household. Each member&apos;s own timezone only
-            changes how times are shown to them.
+            Reminders and due dates will use this timezone, so every member counts days the
+            same way. Each member&apos;s own timezone only changes how times are shown to them.
           </p>
         </div>
         <HouseholdTimeZoneForm
           action={saveHouseholdTimeZone}
           current={householdTimeZone}
           serverDefault={getServerDefaultTimeZone()}
+          choices={householdTimeZoneChoices(householdTimeZone)}
         />
       </section>
     </div>

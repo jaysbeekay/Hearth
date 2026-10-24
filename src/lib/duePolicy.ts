@@ -12,8 +12,19 @@
 // hand-ported copy, held in step by tests/fixtures/due-policy-cases.json,
 // which both test suites run — any rule change here changes that file.
 //
-// Date-only fields (end dates, rego expiry and so on) are stored at UTC
-// midnight, so a stored date's calendar day is its UTC date.
+// Input contract:
+// - Date fields (end dates, rego expiry and so on) are calendar dates
+//   stored at UTC midnight, so a date's calendar day is its UTC date. A
+//   `Date`, a `YYYY-MM-DD` string, or a full ISO-8601 timestamp with `Z` or
+//   an offset is accepted; a timestamp is reduced to its UTC date, so
+//   "2026-10-25T00:00:00+11:00" is the 24th. Anything else (locale strings
+//   like "10/24/2026", impossible dates like "2026-13-45") counts as no date.
+// - `status` and `renewalType` are the Prisma enum values, matched exactly.
+//   Only "CANCELLED" is cancelled; any other status is active. Only
+//   "AUTO_RENEW" and "FIXED_TERM" are special; any other renewal type,
+//   including lowercase spellings, is treated as MANUAL_RENEWAL.
+// - Reminder thresholds and notice periods must be whole days; anything
+//   else is unusable and ignored.
 
 import { parseThresholds } from "@/lib/notifications/thresholds";
 
@@ -87,8 +98,24 @@ export function resolveTimeZone(...candidates: (string | null | undefined)[]): s
   return candidates.find(isValidTimeZone) ?? "UTC";
 }
 
-/** The calendar day `now` falls on in `timeZone` — the household's "today". */
+/**
+ * The server's own zone, used until an admin picks a household timezone:
+ * `TZ` (a POSIX ":Area/City" loses its colon), else the zone Node is
+ * actually running in, else UTC.
+ */
+export function serverTimeZone(envTz: string | null | undefined): string {
+  return resolveTimeZone(envTz?.replace(/^:/, ""), Intl.DateTimeFormat().resolvedOptions().timeZone);
+}
+
+/**
+ * The calendar day `now` falls on in `timeZone` — the household's "today".
+ * An invalid zone counts as UTC; an invalid `now` throws, since there is no
+ * sensible day to fall back to.
+ */
 export function householdDay(now: Date, timeZone: string): CalendarDay {
+  if (!(now instanceof Date) || Number.isNaN(now.getTime())) {
+    throw new Error(`householdDay needs a valid Date for "now", got ${String(now)}`);
+  }
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: resolveTimeZone(timeZone),
     year: "numeric",
@@ -101,21 +128,44 @@ export function householdDay(now: Date, timeZone: string): CalendarDay {
 
 // ─── Calendar-day arithmetic ──────────────────────────────────────────────────
 
+const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
+
+// Milliseconds at UTC midnight of a calendar date. setUTCFullYear, unlike
+// Date.UTC, doesn't read years 0–99 as 1900–1999.
+function utcMidnight(y: number, m: number, d: number): number {
+  const date = new Date(0);
+  date.setUTCFullYear(y, m - 1, d);
+  return date.getTime();
+}
+
+function dayOf(ms: number): CalendarDay | null {
+  const date = new Date(ms);
+  const year = date.getUTCFullYear();
+  if (Number.isNaN(year) || year < 0 || year > 9999) return null;
+  const pad = (n: number, width = 2) => String(n).padStart(width, "0");
+  return `${pad(year, 4)}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
+}
+
 function toDay(value: DateInput): CalendarDay | null {
   if (value == null || value === "") return null;
-  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
-  const d = typeof value === "string" ? new Date(value) : value;
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toISOString().slice(0, 10);
+  if (value instanceof Date) return dayOf(value.getTime());
+  if (DAY_PATTERN.test(value)) {
+    // Reject impossible dates such as 2026-13-45, which would otherwise roll over.
+    const [y, m, d] = value.split("-").map(Number);
+    return dayOf(utcMidnight(y, m, d)) === value ? value : null;
+  }
+  if (TIMESTAMP_PATTERN.test(value)) return dayOf(new Date(value).getTime());
+  return null;
 }
 
 function dayNumber(day: CalendarDay): number {
   const [y, m, d] = day.split("-").map(Number);
-  return Date.UTC(y, m - 1, d) / DAY_MS;
+  return utcMidnight(y, m, d) / DAY_MS;
 }
 
 function addDays(day: CalendarDay, days: number): CalendarDay {
-  return new Date((dayNumber(day) + days) * DAY_MS).toISOString().slice(0, 10);
+  return dayOf((dayNumber(day) + days) * DAY_MS) ?? day;
 }
 
 function daysBetween(from: CalendarDay, to: CalendarDay): number {
@@ -126,9 +176,9 @@ function daysBetween(from: CalendarDay, to: CalendarDay): number {
 
 /** "3 Nov", or "3 Nov 2027" when it isn't this year. */
 export function formatDueDate(day: CalendarDay, today: CalendarDay): string {
-  const [y, m, d] = day.split("-").map(Number);
+  const [, m, d] = day.split("-").map(Number);
   const short = `${d} ${MONTHS[m - 1]}`;
-  return day.slice(0, 4) === today.slice(0, 4) ? short : `${short} ${y}`;
+  return day.slice(0, 4) === today.slice(0, 4) ? short : `${short} ${day.slice(0, 4)}`;
 }
 
 function onDay(day: CalendarDay, today: CalendarDay): string {
@@ -141,15 +191,26 @@ function ago(daysPast: number): string {
 
 // ─── Rules ────────────────────────────────────────────────────────────────────
 
-/** A notice deadline needs a positive notice period on a Contract that can renew. */
+/** A notice deadline needs a positive, whole-day notice period on a Contract that can renew. */
 export function noticeApplies(input: { noticePeriodDays: number | null; renewalType: string }): boolean {
-  return input.renewalType !== "FIXED_TERM" && input.noticePeriodDays != null && input.noticePeriodDays > 0;
+  return (
+    input.renewalType !== "FIXED_TERM" &&
+    input.noticePeriodDays != null &&
+    Number.isInteger(input.noticePeriodDays) &&
+    input.noticePeriodDays > 0
+  );
+}
+
+// Whole-day thresholds only; garbage, negative and fractional entries drop out.
+function wholeDayThresholds(value: string | null | undefined): number[] {
+  if (!value?.trim()) return [];
+  return parseThresholds(value).filter(Number.isInteger);
 }
 
 /** How far ahead a record becomes Due: its largest Reminder threshold, else the household default's. */
 export function dueSoonWindow(reminderDaysBefore: string | null | undefined, defaultReminderDays: string): number {
-  const own = parseThresholds(reminderDaysBefore, defaultReminderDays);
-  const days = own.length > 0 ? own : parseThresholds(defaultReminderDays);
+  const own = wholeDayThresholds(reminderDaysBefore);
+  const days = own.length > 0 ? own : wholeDayThresholds(defaultReminderDays);
   return days.length > 0 ? Math.max(...days) : 0;
 }
 
@@ -164,6 +225,7 @@ function upcoming(field: DueField, date: CalendarDay, daysLeft: number, window: 
 }
 
 function contractEntries(record: Extract<DueRecord, { kind: "contract" }>, ctx: DueContext): DueEntry[] {
+  // Enum values match exactly: see the input contract at the top.
   if (record.status === "CANCELLED") return [];
   const end = toDay(record.endDate);
   if (!end) return [];
@@ -238,7 +300,12 @@ function tenancyEntries(record: Extract<DueRecord, { kind: "tenancy" }>, ctx: Du
   const end = toDay(record.leaseEnd);
   if (!end) return [];
   const daysLeft = daysBetween(ctx.today, end);
-  if (daysLeft < 0) return [{ field: "leaseEnd", date: end, daysLeft, state: "overdue", label: `Lease ended ${ago(-daysLeft)}` }];
+  if (daysLeft < 0) {
+    // Like an auto-renewing Contract, it needs its new date: Housekeeping, not Due.
+    return [
+      { field: "leaseEnd", date: end, daysLeft, state: "needs-new-end-date", label: "Lease ended — set the new lease end" },
+    ];
+  }
   // A Tenancy has no Reminder thresholds of its own, so the household default sets its window.
   const window = dueSoonWindow(null, ctx.defaultReminderDays);
   return [upcoming("leaseEnd", end, daysLeft, window, `Lease ends ${onDay(end, ctx.today)}`)];

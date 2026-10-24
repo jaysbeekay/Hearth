@@ -14,7 +14,7 @@ import {
 import { sendTestEmail } from "@/lib/notifications/email";
 import { sendTestNtfy } from "@/lib/notifications/ntfy";
 import type { ActionState } from "@/lib/actions/auth";
-import { TIMEZONE_OPTIONS } from "@/lib/timezones";
+import { isValidTimeZone } from "@/lib/duePolicy";
 
 export async function requireAdmin() {
   const session = await auth();
@@ -208,10 +208,8 @@ export async function saveHouseholdTimeZone(
   await requireAdmin();
 
   const timeZone = formData.get("householdTimeZone");
-  if (
-    typeof timeZone !== "string" ||
-    (timeZone !== "" && !TIMEZONE_OPTIONS.includes(timeZone as (typeof TIMEZONE_OPTIONS)[number]))
-  ) {
+  // Any IANA zone name the runtime knows; offsets like "+05:00" aren't names.
+  if (typeof timeZone !== "string" || (timeZone !== "" && !(/^[A-Za-z]/.test(timeZone) && isValidTimeZone(timeZone)))) {
     return { error: "Invalid timezone." };
   }
 

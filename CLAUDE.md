@@ -59,7 +59,7 @@ npm run build             # next build --webpack
 npm run lint              # eslint
 npx tsc --noEmit          # type-check (no dedicated script; run directly)
 npx prisma migrate dev    # create/apply a migration after editing prisma/schema.prisma
-npx prisma generate       # regenerate the client into src/generated/prisma (postinstall does this too)
+npx prisma generate       # regenerate the client into src/generated/prisma; run after install and after pulling schema changes (`npm run test:unit` runs it first)
 
 # e2e (Playwright)
 npm run test:e2e                                  # full suite: seeds DB, runs all specs
