@@ -135,14 +135,18 @@ test("swiping from the left screen edge opens the navigation drawer, and the men
   await expect(page.getByRole("button", { name: "Open navigation menu" })).toBeVisible();
 
   const body = page.locator("body");
-  await body.dispatchEvent("pointerdown", { pointerType: "touch", clientX: 5, clientY: 300 });
-  for (let i = 1; i <= 8; i++) {
-    await body.dispatchEvent("pointermove", { pointerType: "touch", clientX: 5 + i * 10, clientY: 300 });
-  }
-  await body.dispatchEvent("pointerup", { pointerType: "touch", clientX: 85, clientY: 300 });
-
   const drawer = page.getByRole("dialog", { name: "Navigation menu" });
-  await expect(drawer).toBeVisible();
+  // The menu button is server-rendered, so seeing it doesn't prove the
+  // listener is attached yet. Repeat the gesture until hydration has caught
+  // up; a swipe that lands first is simply ignored.
+  await expect(async () => {
+    await body.dispatchEvent("pointerdown", { pointerType: "touch", clientX: 5, clientY: 300 });
+    for (let i = 1; i <= 8; i++) {
+      await body.dispatchEvent("pointermove", { pointerType: "touch", clientX: 5 + i * 10, clientY: 300 });
+    }
+    await body.dispatchEvent("pointerup", { pointerType: "touch", clientX: 85, clientY: 300 });
+    await expect(drawer).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 15000 });
   await expect(drawer.getByRole("link", { name: "Contracts" })).toBeVisible();
 
   await page.keyboard.press("Escape");
