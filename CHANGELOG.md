@@ -12,6 +12,12 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 - `nodemailer` 10.0.16 → 10.2.1 and `mailparser` → 3.12.4, fixing three
   high-severity "interpretation conflict" advisories in nodemailer
   (SNYK-JS-NODEMAILER-21663365, -21663367, -21663373).
+- `fast-uri` override 3.1.8 → 3.1.9, fixing four moderate-severity URI
+  parsing advisories (scheme spoofing, host confusion, path equivalence and
+  scheme injection; GHSA-w74x-v6f9-j3xg, GHSA-wjr9-j795-jxcr,
+  GHSA-xhq7-xmqj-769h, GHSA-333x-w4r6-6crp). The remaining low-severity
+  `npm audit` entries all trace to `@simplewebauthn/server` 9.x and are
+  tracked in #376.
 
 ### Added
 
