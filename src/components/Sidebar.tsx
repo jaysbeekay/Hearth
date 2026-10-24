@@ -34,7 +34,7 @@ export function Sidebar({
     <aside className="hidden w-60 flex-col border-r border-border bg-surface md:flex">
       <div className="flex items-center gap-2 px-6 py-5">
         <Flame size={22} className="text-accent" />
-        <span className="font-[family-name:var(--font-fraunces)] text-lg font-medium">Hearth</span>
+        <span className="text-lg font-semibold">Hearth</span>
       </div>
 
       <div className="px-3 pb-3">

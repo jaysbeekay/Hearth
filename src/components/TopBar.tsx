@@ -15,7 +15,7 @@ export function TopBar() {
           <Menu size={18} />
         </button>
         <Flame size={20} className="text-accent" />
-        <span className="font-[family-name:var(--font-fraunces)] font-medium">Hearth</span>
+        <span className="font-semibold">Hearth</span>
       </div>
       <div className="flex items-center gap-1">
         <button
