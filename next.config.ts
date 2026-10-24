@@ -13,6 +13,9 @@ const nextConfig: NextConfig = {
   // household-admin UI and previously leaked into published screenshots,
   // overlapping the sidebar account email (#178).
   devIndicators: false,
+  // Stop `next dev` from writing a managed AGENTS.md into the repo root on
+  // every run; agent instructions live in CLAUDE.md, maintained by hand.
+  agentRules: false,
   // ssh2 (used by the SFTP backup destination) ships a non-ESM asset that
   // Turbopack can't bundle into server chunks — load it natively instead.
   serverExternalPackages: ["ssh2", "ssh2-sftp-client", "yahoo-finance2"],
