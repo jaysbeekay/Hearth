@@ -27,11 +27,11 @@ import {
   CATEGORY_LABELS,
   BILLING_LABELS,
   RENEWAL_LABELS,
-  daysUntil,
   formatCurrency,
   formatDate,
 } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
+import { contractTiming } from "@/lib/contractTiming";
 import { getHouseholdMemberCount } from "@/lib/household";
 
 export default async function ContractDetailPage({
@@ -64,7 +64,10 @@ export default async function ContractDetailPage({
     ? await getPendingExtractionReview("CONTRACT", contract.id)
     : [];
 
-  const days = daysUntil(contract.endDate);
+  // #351 — counts to the last day to give notice while that's ahead.
+  const timing = contractTiming(contract);
+  const days = timing.days;
+  const cancelByLabel = timing.beforeCancelBy ? formatDate(timing.cancelBy, dateFormat) : undefined;
   const cancelled = contract.status === "CANCELLED";
   const boundUpload = addDocument.bind(null, contract.id);
   const statusAction = setContractStatus.bind(null, contract.id, cancelled ? "ACTIVE" : "CANCELLED");
@@ -75,7 +78,8 @@ export default async function ContractDetailPage({
   const reminderHealth = await getReminderHealth({
     ownerType: "CONTRACT",
     ownerId: contract.id,
-    targetDate: contract.endDate,
+    // Reminders follow the notice deadline and stop once it has passed.
+    targetDate: timing.cancelBy ? (timing.beforeCancelBy ? timing.cancelBy : null) : contract.endDate,
     reminderDaysBefore: contract.reminderDaysBefore,
   });
 
@@ -100,7 +104,7 @@ export default async function ContractDetailPage({
           <p className="text-foreground/70">{contract.provider}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <ExpiryBadge days={days} cancelled={cancelled} />
+          <ExpiryBadge days={days} cancelled={cancelled} cancelBy={timing.beforeCancelBy} />
           <Link
             href={`/contracts/${contract.id}/edit`}
             className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
@@ -146,6 +150,7 @@ export default async function ContractDetailPage({
           documentsHref="#documents"
           editHref={`/contracts/${contract.id}/edit`}
           renewLabel="Renew policy"
+          cancelBy={cancelByLabel}
           // Expiring is exactly when "I'm not renewing this" is the other
           // likely answer, so offer it beside Renew.
           secondaryAction={
@@ -183,7 +188,13 @@ export default async function ContractDetailPage({
           />
           <Detail
             label="Notice period"
-            value={contract.noticePeriodDays != null ? `${contract.noticePeriodDays} days` : "—"}
+            value={
+              contract.noticePeriodDays != null
+                ? `${contract.noticePeriodDays} days${
+                    timing.cancelBy ? ` · give notice by ${formatDate(timing.cancelBy, dateFormat)}` : ""
+                  }`
+                : "—"
+            }
           />
           <Detail
             label="Cost"

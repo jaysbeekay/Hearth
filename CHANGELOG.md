@@ -57,6 +57,17 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **Notice periods now count.** A contract's notice period was collected
+  but ignored, so reminders counted down to the end date — after the last
+  day to cancel had already passed. For contracts with a notice period
+  (other than fixed-term ones), reminders, the badge ("10d to give
+  notice"), the expiry banner, the contract list and its "expiring" filter,
+  dashboard counts, Needs attention, Upcoming and the iCal feed now work
+  from the last day to give notice. Webhook payloads add `cancelBy` and
+  `noticePeriodDays`; MCP and assistant contract data add `cancelBy`,
+  `daysUntilCancelBy` and `daysUntilDeadline`, and MCP `upcoming_renewals`
+  uses the deadline (#351, part 1 — auto-renew roll-forward follows with
+  #353).
 - Reminder emails described vehicle registration, insurance and service
   dates as contracts (#352).
 - Signing in now returns you to the page that asked you to, limited to

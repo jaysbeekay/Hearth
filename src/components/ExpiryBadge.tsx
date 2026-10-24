@@ -3,9 +3,12 @@ import { cn, expiryLabel } from "@/lib/utils";
 export function ExpiryBadge({
   days,
   cancelled,
+  cancelBy,
 }: {
   days: number | null;
   cancelled?: boolean;
+  /** #351 — `days` counts to the last day to give notice, not the end date. */
+  cancelBy?: boolean;
 }) {
   const tone = cancelled
     ? "bg-slate-500/10 text-slate-500 dark:text-slate-400"
@@ -26,7 +29,13 @@ export function ExpiryBadge({
         tone,
       )}
     >
-      {cancelled ? "Cancelled" : expiryLabel(days)}
+      {cancelled
+        ? "Cancelled"
+        : cancelBy && days != null && days >= 0
+          ? days === 0
+            ? "Notice due today"
+            : `${days}d to give notice`
+          : expiryLabel(days)}
     </span>
   );
 }

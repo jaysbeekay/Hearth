@@ -15,8 +15,14 @@ export interface ReminderInput {
   detail?: string;
   /** Which date a vehicle reminder is about. Required when kind is "vehicle". */
   vehicleField?: VehicleReminderField;
+  /** Days until the date this reminder is about — the notice deadline when `notice` is set. */
   daysRemaining: number;
   endDate: Date;
+  /**
+   * #351 — set when the contract has a notice period: the reminder is about
+   * the last day to give notice, not the end date.
+   */
+  notice?: { cancelBy: Date; noticePeriodDays: number };
   /** The recipient's (email) or household's (ntfy, webhook) date format preference. */
   dateFormat?: string | null;
   /** APP_URL when it's configured; null leaves the link out rather than pointing at a guess. */
@@ -97,25 +103,45 @@ function sentenceStart(input: ReminderInput, quote: (s: string) => string): stri
   return `Your ${noun} ${quote(input.title)}${detail ? ` (${detail})` : ""} ${verb}`;
 }
 
+/** "The last day to give notice on your contract "X" (Allianz) is" */
+function noticeStart(input: ReminderInput, quote: (s: string) => string): string {
+  const detail = input.detail?.trim();
+  return `The last day to give notice on your ${input.kind} ${quote(input.title)}${detail ? ` (${detail})` : ""} is`;
+}
+
+function noticeTail(input: ReminderInput, endDate: string): string {
+  const days = input.notice!.noticePeriodDays;
+  return `It ends on ${endDate} and needs ${days} day${days === 1 ? "" : "s"}' notice to cancel.`;
+}
+
 export function buildReminderEmail(input: ReminderInput): { subject: string; text: string; html: string } {
   const { noun, verb } = subjectParts(input);
-  const date = formatReminderDate(input.endDate, input.dateFormat);
+  const endDate = formatReminderDate(input.endDate, input.dateFormat);
+  const date = input.notice ? formatReminderDate(input.notice.cancelBy, input.dateFormat) : endDate;
   const when = inDays(input.daysRemaining);
   const url = reminderRecordUrl(input.appUrl, input.kind, input.id);
 
   const subject = oneLine(
-    `${input.test ? "[Test] " : ""}Reminder: "${input.title}" ${noun} ${verb} ${when}`,
+    input.notice
+      ? `${input.test ? "[Test] " : ""}Reminder: notice deadline for "${input.title}" ${noun} ${when}`
+      : `${input.test ? "[Test] " : ""}Reminder: "${input.title}" ${noun} ${verb} ${when}`,
   );
 
   const testNote = input.test
     ? "This is a test of the reminder Hearth sends for this record.\n\n"
     : "";
-  const lead = `${sentenceStart(input, (s) => `"${s}"`)} on ${date} (${when}).`;
+  const lead = input.notice
+    ? `${noticeStart(input, (s) => `"${s}"`)} ${date} (${when}). ${noticeTail(input, endDate)}`
+    : `${sentenceStart(input, (s) => `"${s}"`)} on ${date} (${when}).`;
   const text = url
     ? `${testNote}${lead}\n\nOpen it in Hearth: ${url}`
     : `${testNote}${lead}\n\nLog in to Hearth to review it.`;
 
-  const htmlLead = `${sentenceStart({ ...input, detail: input.detail ? escapeHtml(input.detail) : undefined }, (s) => `<strong>${escapeHtml(s)}</strong>`)} on <strong>${escapeHtml(date)}</strong> (${when}).`;
+  const htmlInput = { ...input, detail: input.detail ? escapeHtml(input.detail) : undefined };
+  const strong = (s: string) => `<strong>${escapeHtml(s)}</strong>`;
+  const htmlLead = input.notice
+    ? `${noticeStart(htmlInput, strong)} ${strong(date)} (${when}). ${escapeHtml(noticeTail(input, endDate))}`
+    : `${sentenceStart(htmlInput, strong)} on ${strong(date)} (${when}).`;
   const html = [
     input.test ? "<p><em>This is a test of the reminder Hearth sends for this record.</em></p>" : "",
     `<p>${htmlLead}</p>`,
@@ -130,12 +156,16 @@ export function buildReminderEmail(input: ReminderInput): { subject: string; tex
 /** ntfy publish headers + body. Click/Actions make the notification open the record. */
 export function buildNtfyReminder(input: ReminderInput): { headers: Record<string, string>; body: string } {
   const { noun, verb } = subjectParts(input);
-  const date = formatReminderDate(input.endDate, input.dateFormat);
+  const endDate = formatReminderDate(input.endDate, input.dateFormat);
   const when = inDays(input.daysRemaining);
   const url = reminderRecordUrl(input.appUrl, input.kind, input.id);
 
   const headers: Record<string, string> = {
-    Title: oneLine(`${input.test ? "[Test] " : ""}${input.title}: ${noun} ${verb} ${when}`),
+    Title: oneLine(
+      input.notice
+        ? `${input.test ? "[Test] " : ""}${input.title}: notice deadline ${when}`
+        : `${input.test ? "[Test] " : ""}${input.title}: ${noun} ${verb} ${when}`,
+    ),
     Priority: input.daysRemaining <= 7 ? "high" : "default",
     Tags: "warning,calendar",
   };
@@ -143,7 +173,9 @@ export function buildNtfyReminder(input: ReminderInput): { headers: Record<strin
     headers.Click = url;
     headers.Actions = `view, Open in Hearth, ${url}`;
   }
-  const body = `${sentenceStart(input, (s) => `"${s}"`)} on ${date}.`;
+  const body = input.notice
+    ? `${noticeStart(input, (s) => `"${s}"`)} ${formatReminderDate(input.notice.cancelBy, input.dateFormat)}. ${noticeTail(input, endDate)}`
+    : `${sentenceStart(input, (s) => `"${s}"`)} on ${endDate}.`;
   return { headers, body };
 }
 
@@ -157,6 +189,12 @@ export function buildReminderWebhookBody(input: ReminderInput): Record<string, u
     ...(input.kind === "vehicle" ? { field: input.vehicleField } : {}),
     daysRemaining: input.daysRemaining,
     endDate: input.endDate.toISOString().slice(0, 10),
+    ...(input.kind === "contract"
+      ? {
+          cancelBy: input.notice ? input.notice.cancelBy.toISOString().slice(0, 10) : null,
+          noticePeriodDays: input.notice?.noticePeriodDays ?? null,
+        }
+      : {}),
     url: reminderRecordUrl(input.appUrl, input.kind, input.id),
   };
 }

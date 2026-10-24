@@ -145,7 +145,42 @@ describe("buildReminderWebhookBody (#352)", () => {
       detail: "Allianz",
       daysRemaining: 14,
       endDate: "2026-10-20",
+      cancelBy: null,
+      noticePeriodDays: null,
       url: null,
+    });
+  });
+});
+
+describe("notice-period reminders (#351)", () => {
+  const withNotice = {
+    ...contract,
+    daysRemaining: 9,
+    notice: { cancelBy: new Date("2026-09-20T00:00:00.000Z"), noticePeriodDays: 30 },
+  };
+
+  it("emails the last day to give notice, not the end date", () => {
+    const email = buildReminderEmail(withNotice);
+    expect(email.subject).toBe('Reminder: notice deadline for "Home & Contents Insurance" contract in 9 days');
+    expect(email.text).toContain(
+      'The last day to give notice on your contract "Home & Contents Insurance" (Allianz) is 20 September 2026 (in 9 days). It ends on 20 October 2026 and needs 30 days\' notice to cancel.',
+    );
+    expect(email.html).toContain("<strong>20 September 2026</strong>");
+  });
+
+  it("titles the push notification as a notice deadline", () => {
+    const { headers, body } = buildNtfyReminder(withNotice);
+    expect(headers.Title).toBe("Home & Contents Insurance: notice deadline in 9 days");
+    expect(body).toContain("is 20 September 2026.");
+  });
+
+  it("adds cancelBy and noticePeriodDays to the webhook payload", () => {
+    expect(buildReminderWebhookBody(withNotice)).toMatchObject({
+      event: "contract.expiring",
+      daysRemaining: 9,
+      endDate: "2026-10-20",
+      cancelBy: "2026-09-20",
+      noticePeriodDays: 30,
     });
   });
 });

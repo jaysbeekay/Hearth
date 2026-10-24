@@ -1,5 +1,6 @@
 import type { Contract, Product, Vehicle } from "@/generated/prisma/client";
 import { daysUntil } from "@/lib/utils";
+import { contractTiming } from "@/lib/contractTiming";
 
 export type AttentionKind = "contract" | "warranty" | "vehicle" | "system";
 
@@ -25,6 +26,8 @@ export interface AttentionItem {
    * contract detail page's own "Mark as cancelled" button uses.
    */
   canMarkCancelled?: boolean;
+  /** #351 — `days` counts to a contract's last day to give notice, not its end date. */
+  cancelBy?: boolean;
   /** Short status pill shown instead of/alongside the expiry badge — e.g. "Not configured", "Needs review", "Reminder failed" (#200/#201). */
   badge?: string;
 }
@@ -41,7 +44,8 @@ export function buildContractAttentionItems(
 ): AttentionItem[] {
   const items: AttentionItem[] = [];
   for (const contract of contracts) {
-    const days = daysUntil(contract.endDate);
+    const timing = contractTiming(contract);
+    const days = timing.days;
     if (days == null || days > 30) continue;
 
     const hasDocument = contract._count.documents > 0;
@@ -57,6 +61,7 @@ export function buildContractAttentionItems(
         ? { label: "Upload document", href: `/contracts/${contract.id}#documents` }
         : { label: "Renew policy", href: `/contracts/${contract.id}/edit` },
       canMarkCancelled: overdue,
+      cancelBy: timing.beforeCancelBy,
     });
   }
   return items;

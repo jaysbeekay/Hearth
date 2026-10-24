@@ -16,6 +16,7 @@ export function DetailStatusBanner({
   editHref,
   renewLabel,
   secondaryAction,
+  cancelBy,
   needsReview,
 }: {
   days: number | null;
@@ -25,6 +26,8 @@ export function DetailStatusBanner({
   renewLabel: string;
   /** Shown beside Renew/Upload in the expiry row — e.g. contract "Mark as cancelled" (#370). */
   secondaryAction?: React.ReactNode;
+  /** #351 — formatted last day to give notice, when `days` counts to it rather than the end date. */
+  cancelBy?: string;
   /** Set when extractionPending is true — some critical fields were auto-filled and haven't been confirmed yet. */
   needsReview?: { onConfirm: () => Promise<ActionState> };
 }) {
@@ -34,7 +37,11 @@ export function DetailStatusBanner({
   const overdue = showExpiry && days! < 0;
   const tone = overdue ? "border-danger/30 bg-danger/10 text-danger" : "border-warning/30 bg-warning/10 text-warning";
   const message = showExpiry
-    ? overdue
+    ? cancelBy && !overdue
+      ? days === 0
+        ? `Last day to give notice is today (${cancelBy}).`
+        : `Give notice by ${cancelBy} — ${days} day${days === 1 ? "" : "s"} left.`
+      : overdue
       ? `Expired ${Math.abs(days!)} day${Math.abs(days!) === 1 ? "" : "s"} ago.`
       : days === 0
         ? "Expires today."

@@ -622,7 +622,11 @@ secret and comparing to the header. Four events exist:
   is `null` when `APP_URL` isn't set. `vehicle.expiring` also carries
   `field` — `regoExpiry`, `insuranceExpiry` or `nextServiceDue` — and its
   `url` points at `/vehicles/...` (before v0.20.0, vehicle reminders went
-  out as `contract.expiring` with a `/contracts/...` URL). Body:
+  out as `contract.expiring` with a `/contracts/...` URL). A contract with
+  a notice period (and a renewal type other than fixed term) is reminded
+  about its last day to give notice: `cancelBy` is that date,
+  `daysRemaining` counts down to it, and `noticePeriodDays` is set; both are
+  `null` otherwise. Body:
 
   ```json
   {
@@ -633,6 +637,8 @@ secret and comparing to the header. Four events exist:
     "detail": "...",
     "daysRemaining": 7,
     "endDate": "2026-07-03",
+    "cancelBy": "2026-06-03",
+    "noticePeriodDays": 30,
     "url": "https://<your APP_URL>/contracts/..."
   }
   ```

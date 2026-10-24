@@ -12,6 +12,7 @@ import "@/lib/storage"; // registers each domain's reconcile target as a module 
 import type { NotificationChannel } from "@/generated/prisma/enums";
 import { env, isAppUrlConfigured } from "@/lib/env";
 import type { ReminderInput, VehicleReminderField } from "@/lib/notifications/reminderContent";
+import { contractTiming } from "@/lib/contractTiming";
 
 function daysRemaining(endDate: Date, now: Date): number {
   const msPerDay = 24 * 60 * 60 * 1000;
@@ -91,7 +92,12 @@ export async function runExpirationCheck(now: Date = new Date()) {
 
   for (const contract of contracts) {
     if (!contract.endDate) continue;
-    const remaining = daysRemaining(contract.endDate, now);
+    // #351 — with a notice period, reminders count down to the last day to
+    // give notice; once that has passed there is nothing left to remind
+    // about (the contract renews or lapses on its own terms).
+    const timing = contractTiming(contract, now);
+    if (timing.cancelBy && !timing.beforeCancelBy) continue;
+    const remaining = timing.days!;
     if (remaining < 0) continue;
 
     const thresholds = parseThresholds(contract.reminderDaysBefore, defaultDays);
@@ -123,6 +129,9 @@ export async function runExpirationCheck(now: Date = new Date()) {
           detail: contract.provider,
           daysRemaining: remaining,
           endDate: contract.endDate,
+          notice: timing.cancelBy
+            ? { cancelBy: timing.cancelBy, noticePeriodDays: contract.noticePeriodDays! }
+            : undefined,
         });
 
         await recordNotificationOutcome({

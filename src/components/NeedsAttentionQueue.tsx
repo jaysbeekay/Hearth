@@ -55,7 +55,7 @@ export function NeedsAttentionQueue({ items }: { items: AttentionItem[] }) {
                 nothing at md, where the row is single-line anyway. */}
             <div className="basis-full md:hidden" aria-hidden />
 
-            {item.days != null && <ExpiryBadge days={item.days} />}
+            {item.days != null && <ExpiryBadge days={item.days} cancelBy={item.cancelBy} />}
             {item.badge && (
               <span className="inline-flex items-center gap-1 rounded-md bg-warning/10 px-2.5 py-1 text-xs font-medium text-warning">
                 <AlertCircle size={12} />

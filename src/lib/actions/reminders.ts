@@ -7,6 +7,7 @@ import { sendNtfyReminder, sendTestNtfy } from "@/lib/notifications/ntfy";
 import { prisma } from "@/lib/prisma";
 import { env, isAppUrlConfigured } from "@/lib/env";
 import type { ReminderInput, VehicleReminderField } from "@/lib/notifications/reminderContent";
+import { contractTiming } from "@/lib/contractTiming";
 
 export type TestReminderTarget =
   | { kind: "contract" | "warranty"; id: string }
@@ -29,7 +30,23 @@ async function reminderForTarget(target: TestReminderTarget): Promise<Omit<Remin
   if (target.kind === "contract") {
     const c = await prisma.contract.findFirst({ where: { id: target.id, deletedAt: null } });
     if (!c?.endDate) return null;
-    return { kind: "contract", id: c.id, title: c.title, detail: c.provider, endDate: c.endDate, daysRemaining: daysUntil(c.endDate), appUrl, test: true };
+    // #351 — preview the notice-deadline reminder while that deadline is ahead.
+    const timing = contractTiming(c);
+    const notice =
+      timing.cancelBy && timing.beforeCancelBy
+        ? { cancelBy: timing.cancelBy, noticePeriodDays: c.noticePeriodDays! }
+        : undefined;
+    return {
+      kind: "contract",
+      id: c.id,
+      title: c.title,
+      detail: c.provider,
+      endDate: c.endDate,
+      notice,
+      daysRemaining: daysUntil(notice ? notice.cancelBy : c.endDate),
+      appUrl,
+      test: true,
+    };
   }
   if (target.kind === "warranty") {
     const p = await prisma.product.findFirst({ where: { id: target.id, deletedAt: null } });

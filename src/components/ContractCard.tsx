@@ -1,10 +1,10 @@
 import Link from "next/link";
 import type { ContractModel } from "@/generated/prisma/models";
 import { ExpiryBadge } from "@/components/ExpiryBadge";
+import { contractTiming } from "@/lib/contractTiming";
 import {
   CATEGORY_LABELS,
   BILLING_LABELS,
-  daysUntil,
   formatCurrency,
   formatDate,
 } from "@/lib/utils";
@@ -18,7 +18,8 @@ export function ContractCard({
   dateFormat?: string;
   region?: string;
 }) {
-  const days = daysUntil(contract.endDate);
+  const timing = contractTiming(contract);
+  const days = timing.days;
   const cancelled = contract.status === "CANCELLED";
 
   return (
@@ -34,12 +35,16 @@ export function ContractCard({
           <p className="truncate font-medium">{contract.title}</p>
           <p className="truncate text-sm text-muted">{contract.provider}</p>
         </div>
-        <ExpiryBadge days={days} cancelled={cancelled} />
+        <ExpiryBadge days={days} cancelled={cancelled} cancelBy={timing.beforeCancelBy} />
       </div>
 
       <div className="mt-3 flex items-center justify-between text-sm text-muted">
         <span>
-          {contract.endDate ? `Ends ${formatDate(contract.endDate, dateFormat)}` : "No end date"}
+          {timing.beforeCancelBy && !cancelled
+            ? `Give notice by ${formatDate(timing.cancelBy, dateFormat)}`
+            : contract.endDate
+              ? `Ends ${formatDate(contract.endDate, dateFormat)}`
+              : "No end date"}
         </span>
         {contract.cost != null && (
           <span className="tabular-nums">

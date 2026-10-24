@@ -3,6 +3,7 @@ import ical from "ical-generator";
 import { prisma } from "@/lib/prisma";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { env } from "@/lib/env";
+import { contractTiming } from "@/lib/contractTiming";
 import { hashToken } from "@/lib/crypto";
 
 export async function GET(request: NextRequest) {
@@ -31,10 +32,23 @@ export async function GET(request: NextRequest) {
   // Contracts
   const contracts = await prisma.contract.findMany({
     where: { endDate: { not: null }, deletedAt: null },
-    select: { id: true, title: true, provider: true, endDate: true },
+    select: { id: true, title: true, provider: true, endDate: true, noticePeriodDays: true, renewalType: true },
   });
   for (const c of contracts) {
     if (!c.endDate) continue;
+    // #351 — the last day to give notice, alongside the end date.
+    const { cancelBy } = contractTiming(c);
+    if (cancelBy) {
+      calendar.createEvent({
+        id: `contract-${c.id}-notice`,
+        start: cancelBy,
+        end: new Date(cancelBy.getTime() + 86_400_000),
+        allDay: true,
+        summary: `${c.title} (last day to give notice)`,
+        description: c.provider,
+        url: `${appUrl}/contracts/${c.id}`,
+      });
+    }
     calendar.createEvent({
       id: `contract-${c.id}`,
       start: c.endDate,

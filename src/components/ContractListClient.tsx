@@ -13,7 +13,8 @@ import { ConfirmForm } from "@/components/ConfirmForm";
 import { ListSummaryStrip } from "@/components/ListSummaryStrip";
 import { deleteContract, restoreContract } from "@/lib/actions/contracts";
 import type { ContractModel } from "@/generated/prisma/models";
-import { CATEGORY_LABELS, daysUntil } from "@/lib/utils";
+import { CATEGORY_LABELS } from "@/lib/utils";
+import { contractTiming } from "@/lib/contractTiming";
 import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
@@ -112,7 +113,7 @@ export function ContractListClient({
     const weekAgo = new Date().getTime() - 7 * 86_400_000;
     for (const contract of contracts) {
       if (contract.status === "ACTIVE") {
-        const days = daysUntil(contract.endDate);
+        const days = contractTiming(contract).days;
         if (days != null && days < 0) expired++;
         else if (days != null && days <= 30) expiringSoon++;
       }
