@@ -115,8 +115,12 @@ _Avoid_: Pending, unconfirmed
 ### Views
 
 **Reminder**:
-A message sent ahead of something Due, by email, push or webhook.
+A message sent ahead of a Due entry's date, by email, push or webhook. Reminders stop once the date has passed; anything Overdue stays in Needs attention instead. If several Reminder thresholds are crossed at once, one catch-up Reminder goes out, not one per threshold.
 _Avoid_: Alert, notification (as the domain term)
+
+**Reminder threshold**:
+How many days before a Due entry's date a Reminder goes out. Each record can set its own list, otherwise the household default applies. Moving the date resets which thresholds count as sent.
+_Avoid_: Reminder days, alert offset
 
 **Needs attention**:
 The household's queue of things to act on, split into Due and Housekeeping.
