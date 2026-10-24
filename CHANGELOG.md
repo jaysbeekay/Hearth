@@ -90,6 +90,12 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 - The mobile capture button only shows on the dashboard and Documents
   (#348).
 - Warranty uploads have one labelled "Document type" select (#350).
+- Vehicle and Service record writes go through one command module
+  (`src/lib/commands/vehicles.ts`) shared by the server actions, offline
+  sync and Trash retention, instead of being written separately in each
+  (ADR 0003). An offline Vehicle edit now records who made it, as an online
+  one does. Vitest command tests run against a temporary migrated SQLite
+  database (`tests/helpers/testDb.ts`) (#389).
 
 - **Simpler dashboard: what needs doing comes first (#356, #357).** The 11
   stat cards and the Documents block are gone. Under the heading is one line

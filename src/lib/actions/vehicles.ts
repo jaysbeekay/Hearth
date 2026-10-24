@@ -6,13 +6,24 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { vehicleSchema, vehicleItemSchema } from "@/lib/validation/vehicles";
 import {
-  deleteVehicleItemDir,
   deleteVehicleItemDocument as deleteVehicleItemDocumentFile,
   saveVehicleItemDocument,
 } from "@/lib/storage";
 import { formDataToStringValues } from "@/lib/form-state";
-import { isModuleEnabled } from "@/lib/modules/enablement";
-import { clearNotificationLogs } from "@/lib/notifications/logs";
+import { isModuleEnabled, ModuleDisabledError } from "@/lib/modules/enablement";
+import {
+  createVehicleCommand,
+  updateVehicleCommand,
+  deleteVehicleCommand,
+  restoreVehicleCommand,
+  permanentlyDeleteVehicleCommand,
+  createServiceRecordCommand,
+  updateServiceRecordCommand,
+  deleteServiceRecordCommand,
+  restoreServiceRecordCommand,
+  permanentlyDeleteServiceRecordCommand,
+} from "@/lib/commands/vehicles";
+import { RecordNotFoundError, StaleEditError } from "@/lib/commands/shared";
 import type { ActionState } from "@/lib/actions/auth";
 import { describeUploadRejection } from "@/lib/uploadValidation";
 import { parseDocumentCategory } from "@/lib/documents/categories";
@@ -106,6 +117,14 @@ function formToVehicleItemInput(formData: FormData) {
   };
 }
 
+// Turns a command's not-found / stale-edit / module-disabled error into the
+// ActionState the form shows; anything else is unexpected and rethrown.
+function commandError(error: unknown, notFound: string): ActionState {
+  if (error instanceof RecordNotFoundError) return { error: notFound };
+  if (error instanceof StaleEditError || error instanceof ModuleDisabledError) return { error: error.message };
+  throw error;
+}
+
 export async function createVehicle(
   _prevState: ActionState,
   formData: FormData,
@@ -120,12 +139,13 @@ export async function createVehicle(
     };
   }
 
-  const vehicle = await prisma.vehicle.create({
-    data: { ...parsed.data, createdById: user.id },
-  });
-
-  revalidatePath("/vehicles");
-  redirect(`/vehicles/${vehicle.id}`);
+  let vehicleId: string;
+  try {
+    vehicleId = (await createVehicleCommand(parsed.data, user.id)).id;
+  } catch (error) {
+    return commandError(error, "Vehicle not found.");
+  }
+  redirect(`/vehicles/${vehicleId}`);
 }
 
 export async function updateVehicle(
@@ -143,62 +163,42 @@ export async function updateVehicle(
     };
   }
 
-  const existing = await prisma.vehicle.findUnique({ where: { id: vehicleId } });
-  if (!existing) return { error: "Vehicle not found." };
-
-  await prisma.vehicle.update({ where: { id: vehicleId }, data: { ...parsed.data, updatedById: user.id } });
-
-  revalidatePath("/vehicles");
-  revalidatePath(`/vehicles/${vehicleId}`);
+  try {
+    await updateVehicleCommand(vehicleId, parsed.data, user.id);
+  } catch (error) {
+    return commandError(error, "Vehicle not found.");
+  }
   redirect(`/vehicles/${vehicleId}`);
 }
 
 // #287 — soft-delete: see the equivalent comment on deleteContract (contracts.ts).
 export async function deleteVehicle(vehicleId: string): Promise<ActionState> {
   await requireUser();
-
-  const existing = await prisma.vehicle.findUnique({ where: { id: vehicleId } });
-  if (!existing) return { error: "Vehicle not found." };
-
-  await prisma.vehicle.update({ where: { id: vehicleId }, data: { deletedAt: new Date() } });
-
-  revalidatePath("/vehicles");
-  revalidatePath("/settings/trash");
+  try {
+    await deleteVehicleCommand(vehicleId);
+  } catch (error) {
+    return commandError(error, "Vehicle not found.");
+  }
   redirect("/vehicles");
 }
 
 export async function restoreVehicle(vehicleId: string): Promise<ActionState> {
   await requireUser();
-
-  const existing = await prisma.vehicle.findUnique({ where: { id: vehicleId } });
-  if (!existing) return { error: "Vehicle not found." };
-
-  await prisma.vehicle.update({ where: { id: vehicleId }, data: { deletedAt: null } });
-
-  revalidatePath("/vehicles");
-  revalidatePath("/settings/trash");
+  try {
+    await restoreVehicleCommand(vehicleId);
+  } catch (error) {
+    return commandError(error, "Vehicle not found.");
+  }
   return { success: "Restored." };
 }
 
 export async function permanentlyDeleteVehicle(vehicleId: string): Promise<ActionState> {
   await requireUser();
-
-  const existing = await prisma.vehicle.findUnique({
-    where: { id: vehicleId },
-    include: { items: { select: { id: true } } },
-  });
-  if (!existing) return { error: "Vehicle not found." };
-
-  for (const item of existing.items) {
-    await deleteVehicleItemDir(item.id);
+  try {
+    await permanentlyDeleteVehicleCommand(vehicleId);
+  } catch (error) {
+    return commandError(error, "Vehicle not found.");
   }
-
-  await prisma.vehicle.delete({ where: { id: vehicleId } });
-  // See the equivalent comment in deleteContract (contracts.ts) — NotificationLog
-  // is no longer FK-cascaded, so this cleanup is now explicit.
-  await clearNotificationLogs("VEHICLE", vehicleId);
-
-  revalidatePath("/settings/trash");
   return { success: "Deleted permanently." };
 }
 
@@ -208,9 +208,6 @@ export async function addVehicleItem(
   formData: FormData,
 ): Promise<ActionState> {
   await requireUser();
-
-  const vehicle = await prisma.vehicle.findUnique({ where: { id: vehicleId } });
-  if (!vehicle) return { error: "Vehicle not found." };
 
   const parsed = vehicleItemSchema.safeParse(formToVehicleItemInput(formData));
   if (!parsed.success) {
@@ -226,15 +223,18 @@ export async function addVehicleItem(
     if (rejection) return { error: rejection };
   }
 
-  const item = await prisma.vehicleItem.create({
-    data: { ...parsed.data, vehicleId },
-  });
-
-  if (file instanceof File && file.size > 0) {
-    await attachVehicleItemDocument(item.id, file, parseDocumentCategory(formData.get("documentCategory")));
+  let itemId: string;
+  try {
+    itemId = (await createServiceRecordCommand(vehicleId, parsed.data)).id;
+  } catch (error) {
+    return commandError(error, "Vehicle not found.");
   }
 
-  revalidatePath(`/vehicles/${vehicleId}`);
+  if (file instanceof File && file.size > 0) {
+    await attachVehicleItemDocument(itemId, file, parseDocumentCategory(formData.get("documentCategory")));
+    revalidatePath(`/vehicles/${vehicleId}`);
+  }
+
   redirect(`/vehicles/${vehicleId}`);
 }
 
@@ -254,50 +254,41 @@ export async function updateVehicleItem(
     };
   }
 
-  const existing = await prisma.vehicleItem.findUnique({ where: { id: itemId } });
-  if (!existing || existing.vehicleId !== vehicleId) return { error: "Item not found." };
-
-  await prisma.vehicleItem.update({ where: { id: itemId }, data: parsed.data });
-
-  revalidatePath(`/vehicles/${vehicleId}`);
+  try {
+    await updateServiceRecordCommand(itemId, parsed.data, { vehicleId });
+  } catch (error) {
+    return commandError(error, "Item not found.");
+  }
   redirect(`/vehicles/${vehicleId}`);
 }
 
 export async function deleteVehicleItem(vehicleId: string, itemId: string): Promise<ActionState> {
   await requireUser();
-
-  const existing = await prisma.vehicleItem.findUnique({ where: { id: itemId } });
-  if (!existing || existing.vehicleId !== vehicleId) return { error: "Item not found." };
-
-  await prisma.vehicleItem.update({ where: { id: itemId }, data: { deletedAt: new Date() } });
-
-  revalidatePath(`/vehicles/${vehicleId}`);
-  revalidatePath("/settings/trash");
+  try {
+    await deleteServiceRecordCommand(itemId, { vehicleId });
+  } catch (error) {
+    return commandError(error, "Item not found.");
+  }
   return { success: "Item moved to Trash." };
 }
 
 export async function restoreVehicleItem(itemId: string): Promise<ActionState> {
   await requireUser();
-
-  const item = await prisma.vehicleItem.findUnique({ where: { id: itemId } });
-  if (!item) return { error: "Item not found." };
-
-  await prisma.vehicleItem.update({ where: { id: itemId }, data: { deletedAt: null } });
-  revalidatePath(`/vehicles/${item.vehicleId}`);
-  revalidatePath("/settings/trash");
+  try {
+    await restoreServiceRecordCommand(itemId);
+  } catch (error) {
+    return commandError(error, "Item not found.");
+  }
   return { success: "Restored." };
 }
 
 export async function permanentlyDeleteVehicleItem(itemId: string): Promise<ActionState> {
   await requireUser();
-
-  const item = await prisma.vehicleItem.findUnique({ where: { id: itemId } });
-  if (!item) return { error: "Item not found." };
-
-  await deleteVehicleItemDir(itemId);
-  await prisma.vehicleItem.delete({ where: { id: itemId } });
-  revalidatePath(`/vehicles/${item.vehicleId}`);
-  revalidatePath("/settings/trash");
+  try {
+    await permanentlyDeleteServiceRecordCommand(itemId);
+  } catch (error) {
+    return commandError(error, "Item not found.");
+  }
   return { success: "Deleted permanently." };
 }
 
