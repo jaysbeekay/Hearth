@@ -179,8 +179,12 @@ function contractEntries(record: Extract<DueRecord, { kind: "contract" }>, ctx: 
 
   const daysLeft = daysBetween(today, end);
   if (daysLeft >= 0) {
-    const verb =
-      record.renewalType === "AUTO_RENEW" ? "Renews" : record.renewalType === "FIXED_TERM" ? "Ends" : "Expires";
+    // An auto-renewing Contract simply carries on, so its end date is never
+    // Due: only its notice deadline is.
+    if (record.renewalType === "AUTO_RENEW") {
+      return [{ field: "endDate", date: end, daysLeft, state: "later", label: `Renews ${onDay(end, today)}` }];
+    }
+    const verb = record.renewalType === "FIXED_TERM" ? "Ends" : "Expires";
     return [upcoming("endDate", end, daysLeft, window, `${verb} ${onDay(end, today)}`)];
   }
 

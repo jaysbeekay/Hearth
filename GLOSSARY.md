@@ -131,7 +131,7 @@ The household's queue of things to act on, split into Due and Housekeeping.
 _Avoid_: Alerts, tasks, to-do
 
 **Due**:
-A Needs attention entry whose date is within its due-soon window or has passed and still needs action. Only Contracts (the notice deadline, then the end date), Warranties, a Vehicle's rego, insurance and service dates, and a Tenancy's lease end can be Due; Cancelled Contracts, Ended Contracts and Lapsed Warranties never are. Days are counted in the household's day, not any one person's.
+A Needs attention entry whose date is within its due-soon window or has passed and still needs action. Only Contracts (the notice deadline, then the end date unless the Contract auto-renews), Warranties, a Vehicle's rego, insurance and service dates, and a Tenancy's lease end can be Due; Cancelled Contracts, Ended Contracts and Lapsed Warranties never are. Days are counted in the household's day, not any one person's.
 
 **Due entry**:
 One dated obligation of a record: a Contract's notice deadline or end date, a Warranty's end date, one of a Vehicle's rego, insurance or service dates, or a Tenancy's lease end. A record has one Due entry per such date, each with its own state.

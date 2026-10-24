@@ -22,9 +22,19 @@
       "expected": [{ "field": "noticeDeadline", "date": "2026-10-24", "daysLeft": 0, "state": "due-soon", "label": "Cancel by today" }]
     },
     {
-      "name": "contract: once the notice deadline passes, the end date counts (auto-renew)",
+      "name": "contract: once the notice deadline passes, an auto-renew end date shows but is never Due",
       "record": { "kind": "contract", "endDate": "2026-10-29", "noticePeriodDays": 30, "renewalType": "AUTO_RENEW", "status": "ACTIVE", "reminderDaysBefore": "30,14,7,1" },
-      "expected": [{ "field": "endDate", "date": "2026-10-29", "daysLeft": 5, "state": "due-soon", "label": "Renews 29 Oct" }]
+      "expected": [{ "field": "endDate", "date": "2026-10-29", "daysLeft": 5, "state": "later", "label": "Renews 29 Oct" }]
+    },
+    {
+      "name": "contract: auto-renew with no notice period is never Due before its end date",
+      "record": { "kind": "contract", "endDate": "2026-10-29", "noticePeriodDays": null, "renewalType": "AUTO_RENEW", "status": "ACTIVE", "reminderDaysBefore": "30,14,7,1" },
+      "expected": [{ "field": "endDate", "date": "2026-10-29", "daysLeft": 5, "state": "later", "label": "Renews 29 Oct" }]
+    },
+    {
+      "name": "contract: once the notice deadline passes, a manual-renewal end date counts",
+      "record": { "kind": "contract", "endDate": "2026-10-29", "noticePeriodDays": 30, "renewalType": "MANUAL_RENEWAL", "status": "ACTIVE", "reminderDaysBefore": "30,14,7,1" },
+      "expected": [{ "field": "endDate", "date": "2026-10-29", "daysLeft": 5, "state": "due-soon", "label": "Expires 29 Oct" }]
     },
     {
       "name": "contract: a zero notice period means no notice deadline",
@@ -89,8 +99,20 @@
     {
       "name": "due-soon window: the household default applies when the record has none",
       "defaultReminderDays": "90,30",
+      "record": { "kind": "contract", "endDate": "2027-01-01", "noticePeriodDays": null, "renewalType": "MANUAL_RENEWAL", "status": "ACTIVE", "reminderDaysBefore": "" },
+      "expected": [{ "field": "endDate", "date": "2027-01-01", "daysLeft": 69, "state": "due-soon", "label": "Expires 1 Jan 2027" }]
+    },
+    {
+      "name": "due-soon window: the household default applies to a Warranty with no thresholds",
+      "defaultReminderDays": "90,30",
+      "record": { "kind": "warranty", "warrantyEndDate": "2027-01-01", "reminderDaysBefore": null },
+      "expected": [{ "field": "warrantyEndDate", "date": "2027-01-01", "daysLeft": 69, "state": "due-soon", "label": "Ends 1 Jan 2027" }]
+    },
+    {
+      "name": "due-soon window: an auto-renew end date stays later even inside the household window",
+      "defaultReminderDays": "90,30",
       "record": { "kind": "contract", "endDate": "2027-01-01", "noticePeriodDays": null, "renewalType": "AUTO_RENEW", "status": "ACTIVE", "reminderDaysBefore": "" },
-      "expected": [{ "field": "endDate", "date": "2027-01-01", "daysLeft": 69, "state": "due-soon", "label": "Renews 1 Jan 2027" }]
+      "expected": [{ "field": "endDate", "date": "2027-01-01", "daysLeft": 69, "state": "later", "label": "Renews 1 Jan 2027" }]
     },
     {
       "name": "due-soon window: the last day of the window is due soon, the day after is later",

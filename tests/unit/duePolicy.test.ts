@@ -62,4 +62,18 @@ describe("household day helpers", () => {
       expect(isDue(entry(state))).toBe(false);
     }
   });
+
+  it("an auto-renewing Contract's end date is never Due", () => {
+    const record = (endDate: string): DueRecord => ({
+      kind: "contract",
+      endDate,
+      noticePeriodDays: null,
+      renewalType: "AUTO_RENEW",
+      status: "ACTIVE",
+    });
+    const ctx = { today: "2026-10-24", defaultReminderDays: "30,14,7,1" };
+    for (const endDate of ["2026-10-24", "2026-10-29", "2026-10-04"]) {
+      expect(dueEntries(record(endDate), ctx).some(isDue)).toBe(false);
+    }
+  });
 });
