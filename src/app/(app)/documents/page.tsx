@@ -5,6 +5,7 @@ import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { DocumentsExplorer, type DocRow } from "@/components/DocumentsExplorer";
 import { DocumentsTabs } from "@/components/DocumentsTabs";
+import { documentFileHref } from "@/lib/documents/kinds";
 
 export const metadata: Metadata = { title: "Documents" };
 
@@ -70,7 +71,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               type: "Contracts",
               parentTitle: r.contract.title,
               parentHref: `/contracts/${r.contract.id}`,
-              downloadHref: `/api/documents/${r.id}`,
+              downloadHref: documentFileHref(r.id),
             })),
           ),
     },
@@ -105,7 +106,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               type: "Warranties",
               parentTitle: r.product.description,
               parentHref: `/products/${r.product.id}`,
-              downloadHref: `/api/products/documents/${r.id}`,
+              downloadHref: documentFileHref(r.id),
             })),
           ),
     },
@@ -143,7 +144,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               type: "Vehicles",
               parentTitle: r.vehicleItem.vehicle.label,
               parentHref: `/vehicles/${r.vehicleItem.vehicleId}`,
-              downloadHref: `/api/vehicles/documents/${r.id}`,
+              downloadHref: documentFileHref(r.id),
             })),
           ),
     });
@@ -152,12 +153,13 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
   if (enabledModules.has("TRAVEL")) {
     sources.push({
       type: "Travel",
-      count: () => prisma.tripSegmentDocument.count(),
+      count: () => prisma.tripSegmentDocument.count({ where: { deletedAt: null } }),
       fetchPage: (skip, take) =>
         prisma.tripSegmentDocument
           .findMany({
             skip,
             take,
+            where: { deletedAt: null },
             orderBy: { uploadedAt: "desc" },
             select: {
               id: true,
@@ -178,7 +180,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               type: "Travel",
               parentTitle: r.tripSegment.trip.title,
               parentHref: `/travel/${r.tripSegment.tripId}`,
-              downloadHref: `/api/travel/documents/${r.id}`,
+              downloadHref: documentFileHref(r.id),
             })),
           ),
     });
@@ -190,7 +192,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
       count: () =>
         Promise.all([
           prisma.homeItemDocument.count({ where: { deletedAt: null } }),
-          prisma.rentalStatementDocument.count(),
+          prisma.rentalStatementDocument.count({ where: { deletedAt: null } }),
         ]).then(
           ([a, b]) => a + b,
         ),
@@ -214,6 +216,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
           prisma.rentalStatementDocument.findMany({
             skip,
             take,
+            where: { deletedAt: null },
             orderBy: { uploadedAt: "desc" },
             select: {
               id: true,
@@ -235,7 +238,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
             type: "Property",
             parentTitle: r.homeItem.title,
             parentHref: `/home/${r.homeItem.propertyId}/items/${r.homeItem.id}`,
-            downloadHref: `/api/home/documents/${r.id}`,
+            downloadHref: documentFileHref(r.id),
           }));
           rows.push(
             ...rentalRows.map((r) => ({
@@ -247,7 +250,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               type: "Property",
               parentTitle: "Rental statement",
               parentHref: `/home/${r.rentalStatement.propertyId}/rental`,
-              downloadHref: `/api/home/rental-documents/${r.id}`,
+              downloadHref: documentFileHref(r.id),
             })),
           );
           return rows.sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime()).slice(0, take);
@@ -287,7 +290,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               type: "Inventory",
               parentTitle: r.inventoryItem.label,
               parentHref: `/inventory/${r.inventoryItem.id}`,
-              downloadHref: `/api/inventory/documents/${r.id}`,
+              downloadHref: documentFileHref(r.id),
             })),
           ),
     });
@@ -296,12 +299,13 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
   if (enabledModules.has("WEALTH")) {
     sources.push({
       type: "Wealth",
-      count: () => prisma.tradeDocument.count(),
+      count: () => prisma.tradeDocument.count({ where: { deletedAt: null } }),
       fetchPage: (skip, take) =>
         prisma.tradeDocument
           .findMany({
             skip,
             take,
+            where: { deletedAt: null },
             orderBy: { uploadedAt: "desc" },
             select: {
               id: true,
@@ -322,7 +326,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               type: "Wealth",
               parentTitle: r.trade.holding.ticker,
               parentHref: `/wealth/portfolios/${r.trade.holding.portfolioId}/holdings/${r.trade.holding.id}`,
-              downloadHref: `/api/wealth/trade-documents/${r.id}`,
+              downloadHref: documentFileHref(r.id),
             })),
           ),
     });

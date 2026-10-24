@@ -3,8 +3,9 @@ import { notFound } from "next/navigation";
 import { Pencil, Trash2, Plus, Plane, BedDouble, Ticket } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { addDocumentAction } from "@/lib/actions/documents";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
-import { deleteTrip, deleteTripSegment, addSegmentDocument, refreshFlightStatusAction, restoreTrip } from "@/lib/actions/trips";
+import { deleteTrip, deleteTripSegment, refreshFlightStatusAction, restoreTrip } from "@/lib/actions/trips";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailField as Detail } from "@/components/DetailField";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
@@ -38,7 +39,7 @@ export default async function TripDetailPage({
       include: {
         createdBy: true,
         updatedBy: true,
-        segments: { include: { documents: { orderBy: { uploadedAt: "desc" } } } },
+        segments: { include: { documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" } } } },
       },
     }),
     getUserPreferences(),
@@ -80,7 +81,7 @@ export default async function TripDetailPage({
     ? await prisma.tripSegment
         .findMany({
           where: { tripId: id },
-          include: { documents: { orderBy: { uploadedAt: "desc" } } },
+          include: { documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" } } },
           orderBy: { startDate: "asc" },
         })
         .then((rows) =>
@@ -309,7 +310,7 @@ export default async function TripDetailPage({
                       dateFormat={dateFormat}
                     />
                     <div className="mt-3">
-                      <DocumentUploadForm action={addSegmentDocument.bind(null, segment.id)} />
+                      <DocumentUploadForm action={addDocumentAction.bind(null, "TRIP_SEGMENT", segment.id)} />
                     </div>
                   </div>
                 </div>

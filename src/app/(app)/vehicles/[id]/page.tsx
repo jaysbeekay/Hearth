@@ -3,8 +3,9 @@ import { notFound } from "next/navigation";
 import { Pencil, Trash2, Plus, Wrench, Tag, RotateCw, Zap, Receipt } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { addDocumentAction } from "@/lib/actions/documents";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
-import { deleteVehicle, deleteVehicleItem, addVehicleItemDocument, restoreVehicle, restoreVehicleItem } from "@/lib/actions/vehicles";
+import { deleteVehicle, deleteVehicleItem, restoreVehicle, restoreVehicleItem } from "@/lib/actions/vehicles";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailField as Detail } from "@/components/DetailField";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
@@ -280,7 +281,7 @@ export default async function VehicleDetailPage({
                     <h3 className="mb-2 text-sm font-medium">Documents</h3>
                     <VehicleItemDocumentList documents={item.documents} dateFormat={dateFormat} />
                     <div className="mt-3">
-                      <DocumentUploadForm action={addVehicleItemDocument.bind(null, item.id)} />
+                      <DocumentUploadForm action={addDocumentAction.bind(null, "VEHICLE_ITEM", item.id)} />
                     </div>
                   </div>
                 </div>

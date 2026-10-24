@@ -1,6 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { deleteVehicleItemDir } from "@/lib/storage";
+import { removeOwnerDocumentFiles } from "@/lib/commands/documents";
 import { clearNotificationLogs } from "@/lib/notifications/logs";
 import { assertModuleEnabled } from "@/lib/modules/enablement";
 import { assertNotStale, RecordNotFoundError, type UpdateOptions } from "@/lib/commands/shared";
@@ -93,7 +93,7 @@ export async function purgeVehicle(id: string) {
   // NotificationLog is polymorphic (#201), so no cascade: clear it explicitly.
   await clearNotificationLogs("VEHICLE", id);
   for (const item of existing.items) {
-    await deleteVehicleItemDir(item.id);
+    await removeOwnerDocumentFiles("VEHICLE_ITEM", item.id);
   }
 }
 
@@ -163,6 +163,6 @@ export async function purgeServiceRecord(id: string) {
   const existing = await findServiceRecord(id);
   // Cascades to the Service record's Document rows; then the files go.
   await prisma.vehicleItem.delete({ where: { id } });
-  await deleteVehicleItemDir(id);
+  await removeOwnerDocumentFiles("VEHICLE_ITEM", id);
   return { vehicleId: existing.vehicleId };
 }

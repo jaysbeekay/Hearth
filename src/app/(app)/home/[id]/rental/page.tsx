@@ -2,12 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Pencil, Trash2, Plus, FileText, Link2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { addDocumentAction } from "@/lib/actions/documents";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import {
   deleteRentalAgreement,
   setPropertyRented,
   deleteRentalStatement,
-  addRentalStatementDocument,
   linkRentalAgreementContract,
 } from "@/lib/actions/home";
 import { ConfirmForm } from "@/components/ConfirmForm";
@@ -77,7 +77,7 @@ export default async function RentalOverviewPage({
       include: {
         rentalAgreements: { include: { contract: true }, orderBy: { createdAt: "desc" } },
         rentalStatements: {
-          include: { documents: { orderBy: { uploadedAt: "desc" } } },
+          include: { documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" } } },
           orderBy: { periodStart: "desc" },
         },
       },
@@ -401,7 +401,7 @@ export default async function RentalOverviewPage({
                       />
                       <div className="mt-3">
                         <DocumentUploadForm
-                          action={addRentalStatementDocument.bind(null, stmt.id)}
+                          action={addDocumentAction.bind(null, "RENTAL_STATEMENT", stmt.id)}
                         />
                       </div>
                     </div>

@@ -34,7 +34,8 @@ export function ConfirmForm({
   // entities with an offline sync handler (see entityHandlers.ts). parentId
   // is needed for entities scoped under a parent record, e.g. a document
   // delete needs its owning contract/product/item id for the ownership check.
-  offline?: { entity: string; entityId: string; label: string; parentId?: string };
+  // `kind` is the Document kind, for the "document" entity.
+  offline?: { entity: string; entityId: string; label: string; parentId?: string; kind?: string };
   // #371 — for trash-backed deletes: the success toast offers Undo, which
   // calls the matching restore action. `href` is where to go back to when
   // the delete navigated away (deleting from a record's own detail page).
@@ -128,6 +129,7 @@ export function ConfirmForm({
                     operation: "delete",
                     entityId: offline.entityId,
                     parentId: offline.parentId,
+                    kind: offline.kind,
                   });
                   window.dispatchEvent(new Event("offline-queued"));
                   // Nothing has reached the server yet, so undoing just

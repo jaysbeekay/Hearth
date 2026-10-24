@@ -5,11 +5,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { tripSchema, tripSegmentSchema } from "@/lib/validation/travel";
-import {
-  deleteTripSegmentDir,
-  deleteTripSegmentDocument as deleteTripSegmentDocumentFile,
-  saveTripSegmentDocument,
-} from "@/lib/storage";
+import { addDocumentCommand, removeOwnerDocumentFiles } from "@/lib/commands/documents";
 import { formDataToStringValues } from "@/lib/form-state";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import type { ActionState } from "@/lib/actions/auth";
@@ -43,27 +39,6 @@ async function requireUser() {
   if (!(await isModuleEnabled("TRAVEL"))) throw new Error("Travel module is disabled");
   if (session.user.role === "READONLY") throw new Error("Your account has read-only access.");
   return session.user;
-}
-
-async function attachSegmentDocument(
-  tripSegmentId: string,
-  file: File,
-): Promise<ActionState | null> {
-  const rejection = await describeUploadRejection(file);
-  if (rejection) return { error: rejection };
-
-  const { storedName, size, sha256, mimeType } = await saveTripSegmentDocument(tripSegmentId, file);
-  await prisma.tripSegmentDocument.create({
-    data: {
-      tripSegmentId,
-      filename: file.name.slice(0, 255),
-      storedName,
-      mimeType,
-      size,
-      sha256,
-    },
-  });
-  return null;
 }
 
 function formToTripInput(formData: FormData) {
@@ -179,7 +154,7 @@ export async function permanentlyDeleteTrip(tripId: string): Promise<ActionState
 
   // Cascade removes the DB rows but not the uploaded files — clean those up first.
   for (const segment of existing.segments) {
-    await deleteTripSegmentDir(segment.id);
+    await removeOwnerDocumentFiles("TRIP_SEGMENT", segment.id);
   }
 
   await prisma.trip.delete({ where: { id: tripId } });
@@ -217,7 +192,7 @@ export async function addTripSegment(
   });
 
   if (file instanceof File && file.size > 0) {
-    await attachSegmentDocument(segment.id, file);
+    await addDocumentCommand("TRIP_SEGMENT", segment.id, { file });
   }
 
   revalidatePath(`/travel/${tripId}`);
@@ -256,52 +231,10 @@ export async function deleteTripSegment(tripId: string, segmentId: string): Prom
   if (!existing || existing.tripId !== tripId) return { error: "Segment not found." };
 
   await prisma.tripSegment.delete({ where: { id: segmentId } });
-  await deleteTripSegmentDir(segmentId);
+  await removeOwnerDocumentFiles("TRIP_SEGMENT", segmentId);
 
   revalidatePath(`/travel/${tripId}`);
   return { success: "Segment removed." };
-}
-
-export async function addSegmentDocument(
-  segmentId: string,
-  _prevState: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  await requireUser();
-
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) {
-    return { error: "Choose a file to upload." };
-  }
-
-  const segment = await prisma.tripSegment.findUnique({ where: { id: segmentId } });
-  if (!segment) return { error: "Segment not found." };
-
-  const error = await attachSegmentDocument(segmentId, file);
-  if (error) return error;
-
-  revalidatePath(`/travel/${segment.tripId}`);
-  return { success: "Document uploaded." };
-}
-
-export async function deleteSegmentDocumentAction(
-  segmentId: string,
-  documentId: string,
-): Promise<ActionState> {
-  await requireUser();
-
-  const doc = await prisma.tripSegmentDocument.findUnique({ where: { id: documentId } });
-  if (!doc || doc.tripSegmentId !== segmentId) {
-    return { error: "Document not found." };
-  }
-
-  const segment = await prisma.tripSegment.findUnique({ where: { id: segmentId } });
-
-  await prisma.tripSegmentDocument.delete({ where: { id: documentId } });
-  await deleteTripSegmentDocumentFile(segmentId, doc.storedName);
-
-  if (segment) revalidatePath(`/travel/${segment.tripId}`);
-  return { success: "Document removed." };
 }
 
 export async function refreshFlightStatusAction(

@@ -1,8 +1,8 @@
-import { FileText, Trash2 } from "lucide-react";
+import { FileText } from "lucide-react";
 import type { HomeItemDocumentModel } from "@/generated/prisma/models";
-import { deleteItemDocumentAction, restoreHomeItemDocument } from "@/lib/actions/home";
-import { ConfirmForm } from "@/components/ConfirmForm";
+import { DocumentDeleteButton } from "@/components/DocumentDeleteButton";
 import { DocumentLink } from "@/components/DocumentLink";
+import { documentFileHref } from "@/lib/documents/kinds";
 import { formatDate, humanFileSize } from "@/lib/utils";
 
 export function HomeItemDocumentList({
@@ -21,7 +21,7 @@ export function HomeItemDocumentList({
       {documents.map((doc) => (
         <li key={doc.id} className="flex items-center justify-between gap-3 py-3">
           <DocumentLink
-            href={`/api/home/documents/${doc.id}`}
+            href={documentFileHref(doc.id)}
             filename={doc.filename}
             mimeType={doc.mimeType}
             size={doc.size}
@@ -33,22 +33,12 @@ export function HomeItemDocumentList({
               {humanFileSize(doc.size)} · {formatDate(doc.uploadedAt, dateFormat)}
             </span>
           </DocumentLink>
-          <ConfirmForm
-            action={deleteItemDocumentAction.bind(null, doc.homeItemId, doc.id)}
-            undo={{ action: restoreHomeItemDocument.bind(null, doc.id) }}
-            confirmText={`Move ${doc.filename} to Trash? You can restore it within 30 days from Settings → Trash.`}
-            actionLabel="Delete document"
-            ariaLabel={`Delete ${doc.filename}`}
-            className="rounded-md p-2 text-muted hover:text-danger"
-            offline={{
-              entity: "homeItemDocument",
-              entityId: doc.id,
-              parentId: doc.homeItemId,
-              label: `Delete document: ${doc.filename}`,
-            }}
-          >
-            <Trash2 size={16} />
-          </ConfirmForm>
+          <DocumentDeleteButton
+            kind="HOME_ITEM"
+            documentId={doc.id}
+            ownerId={doc.homeItemId}
+            filename={doc.filename}
+          />
         </li>
       ))}
     </ul>

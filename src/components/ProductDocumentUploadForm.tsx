@@ -29,7 +29,7 @@ export function ProductDocumentUploadForm({
       {/* #350 — one labelled select. This used to be two unlabelled
           selects both reading "Other" (a warranty-only "kind" plus the
           shared document type); the kind is now derived server-side from
-          the type chosen here (addProductDocument). */}
+          the type chosen here (addDocumentAction). */}
       <div className="space-y-1">
         <label htmlFor={selectId} className="text-sm font-medium">
           Document type

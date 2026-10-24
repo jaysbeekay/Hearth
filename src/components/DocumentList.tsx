@@ -1,30 +1,14 @@
-import { FileText, Trash2, History } from "lucide-react";
+import { FileText, History } from "lucide-react";
 import type { DocumentModel } from "@/generated/prisma/models";
-import { deleteDocumentAction, setDocumentImportant, restoreDocument } from "@/lib/actions/contracts";
-import { ConfirmForm } from "@/components/ConfirmForm";
+import { setDocumentImportantAction } from "@/lib/actions/documents";
+import { DocumentDeleteButton } from "@/components/DocumentDeleteButton";
 import { DocumentLink } from "@/components/DocumentLink";
 import { ImportantToggle } from "@/components/ImportantToggle";
+import { documentFileHref } from "@/lib/documents/kinds";
 import { formatDate, humanFileSize } from "@/lib/utils";
 
 function DeleteButton({ doc }: { doc: DocumentModel }) {
-  return (
-    <ConfirmForm
-      action={deleteDocumentAction.bind(null, doc.contractId, doc.id)}
-      undo={{ action: restoreDocument.bind(null, doc.id) }}
-      confirmText={`Move ${doc.filename} to Trash? You can restore it within 30 days from Settings → Trash.`}
-      actionLabel="Delete document"
-      ariaLabel={`Delete ${doc.filename}`}
-      className="rounded-md p-2 text-muted hover:text-danger"
-      offline={{
-        entity: "contractDocument",
-        entityId: doc.id,
-        parentId: doc.contractId,
-        label: `Delete document: ${doc.filename}`,
-      }}
-    >
-      <Trash2 size={16} />
-    </ConfirmForm>
-  );
+  return <DocumentDeleteButton kind="CONTRACT" documentId={doc.id} ownerId={doc.contractId} filename={doc.filename} />;
 }
 
 export function DocumentList({
@@ -69,7 +53,7 @@ export function DocumentList({
           <li key={doc.id} className="py-3">
             <div className="flex items-center justify-between gap-3">
               <DocumentLink
-                href={`/api/documents/${doc.id}`}
+                href={documentFileHref(doc.id)}
                 filename={doc.filename}
                 mimeType={doc.mimeType}
                 size={doc.size}
@@ -89,7 +73,7 @@ export function DocumentList({
               <div className="flex shrink-0 items-center gap-1">
                 <ImportantToggle
                   isImportant={doc.isImportant}
-                  action={setDocumentImportant.bind(null, doc.contractId, doc.id)}
+                  action={setDocumentImportantAction.bind(null, "CONTRACT", doc.id)}
                   label={doc.filename}
                 />
                 <DeleteButton doc={doc} />
@@ -101,7 +85,7 @@ export function DocumentList({
                 {older.map((v) => (
                   <li key={v.id} className="flex items-center justify-between gap-3">
                     <DocumentLink
-                      href={`/api/documents/${v.id}`}
+                      href={documentFileHref(v.id)}
                       filename={v.filename}
                       mimeType={v.mimeType}
                       size={v.size}

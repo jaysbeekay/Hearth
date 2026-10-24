@@ -7,16 +7,8 @@ import { prisma } from "@/lib/prisma";
 // implemented and tested once per table. This module is deliberately
 // read-only and additive: it doesn't touch how any existing page queries its
 // own document list.
-export type DocumentKind =
-  | "CONTRACT"
-  | "PRODUCT"
-  | "TRIP_SEGMENT"
-  | "RENTAL_STATEMENT"
-  | "HOME_ITEM"
-  | "VEHICLE_ITEM"
-  | "INVENTORY_ITEM"
-  | "TRADE"
-  | "INBOX";
+import type { DocumentKind } from "@/lib/documents/kinds";
+export type { DocumentKind };
 
 export interface DocumentRef {
   kind: DocumentKind;

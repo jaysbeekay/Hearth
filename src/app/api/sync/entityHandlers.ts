@@ -30,38 +30,31 @@ import {
   updateServiceRecordCommand,
 } from "@/lib/commands/vehicles";
 import { assertNotStale as assertRecordNotStale } from "@/lib/commands/shared";
-import { extractSearchableText } from "@/lib/documents/textExtraction";
 import { ProductDocumentKind } from "@/generated/prisma/enums";
+import { MAX_UPLOAD_BYTES } from "@/lib/storage";
 import {
-  MAX_UPLOAD_BYTES,
-  saveDocument,
-  saveProductDocument,
-  saveHomeItemDocument,
-  saveTripSegmentDocument,
-  saveVehicleItemDocument,
-  saveInventoryItemDocument,
-  saveTradeDocument,
-  saveRentalStatementDocument,
-  deleteDocument as deleteContractDocument,
-  deleteProductDocument,
-  deleteHomeItemDocument,
-  deleteRentalStatementDocument,
-  deleteTripSegmentDocument,
-  deleteVehicleItemDocument,
-  deleteInventoryItemDocument,
-  deleteTradeDocument,
-  deleteTradeDir,
-} from "@/lib/storage";
+  addDocumentCommand,
+  deleteDocumentCommand,
+  findDocumentAnyKind,
+  removeOwnerDocumentFiles,
+} from "@/lib/commands/documents";
+import {
+  isOwnedDocumentKind,
+  LEGACY_DOCUMENT_SYNC_ENTITIES,
+  type OwnedDocumentKind,
+} from "@/lib/documents/kinds";
 
 export interface SyncContext {
   userId: string;
   parentId?: string;
   baseUpdatedAt?: string;
+  // The `document` entity only: which Document kind entityId is (#396).
+  kind?: string;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export interface EntitySyncConfig<T = any> {
-  // Omitted for delete-only entities (the 8 document* entities below) — the
+  // Omitted for delete-only entities (the `document` entity below) — the
   // sync route never validates formValues for a "delete" op, so no schema
   // is needed there.
   schema?: ZodTypeAny;
@@ -70,17 +63,16 @@ export interface EntitySyncConfig<T = any> {
   // is rejected as unsupported (there's no such flow: documents are only
   // ever attached as part of their parent record's own create/update).
   create?: (data: T, ctx: SyncContext) => Promise<{ id: string }>;
-  // Entities with no online "edit" flow (e.g. PropertyValuation, and every
-  // document* entity) omit update — an offline "update" op for them is
+  // Entities with no online "edit" flow (e.g. PropertyValuation, and the
+  // document entity) omit update — an offline "update" op for them is
   // rejected as unsupported.
   update?: (id: string, data: T, ctx: SyncContext) => Promise<void>;
-  // `id` is the record's own id (a document's id for document* entities);
+  // `id` is the record's own id (a document's id for the document entity);
   // ctx.parentId carries the owning record's id where the live action needs
   // it for the ownership/scoping check (e.g. a document's contractId).
   remove?: (id: string, ctx: SyncContext) => Promise<void>;
   // Only present for entities whose create/update form can carry a file —
-  // reuses the same storage.ts save*Document function the live server
-  // action calls, so the on-disk path is identical.
+  // goes through the same Document command the live server action uses.
   saveFile?: (entityId: string, file: File, fieldName: string) => Promise<void>;
 }
 
@@ -129,11 +121,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     },
     saveFile: async (contractId, file) => {
       validateFile(file);
-      const { storedName, size, sha256, mimeType } = await saveDocument(contractId, file);
-      const extractedText = await extractSearchableText(Buffer.from(await file.arrayBuffer()), mimeType);
-      await prisma.document.create({
-        data: { contractId, filename: file.name.slice(0, 255), storedName, mimeType, size, extractedText, sha256 },
-      });
+      await addDocumentCommand("CONTRACT", contractId, { file });
     },
   }),
 
@@ -155,17 +143,14 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       await deleteProductCommand(id);
     },
     // Products carry two independent file fields (invoiceFile / photoFile);
-    // only invoices are OCR'd for search, matching attachProductDocument().
+    // only invoices are OCR'd for search, as in the live createProduct.
     saveFile: async (productId, file, fieldName) => {
       validateFile(file);
-      const kind = fieldName === "photoFile" ? ProductDocumentKind.PHOTO : ProductDocumentKind.INVOICE;
-      const { storedName, size, sha256, mimeType } = await saveProductDocument(productId, file);
-      const extractedText =
-        kind === ProductDocumentKind.INVOICE
-          ? await extractSearchableText(Buffer.from(await file.arrayBuffer()), mimeType)
-          : null;
-      await prisma.productDocument.create({
-        data: { productId, filename: file.name.slice(0, 255), storedName, mimeType, size, kind, extractedText, sha256 },
+      const isPhoto = fieldName === "photoFile";
+      await addDocumentCommand("PRODUCT", productId, {
+        file,
+        productKind: isPhoto ? ProductDocumentKind.PHOTO : ProductDocumentKind.INVOICE,
+        category: isPhoto ? "PHOTO" : "INVOICE",
       });
     },
   }),
@@ -202,10 +187,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     },
     saveFile: async (vehicleItemId, file) => {
       validateFile(file);
-      const { storedName, size, sha256, mimeType } = await saveVehicleItemDocument(vehicleItemId, file);
-      await prisma.vehicleItemDocument.create({
-        data: { vehicleItemId, filename: file.name.slice(0, 255), storedName, mimeType, size, sha256 },
-      });
+      await addDocumentCommand("VEHICLE_ITEM", vehicleItemId, { file });
     },
   }),
 
@@ -257,10 +239,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     },
     saveFile: async (segmentId, file) => {
       validateFile(file);
-      const { storedName, size, sha256, mimeType } = await saveTripSegmentDocument(segmentId, file);
-      await prisma.tripSegmentDocument.create({
-        data: { tripSegmentId: segmentId, filename: file.name.slice(0, 255), storedName, mimeType, size, sha256 },
-      });
+      await addDocumentCommand("TRIP_SEGMENT", segmentId, { file });
     },
   }),
 
@@ -312,10 +291,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     },
     saveFile: async (homeItemId, file) => {
       validateFile(file);
-      const { storedName, size, sha256, mimeType } = await saveHomeItemDocument(homeItemId, file);
-      await prisma.homeItemDocument.create({
-        data: { homeItemId, filename: file.name.slice(0, 255), storedName, mimeType, size, sha256 },
-      });
+      await addDocumentCommand("HOME_ITEM", homeItemId, { file });
     },
   }),
 
@@ -367,10 +343,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     },
     saveFile: async (statementId, file) => {
       validateFile(file);
-      const { storedName, size, sha256, mimeType } = await saveRentalStatementDocument(statementId, file);
-      await prisma.rentalStatementDocument.create({
-        data: { rentalStatementId: statementId, filename: file.name.slice(0, 255), storedName, mimeType, size, sha256 },
-      });
+      await addDocumentCommand("RENTAL_STATEMENT", statementId, { file });
     },
   }),
 
@@ -401,10 +374,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     },
     saveFile: async (itemId, file) => {
       validateFile(file);
-      const { storedName, size, sha256, mimeType } = await saveInventoryItemDocument(itemId, file);
-      await prisma.inventoryItemDocument.create({
-        data: { inventoryItemId: itemId, filename: file.name.slice(0, 255), storedName, mimeType, size, sha256 },
-      });
+      await addDocumentCommand("INVENTORY_ITEM", itemId, { file });
     },
   }),
 
@@ -435,7 +405,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       // files — clean those up first, same as the online deletePortfolio action.
       for (const holding of existing.holdings) {
         for (const trade of holding.trades) {
-          await deleteTradeDir(trade.id);
+          await removeOwnerDocumentFiles("TRADE", trade.id);
         }
       }
       await prisma.portfolio.delete({ where: { id } });
@@ -508,10 +478,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     },
     saveFile: async (tradeId, file) => {
       validateFile(file);
-      const { storedName, size, sha256, mimeType } = await saveTradeDocument(tradeId, file);
-      await prisma.tradeDocument.create({
-        data: { tradeId, filename: file.name.slice(0, 255), storedName, mimeType, size, sha256 },
-      });
+      await addDocumentCommand("TRADE", tradeId, { file });
     },
   }),
 
@@ -533,107 +500,43 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
   // ── Document deletes (remove-only — a document you can delete is always
   // already-synced, since it's rendered from server data, so there's no
   // pending-record problem like offline-created entities have) ─────────────
-  contractDocument: defineEntity({
+  // #396: one entity for every kind, a soft delete to Trash like the live
+  // deleteDocumentAction. ctx.kind says which table; ctx.parentId, when
+  // sent, is the owner record the list showed it under. The module gate is
+  // the command's (by kind), so there's no static requiresModule here.
+  document: defineEntity({
     remove: async (documentId, ctx) => {
-      const contractId = requireParentId(ctx);
-      const doc = await prisma.document.findUnique({ where: { id: documentId } });
-      if (!doc || doc.contractId !== contractId) throw new Error("Document not found");
-      await prisma.document.delete({ where: { id: documentId } });
-      await deleteContractDocument(contractId, doc.storedName);
-      revalidatePath(`/contracts/${contractId}`);
-    },
-  }),
-
-  productDocument: defineEntity({
-    remove: async (documentId, ctx) => {
-      const productId = requireParentId(ctx);
-      const doc = await prisma.productDocument.findUnique({ where: { id: documentId } });
-      if (!doc || doc.productId !== productId) throw new Error("Document not found");
-      await prisma.productDocument.delete({ where: { id: documentId } });
-      await deleteProductDocument(productId, doc.storedName);
-      revalidatePath(`/products/${productId}`);
-    },
-  }),
-
-  homeItemDocument: defineEntity({
-    remove: async (documentId, ctx) => {
-      const homeItemId = requireParentId(ctx);
-      const doc = await prisma.homeItemDocument.findUnique({ where: { id: documentId } });
-      if (!doc || doc.homeItemId !== homeItemId) throw new Error("Document not found");
-      const item = await prisma.homeItem.findUnique({ where: { id: homeItemId } });
-      await prisma.homeItemDocument.delete({ where: { id: documentId } });
-      await deleteHomeItemDocument(homeItemId, doc.storedName);
-      if (item) revalidatePath(`/home/${item.propertyId}`);
-    },
-  }),
-
-  rentalStatementDocument: defineEntity({
-    remove: async (documentId, ctx) => {
-      const statementId = requireParentId(ctx);
-      const doc = await prisma.rentalStatementDocument.findUnique({ where: { id: documentId } });
-      if (!doc || doc.rentalStatementId !== statementId) throw new Error("Document not found");
-      const statement = await prisma.rentalStatement.findUnique({ where: { id: statementId } });
-      await prisma.rentalStatementDocument.delete({ where: { id: documentId } });
-      await deleteRentalStatementDocument(statementId, doc.storedName);
-      if (statement) revalidatePath(`/home/${statement.propertyId}/rental`);
-    },
-  }),
-
-  tripSegmentDocument: defineEntity({
-    remove: async (documentId, ctx) => {
-      const segmentId = requireParentId(ctx);
-      const doc = await prisma.tripSegmentDocument.findUnique({ where: { id: documentId } });
-      if (!doc || doc.tripSegmentId !== segmentId) throw new Error("Document not found");
-      const segment = await prisma.tripSegment.findUnique({ where: { id: segmentId } });
-      await prisma.tripSegmentDocument.delete({ where: { id: documentId } });
-      await deleteTripSegmentDocument(segmentId, doc.storedName);
-      if (segment) revalidatePath(`/travel/${segment.tripId}`);
-    },
-  }),
-
-  vehicleItemDocument: defineEntity({
-    remove: async (documentId, ctx) => {
-      const vehicleItemId = requireParentId(ctx);
-      const doc = await prisma.vehicleItemDocument.findUnique({ where: { id: documentId } });
-      if (!doc || doc.vehicleItemId !== vehicleItemId) throw new Error("Document not found");
-      const item = await prisma.vehicleItem.findUnique({ where: { id: vehicleItemId } });
-      await prisma.vehicleItemDocument.delete({ where: { id: documentId } });
-      await deleteVehicleItemDocument(vehicleItemId, doc.storedName);
-      if (item) revalidatePath(`/vehicles/${item.vehicleId}`);
-    },
-  }),
-
-  inventoryItemDocument: defineEntity({
-    remove: async (documentId, ctx) => {
-      const itemId = requireParentId(ctx);
-      const doc = await prisma.inventoryItemDocument.findUnique({ where: { id: documentId } });
-      if (!doc || doc.inventoryItemId !== itemId) throw new Error("Document not found");
-      const item = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
-      if (!item) throw new Error("Item not found");
-      await prisma.inventoryItemDocument.delete({ where: { id: documentId } });
-      await deleteInventoryItemDocument(itemId, doc.storedName);
-      revalidatePath(`/inventory/${itemId}`);
-    },
-  }),
-
-  // ctx.parentId is the holdingId — the document's own tradeId (once fetched)
-  // is sufficient to resolve which trade/holding/portfolio it belongs to, so
-  // unlike the live action this doesn't need a separate tradeId param.
-  tradeDocument: defineEntity({
-    remove: async (documentId, ctx) => {
-      const holdingId = requireParentId(ctx);
-      const doc = await prisma.tradeDocument.findUnique({ where: { id: documentId } });
-      if (!doc) throw new Error("Document not found");
-      const holding = await prisma.holding.findUnique({
-        where: { id: holdingId },
-        include: { portfolio: true },
-      });
-      if (!holding) throw new Error("Holding not found");
-      const trade = await prisma.trade.findUnique({ where: { id: doc.tradeId } });
-      if (!trade || trade.holdingId !== holdingId) throw new Error("Document not found");
-      await prisma.tradeDocument.delete({ where: { id: documentId } });
-      await deleteTradeDocument(doc.tradeId, doc.storedName);
-      revalidatePath(`/wealth/portfolios/${holding.portfolioId}/holdings/${holdingId}`);
+      let kind: OwnedDocumentKind;
+      if (isOwnedDocumentKind(ctx.kind)) {
+        kind = ctx.kind;
+      } else {
+        const found = await findDocumentAnyKind(documentId);
+        if (!found) throw new Error("Document not found");
+        kind = found.kind;
+      }
+      await deleteDocumentCommand(kind, documentId, { ownerId: ctx.parentId });
     },
   }),
 };
+
+export interface SyncOperationShape {
+  entity: string;
+  parentId?: string;
+  kind?: string;
+}
+
+// Ops queued offline before #396 name one `*Document` entity per kind
+// (contractDocument, tripSegmentDocument, …). They're mapped onto the
+// `document` entity here, so a queue saved before the upgrade still syncs.
+// A legacy tradeDocument op's parentId was the Holding, not the Trade, so
+// it's dropped rather than used as the owner scope.
+export function normalizeSyncOperation<T extends SyncOperationShape>(op: T): T {
+  const legacy = LEGACY_DOCUMENT_SYNC_ENTITIES[op.entity];
+  if (!legacy) return op;
+  return {
+    ...op,
+    entity: "document",
+    kind: legacy.kind,
+    parentId: legacy.parentIsOwner ? op.parentId : undefined,
+  };
+}

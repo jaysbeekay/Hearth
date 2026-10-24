@@ -3,8 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Pencil, Trash2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { addDocumentAction } from "@/lib/actions/documents";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
-import { deleteInventoryItem, addInventoryItemDocument, restoreInventoryItem } from "@/lib/actions/inventory";
+import { deleteInventoryItem, restoreInventoryItem } from "@/lib/actions/inventory";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
@@ -136,7 +137,7 @@ export default async function InventoryItemPage({
         <h2 className="mb-3 font-medium">Documents</h2>
         <InventoryItemDocumentList documents={item.documents} dateFormat={dateFormat} />
         <div className="mt-4 border-t border-border pt-4">
-          <DocumentUploadForm action={addInventoryItemDocument.bind(null, id)} />
+          <DocumentUploadForm action={addDocumentAction.bind(null, "INVENTORY_ITEM", id)} />
         </div>
       </section>
 

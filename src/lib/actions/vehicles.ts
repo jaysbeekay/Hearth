@@ -1,14 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
 import { vehicleSchema, vehicleItemSchema } from "@/lib/validation/vehicles";
-import {
-  deleteVehicleItemDocument as deleteVehicleItemDocumentFile,
-  saveVehicleItemDocument,
-} from "@/lib/storage";
+import { addDocumentCommand } from "@/lib/commands/documents";
 import { formDataToStringValues } from "@/lib/form-state";
 import { isModuleEnabled, ModuleDisabledError } from "@/lib/modules/enablement";
 import {
@@ -63,29 +58,6 @@ async function requireUser() {
   if (!(await isModuleEnabled("VEHICLES"))) throw new Error("Vehicles module is disabled");
   if (session.user.role === "READONLY") throw new Error("Your account has read-only access.");
   return session.user;
-}
-
-async function attachVehicleItemDocument(
-  vehicleItemId: string,
-  file: File,
-  category: string | null = null,
-): Promise<ActionState | null> {
-  const rejection = await describeUploadRejection(file);
-  if (rejection) return { error: rejection };
-
-  const { storedName, size, sha256, mimeType } = await saveVehicleItemDocument(vehicleItemId, file);
-  await prisma.vehicleItemDocument.create({
-    data: {
-      vehicleItemId,
-      filename: file.name.slice(0, 255),
-      storedName,
-      mimeType,
-      size,
-      sha256,
-      category,
-    },
-  });
-  return null;
 }
 
 function formToVehicleInput(formData: FormData) {
@@ -231,8 +203,10 @@ export async function addVehicleItem(
   }
 
   if (file instanceof File && file.size > 0) {
-    await attachVehicleItemDocument(itemId, file, parseDocumentCategory(formData.get("documentCategory")));
-    revalidatePath(`/vehicles/${vehicleId}`);
+    await addDocumentCommand("VEHICLE_ITEM", itemId, {
+      file,
+      category: parseDocumentCategory(formData.get("documentCategory")),
+    });
   }
 
   redirect(`/vehicles/${vehicleId}`);
@@ -292,73 +266,3 @@ export async function permanentlyDeleteVehicleItem(itemId: string): Promise<Acti
   return { success: "Deleted permanently." };
 }
 
-export async function addVehicleItemDocument(
-  itemId: string,
-  _prevState: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  await requireUser();
-
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) {
-    return { error: "Choose a file to upload." };
-  }
-
-  const item = await prisma.vehicleItem.findUnique({ where: { id: itemId } });
-  if (!item) return { error: "Item not found." };
-
-  const error = await attachVehicleItemDocument(itemId, file, parseDocumentCategory(formData.get("documentCategory")));
-  if (error) return error;
-
-  revalidatePath(`/vehicles/${item.vehicleId}`);
-  return { success: "Document uploaded." };
-}
-
-export async function deleteVehicleItemDocumentAction(
-  itemId: string,
-  documentId: string,
-): Promise<ActionState> {
-  await requireUser();
-
-  const doc = await prisma.vehicleItemDocument.findUnique({ where: { id: documentId } });
-  if (!doc || doc.vehicleItemId !== itemId) {
-    return { error: "Document not found." };
-  }
-
-  const item = await prisma.vehicleItem.findUnique({ where: { id: itemId } });
-
-  await prisma.vehicleItemDocument.update({ where: { id: documentId }, data: { deletedAt: new Date() } });
-
-  if (item) revalidatePath(`/vehicles/${item.vehicleId}`);
-  revalidatePath("/settings/trash");
-  return { success: "Document moved to Trash." };
-}
-
-export async function restoreVehicleItemDocument(documentId: string): Promise<ActionState> {
-  await requireUser();
-
-  const doc = await prisma.vehicleItemDocument.findUnique({ where: { id: documentId } });
-  if (!doc) return { error: "Document not found." };
-  const item = await prisma.vehicleItem.findUnique({ where: { id: doc.vehicleItemId } });
-
-  await prisma.vehicleItemDocument.update({ where: { id: documentId }, data: { deletedAt: null } });
-  if (item) revalidatePath(`/vehicles/${item.vehicleId}`);
-  revalidatePath("/documents");
-  revalidatePath("/settings/trash");
-  return { success: "Restored." };
-}
-
-export async function permanentlyDeleteVehicleItemDocument(documentId: string): Promise<ActionState> {
-  await requireUser();
-
-  const doc = await prisma.vehicleItemDocument.findUnique({ where: { id: documentId } });
-  if (!doc) return { error: "Document not found." };
-  const item = await prisma.vehicleItem.findUnique({ where: { id: doc.vehicleItemId } });
-
-  await prisma.vehicleItemDocument.delete({ where: { id: documentId } });
-  await deleteVehicleItemDocumentFile(doc.vehicleItemId, doc.storedName);
-  if (item) revalidatePath(`/vehicles/${item.vehicleId}`);
-  revalidatePath("/documents");
-  revalidatePath("/settings/trash");
-  return { success: "Deleted permanently." };
-}

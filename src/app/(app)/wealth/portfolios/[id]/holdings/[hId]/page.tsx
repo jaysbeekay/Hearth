@@ -4,9 +4,12 @@ import { notFound } from "next/navigation";
 import { Pencil, Trash2, Plus } from "lucide-react";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { prisma } from "@/lib/prisma";
+import { addDocumentAction } from "@/lib/actions/documents";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/utils";
 import { refreshPricesForTickers, getPriceMap, fetchAndStorePriceHistory, getPriceHistory } from "@/lib/prices";
-import { deleteHolding, deleteTrade, addTradeDocument, deleteTradeDocumentAction } from "@/lib/actions/wealth";
+import { deleteHolding, deleteTrade } from "@/lib/actions/wealth";
+import { DocumentDeleteButton } from "@/components/DocumentDeleteButton";
+import { documentFileHref } from "@/lib/documents/kinds";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { DocumentLink } from "@/components/DocumentLink";
@@ -185,7 +188,7 @@ export default async function HoldingPage({
       include: {
         portfolio: true,
         trades: {
-          include: { documents: { orderBy: { uploadedAt: "desc" } } },
+          include: { documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" } } },
           orderBy: { date: "asc" },
         },
       },
@@ -413,7 +416,7 @@ export default async function HoldingPage({
                         {trade.documents.map((doc) => (
                           <div key={doc.id} className="flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-xs">
                             <DocumentLink
-                              href={`/api/wealth/trade-documents/${doc.id}`}
+                              href={documentFileHref(doc.id)}
                               filename={doc.filename}
                               mimeType={doc.mimeType}
                               size={doc.size}
@@ -421,26 +424,19 @@ export default async function HoldingPage({
                             >
                               {doc.filename}
                             </DocumentLink>
-                            <ConfirmForm
-                              action={deleteTradeDocumentAction.bind(null, holdingId, trade.id, doc.id)}
-                              confirmText={`Remove ${doc.filename}? This can't be undone.`}
-                              actionLabel="Remove document"
-                              ariaLabel={`Remove ${doc.filename}`}
+                            <DocumentDeleteButton
+                              kind="TRADE"
+                              documentId={doc.id}
+                              ownerId={trade.id}
+                              filename={doc.filename}
                               className="rounded p-1 text-danger hover:text-danger/70"
-                              offline={{
-                                entity: "tradeDocument",
-                                entityId: doc.id,
-                                parentId: holdingId,
-                                label: `Delete document: ${doc.filename}`,
-                              }}
-                            >
-                              <Trash2 size={12} />
-                            </ConfirmForm>
+                              iconSize={12}
+                            />
                           </div>
                         ))}
                       </div>
                     )}
-                    <DocumentUploadForm action={addTradeDocument.bind(null, holdingId, trade.id)} />
+                    <DocumentUploadForm action={addDocumentAction.bind(null, "TRADE", trade.id)} />
                   </div>
                 </div>
               );

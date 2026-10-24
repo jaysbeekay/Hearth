@@ -7,49 +7,31 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import { formatDate } from "@/lib/utils";
 import { SubmitButton } from "@/components/SubmitButton";
 import { ConfirmForm } from "@/components/ConfirmForm";
-import {
-  restoreContract,
-  permanentlyDeleteContract,
-  restoreDocument,
-  permanentlyDeleteDocument,
-} from "@/lib/actions/contracts";
-import {
-  restoreProduct,
-  permanentlyDeleteProduct,
-  restoreProductDocument,
-  permanentlyDeleteProductDocument,
-} from "@/lib/actions/products";
+import { restoreContract, permanentlyDeleteContract } from "@/lib/actions/contracts";
+import { restoreProduct, permanentlyDeleteProduct } from "@/lib/actions/products";
 import {
   restoreVehicle,
   permanentlyDeleteVehicle,
   restoreVehicleItem,
   permanentlyDeleteVehicleItem,
-  restoreVehicleItemDocument,
-  permanentlyDeleteVehicleItemDocument,
 } from "@/lib/actions/vehicles";
 import {
   restoreProperty,
   permanentlyDeleteProperty,
   restoreHomeItem,
   permanentlyDeleteHomeItem,
-  restoreHomeItemDocument,
-  permanentlyDeleteHomeItemDocument,
 } from "@/lib/actions/home";
-import {
-  restoreTrip,
-  permanentlyDeleteTrip,
-} from "@/lib/actions/trips";
-import {
-  restoreInventoryItem,
-  permanentlyDeleteInventoryItem,
-  restoreInventoryItemDocument,
-  permanentlyDeleteInventoryItemDocument,
-} from "@/lib/actions/inventory";
+import { restoreTrip, permanentlyDeleteTrip } from "@/lib/actions/trips";
+import { restoreInventoryItem, permanentlyDeleteInventoryItem } from "@/lib/actions/inventory";
+import { restoreDocumentAction, permanentlyDeleteDocumentAction } from "@/lib/actions/documents";
+import { DOCUMENT_KIND_LABEL, type OwnedDocumentKind } from "@/lib/documents/kinds";
 
 export const metadata: Metadata = { title: "Trash" };
 
+type RecordDomain = Exclude<TrashEntry["domain"], "document">;
+
 const DOMAIN_META: Record<
-  TrashEntry["domain"],
+  RecordDomain,
   { label: string; icon: LucideIcon; restore: (id: string) => Promise<unknown>; permanentlyDelete: (id: string) => Promise<unknown> }
 > = {
   contract: { label: "Contract", icon: FileText, restore: restoreContract, permanentlyDelete: permanentlyDeleteContract },
@@ -58,21 +40,35 @@ const DOMAIN_META: Record<
   property: { label: "Property", icon: Home, restore: restoreProperty, permanentlyDelete: permanentlyDeleteProperty },
   trip: { label: "Trip", icon: Plane, restore: restoreTrip, permanentlyDelete: permanentlyDeleteTrip },
   inventoryItem: { label: "Inventory item", icon: Box, restore: restoreInventoryItem, permanentlyDelete: permanentlyDeleteInventoryItem },
-  contractDocument: { label: "Policy document", icon: FileText, restore: restoreDocument, permanentlyDelete: permanentlyDeleteDocument },
-  productDocument: { label: "Warranty document", icon: FileText, restore: restoreProductDocument, permanentlyDelete: permanentlyDeleteProductDocument },
   homeItem: { label: "Property item", icon: Wrench, restore: restoreHomeItem, permanentlyDelete: permanentlyDeleteHomeItem },
-  homeItemDocument: { label: "Property item document", icon: FileText, restore: restoreHomeItemDocument, permanentlyDelete: permanentlyDeleteHomeItemDocument },
   vehicleItem: { label: "Vehicle item", icon: Wrench, restore: restoreVehicleItem, permanentlyDelete: permanentlyDeleteVehicleItem },
-  vehicleItemDocument: { label: "Vehicle item document", icon: FileText, restore: restoreVehicleItemDocument, permanentlyDelete: permanentlyDeleteVehicleItemDocument },
-  inventoryItemDocument: { label: "Inventory document", icon: FileText, restore: restoreInventoryItemDocument, permanentlyDelete: permanentlyDeleteInventoryItemDocument },
 };
 
 // A plain <form action> requires a void-returning action; the domain
 // restore functions return ActionState (used elsewhere via useActionState),
 // so this thin wrapper is the adapter between the two.
-async function restoreAction(domain: TrashEntry["domain"], id: string): Promise<void> {
+async function restoreAction(domain: TrashEntry["domain"], id: string, documentKind?: OwnedDocumentKind): Promise<void> {
   "use server";
+  if (domain === "document") {
+    if (documentKind) await restoreDocumentAction(documentKind, id);
+    return;
+  }
   await DOMAIN_META[domain].restore(id);
+}
+
+// A Document of any kind is one domain; its kind picks the label and the
+// arguments for the Document actions (#396).
+function metaFor(entry: TrashEntry) {
+  if (entry.domain === "document" && entry.documentKind) {
+    const kind = entry.documentKind;
+    return {
+      label: DOCUMENT_KIND_LABEL[kind],
+      icon: FileText,
+      permanentlyDelete: permanentlyDeleteDocumentAction.bind(null, kind, entry.id),
+    };
+  }
+  const meta = DOMAIN_META[entry.domain as RecordDomain];
+  return { ...meta, permanentlyDelete: meta.permanentlyDelete.bind(null, entry.id) };
 }
 
 function daysLeft(deletedAt: Date): number {
@@ -111,7 +107,7 @@ export default async function TrashPage() {
       ) : (
         <ul className="divide-y divide-border rounded-xl border border-border bg-surface">
           {entries.map((entry) => {
-            const meta = DOMAIN_META[entry.domain];
+            const meta = metaFor(entry);
             const Icon = meta.icon;
             const remaining = daysLeft(entry.deletedAt);
             return (
@@ -130,14 +126,14 @@ export default async function TrashPage() {
                 </div>
                 {canWrite && (
                   <div className="flex shrink-0 items-center gap-2">
-                    <form action={restoreAction.bind(null, entry.domain, entry.id)}>
+                    <form action={restoreAction.bind(null, entry.domain, entry.id, entry.documentKind)}>
                       <SubmitButton variant="secondary" pendingText="Restoring…">
                         <RotateCcw size={14} className="mr-1.5" />
                         Restore
                       </SubmitButton>
                     </form>
                     <ConfirmForm
-                      action={meta.permanentlyDelete.bind(null, entry.id)}
+                      action={meta.permanentlyDelete}
                       confirmText={`Permanently delete "${entry.label}"? This removes it and its documents for everyone in the household — it can't be undone.`}
                       actionLabel="Delete permanently"
                       successMessage="Deleted permanently."
