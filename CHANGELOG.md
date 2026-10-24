@@ -7,6 +7,12 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+### Security
+
+- `nodemailer` 10.0.16 → 10.2.1 and `mailparser` → 3.12.4, fixing three
+  high-severity "interpretation conflict" advisories in nodemailer
+  (SNYK-JS-NODEMAILER-21663365, -21663367, -21663373).
+
 ### Added
 
 - **Reminders link to the record.** Email reminders include an "Open it in
