@@ -19,7 +19,8 @@ The coverage an Item has against faults, with an end date, either included with 
 _Avoid_: Product, guarantee
 
 **Lapsed**:
-The state of a Warranty whose end date has passed. The Item itself is unaffected.
+The state of a Warranty whose end date has passed. The Item itself is unaffected, and a Lapsed Warranty is never Due.
+_Avoid_: Expired (for Warranties)
 
 **Archived**:
 The state of an Item, Vehicle or Property the household no longer has, because it was sold, given away, thrown out, or its lease ended. It is always set deliberately, never by a date passing, and its history is kept.
@@ -55,8 +56,12 @@ The last day to tell the provider you won't renew: the end date minus the notice
 _Avoid_: Cancel-by date
 
 **Expired**:
-The state of a manual-renewal or fixed-term Contract whose end date has passed without being renewed. An auto-renewing Contract never expires; it rolls into its next Term.
-_Avoid_: Lapsed (for Contracts), ended
+The state of a manual-renewal Contract whose end date has passed without being renewed or Cancelled. It stays Due until someone does one or the other. An auto-renewing Contract never expires; it carries on into its next Term, which someone adds once the new end date is known.
+_Avoid_: Lapsed (for Contracts), overdue (for Contracts)
+
+**Ended**:
+The state of a fixed-term Contract whose end date has passed. It was meant to end, so it is not Due.
+_Avoid_: Expired (for fixed-term Contracts)
 
 **Cancelled**:
 The state of a Contract that someone deliberately ended.
@@ -118,13 +123,23 @@ The household's queue of things to act on, split into Due and Housekeeping.
 _Avoid_: Alerts, tasks, to-do
 
 **Due**:
-A Needs attention entry with a date that is coming up or has passed, such as a notice deadline, an end date or a service.
+A Needs attention entry whose date is within its due-soon window or has passed and still needs action. Only Contracts (the notice deadline, then the end date), Warranties, a Vehicle's rego, insurance and service dates, and a Tenancy's lease end can be Due; Cancelled Contracts, Ended Contracts and Lapsed Warranties never are. Days are counted in the household's day, not any one person's.
+
+**Due entry**:
+One dated obligation of a record: a Contract's notice deadline or end date, a Warranty's end date, one of a Vehicle's rego, insurance or service dates, or a Tenancy's lease end. A record has one Due entry per such date, each with its own state.
+
+**Due-soon window**:
+How far ahead of its date a record becomes Due: its largest Reminder threshold, so a record enters Needs attention when its first Reminder goes out.
+_Avoid_: Expiring soon (as a fixed 30 days)
+
+**Overdue**:
+A Due entry whose date has passed, such as an Expired Contract or a Vehicle's rego that has run out.
 
 **Housekeeping**:
-A Needs attention entry about a record that needs tidying rather than a date, such as missing details, a Document waiting in the Inbox, or a record that Needs review.
+A Needs attention entry about a record that needs tidying rather than a date, such as missing details, a Document waiting in the Inbox, a record that Needs review, or an auto-renewing Contract past its end date that needs its new end date.
 
 **Upcoming**:
-The household's timeline of what is coming due across all records.
+The household's timeline of dated things across all records, including Trips, which are never Due. Cancelled Contracts don't appear.
 _Avoid_: Calendar
 
 **Spending**:
