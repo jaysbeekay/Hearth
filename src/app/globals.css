@@ -71,6 +71,15 @@ body {
   outline-offset: 2px;
 }
 
+/* "Household Ledger" theme: every page title and the wordmark share the
+   warm editorial serif (--font-fraunces, set on <html> in layout.tsx) —
+   body copy stays on the system-sans stack for density/legibility. */
+h1 {
+  font-family: var(--font-fraunces), var(--font-inter-sans);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
 .sr-only-focusable {
   position: absolute;
   left: -9999px;
@@ -85,3 +94,4 @@ body {
 .sr-only-focusable:focus {
   left: 0;
 }
+

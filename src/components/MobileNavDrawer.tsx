@@ -105,7 +105,7 @@ export function MobileNavDrawer({
         <div className="flex items-center justify-between px-4 py-4">
           <div className="flex items-center gap-2">
             <Flame size={20} className="text-accent" />
-            <span className="text-lg font-semibold">Hearth</span>
+            <span className="font-[family-name:var(--font-fraunces)] text-lg font-medium">Hearth</span>
           </div>
           <button
             type="button"

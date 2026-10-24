@@ -84,6 +84,9 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 - The mobile capture button only shows on the dashboard and Documents
   (#348).
 - Warranty uploads have one labelled "Document type" select (#350).
+- **Serif page titles.** Every page heading and the "Hearth" name in the
+  sidebar, top bar and mobile menu now use Fraunces, a serif display face
+  loaded once in the root layout. Body text keeps the system sans-serif.
 
 ### Fixed
 
