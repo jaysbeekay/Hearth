@@ -21,6 +21,20 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Household timezone.** Admins pick it in Settings → Household & System;
+  it falls back to the server's `TZ`, then UTC. It decides which day it is
+  for the whole household when counting days to deadlines, while each
+  member's own timezone still only changes how times are shown. Members
+  see it read-only on their Settings page (#383).
+- **One set of Due rules.** `src/lib/duePolicy.ts` works out every
+  record's Due entries (a Contract's notice deadline or end date, a
+  Warranty's end date, a Vehicle's rego, insurance and service dates, a
+  Tenancy's lease end) with their days left, state and label, counted in
+  the household's day. Its rules are pinned by a shared case file,
+  `tests/fixtures/due-policy-cases.json`, which replaces the
+  `contractTiming` unit tests and which the standalone app will run too.
+  Nothing uses it yet, so no screen changes; lists, the dashboard,
+  Search, Upcoming and iCal move onto it next (#383, #384).
 - **Reminders link to the record.** Email reminders include an "Open it in
   Hearth" link; ntfy notifications open the record when tapped and add an
   Open action. Links are only included when `APP_URL` is set, and Settings

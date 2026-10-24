@@ -9,6 +9,7 @@ import { Field } from "@/components/FormField";
 import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 import { TestConnectionButton } from "@/components/TestConnectionButton";
 import { BACKUP_DESTINATION_LABELS, type BackupDestinationChoice } from "@/lib/backupDestination";
+import { TIMEZONE_OPTIONS } from "@/lib/timezones";
 
 const checkboxClass = "size-4 rounded border-border accent-accent";
 
@@ -426,6 +427,45 @@ export function ScheduleForm({
       <FormMessage error={state?.error} success={state?.success} />
       <div className="flex justify-end">
         <SubmitButton>Save schedule settings</SubmitButton>
+      </div>
+    </form>
+  );
+}
+
+// ─── Household timezone ───────────────────────────────────────────────────────
+
+export function HouseholdTimeZoneForm({
+  action,
+  current,
+  serverDefault,
+}: {
+  action: (s: ActionState, f: FormData) => Promise<ActionState>;
+  /** The saved setting, or "" when the server default applies. */
+  current: string;
+  serverDefault: string;
+}) {
+  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  return (
+    <form action={formAction} className="space-y-4">
+      <Field
+        label="Timezone"
+        htmlFor="householdTimeZone"
+        hint="Days left on contracts, warranties and vehicles are counted in this timezone for everyone"
+      >
+        <SelectWrapper>
+          <select id="householdTimeZone" name="householdTimeZone" defaultValue={current} className={selectClass}>
+            <option value="">Server default ({serverDefault})</option>
+            {TIMEZONE_OPTIONS.map((tz) => (
+              <option key={tz} value={tz}>
+                {tz}
+              </option>
+            ))}
+          </select>
+        </SelectWrapper>
+      </Field>
+      <FormMessage error={state?.error} success={state?.success} />
+      <div className="flex justify-end">
+        <SubmitButton>Save timezone</SubmitButton>
       </div>
     </form>
   );

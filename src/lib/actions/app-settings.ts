@@ -14,6 +14,7 @@ import {
 import { sendTestEmail } from "@/lib/notifications/email";
 import { sendTestNtfy } from "@/lib/notifications/ntfy";
 import type { ActionState } from "@/lib/actions/auth";
+import { TIMEZONE_OPTIONS } from "@/lib/timezones";
 
 export async function requireAdmin() {
   const session = await auth();
@@ -197,6 +198,32 @@ export async function saveScheduleSettings(
 
   revalidatePath("/settings/app");
   return { success: "Schedule settings saved. Restart the server for cron changes to take effect." };
+}
+
+// An empty value clears the setting, so the server's TZ applies again.
+export async function saveHouseholdTimeZone(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  await requireAdmin();
+
+  const timeZone = formData.get("householdTimeZone");
+  if (
+    typeof timeZone !== "string" ||
+    (timeZone !== "" && !TIMEZONE_OPTIONS.includes(timeZone as (typeof TIMEZONE_OPTIONS)[number]))
+  ) {
+    return { error: "Invalid timezone." };
+  }
+
+  try {
+    await setAppSetting("household.timezone", timeZone);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Failed to save the household timezone." };
+  }
+
+  revalidatePath("/settings/household");
+  revalidatePath("/settings");
+  return { success: "Household timezone saved." };
 }
 
 // Clears a single sensitive setting (e.g. remove a password / token entirely)

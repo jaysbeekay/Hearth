@@ -6,7 +6,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isEncryptionConfigured } from "@/lib/env";
 import { env } from "@/lib/env";
-import { isSmtpConfigured, isNtfyConfigured } from "@/lib/appSettings";
+import { isSmtpConfigured, isNtfyConfigured, getHouseholdTimeZone } from "@/lib/appSettings";
 import { ChangePasswordForm } from "@/components/ChangePasswordForm";
 import { IcalTokenSection } from "@/components/IcalTokenSection";
 import { TotpSection } from "@/components/TotpSection";
@@ -30,10 +30,11 @@ export default async function SettingsPage() {
   // is deleted, which the proxy won't have caught for an in-flight request.
   if (!session?.user) redirect("/login");
 
-  const [user, smtpConfigured, ntfyConfigured] = await Promise.all([
+  const [user, smtpConfigured, ntfyConfigured, householdTimeZone] = await Promise.all([
     prisma.user.findUnique({ where: { id: session.user.id } }),
     isSmtpConfigured(),
     isNtfyConfigured(),
+    getHouseholdTimeZone(),
   ]);
   if (!user) redirect("/login");
   const appUrl = env.appUrl ?? "http://localhost:3000";
@@ -108,6 +109,14 @@ export default async function SettingsPage() {
             timezone={user.timezone}
             region={user.region}
           />
+          <p className="mt-4 text-xs text-muted">
+            Days to deadlines are counted in the household timezone, {householdTimeZone}.{" "}
+            {user.role === "ADMIN" ? (
+              <Link href="/settings/household" className="underline">Change it in Household &amp; System settings.</Link>
+            ) : (
+              "Only an admin can change it."
+            )}
+          </p>
         </section>
 
         <section className="rounded-xl border border-border bg-surface p-4 md:p-6">

@@ -1,0 +1,207 @@
+{
+  "$comment": "Shared Due-policy cases (ADR 0002). Run by tests/unit/duePolicy.test.ts against src/lib/duePolicy.ts, and by the standalone shell's tests against its port (#386). Each case: work out today as the calendar day `now` falls on in `timezone` (an invalid zone means UTC), then dueEntries(record, { today, defaultReminderDays }) must equal `expected` exactly, in order (soonest first; a Vehicle's ties keep rego, insurance, service order). Fields a case leaves out come from `defaults`.",
+  "defaults": {
+    "now": "2026-10-24T02:00:00.000Z",
+    "timezone": "UTC",
+    "defaultReminderDays": "30,14,7,1"
+  },
+  "cases": [
+    {
+      "name": "contract: notice deadline ahead, outside the due-soon window",
+      "record": { "kind": "contract", "endDate": "2027-01-23", "noticePeriodDays": 30, "renewalType": "AUTO_RENEW", "status": "ACTIVE", "reminderDaysBefore": "30,14,7,1" },
+      "expected": [{ "field": "noticeDeadline", "date": "2026-12-24", "daysLeft": 61, "state": "later", "label": "Cancel by 24 Dec" }]
+    },
+    {
+      "name": "contract: notice deadline inside the due-soon window",
+      "record": { "kind": "contract", "endDate": "2026-12-03T00:00:00.000Z", "noticePeriodDays": 30, "renewalType": "AUTO_RENEW", "status": "ACTIVE", "reminderDaysBefore": "30,14,7,1" },
+      "expected": [{ "field": "noticeDeadline", "date": "2026-11-03", "daysLeft": 10, "state": "due-soon", "label": "Cancel by 3 Nov" }]
+    },
+    {
+      "name": "contract: the notice deadline day itself still counts as ahead",
+      "record": { "kind": "contract", "endDate": "2026-11-23", "noticePeriodDays": 30, "renewalType": "MANUAL_RENEWAL", "status": "ACTIVE", "reminderDaysBefore": null },
+      "expected": [{ "field": "noticeDeadline", "date": "2026-10-24", "daysLeft": 0, "state": "due-soon", "label": "Cancel by today" }]
+    },
+    {
+      "name": "contract: once the notice deadline passes, the end date counts (auto-renew)",
+      "record": { "kind": "contract", "endDate": "2026-10-29", "noticePeriodDays": 30, "renewalType": "AUTO_RENEW", "status": "ACTIVE", "reminderDaysBefore": "30,14,7,1" },
+      "expected": [{ "field": "endDate", "date": "2026-10-29", "daysLeft": 5, "state": "due-soon", "label": "Renews 29 Oct" }]
+    },
+    {
+      "name": "contract: a zero notice period means no notice deadline",
+      "record": { "kind": "contract", "endDate": "2026-11-13", "noticePeriodDays": 0, "renewalType": "MANUAL_RENEWAL", "status": "ACTIVE", "reminderDaysBefore": null },
+      "expected": [{ "field": "endDate", "date": "2026-11-13", "daysLeft": 20, "state": "due-soon", "label": "Expires 13 Nov" }]
+    },
+    {
+      "name": "contract: manual renewal on its end date",
+      "record": { "kind": "contract", "endDate": "2026-10-24", "noticePeriodDays": null, "renewalType": "MANUAL_RENEWAL", "status": "ACTIVE", "reminderDaysBefore": null },
+      "expected": [{ "field": "endDate", "date": "2026-10-24", "daysLeft": 0, "state": "due-soon", "label": "Expires today" }]
+    },
+    {
+      "name": "contract: manual renewal past its end date is Expired (overdue)",
+      "record": { "kind": "contract", "endDate": "2026-10-19", "noticePeriodDays": 14, "renewalType": "MANUAL_RENEWAL", "status": "ACTIVE", "reminderDaysBefore": "30,14,7,1" },
+      "expected": [{ "field": "endDate", "date": "2026-10-19", "daysLeft": -5, "state": "overdue", "label": "Expired 5 days ago" }]
+    },
+    {
+      "name": "contract: manual renewal that expired yesterday",
+      "record": { "kind": "contract", "endDate": "2026-10-23", "noticePeriodDays": null, "renewalType": "MANUAL_RENEWAL", "status": "ACTIVE", "reminderDaysBefore": null },
+      "expected": [{ "field": "endDate", "date": "2026-10-23", "daysLeft": -1, "state": "overdue", "label": "Expired yesterday" }]
+    },
+    {
+      "name": "contract: a manual renewal stays Expired however long ago it ended",
+      "record": { "kind": "contract", "endDate": "2025-10-24", "noticePeriodDays": null, "renewalType": "MANUAL_RENEWAL", "status": "ACTIVE", "reminderDaysBefore": null },
+      "expected": [{ "field": "endDate", "date": "2025-10-24", "daysLeft": -365, "state": "overdue", "label": "Expired 365 days ago" }]
+    },
+    {
+      "name": "contract: fixed term ignores its notice period",
+      "record": { "kind": "contract", "endDate": "2026-11-13", "noticePeriodDays": 30, "renewalType": "FIXED_TERM", "status": "ACTIVE", "reminderDaysBefore": null },
+      "expected": [{ "field": "endDate", "date": "2026-11-13", "daysLeft": 20, "state": "due-soon", "label": "Ends 13 Nov" }]
+    },
+    {
+      "name": "contract: fixed term past its end date is Ended, not Due",
+      "record": { "kind": "contract", "endDate": "2026-10-14", "noticePeriodDays": null, "renewalType": "FIXED_TERM", "status": "ACTIVE", "reminderDaysBefore": null },
+      "expected": [{ "field": "endDate", "date": "2026-10-14", "daysLeft": -10, "state": "ended", "label": "Ended 14 Oct" }]
+    },
+    {
+      "name": "contract: auto-renew past its end date needs a new end date (Housekeeping)",
+      "record": { "kind": "contract", "endDate": "2026-10-04", "noticePeriodDays": 30, "renewalType": "AUTO_RENEW", "status": "ACTIVE", "reminderDaysBefore": null },
+      "expected": [{ "field": "endDate", "date": "2026-10-04", "daysLeft": -20, "state": "needs-new-end-date", "label": "Needs new end date" }]
+    },
+    {
+      "name": "contract: Cancelled returns nothing",
+      "record": { "kind": "contract", "endDate": "2026-10-19", "noticePeriodDays": null, "renewalType": "MANUAL_RENEWAL", "status": "CANCELLED", "reminderDaysBefore": null },
+      "expected": []
+    },
+    {
+      "name": "contract: no end date returns nothing",
+      "record": { "kind": "contract", "endDate": null, "noticePeriodDays": 30, "renewalType": "AUTO_RENEW", "status": "ACTIVE", "reminderDaysBefore": null },
+      "expected": []
+    },
+    {
+      "name": "due-soon window: the record's largest threshold widens it",
+      "record": { "kind": "contract", "endDate": "2026-12-08", "noticePeriodDays": null, "renewalType": "MANUAL_RENEWAL", "status": "ACTIVE", "reminderDaysBefore": "7,60" },
+      "expected": [{ "field": "endDate", "date": "2026-12-08", "daysLeft": 45, "state": "due-soon", "label": "Expires 8 Dec" }]
+    },
+    {
+      "name": "due-soon window: the record's largest threshold narrows it",
+      "record": { "kind": "contract", "endDate": "2026-12-08", "noticePeriodDays": null, "renewalType": "MANUAL_RENEWAL", "status": "ACTIVE", "reminderDaysBefore": "14,7" },
+      "expected": [{ "field": "endDate", "date": "2026-12-08", "daysLeft": 45, "state": "later", "label": "Expires 8 Dec" }]
+    },
+    {
+      "name": "due-soon window: the household default applies when the record has none",
+      "defaultReminderDays": "90,30",
+      "record": { "kind": "contract", "endDate": "2027-01-01", "noticePeriodDays": null, "renewalType": "AUTO_RENEW", "status": "ACTIVE", "reminderDaysBefore": "" },
+      "expected": [{ "field": "endDate", "date": "2027-01-01", "daysLeft": 69, "state": "due-soon", "label": "Renews 1 Jan 2027" }]
+    },
+    {
+      "name": "due-soon window: the last day of the window is due soon, the day after is later",
+      "record": { "kind": "tenancy", "leaseEnd": "2026-11-23" },
+      "expected": [{ "field": "leaseEnd", "date": "2026-11-23", "daysLeft": 30, "state": "due-soon", "label": "Lease ends 23 Nov" }]
+    },
+    {
+      "name": "warranty: ahead, inside the window",
+      "record": { "kind": "warranty", "warrantyEndDate": "2026-11-13T00:00:00.000Z", "reminderDaysBefore": "30,14,7,1" },
+      "expected": [{ "field": "warrantyEndDate", "date": "2026-11-13", "daysLeft": 20, "state": "due-soon", "label": "Ends 13 Nov" }]
+    },
+    {
+      "name": "warranty: on its end date it still covers",
+      "record": { "kind": "warranty", "warrantyEndDate": "2026-10-24", "reminderDaysBefore": null },
+      "expected": [{ "field": "warrantyEndDate", "date": "2026-10-24", "daysLeft": 0, "state": "due-soon", "label": "Ends today" }]
+    },
+    {
+      "name": "warranty: past its end date is Lapsed, never Due",
+      "record": { "kind": "warranty", "warrantyEndDate": "2026-10-14", "reminderDaysBefore": "30,14,7,1" },
+      "expected": [{ "field": "warrantyEndDate", "date": "2026-10-14", "daysLeft": -10, "state": "lapsed", "label": "Lapsed 14 Oct" }]
+    },
+    {
+      "name": "warranty: no end date returns nothing",
+      "record": { "kind": "warranty", "warrantyEndDate": null, "reminderDaysBefore": null },
+      "expected": []
+    },
+    {
+      "name": "vehicle: one entry each for rego, insurance and service, soonest first",
+      "record": { "kind": "vehicle", "regoExpiry": "2026-11-03", "insuranceExpiry": "2027-02-01", "nextServiceDue": "2026-10-21", "reminderDaysBefore": "30,14,7,1" },
+      "expected": [
+        { "field": "nextServiceDue", "date": "2026-10-21", "daysLeft": -3, "state": "overdue", "label": "Service overdue by 3 days" },
+        { "field": "regoExpiry", "date": "2026-11-03", "daysLeft": 10, "state": "due-soon", "label": "Rego due 3 Nov" },
+        { "field": "insuranceExpiry", "date": "2027-02-01", "daysLeft": 100, "state": "later", "label": "Insurance due 1 Feb 2027" }
+      ]
+    },
+    {
+      "name": "vehicle: passed dates are overdue",
+      "record": { "kind": "vehicle", "regoExpiry": "2026-10-23", "insuranceExpiry": "2026-10-19", "nextServiceDue": "2026-10-23", "reminderDaysBefore": null },
+      "expected": [
+        { "field": "insuranceExpiry", "date": "2026-10-19", "daysLeft": -5, "state": "overdue", "label": "Insurance expired 5 days ago" },
+        { "field": "regoExpiry", "date": "2026-10-23", "daysLeft": -1, "state": "overdue", "label": "Rego expired yesterday" },
+        { "field": "nextServiceDue", "date": "2026-10-23", "daysLeft": -1, "state": "overdue", "label": "Service overdue by 1 day" }
+      ]
+    },
+    {
+      "name": "vehicle: a date a linked Contract Covers returns no entry",
+      "record": { "kind": "vehicle", "regoExpiry": "2026-11-03", "insuranceExpiry": "2026-10-19", "nextServiceDue": null, "reminderDaysBefore": null, "coveredFields": ["insuranceExpiry"] },
+      "expected": [{ "field": "regoExpiry", "date": "2026-11-03", "daysLeft": 10, "state": "due-soon", "label": "Rego due 3 Nov" }]
+    },
+    {
+      "name": "vehicle: no dates returns nothing",
+      "record": { "kind": "vehicle", "regoExpiry": null, "insuranceExpiry": null, "nextServiceDue": null, "reminderDaysBefore": null },
+      "expected": []
+    },
+    {
+      "name": "tenancy: lease end beyond the household default window",
+      "record": { "kind": "tenancy", "leaseEnd": "2026-11-24" },
+      "expected": [{ "field": "leaseEnd", "date": "2026-11-24", "daysLeft": 31, "state": "later", "label": "Lease ends 24 Nov" }]
+    },
+    {
+      "name": "tenancy: the household default sets its window",
+      "defaultReminderDays": "45,7",
+      "record": { "kind": "tenancy", "leaseEnd": "2026-11-24" },
+      "expected": [{ "field": "leaseEnd", "date": "2026-11-24", "daysLeft": 31, "state": "due-soon", "label": "Lease ends 24 Nov" }]
+    },
+    {
+      "name": "tenancy: past its lease end is overdue",
+      "record": { "kind": "tenancy", "leaseEnd": "2026-10-14" },
+      "expected": [{ "field": "leaseEnd", "date": "2026-10-14", "daysLeft": -10, "state": "overdue", "label": "Lease ended 10 days ago" }]
+    },
+    {
+      "name": "timezone: already tomorrow in Sydney, so yesterday's end date has Lapsed",
+      "now": "2026-10-24T14:30:00.000Z",
+      "timezone": "Australia/Sydney",
+      "record": { "kind": "warranty", "warrantyEndDate": "2026-10-24", "reminderDaysBefore": null },
+      "expected": [{ "field": "warrantyEndDate", "date": "2026-10-24", "daysLeft": -1, "state": "lapsed", "label": "Lapsed 24 Oct" }]
+    },
+    {
+      "name": "timezone: the same moment in UTC is still the end date",
+      "now": "2026-10-24T14:30:00.000Z",
+      "timezone": "UTC",
+      "record": { "kind": "warranty", "warrantyEndDate": "2026-10-24", "reminderDaysBefore": null },
+      "expected": [{ "field": "warrantyEndDate", "date": "2026-10-24", "daysLeft": 0, "state": "due-soon", "label": "Ends today" }]
+    },
+    {
+      "name": "timezone: the notice deadline is today in Sydney but tomorrow in UTC",
+      "now": "2026-10-24T14:30:00.000Z",
+      "timezone": "Australia/Sydney",
+      "record": { "kind": "contract", "endDate": "2026-11-24", "noticePeriodDays": 30, "renewalType": "AUTO_RENEW", "status": "ACTIVE", "reminderDaysBefore": null },
+      "expected": [{ "field": "noticeDeadline", "date": "2026-10-25", "daysLeft": 0, "state": "due-soon", "label": "Cancel by today" }]
+    },
+    {
+      "name": "timezone: still yesterday in Los Angeles, so rego is due today, not expired",
+      "now": "2026-10-25T03:00:00.000Z",
+      "timezone": "America/Los_Angeles",
+      "record": { "kind": "vehicle", "regoExpiry": "2026-10-24", "insuranceExpiry": null, "nextServiceDue": null, "reminderDaysBefore": null },
+      "expected": [{ "field": "regoExpiry", "date": "2026-10-24", "daysLeft": 0, "state": "due-soon", "label": "Rego due today" }]
+    },
+    {
+      "name": "timezone: the same moment in UTC, rego expired yesterday",
+      "now": "2026-10-25T03:00:00.000Z",
+      "timezone": "UTC",
+      "record": { "kind": "vehicle", "regoExpiry": "2026-10-24", "insuranceExpiry": null, "nextServiceDue": null, "reminderDaysBefore": null },
+      "expected": [{ "field": "regoExpiry", "date": "2026-10-24", "daysLeft": -1, "state": "overdue", "label": "Rego expired yesterday" }]
+    },
+    {
+      "name": "timezone: an unknown zone counts in UTC",
+      "now": "2026-10-24T14:30:00.000Z",
+      "timezone": "Not/AZone",
+      "record": { "kind": "warranty", "warrantyEndDate": "2026-10-24", "reminderDaysBefore": null },
+      "expected": [{ "field": "warrantyEndDate", "date": "2026-10-24", "daysLeft": 0, "state": "due-soon", "label": "Ends today" }]
+    }
+  ]
+}
