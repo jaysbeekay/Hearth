@@ -6,10 +6,10 @@ test.use({ storageState: ADMIN_AUTH_FILE });
 // #328 — cross-domain completeness/attention filters. The missingDate/
 // missingReminder/missingRelationship/missingIdentifier filters originally
 // only covered Contract/Product; this checks they also reach Vehicle
-// (via Global Search) and that the Dashboard's "missing info" stat cards
-// deep-link to the right, correctly-filtered set.
+// (via Global Search) and that the Dashboard's "missing key details"
+// housekeeping row deep-links to the right, correctly-filtered set.
 test.describe.serial("Completeness filters", () => {
-  test("dashboard 'Contracts missing info' stat links to a correctly filtered list", async ({
+  test("dashboard 'contracts missing key details' row links to a correctly filtered list", async ({
     page,
   }) => {
     // Computed inside the test body (not module scope) so it's fresh even
@@ -39,12 +39,12 @@ test.describe.serial("Completeness filters", () => {
     await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
 
     await page.goto("/dashboard");
-    const statCard = page.getByRole("link", { name: /Contracts missing info/ });
-    await expect(statCard).toBeVisible();
-    const href = await statCard.getAttribute("href");
+    const missingInfoRow = page.getByRole("link", { name: /contracts? (is|are) missing key details/ });
+    await expect(missingInfoRow).toBeVisible();
+    const href = await missingInfoRow.getAttribute("href");
     expect(href).toBe("/contracts?missingInfo=true");
 
-    await statCard.click();
+    await missingInfoRow.click();
     await page.waitForURL(/\/contracts\?missingInfo=true/);
     await expect(page.locator("body")).toContainText(incompleteTitle);
     await expect(page.locator("body")).not.toContainText(completeTitle);

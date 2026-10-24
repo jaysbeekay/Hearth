@@ -1,13 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AlertTriangle, Upload } from "lucide-react";
+import { Upload } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { TripCard } from "@/components/TripCard";
-import { StatCard } from "@/components/StatCard";
 import { AddEntryPicker } from "@/components/AddEntryPicker";
 import { OnboardingChecklist } from "@/components/OnboardingChecklist";
 import { daysUntil, monthlyEquivalent, formatCurrency } from "@/lib/utils";
-import { contractTiming } from "@/lib/contractTiming";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { refreshFxRates, getFxRateMap, convertAmount } from "@/lib/fx";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
@@ -21,7 +19,10 @@ import {
   buildReminderNudgeItem,
   buildExtractionReviewItems,
   buildReminderFailureItems,
-  sortAttentionItems,
+  buildInboxItem,
+  buildMissingInfoItems,
+  buildMissingFrequencyItem,
+  groupAttentionItems,
 } from "@/lib/needsAttention";
 import { NeedsAttentionQueue } from "@/components/NeedsAttentionQueue";
 
@@ -69,14 +70,6 @@ export default async function DashboardPage() {
     ]);
 
   const active = contracts.filter((c) => c.status === "ACTIVE");
-  // #351 — counts to the notice deadline while one is ahead.
-  const withDays = active.map((c) => ({ contract: c, days: contractTiming(c).days }));
-
-  const expiringSoon = withDays
-    .filter((c) => c.days != null && c.days >= 0 && c.days <= 30)
-    .sort((a, b) => (a.days as number) - (b.days as number));
-
-  const expired = withDays.filter((c) => c.days != null && c.days < 0);
 
   const activeCurrencies = [...new Set(active.map((c) => c.currency))];
   const fxPairs = activeCurrencies.map((from) => ({ from, to: preferredCurrency }));
@@ -93,43 +86,18 @@ export default async function DashboardPage() {
     }
     return sum + monthlyEquivalent(converted, c.billingFrequency);
   }, 0);
-  const hasUnconvertedSpend = unconvertedCurrencies.size > 0;
-  if (hasUnconvertedSpend) {
+  if (unconvertedCurrencies.size > 0) {
     console.warn(
-      `[dashboard] "Est. monthly spend" excludes contracts billed in ${[...unconvertedCurrencies].join(", ")} — FX rate(s) to ${preferredCurrency} unavailable.`,
+      `[dashboard] Monthly spend excludes contracts billed in ${[...unconvertedCurrencies].join(", ")} — FX rate(s) to ${preferredCurrency} unavailable.`,
     );
   }
 
   // #303: a contract with a cost but no billing frequency contributes $0 to
-  // "Est. monthly spend" (monthlyEquivalent has no frequency to convert
-  // from) — without this notice that reads as the total being wrong rather
-  // than as an unset field.
+  // the monthly estimate (monthlyEquivalent has no frequency to convert
+  // from) — surfaced as a housekeeping row so the total doesn't just look wrong.
   const missingFrequencyCount = active.filter(
     (c) => c.cost != null && c.billingFrequency == null,
   ).length;
-  const hasMissingFrequencySpend = missingFrequencyCount > 0;
-
-  const productsWithDays = products.map((p) => ({
-    product: p,
-    days: daysUntil(p.warrantyEndDate),
-  }));
-
-  const warrantiesExpiringSoon = productsWithDays
-    .filter((p) => p.days != null && p.days >= 0 && p.days <= 30)
-    .sort((a, b) => (a.days as number) - (b.days as number));
-
-  const warrantiesExpired = productsWithDays.filter((p) => p.days != null && p.days < 0);
-
-  const vehiclesNeedingAttention = vehicles.filter((v) => {
-    const rego = daysUntil(v.regoExpiry);
-    const insurance = daysUntil(v.insuranceExpiry);
-    const service = daysUntil(v.nextServiceDue);
-    return (
-      (rego != null && rego <= 30) ||
-      (insurance != null && insurance <= 30) ||
-      (service != null && service <= 30)
-    );
-  });
 
   // #328 — a completeness gap (no end date, no policy/serial number),
   // independent of urgency: mirrors the narrower missingInfo filter
@@ -142,16 +110,18 @@ export default async function DashboardPage() {
     (p) => p.warrantyEndDate == null || (p.serialNumber == null && p.barcode == null),
   ).length;
 
-  // Every overdue-or-soon-to-expire record in one urgency-sorted list, each
-  // with its next action already decided rather than left for the user to
-  // work out (#170). Cancelled contracts are excluded via `active`, same
-  // basis as expiringSoon/expired above.
-  const needsAttentionItems = sortAttentionItems([
+  // #356/#357 — the dashboard leads with what needs doing: dated items
+  // (Due) first, then records to tidy (Housekeeping), each with its next
+  // action already decided (#170). Cancelled contracts are excluded via `active`.
+  const { due, housekeeping } = groupAttentionItems([
     ...buildContractAttentionItems(active),
     ...buildWarrantyAttentionItems(products),
     ...(enabledModules.has("VEHICLES") ? buildVehicleAttentionItems(vehicles) : []),
-    ...buildExtractionReviewItems(contracts, products),
     ...buildReminderFailureItems(failedReminderLogs, contracts, products, vehicles),
+    ...buildExtractionReviewItems(contracts, products),
+    ...buildInboxItem(documentStats.inboxCount),
+    ...buildMissingInfoItems(contractsMissingInfo, warrantiesMissingInfo),
+    ...buildMissingFrequencyItem(missingFrequencyCount),
     ...(session?.user.role === "ADMIN" && !smtpConfigured && !ntfyConfigured
       ? [buildReminderNudgeItem()]
       : []),
@@ -185,24 +155,6 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Documents</h2>
-        <div className="grid grid-cols-2 gap-3">
-          <StatCard
-            label="Inbox"
-            value={String(documentStats.inboxCount)}
-            tone={documentStats.inboxCount > 0 ? "warning" : "default"}
-            href="/documents/inbox"
-          />
-          <StatCard
-            label="Total documents"
-            value={String(documentStats.total)}
-            tone="info"
-            href="/documents"
-          />
-        </div>
-      </section>
-
       {isEmpty ? (
         <OnboardingChecklist
           enabledModules={[...enabledModules]}
@@ -210,100 +162,27 @@ export default async function DashboardPage() {
           remindersConfigured={smtpConfigured || ntfyConfigured}
         />
       ) : (
-        <>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <StatCard
-              label="Active contracts"
-              value={String(active.length)}
-              href="/contracts?status=ACTIVE"
-            />
-            <StatCard
-              label="Contracts expiring in 30 days"
-              value={String(expiringSoon.length)}
-              tone={expiringSoon.length > 0 ? "warning" : "default"}
-              href="/contracts?status=ACTIVE&expiring=30"
-            />
-            <StatCard
-              label="Contracts expired"
-              value={String(expired.length)}
-              tone={expired.length > 0 ? "danger" : "default"}
-              href="/contracts?status=ACTIVE&expired=true"
-            />
-            <StatCard
-              label="Est. monthly spend"
-              value={formatCurrency(monthlySpend, preferredCurrency, undefined, region)}
-              tone={hasUnconvertedSpend || hasMissingFrequencySpend ? "warning" : "default"}
-              href="/spend"
-            />
-            <StatCard
-              label="Contracts missing info"
-              value={String(contractsMissingInfo)}
-              tone={contractsMissingInfo > 0 ? "warning" : "default"}
-              href="/contracts?missingInfo=true"
-            />
-          </div>
-          {hasUnconvertedSpend && (
-            <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
-              <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden />
-              <p>
-                This total excludes contracts billed in{" "}
-                {[...unconvertedCurrencies].join(", ")} — an exchange rate to{" "}
-                {preferredCurrency} isn&apos;t available right now.
-              </p>
-            </div>
+        <p className="text-sm text-muted">
+          <Link href="/contracts?status=ACTIVE" className="text-foreground hover:underline">
+            {active.length} active {active.length === 1 ? "contract" : "contracts"}
+          </Link>
+          {" · "}
+          <Link href="/products" className="text-foreground hover:underline">
+            {products.length} {products.length === 1 ? "warranty" : "warranties"}
+          </Link>
+          {" · "}
+          <Link href="/spend" className="text-foreground hover:underline">
+            about {formatCurrency(monthlySpend, preferredCurrency, undefined, region)} a month
+          </Link>
+          {unconvertedCurrencies.size > 0 && (
+            <> (excludes {[...unconvertedCurrencies].join(", ")}: no exchange rate right now)</>
           )}
-          {hasMissingFrequencySpend && (
-            <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
-              <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden />
-              <p>
-                {missingFrequencyCount} active {missingFrequencyCount === 1 ? "contract has" : "contracts have"} a
-                cost but no billing frequency set — {missingFrequencyCount === 1 ? "it isn't" : "they aren't"}{" "}
-                counted in Est. monthly spend yet.
-              </p>
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <StatCard label="Warranties tracked" value={String(products.length)} href="/products" />
-            <StatCard
-              label="Warranties expiring in 30 days"
-              value={String(warrantiesExpiringSoon.length)}
-              tone={warrantiesExpiringSoon.length > 0 ? "warning" : "default"}
-              href="/products?expiring=30"
-            />
-            <StatCard
-              label="Warranties expired"
-              value={String(warrantiesExpired.length)}
-              tone={warrantiesExpired.length > 0 ? "danger" : "default"}
-              href="/products?expired=true"
-            />
-            {enabledModules.has("VEHICLES") && (
-              <StatCard
-                label="Vehicles needing attention"
-                value={String(vehiclesNeedingAttention.length)}
-                tone={vehiclesNeedingAttention.length > 0 ? "warning" : "default"}
-                href="/vehicles"
-              />
-            )}
-            <StatCard
-              label="Warranties missing info"
-              value={String(warrantiesMissingInfo)}
-              tone={warrantiesMissingInfo > 0 ? "warning" : "default"}
-              href="/products?missingInfo=true"
-            />
-          </div>
-        </>
+        </p>
       )}
 
       <section className="space-y-3">
-        <div>
-          <h2 className="text-xl font-semibold">Needs attention</h2>
-          <p className="text-sm text-muted">
-            Every overdue or soon-to-expire contract, warranty and vehicle, with the next
-            action already picked out — sorted so the most urgent is first.
-          </p>
-        </div>
-        <NeedsAttentionQueue items={needsAttentionItems} />
+        <h2 className="text-xl font-semibold">Needs attention</h2>
+        <NeedsAttentionQueue due={due} housekeeping={housekeeping} />
       </section>
 
       {enabledModules.has("TRAVEL") && upcomingTrips.length > 0 && (

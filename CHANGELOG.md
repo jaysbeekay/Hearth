@@ -91,6 +91,25 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   (#348).
 - Warranty uploads have one labelled "Document type" select (#350).
 
+- **Simpler dashboard: what needs doing comes first (#356, #357).** The 11
+  stat cards and the Documents block are gone. Under the heading is one line
+  with the number of active contracts, warranties and the estimated monthly
+  spend, each linking to its list, and then Needs attention, split in two:
+  - **Due**: contracts, warranties and vehicles with a date in the next 30
+    days or already passed, overdue first and then soonest. The soonest real
+    deadline is always the first row; setup and tidying items no longer sort
+    above it.
+  - **Housekeeping**: documents waiting in the Inbox, records missing key
+    details, contracts with a cost but no billing frequency, unconfirmed
+    auto-filled details, failed reminders and the "reminders aren't
+    configured" prompt. Each only appears when there's something to do.
+
+  Rows no longer offer "Upload document" as their main action; a missing
+  document is a small "No document" badge instead. Expiring contracts offer
+  "Renew or cancel", which opens the contract with its renew and cancel
+  options, rather than "Renew policy" opening the edit form. An expiring
+  warranty has no action button, since there's nothing to do but know.
+
 ### Removed
 
 - **Snyk CI checks.** The Snyk Security workflow (Open Source, Code and

@@ -1,6 +1,6 @@
 import { Fragment } from "react";
 import Link from "next/link";
-import { AlertCircle, Ban, Car, FileText, BellOff } from "lucide-react";
+import { AlertCircle, Ban, Car, FileText, BellOff, Inbox } from "lucide-react";
 import { setContractStatus } from "@/lib/actions/contracts";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { ExpiryBadge } from "@/components/ExpiryBadge";
@@ -18,23 +18,48 @@ const KIND_ICON: Record<AttentionItem["kind"], React.ComponentType<{ size?: numb
   system: BellOff,
 };
 
-// Every genuinely urgent thing in the household — contracts, warranties,
-// vehicles, and the "you have no reminders configured" gap — combined into
-// one list sorted by urgency, with the next action already decided rather
-// than left for the user to figure out (#170).
-export function NeedsAttentionQueue({ items }: { items: AttentionItem[] }) {
-  if (items.length === 0) {
-    return (
-      <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted">
-        Nothing needs attention right now.
-      </p>
-    );
-  }
+// Everything in the household that needs acting on, split into what's Due
+// (a date coming up or passed, soonest first) and Housekeeping (records to
+// tidy and setup gaps) so a deadline is never buried under tidying (#357).
+export function NeedsAttentionQueue({
+  due,
+  housekeeping,
+}: {
+  due: AttentionItem[];
+  housekeeping: AttentionItem[];
+}) {
+  return (
+    <div className="space-y-6">
+      <section className="space-y-2" aria-labelledby="attention-due">
+        <h3 id="attention-due" className="text-sm font-semibold">
+          Due <span className="font-normal text-muted">({due.length})</span>
+        </h3>
+        {due.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted">
+            Nothing due in the next 30 days.
+          </p>
+        ) : (
+          <AttentionList items={due} />
+        )}
+      </section>
 
+      {housekeeping.length > 0 && (
+        <section className="space-y-2" aria-labelledby="attention-housekeeping">
+          <h3 id="attention-housekeeping" className="text-sm font-semibold">
+            Housekeeping <span className="font-normal text-muted">({housekeeping.length})</span>
+          </h3>
+          <AttentionList items={housekeeping} />
+        </section>
+      )}
+    </div>
+  );
+}
+
+function AttentionList({ items }: { items: AttentionItem[] }) {
   return (
     <ul className="space-y-2">
       {items.map((item) => {
-        const Icon = KIND_ICON[item.kind];
+        const Icon = item.id === "inbox" ? Inbox : KIND_ICON[item.kind];
         const row = (
           <li className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface p-3 shadow-stripe md:flex-nowrap">
             <Icon size={18} className="shrink-0 text-muted" aria-hidden />
@@ -56,6 +81,11 @@ export function NeedsAttentionQueue({ items }: { items: AttentionItem[] }) {
             <div className="basis-full md:hidden" aria-hidden />
 
             {item.days != null && <ExpiryBadge days={item.days} cancelBy={item.cancelBy} />}
+            {item.noDocument && (
+              <span className="inline-flex items-center rounded-md bg-slate-500/10 px-2.5 py-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+                No document
+              </span>
+            )}
             {item.badge && (
               <span className="inline-flex items-center gap-1 rounded-md bg-warning/10 px-2.5 py-1 text-xs font-medium text-warning">
                 <AlertCircle size={12} />
@@ -76,17 +106,19 @@ export function NeedsAttentionQueue({ items }: { items: AttentionItem[] }) {
                   Cancel
                 </ConfirmForm>
               )}
-              <Link
-                href={item.action.href}
-                className="inline-flex items-center rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground hover:opacity-90"
-              >
-                {item.action.label}
-              </Link>
+              {item.action && (
+                <Link
+                  href={item.action.href}
+                  className="inline-flex items-center rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground hover:opacity-90"
+                >
+                  {item.action.label}
+                </Link>
+              )}
             </div>
           </li>
         );
 
-        if (item.kind === "system") {
+        if (item.id === "system-reminders") {
           return (
             <DismissibleRow key={item.id} dismissKey={REMINDER_NUDGE_DISMISS_KEY}>
               {row}
