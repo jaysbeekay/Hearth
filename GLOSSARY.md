@@ -142,6 +142,10 @@ A Due entry whose date has passed, such as an Expired Contract or a Vehicle's re
 **Housekeeping**:
 A Needs attention entry about a record that needs tidying rather than a date, such as missing details, a Document waiting in the Inbox, a record that Needs review, or an auto-renewing Contract past its end date that needs its new end date.
 
+**Missing key details**:
+A Housekeeping entry for a record lacking something it needs to be useful: a Contract with no end date (unless it auto-renews) or a cost with no billing frequency; an Item with neither serial nor barcode, or with a Warranty that has no end date; a Vehicle with neither VIN nor plate. Cancelled Contracts and Archived records are never missing anything. Having no Reminder threshold or not being Linked to anything is not missing.
+_Avoid_: Incomplete, missing info, missing identifier
+
 **Upcoming**:
 The household's timeline of dated things across all records, including Trips, which are never Due. Cancelled Contracts don't appear.
 _Avoid_: Calendar
