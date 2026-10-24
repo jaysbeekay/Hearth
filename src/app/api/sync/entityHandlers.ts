@@ -22,6 +22,14 @@ import {
 import { fetchHistoricalPrice } from "@/lib/prices";
 import { createContractCommand, updateContractCommand, deleteContractCommand } from "@/lib/commands/contracts";
 import { createProductCommand, updateProductCommand, deleteProductCommand } from "@/lib/commands/products";
+import {
+  createVehicleCommand,
+  updateVehicleCommand,
+  deleteVehicleCommand,
+  createServiceRecordCommand,
+  updateServiceRecordCommand,
+} from "@/lib/commands/vehicles";
+import { assertNotStale as assertRecordNotStale } from "@/lib/commands/shared";
 import { extractSearchableText } from "@/lib/documents/textExtraction";
 import { ProductDocumentKind } from "@/generated/prisma/enums";
 import {
@@ -94,11 +102,10 @@ function validateFile(file: File) {
 // don't silently overwrite — surface it as a sync failure instead. Skipped
 // when the client didn't send a baseUpdatedAt (e.g. RentalAgreement, which
 // has no updatedAt column) or online writes made before this feature shipped.
+// Entities with a record command pass ctx.baseUpdatedAt to it instead, and
+// the command runs the same check (src/lib/commands/shared.ts).
 function assertNotStale(existing: { updatedAt: Date }, ctx: SyncContext) {
-  if (!ctx.baseUpdatedAt) return;
-  if (existing.updatedAt.toISOString() !== ctx.baseUpdatedAt) {
-    throw new Error("This record was changed elsewhere since you edited it — review before retrying.");
-  }
+  assertRecordNotStale(existing, ctx.baseUpdatedAt);
 }
 
 export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
@@ -168,25 +175,15 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     schema: vehicleSchema,
     requiresModule: "VEHICLES",
     create: async (data, { userId }) => {
-      const vehicle = await prisma.vehicle.create({ data: { ...data, createdById: userId } });
-      revalidatePath("/vehicles");
+      const vehicle = await createVehicleCommand(data, userId);
       return { id: vehicle.id };
     },
     update: async (id, data, ctx) => {
-      const existing = await prisma.vehicle.findUnique({ where: { id } });
-      if (!existing) throw new Error("Vehicle not found");
-      assertNotStale(existing, ctx);
-      await prisma.vehicle.update({ where: { id }, data });
-      revalidatePath("/vehicles");
-      revalidatePath(`/vehicles/${id}`);
+      await updateVehicleCommand(id, data, ctx.userId, { baseUpdatedAt: ctx.baseUpdatedAt });
     },
     // #287 — soft-delete, matching deleteVehicle in actions/vehicles.ts.
     remove: async (id) => {
-      const existing = await prisma.vehicle.findUnique({ where: { id } });
-      if (!existing) throw new Error("Vehicle not found");
-      await prisma.vehicle.update({ where: { id }, data: { deletedAt: new Date() } });
-      revalidatePath("/vehicles");
-      revalidatePath("/settings/trash");
+      await deleteVehicleCommand(id);
     },
   }),
 
@@ -194,20 +191,14 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     schema: vehicleItemSchema,
     requiresModule: "VEHICLES",
     create: async (data, ctx) => {
-      const vehicleId = requireParentId(ctx);
-      const vehicle = await prisma.vehicle.findUnique({ where: { id: vehicleId } });
-      if (!vehicle) throw new Error("Vehicle not found");
-      const item = await prisma.vehicleItem.create({ data: { ...data, vehicleId } });
-      revalidatePath(`/vehicles/${vehicleId}`);
+      const item = await createServiceRecordCommand(requireParentId(ctx), data);
       return { id: item.id };
     },
     update: async (id, data, ctx) => {
-      const vehicleId = requireParentId(ctx);
-      const existing = await prisma.vehicleItem.findUnique({ where: { id } });
-      if (!existing || existing.vehicleId !== vehicleId) throw new Error("Item not found");
-      assertNotStale(existing, ctx);
-      await prisma.vehicleItem.update({ where: { id }, data });
-      revalidatePath(`/vehicles/${vehicleId}`);
+      await updateServiceRecordCommand(id, data, {
+        vehicleId: requireParentId(ctx),
+        baseUpdatedAt: ctx.baseUpdatedAt,
+      });
     },
     saveFile: async (vehicleItemId, file) => {
       validateFile(file);

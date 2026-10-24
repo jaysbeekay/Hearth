@@ -3,7 +3,6 @@ import { clearNotificationLogs } from "@/lib/notifications/logs";
 import {
   deleteContractDir,
   deleteProductDir,
-  deleteVehicleItemDir,
   deleteHomeItemDir,
   deleteTripSegmentDir,
   deleteInventoryItemDir,
@@ -13,6 +12,7 @@ import {
   deleteVehicleItemDocument,
   deleteInventoryItemDocument,
 } from "@/lib/storage";
+import { purgeVehicle, purgeServiceRecord } from "@/lib/commands/vehicles";
 
 // #287 — how long a soft-deleted record sits in Trash before it's purged for
 // good. No job-runner exists yet (see #250), so this runs opportunistically:
@@ -93,8 +93,7 @@ export async function purgeExpiredTrash(): Promise<void> {
     await deleteVehicleItemDocument(d.vehicleItemId, d.storedName);
   }
   for (const i of vehicleItems) {
-    await deleteVehicleItemDir(i.id);
-    await prisma.vehicleItem.delete({ where: { id: i.id } });
+    await purgeServiceRecord(i.id);
   }
   for (const d of inventoryItemDocuments) {
     await prisma.inventoryItemDocument.delete({ where: { id: d.id } });
@@ -112,9 +111,7 @@ export async function purgeExpiredTrash(): Promise<void> {
     await deleteProductDir(p.id);
   }
   for (const v of vehicles) {
-    for (const item of v.items) await deleteVehicleItemDir(item.id);
-    await prisma.vehicle.delete({ where: { id: v.id } });
-    await clearNotificationLogs("VEHICLE", v.id);
+    await purgeVehicle(v.id);
   }
   for (const p of properties) {
     for (const item of p.items) await deleteHomeItemDir(item.id);

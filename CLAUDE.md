@@ -74,8 +74,11 @@ npm run cap:android            # open android/ in Android Studio
 npm run cap:ios                # open ios/ in Xcode
 ```
 
-There is no unit test runner configured — correctness is checked via `tsc`, `eslint`, and
-the Playwright e2e suite in `e2e/specs/`, which runs against a real dev server and seeded
+Vitest unit tests live in `tests/unit/` (`npm run test:unit`). Tests that need real Prisma
+writes (e.g. record commands in `src/lib/commands/`) use `setupTestDb()` from
+`tests/helpers/testDb.ts`, which migrates a temporary SQLite file per test file; stub
+`next/cache` with `vi.mock`. Correctness is also checked via `tsc`, `eslint`, and the
+Playwright e2e suite in `e2e/specs/`, which runs against a real dev server and seeded
 SQLite DB (`e2e/prepare-db.ts`, `e2e/setup/seed.setup.ts`).
 
 ## Architecture
