@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { contractTiming, noticeApplies } from "@/lib/contractTiming";
 
+// Back-compat cover for contractTiming's current callers until they move onto
+// the Due policy (#384), when this file goes with it. The Due rules
+// themselves are pinned in tests/fixtures/due-policy-cases.json.
+
 // Midday UTC, so local-date arithmetic in daysUntil is stable in any test TZ.
 const NOW = new Date("2026-10-24T12:00:00.000Z");
 const inDays = (n: number) => new Date(NOW.getTime() + n * 86_400_000);
@@ -51,5 +55,6 @@ describe("contractTiming (#351)", () => {
     expect(noticeApplies({ noticePeriodDays: 0, renewalType: "AUTO_RENEW" })).toBe(false);
     expect(noticeApplies({ noticePeriodDays: 14, renewalType: "MANUAL_RENEWAL" })).toBe(true);
     expect(noticeApplies({ noticePeriodDays: 14, renewalType: "FIXED_TERM" })).toBe(false);
+    expect(noticeApplies({ noticePeriodDays: 1.5, renewalType: "AUTO_RENEW" })).toBe(false);
   });
 });

@@ -4,7 +4,17 @@ import { redirect } from "next/navigation";
 import { DatabaseBackup, LayoutGrid, Settings2, Users, Webhook } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isBackupConfigured, getBackupDestinationChoice, isSmtpConfigured, isNtfyConfigured } from "@/lib/appSettings";
+import {
+  isBackupConfigured,
+  getBackupDestinationChoice,
+  isSmtpConfigured,
+  isNtfyConfigured,
+  getAppSetting,
+  getServerDefaultTimeZone,
+} from "@/lib/appSettings";
+import { saveHouseholdTimeZone } from "@/lib/actions/app-settings";
+import { HouseholdTimeZoneForm } from "@/components/AppSettingsForms";
+import { householdTimeZoneChoices } from "@/lib/timezones";
 import { BACKUP_DESTINATION_LABELS } from "@/lib/backupDestination";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
@@ -20,16 +30,25 @@ export default async function HouseholdSettingsPage() {
   const session = await auth();
   if (session?.user.role !== "ADMIN") redirect("/settings");
 
-  const [memberCount, backupConfigured, backupDestination, webhookCount, enabledModules, smtpConfigured, ntfyConfigured] =
-    await Promise.all([
-      prisma.user.count(),
-      isBackupConfigured(),
-      getBackupDestinationChoice(),
-      prisma.webhookEndpoint.count(),
-      getEnabledModuleKeys(),
-      isSmtpConfigured(),
-      isNtfyConfigured(),
-    ]);
+  const [
+    memberCount,
+    backupConfigured,
+    backupDestination,
+    webhookCount,
+    enabledModules,
+    smtpConfigured,
+    ntfyConfigured,
+    householdTimeZone,
+  ] = await Promise.all([
+    prisma.user.count(),
+    isBackupConfigured(),
+    getBackupDestinationChoice(),
+    prisma.webhookEndpoint.count(),
+    getEnabledModuleKeys(),
+    isSmtpConfigured(),
+    isNtfyConfigured(),
+    getAppSetting("household.timezone"),
+  ]);
   const notificationsConfigured = smtpConfigured || ntfyConfigured;
 
   return (
@@ -93,6 +112,22 @@ export default async function HouseholdSettingsPage() {
           </span>
         </Link>
       </div>
+
+      <section className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
+        <div>
+          <h2 className="font-medium">Household timezone</h2>
+          <p className="text-xs text-muted mt-0.5">
+            Reminders and due dates will use this timezone, so every member counts days the
+            same way. Each member&apos;s own timezone only changes how times are shown to them.
+          </p>
+        </div>
+        <HouseholdTimeZoneForm
+          action={saveHouseholdTimeZone}
+          current={householdTimeZone}
+          serverDefault={getServerDefaultTimeZone()}
+          choices={householdTimeZoneChoices(householdTimeZone)}
+        />
+      </section>
     </div>
   );
 }

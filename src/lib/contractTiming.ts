@@ -7,6 +7,14 @@
 //
 // A fixed-term contract simply ends, so there is nothing to give notice of:
 // its notice period (if any) is ignored.
+//
+// The Due policy (duePolicy.ts, #383) now owns the Due rules, including the
+// notice rule below; callers move onto it in #384, after which this goes.
+// Until then this keeps its current server-local day counts.
+
+import { noticeApplies } from "@/lib/duePolicy";
+
+export { noticeApplies };
 
 export interface ContractTimingInput {
   endDate: Date | string | null;
@@ -40,10 +48,6 @@ function daysBetween(date: Date | null, now: Date): number | null {
   const startOfTarget = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
   const startOfNow = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
   return Math.round((startOfTarget - startOfNow) / DAY_MS);
-}
-
-export function noticeApplies(input: Pick<ContractTimingInput, "noticePeriodDays" | "renewalType">): boolean {
-  return input.renewalType !== "FIXED_TERM" && input.noticePeriodDays != null && input.noticePeriodDays > 0;
 }
 
 export function contractTiming(input: ContractTimingInput, now: Date = new Date()): ContractTiming {

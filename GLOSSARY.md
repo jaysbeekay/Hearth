@@ -131,7 +131,7 @@ The household's queue of things to act on, split into Due and Housekeeping.
 _Avoid_: Alerts, tasks, to-do
 
 **Due**:
-A Needs attention entry whose date is within its due-soon window or has passed and still needs action. Only Contracts (the notice deadline, then the end date), Warranties, a Vehicle's rego, insurance and service dates, and a Tenancy's lease end can be Due; Cancelled Contracts, Ended Contracts and Lapsed Warranties never are. Days are counted in the household's day, not any one person's.
+A Needs attention entry whose date is within its due-soon window or has passed and still needs action. Only Contracts (the notice deadline, then the end date unless the Contract auto-renews), Warranties, a Vehicle's rego, insurance and service dates, and a Tenancy's lease end before it passes can be Due; Cancelled Contracts, Ended Contracts and Lapsed Warranties never are. Days are counted in the household's day, not any one person's.
 
 **Due entry**:
 One dated obligation of a record: a Contract's notice deadline or end date, a Warranty's end date, one of a Vehicle's rego, insurance or service dates, or a Tenancy's lease end. A record has one Due entry per such date, each with its own state.
@@ -144,7 +144,7 @@ _Avoid_: Expiring soon (as a fixed 30 days)
 A Due entry whose date has passed, such as an Expired Contract or a Vehicle's rego that has run out.
 
 **Housekeeping**:
-A Needs attention entry about a record that needs tidying rather than a date, such as missing details, a Document waiting in the Inbox, a record that Needs review, or an auto-renewing Contract past its end date that needs its new end date.
+A Needs attention entry about a record that needs tidying rather than a date, such as missing details, a Document waiting in the Inbox, a record that Needs review, an auto-renewing Contract past its end date that needs its new end date, or a Tenancy past its lease end that needs its new lease end.
 
 **Missing key details**:
 A Housekeeping entry for a record lacking something it needs to be useful: a Contract with no end date (unless it auto-renews) or a cost with no billing frequency; an Item with neither serial nor barcode, or with a Warranty that has no end date; a Vehicle with neither VIN nor plate. Cancelled Contracts and Archived records are never missing anything. Having no Reminder threshold or not being Linked to anything is not missing.

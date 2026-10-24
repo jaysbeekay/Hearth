@@ -431,6 +431,53 @@ export function ScheduleForm({
   );
 }
 
+// ─── Household timezone ───────────────────────────────────────────────────────
+
+export function HouseholdTimeZoneForm({
+  action,
+  current,
+  serverDefault,
+  choices,
+}: {
+  action: (s: ActionState, f: FormData) => Promise<ActionState>;
+  /** The saved setting, or "" when the server default applies. */
+  current: string;
+  serverDefault: string;
+  /** From householdTimeZoneChoices(current), so `current` is always listed. */
+  choices: { common: string[]; others: string[] };
+}) {
+  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  return (
+    <form action={formAction} className="space-y-4">
+      <Field label="Timezone" htmlFor="householdTimeZone">
+        <SelectWrapper>
+          <select id="householdTimeZone" name="householdTimeZone" defaultValue={current} className={selectClass}>
+            <option value="">Server default ({serverDefault})</option>
+            <optgroup label="Common">
+              {choices.common.map((tz) => (
+                <option key={tz} value={tz}>
+                  {tz}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="All timezones">
+              {choices.others.map((tz) => (
+                <option key={tz} value={tz}>
+                  {tz}
+                </option>
+              ))}
+            </optgroup>
+          </select>
+        </SelectWrapper>
+      </Field>
+      <FormMessage error={state?.error} success={state?.success} />
+      <div className="flex justify-end">
+        <SubmitButton>Save timezone</SubmitButton>
+      </div>
+    </form>
+  );
+}
+
 // ─── AviationStack ────────────────────────────────────────────────────────────
 
 export function AviationStackForm({
