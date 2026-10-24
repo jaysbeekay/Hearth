@@ -1256,8 +1256,9 @@ function renderDashboard() {
   const inventoryValue = moduleEnabled("inventoryItems") ? cache.inventoryItems.reduce((sum, row) => sum + (Number(row.purchase_price) || 0), 0) : 0;
   const propertyValue = moduleEnabled("properties") ? cache.properties.reduce((sum, row) => sum + (Number(row.estimated_value) || 0), 0) : 0;
   const holdingsValue = moduleEnabled("portfolios") ? cache.holdings.reduce((sum, row) => sum + holdingValue(row), 0) : 0;
-  const contractsMissingInfo = activeContracts.filter((row) => missingInfo("contracts", row)).length;
+  const contractsMissingInfo = cache.contracts.filter((row) => missingInfo("contracts", row)).length;
   const productsMissingInfo = cache.products.filter((row) => missingInfo("products", row)).length;
+  const vehiclesMissingInfo = moduleEnabled("vehicles") ? cache.vehicles.filter((row) => missingInfo("vehicles", row)).length : 0;
   return `
     <section class="hero-card">
       <p class="kicker">Today</p>
@@ -1274,8 +1275,9 @@ function renderDashboard() {
       ${moduleEnabled("inventoryItems") ? statCard("Inventory", cache.inventoryItems.length, "records", "inventoryItems") : ""}
       ${moduleEnabled("trips") ? statCard("Trips", cache.trips.length, "records", "trips") : ""}
       ${moduleEnabled("portfolios") ? statCard("Portfolios", cache.portfolios.length, "records", "portfolios") : ""}
-      ${statCard("Policies missing info", contractsMissingInfo, "records", "contracts", "missing-info")}
-      ${statCard("Warranties missing info", productsMissingInfo, "records", "products", "missing-info")}
+      ${statCard("Contracts missing key details", contractsMissingInfo, "records", "contracts", "missing-info")}
+      ${statCard("Warranties missing key details", productsMissingInfo, "records", "products", "missing-info")}
+      ${moduleEnabled("vehicles") ? statCard("Vehicles missing key details", vehiclesMissingInfo, "records", "vehicles", "missing-info") : ""}
     </section>
 
     <section class="grid-2">
@@ -2107,7 +2109,7 @@ function renderRecords() {
       ${filterChip("all", "All")}
       ${filterChip("attention", "Needs attention")}
       ${filterChip("missing-docs", "Missing document")}
-      ${filterChip("missing-info", "Missing info")}
+      ${filterChip("missing-info", "Missing key details")}
     </section>
     <section id="record-results" class="list">
       ${rows.length === 0 ? empty("No matching records", "Add a record or adjust the search/filter.") : rows.map((row) => renderRecordCard(state.recordType, row)).join("")}
@@ -2135,13 +2137,19 @@ function filteredRecords() {
   });
 }
 
-// Mirrors the main app's #328 completeness signal (dashboard/page.tsx):
-// a narrow, non-noisy gap — missing an end/expiry date OR a policy/serial
-// identifier — deliberately not folding in reminder/relationship gaps,
-// which would flag almost every record.
+// Mirrors the main app's Missing key details rules (src/lib/recordFilters.ts,
+// #395): a Contract with no end date (unless it auto-renews) or a cost with
+// no billing frequency; a Warranty with no end date or neither serial nor
+// barcode; a Vehicle with neither VIN nor plate. Cancelled Contracts are
+// never missing anything. Contract number is not a key detail.
 function missingInfo(type, row) {
-  if (type === "contracts") return row.end_date == null || row.contract_number == null;
-  if (type === "products") return row.warranty_end_date == null || (row.serial_number == null && row.barcode == null);
+  const blank = (value) => value == null || value === "";
+  if (type === "contracts") {
+    if (row.status === "CANCELLED") return false;
+    return (blank(row.end_date) && row.renewal_type !== "AUTO_RENEW") || (!blank(row.cost) && blank(row.billing_frequency));
+  }
+  if (type === "products") return blank(row.warranty_end_date) || (blank(row.serial_number) && blank(row.barcode));
+  if (type === "vehicles") return blank(row.vin) && blank(row.license_plate);
   return false;
 }
 

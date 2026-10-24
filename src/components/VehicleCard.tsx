@@ -22,9 +22,12 @@ function ExpiryWarning({ label, date }: { label: string; date: Date | null | und
 export function VehicleCard({
   vehicle,
   dateFormat,
+  missing,
 }: {
   vehicle: VehicleModel & { _count?: { items: number; contracts?: number } };
   dateFormat?: string;
+  /** #395 — which key details are missing, shown when the list is filtered to them. */
+  missing?: string[];
 }) {
   const subtitle = [vehicle.make, vehicle.model, vehicle.year, vehicle.licensePlate]
     .filter(Boolean)
@@ -55,6 +58,10 @@ export function VehicleCard({
           </span>
         )}
       </div>
+
+      {missing && missing.length > 0 && (
+        <p className="mt-1 text-xs font-medium text-warning">{missing.join(" · ")}</p>
+      )}
 
       {(vehicle.regoExpiry || vehicle.insuranceExpiry || vehicle.nextServiceDue) && (
         <div className="mt-2 flex flex-wrap gap-4">

@@ -732,9 +732,9 @@ test("standalone vehicle service-due date feeds the detail page, calendar and re
 });
 
 test("standalone dashboard's missing-info stat card deep-links into a pre-filtered warranty list", async ({ page }) => {
-  await expect(page.getByRole("button", { name: /Warranties missing info/ })).toBeVisible();
-  await page.getByRole("button", { name: /Warranties missing info/ }).click();
+  await expect(page.getByRole("button", { name: /Warranties missing key details/ })).toBeVisible();
+  await page.getByRole("button", { name: /Warranties missing key details/ }).click();
   await expect(page.locator(".tabs").getByRole("button", { name: "Purchases & warranties" })).toHaveClass(/active/);
-  await expect(page.locator(".chip.active")).toHaveText("Missing info");
+  await expect(page.locator(".chip.active")).toHaveText("Missing key details");
   await expect(page.locator(".list").getByRole("button", { name: /Laptop/ })).toBeVisible();
 });

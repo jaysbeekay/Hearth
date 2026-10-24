@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import { linkButtonClass, toolbarButtonClass, exportMenuItemClass } from "@/lib/buttonStyles";
 import { useRouter } from "next/navigation";
@@ -9,21 +9,38 @@ import { ProductCard } from "@/components/ProductCard";
 import { InventoryCard } from "@/components/InventoryCard";
 import { PendingRecordCard } from "@/components/PendingRecordCard";
 import { ListSummaryStrip } from "@/components/ListSummaryStrip";
+import { ListFilterChips } from "@/components/ListFilterChips";
 import type { InventoryItemModel, ProductModel } from "@/generated/prisma/models";
-import { daysUntil } from "@/lib/utils";
+import {
+  hasListFilters,
+  listHref,
+  productMissingParts,
+  toggleListFilter,
+  type ListFilterCounts,
+  type ListFilters,
+  type ToggleableFilter,
+} from "@/lib/recordFilters";
 import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
+
+const CHIPS: { chip: ToggleableFilter; label: string; onlyWhenActive?: boolean }[] = [
+  { chip: "dueSoon", label: "Expiring soon" },
+  { chip: "overdue", label: "Expired" },
+  { chip: "review", label: "Needs review" },
+  { chip: "noDocument", label: "No document" },
+  { chip: "missingDetails", label: "Missing key details" },
+  { chip: "important", label: "Important", onlyWhenActive: true },
+];
 
 interface Props {
   products: ProductModel[];
   inventoryItems?: (InventoryItemModel & { _count: { documents: number } })[];
   inventoryEnabled?: boolean;
+  /** #395 — household-wide, from the server; never recounted here. */
+  counts: ListFilterCounts;
+  filters: ListFilters;
   q?: string;
-  expiring?: string;
-  expired?: string;
-  needsReview?: string;
-  missingDocument?: string;
   dateFormat?: string;
   region?: string;
   canWrite?: boolean;
@@ -33,11 +50,9 @@ export function ProductListClient({
   products,
   inventoryItems = [],
   inventoryEnabled = true,
+  counts,
+  filters,
   q,
-  expiring,
-  expired,
-  needsReview,
-  missingDocument,
   dateFormat,
   region,
   canWrite = true,
@@ -58,66 +73,37 @@ export function ProductListClient({
     return () => window.removeEventListener("offline-sync-complete", onSyncComplete);
   }, [router]);
 
-  const filtered = Boolean(q || expiring || expired || needsReview || missingDocument);
+  const filtered = Boolean(q || hasListFilters(filters));
   const showInventorySection = inventoryEnabled && (inventoryItems.length > 0 || !filtered);
 
-  // #207 — completeness filter chips, same toggle pattern as ContractListClient.
-  const toggleCompletenessFilter = useCallback(
-    (key: "expiring" | "expired" | "needsReview" | "missingDocument", value: string) => {
-      const params = new URLSearchParams();
-      if (q) params.set("q", q);
-      if (expiring) params.set("expiring", expiring);
-      if (expired) params.set("expired", expired);
-      if (needsReview) params.set("needsReview", needsReview);
-      if (missingDocument) params.set("missingDocument", missingDocument);
-
-      const isActive = params.get(key) === value;
-      if (key === "expiring" || key === "expired") {
-        params.delete("expiring");
-        params.delete("expired");
-      }
-      if (!isActive) params.set(key, value);
-      else params.delete(key);
-      router.push(`/products${params.toString() ? `?${params.toString()}` : ""}`);
+  const toggleFilter = useCallback(
+    (chip: ToggleableFilter) => {
+      router.push(listHref("/products", toggleListFilter(filters, chip), { q }));
     },
-    [q, expiring, expired, needsReview, missingDocument, router],
+    [filters, q, router],
   );
 
-  const summary = useMemo(() => {
-    let expiringSoon = 0;
-    let expired = 0;
-    let recentlyAdded = 0;
-    let needsReview = 0;
-    const weekAgo = new Date().getTime() - 7 * 86_400_000;
-    for (const product of products) {
-      const days = daysUntil(product.warrantyEndDate);
-      if (days != null && days < 0) expired++;
-      else if (days != null && days <= 30) expiringSoon++;
-      if (new Date(product.createdAt).getTime() >= weekAgo) recentlyAdded++;
-      if (product.extractionPending) needsReview++;
-    }
-    return [
-      {
-        label: "expiring within 30 days",
-        value: expiringSoon,
-        tone: "warning" as const,
-        onClick: () => toggleCompletenessFilter("expiring", "30"),
-      },
-      {
-        label: "expired",
-        value: expired,
-        tone: "danger" as const,
-        onClick: () => toggleCompletenessFilter("expired", "true"),
-      },
-      {
-        label: "needs review",
-        value: needsReview,
-        tone: "warning" as const,
-        onClick: () => toggleCompletenessFilter("needsReview", "true"),
-      },
-      { label: "added this week", value: recentlyAdded },
-    ];
-  }, [products, toggleCompletenessFilter]);
+  const summary = [
+    {
+      label: "expiring within 30 days",
+      value: counts.dueSoon ?? 0,
+      tone: "warning" as const,
+      onClick: () => toggleFilter("dueSoon"),
+    },
+    {
+      label: "expired",
+      value: counts.overdue ?? 0,
+      tone: "danger" as const,
+      onClick: () => toggleFilter("overdue"),
+    },
+    {
+      label: "needs review",
+      value: counts.review ?? 0,
+      tone: "warning" as const,
+      onClick: () => toggleFilter("review"),
+    },
+    { label: "added this week", value: counts.recentlyAdded ?? 0 },
+  ];
 
   return (
     <div className="space-y-6">
@@ -167,33 +153,7 @@ export function ProductListClient({
         </button>
       </form>
 
-      <div className="flex flex-wrap gap-2 text-sm">
-        {[
-          { key: "expiring" as const, value: "30", label: "Expiring soon", active: expiring === "30" },
-          { key: "expired" as const, value: "true", label: "Expired", active: expired === "true" },
-          { key: "needsReview" as const, value: "true", label: "Needs review", active: needsReview === "true" },
-          {
-            key: "missingDocument" as const,
-            value: "true",
-            label: "Missing document",
-            active: missingDocument === "true",
-          },
-        ].map((chip) => (
-          <button
-            key={chip.key}
-            type="button"
-            onClick={() => toggleCompletenessFilter(chip.key, chip.value)}
-            aria-pressed={chip.active}
-            className={`rounded-full border px-3 py-1 text-xs font-medium ${
-              chip.active
-                ? "border-accent bg-accent/10 text-accent"
-                : "border-border bg-surface text-muted hover:bg-black/5 dark:hover:bg-white/5"
-            }`}
-          >
-            {chip.label}
-          </button>
-        ))}
-      </div>
+      <ListFilterChips filters={filters} chips={CHIPS} onToggle={toggleFilter} />
 
       {filtered && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -203,7 +163,7 @@ export function ProductListClient({
           {q && (
             <button
               type="button"
-              onClick={() => router.push("/products")}
+              onClick={() => router.push(listHref("/products", filters))}
               className="flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/5"
             >
               &quot;{q}&quot; <X size={12} />
@@ -261,7 +221,13 @@ export function ProductListClient({
       ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {products.map((product) => (
-            <ProductCard key={product.id} product={product} dateFormat={dateFormat} region={region} />
+            <ProductCard
+              key={product.id}
+              product={product}
+              dateFormat={dateFormat}
+              region={region}
+              missing={filters.missingDetails ? productMissingParts(product) : undefined}
+            />
           ))}
         </div>
       )}

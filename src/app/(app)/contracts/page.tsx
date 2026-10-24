@@ -1,92 +1,105 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { ContractListClient } from "@/components/ContractListClient";
-import { contractTiming } from "@/lib/contractTiming";
+import { contractDueFilter } from "@/lib/listDue";
+import {
+  contractFilterWheres,
+  contractRules,
+  legacyListRedirect,
+  parseListFilters,
+  type ListFilterCounts,
+} from "@/lib/recordFilters";
 import type { Prisma } from "@/generated/prisma/client";
 
 export const metadata: Metadata = { title: "Policies & contracts" };
 
+function first(value: string | string[] | undefined): string | undefined {
+  return (Array.isArray(value) ? value[0] : value) || undefined;
+}
+
+// Chip counts for the whole household (not narrowed by search text or other
+// chips), from the same rules the list uses, so each count is the length of
+// the list its chip opens.
+async function contractCounts(now: Date): Promise<ListFilterCounts> {
+  const soon = contractDueFilter("soon", now);
+  const weekAgo = new Date(now.getTime() - 7 * 86_400_000);
+  const [soonCandidates, overdue, review, noDocument, missingDetails, important, recentlyAdded] =
+    await Promise.all([
+      prisma.contract.findMany({
+        where: soon.where,
+        select: { deletedAt: true, status: true, endDate: true, noticePeriodDays: true, renewalType: true },
+      }),
+      prisma.contract.count({ where: contractDueFilter("overdue", now).where }),
+      prisma.contract.count({ where: contractRules.review.where }),
+      prisma.contract.count({ where: contractRules.noDocument.where }),
+      prisma.contract.count({ where: contractRules.missingDetails.where }),
+      prisma.contract.count({ where: contractRules.important.where }),
+      prisma.contract.count({ where: { deletedAt: null, createdAt: { gte: weekAgo } } }),
+    ]);
+  return {
+    dueSoon: soonCandidates.filter(soon.matches).length,
+    overdue,
+    review,
+    noDocument,
+    missingDetails,
+    important,
+    recentlyAdded,
+  };
+}
+
 export default async function ContractsPage({
   searchParams,
 }: {
-  searchParams: Promise<{
-    q?: string;
-    category?: string;
-    status?: string;
-    // expiring/expired are also linked to from the dashboard's Needs
-    // Attention stat cards (#170); needsReview/missingDocument are new
-    // filter-chip options (#207) surfaced directly on this page.
-    expiring?: string;
-    expired?: string;
-    needsReview?: string;
-    missingDocument?: string;
-    // #328 — dashboard's "Contracts missing info" stat card deep-links here.
-    missingInfo?: string;
-  }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { q, category, status, expiring, expired, needsReview, missingDocument, missingInfo } =
-    await searchParams;
+  const params = await searchParams;
+  // #395 — pre-#395 links (?expiring=30, ?missingInfo=true…) land on the same filter.
+  const legacy = legacyListRedirect("/contracts", params);
+  if (legacy) redirect(legacy);
 
-  const where: Prisma.ContractWhereInput = { deletedAt: null };
-  if (category) where.category = category as Prisma.ContractWhereInput["category"];
-  if (status) where.status = status as Prisma.ContractWhereInput["status"];
+  const q = first(params.q);
+  const category = first(params.category);
+  const status = first(params.status);
+  const filters = parseListFilters(params);
+  const now = new Date();
+
+  const and: Prisma.ContractWhereInput[] = [];
+  if (category) and.push({ category: category as Prisma.ContractWhereInput["category"] });
+  if (status) and.push({ status: status as Prisma.ContractWhereInput["status"] });
   if (q) {
-    where.OR = [
-      { title: { contains: q } },
-      { provider: { contains: q } },
-      { contractNumber: { contains: q } },
-    ];
+    and.push({
+      OR: [{ title: { contains: q } }, { provider: { contains: q } }, { contractNumber: { contains: q } }],
+    });
   }
-  if (expired === "true") {
-    where.endDate = { lt: new Date() };
-  }
-  // #351 — "expiring within N days" counts to the notice deadline when one
-  // applies, which a plain endDate range can't express: narrow to contracts
-  // that haven't ended, then filter on contractTiming below.
-  const expiringDays = expired === "true" ? NaN : Number(expiring);
-  const filterExpiring = Number.isFinite(expiringDays) && expiringDays > 0;
-  if (filterExpiring) where.endDate = { gte: new Date() };
-  if (needsReview === "true") where.extractionPending = true;
-  if (missingDocument === "true") where.documents = { none: {} };
-  // Nested under `where.AND` (rather than `where.OR`, already used by `q`
-  // above) so the two never collide. Deliberately narrower than the
-  // Search API's full missingDate/missingReminder/missingRelationship/
-  // missingIdentifier set: reminderDaysBefore defaults to a non-null value
-  // and most contracts legitimately have no home/vehicle link, so folding
-  // either into this aggregate would flag nearly everything — not
-  // actionable. Only the two universally-relevant gaps count here.
-  if (missingInfo === "true") {
-    where.AND = [{ OR: [{ endDate: null }, { contractNumber: null }] }];
-  }
+  // Due needs notice deadlines, which SQL can't express: the query narrows
+  // roughly and `due.matches` decides (ADR 0002).
+  const due = filters.due ? contractDueFilter(filters.due, now) : null;
+  if (due) and.push(due.where);
+  and.push(...contractFilterWheres(filters));
 
-  const [allContracts, { dateFormat, region }, session] = await Promise.all([
+  const [allContracts, counts, { dateFormat, region }, session] = await Promise.all([
     prisma.contract.findMany({
-      where,
+      where: { deletedAt: null, AND: and },
       include: { _count: { select: { documents: { where: { deletedAt: null } } } } },
       orderBy: [{ status: "asc" }, { endDate: "asc" }],
     }),
+    contractCounts(now),
     getUserPreferences(),
     auth(),
   ]);
-  const contracts = filterExpiring
-    ? allContracts.filter((c) => {
-        const days = contractTiming(c).days;
-        return days != null && days >= 0 && days <= expiringDays;
-      })
-    : allContracts;
+  const contracts = due ? allContracts.filter(due.matches) : allContracts;
 
   return (
     <ContractListClient
       contracts={contracts}
+      counts={counts}
+      filters={filters}
       q={q}
       category={category}
       status={status}
-      expiring={expiring}
-      expired={expired}
-      needsReview={needsReview}
-      missingDocument={missingDocument}
       dateFormat={dateFormat}
       region={region}
       canWrite={session?.user.role !== "READONLY"}

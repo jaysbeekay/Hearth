@@ -3,7 +3,7 @@ import type { Contract, Product } from "@/generated/prisma/client";
 import {
   buildContractAttentionItems,
   buildInboxItem,
-  buildMissingInfoItems,
+  buildMissingDetailsItems,
   buildReminderNudgeItem,
   buildWarrantyAttentionItems,
   groupAttentionItems,
@@ -59,7 +59,7 @@ describe("groupAttentionItems", () => {
 
   it("keeps undated items out of Due", () => {
     const { due } = groupAttentionItems([
-      ...buildMissingInfoItems(2, 1),
+      ...buildMissingDetailsItems({ contracts: 2, warranties: 1 }),
       buildReminderNudgeItem(),
     ]);
     expect(due).toEqual([]);
@@ -89,8 +89,14 @@ describe("attention item actions", () => {
 describe("housekeeping builders", () => {
   it("only adds Inbox and missing-info rows when there's something to tidy", () => {
     expect(buildInboxItem(0)).toEqual([]);
-    expect(buildMissingInfoItems(0, 0)).toEqual([]);
+    expect(buildMissingDetailsItems({ contracts: 0, warranties: 0, vehicles: 0 })).toEqual([]);
     expect(buildInboxItem(1)[0].title).toBe("1 document waiting in your Inbox");
-    expect(buildMissingInfoItems(3, 0)[0].title).toBe("3 contracts are missing key details");
+    const [row] = buildMissingDetailsItems({ contracts: 3, warranties: 0 });
+    expect(row.title).toBe("3 contracts are missing key details");
+    expect(row.href).toBe("/contracts?missing=details");
+    expect(row.action?.href).toBe("/contracts?missing=details");
+    expect(buildMissingDetailsItems({ contracts: 0, warranties: 0, vehicles: 1 })[0].href).toBe(
+      "/vehicles?missing=details",
+    );
   });
 });
