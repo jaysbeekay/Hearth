@@ -89,6 +89,10 @@ A periodic statement from a property manager of rent received and fees deducted 
 A journey the household plans or takes, made of segments such as flights and stays.
 _Avoid_: Travel (as a record name)
 
+**Trip segment**:
+One flight, stay or other leg of a Trip.
+_Avoid_: Leg, booking (as a record name)
+
 **Portfolio**:
 A set of investment Holdings tracked together.
 
@@ -101,7 +105,7 @@ A buy or sell of a Holding. Cost basis is worked out from Trades, not stored.
 ### Documents
 
 **Document**:
-A file attached to a Contract, Item, Vehicle, Property or Trip.
+A file attached to a Contract, an Item, or one of a record's entries: a Service record, Maintenance record, Trip segment, Rental statement or Trade. Every Document behaves the same way wherever it is attached: it can be starred, replaced by a newer version, and moved to Trash.
 _Avoid_: Attachment, file
 
 **Inbox**:
