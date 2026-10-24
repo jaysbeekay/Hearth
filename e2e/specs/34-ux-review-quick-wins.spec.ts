@@ -26,7 +26,8 @@ test("#368: a calendar feed can be created from Upcoming", async ({ page }) => {
   await dialog.getByRole("button", { name: /Create calendar feed|Generate new URL/ }).click();
 
   const feedUrl = dialog.locator("input[readonly]");
-  await expect(feedUrl).toHaveValue(new RegExp(`^${BASE_URL}/api/ical\\?token=`));
+  await expect(feedUrl).toHaveValue(/\/api\/ical\?token=/);
+  expect((await feedUrl.inputValue()).startsWith(`${BASE_URL}/api/ical?token=`)).toBe(true);
   const webcal = dialog.getByRole("link", { name: "Open in your calendar app" });
   await expect(webcal).toHaveAttribute("href", /^webcal:\/\/localhost:\d+\/api\/ical\?token=/);
 

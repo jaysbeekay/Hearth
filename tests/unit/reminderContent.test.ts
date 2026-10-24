@@ -80,7 +80,13 @@ describe("buildReminderEmail (#352)", () => {
   });
 
   it("escapes HTML and keeps the subject on one line", () => {
-    const email = buildReminderEmail({ ...contract, title: "<b>x</b>\r\nBcc: evil@example.com" });
+    const email = buildReminderEmail({
+      ...contract,
+      title: "<b>x</b>\r\nBcc: evil@example.com",
+      detail: '<img src=x onerror="alert(1)">',
+    });
+    expect(email.html).toContain("(&lt;img src=x onerror=&quot;alert(1)&quot;&gt;)");
+    expect(email.html).not.toContain("<img");
     expect(email.subject).not.toMatch(/[\r\n]/);
     expect(email.html).toContain("&lt;b&gt;x&lt;/b&gt;");
     expect(email.html).not.toContain("<b>x</b>");
