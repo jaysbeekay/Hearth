@@ -11,9 +11,10 @@ import { PendingRecordCard } from "@/components/PendingRecordCard";
 import { SwipeableListItem } from "@/components/SwipeableListItem";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { ListSummaryStrip } from "@/components/ListSummaryStrip";
-import { deleteContract } from "@/lib/actions/contracts";
+import { deleteContract, restoreContract } from "@/lib/actions/contracts";
 import type { ContractModel } from "@/generated/prisma/models";
-import { CATEGORY_LABELS, daysUntil } from "@/lib/utils";
+import { CATEGORY_LABELS } from "@/lib/utils";
+import { contractTiming } from "@/lib/contractTiming";
 import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
@@ -112,7 +113,7 @@ export function ContractListClient({
     const weekAgo = new Date().getTime() - 7 * 86_400_000;
     for (const contract of contracts) {
       if (contract.status === "ACTIVE") {
-        const days = daysUntil(contract.endDate);
+        const days = contractTiming(contract).days;
         if (days != null && days < 0) expired++;
         else if (days != null && days <= 30) expiringSoon++;
       }
@@ -335,6 +336,7 @@ export function ContractListClient({
                 revealAction={
                   <ConfirmForm
                     action={deleteContract.bind(null, contract.id)}
+                    undo={{ action: restoreContract.bind(null, contract.id) }}
                     confirmText={`Move this contract to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash.`}
                     actionLabel="Delete contract"
                     ariaLabel={`Delete ${contract.title}`}

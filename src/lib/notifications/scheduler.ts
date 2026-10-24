@@ -10,6 +10,9 @@ import { purgeExpiredSyncReceipts } from "@/lib/syncReceipts";
 import { reconcileDocumentStore } from "@/lib/documentStore";
 import "@/lib/storage"; // registers each domain's reconcile target as a module side effect
 import type { NotificationChannel } from "@/generated/prisma/enums";
+import { env, isAppUrlConfigured } from "@/lib/env";
+import type { ReminderInput, VehicleReminderField } from "@/lib/notifications/reminderContent";
+import { contractTiming } from "@/lib/contractTiming";
 
 function daysRemaining(endDate: Date, now: Date): number {
   const msPerDay = 24 * 60 * 60 * 1000;
@@ -52,20 +55,49 @@ export async function runExpirationCheck(now: Date = new Date()) {
     contracts.map((c) => c.id),
   );
 
-  const recipientEmails = emailEnabled
-    ? (
-        await prisma.user.findMany({
-          where: { emailReminders: true },
-          select: { email: true },
-        })
-      ).map((u) => u.email)
+  // #352 — each email uses its recipient's own date format; ntfy and
+  // webhooks are household-wide, so they use the first admin's.
+  const recipients = emailEnabled
+    ? await prisma.user.findMany({
+        where: { emailReminders: true },
+        select: { email: true, dateFormat: true },
+      })
     : [];
+  const recipientEmails = recipients.map((r) => r.email);
+  const householdDateFormat =
+    (
+      await prisma.user.findFirst({
+        where: { role: "ADMIN" },
+        orderBy: { createdAt: "asc" },
+        select: { dateFormat: true },
+      })
+    )?.dateFormat ?? null;
+  // Only link to records when APP_URL is really configured — env.appUrl
+  // falls back to localhost, which would be a broken link in an email.
+  const appUrl = isAppUrlConfigured() ? env.appUrl : null;
+
+  async function deliver(channel: NotificationChannel, input: Omit<ReminderInput, "dateFormat" | "appUrl">) {
+    if (channel === "EMAIL") {
+      await Promise.all(
+        recipients.map((r) => sendReminderEmail(r.email, { ...input, dateFormat: r.dateFormat, appUrl })),
+      );
+    } else if (channel === "NTFY") {
+      await sendNtfyReminder({ ...input, dateFormat: householdDateFormat, appUrl });
+    } else {
+      await sendExpiryWebhooks({ ...input, dateFormat: householdDateFormat, appUrl });
+    }
+  }
 
   let sentCount = 0;
 
   for (const contract of contracts) {
     if (!contract.endDate) continue;
-    const remaining = daysRemaining(contract.endDate, now);
+    // #351 — with a notice period, reminders count down to the last day to
+    // give notice; once that has passed there is nothing left to remind
+    // about (the contract renews or lapses on its own terms).
+    const timing = contractTiming(contract, now);
+    if (timing.cancelBy && !timing.beforeCancelBy) continue;
+    const remaining = timing.days!;
     if (remaining < 0) continue;
 
     const thresholds = parseThresholds(contract.reminderDaysBefore, defaultDays);
@@ -90,37 +122,17 @@ export async function runExpirationCheck(now: Date = new Date()) {
       const threshold = Math.min(...unlogged);
 
       try {
-        if (channel === "EMAIL") {
-          await Promise.all(
-            recipientEmails.map((to) =>
-              sendReminderEmail({
-                to,
-                kind: "contract",
-                title: contract.title,
-                detail: contract.provider,
-                daysRemaining: remaining,
-                endDate: contract.endDate as Date,
-              }),
-            ),
-          );
-        } else if (channel === "NTFY") {
-          await sendNtfyReminder({
-            kind: "contract",
-            title: contract.title,
-            detail: contract.provider,
-            daysRemaining: remaining,
-            endDate: contract.endDate,
-          });
-        } else {
-          await sendExpiryWebhooks({
-            kind: "contract",
-            id: contract.id,
-            title: contract.title,
-            detail: contract.provider,
-            daysRemaining: remaining,
-            endDate: contract.endDate as Date,
-          });
-        }
+        await deliver(channel, {
+          kind: "contract",
+          id: contract.id,
+          title: contract.title,
+          detail: contract.provider,
+          daysRemaining: remaining,
+          endDate: contract.endDate,
+          notice: timing.cancelBy
+            ? { cancelBy: timing.cancelBy, noticePeriodDays: contract.noticePeriodDays! }
+            : undefined,
+        });
 
         await recordNotificationOutcome({
           ownerType: "CONTRACT",
@@ -183,37 +195,14 @@ export async function runExpirationCheck(now: Date = new Date()) {
       const detail = product.manufacturer ?? product.vendor ?? "";
 
       try {
-        if (channel === "EMAIL") {
-          await Promise.all(
-            recipientEmails.map((to) =>
-              sendReminderEmail({
-                to,
-                kind: "warranty",
-                title: product.description,
-                detail,
-                daysRemaining: remaining,
-                endDate: product.warrantyEndDate as Date,
-              }),
-            ),
-          );
-        } else if (channel === "NTFY") {
-          await sendNtfyReminder({
-            kind: "warranty",
-            title: product.description,
-            detail,
-            daysRemaining: remaining,
-            endDate: product.warrantyEndDate,
-          });
-        } else {
-          await sendExpiryWebhooks({
-            kind: "warranty",
-            id: product.id,
-            title: product.description,
-            detail,
-            daysRemaining: remaining,
-            endDate: product.warrantyEndDate as Date,
-          });
-        }
+        await deliver(channel, {
+          kind: "warranty",
+          id: product.id,
+          title: product.description,
+          detail,
+          daysRemaining: remaining,
+          endDate: product.warrantyEndDate,
+        });
 
         await recordNotificationOutcome({
           ownerType: "PRODUCT",
@@ -252,13 +241,13 @@ export async function runExpirationCheck(now: Date = new Date()) {
   );
 
   for (const vehicle of vehicles) {
-    const expiries: { field: string; date: Date | null; detail: string }[] = [
-      { field: "regoExpiry", date: vehicle.regoExpiry, detail: "Registration expires in" },
-      { field: "insuranceExpiry", date: vehicle.insuranceExpiry, detail: "Insurance expires in" },
-      { field: "nextServiceDue", date: vehicle.nextServiceDue, detail: "Next service due in" },
+    const expiries: { field: VehicleReminderField; date: Date | null }[] = [
+      { field: "regoExpiry", date: vehicle.regoExpiry },
+      { field: "insuranceExpiry", date: vehicle.insuranceExpiry },
+      { field: "nextServiceDue", date: vehicle.nextServiceDue },
     ];
 
-    for (const { field, date, detail } of expiries) {
+    for (const { field, date } of expiries) {
       if (!date) continue;
       const remaining = daysRemaining(date, now);
       if (remaining < 0) continue;
@@ -283,41 +272,18 @@ export async function runExpirationCheck(now: Date = new Date()) {
         if (unlogged.length === 0) continue;
 
         const threshold = Math.min(...unlogged);
-        const title = `Vehicle: ${vehicle.label}`;
-        const notifDetail = `${detail} ${remaining} day${remaining === 1 ? "" : "s"}`;
 
         try {
-          if (channel === "EMAIL") {
-            await Promise.all(
-              recipientEmails.map((to) =>
-                sendReminderEmail({
-                  to,
-                  kind: "contract",
-                  title,
-                  detail: notifDetail,
-                  daysRemaining: remaining,
-                  endDate: date,
-                }),
-              ),
-            );
-          } else if (channel === "NTFY") {
-            await sendNtfyReminder({
-              kind: "contract",
-              title,
-              detail: notifDetail,
-              daysRemaining: remaining,
-              endDate: date,
-            });
-          } else {
-            await sendExpiryWebhooks({
-              kind: "contract",
-              id: vehicle.id,
-              title,
-              detail: notifDetail,
-              daysRemaining: remaining,
-              endDate: date,
-            });
-          }
+          // #352 — vehicles used to be sent as kind "contract", so the email
+          // said "Your contract" and the webhook linked to /contracts/<id>.
+          await deliver(channel, {
+            kind: "vehicle",
+            id: vehicle.id,
+            title: vehicle.label,
+            vehicleField: field,
+            daysRemaining: remaining,
+            endDate: date,
+          });
 
           await recordNotificationOutcome({
             ownerType: "VEHICLE",

@@ -1,6 +1,6 @@
 import { FileText, Trash2 } from "lucide-react";
 import type { InventoryItemDocumentModel } from "@/generated/prisma/models";
-import { deleteInventoryItemDocumentAction } from "@/lib/actions/inventory";
+import { deleteInventoryItemDocumentAction, restoreInventoryItemDocument } from "@/lib/actions/inventory";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DocumentLink } from "@/components/DocumentLink";
 import { formatDate, humanFileSize } from "@/lib/utils";
@@ -35,7 +35,8 @@ export function InventoryItemDocumentList({
           </DocumentLink>
           <ConfirmForm
             action={deleteInventoryItemDocumentAction.bind(null, doc.inventoryItemId, doc.id)}
-            confirmText={`Delete ${doc.filename}? This can't be undone.`}
+            undo={{ action: restoreInventoryItemDocument.bind(null, doc.id) }}
+            confirmText={`Move ${doc.filename} to Trash? You can restore it within 30 days from Settings → Trash.`}
             actionLabel="Delete document"
             ariaLabel={`Delete ${doc.filename}`}
             className="rounded-md p-2 text-muted hover:text-danger"

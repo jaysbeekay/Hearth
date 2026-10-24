@@ -12,6 +12,7 @@ import {
 } from "@/lib/domainQueries";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { getNetWorth } from "@/lib/wealth";
+import { contractTiming } from "@/lib/contractTiming";
 
 const CONTRACT_SELECT = {
   id: true,
@@ -46,6 +47,11 @@ interface ContractRow {
 }
 
 function serializeContract<T extends ContractRow>(contract: T) {
+  const timing = contractTiming({
+    endDate: contract.endDate,
+    noticePeriodDays: (contract.noticePeriodDays as number | null | undefined) ?? null,
+    renewalType: String(contract.renewalType ?? ""),
+  });
   return {
     ...contract,
     startDate: contract.startDate?.toISOString() ?? null,
@@ -53,6 +59,11 @@ function serializeContract<T extends ContractRow>(contract: T) {
     createdAt: contract.createdAt.toISOString(),
     updatedAt: contract.updatedAt.toISOString(),
     daysUntilEnd: daysUntil(contract.endDate),
+    // #351 — the last day to give notice (null when none applies) and the
+    // count that actually matters: to that deadline while it's ahead.
+    cancelBy: timing.cancelBy?.toISOString() ?? null,
+    daysUntilCancelBy: timing.cancelByDays,
+    daysUntilDeadline: timing.days,
     estimatedMonthlySpend:
       Math.round(monthlyEquivalent(contract.cost, contract.billingFrequency) * 100) / 100,
   };
@@ -159,7 +170,8 @@ export async function createMcpServer() {
     "upcoming_renewals",
     {
       title: "Upcoming renewals",
-      description: "Active contracts ending within N days (default 30), soonest first.",
+      description:
+        "Active contracts whose next deadline is within N days (default 30), soonest first. The deadline is the last day to give notice (cancelBy) while that is ahead, otherwise the end date.",
       inputSchema: { withinDays: z.number().int().positive().max(3650).optional() },
     },
     async ({ withinDays }) => {
@@ -170,8 +182,8 @@ export async function createMcpServer() {
       });
       const upcoming = contracts
         .map(serializeContract)
-        .filter((c) => c.daysUntilEnd != null && c.daysUntilEnd >= 0 && c.daysUntilEnd <= horizon)
-        .sort((a, b) => (a.daysUntilEnd as number) - (b.daysUntilEnd as number));
+        .filter((c) => c.daysUntilDeadline != null && c.daysUntilDeadline >= 0 && c.daysUntilDeadline <= horizon)
+        .sort((a, b) => (a.daysUntilDeadline as number) - (b.daysUntilDeadline as number));
       return textResult(upcoming);
     },
   );

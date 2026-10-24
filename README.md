@@ -613,12 +613,20 @@ Each delivery is a `POST` with a JSON body and these headers:
 | `X-Webhook-Signature` | `sha256=<hex>`, an HMAC-SHA256 of the raw request body using the endpoint's signing secret. Only sent if a secret is configured. |
 
 Verify it by recomputing the HMAC over the exact request body with your
-secret and comparing to the header. Three events exist:
+secret and comparing to the header. Four events exist:
 
-- **`contract.expiring`** / **`warranty.expiring`** — sent once per
-  contract/product per threshold crossed (same dedup behavior as
+- **`contract.expiring`** / **`warranty.expiring`** / **`vehicle.expiring`** —
+  sent once per record per threshold crossed (same dedup behavior as
   email/push: adding something already past several thresholds sends one
-  catch-up delivery, not one per threshold). Body:
+  catch-up delivery, not one per threshold). `url` links to the record and
+  is `null` when `APP_URL` isn't set. `vehicle.expiring` also carries
+  `field` — `regoExpiry`, `insuranceExpiry` or `nextServiceDue` — and its
+  `url` points at `/vehicles/...` (before v0.20.0, vehicle reminders went
+  out as `contract.expiring` with a `/contracts/...` URL). A contract with
+  a notice period (and a renewal type other than fixed term) is reminded
+  about its last day to give notice: `cancelBy` is that date,
+  `daysRemaining` counts down to it, and `noticePeriodDays` is set; both are
+  `null` otherwise. Body:
 
   ```json
   {
@@ -629,7 +637,9 @@ secret and comparing to the header. Three events exist:
     "detail": "...",
     "daysRemaining": 7,
     "endDate": "2026-07-03",
-    "url": "http://<host>:3000/contracts/..."
+    "cancelBy": "2026-06-03",
+    "noticePeriodDays": 30,
+    "url": "https://<your APP_URL>/contracts/..."
   }
   ```
 

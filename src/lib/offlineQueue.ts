@@ -50,8 +50,8 @@ export function serializeFormData(formData: FormData): {
 export async function enqueueOperation(
   op: Omit<QueuedOperation, "id" | "timestamp" | "status" | "formValues">,
   formData?: FormData,
-): Promise<void> {
-  if (typeof window === "undefined") return;
+): Promise<string | undefined> {
+  if (typeof window === "undefined") return undefined;
   const { values, files } = formData
     ? serializeFormData(formData)
     : { values: undefined, files: [] };
@@ -78,6 +78,7 @@ export async function enqueueOperation(
     } satisfies PendingFile);
   }
   await tx.done;
+  return id;
 }
 
 export async function getFilesForOp(queueOpId: string): Promise<PendingFile[]> {

@@ -21,6 +21,7 @@ import {
 import type { ModuleKey } from "@/lib/modules/registry";
 import type { ToolDefinition } from "@/lib/ai/chat/types";
 import type { Role } from "@/generated/prisma/enums";
+import { contractTiming } from "@/lib/contractTiming";
 
 export interface ToolContext {
   userId: string;
@@ -78,6 +79,7 @@ const CONTRACT_SELECT = {
   startDate: true,
   endDate: true,
   renewalType: true,
+  noticePeriodDays: true,
   cost: true,
   currency: true,
   billingFrequency: true,
@@ -95,11 +97,21 @@ interface ContractRow {
 }
 
 function serializeContract<T extends ContractRow>(contract: T) {
+  const timing = contractTiming({
+    endDate: contract.endDate,
+    noticePeriodDays: (contract.noticePeriodDays as number | null | undefined) ?? null,
+    renewalType: String(contract.renewalType ?? ""),
+  });
   return {
     ...contract,
     startDate: iso(contract.startDate),
     endDate: iso(contract.endDate),
     daysUntilEnd: daysUntil(contract.endDate),
+    // #351 — the last day to give notice (null when none applies) and the
+    // count that actually matters: to that deadline while it's ahead.
+    cancelBy: timing.cancelBy?.toISOString() ?? null,
+    daysUntilCancelBy: timing.cancelByDays,
+    daysUntilDeadline: timing.days,
     estimatedMonthlySpend:
       Math.round(monthlyEquivalent(contract.cost, contract.billingFrequency) * 100) / 100,
   };

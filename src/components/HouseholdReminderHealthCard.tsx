@@ -19,9 +19,12 @@ function channelSummary(channels: HouseholdReminderHealth["channels"]) {
 export function HouseholdReminderHealthCard({
   health,
   dateFormat,
+  appUrlConfigured = true,
 }: {
   health: HouseholdReminderHealth;
   dateFormat?: string | null;
+  /** #352 — without APP_URL, reminders can't link back to the record. */
+  appUrlConfigured?: boolean;
 }) {
   return (
     <div className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
@@ -73,6 +76,14 @@ export function HouseholdReminderHealthCard({
           </dd>
         </div>
       </dl>
+
+      {health.deliveryReady && !appUrlConfigured && (
+        <p className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
+          <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden />
+          Reminders can&apos;t link to the record they&apos;re about until the server&apos;s
+          APP_URL is set to the address you open Hearth on.
+        </p>
+      )}
 
       {!health.deliveryReady ? (
         <p className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">

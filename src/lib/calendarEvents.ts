@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { daysUntil } from "@/lib/utils";
+import { contractTiming } from "@/lib/contractTiming";
 
 export interface CalendarEvent {
   id: string;
@@ -34,7 +35,7 @@ export async function getCalendarEvents(
   const [contracts, products] = await Promise.all([
     prisma.contract.findMany({
       where: { endDate: { not: null }, deletedAt: null },
-      select: { id: true, title: true, provider: true, endDate: true },
+      select: { id: true, title: true, provider: true, endDate: true, noticePeriodDays: true, renewalType: true },
     }),
     prisma.product.findMany({
       where: { warrantyEndDate: { not: null }, deletedAt: null },
@@ -55,6 +56,22 @@ export async function getCalendarEvents(
       urgency: urgencyFor(days),
       daysUntilDate: days,
     });
+
+    // #351 — the last day to give notice is the date to act on. Shown while
+    // it's ahead; once passed, the end date above is what's left.
+    const timing = contractTiming(c);
+    if (timing.cancelBy && timing.beforeCancelBy) {
+      events.push({
+        id: `contract-${c.id}-notice`,
+        date: timing.cancelBy,
+        title: c.title,
+        subtitle: `Last day to give notice · ${c.provider}`,
+        href: `/contracts/${c.id}`,
+        kind: "contract",
+        urgency: urgencyFor(timing.cancelByDays),
+        daysUntilDate: timing.cancelByDays,
+      });
+    }
   }
 
   for (const p of products) {

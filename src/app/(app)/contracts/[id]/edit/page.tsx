@@ -38,6 +38,8 @@ export default async function EditContractPage({
           contract={contract}
           properties={properties}
           vehicles={vehicles}
+          homeEnabled={homeEnabled}
+          vehiclesEnabled={vehiclesEnabled}
         />
       </div>
     </div>

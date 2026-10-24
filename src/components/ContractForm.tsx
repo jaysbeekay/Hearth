@@ -14,6 +14,7 @@ import {
   RENEWAL_LABELS,
 } from "@/lib/utils";
 import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
+import { LinkedToField } from "@/components/LinkedToField";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
 import {
@@ -55,6 +56,8 @@ export function ContractForm({
   vehicles = [],
   defaultPropertyId,
   defaultVehicleId,
+  homeEnabled = false,
+  vehiclesEnabled = false,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   contract?: ContractModel;
@@ -65,6 +68,8 @@ export function ContractForm({
   // property/vehicle" on the asset's own detail page.
   defaultPropertyId?: string;
   defaultVehicleId?: string;
+  homeEnabled?: boolean;
+  vehiclesEnabled?: boolean;
 }) {
   const offlineAwareAction = makeOfflineAwareAction(
     action,
@@ -379,45 +384,21 @@ export function ContractForm({
             </Field>
           )}
 
-          {properties.length > 0 && (
-            <Field label="Property" htmlFor="propertyId">
-              <SelectWrapper>
-                <select
-                  id="propertyId"
-                  name="propertyId"
-                  defaultValue={effectiveValues?.propertyId ?? contract?.propertyId ?? defaultPropertyId ?? ""}
-                  className={selectClass}
-                >
-                  <option value="">Not linked to a property</option>
-                  {properties.map((property) => (
-                    <option key={property.id} value={property.id}>
-                      {property.label}
-                    </option>
-                  ))}
-                </select>
-              </SelectWrapper>
-            </Field>
-          )}
-
-          {vehicles.length > 0 && (
-            <Field label="Vehicle" htmlFor="vehicleId">
-              <SelectWrapper>
-                <select
-                  id="vehicleId"
-                  name="vehicleId"
-                  defaultValue={effectiveValues?.vehicleId ?? contract?.vehicleId ?? defaultVehicleId ?? ""}
-                  className={selectClass}
-                >
-                  <option value="">Not linked to a vehicle</option>
-                  {vehicles.map((vehicle) => (
-                    <option key={vehicle.id} value={vehicle.id}>
-                      {vehicle.label}
-                    </option>
-                  ))}
-                </select>
-              </SelectWrapper>
-            </Field>
-          )}
+          <LinkedToField
+            id="linkedTo"
+            properties={properties}
+            vehicles={vehicles}
+            homeEnabled={homeEnabled}
+            vehiclesEnabled={vehiclesEnabled}
+            recordNoun="contract"
+            defaultValue={{
+              propertyId: effectiveValues?.propertyId ?? contract?.propertyId ?? defaultPropertyId ?? "",
+              vehicleId: effectiveValues?.vehicleId ?? contract?.vehicleId ?? defaultVehicleId ?? "",
+            }}
+            withHiddenInputs
+            selectClassName={selectClass}
+            chevron
+          />
         </div>
       </fieldset>
 

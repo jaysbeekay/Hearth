@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { ContractListClient } from "@/components/ContractListClient";
+import { contractTiming } from "@/lib/contractTiming";
 import type { Prisma } from "@/generated/prisma/client";
 
 export const metadata: Metadata = { title: "Policies & contracts" };
@@ -40,14 +41,13 @@ export default async function ContractsPage({
   }
   if (expired === "true") {
     where.endDate = { lt: new Date() };
-  } else if (expiring) {
-    const days = Number(expiring);
-    if (Number.isFinite(days) && days > 0) {
-      const until = new Date();
-      until.setDate(until.getDate() + days);
-      where.endDate = { gte: new Date(), lte: until };
-    }
   }
+  // #351 — "expiring within N days" counts to the notice deadline when one
+  // applies, which a plain endDate range can't express: narrow to contracts
+  // that haven't ended, then filter on contractTiming below.
+  const expiringDays = expired === "true" ? NaN : Number(expiring);
+  const filterExpiring = Number.isFinite(expiringDays) && expiringDays > 0;
+  if (filterExpiring) where.endDate = { gte: new Date() };
   if (needsReview === "true") where.extractionPending = true;
   if (missingDocument === "true") where.documents = { none: {} };
   // Nested under `where.AND` (rather than `where.OR`, already used by `q`
@@ -61,7 +61,7 @@ export default async function ContractsPage({
     where.AND = [{ OR: [{ endDate: null }, { contractNumber: null }] }];
   }
 
-  const [contracts, { dateFormat, region }, session] = await Promise.all([
+  const [allContracts, { dateFormat, region }, session] = await Promise.all([
     prisma.contract.findMany({
       where,
       include: { _count: { select: { documents: { where: { deletedAt: null } } } } },
@@ -70,6 +70,12 @@ export default async function ContractsPage({
     getUserPreferences(),
     auth(),
   ]);
+  const contracts = filterExpiring
+    ? allContracts.filter((c) => {
+        const days = contractTiming(c).days;
+        return days != null && days >= 0 && days <= expiringDays;
+      })
+    : allContracts;
 
   return (
     <ContractListClient

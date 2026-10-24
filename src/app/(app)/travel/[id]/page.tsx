@@ -4,7 +4,7 @@ import { Pencil, Trash2, Plus, Plane, BedDouble, Ticket } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
-import { deleteTrip, deleteTripSegment, addSegmentDocument, refreshFlightStatusAction } from "@/lib/actions/trips";
+import { deleteTrip, deleteTripSegment, addSegmentDocument, refreshFlightStatusAction, restoreTrip } from "@/lib/actions/trips";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailField as Detail } from "@/components/DetailField";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
@@ -122,6 +122,7 @@ export default async function TripDetailPage({
           <DetailOverflowMenu>
             <ConfirmForm
               action={deleteTrip.bind(null, trip.id)}
+              undo={{ action: restoreTrip.bind(null, trip.id), href: `/travel/${trip.id}` }}
               confirmText="Move this trip to Trash? Its segments and documents are kept, and you can restore it within 30 days from Settings → Trash."
               actionLabel="Delete trip"
               className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"

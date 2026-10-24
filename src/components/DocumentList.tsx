@@ -1,6 +1,6 @@
 import { FileText, Trash2, History } from "lucide-react";
 import type { DocumentModel } from "@/generated/prisma/models";
-import { deleteDocumentAction, setDocumentImportant } from "@/lib/actions/contracts";
+import { deleteDocumentAction, setDocumentImportant, restoreDocument } from "@/lib/actions/contracts";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DocumentLink } from "@/components/DocumentLink";
 import { ImportantToggle } from "@/components/ImportantToggle";
@@ -10,7 +10,8 @@ function DeleteButton({ doc }: { doc: DocumentModel }) {
   return (
     <ConfirmForm
       action={deleteDocumentAction.bind(null, doc.contractId, doc.id)}
-      confirmText={`Delete ${doc.filename}? This can't be undone.`}
+      undo={{ action: restoreDocument.bind(null, doc.id) }}
+      confirmText={`Move ${doc.filename} to Trash? You can restore it within 30 days from Settings → Trash.`}
       actionLabel="Delete document"
       ariaLabel={`Delete ${doc.filename}`}
       className="rounded-md p-2 text-muted hover:text-danger"

@@ -1,5 +1,6 @@
 import { getNtfyConfig, isNtfyConfigured } from "@/lib/appSettings";
 import { assertSafeOutboundUrl } from "@/lib/net/outbound";
+import { buildNtfyReminder, type ReminderInput } from "@/lib/notifications/reminderContent";
 
 function stripNewlines(value: string) {
   return value.replace(/[\r\n]+/g, " ").trim();
@@ -30,32 +31,15 @@ export async function sendTestNtfy() {
   }
 }
 
-export async function sendNtfyReminder(opts: {
-  kind: "contract" | "warranty";
-  title: string;
-  detail: string;
-  daysRemaining: number;
-  endDate: Date;
-}) {
+export async function sendNtfyReminder(input: ReminderInput) {
   if (!(await isNtfyConfigured())) return;
 
   const ntfy = await getNtfyConfig();
   const url = `${ntfy.url.replace(/\/$/, "")}/${ntfy.topic}`;
-  const formattedDate = opts.endDate.toLocaleDateString("en-AU", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-
-  const headers: Record<string, string> = {
-    Title: stripNewlines(
-      `${opts.title} expires in ${opts.daysRemaining} day${
-        opts.daysRemaining === 1 ? "" : "s"
-      }`,
-    ),
-    Priority: opts.daysRemaining <= 7 ? "high" : "default",
-    Tags: "warning,calendar",
-  };
+  // #352 — Click/Actions headers (when APP_URL is set) make tapping the
+  // notification open the record.
+  const { headers, body } = buildNtfyReminder(input);
+  for (const key of Object.keys(headers)) headers[key] = stripNewlines(headers[key]);
   if (ntfy.token) {
     headers.Authorization = `Bearer ${ntfy.token}`;
   }
@@ -64,7 +48,7 @@ export async function sendNtfyReminder(opts: {
   const response = await fetch(url, {
     method: "POST",
     headers,
-    body: `${opts.detail ? `${opts.detail} ` : ""}${opts.kind} expires on ${formattedDate}.`,
+    body,
     signal: AbortSignal.timeout(10_000),
   });
 

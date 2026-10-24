@@ -44,6 +44,7 @@ test("crossing a reminder threshold delivers a webhook notification", async ({ p
     await page.locator("#endDate").fill(today);
     await page.locator("main button[type=submit]").click();
     await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
+    const contractPageUrl = page.url();
 
     const cronResponse = await request.post(`${BASE_URL}/api/cron`, {
       headers: { "x-cron-secret": "e2e-cron-secret" },
@@ -54,6 +55,9 @@ test("crossing a reminder threshold delivers a webhook notification", async ({ p
     const payload = JSON.parse(received!.body);
     expect(payload.event).toBe("contract.expiring");
     expect(payload.title).toBe("Webhook Notification Test Contract");
+    // #352 — the payload links straight back to the record (APP_URL is set
+    // to this server in the e2e environment).
+    expect(payload.url).toBe(contractPageUrl);
 
     await page.goto("/settings/webhooks");
     await expect(page.locator("body")).toContainText("E2E Test Webhook");

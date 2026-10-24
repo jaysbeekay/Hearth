@@ -12,9 +12,18 @@ interface Props {
   // once, in the response to the generate action below.
   hasToken: boolean;
   appUrl: string;
+  // Rendered inside CalendarSubscribeDialog on /calendar (#368): drops the
+  // card chrome and ids the heading for the dialog's aria-labelledby.
+  embedded?: boolean;
 }
 
-export function IcalTokenSection({ hasToken, appUrl }: Props) {
+// webcal:// hands the feed straight to the OS calendar app (Apple Calendar,
+// Outlook) as a subscription rather than a one-off download.
+function webcalUrl(url: string): string {
+  return url.replace(/^https?:\/\//, "webcal://");
+}
+
+export function IcalTokenSection({ hasToken, appUrl, embedded }: Props) {
   const [genState, genAction] = useActionState<IcalActionState, FormData>(generateIcalToken, null);
   const [revokeState, revokeAction] = useActionState<IcalActionState, FormData>(
     revokeIcalToken,
@@ -34,8 +43,10 @@ export function IcalTokenSection({ hasToken, appUrl }: Props) {
   }
 
   return (
-    <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
-      <h2 className="mb-1 font-medium">Calendar feed</h2>
+    <section className={embedded ? undefined : "rounded-xl border border-border bg-surface p-4 md:p-6"}>
+      <h2 id={embedded ? "calendar-feed-heading" : undefined} className="mb-1 font-medium">
+        Calendar feed
+      </h2>
       <p className="mb-3 text-sm text-muted">
         Subscribe to your household&apos;s contracts, warranties, and events in any calendar app
         that supports iCal (Apple Calendar, Google Calendar, Outlook, etc.).
@@ -54,6 +65,9 @@ export function IcalTokenSection({ hasToken, appUrl }: Props) {
               Copy
             </button>
           </div>
+          <a href={webcalUrl(justGenerated)} className="inline-block text-sm text-accent hover:underline">
+            Open in your calendar app
+          </a>
           <p className="text-xs text-muted">
             Anyone with this URL can read your household&apos;s calendar, so treat it like a
             password. It isn&apos;t stored in a readable form and won&apos;t be shown again —

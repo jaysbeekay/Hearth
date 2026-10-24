@@ -7,6 +7,7 @@ import { StatCard } from "@/components/StatCard";
 import { AddEntryPicker } from "@/components/AddEntryPicker";
 import { OnboardingChecklist } from "@/components/OnboardingChecklist";
 import { daysUntil, monthlyEquivalent, formatCurrency } from "@/lib/utils";
+import { contractTiming } from "@/lib/contractTiming";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { refreshFxRates, getFxRateMap, convertAmount } from "@/lib/fx";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
@@ -68,7 +69,8 @@ export default async function DashboardPage() {
     ]);
 
   const active = contracts.filter((c) => c.status === "ACTIVE");
-  const withDays = active.map((c) => ({ contract: c, days: daysUntil(c.endDate) }));
+  // #351 — counts to the notice deadline while one is ahead.
+  const withDays = active.map((c) => ({ contract: c, days: contractTiming(c).days }));
 
   const expiringSoon = withDays
     .filter((c) => c.days != null && c.days >= 0 && c.days <= 30)

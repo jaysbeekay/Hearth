@@ -4,7 +4,7 @@ import { Pencil, Trash2, Plus, Wrench, Sparkles, Hammer, Tag, Home, TrendingUp, 
 import type { LucideIcon } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
-import { deleteProperty, deleteHomeItem, addItemDocument } from "@/lib/actions/home";
+import { deleteProperty, deleteHomeItem, addItemDocument, restoreProperty, restoreHomeItem } from "@/lib/actions/home";
 import { createPropertyValuation, deletePropertyValuation } from "@/lib/actions/wealth";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailField as Detail } from "@/components/DetailField";
@@ -109,6 +109,7 @@ export default async function PropertyDetailPage({
           <DetailOverflowMenu>
             <ConfirmForm
               action={deleteProperty.bind(null, property.id)}
+              undo={{ action: restoreProperty.bind(null, property.id), href: `/home/${property.id}` }}
               confirmText="Move this property to Trash? Its items and documents are kept, and you can restore it within 30 days from Settings → Trash."
               actionLabel="Delete property"
               className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
@@ -192,6 +193,7 @@ export default async function PropertyDetailPage({
                       </Link>
                       <ConfirmForm
                         action={deleteHomeItem.bind(null, property.id, item.id)}
+                        undo={{ action: restoreHomeItem.bind(null, item.id) }}
                         confirmText={`Delete "${item.title}" and its documents?`}
                         actionLabel={`Delete "${item.title}"`}
                         className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"

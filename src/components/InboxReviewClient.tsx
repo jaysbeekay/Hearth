@@ -12,6 +12,7 @@ import {
 import { CATEGORY_LABELS, humanFileSize, formatDate } from "@/lib/utils";
 import { INVENTORY_ITEM_CATEGORIES } from "@/lib/validation/inventory";
 import { showToast } from "@/components/Toast";
+import { LinkedToField } from "@/components/LinkedToField";
 import { extractionMessage, isAiExtractionSource } from "@/lib/autoFillHighlight";
 
 export type InboxDocumentStatus =
@@ -192,6 +193,9 @@ function FilterChip({
   );
 }
 
+const ROW_FIELD_WRAPPER = "space-y-0.5";
+const ROW_FIELD_LABEL = "flex items-center gap-1 text-[11px] font-medium text-muted";
+
 function RowField({
   label,
   htmlFor,
@@ -206,8 +210,8 @@ function RowField({
   children: React.ReactNode;
 }) {
   return (
-    <div className="space-y-0.5">
-      <label htmlFor={htmlFor} className="flex items-center gap-1 text-[11px] font-medium text-muted">
+    <div className={ROW_FIELD_WRAPPER}>
+      <label htmlFor={htmlFor} className={ROW_FIELD_LABEL}>
         {label}
         {autoFilled && (
           <>
@@ -248,12 +252,16 @@ export function InboxReviewClient({
   inventoryEnabled,
   properties = [],
   vehicles = [],
+  homeEnabled = false,
+  vehiclesEnabled = false,
 }: {
   docs: InboxDocSummary[];
   dateFormat?: string;
   inventoryEnabled: boolean;
   properties?: { id: string; label: string }[];
   vehicles?: { id: string; label: string }[];
+  homeEnabled?: boolean;
+  vehiclesEnabled?: boolean;
 }) {
   const [visibleIds, setVisibleIds] = useState(() => docs.map((d) => d.id));
   const [rows, setRows] = useState<Record<string, RowState>>(() =>
@@ -687,41 +695,22 @@ export function InboxReviewClient({
                       className={fieldClass(row.contractAutoFilled.endDate, rowIsAi)}
                     />
                   </RowField>
-                  {(properties.length > 0 || vehicles.length > 0) && (
-                    <RowField label="Link to (optional)" htmlFor={`${doc.id}-contractLink`}>
-                      <select
-                        id={`${doc.id}-contractLink`}
-                        value={
-                          row.contractPropertyId
-                            ? `property:${row.contractPropertyId}`
-                            : row.contractVehicleId
-                              ? `vehicle:${row.contractVehicleId}`
-                              : ""
-                        }
-                        disabled={row.status === "saving"}
-                        onChange={(e) => {
-                          const [kind, linkId] = e.target.value.split(":");
-                          updateRow(doc.id, {
-                            contractPropertyId: kind === "property" ? linkId : "",
-                            contractVehicleId: kind === "vehicle" ? linkId : "",
-                          });
-                        }}
-                        className={fieldClass(false)}
-                      >
-                        <option value="">Not linked</option>
-                        {properties.map((p) => (
-                          <option key={p.id} value={`property:${p.id}`}>
-                            {p.label} (home)
-                          </option>
-                        ))}
-                        {vehicles.map((v) => (
-                          <option key={v.id} value={`vehicle:${v.id}`}>
-                            {v.label} (vehicle)
-                          </option>
-                        ))}
-                      </select>
-                    </RowField>
-                  )}
+                  <LinkedToField
+                    id={`${doc.id}-contractLink`}
+                    properties={properties}
+                    vehicles={vehicles}
+                    homeEnabled={homeEnabled}
+                    vehiclesEnabled={vehiclesEnabled}
+                    recordNoun="contract"
+                    disabled={row.status === "saving"}
+                    onChange={({ propertyId, vehicleId }) =>
+                      updateRow(doc.id, { contractPropertyId: propertyId, contractVehicleId: vehicleId })
+                    }
+                    hintLinksInNewTab
+                    wrapperClassName={ROW_FIELD_WRAPPER}
+                    labelClassName={ROW_FIELD_LABEL}
+                    selectClassName={fieldClass(false)}
+                  />
                 </div>
               )}
 
@@ -802,24 +791,18 @@ export function InboxReviewClient({
                       className={fieldClass(row.productAutoFilled.warrantyEndDate, rowIsAi)}
                     />
                   </RowField>
-                  {properties.length > 0 && (
-                    <RowField label="Link to home (optional)" htmlFor={`${doc.id}-productLink`}>
-                      <select
-                        id={`${doc.id}-productLink`}
-                        value={row.productPropertyId}
-                        disabled={row.status === "saving"}
-                        onChange={(e) => updateRow(doc.id, { productPropertyId: e.target.value })}
-                        className={fieldClass(false)}
-                      >
-                        <option value="">Not linked</option>
-                        {properties.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.label}
-                          </option>
-                        ))}
-                      </select>
-                    </RowField>
-                  )}
+                  <LinkedToField
+                    id={`${doc.id}-productLink`}
+                    properties={properties}
+                    homeEnabled={homeEnabled}
+                    recordNoun="warranty"
+                    disabled={row.status === "saving"}
+                    onChange={({ propertyId }) => updateRow(doc.id, { productPropertyId: propertyId })}
+                    hintLinksInNewTab
+                    wrapperClassName={ROW_FIELD_WRAPPER}
+                    labelClassName={ROW_FIELD_LABEL}
+                    selectClassName={fieldClass(false)}
+                  />
                 </div>
               )}
 

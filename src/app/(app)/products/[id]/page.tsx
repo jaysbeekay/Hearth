@@ -7,6 +7,7 @@ import {
   deleteProduct,
   confirmProductExtraction,
   reviewProductExtraction,
+  restoreProduct,
 } from "@/lib/actions/products";
 import { getPendingExtractionReview } from "@/lib/documents/extractionReview";
 import { ExpiryBadge } from "@/components/ExpiryBadge";
@@ -94,6 +95,7 @@ export default async function ProductDetailPage({
           <DetailOverflowMenu>
             <ConfirmForm
               action={deleteProduct.bind(null, product.id)}
+              undo={{ action: restoreProduct.bind(null, product.id), href: `/products/${product.id}` }}
               confirmText="Move this warranty to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash."
               actionLabel="Delete warranty"
               className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
@@ -151,7 +153,11 @@ export default async function ProductDetailPage({
       </div>
 
       {product.warrantyEndDate && (
-        <ReminderHealthCard health={reminderHealth} dateFormat={dateFormat} />
+        <ReminderHealthCard
+          health={reminderHealth}
+          dateFormat={dateFormat}
+          testTarget={{ kind: "warranty", id: product.id }}
+        />
       )}
 
       {(product.property || product.warrantyForItems.length > 0) && (

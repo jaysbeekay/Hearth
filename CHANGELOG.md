@@ -7,6 +7,83 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+### Security
+
+- `nodemailer` 10.0.16 → 10.2.1 and `mailparser` → 3.12.4, fixing three
+  high-severity "interpretation conflict" advisories in nodemailer
+  (SNYK-JS-NODEMAILER-21663365, -21663367, -21663373).
+
+### Added
+
+- **Reminders link to the record.** Email reminders include an "Open it in
+  Hearth" link; ntfy notifications open the record when tapped and add an
+  Open action. Links are only included when `APP_URL` is set, and Settings
+  → App shows a nudge when reminder delivery works but `APP_URL` is
+  missing (#352).
+- **"Send test reminder" sends the real thing.** On a contract, warranty
+  or vehicle page it now sends that record's own reminder, so you can see
+  exactly what will arrive (#352).
+- **Subscribe from Upcoming.** A "Subscribe in your calendar" button on
+  Upcoming opens the calendar feed controls in place, with a `webcal://`
+  link that hands the feed straight to your calendar app (#368).
+- **Undo after deleting.** Deleting a contract, warranty, vehicle,
+  property, inventory item, trip, home/vehicle item or document shows an
+  Undo button for 8 seconds that restores it from Trash. An offline delete
+  can be undone before it syncs. Toasts can now be dismissed (#371).
+- `MAP_TILE_URL`, `MAP_TILE_ATTRIBUTION` and `MAP_TILE_SUBDOMAINS` choose
+  the property map's tile source; the Content-Security-Policy follows the
+  configured host (#338).
+
+### Changed
+
+- Reminder dates follow each recipient's date format preference (#352).
+- `vehicle.expiring` webhook event: vehicle reminders now carry
+  `"field": "regoExpiry" | "insuranceExpiry" | "nextServiceDue"` and link
+  to `/vehicles/…`. Previously they were sent as `contract.expiring` with
+  a `/contracts/…` URL that didn't resolve. Webhook `url` is `null` until
+  `APP_URL` is set (#352).
+- Contract "Mark as cancelled / active" moved from the page header into
+  the ⋯ menu, and is offered beside Renew when a contract is expiring
+  (#370).
+- One "Linked to" select, grouped by Homes and Vehicles, on the contract
+  and warranty forms, Upload and the Inbox, with an "add one" hint when a
+  module is on but empty (#370).
+- AI extraction and assistant settings start at "Not configured" instead
+  of pre-selecting a provider (#346).
+- The email reminder preference names everything it controls (#347).
+- The mobile capture button only shows on the dashboard and Documents
+  (#348).
+- Warranty uploads have one labelled "Document type" select (#350).
+
+### Fixed
+
+- **Notice periods now count.** A contract's notice period was collected
+  but ignored, so reminders counted down to the end date — after the last
+  day to cancel had already passed. For contracts with a notice period
+  (other than fixed-term ones), reminders, the badge ("10d to give
+  notice"), the expiry banner, the contract list and its "expiring" filter,
+  dashboard counts, Needs attention, Upcoming and the iCal feed now work
+  from the last day to give notice. Webhook payloads add `cancelBy` and
+  `noticePeriodDays`; MCP and assistant contract data add `cancelBy`,
+  `daysUntilCancelBy` and `daysUntilDeadline`, and MCP `upcoming_renewals`
+  uses the deadline (#351, part 1 — auto-renew roll-forward follows with
+  #353).
+- Reminder emails described vehicle registration, insurance and service
+  dates as contracts (#352).
+- Signing in now returns you to the page that asked you to, limited to
+  same-origin paths (#341).
+- Escape closes the dashboard Add picker and focus is restored (#342).
+- The app icon, service worker and map marker images load without a
+  session (#343).
+- Passkey sign-in is only offered when a passkey is registered (#344).
+- The onboarding modules step can be completed without enabling a module
+  (#345).
+- "Look up product info" is hidden when barcode lookup is disabled (#349).
+- The property map showed no tiles: CARTO now requires a key, so the
+  default is OpenStreetMap (#338).
+- Document delete confirmations said "This can't be undone" although
+  documents go to Trash (#371).
+
 ## [0.19.2] - 2026-10-23
 
 ### Security
