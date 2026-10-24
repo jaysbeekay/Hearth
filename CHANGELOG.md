@@ -94,6 +94,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   sidebar, top bar and mobile menu now use Fraunces, a serif display face
   loaded once in the root layout. Body text keeps the system sans-serif.
 
+### Removed
+
+- **Snyk CI checks.** The Snyk Security workflow (Open Source, Code and
+  Container scans) and its `.snyk` policy file are gone. Docker Scout stays
+  as the container scan that blocks on critical and high CVEs, and CodeQL
+  still covers code scanning.
+
 ### Fixed
 
 - **Notice periods now count.** A contract's notice period was collected

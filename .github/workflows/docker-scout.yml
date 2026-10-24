@@ -1,16 +1,15 @@
 # Docker Scout is a third-party action, governed by its own terms — see
 # https://github.com/docker/scout-action
 #
-# Complements the Snyk container scan in snyk-security.yml (which already
-# blocks on high-severity OS/package CVEs in the built image) with Docker
-# Scout's Hub-native view: findings surface directly on the Docker Hub
-# repository page and as SARIF in this repo's Security tab, plus base-image
-# update recommendations Snyk doesn't provide.
+# The repo's container scan: blocks on critical/high OS and package CVEs in
+# the built image. Findings also surface on the Docker Hub repository page and
+# as SARIF in this repo's Security tab, with base-image update
+# recommendations.
 #
 # Reuses the DOCKERHUB_USERNAME/DOCKERHUB_TOKEN secrets docker-publish.yml
 # already requires — no new secret to configure. The whole job is skipped
 # when they aren't set, so forks and clones aren't left with a permanently
-# red, unfixable check (same pattern as HAS_SNYK in snyk-security.yml).
+# red, unfixable check.
 
 name: Docker Scout
 
@@ -33,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       # Secrets can't be referenced in a job-level `if`, so this is checked per
-      # step instead. Same pattern as HAS_SNYK in snyk-security.yml.
+      # step instead.
       HAS_DOCKERHUB: ${{ secrets.DOCKERHUB_USERNAME != '' }}
       IMAGE_TAG: hearth:scout-scan
       SARIF_FILE: docker-scout.sarif.json
