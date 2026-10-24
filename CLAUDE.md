@@ -31,7 +31,7 @@ When I give you raw feedback, classify it as `type:bug` or `type:enhancement`,
 then create it:
 
 ```
-gh issue create -R jaysbeekay/jaysbeekay -t "<title>" --label "type:bug" -b "<body>"
+gh issue create -R jaysbeekay/Hearth -t "<title>" --label "type:bug" -b "<body>"
 ```
 
 Body template:
@@ -65,6 +65,13 @@ npx prisma generate       # regenerate the client into src/generated/prisma (pos
 npm run test:e2e                                  # full suite: seeds DB, runs all specs
 npx playwright test e2e/specs/02-validation.spec.ts   # single spec file
 npx playwright test -g "some test name"               # by test name
+
+# mobile shell (Capacitor)
+npm run test:mobile-packages   # verify native mobile deps/config are in sync with source
+npm run test:standalone        # playwright.standalone.config.ts — standalone-mode paywall/e2e specs
+npm run cap:sync               # propagate ios-shell/www + config into ios/ and android/ native projects
+npm run cap:android            # open android/ in Android Studio
+npm run cap:ios                # open ios/ in Xcode
 ```
 
 There is no unit test runner configured — correctness is checked via `tsc`, `eslint`, and
@@ -153,6 +160,31 @@ worker): previously-visited pages are cached for read access when the server is
 unreachable; writes made while offline are queued in IndexedDB (`idb`) and synced via
 `/api/sync` on reconnect. `OfflineBanner`/`OfflineSyncManager` components surface this.
 
+**Mobile shell** (`ios-shell/www/` + `ios/`, `android/`, `capacitor.config.ts`): a Capacitor
+app, separate from the Next.js app, that ships to the App Store/Play Store. It does **not**
+bundle the Next.js app — `ios-shell/www/app.js` is a single hand-written vanilla-JS
+entrypoint (~4k lines, no build step) synced into both native projects via `npm run
+cap:sync`. Two runtime modes, chosen at first launch:
+- **Connected mode**: WebView points at the user's own self-hosted Hearth server (URL
+  entered by the user); Capacitor's `ServerConfig` plugin manages this handoff, with a
+  localStorage debounce to detect the WKWebView error-page bounce-back on an unreachable
+  server (`errorPath: index.html` in `capacitor.config.ts`) instead of retry-looping.
+- **Standalone mode**: fully offline, device-local data in an encrypted SQLite DB
+  (`@capacitor-community/sqlite`, AES via `iosIsEncryption`/`androidIsEncryption`) plus
+  app-private file storage (`Filesystem` plugin) for documents — no server involved.
+  Gated behind a one-time RevenueCat non-consumable purchase (`Purchases` plugin,
+  entitlement `standalone_mode` / product `standalone_unlock`); connected mode stays free.
+  Local reminders use `LocalNotifications` instead of the server's node-cron scheduler.
+  Optional modules (vehicles/properties/inventory/trips/wealth) are toggled per-install via
+  `Preferences`, mirroring the server's `ModuleEnablement` concept but stored locally.
+
+Because this shell duplicates app logic by hand rather than sharing code with `src/`, a
+change to a shared concept (a new field, a new module, a new record type) needs a matching
+update in `ios-shell/www/app.js` to keep the standalone shell in sync — `npm run
+test:mobile-packages` checks native dependency/config sync but not feature parity, so treat
+shell parity as a manual review item on any cross-cutting change. `CHANGELOG.md` entries for
+shell sync changes are how past parity work has been tracked.
+
 **Env config** (`src/lib/env.ts`, `.env.example`): almost every optional feature
 (email, ntfy, MCP, cron, Ollama fallback, barcode lookup, encryption/backups) is gated by
 the presence of its env var(s) rather than a separate feature flag — check `.env.example`
@@ -194,3 +226,17 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs are tracked in `jaysbeekay/Hearth` GitHub Issues. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The repository uses the five default triage labels. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Domain documentation uses a single-context layout. See `docs/agents/domain.md`.

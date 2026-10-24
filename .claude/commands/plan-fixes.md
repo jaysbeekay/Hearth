@@ -4,7 +4,7 @@ description: Review open kanban items and draft a prioritized fix plan
 Run:
 
 ```
-gh issue list --state open --label type:bug,type:enhancement -R jaysbeekay/jaysbeekay --json number,title,body,labels,url
+gh issue list --state open --label type:bug,type:enhancement -R jaysbeekay/Hearth --json number,title,body,labels,url
 ```
 
 Group related items, flag duplicates, and propose a priority order and rough
