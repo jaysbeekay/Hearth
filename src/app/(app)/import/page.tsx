@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
+import { redirectIfReadOnly } from "@/lib/readOnly";
 import { prisma } from "@/lib/prisma";
 import { ImportClient } from "@/components/ImportClient";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
@@ -10,10 +10,7 @@ export const metadata: Metadata = { title: "Upload documents" };
 export default async function ImportPage() {
   // Read-only members can't save documents (the save actions reject them),
   // so send them to Documents instead of a queue that can only fail.
-  const session = await auth();
-  if (session?.user.role === "READONLY") {
-    redirect("/documents");
-  }
+  redirectIfReadOnly(await auth(), "/documents");
 
   const enabledModules = await getEnabledModuleKeys();
 

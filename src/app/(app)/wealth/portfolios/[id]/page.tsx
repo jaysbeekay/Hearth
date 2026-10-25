@@ -12,6 +12,8 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import { HoldingCard } from "@/components/HoldingCard";
 import type { ModuleKey } from "@/lib/modules/registry";
 import { COST_METHOD_LABELS } from "@/lib/validation/wealth";
+import { auth } from "@/lib/auth";
+import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 
 export const metadata: Metadata = { title: "Portfolio" };
 
@@ -22,6 +24,7 @@ export default async function PortfolioPage({
 }) {
   await requireModuleEnabled("WEALTH");
   const { id } = await params;
+  const canWrite = sessionCanWrite(await auth());
 
   const portfolio = await prisma.portfolio.findUnique({
     where: { id },
@@ -50,13 +53,17 @@ export default async function PortfolioPage({
             <h1 className="text-2xl font-semibold">{portfolio.name}</h1>
             {portfolio.description && <p className="text-sm text-muted">{portfolio.description}</p>}
           </div>
-          <Link
-            href={`/wealth/portfolios/${id}/edit`}
-            className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
-          >
-            <Pencil size={16} />
-            Edit
-          </Link>
+          {canWrite && (
+            <>
+              <Link
+                href={`/wealth/portfolios/${id}/edit`}
+                className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+              >
+                <Pencil size={16} />
+                Edit
+              </Link>
+            </>
+          )}
         </div>
       </div>
 
@@ -85,20 +92,28 @@ export default async function PortfolioPage({
         <div className="flex items-center justify-between">
           <h2 className="font-medium">Holdings</h2>
           <div className="flex items-center gap-2">
-            <Link
-              href={`/wealth/portfolios/${id}/import`}
-              className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
-            >
-              <Upload size={16} />
-              Import CSV
-            </Link>
-            <Link
-              href={`/wealth/portfolios/${id}/holdings/new`}
-              className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
-            >
-              <Plus size={16} />
-              Add holding
-            </Link>
+            {canWrite && (
+              <>
+                <Link
+                  href={`/wealth/portfolios/${id}/import`}
+                  className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+                >
+                  <Upload size={16} />
+                  Import CSV
+                </Link>
+              </>
+            )}
+            {canWrite && (
+              <>
+                <Link
+                  href={`/wealth/portfolios/${id}/holdings/new`}
+                  className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+                >
+                  <Plus size={16} />
+                  Add holding
+                </Link>
+              </>
+            )}
           </div>
         </div>
 

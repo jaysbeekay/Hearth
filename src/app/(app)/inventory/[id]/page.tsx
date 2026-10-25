@@ -14,6 +14,8 @@ import { RecordMeta } from "@/components/RecordMeta";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { getHouseholdMemberCount } from "@/lib/household";
+import { auth } from "@/lib/auth";
+import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 
 export const metadata: Metadata = { title: "Inventory Item" };
 
@@ -37,6 +39,7 @@ export default async function InventoryItemPage({
   await requireModuleEnabled("INVENTORY");
 
   const { id } = await params;
+  const canWrite = sessionCanWrite(await auth());
   const [item, { dateFormat, region }, memberCount] = await Promise.all([
     prisma.inventoryItem.findUnique({
       where: { id },
@@ -68,26 +71,30 @@ export default async function InventoryItemPage({
           )}
         </div>
         <div className="flex gap-2">
-          <Link
-            href={`/inventory/${id}/edit`}
-            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-hover"
-          >
-            <Pencil size={14} />
-            Edit
-          </Link>
-          <DetailOverflowMenu>
-            <ConfirmForm
-              action={deleteInventoryItem.bind(null, id)}
-              undo={{ action: restoreInventoryItem.bind(null, id), href: `/inventory/${id}` }}
-              confirmText="Move this item to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash."
-              actionLabel="Delete item"
-              className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
-              offline={{ entity: "inventoryItem", entityId: id, label: `Delete item: ${item.label}` }}
-            >
-              <Trash2 size={16} />
-              Delete
-            </ConfirmForm>
-          </DetailOverflowMenu>
+          {canWrite && (
+            <>
+              <Link
+                href={`/inventory/${id}/edit`}
+                className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-hover"
+              >
+                <Pencil size={14} />
+                Edit
+              </Link>
+              <DetailOverflowMenu>
+                <ConfirmForm
+                  action={deleteInventoryItem.bind(null, id)}
+                  undo={{ action: restoreInventoryItem.bind(null, id), href: `/inventory/${id}` }}
+                  confirmText="Move this item to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash."
+                  actionLabel="Delete item"
+                  className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
+                  offline={{ entity: "inventoryItem", entityId: id, label: `Delete item: ${item.label}` }}
+                >
+                  <Trash2 size={16} />
+                  Delete
+                </ConfirmForm>
+              </DetailOverflowMenu>
+            </>
+          )}
         </div>
       </div>
 
@@ -136,9 +143,13 @@ export default async function InventoryItemPage({
       <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <h2 className="mb-3 font-medium">Documents</h2>
         <InventoryItemDocumentList documents={item.documents} dateFormat={dateFormat} />
-        <div className="mt-4 border-t border-border pt-4">
-          <DocumentUploadForm action={addDocumentAction.bind(null, "INVENTORY_ITEM", id)} />
-        </div>
+        {canWrite && (
+          <>
+            <div className="mt-4 border-t border-border pt-4">
+              <DocumentUploadForm action={addDocumentAction.bind(null, "INVENTORY_ITEM", id)} />
+            </div>
+          </>
+        )}
       </section>
 
       <RecordMeta

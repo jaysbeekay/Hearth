@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { updateTrip } from "@/lib/actions/trips";
 import { TripForm } from "@/components/TripForm";
+import { auth } from "@/lib/auth";
+import { redirectIfReadOnly } from "@/lib/readOnly";
 
 export default async function EditTripPage({
   params,
@@ -12,6 +14,7 @@ export default async function EditTripPage({
   await requireModuleEnabled("TRAVEL");
 
   const { id } = await params;
+  redirectIfReadOnly(await auth(), `/travel/${id}`);
   const trip = await prisma.trip.findUnique({ where: { id } });
   if (!trip || trip.deletedAt) notFound();
 

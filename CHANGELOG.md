@@ -260,6 +260,19 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **Read-only members no longer see write controls (#400).** A READONLY
+  member was shown, and could open, every Add, Edit, Delete and Upload
+  control, only for the save to fail. They now see every record, Document,
+  Due status and Reminder health read-out without the controls that change
+  them: the dashboard's Add and Upload and its Needs attention actions, the
+  detail pages' Edit, ⋮ menu, banner actions and "Send test reminder", the
+  Document star, delete and upload on every record type, the quick-add
+  buttons for service records, maintenance, segments, rental agreements
+  and statements, Wealth's holdings, trades and valuations, and the Inbox's
+  classify fields, which show as plain text. Every create, edit and import
+  page now redirects them to the record or its list. The dashboard says
+  "You have read-only access." The server actions still enforce the role;
+  this only stops offering what they would refuse.
 - **Clearing an optional field on an edit form clears it (#413).** A
   blanked field (an end date, rego expiry, cost, notes, Reminder days, a
   linked property) used to keep its old value even though the save said it

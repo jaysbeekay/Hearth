@@ -7,6 +7,7 @@ import { FormMessage } from "@/components/FormMessage";
 import { SubmitButton } from "@/components/SubmitButton";
 import { inputClass } from "@/components/SelectWrapper";
 import { isAiExtractionSource, type ExtractionSource } from "@/lib/autoFillHighlight";
+import { useCanWrite } from "@/components/CanWriteProvider";
 
 export interface ReviewFieldSpec {
   fieldName: string;
@@ -58,6 +59,10 @@ export function ExtractionReviewPanel({
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+
+  // Read-only members can't write, so they get no form (#400).
+  const canWrite = useCanWrite();
+  if (!canWrite) return null;
 
   return (
     <form

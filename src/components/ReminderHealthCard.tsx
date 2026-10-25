@@ -1,6 +1,7 @@
 import { BellOff, BellRing, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { TestConnectionButton } from "@/components/TestConnectionButton";
+import { WriteOnly } from "@/components/CanWriteProvider";
 import { sendTestReminder, type TestReminderTarget } from "@/lib/actions/reminders";
 import type { ReminderHealth } from "@/lib/notifications/health";
 
@@ -41,10 +42,13 @@ export function ReminderHealthCard({
           )}
           {title}
         </h2>
-        <TestConnectionButton
-          action={testTarget ? sendTestReminder.bind(null, testTarget) : () => sendTestReminder()}
-          label="Send test reminder"
-        />
+        {/* #400 — sending one is a write, so read-only members see only the read-out. */}
+        <WriteOnly>
+          <TestConnectionButton
+            action={testTarget ? sendTestReminder.bind(null, testTarget) : () => sendTestReminder()}
+            label="Send test reminder"
+          />
+        </WriteOnly>
       </div>
 
       <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">

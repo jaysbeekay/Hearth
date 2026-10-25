@@ -2,9 +2,12 @@ import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { createTrip } from "@/lib/actions/trips";
 import { TripForm } from "@/components/TripForm";
 import { BackLink } from "@/components/BackLink";
+import { auth } from "@/lib/auth";
+import { redirectIfReadOnly } from "@/lib/readOnly";
 
 export default async function NewTripPage() {
   await requireModuleEnabled("TRAVEL");
+  redirectIfReadOnly(await auth(), "/travel");
 
   return (
     <div className="max-w-3xl space-y-6">

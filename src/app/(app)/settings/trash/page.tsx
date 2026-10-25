@@ -25,6 +25,7 @@ import { restoreTrip, permanentlyDeleteTrip } from "@/lib/actions/trips";
 import { restoreInventoryItem, permanentlyDeleteInventoryItem } from "@/lib/actions/inventory";
 import { restoreDocumentAction, permanentlyDeleteDocumentAction } from "@/lib/actions/documents";
 import { DOCUMENT_KIND_LABEL, type OwnedDocumentKind } from "@/lib/documents/kinds";
+import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 
 export const metadata: Metadata = { title: "Trash" };
 
@@ -100,7 +101,7 @@ export default async function TrashPage() {
     getUserPreferences(),
     getTrashEntries(),
   ]);
-  const canWrite = session?.user.role !== "READONLY";
+  const canWrite = sessionCanWrite(session);
 
   return (
     <div className="max-w-2xl space-y-6">

@@ -5,6 +5,8 @@ import { addHomeItem } from "@/lib/actions/home";
 import { HomeItemForm } from "@/components/HomeItemForm";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { BackLink } from "@/components/BackLink";
+import { auth } from "@/lib/auth";
+import { redirectIfReadOnly } from "@/lib/readOnly";
 
 export default async function NewHomeItemPage({
   params,
@@ -14,6 +16,7 @@ export default async function NewHomeItemPage({
   await requireModuleEnabled("HOME");
 
   const { id } = await params;
+  redirectIfReadOnly(await auth(), `/home/${id}`);
   const [property, { preferredCurrency }] = await Promise.all([
     prisma.property.findUnique({ where: { id } }),
     getUserPreferences(),

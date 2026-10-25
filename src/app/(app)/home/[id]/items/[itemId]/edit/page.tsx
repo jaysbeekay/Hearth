@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { updateHomeItem } from "@/lib/actions/home";
 import { HomeItemForm } from "@/components/HomeItemForm";
+import { auth } from "@/lib/auth";
+import { redirectIfReadOnly } from "@/lib/readOnly";
 
 export default async function EditHomeItemPage({
   params,
@@ -12,6 +14,7 @@ export default async function EditHomeItemPage({
   await requireModuleEnabled("HOME");
 
   const { id, itemId } = await params;
+  redirectIfReadOnly(await auth(), `/home/${id}`);
   const item = await prisma.homeItem.findUnique({ where: { id: itemId } });
   if (!item || item.propertyId !== id) notFound();
 

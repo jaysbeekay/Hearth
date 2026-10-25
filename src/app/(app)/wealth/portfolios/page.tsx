@@ -6,11 +6,14 @@ import { prisma } from "@/lib/prisma";
 import { formatCurrency } from "@/lib/utils";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { deletePortfolio } from "@/lib/actions/wealth";
+import { auth } from "@/lib/auth";
+import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 
 export const metadata: Metadata = { title: "Portfolios" };
 
 export default async function PortfoliosPage() {
   await requireModuleEnabled("WEALTH");
+  const canWrite = sessionCanWrite(await auth());
 
   const portfolios = await prisma.portfolio.findMany({
     include: { holdings: { include: { _count: { select: { trades: true } } } } },
@@ -24,13 +27,17 @@ export default async function PortfoliosPage() {
           <Link href="/wealth" className="text-sm text-muted hover:text-foreground">← Back to wealth</Link>
           <h1 className="mt-1 text-2xl font-semibold">Portfolios</h1>
         </div>
-        <Link
-          href="/wealth/portfolios/new"
-          className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
-        >
-          <Plus size={16} />
-          New portfolio
-        </Link>
+        {canWrite && (
+          <>
+            <Link
+              href="/wealth/portfolios/new"
+              className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+            >
+              <Plus size={16} />
+              New portfolio
+            </Link>
+          </>
+        )}
       </div>
 
       {portfolios.length === 0 ? (
@@ -50,23 +57,27 @@ export default async function PortfoliosPage() {
                   </p>
                 </Link>
                 <div className="flex items-center gap-2">
-                  <Link
-                    href={`/wealth/portfolios/${p.id}/edit`}
-                    className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
-                  >
-                    <Pencil size={16} />
-                    Edit
-                  </Link>
-                  <ConfirmForm
-                    action={deletePortfolio.bind(null, p.id)}
-                    confirmText={`Delete "${p.name}" and all its holdings and trades? This cannot be undone.`}
-                    actionLabel={`Delete "${p.name}"`}
-                    className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
-                    offline={{ entity: "portfolio", entityId: p.id, label: `Delete portfolio: ${p.name}` }}
-                  >
-                    <Trash2 size={16} />
-                    Delete
-                  </ConfirmForm>
+                  {canWrite && (
+                    <>
+                      <Link
+                        href={`/wealth/portfolios/${p.id}/edit`}
+                        className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+                      >
+                        <Pencil size={16} />
+                        Edit
+                      </Link>
+                      <ConfirmForm
+                        action={deletePortfolio.bind(null, p.id)}
+                        confirmText={`Delete "${p.name}" and all its holdings and trades? This cannot be undone.`}
+                        actionLabel={`Delete "${p.name}"`}
+                        className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
+                        offline={{ entity: "portfolio", entityId: p.id, label: `Delete portfolio: ${p.name}` }}
+                      >
+                        <Trash2 size={16} />
+                        Delete
+                      </ConfirmForm>
+                    </>
+                  )}
                 </div>
               </div>
             </div>

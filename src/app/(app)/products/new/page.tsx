@@ -6,8 +6,11 @@ import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { prisma } from "@/lib/prisma";
 import { isBarcodeLookupConfigured } from "@/lib/appSettings";
 import { BackLink } from "@/components/BackLink";
+import { auth } from "@/lib/auth";
+import { redirectIfReadOnly } from "@/lib/readOnly";
 
 export default async function NewProductPage() {
+  redirectIfReadOnly(await auth(), "/products");
   const [{ preferredCurrency }, enabledModules, barcodeLookupEnabled] = await Promise.all([
     getUserPreferences(),
     getEnabledModuleKeys(),

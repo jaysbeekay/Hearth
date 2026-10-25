@@ -21,6 +21,8 @@ import { getHouseholdMemberCount } from "@/lib/household";
 import { getDueContext } from "@/lib/appSettings";
 import { vehicleDue } from "@/lib/dueRecords";
 import { DetailStatusBanner } from "@/components/DetailStatusBanner";
+import { auth } from "@/lib/auth";
+import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 
 const ITEM_ICONS: Record<string, LucideIcon> = {
   SERVICE: Wrench,
@@ -39,6 +41,7 @@ export default async function VehicleDetailPage({
   await requireModuleEnabled("VEHICLES");
 
   const { id } = await params;
+  const canWrite = sessionCanWrite(await auth());
   const [vehicle, { dateFormat, region }, linkedContracts, memberCount, due] = await Promise.all([
     prisma.vehicle.findUnique({
       where: { id },
@@ -88,26 +91,30 @@ export default async function VehicleDetailPage({
           <h1 className="text-2xl font-semibold">{vehicle.label}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href={`/vehicles/${vehicle.id}/edit`}
-            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
-          >
-            <Pencil size={16} />
-            Edit
-          </Link>
-          <DetailOverflowMenu>
-            <ConfirmForm
-              action={deleteVehicle.bind(null, vehicle.id)}
-              undo={{ action: restoreVehicle.bind(null, vehicle.id), href: `/vehicles/${vehicle.id}` }}
-              confirmText="Move this vehicle to Trash? Its records and documents are kept, and you can restore it within 30 days from Settings → Trash."
-              actionLabel="Delete vehicle"
-              className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
-              offline={{ entity: "vehicle", entityId: vehicle.id, label: `Delete vehicle: ${vehicle.label}` }}
-            >
-              <Trash2 size={16} />
-              Delete
-            </ConfirmForm>
-          </DetailOverflowMenu>
+          {canWrite && (
+            <>
+              <Link
+                href={`/vehicles/${vehicle.id}/edit`}
+                className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+              >
+                <Pencil size={16} />
+                Edit
+              </Link>
+              <DetailOverflowMenu>
+                <ConfirmForm
+                  action={deleteVehicle.bind(null, vehicle.id)}
+                  undo={{ action: restoreVehicle.bind(null, vehicle.id), href: `/vehicles/${vehicle.id}` }}
+                  confirmText="Move this vehicle to Trash? Its records and documents are kept, and you can restore it within 30 days from Settings → Trash."
+                  actionLabel="Delete vehicle"
+                  className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
+                  offline={{ entity: "vehicle", entityId: vehicle.id, label: `Delete vehicle: ${vehicle.label}` }}
+                >
+                  <Trash2 size={16} />
+                  Delete
+                </ConfirmForm>
+              </DetailOverflowMenu>
+            </>
+          )}
         </div>
       </div>
 
@@ -177,13 +184,17 @@ export default async function VehicleDetailPage({
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="font-medium">Contracts &amp; warranties linked to this vehicle</h2>
-          <Link
-            href={`/contracts/new?vehicleId=${vehicle.id}`}
-            className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
-          >
-            <Plus size={16} />
-            Add contract
-          </Link>
+          {canWrite && (
+            <>
+              <Link
+                href={`/contracts/new?vehicleId=${vehicle.id}`}
+                className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+              >
+                <Plus size={16} />
+                Add contract
+              </Link>
+            </>
+          )}
         </div>
         {linkedContracts.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted">
@@ -201,13 +212,17 @@ export default async function VehicleDetailPage({
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="font-medium">Service &amp; records</h2>
-          <Link
-            href={`/vehicles/${vehicle.id}/items/new`}
-            className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
-          >
-            <Plus size={16} />
-            Add record
-          </Link>
+          {canWrite && (
+            <>
+              <Link
+                href={`/vehicles/${vehicle.id}/items/new`}
+                className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+              >
+                <Plus size={16} />
+                Add record
+              </Link>
+            </>
+          )}
         </div>
 
         {items.length === 0 ? (
@@ -237,23 +252,27 @@ export default async function VehicleDetailPage({
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <Link
-                        href={`/vehicles/${vehicle.id}/items/${item.id}/edit`}
-                        className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
-                      >
-                        <Pencil size={16} />
-                        Edit
-                      </Link>
-                      <ConfirmForm
-                        action={deleteVehicleItem.bind(null, vehicle.id, item.id)}
-                        undo={{ action: restoreVehicleItem.bind(null, item.id) }}
-                        confirmText={`Delete "${item.title}" and its documents?`}
-                        actionLabel={`Delete "${item.title}"`}
-                        className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
-                      >
-                        <Trash2 size={16} />
-                        Delete
-                      </ConfirmForm>
+                      {canWrite && (
+                        <>
+                          <Link
+                            href={`/vehicles/${vehicle.id}/items/${item.id}/edit`}
+                            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+                          >
+                            <Pencil size={16} />
+                            Edit
+                          </Link>
+                          <ConfirmForm
+                            action={deleteVehicleItem.bind(null, vehicle.id, item.id)}
+                            undo={{ action: restoreVehicleItem.bind(null, item.id) }}
+                            confirmText={`Delete "${item.title}" and its documents?`}
+                            actionLabel={`Delete "${item.title}"`}
+                            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
+                          >
+                            <Trash2 size={16} />
+                            Delete
+                          </ConfirmForm>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -274,9 +293,13 @@ export default async function VehicleDetailPage({
                   <div className="mt-4 border-t border-border pt-4">
                     <h3 className="mb-2 text-sm font-medium">Documents</h3>
                     <VehicleItemDocumentList documents={item.documents} dateFormat={dateFormat} />
-                    <div className="mt-3">
-                      <DocumentUploadForm action={addDocumentAction.bind(null, "VEHICLE_ITEM", item.id)} />
-                    </div>
+                    {canWrite && (
+                      <>
+                        <div className="mt-3">
+                          <DocumentUploadForm action={addDocumentAction.bind(null, "VEHICLE_ITEM", item.id)} />
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               );

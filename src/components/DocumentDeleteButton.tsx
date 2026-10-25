@@ -1,6 +1,7 @@
 import { Trash2 } from "lucide-react";
 import { deleteDocumentAction, restoreDocumentAction } from "@/lib/actions/documents";
 import { ConfirmForm } from "@/components/ConfirmForm";
+import { WriteOnly } from "@/components/CanWriteProvider";
 import type { OwnedDocumentKind } from "@/lib/documents/kinds";
 
 // #396 — the same delete for a Document of every kind: to Trash, with Undo,
@@ -20,24 +21,27 @@ export function DocumentDeleteButton({
   className?: string;
   iconSize?: number;
 }) {
+  // #400 — read-only members don't get a delete they can't use.
   return (
-    <ConfirmForm
-      action={deleteDocumentAction.bind(null, kind, documentId, ownerId)}
-      undo={{ action: restoreDocumentAction.bind(null, kind, documentId) }}
-      confirmText={`Move ${filename} to Trash? You can restore it within 30 days from Settings → Trash.`}
-      actionLabel="Delete document"
-      ariaLabel={`Delete ${filename}`}
-      successMessage="Document moved to Trash."
-      className={className}
-      offline={{
-        entity: "document",
-        kind,
-        entityId: documentId,
-        parentId: ownerId,
-        label: `Delete document: ${filename}`,
-      }}
-    >
-      <Trash2 size={iconSize} />
-    </ConfirmForm>
+    <WriteOnly>
+      <ConfirmForm
+        action={deleteDocumentAction.bind(null, kind, documentId, ownerId)}
+        undo={{ action: restoreDocumentAction.bind(null, kind, documentId) }}
+        confirmText={`Move ${filename} to Trash? You can restore it within 30 days from Settings → Trash.`}
+        actionLabel="Delete document"
+        ariaLabel={`Delete ${filename}`}
+        successMessage="Document moved to Trash."
+        className={className}
+        offline={{
+          entity: "document",
+          kind,
+          entityId: documentId,
+          parentId: ownerId,
+          label: `Delete document: ${filename}`,
+        }}
+      >
+        <Trash2 size={iconSize} />
+      </ConfirmForm>
+    </WriteOnly>
   );
 }

@@ -31,6 +31,8 @@ import { getHouseholdMemberCount } from "@/lib/household";
 import { getDueContext } from "@/lib/appSettings";
 import { currentTenancy, tenancyDue, TENANCY_AGREEMENT_SELECT } from "@/lib/dueRecords";
 import { DetailStatusBanner } from "@/components/DetailStatusBanner";
+import { auth } from "@/lib/auth";
+import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 
 const ITEM_ICONS: Record<string, LucideIcon> = {
   MAINTENANCE: Wrench,
@@ -53,6 +55,7 @@ export default async function PropertyDetailPage({
   await requireModuleEnabled("HOME");
 
   const { id } = await params;
+  const canWrite = sessionCanWrite(await auth());
   const [property, { dateFormat, preferredCurrency, region }, linkedContracts, linkedProducts, memberCount, due] =
     await Promise.all([
       prisma.property.findUnique({
@@ -109,26 +112,30 @@ export default async function PropertyDetailPage({
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href={`/home/${property.id}/edit`}
-            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
-          >
-            <Pencil size={16} />
-            Edit
-          </Link>
-          <DetailOverflowMenu>
-            <ConfirmForm
-              action={deleteProperty.bind(null, property.id)}
-              undo={{ action: restoreProperty.bind(null, property.id), href: `/home/${property.id}` }}
-              confirmText="Move this property to Trash? Its items and documents are kept, and you can restore it within 30 days from Settings → Trash."
-              actionLabel="Delete property"
-              className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
-              offline={{ entity: "property", entityId: property.id, label: `Delete property: ${property.label}` }}
-            >
-              <Trash2 size={16} />
-              Delete
-            </ConfirmForm>
-          </DetailOverflowMenu>
+          {canWrite && (
+            <>
+              <Link
+                href={`/home/${property.id}/edit`}
+                className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+              >
+                <Pencil size={16} />
+                Edit
+              </Link>
+              <DetailOverflowMenu>
+                <ConfirmForm
+                  action={deleteProperty.bind(null, property.id)}
+                  undo={{ action: restoreProperty.bind(null, property.id), href: `/home/${property.id}` }}
+                  confirmText="Move this property to Trash? Its items and documents are kept, and you can restore it within 30 days from Settings → Trash."
+                  actionLabel="Delete property"
+                  className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
+                  offline={{ entity: "property", entityId: property.id, label: `Delete property: ${property.label}` }}
+                >
+                  <Trash2 size={16} />
+                  Delete
+                </ConfirmForm>
+              </DetailOverflowMenu>
+            </>
+          )}
         </div>
       </div>
 
@@ -163,13 +170,17 @@ export default async function PropertyDetailPage({
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="font-medium">Maintenance &amp; improvements</h2>
-          <Link
-            href={`/home/${property.id}/items/new`}
-            className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
-          >
-            <Plus size={16} />
-            Add item
-          </Link>
+          {canWrite && (
+            <>
+              <Link
+                href={`/home/${property.id}/items/new`}
+                className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+              >
+                <Plus size={16} />
+                Add item
+              </Link>
+            </>
+          )}
         </div>
 
         {items.length === 0 ? (
@@ -206,23 +217,27 @@ export default async function PropertyDetailPage({
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <Link
-                        href={`/home/${property.id}/items/${item.id}/edit`}
-                        className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
-                      >
-                        <Pencil size={16} />
-                        Edit
-                      </Link>
-                      <ConfirmForm
-                        action={deleteHomeItem.bind(null, property.id, item.id)}
-                        undo={{ action: restoreHomeItem.bind(null, item.id) }}
-                        confirmText={`Delete "${item.title}" and its documents?`}
-                        actionLabel={`Delete "${item.title}"`}
-                        className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
-                      >
-                        <Trash2 size={16} />
-                        Delete
-                      </ConfirmForm>
+                      {canWrite && (
+                        <>
+                          <Link
+                            href={`/home/${property.id}/items/${item.id}/edit`}
+                            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+                          >
+                            <Pencil size={16} />
+                            Edit
+                          </Link>
+                          <ConfirmForm
+                            action={deleteHomeItem.bind(null, property.id, item.id)}
+                            undo={{ action: restoreHomeItem.bind(null, item.id) }}
+                            confirmText={`Delete "${item.title}" and its documents?`}
+                            actionLabel={`Delete "${item.title}"`}
+                            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
+                          >
+                            <Trash2 size={16} />
+                            Delete
+                          </ConfirmForm>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -243,9 +258,13 @@ export default async function PropertyDetailPage({
                   <div className="mt-4 border-t border-border pt-4">
                     <h3 className="mb-2 text-sm font-medium">Documents</h3>
                     <HomeItemDocumentList documents={item.documents} dateFormat={dateFormat} />
-                    <div className="mt-3">
-                      <DocumentUploadForm action={addDocumentAction.bind(null, "HOME_ITEM", item.id)} />
-                    </div>
+                    {canWrite && (
+                      <>
+                        <div className="mt-3">
+                          <DocumentUploadForm action={addDocumentAction.bind(null, "HOME_ITEM", item.id)} />
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               );
@@ -257,13 +276,17 @@ export default async function PropertyDetailPage({
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="font-medium">Contracts &amp; warranties linked to this property</h2>
-          <Link
-            href={`/contracts/new?propertyId=${property.id}`}
-            className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
-          >
-            <Plus size={16} />
-            Add contract
-          </Link>
+          {canWrite && (
+            <>
+              <Link
+                href={`/contracts/new?propertyId=${property.id}`}
+                className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+              >
+                <Plus size={16} />
+                Add contract
+              </Link>
+            </>
+          )}
         </div>
         {linkedContracts.length === 0 && linkedProducts.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted">
@@ -310,28 +333,36 @@ export default async function PropertyDetailPage({
                   </p>
                   {v.notes && <p className="mt-0.5 text-xs text-foreground">{v.notes}</p>}
                 </div>
-                <ConfirmForm
-                  action={deletePropertyValuation.bind(null, property.id, v.id)}
-                  confirmText="Remove this valuation? This can't be undone."
-                  actionLabel="Remove valuation"
-                  ariaLabel={`Remove valuation from ${formatDate(v.valuedAt, dateFormat)}`}
-                  className="rounded-lg border border-border p-2 text-danger hover:bg-danger/10"
-                >
-                  <Trash2 size={14} />
-                </ConfirmForm>
+                {canWrite && (
+                  <>
+                    <ConfirmForm
+                      action={deletePropertyValuation.bind(null, property.id, v.id)}
+                      confirmText="Remove this valuation? This can't be undone."
+                      actionLabel="Remove valuation"
+                      ariaLabel={`Remove valuation from ${formatDate(v.valuedAt, dateFormat)}`}
+                      className="rounded-lg border border-border p-2 text-danger hover:bg-danger/10"
+                    >
+                      <Trash2 size={14} />
+                    </ConfirmForm>
+                  </>
+                )}
               </div>
             ))}
           </div>
         )}
 
-        <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
-          <h3 className="mb-3 text-sm font-medium">Add valuation</h3>
-          <PropertyValuationForm
-            action={createPropertyValuation.bind(null, property.id)}
-            propertyId={property.id}
-            defaultCurrency={preferredCurrency}
-          />
-        </div>
+        {canWrite && (
+          <>
+            <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+              <h3 className="mb-3 text-sm font-medium">Add valuation</h3>
+              <PropertyValuationForm
+                action={createPropertyValuation.bind(null, property.id)}
+                propertyId={property.id}
+                defaultCurrency={preferredCurrency}
+              />
+            </div>
+          </>
+        )}
       </div>
 
       {/* #232 — offering rental tracking on a property that isn't rented

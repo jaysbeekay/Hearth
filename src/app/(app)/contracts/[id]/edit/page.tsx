@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { updateContract } from "@/lib/actions/contracts";
 import { ContractForm } from "@/components/ContractForm";
 import { isModuleEnabled } from "@/lib/modules/enablement";
+import { auth } from "@/lib/auth";
+import { redirectIfReadOnly } from "@/lib/readOnly";
 
 export default async function EditContractPage({
   params,
@@ -10,6 +12,7 @@ export default async function EditContractPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  redirectIfReadOnly(await auth(), `/contracts/${id}`);
   const [contract, homeEnabled, vehiclesEnabled] = await Promise.all([
     prisma.contract.findUnique({ where: { id } }),
     isModuleEnabled("HOME"),

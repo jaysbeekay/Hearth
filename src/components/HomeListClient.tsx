@@ -12,6 +12,7 @@ import { formatCurrency } from "@/lib/utils";
 import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
+import { useCanWrite } from "@/components/CanWriteProvider";
 
 type PropertyWithCount = PropertyModel & { _count: { items: number } };
 
@@ -29,6 +30,7 @@ interface Props {
 
 export function HomeListClient({ properties, taxDeductibleSummary, region }: Props) {
   const online = useOnlineStatus();
+  const canWrite = useCanWrite();
   const router = useRouter();
   const { pendingOps, refresh: refreshPending } = usePendingCreates("property");
 
@@ -56,15 +58,19 @@ export function HomeListClient({ properties, taxDeductibleSummary, region }: Pro
               <a href="/api/export/home?format=pdf" download className={exportMenuItemClass}>PDF</a>
             </div>
           </details>
-          <Link
-            href="/home/new"
-            aria-disabled={!online}
-            tabIndex={!online ? -1 : undefined}
-            className={linkButtonClass("primary", { online })}
-          >
-            <Plus size={16} />
-            Add property
-          </Link>
+          {canWrite && (
+            <>
+              <Link
+                href="/home/new"
+                aria-disabled={!online}
+                tabIndex={!online ? -1 : undefined}
+                className={linkButtonClass("primary", { online })}
+              >
+                <Plus size={16} />
+                Add property
+              </Link>
+            </>
+          )}
         </div>
       </div>
 

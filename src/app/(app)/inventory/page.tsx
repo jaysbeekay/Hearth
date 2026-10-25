@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { InventoryListClient } from "@/components/InventoryListClient";
+import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 
 export default async function InventoryPage() {
   await requireModuleEnabled("INVENTORY");
@@ -22,7 +23,7 @@ export default async function InventoryPage() {
       items={items}
       dateFormat={dateFormat}
       region={region}
-      canWrite={session?.user.role !== "READONLY"}
+      canWrite={sessionCanWrite(session)}
     />
   );
 }

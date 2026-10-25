@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Plus, FileText, Package, Boxes, Home as HomeIcon, Files, X } from "lucide-react";
 import { linkButtonClass } from "@/lib/buttonStyles";
 import { Dialog } from "@/components/Dialog";
+import { useCanWrite } from "@/components/CanWriteProvider";
 
 interface Option {
   label: string;
@@ -55,6 +56,10 @@ export function AddEntryPicker({ enabledModules }: { enabledModules: string[] })
       icon: HomeIcon,
     });
   }
+
+  // Read-only members can't write, so they get no picker (#400).
+  const canWrite = useCanWrite();
+  if (!canWrite) return null;
 
   return (
     <>

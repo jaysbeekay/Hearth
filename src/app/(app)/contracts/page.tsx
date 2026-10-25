@@ -16,6 +16,7 @@ import {
 } from "@/lib/recordFilters";
 import type { Prisma } from "@/generated/prisma/client";
 import { ContractCategory, ContractStatus } from "@/generated/prisma/enums";
+import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 
 export const metadata: Metadata = { title: "Policies & contracts" };
 
@@ -99,7 +100,7 @@ export default async function ContractsPage({
       status={status}
       dateFormat={dateFormat}
       region={region}
-      canWrite={session?.user.role !== "READONLY"}
+      canWrite={sessionCanWrite(session)}
     />
   );
 }

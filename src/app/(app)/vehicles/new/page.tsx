@@ -2,9 +2,12 @@ import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { createVehicle } from "@/lib/actions/vehicles";
 import { VehicleForm } from "@/components/VehicleForm";
 import { BackLink } from "@/components/BackLink";
+import { auth } from "@/lib/auth";
+import { redirectIfReadOnly } from "@/lib/readOnly";
 
 export default async function NewVehiclePage() {
   await requireModuleEnabled("VEHICLES");
+  redirectIfReadOnly(await auth(), "/vehicles");
 
   return (
     <div className="max-w-3xl space-y-6">

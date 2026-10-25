@@ -9,6 +9,7 @@ import { documentsEmptyMessage } from "@/lib/documents/emptyMessage";
 import { auth } from "@/lib/auth";
 import { documentFileHref } from "@/lib/documents/kinds";
 import { LIVE_DOCUMENT_WHERE as LIVE } from "@/lib/documents/liveDocuments";
+import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 
 export const metadata: Metadata = { title: "Documents" };
 
@@ -371,7 +372,7 @@ export default async function DocumentsPage({
 }) {
   const { type, view, page: pageParam } = await searchParams;
   const session = await auth();
-  const canWrite = session?.user.role !== "READONLY";
+  const canWrite = sessionCanWrite(session);
   const showAll = view === "all";
   const page = Math.max(0, Number(pageParam) || 0);
 

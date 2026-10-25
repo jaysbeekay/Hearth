@@ -18,6 +18,7 @@ import {
   productRules,
   type ListFilterCounts,
 } from "@/lib/recordFilters";
+import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 
 export const metadata: Metadata = { title: "Purchases & warranties" };
 
@@ -110,7 +111,7 @@ export default async function ProductsPage({
       q={q}
       dateFormat={dateFormat}
       region={region}
-      canWrite={session?.user.role !== "READONLY"}
+      canWrite={sessionCanWrite(session)}
     />
   );
 }

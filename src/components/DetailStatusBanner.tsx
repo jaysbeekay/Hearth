@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AlertTriangle, AlertCircle, CalendarClock, Upload, RotateCw } from "lucide-react";
 import { TestConnectionButton } from "@/components/TestConnectionButton";
+import { WriteOnly } from "@/components/CanWriteProvider";
 import { bannerEntries, dueTone, type DueEntry, type DueTone } from "@/lib/dueRecords";
 import type { ActionState } from "@/lib/actions/auth";
 
@@ -73,29 +74,32 @@ export function DetailStatusBanner({
               <Icon size={16} className="shrink-0" aria-hidden />
               {message(entry, newEndDateMessage)}
             </p>
-            <div className="flex flex-wrap items-center gap-2">
-              {housekeeping ? (
-                <Link href={editHref} className={actionClass}>
-                  <CalendarClock size={14} />
-                  {newEndDateLabel}
-                </Link>
-              ) : (
-                <>
-                  {secondaryAction}
-                  {!renewLabel ? null : hasDocuments ? (
-                    <Link href={editHref} className={actionClass}>
-                      <RotateCw size={14} />
-                      {renewLabel}
-                    </Link>
-                  ) : (
-                    <Link href={documentsHref} className={actionClass}>
-                      <Upload size={14} />
-                      Upload document
-                    </Link>
-                  )}
-                </>
-              )}
-            </div>
+            {/* #400 — read-only members see the status, not the actions. */}
+            <WriteOnly>
+              <div className="flex flex-wrap items-center gap-2">
+                {housekeeping ? (
+                  <Link href={editHref} className={actionClass}>
+                    <CalendarClock size={14} />
+                    {newEndDateLabel}
+                  </Link>
+                ) : (
+                  <>
+                    {secondaryAction}
+                    {!renewLabel ? null : hasDocuments ? (
+                      <Link href={editHref} className={actionClass}>
+                        <RotateCw size={14} />
+                        {renewLabel}
+                      </Link>
+                    ) : (
+                      <Link href={documentsHref} className={actionClass}>
+                        <Upload size={14} />
+                        Upload document
+                      </Link>
+                    )}
+                  </>
+                )}
+              </div>
+            </WriteOnly>
           </div>
         );
       })}
@@ -106,7 +110,9 @@ export function DetailStatusBanner({
             Needs review — some details were filled in automatically and haven&apos;t been confirmed
             yet. Reminders are on hold until then.
           </p>
-          <TestConnectionButton action={needsReview.onConfirm} label="Confirm details" />
+          <WriteOnly>
+            <TestConnectionButton action={needsReview.onConfirm} label="Confirm details" />
+          </WriteOnly>
         </div>
       )}
     </div>

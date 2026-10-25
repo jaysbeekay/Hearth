@@ -2,9 +2,12 @@ import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { createProperty } from "@/lib/actions/home";
 import { PropertyForm } from "@/components/PropertyForm";
 import { BackLink } from "@/components/BackLink";
+import { auth } from "@/lib/auth";
+import { redirectIfReadOnly } from "@/lib/readOnly";
 
 export default async function NewPropertyPage() {
   await requireModuleEnabled("HOME");
+  redirectIfReadOnly(await auth(), "/home");
 
   return (
     <div className="max-w-3xl space-y-6">

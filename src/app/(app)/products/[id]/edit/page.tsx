@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { updateProduct } from "@/lib/actions/products";
 import { ProductForm } from "@/components/ProductForm";
 import { isModuleEnabled } from "@/lib/modules/enablement";
+import { auth } from "@/lib/auth";
+import { redirectIfReadOnly } from "@/lib/readOnly";
 
 export default async function EditProductPage({
   params,
@@ -10,6 +12,7 @@ export default async function EditProductPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  redirectIfReadOnly(await auth(), `/products/${id}`);
   const [product, homeEnabled] = await Promise.all([
     prisma.product.findUnique({ where: { id } }),
     isModuleEnabled("HOME"),

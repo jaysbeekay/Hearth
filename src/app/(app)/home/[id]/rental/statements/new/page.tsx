@@ -5,6 +5,8 @@ import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { createRentalStatement } from "@/lib/actions/home";
 import { RentalStatementForm } from "@/components/RentalStatementForm";
 import { getUserPreferences } from "@/lib/userPreferences";
+import { auth } from "@/lib/auth";
+import { redirectIfReadOnly } from "@/lib/readOnly";
 
 export default async function NewRentalStatementPage({
   params,
@@ -14,6 +16,7 @@ export default async function NewRentalStatementPage({
   await requireModuleEnabled("HOME");
 
   const { id } = await params;
+  redirectIfReadOnly(await auth(), `/home/${id}/rental`);
   const [property, { preferredCurrency }] = await Promise.all([
     prisma.property.findUnique({ where: { id } }),
     getUserPreferences(),

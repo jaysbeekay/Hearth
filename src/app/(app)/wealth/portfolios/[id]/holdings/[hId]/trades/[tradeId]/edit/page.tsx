@@ -5,6 +5,8 @@ import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { prisma } from "@/lib/prisma";
 import { updateTrade } from "@/lib/actions/wealth";
 import { TradeForm } from "@/components/TradeForm";
+import { auth } from "@/lib/auth";
+import { redirectIfReadOnly } from "@/lib/readOnly";
 
 export const metadata: Metadata = { title: "Edit Trade" };
 
@@ -15,6 +17,7 @@ export default async function EditTradePage({
 }) {
   await requireModuleEnabled("WEALTH");
   const { id: portfolioId, hId: holdingId, tradeId } = await params;
+  redirectIfReadOnly(await auth(), `/wealth/portfolios/${portfolioId}/holdings/${holdingId}`);
 
   const trade = await prisma.trade.findUnique({
     where: { id: tradeId },

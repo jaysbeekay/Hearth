@@ -26,9 +26,12 @@ const KIND_ICON: Record<AttentionItem["kind"], React.ComponentType<{ size?: numb
 export function NeedsAttentionQueue({
   due,
   housekeeping,
+  canWrite = true,
 }: {
   due: AttentionItem[];
   housekeeping: AttentionItem[];
+  /** False for a READONLY member: rows stay links to the record, without their action buttons (#400). */
+  canWrite?: boolean;
 }) {
   return (
     <div className="space-y-6">
@@ -41,7 +44,7 @@ export function NeedsAttentionQueue({
             Nothing due.
           </p>
         ) : (
-          <AttentionList items={due} />
+          <AttentionList items={due} canWrite={canWrite} />
         )}
       </section>
 
@@ -50,14 +53,14 @@ export function NeedsAttentionQueue({
           <h3 id="attention-housekeeping" className="text-sm font-semibold">
             Housekeeping <span className="font-normal text-muted">({housekeeping.length})</span>
           </h3>
-          <AttentionList items={housekeeping} />
+          <AttentionList items={housekeeping} canWrite={canWrite} />
         </section>
       )}
     </div>
   );
 }
 
-function AttentionList({ items }: { items: AttentionItem[] }) {
+function AttentionList({ items, canWrite }: { items: AttentionItem[]; canWrite: boolean }) {
   return (
     <ul className="space-y-2">
       {items.map((item) => {
@@ -95,28 +98,30 @@ function AttentionList({ items }: { items: AttentionItem[] }) {
               </span>
             )}
 
-            <div className="flex shrink-0 items-center gap-2">
-              {item.canMarkCancelled && (
-                <ConfirmForm
-                  action={setContractStatus.bind(null, item.id, "CANCELLED")}
-                  confirmText="Mark this contract as cancelled? This just changes its status — it won't delete the contract or its documents."
-                  actionLabel="Mark as cancelled"
-                  ariaLabel={`Mark ${item.title} as cancelled`}
-                  className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted hover:bg-hover"
-                >
-                  <Ban size={12} />
-                  Cancel
-                </ConfirmForm>
-              )}
-              {item.action && (
-                <Link
-                  href={item.action.href}
-                  className="inline-flex items-center rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground hover:opacity-90"
-                >
-                  {item.action.label}
-                </Link>
-              )}
-            </div>
+            {canWrite && (
+              <div className="flex shrink-0 items-center gap-2">
+                {item.canMarkCancelled && (
+                  <ConfirmForm
+                    action={setContractStatus.bind(null, item.id, "CANCELLED")}
+                    confirmText="Mark this contract as cancelled? This just changes its status — it won't delete the contract or its documents."
+                    actionLabel="Mark as cancelled"
+                    ariaLabel={`Mark ${item.title} as cancelled`}
+                    className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted hover:bg-hover"
+                  >
+                    <Ban size={12} />
+                    Cancel
+                  </ConfirmForm>
+                )}
+                {item.action && (
+                  <Link
+                    href={item.action.href}
+                    className="inline-flex items-center rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground hover:opacity-90"
+                  >
+                    {item.action.label}
+                  </Link>
+                )}
+              </div>
+            )}
           </li>
         );
 

@@ -4,6 +4,7 @@ import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { TravelListClient } from "@/components/TravelListClient";
 import { buildDistanceSummary } from "@/lib/integrations/flightDistance";
+import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 
 export default async function TravelPage() {
   await requireModuleEnabled("TRAVEL");
@@ -26,7 +27,7 @@ export default async function TravelPage() {
     <TravelListClient
       trips={trips}
       dateFormat={dateFormat}
-      canWrite={session?.user.role !== "READONLY"}
+      canWrite={sessionCanWrite(session)}
       distanceSummary={buildDistanceSummary(flightSegments)}
     />
   );

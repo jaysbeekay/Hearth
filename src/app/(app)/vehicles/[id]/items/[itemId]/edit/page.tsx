@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { updateVehicleItem } from "@/lib/actions/vehicles";
 import { VehicleItemForm } from "@/components/VehicleItemForm";
+import { auth } from "@/lib/auth";
+import { redirectIfReadOnly } from "@/lib/readOnly";
 
 export default async function EditVehicleItemPage({
   params,
@@ -12,6 +14,7 @@ export default async function EditVehicleItemPage({
   await requireModuleEnabled("VEHICLES");
 
   const { id, itemId } = await params;
+  redirectIfReadOnly(await auth(), `/vehicles/${id}`);
   const [vehicle, item] = await Promise.all([
     prisma.vehicle.findUnique({ where: { id } }),
     prisma.vehicleItem.findUnique({ where: { id: itemId } }),
