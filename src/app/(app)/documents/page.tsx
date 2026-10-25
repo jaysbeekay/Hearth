@@ -193,7 +193,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
 
   if (enabledModules.has("HOME")) {
     sources.push({
-      type: "Property",
+      type: "Properties",
       count: () =>
         Promise.all([
           prisma.homeItemDocument.count({ where: LIVE.HOME_ITEM }),
@@ -240,7 +240,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
             uploadedAt: r.uploadedAt,
             mimeType: r.mimeType,
             category: r.category,
-            type: "Property",
+            type: "Properties",
             parentTitle: r.homeItem.title,
             parentHref: `/home/${r.homeItem.propertyId}/items/${r.homeItem.id}`,
             downloadHref: documentFileHref(r.id),
@@ -252,7 +252,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               size: r.size,
               uploadedAt: r.uploadedAt,
               mimeType: r.mimeType,
-              type: "Property",
+              type: "Properties",
               parentTitle: "Rental statement",
               parentHref: `/home/${r.rentalStatement.propertyId}/rental`,
               downloadHref: documentFileHref(r.id),

@@ -57,7 +57,7 @@ test("the Contracts document feed paginates instead of loading every row at once
   // than PAGE_SIZE contract documents now exist.
   const rowsOnPage1 = await page.locator("table tbody tr").count();
   expect(rowsOnPage1).toBe(PAGE_SIZE);
-  const olderLink = page.getByRole("link", { name: "Older →" });
+  const olderLink = page.getByRole("link", { name: "Older" });
   await expect(olderLink).toBeVisible();
 
   await olderLink.click();
@@ -67,5 +67,5 @@ test("the Contracts document feed paginates instead of loading every row at once
   const rowsOnPage2 = await page.locator("table tbody tr").count();
   expect(rowsOnPage2).toBeGreaterThan(0);
   expect(rowsOnPage2).toBeLessThan(PAGE_SIZE);
-  await expect(page.getByRole("link", { name: "Older →" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Older" })).toHaveCount(0);
 });

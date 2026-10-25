@@ -14,10 +14,10 @@ function isActive(href: string, pathname: string) {
 }
 
 // Fixed regardless of how many modules are enabled — everything else
-// (Calendar, Spend, module items, Settings) lives in the "More" sheet so the
+// (Upcoming, Spending, module items, Settings) lives in the "More" sheet so the
 // bar never grows past 5 slots on small screens. Documents is promoted here
-// over Calendar since capturing/reviewing receipts is a primary, frequent
-// action, while calendar is a secondary/glanceable view (#173).
+// over Upcoming since capturing/reviewing receipts is a primary, frequent
+// action, while Upcoming is a secondary/glanceable view (#173).
 const PRIMARY_HREFS = ["/dashboard", "/contracts", "/products", "/documents"];
 
 export function BottomNav({

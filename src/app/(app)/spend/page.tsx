@@ -159,7 +159,7 @@ export default async function SpendPage({
       <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-medium">
-            Recurring spend — {view === "yearly" ? "last 5 years" : "last 12 months"}
+            Recurring cost — {view === "yearly" ? "last 5 years" : "last 12 months"}
           </h2>
           <div className="flex rounded-lg border border-border p-0.5 text-xs">
             <Link
