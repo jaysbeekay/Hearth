@@ -30,7 +30,7 @@ export function MemberRoleForm({ userId, role }: { userId: string; role: string 
         </SelectWrapper>
         <button
           type="submit"
-          className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium hover:bg-black/5 dark:hover:bg-white/5"
+          className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium hover:bg-hover"
         >
           Save
         </button>

@@ -248,7 +248,7 @@ export default async function HoldingPage({
           <div className="flex items-center gap-2">
             <Link
               href={`/wealth/portfolios/${portfolioId}/holdings/${holdingId}/edit`}
-              className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
+              className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
             >
               <Pencil size={16} />
               Edit
@@ -270,36 +270,36 @@ export default async function HoldingPage({
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div className="rounded-xl border border-border bg-surface p-4">
           <p className="text-xs text-muted">Units held</p>
-          <p className="mt-1 text-lg font-semibold tabular-nums">
+          <p className="mt-1 text-lg font-semibold">
             {formatNumber(units, region)}
           </p>
         </div>
         <div className="rounded-xl border border-border bg-surface p-4">
           <p className="text-xs text-muted">Current price</p>
-          <p className="mt-1 text-lg font-semibold tabular-nums">
+          <p className="mt-1 text-lg font-semibold">
             {currentPrice != null ? formatCurrency(currentPrice, currency, undefined, region, { showCode: true }) : "—"}
           </p>
           {priceEntry?.changePct != null && (
-            <p className={`text-xs tabular-nums ${priceEntry.changePct >= 0 ? "text-success" : "text-danger"}`}>
+            <p className={`text-xs ${priceEntry.changePct >= 0 ? "text-success" : "text-danger"}`}>
               {priceEntry.changePct >= 0 ? "+" : ""}{priceEntry.changePct.toFixed(2)}% today
             </p>
           )}
         </div>
         <div className="rounded-xl border border-border bg-surface p-4">
           <p className="text-xs text-muted">Market value</p>
-          <p className="mt-1 text-lg font-semibold tabular-nums">
+          <p className="mt-1 text-lg font-semibold">
             {currentValue != null ? formatCurrency(currentValue, currency, undefined, region, { showCode: true }) : "—"}
           </p>
         </div>
         <div className="rounded-xl border border-border bg-surface p-4">
           <p className="text-xs text-muted">Unrealised gain/loss</p>
-          <p className={`mt-1 text-lg font-semibold tabular-nums ${gainLoss == null ? "" : gainLoss >= 0 ? "text-success" : "text-danger"}`}>
+          <p className={`mt-1 text-lg font-semibold ${gainLoss == null ? "" : gainLoss >= 0 ? "text-success" : "text-danger"}`}>
             {gainLoss != null
               ? `${gainLoss >= 0 ? "+" : ""}${formatCurrency(gainLoss, currency, undefined, region, { showCode: true })}`
               : "—"}
           </p>
           {gainLossPct != null && (
-            <p className={`text-xs tabular-nums ${gainLossPct >= 0 ? "text-success" : "text-danger"}`}>
+            <p className={`text-xs ${gainLossPct >= 0 ? "text-success" : "text-danger"}`}>
               ({gainLossPct >= 0 ? "+" : ""}{gainLossPct.toFixed(1)}%)
             </p>
           )}
@@ -311,11 +311,11 @@ export default async function HoldingPage({
           <dt className="text-xs text-muted">
             Cost basis <span className="text-muted">({COST_METHOD_LABELS[holding.portfolio.costMethod]})</span>
           </dt>
-          <dd className="text-sm font-medium tabular-nums break-words">{formatCurrency(cost, currency, undefined, region, { showCode: true })}</dd>
+          <dd className="text-sm font-medium break-words">{formatCurrency(cost, currency, undefined, region, { showCode: true })}</dd>
         </div>
         <div className="min-w-0">
           <dt className="text-xs text-muted">Avg cost / unit</dt>
-          <dd className="text-sm font-medium tabular-nums break-words">
+          <dd className="text-sm font-medium break-words">
             {units > 0 && cost > 0 ? formatCurrency(cost / units, currency, undefined, region, { showCode: true }) : "—"}
           </dd>
         </div>
@@ -370,7 +370,7 @@ export default async function HoldingPage({
                         {TRADE_TYPE_LABELS[trade.type] ?? trade.type}
                       </span>
                       <div>
-                        <p className="text-sm font-medium tabular-nums">
+                        <p className="text-sm font-medium">
                           {formatNumber(trade.units, region)} units @ {formatCurrency(trade.pricePerUnit, trade.currency, undefined, region, { showCode: true })}
                         </p>
                         <p className="text-xs text-muted">
@@ -387,13 +387,13 @@ export default async function HoldingPage({
                             )}
                           </p>
                         )}
-                        {trade.notes && <p className="mt-1 text-xs text-muted">{trade.notes}</p>}
+                        {trade.notes && <p className="mt-1 text-xs text-foreground">{trade.notes}</p>}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Link
                         href={`/wealth/portfolios/${portfolioId}/holdings/${holdingId}/trades/${trade.id}/edit`}
-                        className="rounded-lg border border-border p-2 hover:bg-black/5 dark:hover:bg-white/5"
+                        className="rounded-lg border border-border p-2 hover:bg-hover"
                         title="Edit trade"
                       >
                         <Pencil size={14} />

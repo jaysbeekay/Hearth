@@ -85,7 +85,7 @@ export function PropertyForm({
       className="space-y-6"
     >
       {pendingOp && (
-        <p className="rounded-lg border border-dashed border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-700 dark:text-amber-400">
+        <p className="rounded-lg border border-dashed border-warning/40 bg-warning/10 px-4 py-2 text-sm text-warning">
           Editing an offline entry that hasn&apos;t synced yet — saving updates it in place.
         </p>
       )}
@@ -122,7 +122,7 @@ export function PropertyForm({
       </div>
 
       {occupancyStatus === "RENTED" && (
-        <p className="rounded-lg border border-dashed border-border bg-black/5 px-4 py-2 text-sm text-foreground/70 dark:bg-white/5">
+        <p className="rounded-lg border border-dashed border-border bg-hover px-4 py-2 text-sm text-muted">
           {property ? (
             property.isRented ? (
               <>
@@ -296,7 +296,7 @@ function AddressFields({
                     type="button"
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => selectSuggestion(s)}
-                    className="block w-full px-3 py-2 text-left text-sm hover:bg-black/5 dark:hover:bg-white/5"
+                    className="block w-full px-3 py-2 text-left text-sm hover:bg-hover"
                   >
                     {s.display_name}
                   </button>

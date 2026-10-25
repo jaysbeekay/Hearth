@@ -61,7 +61,7 @@ export function DetailStatusBanner({
             {hasDocuments ? (
               <Link
                 href={editHref}
-                className="inline-flex items-center gap-2 rounded-lg bg-current/10 px-3 py-1.5 text-xs font-medium hover:opacity-80"
+                className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium hover:bg-hover-surface"
               >
                 <RotateCw size={14} />
                 {renewLabel}
@@ -69,7 +69,7 @@ export function DetailStatusBanner({
             ) : (
               <Link
                 href={documentsHref}
-                className="inline-flex items-center gap-2 rounded-lg bg-current/10 px-3 py-1.5 text-xs font-medium hover:opacity-80"
+                className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium hover:bg-hover-surface"
               >
                 <Upload size={14} />
                 Upload document
@@ -79,7 +79,7 @@ export function DetailStatusBanner({
         </div>
       )}
       {needsReview && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-info/30 bg-info/10 p-3 text-info">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-muted/10 p-3 text-foreground">
           <p className="flex items-center gap-2 text-sm font-medium">
             <AlertCircle size={16} className="shrink-0" aria-hidden />
             Needs review — some details were filled in automatically and haven&apos;t been confirmed

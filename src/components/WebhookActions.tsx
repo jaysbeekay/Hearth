@@ -13,7 +13,7 @@ import { FormMessage } from "@/components/FormMessage";
 import { ConfirmForm } from "@/components/ConfirmForm";
 
 const buttonClass =
-  "rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-black/5 dark:hover:bg-white/5";
+  "rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-hover";
 
 export function WebhookActions({
   endpointId,

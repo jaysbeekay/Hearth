@@ -47,7 +47,7 @@ export const metadata: Metadata = { title: "System settings" };
 // the long scroll easier to navigate.
 function CategoryHeading({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="border-b border-border pb-2 text-sm font-semibold uppercase tracking-wide text-muted">
+    <h2 className="border-b border-border pb-2 text-sm font-semibold text-muted">
       {children}
     </h2>
   );

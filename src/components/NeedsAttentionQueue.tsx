@@ -61,7 +61,7 @@ function AttentionList({ items }: { items: AttentionItem[] }) {
       {items.map((item) => {
         const Icon = item.id === "inbox" ? Inbox : KIND_ICON[item.kind];
         const row = (
-          <li className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface p-3 shadow-stripe md:flex-nowrap">
+          <li className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface p-3 md:flex-nowrap">
             <Icon size={18} className="shrink-0 text-muted" aria-hidden />
 
             <Link href={item.href} className="min-w-0 flex-1 hover:underline">
@@ -82,7 +82,7 @@ function AttentionList({ items }: { items: AttentionItem[] }) {
 
             {item.days != null && <ExpiryBadge days={item.days} cancelBy={item.cancelBy} />}
             {item.noDocument && (
-              <span className="inline-flex items-center rounded-md bg-slate-500/10 px-2.5 py-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+              <span className="inline-flex items-center rounded-md bg-muted/10 px-2.5 py-1 text-xs font-medium text-muted">
                 No document
               </span>
             )}
@@ -100,7 +100,7 @@ function AttentionList({ items }: { items: AttentionItem[] }) {
                   confirmText="Mark this contract as cancelled? This just changes its status — it won't delete the contract or its documents."
                   actionLabel="Mark as cancelled"
                   ariaLabel={`Mark ${item.title} as cancelled`}
-                  className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-foreground/70 hover:bg-black/5 dark:hover:bg-white/5"
+                  className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted hover:bg-hover"
                 >
                   <Ban size={12} />
                   Cancel

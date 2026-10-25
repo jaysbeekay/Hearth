@@ -212,7 +212,7 @@ export function ContractListClient({
             <button
               type="button"
               onClick={() => removeFilter("q")}
-              className="flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/5"
+              className="flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:bg-hover"
             >
               &quot;{q}&quot; <X size={12} />
             </button>
@@ -221,7 +221,7 @@ export function ContractListClient({
             <button
               type="button"
               onClick={() => removeFilter("category")}
-              className="flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/5"
+              className="flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:bg-hover"
             >
               {CATEGORY_LABELS[category] ?? category} <X size={12} />
             </button>
@@ -230,7 +230,7 @@ export function ContractListClient({
             <button
               type="button"
               onClick={() => removeFilter("status")}
-              className="flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/5"
+              className="flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:bg-hover"
             >
               {STATUS_LABELS[status] ?? status} <X size={12} />
             </button>
@@ -297,7 +297,7 @@ export function ContractListClient({
                     confirmText={`Move this contract to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash.`}
                     actionLabel="Delete contract"
                     ariaLabel={`Delete ${contract.title}`}
-                    className="flex h-full w-full flex-col items-center justify-center gap-1 bg-danger text-xs font-medium text-white"
+                    className="flex h-full w-full flex-col items-center justify-center gap-1 bg-danger text-xs font-medium text-danger-foreground"
                     offline={{ entity: "contract", entityId: contract.id, label: `Delete contract: ${contract.title}` }}
                   >
                     <Trash2 size={18} />

@@ -168,7 +168,7 @@ export function OfflineSyncManager() {
           ? "bg-danger/10 text-danger"
           : syncState === "done"
             ? "bg-success/10 text-success"
-            : "bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300"
+            : "bg-warning/10 text-warning"
       }`}
     >
       {syncState === "syncing" && (

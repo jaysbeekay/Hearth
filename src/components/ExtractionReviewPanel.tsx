@@ -62,9 +62,9 @@ export function ExtractionReviewPanel({
   return (
     <form
       action={formAction}
-      className="space-y-3 rounded-xl border border-info/30 bg-info/10 p-4 md:p-6"
+      className="space-y-3 rounded-xl border border-border bg-muted/10 p-4 md:p-6"
     >
-      <p className="flex items-center gap-2 text-sm font-medium text-info">
+      <p className="flex items-center gap-2 text-sm font-medium text-foreground">
         <AlertCircle size={16} className="shrink-0" aria-hidden />
         Needs review — {fields.length} field{fields.length === 1 ? "" : "s"} were filled in
         automatically. Reminders are on hold until you confirm them.
@@ -85,7 +85,7 @@ export function ExtractionReviewPanel({
                 defaultValue={field.currentValue}
                 className={`${inputClass} max-w-xs`}
               />
-              <span className="rounded bg-current/10 px-1.5 py-0.5 text-[10px] font-medium text-info">
+              <span className="rounded bg-current/10 px-1.5 py-0.5 text-[10px] font-medium text-muted">
                 {sourceLabel(field.source)}
               </span>
               {field.confidence != null && (

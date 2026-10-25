@@ -21,7 +21,7 @@ export const metadata: Metadata = { title: "Settings" };
 // min-h-11 (44px) keeps these comfortably tappable on mobile even though
 // they're plain text links, not buttons.
 const quickLinkClass =
-  "flex min-h-11 items-center gap-2 rounded-lg px-2 -mx-2 text-sm text-accent hover:bg-black/5 dark:hover:bg-white/5";
+  "flex min-h-11 items-center gap-2 rounded-lg px-2 -mx-2 text-sm text-accent hover:bg-hover";
 
 export default async function SettingsPage() {
   const session = await auth();
@@ -66,7 +66,7 @@ export default async function SettingsPage() {
           {user.role === "ADMIN" && (
             <Link
               href="/settings/household"
-              className="mt-3 flex min-h-11 items-center gap-2 rounded-lg px-2 -mx-2 text-sm text-accent hover:bg-black/5 dark:hover:bg-white/5"
+              className="mt-3 flex min-h-11 items-center gap-2 rounded-lg px-2 -mx-2 text-sm text-accent hover:bg-hover"
             >
               <ArrowRight size={16} />
               Household &amp; System settings

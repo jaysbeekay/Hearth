@@ -81,13 +81,13 @@ export default async function ProductDetailPage({
             {product.manufacturer ?? product.vendor ?? "Product"}
           </p>
           <h1 className="text-2xl font-semibold">{product.description}</h1>
-          {product.vendor && <p className="text-foreground/70">{product.vendor}</p>}
+          {product.vendor && <p className="text-muted">{product.vendor}</p>}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <ExpiryBadge days={days} />
           <Link
             href={`/products/${product.id}/edit`}
-            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
+            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
           >
             <Pencil size={16} />
             Edit
@@ -167,7 +167,7 @@ export default async function ProductDetailPage({
             {product.property && (
               <Link
                 href={`/home/${product.property.id}`}
-                className="flex items-center gap-3 rounded-lg border border-border p-3 hover:bg-black/5 dark:hover:bg-white/5"
+                className="flex items-center gap-3 rounded-lg border border-border p-3 hover:bg-hover"
               >
                 <Home size={18} className="text-muted" />
                 <span>
@@ -180,7 +180,7 @@ export default async function ProductDetailPage({
               <Link
                 key={invItem.id}
                 href={`/inventory/${invItem.id}`}
-                className="flex items-center gap-3 rounded-lg border border-border p-3 hover:bg-black/5 dark:hover:bg-white/5"
+                className="flex items-center gap-3 rounded-lg border border-border p-3 hover:bg-hover"
               >
                 <Package size={18} className="text-muted" />
                 <span>
@@ -196,7 +196,7 @@ export default async function ProductDetailPage({
       {product.notes && (
         <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-2 font-medium">Notes</h2>
-          <p className="whitespace-pre-wrap text-sm text-foreground/80">{product.notes}</p>
+          <p className="whitespace-pre-wrap text-sm text-foreground">{product.notes}</p>
         </div>
       )}
 

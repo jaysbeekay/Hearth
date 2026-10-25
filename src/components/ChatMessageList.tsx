@@ -36,7 +36,7 @@ export function ChatMessageList({
   if (messages.length === 0) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center text-sm text-muted">
-        <Bot size={28} className="text-foreground/30" />
+        <Bot size={28} className="text-muted" />
         <p>Ask about your contracts, warranties, trips, vehicles, home, inventory, or wealth.</p>
       </div>
     );
@@ -54,7 +54,7 @@ export function ChatMessageList({
               "flex size-7 shrink-0 items-center justify-center rounded-full",
               message.role === "USER"
                 ? "bg-accent text-accent-foreground"
-                : "bg-black/5 dark:bg-white/10",
+                : "bg-muted/10",
             )}
           >
             {message.role === "USER" ? <User size={14} /> : <Bot size={14} />}
@@ -65,7 +65,7 @@ export function ChatMessageList({
                 "whitespace-pre-wrap rounded-xl px-3 py-2 text-sm",
                 message.role === "USER"
                   ? "bg-accent text-accent-foreground"
-                  : "bg-black/5 dark:bg-white/10",
+                  : "bg-muted/10",
                 message.streaming && !message.content && "text-muted",
               )}
             >

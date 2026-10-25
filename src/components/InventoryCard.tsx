@@ -28,7 +28,7 @@ export function InventoryCard({
   return (
     <Link
       href={`/inventory/${item.id}`}
-      className="block min-w-0 rounded-lg border border-border bg-surface p-4 shadow-stripe transition hover:border-accent/50"
+      className="block min-w-0 rounded-lg border border-border bg-surface p-4 transition hover:border-accent/50"
     >
       <div className="min-w-0">
         {subtitle && <p className="truncate text-sm text-muted">{subtitle}</p>}
@@ -48,7 +48,7 @@ export function InventoryCard({
         </div>
 
         {item._count != null && (
-          <span className="text-sm text-muted tabular-nums">
+          <span className="text-sm text-muted">
             {item._count.documents} {item._count.documents === 1 ? "doc" : "docs"}
           </span>
         )}

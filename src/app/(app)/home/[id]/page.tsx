@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Pencil, Trash2, Plus, Wrench, Sparkles, Hammer, Tag, Home, TrendingUp, AlertTriangle } from "lucide-react";
+import { Pencil, Trash2, Plus, Wrench, PaintRoller, Hammer, Tag, Home, TrendingUp, AlertTriangle } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { addDocumentAction } from "@/lib/actions/documents";
@@ -31,7 +31,7 @@ import { getHouseholdMemberCount } from "@/lib/household";
 
 const ITEM_ICONS: Record<string, LucideIcon> = {
   MAINTENANCE: Wrench,
-  IMPROVEMENT: Sparkles,
+  IMPROVEMENT: PaintRoller,
   REPAIR: Hammer,
   OTHER: Tag,
 };
@@ -95,14 +95,14 @@ export default async function PropertyDetailPage({
             {formatPropertyAddress(property) || "No address set"}
           </p>
           <h1 className="text-2xl font-semibold">{property.label}</h1>
-          <span className="mt-1 inline-block rounded-full bg-black/5 px-2 py-0.5 text-xs font-medium text-foreground/70 dark:bg-white/10">
+          <span className="mt-1 inline-block rounded-full bg-muted/10 px-2 py-0.5 text-xs font-medium text-muted">
             {OCCUPANCY_STATUS_LABELS[property.occupancyStatus] ?? property.occupancyStatus}
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Link
             href={`/home/${property.id}/edit`}
-            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
+            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
           >
             <Pencil size={16} />
             Edit
@@ -135,7 +135,7 @@ export default async function PropertyDetailPage({
       {property.notes && (
         <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-2 font-medium">Notes</h2>
-          <p className="whitespace-pre-wrap text-sm text-foreground/80">{property.notes}</p>
+          <p className="whitespace-pre-wrap text-sm text-foreground">{property.notes}</p>
         </div>
       )}
 
@@ -180,14 +180,14 @@ export default async function PropertyDetailPage({
                           )}
                         </p>
                         {item.provider && (
-                          <p className="text-sm text-foreground/70">{item.provider}</p>
+                          <p className="text-sm text-muted">{item.provider}</p>
                         )}
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <Link
                         href={`/home/${property.id}/items/${item.id}/edit`}
-                        className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
+                        className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
                       >
                         <Pencil size={16} />
                         Edit
@@ -214,7 +214,7 @@ export default async function PropertyDetailPage({
                   </dl>
 
                   {item.notes && (
-                    <p className="mt-4 whitespace-pre-wrap text-sm text-foreground/80">
+                    <p className="mt-4 whitespace-pre-wrap text-sm text-foreground">
                       {item.notes}
                     </p>
                   )}
@@ -238,7 +238,7 @@ export default async function PropertyDetailPage({
           <h2 className="font-medium">Contracts &amp; warranties linked to this property</h2>
           <Link
             href={`/contracts/new?propertyId=${property.id}`}
-            className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
+            className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
           >
             <Plus size={16} />
             Add contract
@@ -270,7 +270,7 @@ export default async function PropertyDetailPage({
         </div>
 
         {valuationStale && (
-          <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+          <div className="flex items-center gap-2 rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
             <AlertTriangle size={16} className="shrink-0" />
             {latestValuation
               ? "Valuation is over 12 months old — consider updating."
@@ -283,11 +283,11 @@ export default async function PropertyDetailPage({
             {property.valuations.map((v) => (
               <div key={v.id} className="flex items-center justify-between gap-4 p-4">
                 <div>
-                  <p className="font-medium tabular-nums">{formatCurrency(v.value, v.currency, undefined, region)}</p>
+                  <p className="font-medium">{formatCurrency(v.value, v.currency, undefined, region)}</p>
                   <p className="text-xs text-muted">
                     {formatDate(v.valuedAt, dateFormat)}{v.source ? ` · ${v.source}` : ""}
                   </p>
-                  {v.notes && <p className="mt-0.5 text-xs text-muted">{v.notes}</p>}
+                  {v.notes && <p className="mt-0.5 text-xs text-foreground">{v.notes}</p>}
                 </div>
                 <ConfirmForm
                   action={deletePropertyValuation.bind(null, property.id, v.id)}
@@ -336,7 +336,7 @@ export default async function PropertyDetailPage({
             ) : (
               <Link
                 href={`/home/${property.id}/rental`}
-                className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
+                className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
               >
                 Set up rental tracking
               </Link>

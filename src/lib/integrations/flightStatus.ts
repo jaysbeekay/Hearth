@@ -23,9 +23,9 @@ export function flightStatusColour(status: string | null | undefined): string {
     case "incident":
       return "text-danger bg-danger/10 border-danger/20";
     case "diverted":
-      return "text-amber-600 bg-amber-50 border-amber-200 dark:text-amber-400 dark:bg-amber-900/20 dark:border-amber-800/30";
+      return "text-warning bg-warning/10 border-warning/20";
     default:
-      return "text-foreground/60 bg-muted/10 border-border";
+      return "text-muted bg-muted/10 border-border";
   }
 }
 

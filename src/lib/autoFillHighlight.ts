@@ -1,15 +1,15 @@
 // Heuristic (regex/text-match) hits use the accent color; AI-suggested
-// values (BYOK or local LLM) use info instead, so a reviewer can tell at a
+// values (BYOK or local LLM) use a neutral grey instead, so a reviewer can tell at a
 // glance which fields were pattern-matched from the document text versus
 // inferred by a model and worth a closer look (#172).
 const AUTOFILL_CLASSES = {
   heuristic: ["ring-1", "ring-accent/50", "bg-accent/5"],
-  ai: ["ring-1", "ring-info/50", "bg-info/5"],
+  ai: ["ring-2", "ring-foreground/60", "bg-foreground/5"],
 };
 
 const AUTOFILL_BADGE_CLASSES = {
   heuristic: ["bg-accent/10", "text-accent"],
-  ai: ["bg-info/10", "text-info"],
+  ai: ["bg-muted/10", "text-muted"],
 };
 
 let autofillDescId = 0;

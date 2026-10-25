@@ -124,6 +124,18 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   record, is in Trash. The old per-module addresses (`/api/vehicles/documents/…`,
   `/api/travel/documents/…` and so on) redirect there, so existing links
   and offline copies keep working (#396).
+- **Plain colour palette.** The Stripe-derived tokens (purple accent, navy
+  text, indigo dark mode, `shadow-stripe` card shadows) are replaced by
+  neutral greys with one blue accent, in light and dark. Every text colour
+  is at least 4.5:1 on the page and card backgrounds and on its own pill
+  tint, borders are visible in both themes, and native inputs and date
+  pickers follow the theme (`color-scheme`). `scripts/check-contrast.mjs`
+  checks this and runs in `npm run test:unit`. Hard-coded Tailwind colours
+  (amber, slate, blue and others) now use the theme's danger, warning or
+  neutral tones; Upcoming's coloured record-type pills are plain text.
+  Uppercase section labels are sentence case, and the Sparkles icon and
+  the Wealth donut chart are gone, the latter replaced by a plain
+  allocation list (#408).
 - Reminder dates follow each recipient's date format preference (#352).
 - `vehicle.expiring` webhook event: vehicle reminders now carry
   `"field": "regoExpiry" | "insuranceExpiry" | "nextServiceDue"` and link

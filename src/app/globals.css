@@ -1,25 +1,30 @@
 @import "tailwindcss";
 
 /*
- * Stripe design system (design-systems/stripe/DESIGN.md): purple accent,
- * deep navy headings over slate body text, conservative 4-8px radii, and
- * blue-tinted layered shadows instead of background tinting for depth.
+ * Palette: neutral greys with one blue accent (#408, Option B in
+ * docs/design/palette-options on the design-palette-options branch).
+ * Every text token is >=4.5:1 on background and surface in both themes;
+ * scripts/check-contrast.mjs (run by `npm run test:unit`) enforces it.
  */
 :root {
-  /* Warm oat/stone neutrals rather than a cool blue-grey — the accent and
-     state colors below are unchanged, only the backdrop is warmer. */
-  --background: #f7f4ee;
-  --foreground: #061b31;
-  --muted: #6e6455;
-  --surface: #fffdf9;
-  --border: #e9e1d2;
-  --accent: #533afd;
+  color-scheme: light dark;
+  --background: #f6f6f4;
+  --foreground: #1c1b19;
+  --muted: #5f5d58;
+  --surface: #ffffff;
+  --border: #cfccc6;
+  --hover: color-mix(in srgb, var(--foreground) 5%, transparent);
+  /* Solid hover for controls on a filled surface that float over content or
+     a tint, where the translucent --hover would let what's behind show through. */
+  --hover-surface: color-mix(in srgb, var(--foreground) 5%, var(--surface));
+  --accent: #1e5bb6;
   --accent-foreground: #ffffff;
-  --success: #0b7a36;
-  --danger: #d91552;
-  --warning: #92400e;
-  --info: #0f6fb0;
-  --font-inter-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --success: #186b3c;
+  --danger: #b02218;
+  --danger-foreground: #ffffff;
+  --warning: #8a4b00;
+  --overlay-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-source-code-pro: "SFMono-Regular", Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
@@ -29,32 +34,34 @@
   --color-muted: var(--muted);
   --color-surface: var(--surface);
   --color-border: var(--border);
+  --color-hover: var(--hover);
+  --color-hover-surface: var(--hover-surface);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-success: var(--success);
   --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
   --color-warning: var(--warning);
-  --color-info: var(--info);
-  --font-sans: var(--font-inter-sans);
+  --font-sans: var(--font-ui);
   --font-mono: var(--font-source-code-pro);
-  --shadow-stripe: 0px 7px 14px rgba(50, 50, 93, 0.1), 0px 3px 6px rgba(0, 0, 0, 0.08);
+  --shadow-overlay: var(--overlay-shadow);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    /* Dark mode's indigo already reads distinctive rather than corporate,
-       so only the border/muted get a light warm touch. */
-    --background: #1c1e54;
-    --foreground: #eef0fa;
-    --muted: #b3ac9f;
-    --surface: #242760;
-    --border: #39334a;
-    --accent: #8f7afe;
-    --accent-foreground: #1c1e54;
-    --success: #15be53;
-    --danger: #ef5a89;
-    --warning: #fbbf24;
-    --info: #38bdf8;
+    color-scheme: dark;
+    --background: #141414;
+    --foreground: #ededeb;
+    --muted: #a3a19c;
+    --surface: #1d1d1c;
+    --border: #45443f;
+    --accent: #7eaaf2;
+    --accent-foreground: #141414;
+    --success: #5fc48a;
+    --danger: #ff8b80;
+    --danger-foreground: #141414;
+    --warning: #e6ae4a;
+    --overlay-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
   }
 }
 
@@ -63,7 +70,7 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
   font-weight: 400;
-  font-feature-settings: "ss01" 1;
+  font-variant-numeric: tabular-nums;
 }
 
 :focus-visible {

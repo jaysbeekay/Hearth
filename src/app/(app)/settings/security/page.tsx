@@ -39,7 +39,7 @@ export default async function SecurityLogPage() {
   return (
     <div className="max-w-2xl space-y-6">
       <h1 className="text-2xl font-semibold">Security log</h1>
-      <p className="text-sm text-foreground/60">
+      <p className="text-sm text-muted">
         Auth-relevant events across the household — failed and throttled sign-ins, password
         and role changes, two-factor disablement, and account removal. The most recent 100
         events.
@@ -47,7 +47,7 @@ export default async function SecurityLogPage() {
 
       <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
         {events.length === 0 ? (
-          <p className="text-sm text-foreground/60">No security events recorded yet.</p>
+          <p className="text-sm text-muted">No security events recorded yet.</p>
         ) : (
           <ul className="divide-y divide-border">
             {events.map((event) => (
@@ -58,12 +58,12 @@ export default async function SecurityLogPage() {
                   >
                     {EVENT_LABELS[event.type]}
                   </p>
-                  <p className="truncate text-xs text-foreground/50">
+                  <p className="truncate text-xs text-muted">
                     {event.email ?? (event.userId ? `user ${event.userId}` : "—")}
                     {event.detail ? ` · ${event.detail}` : ""}
                   </p>
                 </div>
-                <span className="shrink-0 text-xs text-foreground/50">
+                <span className="shrink-0 text-xs text-muted">
                   {formatDate(event.createdAt, dateFormat)}
                 </span>
               </li>

@@ -14,15 +14,6 @@ import type { CalendarEvent } from "@/lib/calendarEvents";
 
 export const metadata: Metadata = { title: "Upcoming" };
 
-const KIND_COLORS: Record<CalendarEvent["kind"], string> = {
-  contract: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
-  product: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
-  trip: "bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300",
-  homeItem: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
-  vehicleExpiry: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
-  vehicleItem: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
-};
-
 const KIND_LABELS: Record<CalendarEvent["kind"], string> = {
   contract: "Contract",
   product: "Product",
@@ -106,7 +97,7 @@ export default async function CalendarPage({
             className={`rounded-full border px-3 py-1 text-sm font-medium ${
               horizon === h
                 ? "border-accent bg-accent/10 text-accent"
-                : "border-border bg-surface text-muted hover:bg-black/5 dark:hover:bg-white/5"
+                : "border-border bg-surface text-muted hover:bg-hover-surface"
             }`}
           >
             {h} days
@@ -121,7 +112,7 @@ export default async function CalendarPage({
       ) : (
         months.map(([key, monthEvents]) => (
           <section key={key}>
-            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted">
+            <h2 className="mb-3 text-sm font-semibold text-muted">
               {monthLabel(key, region)}
             </h2>
             <div className="space-y-2">
@@ -129,7 +120,7 @@ export default async function CalendarPage({
                 <Link
                   key={event.id}
                   href={event.href}
-                  className="flex items-start gap-3 rounded-lg border border-border bg-surface p-3 shadow-stripe transition hover:border-accent/50"
+                  className="flex items-start gap-3 rounded-lg border border-border bg-surface p-3 transition hover:border-accent/50"
                 >
                   <div className="mt-0.5 w-10 shrink-0 text-center">
                     <p className="text-xs text-muted">{event.date.toLocaleDateString(region, { month: "short" })}</p>
@@ -145,7 +136,7 @@ export default async function CalendarPage({
                     )}
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1.5">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${KIND_COLORS[event.kind]}`}>
+                    <span className="text-xs text-muted">
                       {KIND_LABELS[event.kind]}
                     </span>
                     <ExpiryBadge days={event.daysUntilDate} />

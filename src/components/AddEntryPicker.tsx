@@ -83,7 +83,7 @@ export function AddEntryPicker({ enabledModules }: { enabledModules: string[] })
             type="button"
             onClick={() => setOpen(false)}
             aria-label="Close"
-            className="flex size-11 items-center justify-center rounded-md text-muted hover:bg-black/5 dark:hover:bg-white/5"
+            className="flex size-11 items-center justify-center rounded-md text-muted hover:bg-hover"
           >
             <X size={16} />
           </button>

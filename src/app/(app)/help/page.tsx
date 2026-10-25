@@ -166,7 +166,7 @@ export default function HelpPage() {
 
       {FAQ_SECTIONS.map((section) => (
         <div key={section.heading} className="space-y-4">
-          <h2 className="border-b border-border pb-2 text-sm font-semibold uppercase tracking-wide text-muted">
+          <h2 className="border-b border-border pb-2 text-sm font-semibold text-muted">
             {section.heading}
           </h2>
           <div className="space-y-2">
@@ -181,7 +181,7 @@ export default function HelpPage() {
                     <span className="text-muted transition group-open:rotate-45">+</span>
                   </span>
                 </summary>
-                <p className="mt-2 text-sm text-foreground/70">{entry.a}</p>
+                <p className="mt-2 text-sm text-foreground">{entry.a}</p>
               </details>
             ))}
           </div>

@@ -39,7 +39,7 @@ export function DetailOverflowMenu({ children }: { children: React.ReactNode }) 
         aria-label="More actions"
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="flex h-11 w-11 items-center justify-center rounded-lg border border-border hover:bg-black/5 dark:hover:bg-white/5"
+        className="flex h-11 w-11 items-center justify-center rounded-lg border border-border hover:bg-hover"
       >
         <MoreVertical size={16} />
       </button>
@@ -74,7 +74,7 @@ export function DetailOverflowMenu({ children }: { children: React.ReactNode }) 
                   type="button"
                   onClick={() => setOpen(false)}
                   aria-label="Close"
-                  className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/5"
+                  className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-hover"
                 >
                   <X size={18} />
                 </button>

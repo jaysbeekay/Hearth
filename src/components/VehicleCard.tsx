@@ -13,7 +13,11 @@ function ExpiryWarning({ label, date }: { label: string; date: Date | null | und
         ? `${label} expires today`
         : `${label} in ${days}d`;
   return (
-    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+    <span
+      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+        days < 0 ? "bg-danger/10 text-danger" : "bg-warning/10 text-warning"
+      }`}
+    >
       {text}
     </span>
   );
@@ -36,7 +40,7 @@ export function VehicleCard({
   return (
     <Link
       href={`/vehicles/${vehicle.id}`}
-      className="block min-w-0 rounded-lg border border-border bg-surface p-4 shadow-stripe transition hover:border-accent/50"
+      className="block min-w-0 rounded-lg border border-border bg-surface p-4 transition hover:border-accent/50"
     >
       <div className="min-w-0">
         {subtitle && <p className="truncate text-sm text-muted">{subtitle}</p>}
@@ -51,7 +55,7 @@ export function VehicleCard({
         </div>
 
         {vehicle._count != null && (
-          <span className="text-sm text-muted tabular-nums">
+          <span className="text-sm text-muted">
             {vehicle._count.items} {vehicle._count.items === 1 ? "record" : "records"}
             {/* #293 — linked-record count, mirroring PropertyCard's. */}
             {vehicle._count.contracts != null && ` · ${vehicle._count.contracts} linked`}

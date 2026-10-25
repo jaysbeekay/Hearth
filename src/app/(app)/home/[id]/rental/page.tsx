@@ -115,7 +115,7 @@ export default async function RentalOverviewPage({
             action={setPropertyRented.bind(null, property.id, false)}
             confirmText="Disable rental tracking for this property? Agreements and statements will be kept."
             actionLabel="Disable rental tracking"
-            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground/70 hover:bg-black/5 dark:hover:bg-white/5"
+            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-muted hover:bg-hover"
           >
             Disable rental tracking
           </ConfirmForm>
@@ -176,13 +176,13 @@ export default async function RentalOverviewPage({
                         )}
                       </p>
                       {ag.tenantName && (
-                        <p className="text-sm text-foreground/70">{ag.tenantName}</p>
+                        <p className="text-sm text-muted">{ag.tenantName}</p>
                       )}
                     </div>
                     <div className="flex items-center gap-2">
                       <Link
                         href={`/home/${property.id}/rental/agreements/${ag.id}/edit`}
-                        className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
+                        className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
                       >
                         <Pencil size={16} />
                         Edit
@@ -211,7 +211,7 @@ export default async function RentalOverviewPage({
                     <Detail label="Added" value={formatDate(ag.createdAt, dateFormat)} />
                   </dl>
                   {ag.notes && (
-                    <p className="mt-3 text-sm text-foreground/70">{ag.notes}</p>
+                    <p className="mt-3 whitespace-pre-wrap text-sm text-foreground">{ag.notes}</p>
                   )}
 
                   <div className="mt-4 border-t border-border pt-4">
@@ -238,7 +238,7 @@ export default async function RentalOverviewPage({
                           <input type="hidden" name="contractId" value="" />
                           <button
                             type="submit"
-                            className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium hover:bg-black/5 dark:hover:bg-white/5"
+                            className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium hover:bg-hover"
                           >
                             Unlink
                           </button>
@@ -265,7 +265,7 @@ export default async function RentalOverviewPage({
                         </SelectWrapper>
                         <button
                           type="submit"
-                          className="rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
+                          className="rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
                         >
                           Link
                         </button>
@@ -336,7 +336,7 @@ export default async function RentalOverviewPage({
                       <div className="flex items-center gap-2">
                         <Link
                           href={`/home/${property.id}/rental/statements/${stmt.id}/edit`}
-                          className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
+                          className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
                         >
                           <Pencil size={16} />
                           Edit
@@ -387,7 +387,7 @@ export default async function RentalOverviewPage({
                     </div>
 
                     {stmt.notes && (
-                      <p className="mt-3 text-sm text-foreground/70">{stmt.notes}</p>
+                      <p className="mt-3 whitespace-pre-wrap text-sm text-foreground">{stmt.notes}</p>
                     )}
 
                     <div className="mt-4 border-t border-border pt-4">

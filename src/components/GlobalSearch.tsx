@@ -190,7 +190,7 @@ export function GlobalSearch() {
               }
             }}
             aria-label="Close search"
-            className="shrink-0 rounded-md p-1 text-muted hover:bg-black/5 dark:hover:bg-white/5"
+            className="shrink-0 rounded-md p-1 text-muted hover:bg-hover"
           >
             <X size={16} />
           </button>
@@ -219,7 +219,7 @@ export function GlobalSearch() {
               className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
                 filter === f.value
                   ? "border-accent bg-accent/10 text-accent"
-                  : "border-border text-muted hover:bg-black/5 dark:hover:bg-white/5"
+                  : "border-border text-muted hover:bg-hover"
               }`}
             >
               {f.label}
@@ -259,7 +259,7 @@ export function GlobalSearch() {
           )}
           {groupEntries.map(([group, results]) => (
             <div key={group} role="group" aria-label={group} className="mb-2">
-              <p className="px-3 py-1.5 text-xs font-medium uppercase tracking-wide text-muted">
+              <p className="px-3 py-1.5 text-xs font-medium text-muted">
                 {group}
               </p>
               {results.map((r) => {
@@ -276,7 +276,7 @@ export function GlobalSearch() {
                     onClick={() => selectResult(r)}
                     onMouseEnter={() => setActiveIndex(flatIndex)}
                     className={`flex w-full flex-col items-start rounded-lg px-3 py-2 text-left ${
-                      isActive ? "bg-black/5 dark:bg-white/5" : "hover:bg-black/5 dark:hover:bg-white/5"
+                      isActive ? "bg-hover" : "hover:bg-hover"
                     }`}
                   >
                     <span className="truncate text-sm font-medium">{r.title}</span>

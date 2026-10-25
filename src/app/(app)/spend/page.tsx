@@ -191,7 +191,7 @@ export default async function SpendPage({
                       style={{ width: `${(bucket.total / maxTotal) * 100}%` }}
                     />
                   </div>
-                  <span className="w-20 shrink-0 text-xs text-muted tabular-nums">
+                  <span className="w-20 shrink-0 text-xs text-muted">
                     {formatCurrency(bucket.total, preferredCurrency, undefined, region, { showCode: true })}
                   </span>
                 </div>
@@ -205,7 +205,7 @@ export default async function SpendPage({
                       style={{ width: `${(bucket.total / maxTotal) * 100}%` }}
                     />
                   </div>
-                  <span className="w-20 shrink-0 text-xs text-muted tabular-nums">
+                  <span className="w-20 shrink-0 text-xs text-muted">
                     {formatCurrency(bucket.total, preferredCurrency, undefined, region, { showCode: true })}
                   </span>
                 </div>
@@ -231,7 +231,7 @@ export default async function SpendPage({
                       style={{ width: `${pct}%` }}
                     />
                   </div>
-                  <span className="w-28 shrink-0 text-right text-xs text-muted tabular-nums">
+                  <span className="w-28 shrink-0 text-right text-xs text-muted">
                     {formatCurrency(bucket.monthlyTotal, preferredCurrency, undefined, region, { showCode: true })} ({pct.toFixed(0)}%)
                   </span>
                 </div>
@@ -265,10 +265,10 @@ export default async function SpendPage({
                     <td className="py-2">{row.label}</td>
                     {homeActuals.length > 0 && (
                       <>
-                        <td className="py-2 text-right tabular-nums">
+                        <td className="py-2 text-right">
                           {row.home ? formatCurrency(row.home.amount, row.currency, undefined, region, { showCode: true }) : "—"}
                         </td>
-                        <td className="py-2 text-right tabular-nums">
+                        <td className="py-2 text-right">
                           {row.homeDeductible
                             ? formatCurrency(row.homeDeductible.amount, row.currency, undefined, region, { showCode: true })
                             : "—"}
@@ -276,7 +276,7 @@ export default async function SpendPage({
                       </>
                     )}
                     {vehicleActuals.length > 0 && (
-                      <td className="py-2 text-right tabular-nums">
+                      <td className="py-2 text-right">
                         {row.vehicle ? formatCurrency(row.vehicle.amount, row.currency, undefined, region, { showCode: true }) : "—"}
                       </td>
                     )}

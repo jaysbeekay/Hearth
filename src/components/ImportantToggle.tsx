@@ -39,7 +39,7 @@ export function ImportantToggle({
         });
       }}
       className={cn(
-        "rounded-md p-2 hover:bg-black/5 dark:hover:bg-white/5",
+        "rounded-md p-2 hover:bg-hover",
         optimistic ? "text-warning" : "text-muted",
       )}
     >

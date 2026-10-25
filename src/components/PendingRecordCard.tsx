@@ -27,7 +27,7 @@ export function PendingRecordCard({
 
   return (
     <div className="min-w-0 rounded-lg border border-dashed border-border bg-surface p-4">
-      <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+      <span className="inline-flex items-center gap-1 rounded-full bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning">
         <Clock size={12} />
         Pending sync
       </span>

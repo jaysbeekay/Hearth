@@ -176,7 +176,7 @@ export function ProductListClient({
               onClick={() => {
                 router.push(listHref("/products", filters));
               }}
-              className="flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/5"
+              className="flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:bg-hover"
             >
               &quot;{q}&quot; <X size={12} />
             </button>
