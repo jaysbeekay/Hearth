@@ -19,7 +19,6 @@ import {
   tradeSchema,
   propertyValuationSchema,
 } from "@/lib/validation/wealth";
-import { fetchHistoricalPrice } from "@/lib/prices";
 import { createContractCommand, updateContractCommand, deleteContractCommand } from "@/lib/commands/contracts";
 import { createProductCommand, updateProductCommand, deleteProductCommand } from "@/lib/commands/products";
 import {
@@ -48,6 +47,15 @@ import {
   updateRentalStatementCommand,
   createPropertyValuationCommand,
 } from "@/lib/commands/home";
+import {
+  createPortfolioCommand,
+  updatePortfolioCommand,
+  permanentlyDeletePortfolioCommand,
+  createHoldingCommand,
+  updateHoldingCommand,
+  createTradeCommand,
+  updateTradeCommand,
+} from "@/lib/commands/wealth";
 import { updateUnlessStale } from "@/lib/commands/shared";
 import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
 import {
@@ -74,7 +82,6 @@ import {
   deleteDocumentCommand,
   findDocument,
   findDocumentAnyKind,
-  removeOwnerDocumentFiles,
 } from "@/lib/commands/documents";
 import { isOwnedDocumentKind, LEGACY_DOCUMENT_SYNC_ENTITIES } from "@/lib/documents/kinds";
 
@@ -387,34 +394,16 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     input: formToPortfolioInput,
     requiresModule: "WEALTH",
     create: async (data, { userId }) => {
-      const portfolio = await prisma.portfolio.create({ data: { ...data, createdById: userId } });
-      revalidatePath("/wealth");
+      const portfolio = await createPortfolioCommand(data, userId);
       return { id: portfolio.id };
     },
     update: async (id, data, ctx) => {
-      const existing = await prisma.portfolio.findUnique({ where: { id } });
-      if (!existing) throw new Error("Portfolio not found");
-      await updateUnlessStale(ctx.baseUpdatedAt, (guard) =>
-        prisma.portfolio.updateMany({ where: { id, ...guard }, data }),
-      );
-      revalidatePath("/wealth");
-      revalidatePath(`/wealth/portfolios/${id}`);
+      await updatePortfolioCommand(id, data, { baseUpdatedAt: ctx.baseUpdatedAt });
     },
+    // Permanent, matching deletePortfolio in actions/wealth.ts: Portfolios
+    // have no Trash.
     remove: async (id) => {
-      const existing = await prisma.portfolio.findUnique({
-        where: { id },
-        include: { holdings: { include: { trades: { select: { id: true } } } } },
-      });
-      if (!existing) throw new Error("Portfolio not found");
-      // Cascade removes the DB rows but not the uploaded trade-document
-      // files — clean those up first, same as the online deletePortfolio action.
-      for (const holding of existing.holdings) {
-        for (const trade of holding.trades) {
-          await removeOwnerDocumentFiles("TRADE", trade.id);
-        }
-      }
-      await prisma.portfolio.delete({ where: { id } });
-      revalidatePath("/wealth");
+      await permanentlyDeletePortfolioCommand(id);
     },
   }),
 
@@ -423,27 +412,13 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     input: formToHoldingInput,
     requiresModule: "WEALTH",
     create: async (data, ctx) => {
-      const portfolioId = requireParentId(ctx);
-      const portfolio = await prisma.portfolio.findUnique({ where: { id: portfolioId } });
-      if (!portfolio) throw new Error("Portfolio not found");
-      const existing = await prisma.holding.findUnique({
-        where: { portfolioId_ticker: { portfolioId, ticker: data.ticker } },
-      });
-      if (existing) throw new Error(`${data.ticker} is already in this portfolio.`);
-      const holding = await prisma.holding.create({ data: { ...data, portfolioId } });
-      revalidatePath(`/wealth/portfolios/${portfolioId}`);
+      const holding = await createHoldingCommand(requireParentId(ctx), data);
       return { id: holding.id };
     },
+    // The Holding form sends its Portfolio as parentId; ops queued without
+    // one still apply, unscoped, as they did before the commands.
     update: async (id, data, ctx) => {
-      const holding = await prisma.holding.findUnique({
-        where: { id },
-        include: { portfolio: true },
-      });
-      if (!holding) throw new Error("Holding not found");
-      await updateUnlessStale(ctx.baseUpdatedAt, (guard) =>
-        prisma.holding.updateMany({ where: { id, ...guard }, data }),
-      );
-      revalidatePath(`/wealth/portfolios/${holding.portfolioId}/holdings/${id}`);
+      await updateHoldingCommand(id, data, { portfolioId: ctx.parentId, baseUpdatedAt: ctx.baseUpdatedAt });
     },
   }),
 
@@ -452,38 +427,11 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     input: formToTradeInput,
     requiresModule: "WEALTH",
     create: async (data, ctx) => {
-      const holdingId = requireParentId(ctx);
-      const holding = await prisma.holding.findUnique({
-        where: { id: holdingId },
-        include: { portfolio: true },
-      });
-      if (!holding) throw new Error("Holding not found");
-      const trade = await prisma.trade.create({ data: { ...data, holdingId } });
-      if (holding.exchange !== "CRYPTO") {
-        fetchHistoricalPrice(holding.ticker, data.date)
-          .then((marketPrice) => {
-            if (marketPrice != null) {
-              return prisma.trade.update({ where: { id: trade.id }, data: { marketPriceOnDate: marketPrice } });
-            }
-          })
-          .catch(() => {});
-      }
-      revalidatePath(`/wealth/portfolios/${holding.portfolioId}/holdings/${holdingId}`);
+      const trade = await createTradeCommand(requireParentId(ctx), data);
       return { id: trade.id };
     },
     update: async (id, data, ctx) => {
-      const holdingId = requireParentId(ctx);
-      const holding = await prisma.holding.findUnique({
-        where: { id: holdingId },
-        include: { portfolio: true },
-      });
-      if (!holding) throw new Error("Holding not found");
-      const trade = await prisma.trade.findUnique({ where: { id } });
-      if (!trade || trade.holdingId !== holdingId) throw new Error("Trade not found");
-      await updateUnlessStale(ctx.baseUpdatedAt, (guard) =>
-        prisma.trade.updateMany({ where: { id, ...guard }, data }),
-      );
-      revalidatePath(`/wealth/portfolios/${holding.portfolioId}/holdings/${holdingId}`);
+      await updateTradeCommand(id, data, { holdingId: requireParentId(ctx), baseUpdatedAt: ctx.baseUpdatedAt });
     },
     saveFile: async (tradeId, file) => {
       validateFile(file);
