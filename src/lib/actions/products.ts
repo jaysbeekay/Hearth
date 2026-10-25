@@ -9,7 +9,7 @@ import { ProductDocumentKind } from "@/generated/prisma/enums";
 import { formDataToStringValues } from "@/lib/form-state";
 import { formToProductInput } from "@/lib/formMappers";
 import { addDocumentCommand } from "@/lib/commands/documents";
-import { describeUploadRejection } from "@/lib/uploadValidation";
+import { describeUploadRejection, UploadRejectedError } from "@/lib/uploadValidation";
 import { extractionFieldsFromForm } from "@/lib/documents/extractionConfirmation";
 import { saveExtractionReviewFieldsFromForm, reviewAndConfirmExtraction } from "@/lib/documents/extractionReview";
 import { saveFileToInboxFallback } from "@/lib/documents/inboxFallback";
@@ -89,7 +89,8 @@ export async function createProduct(
         productKind: ProductDocumentKind.INVOICE,
         category: parseDocumentCategory(formData.get("documentCategory")) ?? "INVOICE",
       });
-    } catch {
+    } catch (error) {
+      if (!(error instanceof UploadRejectedError)) throw error;
       const fallback = await saveFileToInboxFallback(invoiceFile, user.id);
       docFallback = fallback ? "inbox" : "failed";
     }
@@ -101,7 +102,8 @@ export async function createProduct(
         productKind: ProductDocumentKind.PHOTO,
         category: "PHOTO",
       });
-    } catch {
+    } catch (error) {
+      if (!(error instanceof UploadRejectedError)) throw error;
       const fallback = await saveFileToInboxFallback(photoFile, user.id);
       docFallback = fallback ? "inbox" : (docFallback ?? "failed");
     }

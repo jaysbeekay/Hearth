@@ -2,7 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { clearNotificationLogs } from "@/lib/notifications/logs";
 import { purgeVehicle, purgeServiceRecord } from "@/lib/commands/vehicles";
 import { purgeDocument, removeOwnerDocumentFiles } from "@/lib/commands/documents";
-import type { OwnedDocumentKind } from "@/lib/documents/kinds";
+import { DOCUMENT_KIND_MODULE, type OwnedDocumentKind } from "@/lib/documents/kinds";
+import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 
 // #287 — how long a soft-deleted record sits in Trash before it's purged for
 // good. No job-runner exists yet (see #250), so this runs opportunistically:
@@ -127,9 +128,16 @@ export interface TrashEntry {
 
 const inTrash = { where: { deletedAt: { not: null } } } as const;
 
-// Every Document in Trash, whatever it's attached to (#396). The subtitle
-// names the record it was attached to.
+// Every Document in Trash, whatever it's attached to (#396), except those
+// of a module that's turned off: they can't be restored or deleted until
+// it's back on (they're still purged when their 30 days run out). The
+// subtitle names the record it was attached to.
 async function trashedDocuments(): Promise<TrashEntry[]> {
+  const enabled = await getEnabledModuleKeys();
+  const visible = (kind: OwnedDocumentKind) => {
+    const key = DOCUMENT_KIND_MODULE[kind];
+    return key === null || enabled.has(key);
+  };
   const base = { id: true, filename: true, deletedAt: true } as const;
   const entry = (kind: OwnedDocumentKind, d: { id: string; filename: string; deletedAt: Date | null }, subtitle: string | null): TrashEntry => ({
     id: d.id,
@@ -172,7 +180,7 @@ async function trashedDocuments(): Promise<TrashEntry[]> {
       .findMany({ ...inTrash, select: { ...base, trade: { select: { holding: { select: { ticker: true } } } } } })
       .then((rows) => rows.map((d) => entry("TRADE", d, d.trade.holding.ticker))),
   ]);
-  return lists.flat();
+  return lists.flat().filter((entry) => visible(entry.documentKind!));
 }
 
 // Everything currently in Trash, for the Settings > Trash page — run after

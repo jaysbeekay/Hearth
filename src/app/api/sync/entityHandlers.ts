@@ -35,14 +35,11 @@ import { MAX_UPLOAD_BYTES } from "@/lib/storage";
 import {
   addDocumentCommand,
   deleteDocumentCommand,
+  findDocument,
   findDocumentAnyKind,
   removeOwnerDocumentFiles,
 } from "@/lib/commands/documents";
-import {
-  isOwnedDocumentKind,
-  LEGACY_DOCUMENT_SYNC_ENTITIES,
-  type OwnedDocumentKind,
-} from "@/lib/documents/kinds";
+import { isOwnedDocumentKind, LEGACY_DOCUMENT_SYNC_ENTITIES } from "@/lib/documents/kinds";
 
 export interface SyncContext {
   userId: string;
@@ -505,16 +502,16 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
   // sent, is the owner record the list showed it under. The module gate is
   // the command's (by kind), so there's no static requiresModule here.
   document: defineEntity({
+    // A delete for a Document that's already gone (purged from Trash, or
+    // deleted elsewhere since the op was queued) has nothing left to do, so
+    // it succeeds rather than failing the sync. Already in Trash is a no-op
+    // in the command.
     remove: async (documentId, ctx) => {
-      let kind: OwnedDocumentKind;
-      if (isOwnedDocumentKind(ctx.kind)) {
-        kind = ctx.kind;
-      } else {
-        const found = await findDocumentAnyKind(documentId);
-        if (!found) throw new Error("Document not found");
-        kind = found.kind;
-      }
-      await deleteDocumentCommand(kind, documentId, { ownerId: ctx.parentId });
+      const doc = isOwnedDocumentKind(ctx.kind)
+        ? await findDocument(ctx.kind, documentId)
+        : await findDocumentAnyKind(documentId);
+      if (!doc) return;
+      await deleteDocumentCommand(doc.kind, documentId, { ownerId: ctx.parentId });
     },
   }),
 };

@@ -17,6 +17,14 @@ import { ProductDocumentKind } from "@/generated/prisma/enums";
 // revalidation.
 
 /** One Document row, whichever table it lives in. */
+/** A permanent delete was asked for a Document that isn't in Trash. */
+export class DocumentNotInTrashError extends Error {
+  constructor() {
+    super("Move the document to Trash before deleting it permanently.");
+    this.name = "DocumentNotInTrashError";
+  }
+}
+
 export interface DocumentRecord {
   kind: OwnedDocumentKind;
   id: string;
@@ -319,7 +327,13 @@ async function insertDocument(
     await store.remove(ownerId, storedName);
     throw error;
   }
-  await config.afterCreate?.(doc, input);
+  // Best effort: the Document is filed either way, and a caller that fell
+  // back to the Inbox on an error here would file the same file twice.
+  try {
+    await config.afterCreate?.(doc, input);
+  } catch (error) {
+    console.error(`[documents] couldn't queue text extraction for ${kind} document ${doc.id}`, error);
+  }
   revalidate(owner.paths);
   return doc;
 }
@@ -359,10 +373,15 @@ export async function supersedeDocumentCommand(
   );
 }
 
-/** Soft delete: moves the Document to Trash. File and row stay until it's purged. */
+/**
+ * Soft delete: moves the Document to Trash. File and row stay until it's
+ * purged. Already in Trash is a no-op, so a replayed delete doesn't restart
+ * its 30 days.
+ */
 export async function deleteDocumentCommand(kind: OwnedDocumentKind, id: string, scope: DocumentScope = {}) {
   await gate(kind);
   const doc = await requireDocument(kind, id, scope);
+  if (doc.deletedAt) return;
   await KINDS[kind].delegate().update({ where: { id }, data: { deletedAt: new Date() } });
   revalidate(await ownerPaths(kind, doc.ownerId));
   revalidatePath("/settings/trash");
@@ -376,8 +395,11 @@ export async function restoreDocumentCommand(kind: OwnedDocumentKind, id: string
   revalidatePath("/settings/trash");
 }
 
+/** Only from Trash: a live Document has to be deleted to Trash first. */
 export async function permanentlyDeleteDocumentCommand(kind: OwnedDocumentKind, id: string) {
   await gate(kind);
+  const doc = await requireDocument(kind, id);
+  if (!doc.deletedAt) throw new DocumentNotInTrashError();
   const { ownerId } = await purgeDocument(kind, id);
   revalidate(await ownerPaths(kind, ownerId));
   revalidatePath("/settings/trash");

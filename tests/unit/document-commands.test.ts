@@ -12,7 +12,19 @@ import {
   supersedeDocumentCommand,
   findDocument,
   findDocumentAnyKind,
+  DocumentNotInTrashError,
 } from "@/lib/commands/documents";
+import {
+  addDocumentAction,
+  deleteDocumentAction,
+  permanentlyDeleteDocumentAction,
+  restoreDocumentAction,
+  setDocumentImportantAction,
+} from "@/lib/actions/documents";
+import { attachInboxDocumentAsVersion } from "@/lib/actions/import";
+import { auth } from "@/lib/auth";
+import { queueDocumentExtraction } from "@/lib/documents/queueExtraction";
+import { LIVE_DOCUMENT_WHERE } from "@/lib/documents/liveDocuments";
 import { RecordNotFoundError } from "@/lib/commands/shared";
 import { ModuleDisabledError } from "@/lib/modules/enablement";
 import {
@@ -31,6 +43,10 @@ import type { ModuleKey } from "@/lib/modules/registry";
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
 // The file route checks for a session; every request here is signed in.
 vi.mock("@/lib/auth", () => ({ auth: vi.fn(async () => ({ user: { id: "u1", role: "MEMBER" } })) }));
+vi.mock("@/lib/documents/queueExtraction", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/documents/queueExtraction")>();
+  return { ...actual, queueDocumentExtraction: vi.fn(actual.queueDocumentExtraction) };
+});
 
 const db = setupTestDb();
 
@@ -364,5 +380,166 @@ describe("Trash retention", () => {
       expect(await findDocument(kind, recent.id), kind).not.toBeNull();
       expect(await exists(filePath(kind, recent.ownerId, recent.storedName)), kind).toBe(true);
     }
+  });
+});
+
+describe("Review follow-ups", () => {
+  it("a delete of a Document already in Trash keeps its original deletedAt", async () => {
+    const { ownerId } = await createOwner("TRADE");
+    const doc = await addDocumentCommand("TRADE", ownerId, { file: pdf() });
+    await deleteDocumentCommand("TRADE", doc.id);
+    const first = (await findDocument("TRADE", doc.id))!.deletedAt!;
+    await new Promise((r) => setTimeout(r, 5));
+    await deleteDocumentCommand("TRADE", doc.id);
+    expect((await findDocument("TRADE", doc.id))!.deletedAt!.getTime()).toBe(first.getTime());
+  });
+
+  it("a replayed sync delete of an already-purged Document succeeds", async () => {
+    const { ownerId } = await createOwner("RENTAL_STATEMENT");
+    const doc = await addDocumentCommand("RENTAL_STATEMENT", ownerId, { file: pdf() });
+    await deleteDocumentCommand("RENTAL_STATEMENT", doc.id);
+    await permanentlyDeleteDocumentCommand("RENTAL_STATEMENT", doc.id);
+    await expect(
+      ENTITY_SYNC_CONFIGS.document.remove!(doc.id, { userId: actorId, kind: "RENTAL_STATEMENT", parentId: ownerId }),
+    ).resolves.toBeUndefined();
+    await expect(ENTITY_SYNC_CONFIGS.document.remove!(doc.id, { userId: actorId })).resolves.toBeUndefined();
+  });
+
+  it("refuses a permanent delete of a Document that isn't in Trash", async () => {
+    const { ownerId } = await createOwner("CONTRACT");
+    const doc = await addDocumentCommand("CONTRACT", ownerId, { file: pdf() });
+    await expect(permanentlyDeleteDocumentCommand("CONTRACT", doc.id)).rejects.toBeInstanceOf(DocumentNotInTrashError);
+    expect(await exists(filePath("CONTRACT", ownerId, doc.storedName))).toBe(true);
+  });
+
+  it("files the Document even if queueing text extraction fails", async () => {
+    vi.mocked(queueDocumentExtraction).mockRejectedValueOnce(new Error("job table locked"));
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { ownerId } = await createOwner("CONTRACT");
+    const doc = await addDocumentCommand("CONTRACT", ownerId, { file: pdf() });
+    expect(await findDocument("CONTRACT", doc.id)).not.toBeNull();
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it("Trash leaves out Documents of a module that's turned off", async () => {
+    const { ownerId } = await createOwner("TRIP_SEGMENT");
+    const doc = await addDocumentCommand("TRIP_SEGMENT", ownerId, { file: pdf() });
+    await deleteDocumentCommand("TRIP_SEGMENT", doc.id);
+    await setModuleEnabled("TRAVEL", false);
+    expect(await getTrashEntries()).not.toContainEqual(expect.objectContaining({ id: doc.id }));
+    await setModuleEnabled("TRAVEL", true);
+    expect(await getTrashEntries()).toContainEqual(expect.objectContaining({ id: doc.id }));
+  });
+
+  // The where used by /documents and the dashboard's Document counts.
+  it.each(OWNED_DOCUMENT_KINDS.filter((k) => k !== "TRADE"))(
+    "LIVE_DOCUMENT_WHERE leaves out a %s Document whose record is in Trash",
+    async (kind) => {
+      const { ownerId } = await createOwner(kind);
+      const doc = await addDocumentCommand(kind, ownerId, { file: pdf() });
+      const p = db.prisma;
+      const now = new Date();
+      const trashOwner: Record<Exclude<OwnedDocumentKind, "TRADE">, () => Promise<unknown>> = {
+        CONTRACT: () => p.contract.update({ where: { id: ownerId }, data: { deletedAt: now } }),
+        PRODUCT: () => p.product.update({ where: { id: ownerId }, data: { deletedAt: now } }),
+        TRIP_SEGMENT: async () => {
+          const s = await p.tripSegment.findUniqueOrThrow({ where: { id: ownerId } });
+          await p.trip.update({ where: { id: s.tripId }, data: { deletedAt: now } });
+        },
+        RENTAL_STATEMENT: async () => {
+          const s = await p.rentalStatement.findUniqueOrThrow({ where: { id: ownerId } });
+          await p.property.update({ where: { id: s.propertyId }, data: { deletedAt: now } });
+        },
+        HOME_ITEM: async () => {
+          const i = await p.homeItem.findUniqueOrThrow({ where: { id: ownerId } });
+          await p.property.update({ where: { id: i.propertyId }, data: { deletedAt: now } });
+        },
+        VEHICLE_ITEM: () => p.vehicleItem.update({ where: { id: ownerId }, data: { deletedAt: now } }),
+        INVENTORY_ITEM: () => p.inventoryItem.update({ where: { id: ownerId }, data: { deletedAt: now } }),
+      };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const delegates: Record<OwnedDocumentKind, any> = {
+        CONTRACT: p.document,
+        PRODUCT: p.productDocument,
+        TRIP_SEGMENT: p.tripSegmentDocument,
+        RENTAL_STATEMENT: p.rentalStatementDocument,
+        HOME_ITEM: p.homeItemDocument,
+        VEHICLE_ITEM: p.vehicleItemDocument,
+        INVENTORY_ITEM: p.inventoryItemDocument,
+        TRADE: p.tradeDocument,
+      };
+      const where = { ...LIVE_DOCUMENT_WHERE[kind], id: doc.id };
+      expect(await delegates[kind].count({ where })).toBe(1);
+      await trashOwner[kind as Exclude<OwnedDocumentKind, "TRADE">]();
+      expect(await delegates[kind].count({ where })).toBe(0);
+    },
+  );
+});
+
+describe("Document actions", () => {
+  function upload(file = pdf()) {
+    const fd = new FormData();
+    fd.set("file", file);
+    fd.set("documentCategory", "RECEIPT");
+    return fd;
+  }
+
+  it("refuses a READONLY member", async () => {
+    vi.mocked(auth).mockResolvedValue({ user: { id: "u1", role: "READONLY" } } as never);
+    try {
+      const { ownerId } = await createOwner("CONTRACT");
+      await expect(addDocumentAction("CONTRACT", ownerId, null, upload())).rejects.toThrow("read-only");
+      await expect(deleteDocumentAction("CONTRACT", "x")).rejects.toThrow("read-only");
+      await expect(restoreDocumentAction("CONTRACT", "x")).rejects.toThrow("read-only");
+      await expect(permanentlyDeleteDocumentAction("CONTRACT", "x")).rejects.toThrow("read-only");
+      await expect(setDocumentImportantAction("CONTRACT", "x", true)).rejects.toThrow("read-only");
+      expect(await db.prisma.document.count()).toBe(0);
+    } finally {
+      vi.mocked(auth).mockResolvedValue({ user: { id: "u1", role: "MEMBER" } } as never);
+    }
+  });
+
+  it("refuses a kind that isn't a Document kind", async () => {
+    await expect(deleteDocumentAction("INBOX" as OwnedDocumentKind, "x")).rejects.toThrow("Unknown document kind");
+    await expect(addDocumentAction("NOPE" as OwnedDocumentKind, "x", null, upload())).rejects.toThrow(
+      "Unknown document kind",
+    );
+    expect(await attachInboxDocumentAsVersion("x", "TRADE" as never, "o", "d")).toEqual({
+      error: "Document not found.",
+    });
+  });
+
+  it("maps command errors to ActionState", async () => {
+    expect(await deleteDocumentAction("CONTRACT", "missing")).toEqual({ error: "Document not found." });
+    expect(await addDocumentAction("PRODUCT", "missing", null, upload())).toEqual({ error: "Product not found." });
+
+    const { ownerId } = await createOwner("CONTRACT");
+    const bad = await addDocumentAction(
+      "CONTRACT",
+      ownerId,
+      null,
+      upload(new File(["not a pdf"], "x.pdf", { type: "application/pdf" })),
+    );
+    expect(bad?.error).toMatch(/don't match|labelled/);
+
+    expect(await addDocumentAction("CONTRACT", ownerId, null, upload())).toEqual({ success: "Document uploaded." });
+    const [row] = await db.prisma.document.findMany({ where: { contractId: ownerId } });
+    expect(row.category).toBe("RECEIPT");
+    expect(await permanentlyDeleteDocumentAction("CONTRACT", row.id)).toEqual({
+      error: "Move the document to Trash before deleting it permanently.",
+    });
+    expect(await deleteDocumentAction("CONTRACT", row.id, ownerId)).toEqual({ success: "Document moved to Trash." });
+    expect(await permanentlyDeleteDocumentAction("CONTRACT", row.id)).toEqual({ success: "Deleted permanently." });
+
+    await setModuleEnabled("TRAVEL", false);
+    expect(await restoreDocumentAction("TRIP_SEGMENT", "x")).toEqual({ error: "Travel module is disabled" });
+  });
+
+  it("derives a Product Document's legacy kind from its Document type", async () => {
+    const { ownerId } = await createOwner("PRODUCT");
+    await addDocumentAction("PRODUCT", ownerId, null, upload());
+    const [row] = await db.prisma.productDocument.findMany({ where: { productId: ownerId } });
+    expect(row).toMatchObject({ kind: "INVOICE", category: "RECEIPT" });
   });
 });

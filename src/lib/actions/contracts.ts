@@ -8,7 +8,7 @@ import { contractSchema } from "@/lib/validation/contract";
 import { formDataToStringValues } from "@/lib/form-state";
 import { formToContractInput } from "@/lib/formMappers";
 import { addDocumentCommand } from "@/lib/commands/documents";
-import { describeUploadRejection } from "@/lib/uploadValidation";
+import { describeUploadRejection, UploadRejectedError } from "@/lib/uploadValidation";
 import { extractionFieldsFromForm } from "@/lib/documents/extractionConfirmation";
 import {
   saveExtractionReviewFieldsFromForm,
@@ -94,7 +94,8 @@ export async function createContract(
         file,
         category: parseDocumentCategory(formData.get("documentCategory")),
       });
-    } catch {
+    } catch (error) {
+      if (!(error instanceof UploadRejectedError)) throw error;
       const fallback = await saveFileToInboxFallback(file, user.id);
       docFallback = fallback ? "inbox" : "failed";
     }

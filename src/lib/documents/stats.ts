@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { ModuleKey } from "@/lib/modules/registry";
+import { LIVE_DOCUMENT_WHERE as LIVE } from "@/lib/documents/liveDocuments";
 
 const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -14,43 +15,44 @@ export interface DocumentStats {
 
 // Aggregates counts across every per-entity document table (gated the same
 // way /documents itself is) plus the inbox, for the dashboard's document
-// summary section.
+// summary section. Documents in Trash, or under a record in Trash, aren't
+// counted.
 export async function getDocumentStats(enabledModules: Set<ModuleKey>): Promise<DocumentStats> {
   const since = new Date(Date.now() - ONE_WEEK_MS);
 
   const totalQueries: Promise<number>[] = [
-    prisma.document.count(),
-    prisma.productDocument.count(),
+    prisma.document.count({ where: LIVE.CONTRACT }),
+    prisma.productDocument.count({ where: LIVE.PRODUCT }),
     prisma.inboxDocument.count(),
   ];
   const recentQueries: Promise<number>[] = [
-    prisma.document.count({ where: { uploadedAt: { gte: since } } }),
-    prisma.productDocument.count({ where: { uploadedAt: { gte: since } } }),
+    prisma.document.count({ where: { ...LIVE.CONTRACT, uploadedAt: { gte: since } } }),
+    prisma.productDocument.count({ where: { ...LIVE.PRODUCT, uploadedAt: { gte: since } } }),
     prisma.inboxDocument.count({ where: { uploadedAt: { gte: since } } }),
   ];
 
   if (enabledModules.has("VEHICLES")) {
-    totalQueries.push(prisma.vehicleItemDocument.count());
-    recentQueries.push(prisma.vehicleItemDocument.count({ where: { uploadedAt: { gte: since } } }));
+    totalQueries.push(prisma.vehicleItemDocument.count({ where: LIVE.VEHICLE_ITEM }));
+    recentQueries.push(prisma.vehicleItemDocument.count({ where: { ...LIVE.VEHICLE_ITEM, uploadedAt: { gte: since } } }));
   }
   if (enabledModules.has("TRAVEL")) {
-    totalQueries.push(prisma.tripSegmentDocument.count());
-    recentQueries.push(prisma.tripSegmentDocument.count({ where: { uploadedAt: { gte: since } } }));
+    totalQueries.push(prisma.tripSegmentDocument.count({ where: LIVE.TRIP_SEGMENT }));
+    recentQueries.push(prisma.tripSegmentDocument.count({ where: { ...LIVE.TRIP_SEGMENT, uploadedAt: { gte: since } } }));
   }
   if (enabledModules.has("HOME")) {
-    totalQueries.push(prisma.homeItemDocument.count(), prisma.rentalStatementDocument.count());
+    totalQueries.push(prisma.homeItemDocument.count({ where: LIVE.HOME_ITEM }), prisma.rentalStatementDocument.count({ where: LIVE.RENTAL_STATEMENT }));
     recentQueries.push(
-      prisma.homeItemDocument.count({ where: { uploadedAt: { gte: since } } }),
-      prisma.rentalStatementDocument.count({ where: { uploadedAt: { gte: since } } }),
+      prisma.homeItemDocument.count({ where: { ...LIVE.HOME_ITEM, uploadedAt: { gte: since } } }),
+      prisma.rentalStatementDocument.count({ where: { ...LIVE.RENTAL_STATEMENT, uploadedAt: { gte: since } } }),
     );
   }
   if (enabledModules.has("INVENTORY")) {
-    totalQueries.push(prisma.inventoryItemDocument.count());
-    recentQueries.push(prisma.inventoryItemDocument.count({ where: { uploadedAt: { gte: since } } }));
+    totalQueries.push(prisma.inventoryItemDocument.count({ where: LIVE.INVENTORY_ITEM }));
+    recentQueries.push(prisma.inventoryItemDocument.count({ where: { ...LIVE.INVENTORY_ITEM, uploadedAt: { gte: since } } }));
   }
   if (enabledModules.has("WEALTH")) {
-    totalQueries.push(prisma.tradeDocument.count());
-    recentQueries.push(prisma.tradeDocument.count({ where: { uploadedAt: { gte: since } } }));
+    totalQueries.push(prisma.tradeDocument.count({ where: LIVE.TRADE }));
+    recentQueries.push(prisma.tradeDocument.count({ where: { ...LIVE.TRADE, uploadedAt: { gte: since } } }));
   }
 
   const [totals, recents, inboxCount] = await Promise.all([

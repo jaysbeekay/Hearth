@@ -9,9 +9,7 @@ import {
   permanentlyDeleteDocumentCommand,
   setDocumentImportantCommand,
 } from "@/lib/commands/documents";
-import { RecordNotFoundError } from "@/lib/commands/shared";
-import { ModuleDisabledError } from "@/lib/modules/enablement";
-import { UploadRejectedError } from "@/lib/uploadValidation";
+import { documentCommandError as commandError } from "@/lib/documents/commandErrors";
 import { isOwnedDocumentKind, type OwnedDocumentKind } from "@/lib/documents/kinds";
 import { parseDocumentCategory, type DocumentCategory } from "@/lib/documents/categories";
 import { ProductDocumentKind } from "@/generated/prisma/enums";
@@ -36,15 +34,6 @@ function requireKind(kind: unknown): OwnedDocumentKind {
   return kind;
 }
 
-// Turns a command's expected failures into the ActionState the form or
-// toast shows; anything else is unexpected and rethrown.
-function commandError(error: unknown): ActionState {
-  if (error instanceof RecordNotFoundError) return { error: `${error.message}.` };
-  if (error instanceof ModuleDisabledError || error instanceof UploadRejectedError) {
-    return { error: error.message };
-  }
-  throw error;
-}
 
 // #350 — the upload form offers one "Document type" select; a Product
 // Document's legacy kind is derived from it, so a "Photo" upload still

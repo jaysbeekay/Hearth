@@ -13,7 +13,8 @@ import { isModuleEnabled } from "@/lib/modules/enablement";
 import { extractSearchableText } from "@/lib/documents/textExtraction";
 import { describeUploadRejection } from "@/lib/uploadValidation";
 import { computeInboxIntake } from "@/lib/documents/inboxIntake";
-import { addDocumentCommand, supersedeDocumentCommand } from "@/lib/commands/documents";
+import { addDocumentCommand, purgeDocument, supersedeDocumentCommand } from "@/lib/commands/documents";
+import { documentCommandError } from "@/lib/documents/commandErrors";
 import { createContractCommand } from "@/lib/commands/contracts";
 import { createProductCommand } from "@/lib/commands/products";
 import { extractionFieldsFromForm } from "@/lib/documents/extractionConfirmation";
@@ -235,6 +236,8 @@ export async function keepInboxDocumentSeparate(inboxId: string): Promise<Import
 // types the inbox can natively file into (matches classifyInboxDocument's
 // boundary); a duplicate match in another domain is shown as informational
 // only, since inbox filing doesn't reach those domains today.
+const VERSIONABLE_INBOX_KINDS: readonly string[] = ["CONTRACT", "PRODUCT", "INVENTORY_ITEM"];
+
 export async function attachInboxDocumentAsVersion(
   inboxId: string,
   targetKind: "CONTRACT" | "PRODUCT" | "INVENTORY_ITEM",
@@ -242,6 +245,8 @@ export async function attachInboxDocumentAsVersion(
   targetDocId: string,
 ): Promise<ImportResult> {
   await requireUser();
+  // Bound arguments come back from the client, so the kind is checked.
+  if (!VERSIONABLE_INBOX_KINDS.includes(targetKind)) return { error: "Document not found." };
 
   const doc = await prisma.inboxDocument.findUnique({ where: { id: inboxId } });
   if (!doc) return { error: "Document not found." };
@@ -252,19 +257,27 @@ export async function attachInboxDocumentAsVersion(
   // The command points the new version at the chain's current head, which
   // may not be targetDocId itself: the hash match could have landed on an
   // already-superseded version.
+  let filed;
   try {
-    await supersedeDocumentCommand(
+    filed = await supersedeDocumentCommand(
       targetKind,
       targetDocId,
       { file, filename: doc.filename, extractedText: doc.extractedText },
       { ownerId: targetOwnerId },
     );
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "Document not found." };
+    return documentCommandError(error);
   }
 
+  // Leaving the Inbox is the second half of filing. If it fails, take the
+  // new version back out so the file isn't left filed twice.
+  try {
+    await prisma.inboxDocument.delete({ where: { id: inboxId } });
+  } catch (error) {
+    await purgeDocument(targetKind, filed.id);
+    throw error;
+  }
   await deleteInboxDocument(doc.storedName);
-  await prisma.inboxDocument.delete({ where: { id: inboxId } });
 
   revalidatePath("/documents/inbox");
   revalidatePath("/documents");

@@ -115,6 +115,10 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   Documents of every kind, and those three kinds now keep the Document
   type chosen on upload. An offline Document delete also goes to Trash
   when it syncs (it used to delete the file outright) (#396).
+- Search, the Documents page and the dashboard's Document counts leave out
+  Documents in Trash, and Documents whose record is in Trash. A Document
+  can only be deleted permanently from Trash, and a Restore or Delete in
+  Trash that fails now says why (#396).
 - All Document files are served from one address, `/api/documents/<id>`,
   which returns 404 when the Document's module is turned off or it, or its
   record, is in Trash. The old per-module addresses (`/api/vehicles/documents/…`,

@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import { FileText, Package, Car, Home, Plane, Box, RotateCcw, Trash2, Wrench } from "lucide-react";
+import { FileText, Package, Car, Home, Plane, Box, Trash2, Wrench } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { getTrashEntries, purgeExpiredTrash, TRASH_RETENTION_DAYS, type TrashEntry } from "@/lib/trash";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { formatDate } from "@/lib/utils";
-import { SubmitButton } from "@/components/SubmitButton";
+import { TrashRestoreButton } from "@/components/TrashRestoreButton";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { restoreContract, permanentlyDeleteContract } from "@/lib/actions/contracts";
 import { restoreProduct, permanentlyDeleteProduct } from "@/lib/actions/products";
@@ -44,16 +44,19 @@ const DOMAIN_META: Record<
   vehicleItem: { label: "Vehicle item", icon: Wrench, restore: restoreVehicleItem, permanentlyDelete: permanentlyDeleteVehicleItem },
 };
 
-// A plain <form action> requires a void-returning action; the domain
-// restore functions return ActionState (used elsewhere via useActionState),
-// so this thin wrapper is the adapter between the two.
-async function restoreAction(domain: TrashEntry["domain"], id: string, documentKind?: OwnedDocumentKind): Promise<void> {
+// One restore entry point for every row, returning the domain action's
+// ActionState so TrashRestoreButton can show an error.
+async function restoreAction(
+  domain: TrashEntry["domain"],
+  id: string,
+  documentKind?: OwnedDocumentKind,
+): Promise<unknown> {
   "use server";
   if (domain === "document") {
-    if (documentKind) await restoreDocumentAction(documentKind, id);
-    return;
+    if (!documentKind) return { error: "Document not found." };
+    return restoreDocumentAction(documentKind, id);
   }
-  await DOMAIN_META[domain].restore(id);
+  return DOMAIN_META[domain].restore(id);
 }
 
 // A Document of any kind is one domain; its kind picks the label and the
@@ -126,12 +129,7 @@ export default async function TrashPage() {
                 </div>
                 {canWrite && (
                   <div className="flex shrink-0 items-center gap-2">
-                    <form action={restoreAction.bind(null, entry.domain, entry.id, entry.documentKind)}>
-                      <SubmitButton variant="secondary" pendingText="Restoring…">
-                        <RotateCcw size={14} className="mr-1.5" />
-                        Restore
-                      </SubmitButton>
-                    </form>
+                    <TrashRestoreButton action={restoreAction.bind(null, entry.domain, entry.id, entry.documentKind)} />
                     <ConfirmForm
                       action={meta.permanentlyDelete}
                       confirmText={`Permanently delete "${entry.label}"? This removes it and its documents for everyone in the household — it can't be undone.`}

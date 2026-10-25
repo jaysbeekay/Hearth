@@ -149,8 +149,12 @@ export function ConfirmForm({
                   close();
                   return;
                 }
-                await action();
-                showDoneToast();
+                const result = await action();
+                // Actions report expected failures as { error } rather
+                // than throwing; show it instead of the success toast.
+                const failure = (result as { error?: string } | undefined)?.error;
+                if (failure) showToast(failure, "error");
+                else showDoneToast();
                 close();
               } catch (err) {
                 // Server actions that redirect() throw a special signal
