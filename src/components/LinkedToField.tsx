@@ -152,11 +152,11 @@ export function LinkedToField({
       )}
       {homeEnabled && properties.length === 0 && (
         <p className="text-xs text-muted">
-          No homes yet —{" "}
+          No properties yet —{" "}
           <Link href="/home/new" className="text-accent hover:underline" {...hintLinkProps}>
             add one
           </Link>{" "}
-          to link this {recordNoun} to a home.
+          to link this {recordNoun} to a property.
         </p>
       )}
       {vehiclesEnabled && vehicles.length === 0 && (

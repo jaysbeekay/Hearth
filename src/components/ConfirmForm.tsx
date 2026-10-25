@@ -21,9 +21,10 @@ export function ConfirmForm({
 }: {
   action: () => Promise<unknown>;
   confirmText: string;
-  // #298: names the actual destructive verb + object ("Delete contract",
-  // "Remove Alex") instead of a generic "Confirm" that doesn't say what
-  // pressing it does.
+  // #298: names the actual destructive verb + object ("Remove Alex")
+  // instead of a generic "Confirm" that doesn't say what pressing it does.
+  // Ignored when `undo` is set: a trash-backed delete always says
+  // "Move to Trash" (#362).
   actionLabel?: string;
   children: React.ReactNode;
   className?: string;

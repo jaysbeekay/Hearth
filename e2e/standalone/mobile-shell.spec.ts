@@ -446,7 +446,7 @@ test("standalone shell routes core records, documents, search, and wealth trade 
   await expect(page.getByRole("button", { name: /BUY VAS/ })).toBeVisible();
 });
 
-test("standalone home screens expose 0.16 rental agreements and statements", async ({ page }) => {
+test("standalone property screens expose 0.16 tenancies and statements", async ({ page }) => {
   await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
   await page.getByRole("button", { name: /Properties/ }).click();
   await expect(page.locator("#view-title")).toHaveText("Properties");

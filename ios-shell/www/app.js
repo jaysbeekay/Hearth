@@ -924,7 +924,7 @@ function attentionForRecord(type, row) {
     const days = daysUntil(row.end_date);
     if (days == null || row.status !== "ACTIVE") return null;
     if (days < 0) return { tone: "danger", label: "Expired", meta: `Ended ${Math.abs(days)} days ago` };
-    if (days <= 30) return { tone: "warning", label: "Expiring", meta: `Ends in ${days} days` };
+    if (days <= 30) return { tone: "warning", label: "Due soon", meta: `Ends in ${days} days` };
   }
   if (type === "products") {
     const days = daysUntil(row.warranty_end_date);
@@ -1281,7 +1281,7 @@ function renderDashboard() {
     </section>
 
     <section class="grid-2">
-      ${miniCard("Est. monthly spend", money(monthlySpend, defaultCurrency()) ?? `${defaultCurrency()} 0`, "Private local estimate")}
+      ${miniCard("Est. monthly cost", money(monthlySpend, defaultCurrency()) ?? `${defaultCurrency()} 0`, "Private local estimate")}
       ${miniCard("Needs review", String(docsNeedingReview.length), "Documents without extracted text")}
       ${moduleEnabled("properties") || moduleEnabled("inventoryItems") ? miniCard("Home + inventory", money(propertyValue + inventoryValue, defaultCurrency()) ?? `${defaultCurrency()} 0`, "Local asset estimate") : ""}
       ${moduleEnabled("portfolios") ? miniCard("Portfolio value", money(holdingsValue, defaultCurrency()) ?? `${defaultCurrency()} 0`, "Trade-derived holdings") : ""}
@@ -1293,7 +1293,7 @@ function renderDashboard() {
         <button class="subtle-button" data-nav="records">View records</button>
       </div>
       <div class="list">
-        ${attention.length === 0 ? empty("No urgent records", "Expiring contracts, warranties, rego and insurance will appear here.") : attention.slice(0, 6).map(renderAttentionCard).join("")}
+        ${attention.length === 0 ? empty("Nothing due", "Contracts, warranties, rego and insurance coming due will appear here.") : attention.slice(0, 6).map(renderAttentionCard).join("")}
       </div>
     </section>
 
@@ -1303,9 +1303,9 @@ function renderDashboard() {
       </div>
       <div class="grid-3">
         <button data-form-type="contracts">Contract</button>
-        <button data-form-type="products">Product</button>
+        <button data-form-type="products">Warranty</button>
         ${moduleEnabled("vehicles") ? '<button data-form-type="vehicles">Vehicle</button>' : ""}
-        ${moduleEnabled("properties") ? '<button data-form-type="properties">Home</button>' : ""}
+        ${moduleEnabled("properties") ? '<button data-form-type="properties">Property</button>' : ""}
         ${moduleEnabled("inventoryItems") ? '<button data-form-type="inventoryItems">Inventory</button>' : ""}
         ${moduleEnabled("trips") ? '<button data-form-type="trips">Trip</button>' : ""}
         ${moduleEnabled("portfolios") ? '<button data-form-type="portfolios">Portfolio</button>' : ""}
@@ -1374,17 +1374,17 @@ function renderSpend() {
   const rows = spendRows(activeContracts);
   return `
     <section class="hero-card">
-      <p class="kicker">Standalone spend</p>
+      <p class="kicker">Spending</p>
       <h2>${escapeHtml(money(monthly, currency) ?? `${currency} 0`)} / month</h2>
-      <p>Estimated from active contract billing frequencies saved on this phone. Amounts are summarized in your standalone default currency label; Hearth does not perform FX conversion offline.</p>
+      <p>Estimated from active contract billing frequencies saved on this phone. Amounts are summarised in your standalone default currency label; Hearth does not perform FX conversion offline.</p>
     </section>
     <section class="grid-2">
       ${miniCard("Annualised contracts", money(monthly * 12, currency) ?? `${currency} 0`, "Recurring estimate")}
-      ${miniCard("Warranties purchased", money(oneOffProducts, currency) ?? `${currency} 0`, "One-off tracked value")}
-      ${miniCard("Home records", money(homeCosts, currency) ?? `${currency} 0`, "Logged costs")}
-      ${miniCard("Vehicle records", money(vehicleCosts, currency) ?? `${currency} 0`, "Logged costs")}
+      ${miniCard("Bought (one-off)", money(oneOffProducts, currency) ?? `${currency} 0`, "Purchase prices of warranties")}
+      ${miniCard("Maintenance records", money(homeCosts, currency) ?? `${currency} 0`, "Logged costs")}
+      ${miniCard("Service records", money(vehicleCosts, currency) ?? `${currency} 0`, "Logged costs")}
       ${miniCard("Travel segments", money(tripCosts, currency) ?? `${currency} 0`, "Logged bookings")}
-      ${miniCard("Active contracts", String(activeContracts.length), "Included in recurring spend")}
+      ${miniCard("Active contracts", String(activeContracts.length), "Included in the monthly total")}
     </section>
     <section class="card form-card">
       <div class="section-title">
@@ -1392,7 +1392,7 @@ function renderSpend() {
         <button class="subtle-button" data-record-type="contracts" data-nav="records">Contracts</button>
       </div>
       <div class="detail-grid">
-        ${rows.length === 0 ? empty("No spend yet", "Add contracts with cost and billing frequency to build this view.") : rows.map(([category, amount]) => `
+        ${rows.length === 0 ? empty("No spending yet", "Add contracts with cost and billing frequency to build this view.") : rows.map(([category, amount]) => `
           <div class="detail-row"><span class="detail-label">${escapeHtml(category)}</span><span class="detail-value">${escapeHtml(money(amount, currency) ?? `${currency} 0`)}</span></div>
         `).join("")}
       </div>
@@ -2268,12 +2268,12 @@ function renderDetail() {
       <div class="detail-grid">${renderDetailRows(type, row)}</div>
       ${renderRecordReminderHealth(type, row)}
     </section>
-    ${type === "vehicles" ? renderChildRecords("Vehicle records", "vehicleItems", cache.vehicleItems.filter((item) => item.vehicle_id === row.id), row.id, "No vehicle records", "Track services, registration, insurance and repairs here.") : ""}
+    ${type === "vehicles" ? renderChildRecords("Service records", "vehicleItems", cache.vehicleItems.filter((item) => item.vehicle_id === row.id), row.id, "No service records", "Track services, repairs and roadworthies here.") : ""}
     ${type === "properties" ? renderPropertyRentalSummary(row.id) : ""}
     ${type === "properties" ? renderChildRecords("Warranties", "products", cache.products.filter((item) => item.property_id === row.id), row.id, "No warranties linked", "Register a warranty to this home so it shows up here.") : ""}
-    ${type === "properties" ? renderChildRecords("Tenancies", "rentalAgreements", cache.rentalAgreements.filter((item) => item.property_id === row.id), row.id, "No rental agreements", "Track leases, rent, bond and tenancy notes for this property.") : ""}
+    ${type === "properties" ? renderChildRecords("Tenancies", "rentalAgreements", cache.rentalAgreements.filter((item) => item.property_id === row.id), row.id, "No tenancies", "Track the tenant, rent, bond and lease dates for this property.") : ""}
     ${type === "properties" ? renderChildRecords("Rental statements", "rentalStatements", cache.rentalStatements.filter((item) => item.property_id === row.id), row.id, "No rental statements", "Track rental income, fees, deductions and attached statements.") : ""}
-    ${type === "properties" ? renderChildRecords("Home records", "homeItems", cache.homeItems.filter((item) => item.property_id === row.id), row.id, "No home records", "Track rates, insurance, repairs and improvements here.") : ""}
+    ${type === "properties" ? renderChildRecords("Maintenance records", "homeItems", cache.homeItems.filter((item) => item.property_id === row.id), row.id, "No maintenance records", "Track maintenance, repairs and improvements here.") : ""}
     ${type === "products" ? renderLinkedInventoryItems(row.id) : ""}
     ${type === "trips" ? renderChildRecords("Trip segments", "tripSegments", cache.tripSegments.filter((item) => item.trip_id === row.id), row.id, "No trip segments", "Track flights, accommodation, transport and activities here.") : ""}
     ${type === "portfolios" ? renderTradeCsvImportSection(row.id) : ""}
@@ -2362,7 +2362,7 @@ function renderDetailRows(type, row) {
       ["Status", row.status],
       ["Start", readableDate(row.start_date)],
       ["End", readableDate(row.end_date)],
-      ["Reminder days", row.reminder_days_before || "30,14,7,1"],
+      ["Reminder thresholds", row.reminder_days_before || "30,14,7,1"],
       ["Cost", money(row.cost, row.currency)],
       ["Billing", row.billing_frequency],
       ["Contact", [row.contact_name, row.contact_email, row.contact_phone].filter(Boolean).join(" · ")],
@@ -2377,7 +2377,7 @@ function renderDetailRows(type, row) {
       ["Barcode", row.barcode],
       ["Purchase", readableDate(row.purchase_date)],
       ["Warranty", readableDate(row.warranty_end_date)],
-      ["Reminder days", row.reminder_days_before || "30,14,7,1"],
+      ["Reminder thresholds", row.reminder_days_before || "30,14,7,1"],
       ["Price", money(row.price, row.currency)],
       ["Property", row.property_id ? recordTitle("properties", getRecord("properties", row.property_id)) : null],
       ["Notes", row.notes],
@@ -2392,7 +2392,7 @@ function renderDetailRows(type, row) {
       ["Rego expiry", readableDate(row.rego_expiry)],
       ["Insurance", readableDate(row.insurance_expiry)],
       ["Next service due", readableDate(row.next_service_due)],
-      ["Reminder days", row.reminder_days_before || "30,14,7,1"],
+      ["Reminder thresholds", row.reminder_days_before || "30,14,7,1"],
       ["Notes", row.notes],
     ],
     vehicleItems: [
@@ -2588,7 +2588,7 @@ function renderDocuments() {
     <section class="chips" aria-label="Document filters">
       ${documentChip("all", "All")}
       ${documentChip("inbox", "Inbox")}
-      ${documentChip("inbox:NEEDS_REVIEW", "Needs review")}
+      ${documentChip("inbox:NEEDS_REVIEW", "Ready to file")}
       ${documentChip("inbox:POSSIBLE_DUPLICATE", "Possible duplicate")}
       ${documentChip("important", "Important")}
       ${documentChip("contract", "Contracts")}
@@ -2709,8 +2709,8 @@ function renderInboxCard(doc) {
 function inboxStatus(doc) {
   if (doc.status === "POSSIBLE_DUPLICATE") return { label: "Possible duplicate", tone: "warning" };
   if (doc.status === "EXTRACTION_FAILED") return { label: "Extraction failed", tone: "danger" };
-  if (doc.status === "NEEDS_CLASSIFICATION") return { label: "Needs classification", tone: "warning" };
-  return { label: "Needs review", tone: "warning" };
+  if (doc.status === "NEEDS_CLASSIFICATION") return { label: "Not classified", tone: "warning" };
+  return { label: "Ready to file", tone: "warning" };
 }
 
 function duplicateMatchesForInbox(doc) {
@@ -2852,7 +2852,7 @@ function formFields(type, row) {
         <label>End date<input name="endDate" type="date" value="${escapeAttr(dateInputValue(row?.end_date))}" /></label>
         <label>Cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(row?.cost ?? "")}" /></label>
         <label>Billing<select name="billingFrequency">${options(["", "WEEKLY", "FORTNIGHTLY", "MONTHLY", "QUARTERLY", "ANNUALLY", "ONE_OFF"], row?.billing_frequency ?? "")}</select></label>
-        <label>Reminder days before<input name="reminderDaysBefore" inputmode="numeric" value="${escapeAttr(row?.reminder_days_before ?? "30,14,7,1")}" placeholder="30,14,7,1" /></label>
+        <label>Reminder thresholds (days before)<input name="reminderDaysBefore" inputmode="numeric" value="${escapeAttr(row?.reminder_days_before ?? "30,14,7,1")}" placeholder="30,14,7,1" /></label>
         <label class="checkbox-row"><input name="needsReview" type="checkbox" ${Number(row?.extraction_pending ?? 0) === 1 ? "checked" : ""} /> Needs review — hold reminders until confirmed</label>
         <label>Contact email<input name="contactEmail" type="email" value="${escapeAttr(row?.contact_email)}" /></label>
         <label>Notes<textarea name="notes">${escapeHtml(row?.notes)}</textarea></label>
@@ -2872,7 +2872,7 @@ function formFields(type, row) {
         <label>Purchase date<input name="purchaseDate" type="date" value="${escapeAttr(dateInputValue(row?.purchase_date))}" /></label>
         <label>Warranty end<input name="warrantyEndDate" type="date" value="${escapeAttr(dateInputValue(row?.warranty_end_date))}" /></label>
         <label>Price<input name="price" type="number" min="0" step="0.01" value="${escapeAttr(row?.price ?? "")}" /></label>
-        <label>Reminder days before<input name="reminderDaysBefore" inputmode="numeric" value="${escapeAttr(row?.reminder_days_before ?? "30,14,7,1")}" placeholder="30,14,7,1" /></label>
+        <label>Reminder thresholds (days before)<input name="reminderDaysBefore" inputmode="numeric" value="${escapeAttr(row?.reminder_days_before ?? "30,14,7,1")}" placeholder="30,14,7,1" /></label>
         <label class="checkbox-row"><input name="needsReview" type="checkbox" ${Number(row?.extraction_pending ?? 0) === 1 ? "checked" : ""} /> Needs review — hold reminders until confirmed</label>
         ${propertyPickerOrHint(propertyId)}
         <label>Notes<textarea name="notes">${escapeHtml(row?.notes)}</textarea></label>
@@ -2892,7 +2892,7 @@ function formFields(type, row) {
         <label>Rego expiry<input name="regoExpiry" type="date" value="${escapeAttr(dateInputValue(row?.rego_expiry))}" /></label>
         <label>Insurance expiry<input name="insuranceExpiry" type="date" value="${escapeAttr(dateInputValue(row?.insurance_expiry))}" /></label>
         <label>Next service due<input name="nextServiceDue" type="date" value="${escapeAttr(dateInputValue(row?.next_service_due))}" /></label>
-        <label>Reminder days before<input name="reminderDaysBefore" inputmode="numeric" value="${escapeAttr(row?.reminder_days_before ?? "30,14,7,1")}" placeholder="30,14,7,1" /></label>
+        <label>Reminder thresholds (days before)<input name="reminderDaysBefore" inputmode="numeric" value="${escapeAttr(row?.reminder_days_before ?? "30,14,7,1")}" placeholder="30,14,7,1" /></label>
         <label>Notes<textarea name="notes">${escapeHtml(row?.notes)}</textarea></label>
       </div>
     `;

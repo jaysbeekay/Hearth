@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     const doc = new PDFDocument({ margin: 40, size: "A4" });
     const stream = new ReadableStream<Uint8Array>({ start(controller) { doc.on("data", (chunk: Buffer) => controller.enqueue(new Uint8Array(chunk))); doc.on("end", () => controller.close()); doc.on("error", (error) => controller.error(error)); } });
 
-    doc.fontSize(18).text("Vehicle Records Export", { align: "center" });
+    doc.fontSize(18).text("Service Records Export", { align: "center" });
     doc.moveDown(0.5);
     doc.fontSize(9).fillColor("#666").text(`Generated ${new Date().toLocaleDateString("en-AU")}`, { align: "center" });
     doc.moveDown();

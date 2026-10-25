@@ -11,6 +11,7 @@ import type { InventoryItemModel } from "@/generated/prisma/models";
 import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
+import { MODULE_REGISTRY } from "@/lib/modules/registry";
 
 type InventoryItemWithCount = InventoryItemModel & { _count: { documents: number } };
 
@@ -39,7 +40,7 @@ export function InventoryListClient({ items, dateFormat, region, canWrite = true
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Inventory</h1>
+        <h1 className="text-2xl font-semibold">{MODULE_REGISTRY.INVENTORY.label}</h1>
         {canWrite && (
           <Link
             href="/inventory/new"

@@ -123,14 +123,14 @@ export default async function SettingsPage() {
         <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-3 font-medium">Security</h2>
           <div className="flex flex-col gap-1">
-            <Link href="/settings/passkeys" className={quickLinkClass}>
+            <Link href={SETTINGS_ROUTES.passkeys.href} className={quickLinkClass}>
               <KeyRound size={16} />
-              Manage passkeys
+              {SETTINGS_ROUTES.passkeys.label}
             </Link>
             {user.role === "ADMIN" && (
-              <Link href="/settings/security" className={quickLinkClass}>
+              <Link href={SETTINGS_ROUTES.security.href} className={quickLinkClass}>
                 <History size={16} />
-                View security log
+                {SETTINGS_ROUTES.security.label}
               </Link>
             )}
           </div>
@@ -153,9 +153,9 @@ export default async function SettingsPage() {
             Deleted contracts, warranties, vehicles, properties, trips, and inventory items stay
             here for 30 days before they&apos;re removed for good.
           </p>
-          <Link href="/settings/trash" className={quickLinkClass}>
+          <Link href={SETTINGS_ROUTES.trash.href} className={quickLinkClass}>
             <Trash2 size={16} />
-            View trash
+            {SETTINGS_ROUTES.trash.label}
           </Link>
         </section>
 

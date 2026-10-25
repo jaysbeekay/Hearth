@@ -37,7 +37,7 @@ export function VehicleItemForm({
   const offlineAwareAction = makeOfflineAwareAction(
     action,
     () => ({
-      label: item ? `Update record: ${item.title}` : "Add vehicle record",
+      label: item ? `Update service record: ${item.title}` : "Add service record",
       entity: "vehicleItem",
       operation: item ? "update" : "create",
       entityId: item?.id,

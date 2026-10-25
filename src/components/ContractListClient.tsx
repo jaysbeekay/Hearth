@@ -299,7 +299,6 @@ export function ContractListClient({
                     action={deleteContract.bind(null, contract.id)}
                     undo={{ action: restoreContract.bind(null, contract.id) }}
                     confirmText={`Move this contract to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash.`}
-                    actionLabel="Delete contract"
                     ariaLabel={`Delete ${contract.title}`}
                     className="flex h-full w-full flex-col items-center justify-center gap-1 bg-danger text-xs font-medium text-danger-foreground"
                     offline={{ entity: "contract", entityId: contract.id, label: `Delete contract: ${contract.title}` }}

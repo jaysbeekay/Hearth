@@ -105,7 +105,6 @@ export default async function ProductDetailPage({
                   action={deleteProduct.bind(null, product.id)}
                   undo={{ action: restoreProduct.bind(null, product.id), href: `/products/${product.id}` }}
                   confirmText="Move this warranty to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash."
-                  actionLabel="Delete warranty"
                   className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
                   offline={{ entity: "product", entityId: product.id, label: `Delete warranty: ${product.description}` }}
                 >

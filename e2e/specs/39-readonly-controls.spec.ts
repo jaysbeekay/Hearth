@@ -113,6 +113,9 @@ test.describe("read-only member (#400)", () => {
 
   test.beforeAll(async () => {
     db = createClient({ url: DATABASE_URL });
+    // The app server writes to the same file; wait out its locks instead of
+    // failing with SQLITE_BUSY (seen in CI on #429).
+    await db.execute("PRAGMA busy_timeout = 5000");
     await db.execute("PRAGMA foreign_keys = ON");
     // A leftover account from an aborted run would make the create below
     // fail; clear it so that create can be held to succeeding.
@@ -379,7 +382,7 @@ test.describe("read-only member (#400)", () => {
     await expect(main.getByRole("heading", { name: "Profile" })).toBeVisible();
     await expect(main.getByRole("button", { name: "Save preferences" })).toBeVisible();
     await expect(main.getByRole("button", { name: "Update password" })).toBeVisible();
-    await expect(main.getByRole("link", { name: "Manage passkeys" })).toBeVisible();
+    await expect(main.getByRole("link", { name: "Passkeys", exact: true })).toBeVisible();
     await expect(main.getByRole("button", { name: "Enable two-factor authentication" })).toBeVisible();
 
     await page.goto("/calendar");

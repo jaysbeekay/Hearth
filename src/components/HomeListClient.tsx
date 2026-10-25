@@ -13,6 +13,7 @@ import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
 import { useCanWrite } from "@/components/CanWriteProvider";
+import { MODULE_REGISTRY } from "@/lib/modules/registry";
 
 type PropertyWithCount = PropertyModel & { _count: { items: number } };
 
@@ -47,7 +48,7 @@ export function HomeListClient({ properties, taxDeductibleSummary, region }: Pro
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Properties</h1>
+        <h1 className="text-2xl font-semibold">{MODULE_REGISTRY.HOME.label}</h1>
         <div className="flex items-center gap-2">
           <details className="relative">
             <summary className={toolbarButtonClass}>

@@ -113,6 +113,9 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   - Help's answers point only at pages and Settings sections that exist,
     checked by a new unit test (`tests/unit/help-faq-labels.test.ts`).
   - The standalone mobile shell uses the same nouns.
+  - Search results and Documents rows for a maintenance record, rental
+    statement or trade link to a page that exists (the property, its
+    Tenancy page, or the holding) instead of a 404.
 - **Every screen follows the Due rules (#384).** The Contracts, Warranties
   and Vehicles lists and their cards, the "Expiring soon" and "Expired"
   filters and their counts, the dashboard's Needs attention, Search,

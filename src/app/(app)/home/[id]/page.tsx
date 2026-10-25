@@ -125,7 +125,6 @@ export default async function PropertyDetailPage({
                   action={deleteProperty.bind(null, property.id)}
                   undo={{ action: restoreProperty.bind(null, property.id), href: `/home/${property.id}` }}
                   confirmText="Move this property to Trash? Its maintenance records and documents are kept, and you can restore it within 30 days from Settings → Trash."
-                  actionLabel="Delete property"
                   className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
                   offline={{ entity: "property", entityId: property.id, label: `Delete property: ${property.label}` }}
                 >
@@ -226,8 +225,7 @@ export default async function PropertyDetailPage({
                           <ConfirmForm
                             action={deleteHomeItem.bind(null, property.id, item.id)}
                             undo={{ action: restoreHomeItem.bind(null, item.id) }}
-                            confirmText={`Delete "${item.title}" and its documents?`}
-                            actionLabel={`Delete "${item.title}"`}
+                            confirmText={`Move "${item.title}" to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash.`}
                             className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
                           >
                             <Trash2 size={16} />

@@ -133,7 +133,6 @@ export default async function TripDetailPage({
                   action={deleteTrip.bind(null, trip.id)}
                   undo={{ action: restoreTrip.bind(null, trip.id), href: `/travel/${trip.id}` }}
                   confirmText="Move this trip to Trash? Its segments and documents are kept, and you can restore it within 30 days from Settings → Trash."
-                  actionLabel="Delete trip"
                   className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
                   offline={{ entity: "trip", entityId: trip.id, label: `Delete trip: ${trip.title}` }}
                 >

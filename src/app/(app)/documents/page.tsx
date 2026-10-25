@@ -242,7 +242,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
             category: r.category,
             type: "Properties",
             parentTitle: r.homeItem.title,
-            parentHref: `/home/${r.homeItem.propertyId}/items/${r.homeItem.id}`,
+            parentHref: `/home/${r.homeItem.propertyId}`,
             downloadHref: documentFileHref(r.id),
           }));
           rows.push(

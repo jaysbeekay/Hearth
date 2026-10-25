@@ -74,11 +74,11 @@ describe("linking a Contract to a Tenancy", () => {
   it("says the agreement wasn't found for a missing or out-of-scope Tenancy", async () => {
     const lease = await rentalContract("Head lease");
     expect(await setRentalAgreementContract(propertyId, "missing", formData({ contractId: lease.id }))).toEqual({
-      error: "Agreement not found.",
+      error: "Tenancy not found.",
     });
     const tenancy = await newTenancy();
     expect(await setRentalAgreementContract("other-property", tenancy.id, formData({ contractId: lease.id }))).toEqual({
-      error: "Agreement not found.",
+      error: "Tenancy not found.",
     });
   });
 
@@ -115,14 +115,14 @@ describe("not-found errors", () => {
     expect(await deleteProperty("missing")).toEqual({ error: "Property not found." });
     expect(await setPropertyRented("missing", true)).toEqual({ error: "Property not found." });
     expect(await updateHomeItem(propertyId, "missing", null, formData({ type: "REPAIR", title: "x" }))).toEqual({
-      error: "Item not found.",
+      error: "Maintenance record not found.",
     });
-    expect(await deleteHomeItem(propertyId, "missing")).toEqual({ error: "Item not found." });
-    expect(await restoreHomeItem("missing")).toEqual({ error: "Item not found." });
+    expect(await deleteHomeItem(propertyId, "missing")).toEqual({ error: "Maintenance record not found." });
+    expect(await restoreHomeItem("missing")).toEqual({ error: "Maintenance record not found." });
     expect(await createRentalAgreement("missing", null, formData({ weeklyRent: "500" }))).toEqual({
       error: "Property not found.",
     });
-    expect(await deleteRentalAgreement(propertyId, "missing")).toEqual({ error: "Agreement not found." });
+    expect(await deleteRentalAgreement(propertyId, "missing")).toEqual({ error: "Tenancy not found." });
     expect(await updateRentalStatement(propertyId, "missing", null, formData({ grossRent: "1" }))).toEqual({
       error: "Statement not found.",
     });
@@ -143,7 +143,7 @@ describe("not-found errors", () => {
     const item = await createMaintenanceRecordCommand(propertyId, homeItemSchema.parse({ type: "REPAIR", title: "Tap" }));
     await deletePropertyCommand(propertyId);
     expect(await updateHomeItem(propertyId, item.id, null, formData({ type: "REPAIR", title: "Tap washer" }))).toEqual({
-      error: "Item not found.",
+      error: "Maintenance record not found.",
     });
     expect(await updateProperty(propertyId, null, formData({ label: "Renamed" }))).toEqual({
       error: "Property not found.",

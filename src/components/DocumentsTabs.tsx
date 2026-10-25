@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Upload } from "lucide-react";
 import { TakePhotoButton } from "@/components/TakePhotoButton";
 import { compactButtonClass } from "@/lib/buttonStyles";
+import { DOCUMENTS_TABS } from "@/lib/routeLabels";
 
 // Shared tab strip connecting /documents and /documents/inbox, so the two
 // routes read as one workflow (upload → inbox → filed) instead of a page
@@ -25,14 +26,14 @@ export function DocumentsTabs({
 }) {
   return (
     <div className="flex gap-6 border-b border-border">
-      <Link href="/documents/inbox" className={tabClass(active === "inbox")}>
-        Inbox {inboxCount > 0 && `(${inboxCount})`}
+      <Link href={DOCUMENTS_TABS.inbox.href} className={tabClass(active === "inbox")}>
+        {DOCUMENTS_TABS.inbox.label} {inboxCount > 0 && `(${inboxCount})`}
       </Link>
-      <Link href="/documents" className={tabClass(active === "filed")}>
-        Filed ({filedCount})
+      <Link href={DOCUMENTS_TABS.filed.href} className={tabClass(active === "filed")}>
+        {DOCUMENTS_TABS.filed.label} ({filedCount})
       </Link>
-      <Link href="/documents?view=all" className={tabClass(active === "all")}>
-        All ({allCount})
+      <Link href={DOCUMENTS_TABS.all.href} className={tabClass(active === "all")}>
+        {DOCUMENTS_TABS.all.label} ({allCount})
       </Link>
     </div>
   );

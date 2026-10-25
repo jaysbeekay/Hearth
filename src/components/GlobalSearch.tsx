@@ -171,7 +171,7 @@ export function GlobalSearch() {
                 }
               }
             }}
-            placeholder="Search Contracts, Warranties, Documents…"
+            placeholder="Search contracts, warranties, documents…"
             className="w-full bg-transparent text-sm outline-none placeholder:text-muted"
           />
           <button
