@@ -107,8 +107,8 @@ test.describe("bulk document import and extraction", () => {
     // Generic-format headers, per WealthImportClient's own supported-formats
     // note: Date, Ticker, Type, Units, Price, Fees, Currency.
     const csvData = "Date,Ticker,Type,Units,Price,Fees,Currency\n2026-01-01,AAPL,BUY,10,150,0,AUD";
-    // Scoped past the persistent mobile-upload FAB's own (CSS-hidden but
-    // still-attached) file input, which also matches a bare input[type=file].
+    // Scoped to the CSV input: a bare input[type=file] could also match
+    // another (hidden) file input on the page.
     await page.locator('input[type="file"][accept=".csv"]').setInputFiles({
       name: "trades.csv",
       mimeType: "text/csv",

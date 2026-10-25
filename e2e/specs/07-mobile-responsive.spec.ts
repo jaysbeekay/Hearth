@@ -167,3 +167,124 @@ test("swiping from the left screen edge opens the navigation drawer, and the men
   await page.waitForURL(/\/contracts$/);
   await expect(drawer).toBeHidden();
 });
+
+// #401 (regression of #348): nothing fixed may sit over a tappable control
+// at any scroll position. The bottom nav is the one fixed bar allowed, since
+// <main>'s bottom padding lets the end of every page scroll clear of it.
+// Everything else (the old floating camera button and "Choose file" pill
+// covered dashboard rows and Documents links mid-page) fails this check.
+async function controlsCoveredByFixedUi(page: import("@playwright/test").Page) {
+  return page.evaluate(() => {
+    const bottomNav = document.querySelector("nav.fixed.bottom-0");
+    const fixed = [...document.querySelectorAll<HTMLElement>("body *")].filter((el) => {
+      if (getComputedStyle(el).position !== "fixed") {
+        return false;
+      }
+      if (bottomNav && (el === bottomNav || bottomNav.contains(el))) {
+        return false;
+      }
+      const r = el.getBoundingClientRect();
+      return r.width > 1 && r.height > 1 && el.checkVisibility();
+    });
+
+    const covered: string[] = [];
+    const controls = document.querySelectorAll<HTMLElement>(
+      "main a[href], main button, main label[for], main select, main textarea, main input:not([type=hidden]):not(.sr-only)",
+    );
+    for (const control of controls) {
+      const c = control.getBoundingClientRect();
+      if (c.width <= 1 || c.height <= 1 || !control.checkVisibility()) {
+        continue;
+      }
+      if (c.bottom <= 0 || c.top >= window.innerHeight) {
+        continue;
+      }
+      for (const el of fixed) {
+        if (el.contains(control)) {
+          continue;
+        }
+        const f = el.getBoundingClientRect();
+        const overlaps = c.left < f.right && c.right > f.left && c.top < f.bottom && c.bottom > f.top;
+        if (overlaps) {
+          const name = (control.getAttribute("aria-label") ?? control.textContent ?? "").trim().slice(0, 40);
+          covered.push(`${control.tagName.toLowerCase()} "${name}" at y=${Math.round(c.top)} under ${el.tagName.toLowerCase()}.${el.className.toString().split(" ").slice(0, 3).join(".")}`);
+        }
+      }
+    }
+    return covered;
+  });
+}
+
+test.describe("fixed mobile UI never covers controls (#401)", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test("no control on the dashboard or Documents pages is covered at any scroll offset, and Take photo saves to the Inbox", async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    const stamp = Date.now();
+
+    // Enough Due rows that the dashboard scrolls well past one screen even
+    // when this spec runs on its own against the freshly seeded DB.
+    const end = new Date(Date.now() + 10 * 86_400_000).toISOString().slice(0, 10);
+    for (let i = 0; i < 6; i++) {
+      await page.goto("/contracts/new");
+      await page.locator("#title").fill(`Overlap Check Contract ${stamp}-${i}`);
+      await page.locator("#provider").fill("Overlap Provider");
+      await page.locator("#endDate").fill(end);
+      await page.locator("main button[type=submit]").click();
+      await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
+    }
+
+    // Camera capture is an in-flow header button now, on the dashboard and
+    // on every Documents tab.
+    for (const path of ["/dashboard", "/documents", "/documents/inbox"]) {
+      await page.goto(path);
+      await expect(page.locator("main label", { hasText: "Take photo" })).toBeVisible();
+    }
+    await page.goto("/documents");
+    await expect(page.getByRole("link", { name: "Upload", exact: true })).toBeVisible();
+    for (let i = 0; i < 2; i++) {
+      await page.locator('main input[type="file"][accept="image/*"][capture]').setInputFiles({
+        name: `overlap-photo-${stamp}-${i}.png`,
+        mimeType: "image/png",
+        // Unique trailing bytes, so these photos aren't flagged as
+        // duplicates of each other in later specs' Inbox assertions.
+        buffer: Buffer.concat([
+          Buffer.from(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+            "base64",
+          ),
+          Buffer.from(`${stamp}-${i}`),
+        ]),
+      });
+      await expect(page.getByText("Saved to your Inbox for review.").first()).toBeVisible();
+    }
+
+    // The old floating controls are gone.
+    await page.goto("/dashboard");
+    await expect(page.getByRole("link", { name: "Choose a file to upload" })).toHaveCount(0);
+
+    for (const path of ["/dashboard", "/documents", "/documents/inbox"]) {
+      // Fresh load, so no transient toast is on screen.
+      await page.goto(path);
+      await page.waitForLoadState("networkidle");
+      const maxScroll = await page.evaluate(
+        () => document.documentElement.scrollHeight - window.innerHeight,
+      );
+      const covered: string[] = [];
+      for (let y = 0; ; y = Math.min(y + 300, maxScroll)) {
+        await page.evaluate((top) => {
+          window.scrollTo(0, top);
+        }, y);
+        for (const hit of await controlsCoveredByFixedUi(page)) {
+          covered.push(`${path} @ scroll ${y}: ${hit}`);
+        }
+        if (y >= maxScroll) {
+          break;
+        }
+      }
+      expect(covered).toEqual([]);
+    }
+  });
+});

@@ -1,4 +1,7 @@
 import Link from "next/link";
+import { Upload } from "lucide-react";
+import { TakePhotoButton } from "@/components/TakePhotoButton";
+import { compactButtonClass } from "@/lib/buttonStyles";
 
 // Shared tab strip connecting /documents and /documents/inbox, so the two
 // routes read as one workflow (upload → inbox → filed) instead of a page
@@ -30,6 +33,21 @@ export function DocumentsTabs({
       </Link>
       <Link href="/documents?view=all" className={tabClass(active === "all")}>
         All ({allCount})
+      </Link>
+    </div>
+  );
+}
+
+// Header actions shared by every Documents tab (#401): Upload opens the
+// /import queue, and on phones Take photo saves a camera shot to the Inbox.
+// In the page flow rather than floating, so they never cover a row.
+export function DocumentsUploadActions() {
+  return (
+    <div className="flex items-center gap-2">
+      <TakePhotoButton />
+      <Link href="/import" className={`${compactButtonClass("secondary")} gap-2`}>
+        <Upload size={16} />
+        Upload
       </Link>
     </div>
   );

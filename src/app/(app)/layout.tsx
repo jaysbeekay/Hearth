@@ -4,7 +4,6 @@ import { Sidebar } from "@/components/Sidebar";
 import { TopBar } from "@/components/TopBar";
 import { BottomNav } from "@/components/BottomNav";
 import { MobileNavDrawer } from "@/components/MobileNavDrawer";
-import { MobileUploadFab } from "@/components/MobileUploadFab";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { OfflineSyncManager } from "@/components/OfflineSyncManager";
 import { GlobalSearch } from "@/components/GlobalSearch";
@@ -49,9 +48,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <OfflineBanner />
         <main id="main" className="flex-1 px-4 py-6 pb-[calc(6rem+env(safe-area-inset-bottom))] md:px-8 md:py-8 md:pb-8">
           {children}
-          {/* Inside <main> so its spacer adds to the page's scroll height;
-              the buttons themselves are position: fixed (#348). */}
-          <MobileUploadFab />
         </main>
       </div>
       <BottomNav enabledModules={enabledModules} chatConfigured={chatConfigured} />

@@ -26,6 +26,7 @@ import {
 } from "@/lib/needsAttention";
 import { contractRules, productRules, vehicleRules } from "@/lib/recordFilters";
 import { NeedsAttentionQueue } from "@/components/NeedsAttentionQueue";
+import { TakePhotoButton } from "@/components/TakePhotoButton";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -144,12 +145,16 @@ export default async function DashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <TakePhotoButton />
           <Link
             href="/import"
             className="flex min-h-11 items-center gap-2 rounded-lg border border-accent/40 px-4 py-2 text-sm font-medium text-accent hover:bg-accent/5"
           >
             <Upload size={16} />
-            Upload a document
+            {/* Shortened on phones so it fits beside Take photo and Add. */}
+            <span>
+              Upload<span className="hidden sm:inline"> a document</span>
+            </span>
           </Link>
           <AddEntryPicker enabledModules={[...enabledModules]} />
         </div>

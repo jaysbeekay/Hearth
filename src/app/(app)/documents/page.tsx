@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { DocumentsExplorer, type DocRow } from "@/components/DocumentsExplorer";
-import { DocumentsTabs } from "@/components/DocumentsTabs";
+import { DocumentsTabs, DocumentsUploadActions } from "@/components/DocumentsTabs";
 import { documentFileHref } from "@/lib/documents/kinds";
 import { LIVE_DOCUMENT_WHERE as LIVE } from "@/lib/documents/liveDocuments";
 
@@ -407,13 +407,16 @@ export default async function DocumentsPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Documents</h1>
-        <p className="text-sm text-muted">
-          {showAll
-            ? "Every uploaded document, including anything still waiting to be filed."
-            : "Documents you've saved to a contract, warranty, or other record."}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">Documents</h1>
+          <p className="text-sm text-muted">
+            {showAll
+              ? "Every uploaded document, including anything still waiting to be filed."
+              : "Documents you've saved to a contract, warranty, or other record."}
+          </p>
+        </div>
+        <DocumentsUploadActions />
       </div>
 
       <DocumentsTabs
