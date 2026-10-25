@@ -221,7 +221,7 @@ export async function GET(request: NextRequest) {
       queries.push(
         prisma.document
           .findMany({
-            where: { id: { in: contractDocIds }, contract: { deletedAt: null } },
+            where: { id: { in: contractDocIds }, deletedAt: null, contract: { deletedAt: null } },
             select: { id: true, filename: true, contract: { select: { id: true, title: true } } },
           })
           .then((rows) =>
@@ -243,7 +243,7 @@ export async function GET(request: NextRequest) {
       queries.push(
         prisma.productDocument
           .findMany({
-            where: { id: { in: productDocIds }, product: { deletedAt: null } },
+            where: { id: { in: productDocIds }, deletedAt: null, product: { deletedAt: null } },
             select: { id: true, filename: true, product: { select: { id: true, description: true } } },
           })
           .then((rows) =>
@@ -326,7 +326,7 @@ export async function GET(request: NextRequest) {
       queries.push(
         prisma.vehicleItemDocument
           .findMany({
-            where: { id: { in: vehicleItemDocIds }, vehicleItem: { vehicle: { deletedAt: null } } },
+            where: { id: { in: vehicleItemDocIds }, deletedAt: null, vehicleItem: { deletedAt: null, vehicle: { deletedAt: null } } },
             select: {
               id: true,
               filename: true,
@@ -390,7 +390,7 @@ export async function GET(request: NextRequest) {
       queries.push(
         prisma.tripSegmentDocument
           .findMany({
-            where: { id: { in: tripSegmentDocIds }, tripSegment: { trip: { deletedAt: null } } },
+            where: { id: { in: tripSegmentDocIds }, deletedAt: null, tripSegment: { trip: { deletedAt: null } } },
             select: {
               id: true,
               filename: true,
@@ -477,7 +477,7 @@ export async function GET(request: NextRequest) {
       queries.push(
         prisma.homeItemDocument
           .findMany({
-            where: { id: { in: homeItemDocIds }, homeItem: { property: { deletedAt: null } } },
+            where: { id: { in: homeItemDocIds }, deletedAt: null, homeItem: { deletedAt: null, property: { deletedAt: null } } },
             select: {
               id: true,
               filename: true,
@@ -504,7 +504,7 @@ export async function GET(request: NextRequest) {
       queries.push(
         prisma.rentalStatementDocument
           .findMany({
-            where: { id: { in: rentalStatementDocIds }, rentalStatement: { property: { deletedAt: null } } },
+            where: { id: { in: rentalStatementDocIds }, deletedAt: null, rentalStatement: { property: { deletedAt: null } } },
             select: {
               id: true,
               filename: true,
@@ -562,7 +562,7 @@ export async function GET(request: NextRequest) {
       queries.push(
         prisma.inventoryItemDocument
           .findMany({
-            where: { id: { in: inventoryItemDocIds }, inventoryItem: { deletedAt: null } },
+            where: { id: { in: inventoryItemDocIds }, deletedAt: null, inventoryItem: { deletedAt: null } },
             select: { id: true, filename: true, inventoryItem: { select: { id: true, label: true } } },
           })
           .then((rows) =>
@@ -608,7 +608,7 @@ export async function GET(request: NextRequest) {
       queries.push(
         prisma.tradeDocument
           .findMany({
-            where: { id: { in: tradeDocIds } },
+            where: { id: { in: tradeDocIds }, deletedAt: null },
             select: {
               id: true,
               filename: true,

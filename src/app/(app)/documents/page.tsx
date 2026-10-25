@@ -5,6 +5,8 @@ import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { DocumentsExplorer, type DocRow } from "@/components/DocumentsExplorer";
 import { DocumentsTabs } from "@/components/DocumentsTabs";
+import { documentFileHref } from "@/lib/documents/kinds";
+import { LIVE_DOCUMENT_WHERE as LIVE } from "@/lib/documents/liveDocuments";
 
 export const metadata: Metadata = { title: "Documents" };
 
@@ -41,13 +43,13 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
   const sources: TypeSource[] = [
     {
       type: "Contracts",
-      count: () => prisma.document.count({ where: { deletedAt: null } }),
+      count: () => prisma.document.count({ where: LIVE.CONTRACT }),
       fetchPage: (skip, take) =>
         prisma.document
           .findMany({
             skip,
             take,
-            where: { deletedAt: null },
+            where: LIVE.CONTRACT,
             orderBy: { uploadedAt: "desc" },
             select: {
               id: true,
@@ -70,19 +72,19 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               type: "Contracts",
               parentTitle: r.contract.title,
               parentHref: `/contracts/${r.contract.id}`,
-              downloadHref: `/api/documents/${r.id}`,
+              downloadHref: documentFileHref(r.id),
             })),
           ),
     },
     {
       type: "Warranties",
-      count: () => prisma.productDocument.count({ where: { deletedAt: null } }),
+      count: () => prisma.productDocument.count({ where: LIVE.PRODUCT }),
       fetchPage: (skip, take) =>
         prisma.productDocument
           .findMany({
             skip,
             take,
-            where: { deletedAt: null },
+            where: LIVE.PRODUCT,
             orderBy: { uploadedAt: "desc" },
             select: {
               id: true,
@@ -105,7 +107,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               type: "Warranties",
               parentTitle: r.product.description,
               parentHref: `/products/${r.product.id}`,
-              downloadHref: `/api/products/documents/${r.id}`,
+              downloadHref: documentFileHref(r.id),
             })),
           ),
     },
@@ -114,13 +116,13 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
   if (enabledModules.has("VEHICLES")) {
     sources.push({
       type: "Vehicles",
-      count: () => prisma.vehicleItemDocument.count({ where: { deletedAt: null } }),
+      count: () => prisma.vehicleItemDocument.count({ where: LIVE.VEHICLE_ITEM }),
       fetchPage: (skip, take) =>
         prisma.vehicleItemDocument
           .findMany({
             skip,
             take,
-            where: { deletedAt: null },
+            where: LIVE.VEHICLE_ITEM,
             orderBy: { uploadedAt: "desc" },
             select: {
               id: true,
@@ -143,7 +145,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               type: "Vehicles",
               parentTitle: r.vehicleItem.vehicle.label,
               parentHref: `/vehicles/${r.vehicleItem.vehicleId}`,
-              downloadHref: `/api/vehicles/documents/${r.id}`,
+              downloadHref: documentFileHref(r.id),
             })),
           ),
     });
@@ -152,12 +154,13 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
   if (enabledModules.has("TRAVEL")) {
     sources.push({
       type: "Travel",
-      count: () => prisma.tripSegmentDocument.count(),
+      count: () => prisma.tripSegmentDocument.count({ where: LIVE.TRIP_SEGMENT }),
       fetchPage: (skip, take) =>
         prisma.tripSegmentDocument
           .findMany({
             skip,
             take,
+            where: LIVE.TRIP_SEGMENT,
             orderBy: { uploadedAt: "desc" },
             select: {
               id: true,
@@ -178,7 +181,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               type: "Travel",
               parentTitle: r.tripSegment.trip.title,
               parentHref: `/travel/${r.tripSegment.tripId}`,
-              downloadHref: `/api/travel/documents/${r.id}`,
+              downloadHref: documentFileHref(r.id),
             })),
           ),
     });
@@ -189,8 +192,8 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
       type: "Property",
       count: () =>
         Promise.all([
-          prisma.homeItemDocument.count({ where: { deletedAt: null } }),
-          prisma.rentalStatementDocument.count(),
+          prisma.homeItemDocument.count({ where: LIVE.HOME_ITEM }),
+          prisma.rentalStatementDocument.count({ where: LIVE.RENTAL_STATEMENT }),
         ]).then(
           ([a, b]) => a + b,
         ),
@@ -199,7 +202,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
           prisma.homeItemDocument.findMany({
             skip,
             take,
-            where: { deletedAt: null },
+            where: LIVE.HOME_ITEM,
             orderBy: { uploadedAt: "desc" },
             select: {
               id: true,
@@ -214,6 +217,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
           prisma.rentalStatementDocument.findMany({
             skip,
             take,
+            where: LIVE.RENTAL_STATEMENT,
             orderBy: { uploadedAt: "desc" },
             select: {
               id: true,
@@ -235,7 +239,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
             type: "Property",
             parentTitle: r.homeItem.title,
             parentHref: `/home/${r.homeItem.propertyId}/items/${r.homeItem.id}`,
-            downloadHref: `/api/home/documents/${r.id}`,
+            downloadHref: documentFileHref(r.id),
           }));
           rows.push(
             ...rentalRows.map((r) => ({
@@ -247,7 +251,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               type: "Property",
               parentTitle: "Rental statement",
               parentHref: `/home/${r.rentalStatement.propertyId}/rental`,
-              downloadHref: `/api/home/rental-documents/${r.id}`,
+              downloadHref: documentFileHref(r.id),
             })),
           );
           return rows.sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime()).slice(0, take);
@@ -258,13 +262,13 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
   if (enabledModules.has("INVENTORY")) {
     sources.push({
       type: "Inventory",
-      count: () => prisma.inventoryItemDocument.count({ where: { deletedAt: null } }),
+      count: () => prisma.inventoryItemDocument.count({ where: LIVE.INVENTORY_ITEM }),
       fetchPage: (skip, take) =>
         prisma.inventoryItemDocument
           .findMany({
             skip,
             take,
-            where: { deletedAt: null },
+            where: LIVE.INVENTORY_ITEM,
             orderBy: { uploadedAt: "desc" },
             select: {
               id: true,
@@ -287,7 +291,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               type: "Inventory",
               parentTitle: r.inventoryItem.label,
               parentHref: `/inventory/${r.inventoryItem.id}`,
-              downloadHref: `/api/inventory/documents/${r.id}`,
+              downloadHref: documentFileHref(r.id),
             })),
           ),
     });
@@ -296,12 +300,13 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
   if (enabledModules.has("WEALTH")) {
     sources.push({
       type: "Wealth",
-      count: () => prisma.tradeDocument.count(),
+      count: () => prisma.tradeDocument.count({ where: LIVE.TRADE }),
       fetchPage: (skip, take) =>
         prisma.tradeDocument
           .findMany({
             skip,
             take,
+            where: LIVE.TRADE,
             orderBy: { uploadedAt: "desc" },
             select: {
               id: true,
@@ -322,7 +327,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               type: "Wealth",
               parentTitle: r.trade.holding.ticker,
               parentHref: `/wealth/portfolios/${r.trade.holding.portfolioId}/holdings/${r.trade.holding.id}`,
-              downloadHref: `/api/wealth/trade-documents/${r.id}`,
+              downloadHref: documentFileHref(r.id),
             })),
           ),
     });

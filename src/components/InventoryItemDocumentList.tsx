@@ -1,8 +1,8 @@
-import { FileText, Trash2 } from "lucide-react";
+import { FileText } from "lucide-react";
 import type { InventoryItemDocumentModel } from "@/generated/prisma/models";
-import { deleteInventoryItemDocumentAction, restoreInventoryItemDocument } from "@/lib/actions/inventory";
-import { ConfirmForm } from "@/components/ConfirmForm";
+import { DocumentDeleteButton } from "@/components/DocumentDeleteButton";
 import { DocumentLink } from "@/components/DocumentLink";
+import { documentFileHref } from "@/lib/documents/kinds";
 import { formatDate, humanFileSize } from "@/lib/utils";
 
 export function InventoryItemDocumentList({
@@ -21,7 +21,7 @@ export function InventoryItemDocumentList({
       {documents.map((doc) => (
         <li key={doc.id} className="flex items-center justify-between gap-3 py-3">
           <DocumentLink
-            href={`/api/inventory/documents/${doc.id}`}
+            href={documentFileHref(doc.id)}
             filename={doc.filename}
             mimeType={doc.mimeType}
             size={doc.size}
@@ -33,22 +33,12 @@ export function InventoryItemDocumentList({
               {humanFileSize(doc.size)} · {formatDate(doc.uploadedAt, dateFormat)}
             </span>
           </DocumentLink>
-          <ConfirmForm
-            action={deleteInventoryItemDocumentAction.bind(null, doc.inventoryItemId, doc.id)}
-            undo={{ action: restoreInventoryItemDocument.bind(null, doc.id) }}
-            confirmText={`Move ${doc.filename} to Trash? You can restore it within 30 days from Settings → Trash.`}
-            actionLabel="Delete document"
-            ariaLabel={`Delete ${doc.filename}`}
-            className="rounded-md p-2 text-muted hover:text-danger"
-            offline={{
-              entity: "inventoryItemDocument",
-              entityId: doc.id,
-              parentId: doc.inventoryItemId,
-              label: `Delete document: ${doc.filename}`,
-            }}
-          >
-            <Trash2 size={16} />
-          </ConfirmForm>
+          <DocumentDeleteButton
+            kind="INVENTORY_ITEM"
+            documentId={doc.id}
+            ownerId={doc.inventoryItemId}
+            filename={doc.filename}
+          />
         </li>
       ))}
     </ul>

@@ -5,14 +5,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { propertySchema, homeItemSchema, rentalAgreementSchema, rentalStatementSchema } from "@/lib/validation/home";
-import {
-  deleteHomeItemDir,
-  deleteHomeItemDocument as deleteHomeItemDocumentFile,
-  saveHomeItemDocument,
-  saveRentalStatementDocument,
-  deleteRentalStatementDocument as deleteRentalStatementDocumentFile,
-  deleteRentalStatementDir,
-} from "@/lib/storage";
+import { addDocumentCommand, removeOwnerDocumentFiles } from "@/lib/commands/documents";
 import { formDataToStringValues } from "@/lib/form-state";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import type { ActionState } from "@/lib/actions/auth";
@@ -76,29 +69,6 @@ async function requireUser() {
   if (!(await isModuleEnabled("HOME"))) throw new Error("Property module is disabled");
   if (session.user.role === "READONLY") throw new Error("Your account has read-only access.");
   return session.user;
-}
-
-async function attachItemDocument(
-  homeItemId: string,
-  file: File,
-  category: string | null = null,
-): Promise<ActionState | null> {
-  const rejection = await describeUploadRejection(file);
-  if (rejection) return { error: rejection };
-
-  const { storedName, size, sha256, mimeType } = await saveHomeItemDocument(homeItemId, file);
-  await prisma.homeItemDocument.create({
-    data: {
-      homeItemId,
-      filename: file.name.slice(0, 255),
-      storedName,
-      mimeType,
-      size,
-      sha256,
-      category,
-    },
-  });
-  return null;
 }
 
 function formToPropertyInput(formData: FormData) {
@@ -208,13 +178,16 @@ export async function permanentlyDeleteProperty(propertyId: string): Promise<Act
 
   const existing = await prisma.property.findUnique({
     where: { id: propertyId },
-    include: { items: { select: { id: true } } },
+    include: { items: { select: { id: true } }, rentalStatements: { select: { id: true } } },
   });
   if (!existing) return { error: "Property not found." };
 
   // Cascade removes the DB rows but not the uploaded files — clean those up first.
   for (const item of existing.items) {
-    await deleteHomeItemDir(item.id);
+    await removeOwnerDocumentFiles("HOME_ITEM", item.id);
+  }
+  for (const statement of existing.rentalStatements) {
+    await removeOwnerDocumentFiles("RENTAL_STATEMENT", statement.id);
   }
 
   await prisma.property.delete({ where: { id: propertyId } });
@@ -252,7 +225,10 @@ export async function addHomeItem(
   });
 
   if (file instanceof File && file.size > 0) {
-    await attachItemDocument(item.id, file, parseDocumentCategory(formData.get("documentCategory")));
+    await addDocumentCommand("HOME_ITEM", item.id, {
+      file,
+      category: parseDocumentCategory(formData.get("documentCategory")),
+    });
   }
 
   revalidatePath(`/home/${propertyId}`);
@@ -315,80 +291,9 @@ export async function permanentlyDeleteHomeItem(itemId: string): Promise<ActionS
   const item = await prisma.homeItem.findUnique({ where: { id: itemId } });
   if (!item) return { error: "Item not found." };
 
-  await deleteHomeItemDir(itemId);
+  await removeOwnerDocumentFiles("HOME_ITEM", itemId);
   await prisma.homeItem.delete({ where: { id: itemId } });
   revalidatePath(`/home/${item.propertyId}`);
-  revalidatePath("/settings/trash");
-  return { success: "Deleted permanently." };
-}
-
-export async function addItemDocument(
-  itemId: string,
-  _prevState: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  await requireUser();
-
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) {
-    return { error: "Choose a file to upload." };
-  }
-
-  const item = await prisma.homeItem.findUnique({ where: { id: itemId } });
-  if (!item) return { error: "Item not found." };
-
-  const error = await attachItemDocument(itemId, file, parseDocumentCategory(formData.get("documentCategory")));
-  if (error) return error;
-
-  revalidatePath(`/home/${item.propertyId}`);
-  return { success: "Document uploaded." };
-}
-
-export async function deleteItemDocumentAction(
-  itemId: string,
-  documentId: string,
-): Promise<ActionState> {
-  await requireUser();
-
-  const doc = await prisma.homeItemDocument.findUnique({ where: { id: documentId } });
-  if (!doc || doc.homeItemId !== itemId) {
-    return { error: "Document not found." };
-  }
-
-  const item = await prisma.homeItem.findUnique({ where: { id: itemId } });
-
-  await prisma.homeItemDocument.update({ where: { id: documentId }, data: { deletedAt: new Date() } });
-
-  if (item) revalidatePath(`/home/${item.propertyId}`);
-  revalidatePath("/settings/trash");
-  return { success: "Document moved to Trash." };
-}
-
-export async function restoreHomeItemDocument(documentId: string): Promise<ActionState> {
-  await requireUser();
-
-  const doc = await prisma.homeItemDocument.findUnique({ where: { id: documentId } });
-  if (!doc) return { error: "Document not found." };
-  const item = await prisma.homeItem.findUnique({ where: { id: doc.homeItemId } });
-
-  await prisma.homeItemDocument.update({ where: { id: documentId }, data: { deletedAt: null } });
-  if (item) revalidatePath(`/home/${item.propertyId}`);
-  revalidatePath("/documents");
-  revalidatePath("/settings/trash");
-  return { success: "Restored." };
-}
-
-export async function permanentlyDeleteHomeItemDocument(documentId: string): Promise<ActionState> {
-  await requireUser();
-
-  const doc = await prisma.homeItemDocument.findUnique({ where: { id: documentId } });
-  if (!doc) return { error: "Document not found." };
-  const item = await prisma.homeItem.findUnique({ where: { id: doc.homeItemId } });
-
-  await prisma.homeItemDocument.delete({ where: { id: documentId } });
-  await deleteHomeItemDocumentFile(doc.homeItemId, doc.storedName);
-  if (item) revalidatePath(`/home/${item.propertyId}`);
-  revalidatePath("/documents");
   revalidatePath("/settings/trash");
   return { success: "Deleted permanently." };
 }
@@ -551,27 +456,6 @@ function formToRentalStatementInput(formData: FormData) {
   };
 }
 
-async function attachStatementDocument(
-  statementId: string,
-  file: File,
-): Promise<ActionState | null> {
-  const rejection = await describeUploadRejection(file);
-  if (rejection) return { error: rejection };
-
-  const { storedName, size, sha256, mimeType } = await saveRentalStatementDocument(statementId, file);
-  await prisma.rentalStatementDocument.create({
-    data: {
-      rentalStatementId: statementId,
-      filename: file.name.slice(0, 255),
-      storedName,
-      mimeType,
-      size,
-      sha256,
-    },
-  });
-  return null;
-}
-
 export async function createRentalStatement(
   propertyId: string,
   _prevState: ActionState,
@@ -601,7 +485,7 @@ export async function createRentalStatement(
   });
 
   if (file instanceof File && file.size > 0) {
-    await attachStatementDocument(statement.id, file);
+    await addDocumentCommand("RENTAL_STATEMENT", statement.id, { file });
   }
 
   revalidatePath(`/home/${propertyId}/rental`);
@@ -643,50 +527,9 @@ export async function deleteRentalStatement(
   if (!existing || existing.propertyId !== propertyId) return { error: "Statement not found." };
 
   await prisma.rentalStatement.delete({ where: { id: statementId } });
-  await deleteRentalStatementDir(statementId);
+  await removeOwnerDocumentFiles("RENTAL_STATEMENT", statementId);
 
   revalidatePath(`/home/${propertyId}/rental`);
   return { success: "Statement removed." };
 }
 
-export async function addRentalStatementDocument(
-  statementId: string,
-  _prevState: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  await requireUser();
-
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) {
-    return { error: "Choose a file to upload." };
-  }
-
-  const statement = await prisma.rentalStatement.findUnique({ where: { id: statementId } });
-  if (!statement) return { error: "Statement not found." };
-
-  const error = await attachStatementDocument(statementId, file);
-  if (error) return error;
-
-  revalidatePath(`/home/${statement.propertyId}/rental`);
-  return { success: "Document uploaded." };
-}
-
-export async function deleteRentalStatementDocumentAction(
-  statementId: string,
-  documentId: string,
-): Promise<ActionState> {
-  await requireUser();
-
-  const doc = await prisma.rentalStatementDocument.findUnique({ where: { id: documentId } });
-  if (!doc || doc.rentalStatementId !== statementId) {
-    return { error: "Document not found." };
-  }
-
-  const statement = await prisma.rentalStatement.findUnique({ where: { id: statementId } });
-
-  await prisma.rentalStatementDocument.delete({ where: { id: documentId } });
-  await deleteRentalStatementDocumentFile(statementId, doc.storedName);
-
-  if (statement) revalidatePath(`/home/${statement.propertyId}/rental`);
-  return { success: "Document removed." };
-}

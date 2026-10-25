@@ -1,0 +1,43 @@
+import { Trash2 } from "lucide-react";
+import { deleteDocumentAction, restoreDocumentAction } from "@/lib/actions/documents";
+import { ConfirmForm } from "@/components/ConfirmForm";
+import type { OwnedDocumentKind } from "@/lib/documents/kinds";
+
+// #396 — the same delete for a Document of every kind: to Trash, with Undo,
+// and queued as a `document` sync op when offline.
+export function DocumentDeleteButton({
+  kind,
+  documentId,
+  ownerId,
+  filename,
+  className = "rounded-md p-2 text-muted hover:text-danger",
+  iconSize = 16,
+}: {
+  kind: OwnedDocumentKind;
+  documentId: string;
+  ownerId: string;
+  filename: string;
+  className?: string;
+  iconSize?: number;
+}) {
+  return (
+    <ConfirmForm
+      action={deleteDocumentAction.bind(null, kind, documentId, ownerId)}
+      undo={{ action: restoreDocumentAction.bind(null, kind, documentId) }}
+      confirmText={`Move ${filename} to Trash? You can restore it within 30 days from Settings → Trash.`}
+      actionLabel="Delete document"
+      ariaLabel={`Delete ${filename}`}
+      successMessage="Document moved to Trash."
+      className={className}
+      offline={{
+        entity: "document",
+        kind,
+        entityId: documentId,
+        parentId: ownerId,
+        label: `Delete document: ${filename}`,
+      }}
+    >
+      <Trash2 size={iconSize} />
+    </ConfirmForm>
+  );
+}

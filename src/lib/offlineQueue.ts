@@ -11,6 +11,7 @@ export interface QueuedOperation {
   operation: "create" | "update" | "delete";
   entityId?: string;     // for update / delete
   parentId?: string;     // e.g. vehicleId when creating a vehicleItem
+  kind?: string;         // Document kind, for entity "document" (#396)
   formValues?: Record<string, string>; // omitted for delete ops
   // The record's server updatedAt at the moment it was opened for editing —
   // captured for "update" ops so the sync handler can detect (not merge) a

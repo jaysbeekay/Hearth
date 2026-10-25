@@ -2,8 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Pencil, Trash2, Home, Package } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { addDocumentAction } from "@/lib/actions/documents";
+import { documentFileHref } from "@/lib/documents/kinds";
 import {
-  addProductDocument,
   deleteProduct,
   confirmProductExtraction,
   reviewProductExtraction,
@@ -56,7 +57,7 @@ export default async function ProductDetailPage({
     : [];
 
   const days = daysUntil(product.warrantyEndDate);
-  const boundUpload = addProductDocument.bind(null, product.id);
+  const boundUpload = addDocumentAction.bind(null, "PRODUCT", product.id);
   const reminderHealth = await getReminderHealth({
     ownerType: "PRODUCT",
     ownerId: product.id,
@@ -111,7 +112,7 @@ export default async function ProductDetailPage({
       {photo && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={`/api/products/documents/${photo.id}`}
+          src={documentFileHref(photo.id)}
           alt={product.description}
           className="max-h-80 w-full rounded-xl border border-border object-contain"
         />

@@ -12,11 +12,7 @@ import {
   importedTradesSchema,
   MAX_IMPORTED_TRADES,
 } from "@/lib/validation/wealth";
-import {
-  saveTradeDocument,
-  deleteTradeDocument,
-  deleteTradeDir,
-} from "@/lib/storage";
+import { addDocumentCommand, removeOwnerDocumentFiles } from "@/lib/commands/documents";
 import { fetchHistoricalPrice } from "@/lib/prices";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import { formDataToStringValues } from "@/lib/form-state";
@@ -106,7 +102,7 @@ export async function deletePortfolio(portfolioId: string): Promise<ActionState>
   // clean those up first.
   for (const holding of existing.holdings) {
     for (const trade of holding.trades) {
-      await deleteTradeDir(trade.id);
+      await removeOwnerDocumentFiles("TRADE", trade.id);
     }
   }
 
@@ -190,7 +186,7 @@ export async function deleteHolding(portfolioId: string, holdingId: string): Pro
   // Cascade removes the DB rows but not the uploaded trade-document files —
   // clean those up first.
   for (const trade of holding.trades) {
-    await deleteTradeDir(trade.id);
+    await removeOwnerDocumentFiles("TRADE", trade.id);
   }
 
   await prisma.holding.delete({ where: { id: holdingId } });
@@ -202,23 +198,6 @@ export async function deleteHolding(portfolioId: string, holdingId: string): Pro
 
 async function requireHolding(holdingId: string) {
   return prisma.holding.findUnique({ where: { id: holdingId } });
-}
-
-async function attachTradeDocument(tradeId: string, file: File): Promise<ActionState | null> {
-  const rejection = await describeUploadRejection(file);
-  if (rejection) return { error: rejection };
-  const { storedName, size, sha256, mimeType } = await saveTradeDocument(tradeId, file);
-  await prisma.tradeDocument.create({
-    data: {
-      tradeId,
-      filename: file.name.slice(0, 255),
-      storedName,
-      mimeType,
-      size,
-      sha256,
-    },
-  });
-  return null;
 }
 
 export async function createTrade(
@@ -256,7 +235,7 @@ export async function createTrade(
   const trade = await prisma.trade.create({ data: { ...parsed.data, holdingId } });
 
   if (file instanceof File && file.size > 0) {
-    await attachTradeDocument(trade.id, file);
+    await addDocumentCommand("TRADE", trade.id, { file });
   }
 
   // Back-fill market price on trade date (non-blocking — don't fail the trade if fetch errors)
@@ -317,52 +296,10 @@ export async function deleteTrade(holdingId: string, tradeId: string): Promise<A
   const trade = await prisma.trade.findUnique({ where: { id: tradeId } });
   if (!trade || trade.holdingId !== holdingId) return { error: "Trade not found." };
 
-  await deleteTradeDir(tradeId);
+  await removeOwnerDocumentFiles("TRADE", tradeId);
   await prisma.trade.delete({ where: { id: tradeId } });
   revalidatePath(`/wealth/portfolios/${holding.portfolioId}/holdings/${holdingId}`);
   return { success: "Trade deleted." };
-}
-
-export async function addTradeDocument(
-  holdingId: string,
-  tradeId: string,
-  _prevState: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  await requireUser();
-  const holding = await requireHolding(holdingId);
-  if (!holding) return { error: "Holding not found." };
-
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) return { error: "Choose a file to upload." };
-
-  const trade = await prisma.trade.findUnique({ where: { id: tradeId } });
-  if (!trade || trade.holdingId !== holdingId) return { error: "Trade not found." };
-
-  const error = await attachTradeDocument(tradeId, file);
-  if (error) return error;
-
-  revalidatePath(`/wealth/portfolios/${holding.portfolioId}/holdings/${holdingId}`);
-  return { success: "Document uploaded." };
-}
-
-export async function deleteTradeDocumentAction(
-  holdingId: string,
-  tradeId: string,
-  documentId: string,
-): Promise<ActionState> {
-  await requireUser();
-  const holding = await requireHolding(holdingId);
-  if (!holding) return { error: "Holding not found." };
-
-  const doc = await prisma.tradeDocument.findUnique({ where: { id: documentId } });
-  if (!doc || doc.tradeId !== tradeId) return { error: "Document not found." };
-
-  await prisma.tradeDocument.delete({ where: { id: documentId } });
-  await deleteTradeDocument(tradeId, doc.storedName);
-
-  revalidatePath(`/wealth/portfolios/${holding.portfolioId}/holdings/${holdingId}`);
-  return { success: "Document removed." };
 }
 
 // ── CSV Import ───────────────────────────────────────────────────────────────

@@ -1,4 +1,5 @@
 import { getDb, DOCUMENTS_STORE } from "@/lib/offlineCache";
+import { documentFileHref, LEGACY_DOCUMENT_FILE_PREFIXES } from "@/lib/documents/kinds";
 
 export interface OfflineDocument {
   url: string; // the download URL itself, e.g. "/api/documents/abc123" — the store key
@@ -28,11 +29,25 @@ export async function downloadForOffline(
   } satisfies OfflineDocument);
 }
 
+// #396 — every kind's file is now at /api/documents/<id>; the per-module
+// URLs before it redirect there. A copy downloaded under either spelling is
+// the same file, so a lookup tries the other spellings before giving up.
+function equivalentUrls(url: string): string[] {
+  const prefix = [documentFileHref(""), ...LEGACY_DOCUMENT_FILE_PREFIXES].find((p) => url.startsWith(p));
+  if (!prefix) return [];
+  const id = url.slice(prefix.length);
+  if (!id || id.includes("/")) return [];
+  return [documentFileHref(id), ...LEGACY_DOCUMENT_FILE_PREFIXES.map((p) => `${p}${id}`)].filter((u) => u !== url);
+}
+
 export async function getOfflineDocument(url: string): Promise<OfflineDocument | null> {
   if (typeof window === "undefined") return null;
   const db = await getDb();
-  const doc = (await db.get(DOCUMENTS_STORE, url)) as OfflineDocument | undefined;
-  return doc ?? null;
+  for (const candidate of [url, ...equivalentUrls(url)]) {
+    const doc = (await db.get(DOCUMENTS_STORE, candidate)) as OfflineDocument | undefined;
+    if (doc) return doc;
+  }
+  return null;
 }
 
 export async function removeOfflineDocument(url: string): Promise<void> {

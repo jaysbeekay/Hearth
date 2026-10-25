@@ -5,19 +5,15 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { productSchema } from "@/lib/validation/product";
-import {
-  deleteProductDocument as deleteProductDocumentFile,
-  saveProductDocument,
-} from "@/lib/storage";
 import { ProductDocumentKind } from "@/generated/prisma/enums";
 import { formDataToStringValues } from "@/lib/form-state";
 import { formToProductInput } from "@/lib/formMappers";
-import { queueDocumentExtraction } from "@/lib/documents/queueExtraction";
-import { describeUploadRejection } from "@/lib/uploadValidation";
+import { addDocumentCommand } from "@/lib/commands/documents";
+import { describeUploadRejection, UploadRejectedError } from "@/lib/uploadValidation";
 import { extractionFieldsFromForm } from "@/lib/documents/extractionConfirmation";
 import { saveExtractionReviewFieldsFromForm, reviewAndConfirmExtraction } from "@/lib/documents/extractionReview";
 import { saveFileToInboxFallback } from "@/lib/documents/inboxFallback";
-import { parseDocumentCategory, type DocumentCategory } from "@/lib/documents/categories";
+import { parseDocumentCategory } from "@/lib/documents/categories";
 import {
   createProductCommand,
   updateProductCommand,
@@ -59,60 +55,6 @@ async function requireUser() {
   return session.user;
 }
 
-function parseDocumentKind(value: FormDataEntryValue | null): ProductDocumentKind | null {
-  const allowed = Object.values(ProductDocumentKind) as string[];
-  return typeof value === "string" && allowed.includes(value)
-    ? (value as ProductDocumentKind)
-    : null;
-}
-
-// #350 — the upload form now offers a single "Document type" select (the
-// same categories every record type uses) instead of a second, unlabelled
-// warranty-only "kind" select. The legacy kind is derived from it, so a
-// "Photo" upload still becomes the warranty's hero image and an
-// invoice/receipt is still OCR'd for search.
-function kindFromCategory(category: DocumentCategory | null): ProductDocumentKind {
-  switch (category) {
-    case "INVOICE":
-    case "RECEIPT":
-      return ProductDocumentKind.INVOICE;
-    case "PHOTO":
-      return ProductDocumentKind.PHOTO;
-    case "MANUAL":
-      return ProductDocumentKind.MANUAL;
-    default:
-      return ProductDocumentKind.OTHER;
-  }
-}
-
-async function attachProductDocument(
-  productId: string,
-  file: File,
-  kind: ProductDocumentKind,
-  category: string | null = null,
-): Promise<ActionState | null> {
-  const rejection = await describeUploadRejection(file);
-  if (rejection) return { error: rejection };
-
-  const { storedName, size, sha256, mimeType } = await saveProductDocument(productId, file);
-  // Only invoices carry meaningful text; skip OCR on plain product photos.
-  const document = await prisma.productDocument.create({
-    data: {
-      productId,
-      filename: file.name.slice(0, 255),
-      storedName,
-      mimeType,
-      size,
-      kind,
-      extractionStatus: kind === ProductDocumentKind.INVOICE ? "PENDING" : "COMPLETED",
-      sha256,
-      category,
-    },
-  });
-  if (kind === ProductDocumentKind.INVOICE) await queueDocumentExtraction({ kind: "product", id: document.id, ownerId: productId, storedName, mimeType });
-  return null;
-}
-
 export async function createProduct(
   _prevState: ActionState,
   formData: FormData,
@@ -141,20 +83,27 @@ export async function createProduct(
 
   let docFallback: "inbox" | "failed" | null = null;
   if (invoiceFile instanceof File && invoiceFile.size > 0) {
-    const result = await attachProductDocument(
-      product.id,
-      invoiceFile,
-      ProductDocumentKind.INVOICE,
-      parseDocumentCategory(formData.get("documentCategory")) ?? "INVOICE",
-    );
-    if (result?.error) {
+    try {
+      await addDocumentCommand("PRODUCT", product.id, {
+        file: invoiceFile,
+        productKind: ProductDocumentKind.INVOICE,
+        category: parseDocumentCategory(formData.get("documentCategory")) ?? "INVOICE",
+      });
+    } catch (error) {
+      if (!(error instanceof UploadRejectedError)) throw error;
       const fallback = await saveFileToInboxFallback(invoiceFile, user.id);
       docFallback = fallback ? "inbox" : "failed";
     }
   }
   if (photoFile instanceof File && photoFile.size > 0) {
-    const result = await attachProductDocument(product.id, photoFile, ProductDocumentKind.PHOTO, "PHOTO");
-    if (result?.error) {
+    try {
+      await addDocumentCommand("PRODUCT", product.id, {
+        file: photoFile,
+        productKind: ProductDocumentKind.PHOTO,
+        category: "PHOTO",
+      });
+    } catch (error) {
+      if (!(error instanceof UploadRejectedError)) throw error;
       const fallback = await saveFileToInboxFallback(photoFile, user.id);
       docFallback = fallback ? "inbox" : (docFallback ?? "failed");
     }
@@ -309,90 +258,3 @@ export async function permanentlyDeleteProduct(productId: string): Promise<Actio
   return { success: "Deleted permanently." };
 }
 
-export async function addProductDocument(
-  productId: string,
-  _prevState: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  await requireUser();
-
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) {
-    return { error: "Choose a file to upload." };
-  }
-  const category = parseDocumentCategory(formData.get("documentCategory"));
-  // An explicit kind still wins, for callers that send one.
-  const kind = parseDocumentKind(formData.get("kind")) ?? kindFromCategory(category);
-
-  const product = await prisma.product.findUnique({ where: { id: productId } });
-  if (!product) return { error: "Product not found." };
-
-  const error = await attachProductDocument(productId, file, kind, category);
-  if (error) return error;
-
-  revalidatePath(`/products/${productId}`);
-  return { success: "Document uploaded." };
-}
-
-export async function deleteProductDocumentAction(
-  productId: string,
-  documentId: string,
-): Promise<ActionState> {
-  await requireUser();
-
-  const doc = await prisma.productDocument.findUnique({ where: { id: documentId } });
-  if (!doc || doc.productId !== productId) {
-    return { error: "Document not found." };
-  }
-
-  await prisma.productDocument.update({ where: { id: documentId }, data: { deletedAt: new Date() } });
-
-  revalidatePath(`/products/${productId}`);
-  revalidatePath("/settings/trash");
-  return { success: "Document moved to Trash." };
-}
-
-export async function restoreProductDocument(documentId: string): Promise<ActionState> {
-  await requireUser();
-
-  const doc = await prisma.productDocument.findUnique({ where: { id: documentId } });
-  if (!doc) return { error: "Document not found." };
-
-  await prisma.productDocument.update({ where: { id: documentId }, data: { deletedAt: null } });
-  revalidatePath(`/products/${doc.productId}`);
-  revalidatePath("/documents");
-  revalidatePath("/settings/trash");
-  return { success: "Restored." };
-}
-
-export async function permanentlyDeleteProductDocument(documentId: string): Promise<ActionState> {
-  await requireUser();
-
-  const doc = await prisma.productDocument.findUnique({ where: { id: documentId } });
-  if (!doc) return { error: "Document not found." };
-
-  await prisma.productDocument.delete({ where: { id: documentId } });
-  await deleteProductDocumentFile(doc.productId, doc.storedName);
-  revalidatePath(`/products/${doc.productId}`);
-  revalidatePath("/documents");
-  revalidatePath("/settings/trash");
-  return { success: "Deleted permanently." };
-}
-
-export async function setProductDocumentImportant(
-  productId: string,
-  documentId: string,
-  isImportant: boolean,
-): Promise<ActionState> {
-  await requireUser();
-
-  const doc = await prisma.productDocument.findUnique({ where: { id: documentId } });
-  if (!doc || doc.productId !== productId) {
-    return { error: "Document not found." };
-  }
-
-  await prisma.productDocument.update({ where: { id: documentId }, data: { isImportant } });
-
-  revalidatePath(`/products/${productId}`);
-  return { success: isImportant ? "Marked as important." : "Unmarked as important." };
-}

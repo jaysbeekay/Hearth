@@ -743,7 +743,9 @@ model TripSegmentDocument {
   mimeType      String
   size          Int
   sha256        String?
+  category      String?
   isImportant   Boolean              @default(false)
+  deletedAt     DateTime?
   supersedesId  String?              @unique
   supersedes    TripSegmentDocument? @relation("TripSegmentDocumentVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
   supersededBy  TripSegmentDocument? @relation("TripSegmentDocumentVersions")
@@ -752,6 +754,8 @@ model TripSegmentDocument {
   @@index([tripSegmentId])
   @@index([uploadedAt])
   @@index([sha256])
+  @@index([category])
+  @@index([deletedAt])
   @@map("trip_segment_documents")
 }
 
@@ -841,7 +845,9 @@ model RentalStatementDocument {
   mimeType          String
   size              Int
   sha256            String?
+  category          String?
   isImportant       Boolean                  @default(false)
+  deletedAt         DateTime?
   supersedesId      String?                  @unique
   supersedes        RentalStatementDocument? @relation("RentalStatementDocumentVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
   supersededBy      RentalStatementDocument? @relation("RentalStatementDocumentVersions")
@@ -850,6 +856,8 @@ model RentalStatementDocument {
   @@index([rentalStatementId])
   @@index([uploadedAt])
   @@index([sha256])
+  @@index([category])
+  @@index([deletedAt])
   @@map("rental_statement_documents")
 }
 
@@ -1109,7 +1117,9 @@ model TradeDocument {
   mimeType     String
   size         Int
   sha256       String?
+  category     String?
   isImportant  Boolean        @default(false)
+  deletedAt    DateTime?
   supersedesId String?        @unique
   supersedes   TradeDocument? @relation("TradeDocumentVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
   supersededBy TradeDocument? @relation("TradeDocumentVersions")
@@ -1118,6 +1128,8 @@ model TradeDocument {
   @@index([tradeId])
   @@index([uploadedAt])
   @@index([sha256])
+  @@index([category])
+  @@index([deletedAt])
   @@map("trade_documents")
 }
 

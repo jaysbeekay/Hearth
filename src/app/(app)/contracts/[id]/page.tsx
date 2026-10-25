@@ -2,8 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Pencil, Trash2, Ban, RotateCcw, Home, ArrowLeft, Car } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { addDocumentAction } from "@/lib/actions/documents";
 import {
-  addDocument,
   deleteContract,
   setContractStatus,
   confirmContractExtraction,
@@ -69,7 +69,7 @@ export default async function ContractDetailPage({
   const days = timing.days;
   const cancelByLabel = timing.beforeCancelBy ? formatDate(timing.cancelBy, dateFormat) : undefined;
   const cancelled = contract.status === "CANCELLED";
-  const boundUpload = addDocument.bind(null, contract.id);
+  const boundUpload = addDocumentAction.bind(null, "CONTRACT", contract.id);
   const statusAction = setContractStatus.bind(null, contract.id, cancelled ? "ACTIVE" : "CANCELLED");
   const statusLabel = cancelled ? "Mark as active" : "Mark as cancelled";
   const statusConfirmText = cancelled

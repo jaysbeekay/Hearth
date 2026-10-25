@@ -109,6 +109,21 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   notice deadline, as the Contracts list does. The "Missing document" list chip is now "No
   document". "Expired" on the Contracts list leaves out Cancelled
   Contracts, matching the dashboard (#395).
+- **Every Document goes to Trash.** Deleting a Document on a Trip segment,
+  Rental statement or Trade now moves it to Trash with Undo, like every
+  other Document, instead of deleting it for good. Trash lists and purges
+  Documents of every kind, and those three kinds now keep the Document
+  type chosen on upload. An offline Document delete also goes to Trash
+  when it syncs (it used to delete the file outright) (#396).
+- Search, the Documents page and the dashboard's Document counts leave out
+  Documents in Trash, and Documents whose record is in Trash. A Document
+  can only be deleted permanently from Trash, and a Restore or Delete in
+  Trash that fails now says why (#396).
+- All Document files are served from one address, `/api/documents/<id>`,
+  which returns 404 when the Document's module is turned off or it, or its
+  record, is in Trash. The old per-module addresses (`/api/vehicles/documents/…`,
+  `/api/travel/documents/…` and so on) redirect there, so existing links
+  and offline copies keep working (#396).
 - Reminder dates follow each recipient's date format preference (#352).
 - `vehicle.expiring` webhook event: vehicle reminders now carry
   `"field": "regoExpiry" | "insuranceExpiry" | "nextServiceDue"` and link
@@ -165,6 +180,9 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- Permanently deleting a property (from Trash, or when its 30 days run
+  out) now also removes its Rental statement files from disk; only the
+  database rows were removed before (#396).
 - **Notice periods now count.** A contract's notice period was collected
   but ignored, so reminders counted down to the end date — after the last
   day to cancel had already passed. For contracts with a notice period

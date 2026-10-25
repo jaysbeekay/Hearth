@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
-import { ENTITY_SYNC_CONFIGS } from "@/app/api/sync/entityHandlers";
+import { ENTITY_SYNC_CONFIGS, normalizeSyncOperation } from "@/app/api/sync/entityHandlers";
 import {
   assertRequestWithinUploadBudget,
   UploadRejectedError,
@@ -17,6 +17,7 @@ interface SyncOperation {
   parentId?: string; // parent record ID (e.g. vehicleId for vehicleItem)
   formValues?: Record<string, string>;
   baseUpdatedAt?: string;
+  kind?: string; // Document kind, for the `document` entity (#396)
 }
 
 // Matches the client's own queue drain size (OfflineSyncManager); a request
@@ -180,10 +181,11 @@ function filesForOp(formData: FormData, opId: string): { fieldName: string; file
 }
 
 async function processOperation(
-  op: SyncOperation,
+  queued: SyncOperation,
   userId: string,
   files: { fieldName: string; file: File }[],
 ): Promise<void> {
+  const op = normalizeSyncOperation(queued);
   const config = ENTITY_SYNC_CONFIGS[op.entity];
   if (!config) throw new Error(`Unsupported entity: ${op.entity}`);
 
@@ -191,7 +193,7 @@ async function processOperation(
     throw new Error(`${MODULE_REGISTRY[config.requiresModule].label} module is disabled`);
   }
 
-  const ctx = { userId, parentId: op.parentId, baseUpdatedAt: op.baseUpdatedAt };
+  const ctx = { userId, parentId: op.parentId, baseUpdatedAt: op.baseUpdatedAt, kind: op.kind };
 
   if (op.operation === "delete") {
     if (!op.entityId) throw new Error("Missing record to delete");

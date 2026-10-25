@@ -3,8 +3,9 @@ import { notFound } from "next/navigation";
 import { Pencil, Trash2, Plus, Wrench, Sparkles, Hammer, Tag, Home, TrendingUp, AlertTriangle } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { addDocumentAction } from "@/lib/actions/documents";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
-import { deleteProperty, deleteHomeItem, addItemDocument, restoreProperty, restoreHomeItem } from "@/lib/actions/home";
+import { deleteProperty, deleteHomeItem, restoreProperty, restoreHomeItem } from "@/lib/actions/home";
 import { createPropertyValuation, deletePropertyValuation } from "@/lib/actions/wealth";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailField as Detail } from "@/components/DetailField";
@@ -222,7 +223,7 @@ export default async function PropertyDetailPage({
                     <h3 className="mb-2 text-sm font-medium">Documents</h3>
                     <HomeItemDocumentList documents={item.documents} dateFormat={dateFormat} />
                     <div className="mt-3">
-                      <DocumentUploadForm action={addItemDocument.bind(null, item.id)} />
+                      <DocumentUploadForm action={addDocumentAction.bind(null, "HOME_ITEM", item.id)} />
                     </div>
                   </div>
                 </div>

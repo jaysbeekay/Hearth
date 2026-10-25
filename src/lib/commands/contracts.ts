@@ -1,6 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { deleteContractDir } from "@/lib/storage";
+import { removeOwnerDocumentFiles } from "@/lib/commands/documents";
 import { clearNotificationLogs } from "@/lib/notifications/logs";
 import type { ContractInput } from "@/lib/validation/contract";
 
@@ -61,6 +61,6 @@ export async function permanentlyDeleteContractCommand(id: string) {
   // across contract/product/vehicle owners, see #201), so this cleanup is
   // no longer an automatic cascade — has to happen explicitly.
   await clearNotificationLogs("CONTRACT", id);
-  await deleteContractDir(id);
+  await removeOwnerDocumentFiles("CONTRACT", id);
   revalidatePath("/settings/trash");
 }

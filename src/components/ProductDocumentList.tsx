@@ -1,14 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Eye, FileText, Trash2 } from "lucide-react";
+import { Eye, FileText } from "lucide-react";
 import type { ProductDocumentModel } from "@/generated/prisma/models";
-import { deleteProductDocumentAction, setProductDocumentImportant, restoreProductDocument } from "@/lib/actions/products";
-import { ConfirmForm } from "@/components/ConfirmForm";
+import { setDocumentImportantAction } from "@/lib/actions/documents";
+import { DocumentDeleteButton } from "@/components/DocumentDeleteButton";
 import { DocumentLink } from "@/components/DocumentLink";
 import { DocumentPreviewModal, isPreviewable } from "@/components/DocumentPreviewModal";
 import { ImportantToggle } from "@/components/ImportantToggle";
 import { ProductDocumentThumbnail } from "@/components/ProductDocumentThumbnail";
+import { documentFileHref } from "@/lib/documents/kinds";
 import { formatDate, humanFileSize } from "@/lib/utils";
 
 const KIND_LABELS: Record<string, string> = {
@@ -36,7 +37,7 @@ export function ProductDocumentList({
       {documents.map((doc) => (
         <li key={doc.id} className="flex items-center justify-between gap-3 py-3">
           <DocumentLink
-            href={`/api/products/documents/${doc.id}`}
+            href={documentFileHref(doc.id)}
             filename={doc.filename}
             mimeType={doc.mimeType}
             size={doc.size}
@@ -44,7 +45,7 @@ export function ProductDocumentList({
           >
             {doc.kind === "PHOTO" && doc.mimeType.startsWith("image/") ? (
               <ProductDocumentThumbnail
-                href={`/api/products/documents/${doc.id}`}
+                href={documentFileHref(doc.id)}
                 filename={doc.filename}
               />
             ) : (
@@ -69,25 +70,15 @@ export function ProductDocumentList({
             )}
             <ImportantToggle
               isImportant={doc.isImportant}
-              action={setProductDocumentImportant.bind(null, doc.productId, doc.id)}
+              action={setDocumentImportantAction.bind(null, "PRODUCT", doc.id)}
               label={doc.filename}
             />
-            <ConfirmForm
-              action={deleteProductDocumentAction.bind(null, doc.productId, doc.id)}
-              undo={{ action: restoreProductDocument.bind(null, doc.id) }}
-              confirmText={`Move ${doc.filename} to Trash? You can restore it within 30 days from Settings → Trash.`}
-              actionLabel="Delete document"
-              ariaLabel={`Delete ${doc.filename}`}
-              className="rounded-md p-2 text-muted hover:text-danger"
-              offline={{
-                entity: "productDocument",
-                entityId: doc.id,
-                parentId: doc.productId,
-                label: `Delete document: ${doc.filename}`,
-              }}
-            >
-              <Trash2 size={16} />
-            </ConfirmForm>
+            <DocumentDeleteButton
+              kind="PRODUCT"
+              documentId={doc.id}
+              ownerId={doc.productId}
+              filename={doc.filename}
+            />
           </div>
         </li>
       ))}
@@ -97,7 +88,7 @@ export function ProductDocumentList({
           doc={{
             filename: preview.filename,
             mimeType: preview.mimeType,
-            downloadHref: `/api/products/documents/${preview.id}`,
+            downloadHref: documentFileHref(preview.id),
           }}
           onClose={() => setPreview(null)}
         />

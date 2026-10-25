@@ -155,8 +155,11 @@ computed from trade history, not stored — recomputed per view, using whichever
 
 **Storage** (`src/lib/storage.ts`): uploaded documents are saved under generated UUID
 filenames on disk (never the user-supplied filename), keyed by owning record — prevents
-path traversal and filename collisions. `deleteContractDir`/`deleteDocument` clean up on
-record/document deletion; keep file deletion and DB-row deletion paired when touching this.
+path traversal and filename collisions. Writes go through the Document command
+(`src/lib/commands/documents.ts`): `permanentlyDeleteDocumentCommand`/`purgeDocument` delete a
+Document's row and file together, and record commands call `removeOwnerDocumentFiles(kind,
+ownerId)` when they delete the owner — keep file deletion and DB-row deletion paired when
+touching this. Every kind's file is served from `/api/documents/[id]`.
 
 **Offline support** (`src/lib/offlineCache.ts`, `offlineQueue.ts`, `@serwist/next` service
 worker): previously-visited pages are cached for read access when the server is

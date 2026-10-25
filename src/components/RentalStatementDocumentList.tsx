@@ -1,8 +1,8 @@
-import { FileText, Trash2 } from "lucide-react";
+import { FileText } from "lucide-react";
 import type { RentalStatementDocumentModel } from "@/generated/prisma/models";
-import { deleteRentalStatementDocumentAction } from "@/lib/actions/home";
-import { ConfirmForm } from "@/components/ConfirmForm";
+import { DocumentDeleteButton } from "@/components/DocumentDeleteButton";
 import { DocumentLink } from "@/components/DocumentLink";
+import { documentFileHref } from "@/lib/documents/kinds";
 import { formatDate, humanFileSize } from "@/lib/utils";
 
 export function RentalStatementDocumentList({
@@ -21,7 +21,7 @@ export function RentalStatementDocumentList({
       {documents.map((doc) => (
         <li key={doc.id} className="flex items-center justify-between gap-3 py-3">
           <DocumentLink
-            href={`/api/home/rental-documents/${doc.id}`}
+            href={documentFileHref(doc.id)}
             filename={doc.filename}
             mimeType={doc.mimeType}
             size={doc.size}
@@ -33,21 +33,12 @@ export function RentalStatementDocumentList({
               {humanFileSize(doc.size)} · {formatDate(doc.uploadedAt, dateFormat)}
             </span>
           </DocumentLink>
-          <ConfirmForm
-            action={deleteRentalStatementDocumentAction.bind(null, doc.rentalStatementId, doc.id)}
-            confirmText={`Delete ${doc.filename}? This can't be undone.`}
-            actionLabel="Delete document"
-            ariaLabel={`Delete ${doc.filename}`}
-            className="rounded-md p-2 text-muted hover:text-danger"
-            offline={{
-              entity: "rentalStatementDocument",
-              entityId: doc.id,
-              parentId: doc.rentalStatementId,
-              label: `Delete document: ${doc.filename}`,
-            }}
-          >
-            <Trash2 size={16} />
-          </ConfirmForm>
+          <DocumentDeleteButton
+            kind="RENTAL_STATEMENT"
+            documentId={doc.id}
+            ownerId={doc.rentalStatementId}
+            filename={doc.filename}
+          />
         </li>
       ))}
     </ul>

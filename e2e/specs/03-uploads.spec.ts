@@ -139,7 +139,7 @@ test("served documents use Content-Disposition: attachment (no stored-XSS execut
   await page.waitForLoadState("networkidle");
 
   const href = await page
-    .locator('a[href^="/api/travel/documents/"]', { hasText: "evil.png" })
+    .locator('a[href^="/api/documents/"]', { hasText: "evil.png" })
     .first()
     .getAttribute("href");
   expect(href).toBeTruthy();

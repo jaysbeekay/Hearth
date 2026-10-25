@@ -1,8 +1,8 @@
-import { FileText, Trash2 } from "lucide-react";
+import { FileText } from "lucide-react";
 import type { VehicleItemDocumentModel } from "@/generated/prisma/models";
-import { deleteVehicleItemDocumentAction, restoreVehicleItemDocument } from "@/lib/actions/vehicles";
-import { ConfirmForm } from "@/components/ConfirmForm";
+import { DocumentDeleteButton } from "@/components/DocumentDeleteButton";
 import { DocumentLink } from "@/components/DocumentLink";
+import { documentFileHref } from "@/lib/documents/kinds";
 import { formatDate, humanFileSize } from "@/lib/utils";
 
 export function VehicleItemDocumentList({
@@ -21,7 +21,7 @@ export function VehicleItemDocumentList({
       {documents.map((doc) => (
         <li key={doc.id} className="flex items-center justify-between gap-3 py-3">
           <DocumentLink
-            href={`/api/vehicles/documents/${doc.id}`}
+            href={documentFileHref(doc.id)}
             filename={doc.filename}
             mimeType={doc.mimeType}
             size={doc.size}
@@ -33,22 +33,12 @@ export function VehicleItemDocumentList({
               {humanFileSize(doc.size)} · {formatDate(doc.uploadedAt, dateFormat)}
             </span>
           </DocumentLink>
-          <ConfirmForm
-            action={deleteVehicleItemDocumentAction.bind(null, doc.vehicleItemId, doc.id)}
-            undo={{ action: restoreVehicleItemDocument.bind(null, doc.id) }}
-            confirmText={`Move ${doc.filename} to Trash? You can restore it within 30 days from Settings → Trash.`}
-            actionLabel="Delete document"
-            ariaLabel={`Delete ${doc.filename}`}
-            className="rounded-md p-2 text-muted hover:text-danger"
-            offline={{
-              entity: "vehicleItemDocument",
-              entityId: doc.id,
-              parentId: doc.vehicleItemId,
-              label: `Delete document: ${doc.filename}`,
-            }}
-          >
-            <Trash2 size={16} />
-          </ConfirmForm>
+          <DocumentDeleteButton
+            kind="VEHICLE_ITEM"
+            documentId={doc.id}
+            ownerId={doc.vehicleItemId}
+            filename={doc.filename}
+          />
         </li>
       ))}
     </ul>
