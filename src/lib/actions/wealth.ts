@@ -21,7 +21,9 @@ import {
 } from "@/lib/validation/wealth";
 import { addDocumentCommand, removeOwnerDocumentFiles } from "@/lib/commands/documents";
 import { fetchHistoricalPrice } from "@/lib/prices";
-import { isModuleEnabled } from "@/lib/modules/enablement";
+import { isModuleEnabled, ModuleDisabledError } from "@/lib/modules/enablement";
+import { createPropertyValuationCommand, deletePropertyValuationCommand } from "@/lib/commands/home";
+import { RecordNotFoundError } from "@/lib/commands/shared";
 import { formDataToStringValues } from "@/lib/form-state";
 import type { ActionState } from "@/lib/actions/auth";
 import { parse } from "csv-parse/sync";
@@ -464,6 +466,15 @@ export async function importTrades(
 
 // ── Property Valuations ─────────────────────────────────────────────────────
 
+// Valuations are Property records: their command (commands/home.ts) owns
+// the write and the HOME module gate. This turns its errors into the
+// ActionState the form shows; anything else is rethrown.
+function valuationCommandError(error: unknown, notFound: string): ActionState {
+  if (error instanceof RecordNotFoundError) return { error: notFound };
+  if (error instanceof ModuleDisabledError) return { error: error.message };
+  throw error;
+}
+
 async function requireHomeEnabled() {
   const session = await auth();
   if (!session?.user) throw new Error("Not signed in");
@@ -485,11 +496,11 @@ export async function createPropertyValuation(
     };
   }
 
-  const property = await prisma.property.findUnique({ where: { id: propertyId } });
-  if (!property) return { error: "Property not found." };
-
-  await prisma.propertyValuation.create({ data: { ...parsed.data, propertyId } });
-  revalidatePath(`/home/${propertyId}`);
+  try {
+    await createPropertyValuationCommand(propertyId, parsed.data);
+  } catch (error) {
+    return valuationCommandError(error, "Property not found.");
+  }
   return { success: "Valuation saved." };
 }
 
@@ -498,14 +509,11 @@ export async function deletePropertyValuation(
   valuationId: string,
 ): Promise<ActionState> {
   await requireHomeEnabled();
-  const valuation = await prisma.propertyValuation.findUnique({ where: { id: valuationId } });
-  if (!valuation || valuation.propertyId !== propertyId) return { error: "Valuation not found." };
-
-  const property = await prisma.property.findUnique({ where: { id: propertyId } });
-  if (!property) return { error: "Property not found." };
-
-  await prisma.propertyValuation.delete({ where: { id: valuationId } });
-  revalidatePath(`/home/${propertyId}`);
+  try {
+    await deletePropertyValuationCommand(valuationId, { propertyId });
+  } catch (error) {
+    return valuationCommandError(error, "Valuation not found.");
+  }
   return { success: "Valuation removed." };
 }
 

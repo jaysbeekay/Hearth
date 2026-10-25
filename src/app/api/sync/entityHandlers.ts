@@ -36,6 +36,18 @@ import {
   createTripSegmentCommand,
   updateTripSegmentCommand,
 } from "@/lib/commands/trips";
+import {
+  createPropertyCommand,
+  updatePropertyCommand,
+  deletePropertyCommand,
+  createMaintenanceRecordCommand,
+  updateMaintenanceRecordCommand,
+  createTenancyCommand,
+  updateTenancyCommand,
+  createRentalStatementCommand,
+  updateRentalStatementCommand,
+  createPropertyValuationCommand,
+} from "@/lib/commands/home";
 import { updateUnlessStale } from "@/lib/commands/shared";
 import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
 import {
@@ -269,26 +281,15 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     input: formToPropertyInput,
     requiresModule: "HOME",
     create: async (data, { userId }) => {
-      const property = await prisma.property.create({ data: { ...data, createdById: userId } });
-      revalidatePath("/home");
+      const property = await createPropertyCommand(data, userId);
       return { id: property.id };
     },
     update: async (id, data, ctx) => {
-      const existing = await prisma.property.findUnique({ where: { id } });
-      if (!existing) throw new Error("Property not found");
-      await updateUnlessStale(ctx.baseUpdatedAt, (guard) =>
-        prisma.property.updateMany({ where: { id, ...guard }, data }),
-      );
-      revalidatePath("/home");
-      revalidatePath(`/home/${id}`);
+      await updatePropertyCommand(id, data, ctx.userId, { baseUpdatedAt: ctx.baseUpdatedAt });
     },
     // #287 — soft-delete, matching deleteProperty in actions/home.ts.
     remove: async (id) => {
-      const existing = await prisma.property.findUnique({ where: { id } });
-      if (!existing) throw new Error("Property not found");
-      await prisma.property.update({ where: { id }, data: { deletedAt: new Date() } });
-      revalidatePath("/home");
-      revalidatePath("/settings/trash");
+      await deletePropertyCommand(id);
     },
   }),
 
@@ -297,21 +298,14 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     input: formToHomeItemInput,
     requiresModule: "HOME",
     create: async (data, ctx) => {
-      const propertyId = requireParentId(ctx);
-      const property = await prisma.property.findUnique({ where: { id: propertyId } });
-      if (!property) throw new Error("Property not found");
-      const item = await prisma.homeItem.create({ data: { ...data, propertyId } });
-      revalidatePath(`/home/${propertyId}`);
+      const item = await createMaintenanceRecordCommand(requireParentId(ctx), data);
       return { id: item.id };
     },
     update: async (id, data, ctx) => {
-      const propertyId = requireParentId(ctx);
-      const existing = await prisma.homeItem.findUnique({ where: { id } });
-      if (!existing || existing.propertyId !== propertyId) throw new Error("Item not found");
-      await updateUnlessStale(ctx.baseUpdatedAt, (guard) =>
-        prisma.homeItem.updateMany({ where: { id, ...guard }, data }),
-      );
-      revalidatePath(`/home/${propertyId}`);
+      await updateMaintenanceRecordCommand(id, data, {
+        propertyId: requireParentId(ctx),
+        baseUpdatedAt: ctx.baseUpdatedAt,
+      });
     },
     saveFile: async (homeItemId, file) => {
       validateFile(file);
@@ -319,31 +313,18 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     },
   }),
 
-  // Note: RentalAgreement has no `updatedAt` field in the schema (unlike every
-  // other model here) — it's exempt from the Phase 6 conflict check.
+  // RentalAgreement (Tenancy) has no `updatedAt` column, so its updates take
+  // no stale-edit check.
   rentalAgreement: defineEntity({
     schema: rentalAgreementSchema,
     input: formToRentalAgreementInput,
     requiresModule: "HOME",
     create: async (data, ctx) => {
-      const propertyId = requireParentId(ctx);
-      const property = await prisma.property.findUnique({ where: { id: propertyId } });
-      if (!property) throw new Error("Property not found");
-      const [agreement] = await prisma.$transaction([
-        prisma.rentalAgreement.create({ data: { ...data, propertyId } }),
-        prisma.property.update({ where: { id: propertyId }, data: { isRented: true } }),
-      ]);
-      revalidatePath(`/home/${propertyId}`);
-      revalidatePath(`/home/${propertyId}/rental`);
+      const agreement = await createTenancyCommand(requireParentId(ctx), data);
       return { id: agreement.id };
     },
     update: async (id, data, ctx) => {
-      const propertyId = requireParentId(ctx);
-      const existing = await prisma.rentalAgreement.findUnique({ where: { id } });
-      if (!existing || existing.propertyId !== propertyId) throw new Error("Agreement not found");
-      await prisma.rentalAgreement.update({ where: { id }, data });
-      revalidatePath(`/home/${propertyId}`);
-      revalidatePath(`/home/${propertyId}/rental`);
+      await updateTenancyCommand(id, data, { propertyId: requireParentId(ctx) });
     },
   }),
 
@@ -352,21 +333,14 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     input: formToRentalStatementInput,
     requiresModule: "HOME",
     create: async (data, ctx) => {
-      const propertyId = requireParentId(ctx);
-      const property = await prisma.property.findUnique({ where: { id: propertyId } });
-      if (!property) throw new Error("Property not found");
-      const statement = await prisma.rentalStatement.create({ data: { ...data, propertyId } });
-      revalidatePath(`/home/${propertyId}/rental`);
+      const statement = await createRentalStatementCommand(requireParentId(ctx), data);
       return { id: statement.id };
     },
     update: async (id, data, ctx) => {
-      const propertyId = requireParentId(ctx);
-      const existing = await prisma.rentalStatement.findUnique({ where: { id } });
-      if (!existing || existing.propertyId !== propertyId) throw new Error("Statement not found");
-      await updateUnlessStale(ctx.baseUpdatedAt, (guard) =>
-        prisma.rentalStatement.updateMany({ where: { id, ...guard }, data }),
-      );
-      revalidatePath(`/home/${propertyId}/rental`);
+      await updateRentalStatementCommand(id, data, {
+        propertyId: requireParentId(ctx),
+        baseUpdatedAt: ctx.baseUpdatedAt,
+      });
     },
     saveFile: async (statementId, file) => {
       validateFile(file);
@@ -522,13 +496,9 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
   propertyValuation: defineEntity({
     schema: propertyValuationSchema,
     input: formToPropertyValuationInput,
-    // Matches the live action (requireHomeEnabled): no module gate here, only auth.
+    requiresModule: "HOME",
     create: async (data, ctx) => {
-      const propertyId = requireParentId(ctx);
-      const property = await prisma.property.findUnique({ where: { id: propertyId } });
-      if (!property) throw new Error("Property not found");
-      const valuation = await prisma.propertyValuation.create({ data: { ...data, propertyId } });
-      revalidatePath(`/home/${propertyId}`);
+      const valuation = await createPropertyValuationCommand(requireParentId(ctx), data);
       return { id: valuation.id };
     },
   }),

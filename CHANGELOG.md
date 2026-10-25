@@ -212,6 +212,12 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   Trash retention and the flight status and distance lookups (ADR 0003).
   An offline Trip edit now records who made it, as an online one does
   (#391).
+- Property, Maintenance record, Tenancy, Rental statement and Property
+  valuation writes go through one command module
+  (`src/lib/commands/home.ts`) shared by the server actions, offline sync
+  and Trash retention (ADR 0003). An offline Property edit now records who
+  made it, as an online one does, and Property valuations are now refused
+  while the Property module is off, like every other Property record (#390).
 - **One Reminder schedule (#387).** The scheduler, the Reminder health
   card and Settings' household Reminder health now read one pure schedule
   (`src/lib/notifications/reminderSchedule.ts`) built on the Due policy, in

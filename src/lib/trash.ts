@@ -3,6 +3,7 @@ import { purgeVehicle, purgeServiceRecord } from "@/lib/commands/vehicles";
 import { purgeContract } from "@/lib/commands/contracts";
 import { purgeProduct } from "@/lib/commands/products";
 import { purgeTrip } from "@/lib/commands/trips";
+import { purgeProperty, purgeMaintenanceRecord } from "@/lib/commands/home";
 import { purgeDocument, removeOwnerDocumentFiles } from "@/lib/commands/documents";
 import { DOCUMENT_KIND_MODULE, type OwnedDocumentKind } from "@/lib/documents/kinds";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
@@ -61,10 +62,7 @@ export async function purgeExpiredTrash(): Promise<void> {
       prisma.contract.findMany(expired(cutoff)),
       prisma.product.findMany(expired(cutoff)),
       prisma.vehicle.findMany(expired(cutoff)),
-      prisma.property.findMany({
-        where: { deletedAt: { lt: cutoff } },
-        select: { id: true, items: { select: { id: true } }, rentalStatements: { select: { id: true } } },
-      }),
+      prisma.property.findMany(expired(cutoff)),
       prisma.trip.findMany(expired(cutoff)),
       prisma.inventoryItem.findMany(expired(cutoff)),
       prisma.homeItem.findMany(expired(cutoff)),
@@ -72,8 +70,7 @@ export async function purgeExpiredTrash(): Promise<void> {
     ]);
 
   for (const i of homeItems) {
-    await removeOwnerDocumentFiles("HOME_ITEM", i.id);
-    await prisma.homeItem.delete({ where: { id: i.id } });
+    await purgeMaintenanceRecord(i.id);
   }
   for (const i of vehicleItems) {
     await purgeServiceRecord(i.id);
@@ -88,9 +85,7 @@ export async function purgeExpiredTrash(): Promise<void> {
     await purgeVehicle(v.id);
   }
   for (const p of properties) {
-    for (const item of p.items) await removeOwnerDocumentFiles("HOME_ITEM", item.id);
-    for (const statement of p.rentalStatements) await removeOwnerDocumentFiles("RENTAL_STATEMENT", statement.id);
-    await prisma.property.delete({ where: { id: p.id } });
+    await purgeProperty(p.id);
   }
   for (const t of trips) {
     await purgeTrip(t.id);
