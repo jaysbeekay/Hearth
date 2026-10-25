@@ -9,7 +9,7 @@ import { ProductCard } from "@/components/ProductCard";
 import { InventoryCard } from "@/components/InventoryCard";
 import { PendingRecordCard } from "@/components/PendingRecordCard";
 import { ListSummaryStrip } from "@/components/ListSummaryStrip";
-import { ListFilterChips } from "@/components/ListFilterChips";
+import { ListFilterChips, ListFilterHiddenInputs } from "@/components/ListFilterChips";
 import type { InventoryItemModel, ProductModel } from "@/generated/prisma/models";
 import {
   hasListFilters,
@@ -74,7 +74,10 @@ export function ProductListClient({
   }, [router]);
 
   const filtered = Boolean(q || hasListFilters(filters));
-  const showInventorySection = inventoryEnabled && (inventoryItems.length > 0 || !filtered);
+  // Inventory items don't take part in the list filters, so while one is on
+  // the page shows only the Warranties its count describes (#395).
+  const showInventorySection =
+    inventoryEnabled && !hasListFilters(filters) && (inventoryItems.length > 0 || !filtered);
 
   const toggleFilter = useCallback(
     (chip: ToggleableFilter) => {
@@ -134,6 +137,7 @@ export function ProductListClient({
       </div>
 
       <form ref={formRef} className="flex flex-col gap-3 md:flex-row" method="GET">
+        <ListFilterHiddenInputs filters={filters} />
         <input
           type="search"
           name="q"

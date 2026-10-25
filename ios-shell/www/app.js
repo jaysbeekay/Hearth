@@ -1256,7 +1256,7 @@ function renderDashboard() {
   const inventoryValue = moduleEnabled("inventoryItems") ? cache.inventoryItems.reduce((sum, row) => sum + (Number(row.purchase_price) || 0), 0) : 0;
   const propertyValue = moduleEnabled("properties") ? cache.properties.reduce((sum, row) => sum + (Number(row.estimated_value) || 0), 0) : 0;
   const holdingsValue = moduleEnabled("portfolios") ? cache.holdings.reduce((sum, row) => sum + holdingValue(row), 0) : 0;
-  const contractsMissingInfo = cache.contracts.filter((row) => missingInfo("contracts", row)).length;
+  const contractsMissingInfo = activeContracts.filter((row) => missingInfo("contracts", row)).length;
   const productsMissingInfo = cache.products.filter((row) => missingInfo("products", row)).length;
   const vehiclesMissingInfo = moduleEnabled("vehicles") ? cache.vehicles.filter((row) => missingInfo("vehicles", row)).length : 0;
   return `

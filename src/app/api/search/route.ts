@@ -19,6 +19,7 @@ import {
   vehicleMissingParts,
   VEHICLE_MISSING_SELECT,
 } from "@/lib/recordFilters";
+import { contractDueFilter, warrantyDueWhere } from "@/lib/listDue";
 
 export interface SearchResult {
   id: string;
@@ -62,28 +63,30 @@ export async function GET(request: NextRequest) {
   }
 
   const q = request.nextUrl.searchParams.get("q")?.trim() ?? "";
+  const now = new Date();
 
-  // #205/#328/#395 — the same filter parameters as the lists (?due=soon,
+  // #205/#328/#395 — the same filter parameters as the lists (?due=,
   // ?missing=details, ?review=1, ?noDocument=1, ?important=1), with the
-  // rules from src/lib/recordFilters.ts. The old single `filter=` values
-  // still work. Each filter only applies to the record types that have the
-  // concept: review/noDocument/important to Contracts and Warranties;
-  // Missing key details to Contracts, Warranties, Vehicles and Inventory
-  // items; Due soon to Contracts, Warranties and Vehicles. A type a filter
-  // doesn't apply to is left out while that filter is on; Trips, Property,
-  // Wealth and Document hits are text-search-only and ignore the filters.
+  // rules from src/lib/recordFilters.ts and src/lib/listDue.ts. The old
+  // single `filter=` values still work. Filters narrow Contracts and
+  // Warranties (all filters), Vehicles (Due soon and Missing key details;
+  // Vehicles are left out under any other filter) and Inventory items
+  // (Missing key details only; left out under any other filter). Trips,
+  // Property, Wealth and Document-name hits don't take part in filters:
+  // they only appear for search text, and then unfiltered.
   const filters = parseSearchFilters(request.nextUrl.searchParams);
-  // Search only offers "Expiring soon"; overdue isn't one of its filters.
-  if (filters.due === "overdue") delete filters.due;
   const filter = hasListFilters(filters);
-  const vehicleFilterOnly = !filters.review && !filters.noDocument && !filters.important;
+  const vehicleFilterOnly =
+    !filters.review && !filters.noDocument && !filters.important && filters.due !== "overdue";
+  // Due needs notice deadlines, which SQL can't express: the query narrows
+  // roughly and `contractDue.matches` decides, exactly as on the list (ADR 0002).
+  const contractDue = filters.due ? contractDueFilter(filters.due, now) : null;
 
   const textOk = q.length >= 2;
   if (!textOk && !filter) {
     return NextResponse.json({ groups: {} }, { headers: { "Cache-Control": "no-store" } });
   }
 
-  const now = new Date();
   const soon = new Date(now.getTime() + 30 * 86_400_000);
 
   const enabledModules = await getEnabledModuleKeys();
@@ -119,19 +122,26 @@ export async function GET(request: NextRequest) {
                   },
                 ]
               : []),
-            // Due soon is still Search's own end-date range until the Due
-            // policy replaces it (#384).
-            ...(filters.due === "soon" ? [{ status: "ACTIVE" as const, endDate: { gte: now, lte: soon } }] : []),
+            ...(contractDue ? [contractDue.where] : []),
             ...contractFilterWheres(filters),
           ],
         },
-        select: { id: true, title: true, provider: true, contractNumber: true, ...CONTRACT_MISSING_SELECT },
+        select: {
+          id: true,
+          title: true,
+          provider: true,
+          contractNumber: true,
+          noticePeriodDays: true,
+          ...CONTRACT_MISSING_SELECT,
+        },
         // Most-recent-first: relevant always, but load-bearing for
         // isContractAlias/missing* results, which can return far more rows
         // than LIMIT with no relevance signal to rank by otherwise.
         orderBy: { createdAt: "desc" },
-        take: LIMIT,
+        // Under Due the in-memory check runs first, so the limit applies after it.
+        ...(contractDue ? {} : { take: LIMIT }),
       })
+      .then((rows) => (contractDue ? rows.filter(contractDue.matches).slice(0, LIMIT) : rows))
       .then((rows) =>
         rows.map((r) => ({
           id: r.id,
@@ -169,7 +179,7 @@ export async function GET(request: NextRequest) {
                   },
                 ]
               : []),
-            ...(filters.due === "soon" ? [{ warrantyEndDate: { gte: now, lte: soon } }] : []),
+            ...(filters.due ? [warrantyDueWhere(filters.due, now)] : []),
             ...productFilterWheres(filters),
           ],
         },

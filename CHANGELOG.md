@@ -105,10 +105,10 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   Search still accepts its old `filter=` values. Following a dashboard link
   now shows the filter as an active chip with Clear all.
 - Search's "Missing date" and "Missing identifier" chips are merged into
-  "Missing key details". The "Missing document" list chip is now "No
+  "Missing key details", and its "Expiring soon" counts to a Contract's
+  notice deadline, as the Contracts list does. The "Missing document" list chip is now "No
   document". "Expired" on the Contracts list leaves out Cancelled
   Contracts, matching the dashboard (#395).
-
 - Reminder dates follow each recipient's date format preference (#352).
 - `vehicle.expiring` webhook event: vehicle reminders now carry
   `"field": "regoExpiry" | "insuranceExpiry" | "nextServiceDue"` and link

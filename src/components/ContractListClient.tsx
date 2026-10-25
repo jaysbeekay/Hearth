@@ -11,7 +11,7 @@ import { PendingRecordCard } from "@/components/PendingRecordCard";
 import { SwipeableListItem } from "@/components/SwipeableListItem";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { ListSummaryStrip } from "@/components/ListSummaryStrip";
-import { ListFilterChips } from "@/components/ListFilterChips";
+import { ListFilterChips, ListFilterHiddenInputs } from "@/components/ListFilterChips";
 import { deleteContract, restoreContract } from "@/lib/actions/contracts";
 import type { ContractModel } from "@/generated/prisma/models";
 import { CATEGORY_LABELS } from "@/lib/utils";
@@ -148,6 +148,7 @@ export function ContractListClient({
       </div>
 
       <form ref={formRef} className="flex flex-col gap-3 md:flex-row" method="GET">
+        <ListFilterHiddenInputs filters={filters} />
         <input
           type="search"
           name="q"

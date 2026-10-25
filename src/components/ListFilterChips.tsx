@@ -1,6 +1,6 @@
 "use client";
 
-import { isChipActive, type ListFilters, type ToggleableFilter } from "@/lib/recordFilters";
+import { isChipActive, writeListFilters, type ListFilters, type ToggleableFilter } from "@/lib/recordFilters";
 
 // #395 — the list filter chip row shared by Contracts, Warranties and
 // Vehicles. A chip marked `onlyWhenActive` isn't offered on that list but
@@ -37,5 +37,19 @@ export function ListFilterChips({
         );
       })}
     </div>
+  );
+}
+
+/**
+ * Hidden inputs that carry the active filter chips through a list's
+ * `<form method="GET">`, so submitting a search keeps them.
+ */
+export function ListFilterHiddenInputs({ filters }: { filters: ListFilters }) {
+  return (
+    <>
+      {[...writeListFilters(new URLSearchParams(), filters).entries()].map(([name, value]) => (
+        <input key={name} type="hidden" name={name} value={value} />
+      ))}
+    </>
   );
 }

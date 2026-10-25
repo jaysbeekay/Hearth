@@ -8,6 +8,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import { warrantyDueWhere } from "@/lib/listDue";
 import {
+  hasListFilters,
   legacyListRedirect,
   parseListFilters,
   productFilterWheres,
@@ -77,7 +78,8 @@ export default async function ProductsPage({
     getUserPreferences(),
     auth(),
   ]);
-  const inventoryItems = inventoryEnabled
+  // Hidden while a list filter is on (see ProductListClient), so not loaded either.
+  const inventoryItems = inventoryEnabled && !hasListFilters(filters)
     ? await prisma.inventoryItem.findMany({
         where: { deletedAt: null },
         include: { _count: { select: { documents: { where: { deletedAt: null } } } } },

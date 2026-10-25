@@ -13,11 +13,16 @@ import {
   type ListFilterCounts,
 } from "@/lib/recordFilters";
 import type { Prisma } from "@/generated/prisma/client";
+import { ContractCategory, ContractStatus } from "@/generated/prisma/enums";
 
 export const metadata: Metadata = { title: "Policies & contracts" };
 
 function first(value: string | string[] | undefined): string | undefined {
   return (Array.isArray(value) ? value[0] : value) || undefined;
+}
+
+function oneOf<T extends string>(value: string | undefined, allowed: readonly T[]): T | undefined {
+  return (allowed as readonly string[]).includes(value ?? "") ? (value as T) : undefined;
 }
 
 // Chip counts for the whole household (not narrowed by search text or other
@@ -61,14 +66,15 @@ export default async function ContractsPage({
   if (legacy) redirect(legacy);
 
   const q = first(params.q);
-  const category = first(params.category);
-  const status = first(params.status);
+  // An unknown category/status (a hand-edited URL) is ignored, not sent to Prisma.
+  const category = oneOf(first(params.category), Object.values(ContractCategory));
+  const status = oneOf(first(params.status), Object.values(ContractStatus));
   const filters = parseListFilters(params);
   const now = new Date();
 
   const and: Prisma.ContractWhereInput[] = [];
-  if (category) and.push({ category: category as Prisma.ContractWhereInput["category"] });
-  if (status) and.push({ status: status as Prisma.ContractWhereInput["status"] });
+  if (category) and.push({ category });
+  if (status) and.push({ status });
   if (q) {
     and.push({
       OR: [{ title: { contains: q } }, { provider: { contains: q } }, { contractNumber: { contains: q } }],

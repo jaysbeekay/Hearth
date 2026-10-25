@@ -95,6 +95,37 @@ test.describe.serial("Completeness filters", () => {
     }
   });
 
+  test("typing a search keeps active chips, category and status", async ({ page }) => {
+    await page.goto("/contracts?status=ACTIVE&missing=details");
+    await page.getByPlaceholder("Search by title, provider, or number…").fill("Completeness");
+    await page.waitForURL((url) => url.searchParams.get("q") === "Completeness");
+    const params = new URL(page.url()).searchParams;
+    expect(params.get("missing")).toBe("details");
+    expect(params.get("status")).toBe("ACTIVE");
+    await expect(page.getByRole("button", { name: "Missing key details" })).toHaveAttribute("aria-pressed", "true");
+
+    await page.goto("/products?due=soon&noDocument=1");
+    await page.locator('main input[name="q"]').fill("Samsung");
+    await page.waitForURL((url) => url.searchParams.get("q") === "Samsung");
+    const productParams = new URL(page.url()).searchParams;
+    expect(productParams.get("due")).toBe("soon");
+    expect(productParams.get("noDocument")).toBe("1");
+  });
+
+  test("an unknown category or status is ignored, not an error", async ({ page }) => {
+    const res = await page.goto("/contracts?category=NOT_A_CATEGORY&status=NOPE");
+    expect(res?.status()).toBe(200);
+    await expect(page.getByRole("heading", { name: "Policies & contracts" })).toBeVisible();
+  });
+
+  test("Warranties list hides Inventory items while a filter is on", async ({ page }) => {
+    await page.goto("/products");
+    await expect(page.getByRole("heading", { name: "Inventory items" })).toBeVisible();
+    await page.goto("/products?missing=details");
+    await expect(page.getByRole("button", { name: "Missing key details" })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("heading", { name: "Inventory items" })).toHaveCount(0);
+  });
+
   test("Vehicles: Missing key details means no VIN and no plate, in Search and the list", async ({ page }) => {
     const stamp = Date.now();
     const completeLabel = `Completeness Filter Complete Vehicle ${stamp}`;
