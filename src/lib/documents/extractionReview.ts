@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import type { ContractReviewCorrections } from "@/lib/commands/contracts";
+import type { ProductReviewCorrections } from "@/lib/commands/products";
 
 export type ExtractionReviewOwnerType = "CONTRACT" | "PRODUCT";
 
@@ -86,17 +88,6 @@ export async function saveExtractionReviewFieldsFromForm(
   );
 }
 
-export async function markExtractionReviewFieldsReviewed(
-  ownerType: ExtractionReviewOwnerType,
-  ownerId: string,
-  actorId: string,
-) {
-  await prisma.extractionReviewField.updateMany({
-    where: { ownerType, ownerId, reviewedAt: null },
-    data: { reviewedAt: new Date(), reviewedById: actorId },
-  });
-}
-
 export interface PendingReviewField {
   fieldName: string;
   currentValue: string;
@@ -107,7 +98,8 @@ export interface PendingReviewField {
 // #331 — the only fields a field-level review can correct: matches exactly
 // what InboxReviewClient/ImportClient record provenance for (see
 // appendReviewFields in each). Never widen this to an arbitrary
-// formData-supplied column name — it goes straight into a Prisma update.
+// formData-supplied column name. The corrections built below name each
+// field explicitly; this list decides which pending fields the panel shows.
 const CONTRACT_REVIEWABLE_FIELDS = ["title", "provider", "cost", "startDate", "endDate"] as const;
 const PRODUCT_REVIEWABLE_FIELDS = ["description", "manufacturer", "price", "purchaseDate", "warrantyEndDate"] as const;
 
@@ -152,62 +144,105 @@ export async function getPendingExtractionReview(
   }));
 }
 
-function coerceReviewedValue(fieldName: string, raw: string): string | number | Date | null {
-  const trimmed = raw.trim();
-  if (trimmed === "") return null;
-  if (fieldName === "cost" || fieldName === "price") {
-    const n = Number(trimmed);
-    return Number.isFinite(n) ? n : null;
-  }
-  if (fieldName === "startDate" || fieldName === "endDate" || fieldName === "purchaseDate" || fieldName === "warrantyEndDate") {
-    const d = new Date(trimmed);
-    return Number.isNaN(d.getTime()) ? null : d;
-  }
-  return trimmed.slice(0, 500);
+// The review panel's submitted value for a field that's still pending, or
+// undefined when it isn't pending or wasn't submitted (so it isn't written).
+function submittedReviewValue(pending: ReadonlySet<string>, formData: FormData, fieldName: string): string | undefined {
+  if (!pending.has(fieldName)) return undefined;
+  const raw = formData.get(`reviewField:${fieldName}`);
+  return typeof raw === "string" ? raw.trim() : undefined;
 }
 
-// Applies any corrections submitted from the review panel, marks every
-// pending field reviewed, and clears extractionPending — the single action
-// behind both the field-level review UI and the plain "Confirm details"
-// fallback (which submits no corrections, just confirms as-is).
-export async function reviewAndConfirmExtraction(
-  ownerType: ExtractionReviewOwnerType,
-  ownerId: string,
-  actorId: string,
-  formData: FormData,
-): Promise<{ error?: string }> {
+class ReviewValueError extends Error {}
+
+function requiredText(raw: string | undefined, label: string): string | undefined {
+  if (raw === undefined) return undefined;
+  if (raw === "") throw new ReviewValueError(`${label} is required`);
+  return raw.slice(0, 200);
+}
+
+function optionalText(raw: string | undefined): string | null | undefined {
+  if (raw === undefined) return undefined;
+  return raw === "" ? null : raw.slice(0, 200);
+}
+
+function optionalAmount(raw: string | undefined, label: string): number | null | undefined {
+  if (raw === undefined) return undefined;
+  if (raw === "") return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) throw new ReviewValueError(`${label} must be a number of 0 or more`);
+  return n;
+}
+
+function optionalDate(raw: string | undefined, label: string): Date | null | undefined {
+  if (raw === undefined) return undefined;
+  if (raw === "") return null;
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) throw new ReviewValueError(`${label} isn't a valid date`);
+  return d;
+}
+
+// Drops the keys left undefined, so a field that wasn't reviewed isn't sent.
+function definedOnly<T extends object>(patch: T): T {
+  return Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined)) as T;
+}
+
+async function pendingFieldNames(ownerType: ExtractionReviewOwnerType, ownerId: string) {
   const allowed = reviewableFieldsFor(ownerType);
   const pending = await prisma.extractionReviewField.findMany({
     where: { ownerType, ownerId, reviewedAt: null },
+    select: { fieldName: true },
   });
+  return new Set(pending.map((f) => f.fieldName).filter((name) => allowed.includes(name)));
+}
 
-  const updateData: Record<string, string | number | Date | null> = {};
-  for (const field of pending) {
-    if (!allowed.includes(field.fieldName)) continue;
-    const raw = formData.get(`reviewField:${field.fieldName}`);
-    if (typeof raw !== "string") continue;
-    updateData[field.fieldName] = coerceReviewedValue(field.fieldName, raw);
-  }
+export type ReviewCorrectionsResult<T> = { corrections: T } | { error: string };
 
-  const reviewedAt = new Date();
+// The corrections submitted from the review panel for a Contract's pending
+// fields, ready for confirmContractExtractionCommand. A blank optional field
+// clears it; a blank title or provider, or a value that doesn't parse, is
+// refused. The plain "Confirm details" fallback submits no fields, so it
+// confirms the values as they are.
+export async function contractReviewCorrectionsFromForm(
+  contractId: string,
+  formData: FormData,
+): Promise<ReviewCorrectionsResult<ContractReviewCorrections>> {
+  const pending = await pendingFieldNames("CONTRACT", contractId);
+  const value = (fieldName: string) => submittedReviewValue(pending, formData, fieldName);
   try {
-    await prisma.$transaction([
-      prisma.extractionReviewField.updateMany({
-        where: { ownerType, ownerId, reviewedAt: null },
-        data: { reviewedAt, reviewedById: actorId },
+    return {
+      corrections: definedOnly<ContractReviewCorrections>({
+        title: requiredText(value("title"), "Title"),
+        provider: requiredText(value("provider"), "Provider/company"),
+        cost: optionalAmount(value("cost"), "Cost"),
+        startDate: optionalDate(value("startDate"), "Start date"),
+        endDate: optionalDate(value("endDate"), "End date"),
       }),
-      ownerType === "CONTRACT"
-        ? prisma.contract.update({
-            where: { id: ownerId },
-            data: { ...updateData, extractionPending: false, extractionConfirmedAt: reviewedAt, updatedById: actorId },
-          })
-        : prisma.product.update({
-            where: { id: ownerId },
-            data: { ...updateData, extractionPending: false, extractionConfirmedAt: reviewedAt, updatedById: actorId },
-          }),
-    ]);
-  } catch {
-    return { error: "Record no longer exists." };
+    };
+  } catch (error) {
+    if (error instanceof ReviewValueError) return { error: error.message };
+    throw error;
   }
-  return {};
+}
+
+// As contractReviewCorrectionsFromForm, for a Product.
+export async function productReviewCorrectionsFromForm(
+  productId: string,
+  formData: FormData,
+): Promise<ReviewCorrectionsResult<ProductReviewCorrections>> {
+  const pending = await pendingFieldNames("PRODUCT", productId);
+  const value = (fieldName: string) => submittedReviewValue(pending, formData, fieldName);
+  try {
+    return {
+      corrections: definedOnly<ProductReviewCorrections>({
+        description: requiredText(value("description"), "Description"),
+        manufacturer: optionalText(value("manufacturer")),
+        price: optionalAmount(value("price"), "Price"),
+        purchaseDate: optionalDate(value("purchaseDate"), "Purchase date"),
+        warrantyEndDate: optionalDate(value("warrantyEndDate"), "Warranty end date"),
+      }),
+    };
+  } catch (error) {
+    if (error instanceof ReviewValueError) return { error: error.message };
+    throw error;
+  }
 }

@@ -220,6 +220,17 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   while the Property module is off, like every other Property record. A
   Property in Trash (and a Maintenance record in Trash) can't be edited or
   added to, offline or online, until it's restored (#390).
+- Extraction review, Confirm details and Cancel / Reactivate now write
+  Contracts and Products through their commands
+  (`src/lib/commands/contracts.ts`, `products.ts`) like every other update
+  (ADR 0003). A review's corrections, clearing Needs review and marking its
+  fields reviewed land together or not at all, and a status change records
+  who made it and refreshes the same pages as an edit. A Contract or
+  Product in Trash can't be edited, Cancelled, Reactivated or confirmed
+  until it's restored. A review that blanks a title, provider or
+  description, or enters a value that isn't a number or date, is now
+  refused with a message, where it used to fail as "Record no longer
+  exists" or quietly clear the field (#393).
 - **One Reminder schedule (#387).** The scheduler, the Reminder health
   card and Settings' household Reminder health now read one pure schedule
   (`src/lib/notifications/reminderSchedule.ts`) built on the Due policy, in
