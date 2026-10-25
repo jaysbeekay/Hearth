@@ -1,6 +1,6 @@
 import { Fragment } from "react";
 import Link from "next/link";
-import { AlertCircle, Ban, Car, FileText, BellOff, Inbox } from "lucide-react";
+import { AlertCircle, Ban, Car, FileText, BellOff, Home, Inbox } from "lucide-react";
 import { setContractStatus } from "@/lib/actions/contracts";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { ExpiryBadge } from "@/components/ExpiryBadge";
@@ -15,11 +15,13 @@ const KIND_ICON: Record<AttentionItem["kind"], React.ComponentType<{ size?: numb
   contract: FileText,
   warranty: FileText,
   vehicle: Car,
+  property: Home,
   system: BellOff,
 };
 
 // Everything in the household that needs acting on, split into what's Due
-// (a date coming up or passed, soonest first) and Housekeeping (records to
+// (a Due entry inside its due-soon window or overdue, most pressing first)
+// and Housekeeping (records to
 // tidy and setup gaps) so a deadline is never buried under tidying (#357).
 export function NeedsAttentionQueue({
   due,
@@ -36,7 +38,7 @@ export function NeedsAttentionQueue({
         </h3>
         {due.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted">
-            Nothing due in the next 30 days.
+            Nothing due.
           </p>
         ) : (
           <AttentionList items={due} />
@@ -80,7 +82,7 @@ function AttentionList({ items }: { items: AttentionItem[] }) {
                 nothing at md, where the row is single-line anyway. */}
             <div className="basis-full md:hidden" aria-hidden />
 
-            {item.days != null && <ExpiryBadge days={item.days} cancelBy={item.cancelBy} />}
+            {item.entry && <ExpiryBadge entry={item.entry} />}
             {item.noDocument && (
               <span className="inline-flex items-center rounded-md bg-muted/10 px-2.5 py-1 text-xs font-medium text-muted">
                 No document

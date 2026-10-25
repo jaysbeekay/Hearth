@@ -31,7 +31,7 @@ import { parseThresholds } from "@/lib/notifications/thresholds";
 /** A calendar day as `YYYY-MM-DD`. */
 export type CalendarDay = string;
 
-type DateInput = Date | string | null | undefined;
+export type DateInput = Date | string | null | undefined;
 
 export type DueState = "later" | "due-soon" | "overdue" | "ended" | "lapsed" | "needs-new-end-date";
 
@@ -157,6 +157,14 @@ function toDay(value: DateInput): CalendarDay | null {
   }
   if (TIMESTAMP_PATTERN.test(value)) return dayOf(new Date(value).getTime());
   return null;
+}
+
+/**
+ * The calendar day of a stored date, under the input contract above (a
+ * date's day is its UTC date), or null when it isn't one.
+ */
+export function calendarDayOf(value: DateInput): CalendarDay | null {
+  return toDay(value);
 }
 
 function dayNumber(day: CalendarDay): number {

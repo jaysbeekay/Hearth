@@ -9,6 +9,7 @@ import { ListFilterChips } from "@/components/ListFilterChips";
 import { VehicleCard } from "@/components/VehicleCard";
 import { PendingRecordCard } from "@/components/PendingRecordCard";
 import type { VehicleModel } from "@/generated/prisma/models";
+import type { DueContext } from "@/lib/duePolicy";
 import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
@@ -28,11 +29,13 @@ interface Props {
   filters: ListFilters;
   /** #395 — household-wide, from the server; never recounted here. */
   counts: ListFilterCounts;
+  /** #384 — the household's today and default thresholds, for each card's Due pills. */
+  due: DueContext;
   dateFormat?: string;
   canWrite?: boolean;
 }
 
-export function VehicleListClient({ vehicles, filters, counts, dateFormat, canWrite = true }: Props) {
+export function VehicleListClient({ vehicles, filters, counts, due, dateFormat, canWrite = true }: Props) {
   const online = useOnlineStatus();
   const router = useRouter();
   const { pendingOps, refresh: refreshPending } = usePendingCreates("vehicle");
@@ -133,6 +136,7 @@ export function VehicleListClient({ vehicles, filters, counts, dateFormat, canWr
             <VehicleCard
               key={vehicle.id}
               vehicle={vehicle}
+              due={due}
               dateFormat={dateFormat}
               missing={filters.missingDetails ? vehicleMissingParts(vehicle) : undefined}
             />

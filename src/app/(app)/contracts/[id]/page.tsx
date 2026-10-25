@@ -31,7 +31,9 @@ import {
   formatDate,
 } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
-import { contractTiming } from "@/lib/contractTiming";
+import { getDueContext } from "@/lib/appSettings";
+import { addDays, calendarDayOf, noticeApplies } from "@/lib/duePolicy";
+import { contractDue, headlineEntry } from "@/lib/dueRecords";
 import { getHouseholdMemberCount } from "@/lib/household";
 
 export default async function ContractDetailPage({
@@ -43,7 +45,7 @@ export default async function ContractDetailPage({
 }) {
   const { id } = await params;
   const { docFallback } = await searchParams;
-  const [contract, { dateFormat, region }, memberCount] = await Promise.all([
+  const [contract, { dateFormat, region }, memberCount, due] = await Promise.all([
     prisma.contract.findUnique({
       where: { id },
       include: {
@@ -57,6 +59,7 @@ export default async function ContractDetailPage({
     }),
     getUserPreferences(),
     getHouseholdMemberCount(),
+    getDueContext(),
   ]);
   if (!contract || contract.deletedAt) notFound();
 
@@ -64,11 +67,15 @@ export default async function ContractDetailPage({
     ? await getPendingExtractionReview("CONTRACT", contract.id)
     : [];
 
-  // #351 — counts to the last day to give notice while that's ahead.
-  const timing = contractTiming(contract);
-  const days = timing.days;
-  const cancelByLabel = timing.beforeCancelBy ? formatDate(timing.cancelBy, dateFormat) : undefined;
+  // #384 — the badge and banner show the Due policy's entry: the notice
+  // deadline while it's ahead (#351), then the end date.
+  const dueEntries = contractDue(contract, due);
+  const entry = headlineEntry(dueEntries);
+  // The notice deadline as a date, for the Notice period field.
+  const endDay = calendarDayOf(contract.endDate);
+  const noticeDeadline = endDay && noticeApplies(contract) ? addDays(endDay, -(contract.noticePeriodDays ?? 0)) : null;
   const cancelled = contract.status === "CANCELLED";
+  const fixedTerm = contract.renewalType === "FIXED_TERM";
   const boundUpload = addDocumentAction.bind(null, "CONTRACT", contract.id);
   const statusAction = setContractStatus.bind(null, contract.id, cancelled ? "ACTIVE" : "CANCELLED");
   const statusLabel = cancelled ? "Mark as active" : "Mark as cancelled";
@@ -102,7 +109,7 @@ export default async function ContractDetailPage({
           <p className="text-muted">{contract.provider}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <ExpiryBadge days={days} cancelled={cancelled} cancelBy={timing.beforeCancelBy} />
+          <ExpiryBadge entry={entry} cancelled={cancelled} />
           <Link
             href={`/contracts/${contract.id}/edit`}
             className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
@@ -143,25 +150,29 @@ export default async function ContractDetailPage({
 
       {!cancelled && (
         <DetailStatusBanner
-          days={days}
+          entries={dueEntries}
           hasDocuments={contract.documents.length > 0}
           documentsHref="#documents"
           editHref={`/contracts/${contract.id}/edit`}
-          renewLabel="Renew policy"
-          cancelBy={cancelByLabel}
+          // A fixed-term Contract is meant to end: nothing to renew, and
+          // nothing to give notice of.
+          renewLabel={fixedTerm ? undefined : "Renew policy"}
+          newEndDateMessage="Renewed automatically, so its end date has passed."
           // Expiring is exactly when "I'm not renewing this" is the other
           // likely answer, so offer it beside Renew.
           secondaryAction={
-            <ConfirmForm
-              action={statusAction}
-              confirmText={statusConfirmText}
-              actionLabel={statusLabel}
-              ariaLabel="Mark contract as cancelled"
-              className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium hover:bg-hover-surface"
-            >
-              <Ban size={14} />
-              Not renewing? Mark as cancelled
-            </ConfirmForm>
+            fixedTerm ? undefined : (
+              <ConfirmForm
+                action={statusAction}
+                confirmText={statusConfirmText}
+                actionLabel={statusLabel}
+                ariaLabel="Mark contract as cancelled"
+                className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium hover:bg-hover-surface"
+              >
+                <Ban size={14} />
+                Not renewing? Mark as cancelled
+              </ConfirmForm>
+            )
           }
           needsReview={
             contract.extractionPending && pendingReview.length === 0
@@ -189,7 +200,7 @@ export default async function ContractDetailPage({
             value={
               contract.noticePeriodDays != null
                 ? `${contract.noticePeriodDays} days${
-                    timing.cancelBy ? ` · give notice by ${formatDate(timing.cancelBy, dateFormat)}` : ""
+                    noticeDeadline ? ` · give notice by ${formatDate(noticeDeadline, dateFormat)}` : ""
                   }`
                 : "—"
             }

@@ -1,148 +1,169 @@
 import { prisma } from "@/lib/prisma";
-import { daysUntil } from "@/lib/utils";
-import { contractTiming } from "@/lib/contractTiming";
+import { calendarDayOf, type CalendarDay, type DueContext, type DueEntry } from "@/lib/duePolicy";
+import { contractDue, currentTenancy, tenancyDue, TENANCY_AGREEMENT_SELECT, vehicleDue, warrantyDue } from "@/lib/dueRecords";
+import { dayStart } from "@/lib/listDue";
+
+export type CalendarKind =
+  | "contract"
+  | "warranty"
+  | "vehicle"
+  | "serviceRecord"
+  | "trip"
+  | "maintenanceRecord"
+  | "tenancy";
 
 export interface CalendarEvent {
   id: string;
-  date: Date;
-  endDate?: Date;
+  date: CalendarDay;
+  endDate?: CalendarDay;
   title: string;
   subtitle?: string;
   href: string;
-  kind: "contract" | "product" | "trip" | "homeItem" | "vehicleExpiry" | "vehicleItem";
-  urgency: "overdue" | "soon" | "ok";
-  // #288 — the raw day count backing `urgency`, so the page can render a
-  // text label (ExpiryBadge's "Expired 10d ago" / "12d left") instead of
-  // urgency being conveyed by the row's ring colour alone (WCAG 1.4.1).
-  daysUntilDate: number | null;
+  kind: CalendarKind;
+  /**
+   * #384 — the Due entry behind the event, whose state and label its badge
+   * shows. Absent for Trips and for Service and Maintenance records, which
+   * are never Due (records of finished work have no state, #402).
+   */
+  entry?: DueEntry;
 }
 
-function urgencyFor(days: number | null): "overdue" | "soon" | "ok" {
-  if (days == null) return "ok";
-  if (days < 0) return "overdue";
-  if (days <= 30) return "soon";
-  return "ok";
+/** The record-type tag Upcoming shows, in the glossary's nouns. */
+export function calendarKindLabel(kind: CalendarKind): string {
+  switch (kind) {
+    case "contract":
+      return "Contract";
+    case "warranty":
+      return "Warranty";
+    case "vehicle":
+      return "Vehicle";
+    case "serviceRecord":
+      return "Service record";
+    case "trip":
+      return "Trip";
+    case "maintenanceRecord":
+      return "Maintenance record";
+    case "tenancy":
+      return "Tenancy";
+  }
 }
 
-// Household-wide: the calendar shows everything the household tracks, not
-// just the rows the viewing user happened to create. Filtering these by
-// `createdById` gave each member a different, silently incomplete calendar.
+// The date's name only: the badge beside it says what's happening ("Rego
+// due 8 Nov"), from the Due policy.
+const VEHICLE_TITLES = new Map<string, string>([
+  ["regoExpiry", "Rego"],
+  ["insuranceExpiry", "Insurance"],
+  ["nextServiceDue", "Service"],
+]);
+
+/**
+ * Upcoming (#402): the household's dated things from `ctx.today` to
+ * `until`, inclusive. No history: anything Overdue is in Needs attention
+ * instead, and a Trip shows while any of it is still ahead.
+ *
+ * Household-wide: Upcoming shows everything the household tracks, not just
+ * the rows the viewing user happened to create. Filtering these by
+ * `createdById` gave each member a different, silently incomplete calendar.
+ */
 export async function getCalendarEvents(
   enabledModules: Set<string>,
+  ctx: DueContext,
+  until: CalendarDay,
 ): Promise<CalendarEvent[]> {
+  const from = ctx.today;
+  const inRange = (day: CalendarDay | null): day is CalendarDay => day != null && day >= from && day <= until;
+  // Rough narrowing only; the day checks below decide (ADR 0002).
+  const fromDate = dayStart(from);
   const events: CalendarEvent[] = [];
 
   const [contracts, products] = await Promise.all([
     prisma.contract.findMany({
-      where: { endDate: { not: null }, deletedAt: null },
-      select: { id: true, title: true, provider: true, endDate: true, noticePeriodDays: true, renewalType: true },
+      // Cancelled Contracts have no Due entries and leave Upcoming.
+      where: { deletedAt: null, status: { not: "CANCELLED" }, endDate: { gte: fromDate } },
+      select: {
+        id: true,
+        title: true,
+        provider: true,
+        endDate: true,
+        noticePeriodDays: true,
+        renewalType: true,
+        status: true,
+        reminderDaysBefore: true,
+      },
     }),
     prisma.product.findMany({
-      where: { warrantyEndDate: { not: null }, deletedAt: null },
-      select: { id: true, description: true, manufacturer: true, warrantyEndDate: true },
+      where: { deletedAt: null, warrantyEndDate: { gte: fromDate } },
+      select: { id: true, description: true, manufacturer: true, warrantyEndDate: true, reminderDaysBefore: true },
     }),
   ]);
 
   for (const c of contracts) {
-    if (!c.endDate) continue;
-    const days = daysUntil(c.endDate);
-    events.push({
-      id: `contract-${c.id}`,
-      date: c.endDate,
-      title: c.title,
-      subtitle: c.provider,
-      href: `/contracts/${c.id}`,
-      kind: "contract",
-      urgency: urgencyFor(days),
-      daysUntilDate: days,
-    });
-
-    // #351 — the last day to give notice is the date to act on. Shown while
-    // it's ahead; once passed, the end date above is what's left.
-    const timing = contractTiming(c);
-    if (timing.cancelBy && timing.beforeCancelBy) {
+    const href = `/contracts/${c.id}`;
+    const entries = contractDue(c, ctx);
+    for (const entry of entries) {
+      if (!inRange(entry.date)) continue;
       events.push({
-        id: `contract-${c.id}-notice`,
-        date: timing.cancelBy,
+        id: entry.field === "noticeDeadline" ? `contract-${c.id}-notice` : `contract-${c.id}`,
+        date: entry.date,
         title: c.title,
-        subtitle: `Last day to give notice · ${c.provider}`,
-        href: `/contracts/${c.id}`,
+        subtitle: `${entry.field === "noticeDeadline" ? "Last day to give notice" : "End date"} · ${c.provider}`,
+        href,
         kind: "contract",
-        urgency: urgencyFor(timing.cancelByDays),
-        daysUntilDate: timing.cancelByDays,
+        entry,
       });
+    }
+    // While the notice deadline is ahead it is the Contract's Due entry, but
+    // its end date is still on the timeline, so it shows without a badge.
+    const end = calendarDayOf(c.endDate);
+    if (entries.every((e) => e.field !== "endDate") && inRange(end)) {
+      events.push({ id: `contract-${c.id}`, date: end, title: c.title, subtitle: `End date · ${c.provider}`, href, kind: "contract" });
     }
   }
 
   for (const p of products) {
-    if (!p.warrantyEndDate) continue;
-    const days = daysUntil(p.warrantyEndDate);
-    events.push({
-      id: `product-${p.id}`,
-      date: p.warrantyEndDate,
-      title: p.description,
-      subtitle: p.manufacturer ?? undefined,
-      href: `/products/${p.id}`,
-      kind: "product",
-      urgency: urgencyFor(days),
-      daysUntilDate: days,
-    });
+    for (const entry of warrantyDue(p, ctx)) {
+      if (!inRange(entry.date)) continue;
+      events.push({
+        id: `product-${p.id}`,
+        date: entry.date,
+        title: p.description,
+        subtitle: p.manufacturer ?? undefined,
+        href: `/products/${p.id}`,
+        kind: "warranty",
+        entry,
+      });
+    }
   }
 
   if (enabledModules.has("VEHICLES")) {
     const vehicles = await prisma.vehicle.findMany({
       where: { deletedAt: null },
-      include: { items: { where: { date: { not: null } }, select: { id: true, title: true, date: true, type: true, vehicleId: true } } },
+      include: {
+        items: { where: { deletedAt: null, date: { gte: fromDate } }, select: { id: true, title: true, date: true } },
+      },
     });
     for (const v of vehicles) {
-      if (v.regoExpiry) {
-        const days = daysUntil(v.regoExpiry);
+      for (const entry of vehicleDue(v, ctx)) {
+        if (!inRange(entry.date)) continue;
         events.push({
-          id: `rego-${v.id}`,
-          date: v.regoExpiry,
-          title: `${v.label} — Rego expires`,
+          id: `${entry.field}-${v.id}`,
+          date: entry.date,
+          title: `${v.label} — ${VEHICLE_TITLES.get(entry.field) ?? entry.field}`,
           href: `/vehicles/${v.id}`,
-          kind: "vehicleExpiry",
-          urgency: urgencyFor(days),
-          daysUntilDate: days,
-        });
-      }
-      if (v.insuranceExpiry) {
-        const days = daysUntil(v.insuranceExpiry);
-        events.push({
-          id: `insurance-${v.id}`,
-          date: v.insuranceExpiry,
-          title: `${v.label} — Insurance expires`,
-          href: `/vehicles/${v.id}`,
-          kind: "vehicleExpiry",
-          urgency: urgencyFor(days),
-          daysUntilDate: days,
-        });
-      }
-      if (v.nextServiceDue) {
-        const days = daysUntil(v.nextServiceDue);
-        events.push({
-          id: `service-${v.id}`,
-          date: v.nextServiceDue,
-          title: `${v.label} — Service due`,
-          href: `/vehicles/${v.id}`,
-          kind: "vehicleExpiry",
-          urgency: urgencyFor(days),
-          daysUntilDate: days,
+          kind: "vehicle",
+          entry,
         });
       }
       for (const item of v.items) {
-        if (!item.date) continue;
-        const days = daysUntil(item.date);
+        const day = calendarDayOf(item.date);
+        if (!inRange(day)) continue;
         events.push({
           id: `vehicleitem-${item.id}`,
-          date: item.date,
+          date: day,
           title: item.title,
           subtitle: v.label,
           href: `/vehicles/${v.id}`,
-          kind: "vehicleItem",
-          urgency: urgencyFor(days),
-          daysUntilDate: days,
+          kind: "serviceRecord",
         });
       }
     }
@@ -154,42 +175,68 @@ export async function getCalendarEvents(
       include: { trip: { select: { id: true, title: true } } },
     });
     for (const s of segments) {
-      if (!s.startDate) continue;
-      const days = daysUntil(s.startDate);
+      const start = calendarDayOf(s.startDate);
+      const end = calendarDayOf(s.endDate) ?? start;
+      // A Trip segment shows while any of it is still ahead: a stay that
+      // began last week and ends tomorrow is upcoming, one that ended isn't.
+      if (!start || !end || start > until || end < from) continue;
       events.push({
         id: `segment-${s.id}`,
-        date: s.startDate,
-        endDate: s.endDate ?? undefined,
+        date: start < from ? from : start,
+        endDate: end,
         title: s.title,
         subtitle: s.trip.title,
         href: `/travel/${s.trip.id}`,
         kind: "trip",
-        urgency: urgencyFor(days),
-        daysUntilDate: days,
       });
     }
   }
 
   if (enabledModules.has("HOME")) {
-    const homeItems = await prisma.homeItem.findMany({
-      where: { date: { not: null }, property: { deletedAt: null } },
-      include: { property: { select: { id: true, label: true } } },
-    });
+    const [homeItems, properties] = await Promise.all([
+      prisma.homeItem.findMany({
+        where: { deletedAt: null, date: { gte: fromDate }, property: { deletedAt: null } },
+        include: { property: { select: { id: true, label: true } } },
+      }),
+      prisma.property.findMany({
+        where: { deletedAt: null, isRented: true },
+        select: {
+          id: true,
+          label: true,
+          isRented: true,
+          rentalAgreements: { select: TENANCY_AGREEMENT_SELECT },
+        },
+      }),
+    ]);
     for (const item of homeItems) {
-      if (!item.date) continue;
-      const days = daysUntil(item.date);
+      const day = calendarDayOf(item.date);
+      if (!inRange(day)) continue;
       events.push({
         id: `homeitem-${item.id}`,
-        date: item.date,
+        date: day,
         title: item.title,
         subtitle: item.property.label,
         href: `/home/${item.property.id}`,
-        kind: "homeItem",
-        urgency: urgencyFor(days),
-        daysUntilDate: days,
+        kind: "maintenanceRecord",
       });
+    }
+    for (const property of properties) {
+      const tenancy = currentTenancy(property);
+      if (!tenancy) continue;
+      for (const entry of tenancyDue(tenancy, ctx)) {
+        if (!inRange(entry.date)) continue;
+        events.push({
+          id: `lease-${tenancy.id}`,
+          date: entry.date,
+          title: `${property.label} — Lease end`,
+          subtitle: tenancy.tenantName ?? undefined,
+          href: `/home/${property.id}/rental`,
+          kind: "tenancy",
+          entry,
+        });
+      }
     }
   }
 
-  return events.sort((a, b) => a.date.getTime() - b.date.getTime());
+  return events.sort((a, b) => a.date.localeCompare(b.date));
 }

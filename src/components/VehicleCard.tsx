@@ -1,34 +1,33 @@
 import Link from "next/link";
 import type { VehicleModel } from "@/generated/prisma/models";
-import { daysUntil, formatDate } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
+import { isDue } from "@/lib/duePolicy";
+import { vehicleDue, type DueContext, type DueEntry } from "@/lib/dueRecords";
 
-function ExpiryWarning({ label, date }: { label: string; date: Date | null | undefined }) {
-  if (!date) return null;
-  const days = daysUntil(date);
-  if (days == null || days > 30) return null;
-  const text =
-    days < 0
-      ? `${label} expired`
-      : days === 0
-        ? `${label} expires today`
-        : `${label} in ${days}d`;
+// #384 — one pill per Due entry (rego, insurance, service), each with its
+// own state and label from the Due policy: danger once overdue, warning
+// while due soon.
+function DuePill({ entry }: { entry: DueEntry }) {
   return (
     <span
       className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-        days < 0 ? "bg-danger/10 text-danger" : "bg-warning/10 text-warning"
+        entry.state === "overdue" ? "bg-danger/10 text-danger" : "bg-warning/10 text-warning"
       }`}
     >
-      {text}
+      {entry.label}
     </span>
   );
 }
 
 export function VehicleCard({
   vehicle,
+  due,
   dateFormat,
   missing,
 }: {
   vehicle: VehicleModel & { _count?: { items: number; contracts?: number } };
+  /** #384 — the household's today and default thresholds, for the Due policy. */
+  due: DueContext;
   dateFormat?: string;
   /** #395 — which key details are missing, shown when the list is filtered to them. */
   missing?: string[];
@@ -36,6 +35,7 @@ export function VehicleCard({
   const subtitle = [vehicle.make, vehicle.model, vehicle.year, vehicle.licensePlate]
     .filter(Boolean)
     .join(" · ");
+  const dueNow = vehicleDue(vehicle, due).filter(isDue);
 
   return (
     <Link
@@ -49,9 +49,9 @@ export function VehicleCard({
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-2">
-          <ExpiryWarning label="Rego" date={vehicle.regoExpiry} />
-          <ExpiryWarning label="Insurance" date={vehicle.insuranceExpiry} />
-          <ExpiryWarning label="Service" date={vehicle.nextServiceDue} />
+          {dueNow.map((entry) => (
+            <DuePill key={entry.field} entry={entry} />
+          ))}
         </div>
 
         {vehicle._count != null && (

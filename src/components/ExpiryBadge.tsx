@@ -1,41 +1,35 @@
-import { cn, expiryLabel } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { dueTone, type DueEntry, type DueTone } from "@/lib/dueRecords";
 
+const TONE_CLASS = new Map<DueTone, string>([
+  ["danger", "bg-danger/10 text-danger"],
+  ["warning", "bg-warning/10 text-warning"],
+  ["success", "bg-success/10 text-success"],
+  ["neutral", "bg-muted/10 text-muted"],
+]);
+
+// #384 — renders a Due entry's state and label, both from the Due policy
+// (ADR 0002). It decides nothing itself.
 export function ExpiryBadge({
-  days,
+  entry,
   cancelled,
-  cancelBy,
+  empty = "No end date",
 }: {
-  days: number | null;
+  entry: DueEntry | null;
+  /** A Cancelled Contract has no Due entries; it reads "Cancelled". */
   cancelled?: boolean;
-  /** #351 — `days` counts to the last day to give notice, not the end date. */
-  cancelBy?: boolean;
+  /** What a record with no dated entry reads, such as "No end date". */
+  empty?: string;
 }) {
-  const tone = cancelled
-    ? "bg-muted/10 text-muted"
-    : days == null
-      ? "bg-muted/10 text-muted"
-      : days < 0
-        ? "bg-danger/10 text-danger"
-        : days <= 7
-          ? "bg-danger/10 text-danger"
-          : days <= 30
-            ? "bg-warning/10 text-warning"
-            : "bg-success/10 text-success";
-
+  const tone = cancelled || !entry ? "neutral" : dueTone(entry.state);
   return (
     <span
       className={cn(
         "inline-flex shrink-0 items-center whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-medium",
-        tone,
+        TONE_CLASS.get(tone),
       )}
     >
-      {cancelled
-        ? "Cancelled"
-        : cancelBy && days != null && days >= 0
-          ? days === 0
-            ? "Notice due today"
-            : `${days}d to give notice`
-          : expiryLabel(days)}
+      {cancelled ? "Cancelled" : (entry?.label ?? empty)}
     </span>
   );
 }

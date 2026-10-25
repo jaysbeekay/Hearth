@@ -119,6 +119,11 @@ export function formatDistance(km: number, region: string = DEFAULT_REGION): str
   return `${Math.round(km).toLocaleString(region)} km / ${Math.round(miles).toLocaleString(region)} mi`;
 }
 
+/**
+ * Server-local day count. Only the MCP server and the Assistant still use
+ * it, until #394 moves them onto the Due policy; every screen asks the
+ * policy (duePolicy.ts, ADR 0002), which counts in the household's day.
+ */
 export function daysUntil(date: Date | string | null | undefined): number | null {
   if (!date) return null;
   const target = typeof date === "string" ? new Date(date) : date;
@@ -126,13 +131,6 @@ export function daysUntil(date: Date | string | null | undefined): number | null
   const startOfTarget = Date.UTC(target.getFullYear(), target.getMonth(), target.getDate());
   const startOfNow = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
   return Math.round((startOfTarget - startOfNow) / 86_400_000);
-}
-
-export function expiryLabel(days: number | null): string {
-  if (days == null) return "No end date";
-  if (days < 0) return `Expired ${Math.abs(days)}d ago`;
-  if (days === 0) return "Expires today";
-  return `${days}d left`;
 }
 
 export const CATEGORY_LABELS: Record<string, string> = {

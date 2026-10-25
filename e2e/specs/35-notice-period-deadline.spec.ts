@@ -6,6 +6,9 @@ import { ADMIN_AUTH_FILE } from "../env";
 
 test.use({ storageState: ADMIN_AUTH_FILE });
 
+/** A Due policy label such as "Cancel by 4 Nov" or "Ends 3 Dec 2027". */
+const DAY_LABEL = (verb: string) => new RegExp(`^${verb} \\d{1,2} [A-Z][a-z]{2}( \\d{4})?$`);
+
 function isoInDays(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() + days);
@@ -23,8 +26,9 @@ test("an auto-renewing contract with a notice period counts down to the notice d
   await page.locator("main button[type=submit]").click();
   await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
 
-  await expect(page.getByText("10d to give notice")).toBeVisible();
-  await expect(page.getByText(/Give notice by .+ — 10 days left\./)).toBeVisible();
+  // #384 — the badge and banner show the Due policy's label for the notice deadline.
+  await expect(page.getByText(DAY_LABEL("Cancel by"))).toBeVisible();
+  await expect(page.getByText(/^Cancel by .+ — 10 days left\.$/)).toBeVisible();
   await expect(page.getByText(/30 days · give notice by /)).toBeVisible();
 
   await page.goto("/contracts?due=soon");
@@ -44,6 +48,6 @@ test("a fixed-term contract ignores its notice period", async ({ page }) => {
   await page.locator("main button[type=submit]").click();
   await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
 
-  await expect(page.getByText("40d left")).toBeVisible();
+  await expect(page.getByText(DAY_LABEL("Ends"))).toBeVisible();
   await expect(page.getByText(/give notice/i)).toHaveCount(0);
 });

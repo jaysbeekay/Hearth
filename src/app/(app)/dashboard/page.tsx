@@ -5,18 +5,21 @@ import { prisma } from "@/lib/prisma";
 import { TripCard } from "@/components/TripCard";
 import { AddEntryPicker } from "@/components/AddEntryPicker";
 import { OnboardingChecklist } from "@/components/OnboardingChecklist";
-import { daysUntil, monthlyEquivalent, formatCurrency } from "@/lib/utils";
+import { monthlyEquivalent, formatCurrency } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { refreshFxRates, getFxRateMap, convertAmount } from "@/lib/fx";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { auth } from "@/lib/auth";
-import { isSmtpConfigured, isNtfyConfigured, getHouseholdToday, getReminderConfig } from "@/lib/appSettings";
+import { isSmtpConfigured, isNtfyConfigured, getDueContext } from "@/lib/appSettings";
+import { addDays, calendarDayOf } from "@/lib/duePolicy";
+import { currentTenancy, TENANCY_AGREEMENT_SELECT } from "@/lib/dueRecords";
 import { getCurrentReminderFailures } from "@/lib/notifications/logs";
 import { getDocumentStats } from "@/lib/documents/stats";
 import {
   buildContractAttentionItems,
   buildWarrantyAttentionItems,
   buildVehicleAttentionItems,
+  buildTenancyAttentionItems,
   buildReminderNudgeItem,
   buildExtractionReviewItems,
   buildReminderFailureItems,
@@ -41,7 +44,7 @@ export default async function DashboardPage() {
       isNtfyConfigured(),
     ]);
 
-  const [contracts, products, vehicles, trips, memberCount, documentStats] =
+  const [contracts, products, vehicles, trips, properties, memberCount, documentStats, due] =
     await Promise.all([
       prisma.contract.findMany({
         where: { deletedAt: null },
@@ -63,21 +66,34 @@ export default async function DashboardPage() {
             include: { _count: { select: { segments: true } } },
           })
         : [],
+      enabledModules.has("HOME")
+        ? prisma.property.findMany({
+            where: { deletedAt: null, isRented: true },
+            select: {
+              id: true,
+              label: true,
+              isRented: true,
+              rentalAgreements: { select: TENANCY_AGREEMENT_SELECT },
+            },
+          })
+        : [],
       prisma.user.count(),
       getDocumentStats(enabledModules),
+      // The household's today and default thresholds: every Due row below
+      // comes from the Due policy with these (ADR 0002).
+      getDueContext(),
     ]);
 
   // #387 — the Reminder log is keyed by date, so a failure for a date that
   // has since moved or passed is history, as is one a later send replaced;
   // only current ones need attention.
-  const [today, { defaultDays }] = await Promise.all([getHouseholdToday(), getReminderConfig()]);
   const currentFailedReminderLogs = await getCurrentReminderFailures(
     {
       CONTRACT: new Map(contracts.map((c) => [c.id, { kind: "contract" as const, ...c }])),
       PRODUCT: new Map(products.map((p) => [p.id, { kind: "warranty" as const, ...p }])),
       VEHICLE: new Map(vehicles.map((v) => [v.id, { kind: "vehicle" as const, ...v }])),
     },
-    { today, defaultReminderDays: defaultDays },
+    due,
   );
 
   const active = contracts.filter((c) => c.status === "ACTIVE");
@@ -115,11 +131,18 @@ export default async function DashboardPage() {
 
   // #356/#357 — the dashboard leads with what needs doing: dated items
   // (Due) first, then records to tidy (Housekeeping), each with its next
-  // action already decided (#170). Cancelled contracts are excluded via `active`.
-  const { due, housekeeping } = groupAttentionItems([
-    ...buildContractAttentionItems(active),
-    ...buildWarrantyAttentionItems(products),
-    ...(enabledModules.has("VEHICLES") ? buildVehicleAttentionItems(vehicles) : []),
+  // action already decided (#170). Cancelled Contracts have no Due entries.
+  const tenancies = properties.flatMap((property) => {
+    const tenancy = currentTenancy(property);
+    return tenancy
+      ? [{ propertyId: property.id, propertyLabel: property.label, agreementId: tenancy.id, tenantName: tenancy.tenantName, leaseEnd: tenancy.leaseEnd }]
+      : [];
+  });
+  const attention = groupAttentionItems([
+    ...buildContractAttentionItems(contracts, due),
+    ...buildWarrantyAttentionItems(products, due),
+    ...(enabledModules.has("VEHICLES") ? buildVehicleAttentionItems(vehicles, due) : []),
+    ...buildTenancyAttentionItems(tenancies, due),
     ...buildReminderFailureItems(currentFailedReminderLogs, contracts, products, vehicles),
     ...buildExtractionReviewItems(contracts, products),
     ...buildInboxItem(documentStats.inboxCount),
@@ -129,9 +152,11 @@ export default async function DashboardPage() {
       : []),
   ]);
 
+  // Trips are never Due: this is the next 30 days of the household's calendar.
+  const tripsUntil = addDays(due.today, 30);
   const upcomingTrips = trips.filter((t) => {
-    const days = daysUntil(t.startDate);
-    return days != null && days >= 0 && days <= 30;
+    const start = calendarDayOf(t.startDate);
+    return start != null && start >= due.today && start <= tripsUntil;
   });
 
   const isEmpty = contracts.length === 0 && products.length === 0;
@@ -190,7 +215,7 @@ export default async function DashboardPage() {
 
       <section className="space-y-3">
         <h2 className="text-xl font-semibold">Needs attention</h2>
-        <NeedsAttentionQueue due={due} housekeeping={housekeeping} />
+        <NeedsAttentionQueue due={attention.due} housekeeping={attention.housekeeping} />
       </section>
 
       {enabledModules.has("TRAVEL") && upcomingTrips.length > 0 && (

@@ -20,13 +20,15 @@ import {
   type ListFilters,
   type ToggleableFilter,
 } from "@/lib/recordFilters";
+import type { DueContext } from "@/lib/duePolicy";
 import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
 
 const CHIPS: { chip: ToggleableFilter; label: string; onlyWhenActive?: boolean }[] = [
   { chip: "dueSoon", label: "Expiring soon" },
-  { chip: "overdue", label: "Expired" },
+  // A Warranty past its end date is Lapsed, not Expired (GLOSSARY.md).
+  { chip: "lapsed", label: "Lapsed" },
   { chip: "review", label: "Needs review" },
   { chip: "noDocument", label: "No document" },
   { chip: "missingDetails", label: "Missing key details" },
@@ -39,6 +41,8 @@ interface Props {
   inventoryEnabled?: boolean;
   /** #395 — household-wide, from the server; never recounted here. */
   counts: ListFilterCounts;
+  /** #384 — the household's today and default thresholds, for each card's Due badge. */
+  due: DueContext;
   filters: ListFilters;
   q?: string;
   dateFormat?: string;
@@ -51,6 +55,7 @@ export function ProductListClient({
   inventoryItems = [],
   inventoryEnabled = true,
   counts,
+  due,
   filters,
   q,
   dateFormat,
@@ -88,7 +93,7 @@ export function ProductListClient({
 
   const summary = [
     {
-      label: "expiring within 30 days",
+      label: "expiring soon",
       value: counts.dueSoon ?? 0,
       tone: "warning" as const,
       onClick: () => {
@@ -96,11 +101,10 @@ export function ProductListClient({
       },
     },
     {
-      label: "expired",
-      value: counts.overdue ?? 0,
-      tone: "danger" as const,
+      label: "lapsed",
+      value: counts.lapsed ?? 0,
       onClick: () => {
-        toggleFilter("overdue");
+        toggleFilter("lapsed");
       },
     },
     {
@@ -236,6 +240,7 @@ export function ProductListClient({
             <ProductCard
               key={product.id}
               product={product}
+              due={due}
               dateFormat={dateFormat}
               region={region}
               missing={filters.missingDetails ? productMissingParts(product) : undefined}

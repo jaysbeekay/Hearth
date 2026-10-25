@@ -28,6 +28,9 @@ import {
 } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { getHouseholdMemberCount } from "@/lib/household";
+import { getDueContext } from "@/lib/appSettings";
+import { currentTenancy, tenancyDue, TENANCY_AGREEMENT_SELECT } from "@/lib/dueRecords";
+import { DetailStatusBanner } from "@/components/DetailStatusBanner";
 
 const ITEM_ICONS: Record<string, LucideIcon> = {
   MAINTENANCE: Wrench,
@@ -50,7 +53,7 @@ export default async function PropertyDetailPage({
   await requireModuleEnabled("HOME");
 
   const { id } = await params;
-  const [property, { dateFormat, preferredCurrency, region }, linkedContracts, linkedProducts, memberCount] =
+  const [property, { dateFormat, preferredCurrency, region }, linkedContracts, linkedProducts, memberCount, due] =
     await Promise.all([
       prisma.property.findUnique({
         where: { id },
@@ -62,14 +65,20 @@ export default async function PropertyDetailPage({
             include: { documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" } } },
           },
           valuations: { orderBy: { valuedAt: "desc" } },
+          rentalAgreements: { select: TENANCY_AGREEMENT_SELECT },
         },
       }),
       getUserPreferences(),
       prisma.contract.findMany({ where: { propertyId: id, deletedAt: null }, orderBy: { title: "asc" } }),
       prisma.product.findMany({ where: { propertyId: id, deletedAt: null }, orderBy: { description: "asc" } }),
       getHouseholdMemberCount(),
+      getDueContext(),
     ]);
   if (!property || property.deletedAt) notFound();
+
+  // #384 — the current Tenancy's lease end, from the Due policy: Due
+  // before it passes, then Housekeeping until the new lease end is set.
+  const tenancy = currentTenancy(property);
 
   const latestValuation = property.valuations[0] ?? null;
   const valuationStale = !latestValuation || isValuationStale(latestValuation.valuedAt);
@@ -122,6 +131,18 @@ export default async function PropertyDetailPage({
           </DetailOverflowMenu>
         </div>
       </div>
+
+      {tenancy && (
+        <DetailStatusBanner
+          entries={tenancyDue(tenancy, due)}
+          hasDocuments
+          documentsHref={`/home/${property.id}/rental`}
+          editHref={`/home/${property.id}/rental/agreements/${tenancy.id}/edit`}
+          renewLabel="Update lease"
+          newEndDateLabel="Set the new lease end"
+          newEndDateMessage="Lease ended."
+        />
+      )}
 
       {property.lat != null && property.lng != null && (
         <PropertyMap
@@ -251,10 +272,10 @@ export default async function PropertyDetailPage({
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
             {linkedContracts.map((contract) => (
-              <ContractCard key={contract.id} contract={contract} dateFormat={dateFormat} region={region} />
+              <ContractCard key={contract.id} contract={contract} due={due} dateFormat={dateFormat} region={region} />
             ))}
             {linkedProducts.map((product) => (
-              <ProductCard key={product.id} product={product} dateFormat={dateFormat} region={region} />
+              <ProductCard key={product.id} product={product} due={due} dateFormat={dateFormat} region={region} />
             ))}
           </div>
         )}

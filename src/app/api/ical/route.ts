@@ -3,7 +3,9 @@ import ical from "ical-generator";
 import { prisma } from "@/lib/prisma";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { env } from "@/lib/env";
-import { contractTiming } from "@/lib/contractTiming";
+import { addDays, calendarDayOf, noticeApplies } from "@/lib/duePolicy";
+import { dayStart } from "@/lib/listDue";
+import { currentTenancy, TENANCY_AGREEMENT_SELECT } from "@/lib/dueRecords";
 import { hashToken } from "@/lib/crypto";
 
 export async function GET(request: NextRequest) {
@@ -29,16 +31,19 @@ export async function GET(request: NextRequest) {
 
   const calendar = ical({ name: "Hearth", timezone: "UTC" });
 
-  // Contracts
+  // Contracts. A feed keeps past dates (calendar apps show history), but
+  // Cancelled Contracts leave it, as they leave Upcoming (#384).
   const contracts = await prisma.contract.findMany({
-    where: { endDate: { not: null }, deletedAt: null },
+    where: { endDate: { not: null }, deletedAt: null, status: { not: "CANCELLED" } },
     select: { id: true, title: true, provider: true, endDate: true, noticePeriodDays: true, renewalType: true },
   });
   for (const c of contracts) {
-    if (!c.endDate) continue;
-    // #351 — the last day to give notice, alongside the end date.
-    const { cancelBy } = contractTiming(c);
-    if (cancelBy) {
+    const end = calendarDayOf(c.endDate);
+    if (!end) continue;
+    // #351 — the last day to give notice, alongside the end date, by the
+    // Due policy's notice rule.
+    if (noticeApplies(c)) {
+      const cancelBy = dayStart(addDays(end, -(c.noticePeriodDays ?? 0)));
       calendar.createEvent({
         id: `contract-${c.id}-notice`,
         start: cancelBy,
@@ -49,12 +54,15 @@ export async function GET(request: NextRequest) {
         url: `${appUrl}/contracts/${c.id}`,
       });
     }
+    // Only a manual-renewal Contract expires: a fixed-term one ends and an
+    // auto-renewing one renews (GLOSSARY.md).
+    const verb = c.renewalType === "AUTO_RENEW" ? "renews" : c.renewalType === "FIXED_TERM" ? "ends" : "expires";
     calendar.createEvent({
       id: `contract-${c.id}`,
-      start: c.endDate,
-      end: new Date(c.endDate.getTime() + 86_400_000),
+      start: dayStart(end),
+      end: new Date(dayStart(end).getTime() + 86_400_000),
       allDay: true,
-      summary: `${c.title} (expires)`,
+      summary: `${c.title} (${verb})`,
       description: c.provider,
       url: `${appUrl}/contracts/${c.id}`,
     });
@@ -72,7 +80,7 @@ export async function GET(request: NextRequest) {
       start: p.warrantyEndDate,
       end: new Date(p.warrantyEndDate.getTime() + 86_400_000),
       allDay: true,
-      summary: `${p.description} warranty expires`,
+      summary: `${p.description} warranty ends`,
       description: p.manufacturer ?? undefined,
       url: `${appUrl}/products/${p.id}`,
     });
@@ -121,7 +129,7 @@ export async function GET(request: NextRequest) {
   // Travel segments
   if (enabledModules.has("TRAVEL")) {
     const segments = await prisma.tripSegment.findMany({
-      where: { startDate: { not: null } },
+      where: { startDate: { not: null }, trip: { deletedAt: null } },
       include: { trip: { select: { id: true, title: true } } },
     });
     for (const s of segments) {
@@ -140,7 +148,7 @@ export async function GET(request: NextRequest) {
   // Home items
   if (enabledModules.has("HOME")) {
     const homeItems = await prisma.homeItem.findMany({
-      where: { date: { not: null } },
+      where: { date: { not: null }, deletedAt: null, property: { deletedAt: null } },
       include: { property: { select: { id: true, label: true } } },
     });
     for (const item of homeItems) {
@@ -152,6 +160,28 @@ export async function GET(request: NextRequest) {
         allDay: true,
         summary: `${item.title} (${item.property.label})`,
         url: `${appUrl}/home/${item.property.id}`,
+      });
+    }
+
+    // A Tenancy's lease end, as on Upcoming: only the current Tenancy of a
+    // Property with rental tracking on (#384). The UID is the agreement's,
+    // so moving the lease end updates the event instead of adding one.
+    const rentedProperties = await prisma.property.findMany({
+      where: { deletedAt: null, isRented: true },
+      select: { id: true, label: true, isRented: true, rentalAgreements: { select: TENANCY_AGREEMENT_SELECT } },
+    });
+    for (const property of rentedProperties) {
+      const tenancy = currentTenancy(property);
+      const leaseEnd = calendarDayOf(tenancy?.leaseEnd);
+      if (!tenancy || !leaseEnd) continue;
+      calendar.createEvent({
+        id: `lease-${tenancy.id}`,
+        start: dayStart(leaseEnd),
+        end: new Date(dayStart(leaseEnd).getTime() + 86_400_000),
+        allDay: true,
+        summary: `${property.label} lease ends`,
+        description: tenancy.tenantName ?? undefined,
+        url: `${appUrl}/home/${property.id}/rental`,
       });
     }
   }

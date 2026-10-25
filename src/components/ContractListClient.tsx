@@ -15,6 +15,7 @@ import { ListFilterChips, ListFilterHiddenInputs } from "@/components/ListFilter
 import { deleteContract, restoreContract } from "@/lib/actions/contracts";
 import type { ContractModel } from "@/generated/prisma/models";
 import { CATEGORY_LABELS } from "@/lib/utils";
+import type { DueContext } from "@/lib/duePolicy";
 import {
   contractMissingParts,
   hasListFilters,
@@ -43,6 +44,8 @@ interface Props {
   contracts: ContractModel[];
   /** #395 — household-wide, from the server; never recounted here. */
   counts: ListFilterCounts;
+  /** #384 — the household's today and default thresholds, for each card's Due badge. */
+  due: DueContext;
   filters: ListFilters;
   q?: string;
   category?: string;
@@ -55,6 +58,7 @@ interface Props {
 export function ContractListClient({
   contracts,
   counts,
+  due,
   filters,
   q,
   category,
@@ -99,7 +103,7 @@ export function ContractListClient({
   const filtered = Boolean(q || category || status || hasListFilters(filters));
   const summary = [
     {
-      label: "expiring within 30 days",
+      label: "expiring soon",
       value: counts.dueSoon ?? 0,
       tone: "warning" as const,
       onClick: () => {
@@ -307,6 +311,7 @@ export function ContractListClient({
               >
                 <ContractCard
                   contract={contract}
+                  due={due}
                   dateFormat={dateFormat}
                   region={region}
                   missing={filters.missingDetails ? contractMissingParts(contract) : undefined}
@@ -316,6 +321,7 @@ export function ContractListClient({
               <ContractCard
                 key={contract.id}
                 contract={contract}
+                due={due}
                 dateFormat={dateFormat}
                 region={region}
                 missing={filters.missingDetails ? contractMissingParts(contract) : undefined}

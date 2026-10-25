@@ -1,10 +1,11 @@
 // #395 — Search's "Expiring soon" / overdue filters use the same Contract
-// Due filter as the Contracts list (src/lib/listDue.ts), so a notice
+// Due filter as the Contracts list (src/lib/listDue.ts, on the Due policy), so a notice
 // deadline counts, and Cancelled Contracts stay out.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { setupTestDb, createTestUser } from "../helpers/testDb";
 import { contractDueFilter } from "@/lib/listDue";
+import { getDueContext } from "@/lib/appSettings";
 
 vi.mock("@/lib/auth", () => ({ auth: vi.fn(async () => ({ user: { id: "test-user" } })) }));
 
@@ -44,7 +45,7 @@ describe("Search Due filters match the Contracts list", () => {
   });
 
   async function listTitles(due: "soon" | "overdue") {
-    const f = contractDueFilter(due);
+    const f = contractDueFilter(due, await getDueContext());
     const rows = await db.prisma.contract.findMany({ where: f.where });
     return rows.filter(f.matches).map((r) => r.title).sort();
   }

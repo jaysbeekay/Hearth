@@ -1,21 +1,25 @@
 import Link from "next/link";
 import type { ProductModel } from "@/generated/prisma/models";
 import { ExpiryBadge } from "@/components/ExpiryBadge";
-import { daysUntil, formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
+import { headlineEntry, warrantyDue, type DueContext } from "@/lib/dueRecords";
 
 export function ProductCard({
   product,
+  due,
   dateFormat,
   region,
   missing,
 }: {
   product: ProductModel & { _count?: { documents: number } };
+  /** #384 — the household's today and default thresholds, for the Due policy. */
+  due: DueContext;
   dateFormat?: string;
   region?: string;
   /** #395 — which key details are missing, shown when the list is filtered to them. */
   missing?: string[];
 }) {
-  const days = daysUntil(product.warrantyEndDate);
+  const entry = headlineEntry(warrantyDue(product, due));
 
   return (
     <Link
@@ -32,7 +36,7 @@ export function ProductCard({
             <p className="truncate text-sm text-muted">S/N: {product.serialNumber}</p>
           )}
         </div>
-        <ExpiryBadge days={days} />
+        <ExpiryBadge entry={entry} empty="No warranty end date" />
       </div>
 
       <div className="mt-3 flex items-center justify-between text-sm text-muted">

@@ -19,6 +19,7 @@ import {
   vehicleMissingParts,
   vehicleRules,
   type RecordRule,
+  warrantyLapsedRedirect,
 } from "@/lib/recordFilters";
 import { contractDueFilter } from "@/lib/listDue";
 
@@ -133,11 +134,11 @@ describe("Contract rules", () => {
   });
 });
 
-describe("Contract Due filter (stand-in until #384)", () => {
+describe("Contract Due filter (the Due policy, #384)", () => {
   it("leaves Cancelled Contracts out", async () => {
-    const now = new Date();
-    const inTen = new Date(now.getTime() + 10 * 86_400_000);
-    const tenAgo = new Date(now.getTime() - 10 * 86_400_000);
+    const ctx = { today: "2026-10-25", defaultReminderDays: "30,14,7,1" };
+    const inTen = new Date("2026-11-04T00:00:00Z");
+    const tenAgo = new Date("2026-10-15T00:00:00Z");
     await contract("soon", { endDate: inTen });
     await contract("soon, cancelled", { endDate: inTen, status: "CANCELLED" });
     await contract("overdue", { endDate: tenAgo });
@@ -145,7 +146,7 @@ describe("Contract Due filter (stand-in until #384)", () => {
     await contract("far", { endDate: END });
 
     for (const [due, expected] of [["soon", ["soon"]], ["overdue", ["overdue"]]] as const) {
-      const f = contractDueFilter(due, now);
+      const f = contractDueFilter(due, ctx);
       const rows = await db.prisma.contract.findMany({ where: f.where });
       expect(rows.filter(f.matches).map((r) => r.title)).toEqual(expected);
       const all = await db.prisma.contract.findMany();
@@ -256,7 +257,7 @@ describe("old URLs map onto the new ones", () => {
   });
 
   it("accepts a Next.js searchParams object", () => {
-    expect(legacyListRedirect("/products", { expired: "true", q: ["a", "b"] })).toBe("/products?q=a&q=b&due=overdue");
+    expect(legacyListRedirect("/products", { expired: "true", q: ["a", "b"] })).toBe("/products?q=a&q=b&due=lapsed");
   });
 
   it.each([
@@ -271,5 +272,22 @@ describe("old URLs map onto the new ones", () => {
     ["missing=details", { missingDetails: true }],
   ])("Search ?%s", (query, expected) => {
     expect(parseSearchFilters(new URLSearchParams(query))).toEqual(expected);
+  });
+});
+
+describe("?due=lapsed (#384)", () => {
+  it("is its own URL word, sharing ?due= with the Due chips", () => {
+    expect(parseListFilters(new URLSearchParams("due=lapsed"))).toEqual({ due: "lapsed" });
+    expect(toggleListFilter({ due: "soon" }, "lapsed")).toEqual({ due: "lapsed" });
+    expect(toggleListFilter({ due: "lapsed" }, "lapsed")).toEqual({ due: undefined });
+    expect(isChipActive({ due: "lapsed" }, "lapsed")).toBe(true);
+    expect(isChipActive({ due: "lapsed" }, "overdue")).toBe(false);
+  });
+
+  it("old Warranties links to the Lapsed chip land on ?due=lapsed", () => {
+    expect(warrantyLapsedRedirect(new URLSearchParams("q=tv&due=overdue"))).toBe("/products?q=tv&due=lapsed");
+    expect(warrantyLapsedRedirect(new URLSearchParams("due=soon"))).toBeNull();
+    expect(legacyListRedirect("/products", { expired: "true" })).toBe("/products?due=lapsed");
+    expect(legacyListRedirect("/contracts", { expired: "true" })).toBe("/contracts?due=overdue");
   });
 });

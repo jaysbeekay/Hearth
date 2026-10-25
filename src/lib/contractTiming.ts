@@ -9,8 +9,9 @@
 // its notice period (if any) is ignored.
 //
 // The Due policy (duePolicy.ts, #383) now owns the Due rules, including the
-// notice rule below; callers move onto it in #384, after which this goes.
-// Until then this keeps its current server-local day counts.
+// notice rule below, and every screen asks it (#384). Only the MCP server
+// and the Assistant still call this; #394 moves them onto the policy, after
+// which this goes. Until then it keeps its server-local day counts.
 
 import { noticeApplies } from "@/lib/duePolicy";
 
