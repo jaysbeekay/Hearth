@@ -215,7 +215,7 @@ export function ContractForm({
 
       <fieldset className="space-y-4 rounded-lg border border-border p-4">
         <legend className="px-1 text-sm font-medium text-muted">
-          Contract / policy details
+          Contract details
         </legend>
         <div className="grid gap-4 md:grid-cols-2">
           <Field label="Title" htmlFor="title" required>
@@ -260,7 +260,7 @@ export function ContractForm({
             />
           </Field>
 
-          <Field label="Contract / policy number" htmlFor="contractNumber">
+          <Field label="Contract number" htmlFor="contractNumber">
             <input
               ref={contractNumberRef}
               id="contractNumber"
@@ -345,7 +345,7 @@ export function ContractForm({
             htmlFor="billingFrequency"
             hint={
               costMissingFrequency
-                ? "This cost won't count toward the dashboard's Est. monthly spend until a frequency is set."
+                ? "This cost won't count toward the dashboard's monthly total or Spending until a billing frequency is set."
                 : undefined
             }
           >
@@ -449,7 +449,7 @@ export function ContractForm({
       </Field>
 
       <Field
-        label="Remind me before expiry (days, comma-separated)"
+        label="Reminder thresholds (days before, comma-separated)"
         htmlFor="reminderDaysBefore"
       >
         <input

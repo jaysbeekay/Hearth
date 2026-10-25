@@ -23,6 +23,7 @@ import { vehicleDue } from "@/lib/dueRecords";
 import { DetailStatusBanner } from "@/components/DetailStatusBanner";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
+import { BackLink } from "@/components/BackLink";
 
 const ITEM_ICONS: Record<string, LucideIcon> = {
   SERVICE: Wrench,
@@ -81,9 +82,7 @@ export default async function VehicleDetailPage({
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <Link href="/vehicles" className="text-sm text-muted hover:text-foreground">
-          ← Back to vehicles
-        </Link>
+        <BackLink href="/vehicles" label="Vehicles" />
       </div>
 
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -104,7 +103,7 @@ export default async function VehicleDetailPage({
                 <ConfirmForm
                   action={deleteVehicle.bind(null, vehicle.id)}
                   undo={{ action: restoreVehicle.bind(null, vehicle.id), href: `/vehicles/${vehicle.id}` }}
-                  confirmText="Move this vehicle to Trash? Its records and documents are kept, and you can restore it within 30 days from Settings → Trash."
+                  confirmText="Move this vehicle to Trash? Its service records and documents are kept, and you can restore it within 30 days from Settings → Trash."
                   actionLabel="Delete vehicle"
                   className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
                   offline={{ entity: "vehicle", entityId: vehicle.id, label: `Delete vehicle: ${vehicle.label}` }}
@@ -134,7 +133,7 @@ export default async function VehicleDetailPage({
           {vehicle.model && <Detail label="Model" value={vehicle.model} />}
           {vehicle.year && <Detail label="Year" value={String(vehicle.year)} />}
           {vehicle.licensePlate && (
-            <Detail label="License plate" value={vehicle.licensePlate} copyable />
+            <Detail label="Licence plate" value={vehicle.licensePlate} copyable />
           )}
           {vehicle.regoExpiry && (
             <Detail label="Rego expiry" value={formatDate(vehicle.regoExpiry, dateFormat)} />
@@ -183,7 +182,7 @@ export default async function VehicleDetailPage({
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="font-medium">Contracts &amp; warranties linked to this vehicle</h2>
+          <h2 className="font-medium">Contracts and warranties linked to this vehicle</h2>
           {canWrite && (
             <Link
               href={`/contracts/new?vehicleId=${vehicle.id}`}
@@ -209,21 +208,21 @@ export default async function VehicleDetailPage({
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="font-medium">Service &amp; records</h2>
+          <h2 className="font-medium">Service records</h2>
           {canWrite && (
             <Link
               href={`/vehicles/${vehicle.id}/items/new`}
               className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
             >
               <Plus size={16} />
-              Add record
+              Add service record
             </Link>
           )}
         </div>
 
         {items.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
-            No records yet. Add a service, repair, or registration record to start tracking.
+            No service records yet. Add a service, repair or roadworthy to start tracking.
           </p>
         ) : (
           <div className="space-y-3">

@@ -33,14 +33,14 @@ type ProductClient = Pick<Prisma.TransactionClient, "product">;
 
 async function findProduct(id: string, client: ProductClient = prisma) {
   const product = await client.product.findUnique({ where: { id } });
-  if (!product) throw new RecordNotFoundError("Product");
+  if (!product) throw new RecordNotFoundError("Warranty");
   return product;
 }
 
 // For writes to a Product: one in Trash counts as not found.
 async function findLiveProduct(id: string, client: ProductClient = prisma) {
   const product = await findProduct(id, client);
-  if (product.deletedAt) throw new RecordNotFoundError("Product");
+  if (product.deletedAt) throw new RecordNotFoundError("Warranty");
   return product;
 }
 

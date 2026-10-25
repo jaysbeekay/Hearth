@@ -86,7 +86,7 @@ export function TravelListClient({ trips, dateFormat, canWrite = true, distanceS
             </dl>
           )}
           <p className="mt-2 text-xs text-muted">
-            Computed from flight segments with a known route — configure AviationStack (Settings → System
+            Computed from flight segments with a known route — configure AviationStack (Settings → Household &amp; System → System
             settings) to auto-fill distances for new flights.
           </p>
         </div>

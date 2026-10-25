@@ -3,9 +3,9 @@ import { ADMIN_AUTH_FILE } from "../env";
 
 test.use({ storageState: ADMIN_AUTH_FILE });
 
-// #332 supersedes #174: nav/headings now read "Policies & contracts" /
-// "Purchases & warranties" instead of the bare "Contracts"/"Warranties".
-// Global Search still recognizes the old generic words (and the new ones)
+// #332 renamed the nav to "Policies & contracts" / "Purchases & warranties";
+// #362 brought back "Contracts" / "Warranties". Global Search still
+// recognises the older generic words ("policy", "purchase"…) and the current ones
 // as meaning "show me that whole section" — not just literal field matches.
 test("Global Search's old-term aliases surface every contract/product of that type, not just literal field matches", async ({
   page,

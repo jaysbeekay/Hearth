@@ -62,7 +62,7 @@ test("the Contracts document feed paginates instead of loading every row at once
 
   await olderLink.click();
   await expect(page).toHaveURL(/page=1/);
-  await expect(page.getByRole("link", { name: "← Newer" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Newer" })).toBeVisible();
   // Fewer than a full page left, and no further "Older" link.
   const rowsOnPage2 = await page.locator("table tbody tr").count();
   expect(rowsOnPage2).toBeGreaterThan(0);

@@ -13,7 +13,7 @@ const OPEN_EVENT = "hearth:open-search";
 // clears any other, since they express mutually-relevant "what am I looking
 // for" states rather than a combinable checklist.
 const SEARCH_FILTERS: { value: ToggleableFilter; label: string }[] = [
-  { value: "dueSoon", label: "Expiring soon" },
+  { value: "dueSoon", label: "Due soon" },
   { value: "review", label: "Needs review" },
   { value: "noDocument", label: "No document attached" },
   { value: "important", label: "Important" },
@@ -171,7 +171,7 @@ export function GlobalSearch() {
                 }
               }
             }}
-            placeholder="Search contracts, products, documents…"
+            placeholder="Search Contracts, Warranties, Documents…"
             className="w-full bg-transparent text-sm outline-none placeholder:text-muted"
           />
           <button

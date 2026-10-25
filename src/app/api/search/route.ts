@@ -55,12 +55,12 @@ function missingSubtitle(parts: string[]): string | undefined {
   return parts.length > 0 ? parts.join(" · ") : undefined;
 }
 
-// #332 — nav/headings now use task-oriented aliases ("Policies &
-// contracts", "Purchases & warranties") instead of the bare "Contracts"/
-// "Warranties" #174 originally picked. A query consisting of just the old
-// (or new) generic category word finds every record of that type, not only
-// ones whose title/provider/description happens to literally contain the
-// word — matching what a user typing that word almost certainly means.
+// #332/#362 — the nav said "Policies & contracts" / "Purchases &
+// warranties" for a while and now says "Contracts" / "Warranties" again.
+// A query consisting of just one of those generic category words, old or
+// new, finds every record of that type, not only ones whose
+// title/provider/description happens to literally contain the word —
+// matching what a user typing that word almost certainly means.
 const CONTRACT_ALIASES = new Set(["contract", "contracts", "policy", "policies"]);
 const PRODUCT_ALIASES = new Set(["warranty", "warranties", "purchase", "purchases"]);
 

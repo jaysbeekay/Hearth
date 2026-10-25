@@ -18,8 +18,10 @@ import { BACKUP_DESTINATION_LABELS } from "@/lib/backupDestination";
 import { BackupNowForm } from "@/components/BackupNowForm";
 import { formatDate, humanFileSize } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
+import { BackLink } from "@/components/BackLink";
+import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
 
-export const metadata: Metadata = { title: "Backups" };
+export const metadata: Metadata = { title: SETTINGS_ROUTES.backups.label };
 
 export default async function BackupsPage() {
   const session = await auth();
@@ -55,7 +57,8 @@ export default async function BackupsPage() {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <h1 className="text-2xl font-semibold">Database backups</h1>
+      <BackLink {...settingsBackLink(SETTINGS_ROUTES.backups)} />
+      <h1 className="text-2xl font-semibold">{SETTINGS_ROUTES.backups.label}</h1>
 
       <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <h2 className="mb-3 font-medium">Status</h2>

@@ -37,7 +37,7 @@ export function RentalAgreementForm({
   const offlineAwareAction = makeOfflineAwareAction(
     action,
     () => ({
-      label: agreement ? "Update rental agreement" : "Add rental agreement",
+      label: agreement ? "Update tenancy" : "Add tenancy",
       entity: "rentalAgreement",
       operation: agreement ? "update" : "create",
       entityId: agreement?.id,
@@ -95,12 +95,12 @@ export function RentalAgreementForm({
         <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
           <p className="flex items-center gap-2 text-sm font-medium">
             <Upload size={16} />
-            Save time: upload the lease agreement and Hearth fills in the details
+            Save time: upload the tenancy agreement and Hearth fills in the details
           </p>
           <FileDropZone name="leaseFile" onFileSelected={handleFileChange} />
           {scanning && (
             <p role="status" aria-live="polite" className="text-sm text-muted">
-              Scanning lease document…
+              Scanning tenancy agreement…
             </p>
           )}
           {!scanning && scanMessage && (
@@ -209,7 +209,7 @@ export function RentalAgreementForm({
       <FormMessage error={state?.error} success={state?.success} />
 
       <div className="flex justify-end gap-3">
-        <SubmitButton>{agreement ? "Save changes" : "Add agreement"}</SubmitButton>
+        <SubmitButton>{agreement ? "Save changes" : "Add tenancy"}</SubmitButton>
       </div>
     </form>
   );

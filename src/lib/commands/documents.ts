@@ -106,7 +106,7 @@ const KINDS: Record<OwnedDocumentKind, KindConfig> = {
   },
   PRODUCT: {
     ownerField: "productId",
-    ownerLabel: "Product",
+    ownerLabel: "Warranty",
     delegate: () => prisma.productDocument,
     loadOwner: async (id) => {
       const p = await prisma.product.findUnique({ where: { id }, select: { deletedAt: true } });
@@ -157,7 +157,7 @@ const KINDS: Record<OwnedDocumentKind, KindConfig> = {
   },
   HOME_ITEM: {
     ownerField: "homeItemId",
-    ownerLabel: "Item",
+    ownerLabel: "Maintenance record",
     delegate: () => prisma.homeItemDocument,
     loadOwner: async (id) => {
       const i = await prisma.homeItem.findUnique({
@@ -169,7 +169,7 @@ const KINDS: Record<OwnedDocumentKind, KindConfig> = {
   },
   VEHICLE_ITEM: {
     ownerField: "vehicleItemId",
-    ownerLabel: "Item",
+    ownerLabel: "Service record",
     delegate: () => prisma.vehicleItemDocument,
     loadOwner: async (id) => {
       const i = await prisma.vehicleItem.findUnique({

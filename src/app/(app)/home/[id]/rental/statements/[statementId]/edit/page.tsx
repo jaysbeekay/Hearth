@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
@@ -6,6 +5,7 @@ import { updateRentalStatement } from "@/lib/actions/home";
 import { RentalStatementForm } from "@/components/RentalStatementForm";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
+import { BackLink } from "@/components/BackLink";
 
 export default async function EditRentalStatementPage({
   params,
@@ -27,12 +27,7 @@ export default async function EditRentalStatementPage({
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <Link
-          href={`/home/${property.id}/rental`}
-          className="text-sm text-muted hover:text-foreground"
-        >
-          ← Back to rental overview
-        </Link>
+        <BackLink href={`/home/${property.id}/rental`} label="Tenancy" />
       </div>
 
       <div>

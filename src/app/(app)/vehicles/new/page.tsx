@@ -11,7 +11,7 @@ export default async function NewVehiclePage() {
 
   return (
     <div className="max-w-3xl space-y-6">
-      <BackLink href="/vehicles" label="Back to vehicles" />
+      <BackLink href="/vehicles" label="Vehicles" />
       <div>
         <h1 className="text-2xl font-semibold">Add a vehicle</h1>
         <p className="text-sm text-muted">

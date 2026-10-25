@@ -56,7 +56,7 @@ function firstIssueMessage(error: { issues: { message: string }[] }) {
 // Turns a command's not-found / stale-edit error into the ActionState the
 // caller shows; anything else is unexpected and rethrown.
 function commandError(error: unknown): { error: string } {
-  if (error instanceof RecordNotFoundError) return { error: "Product not found." };
+  if (error instanceof RecordNotFoundError) return { error: "Warranty not found." };
   if (error instanceof StaleEditError || error instanceof RecordValidationError) return { error: error.message };
   throw error;
 }

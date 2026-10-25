@@ -206,7 +206,7 @@ export function VehicleItemForm({
       <FormMessage error={state?.error} success={state?.success} />
 
       <div className="flex justify-end gap-3">
-        <SubmitButton>{item ? "Save changes" : "Add record"}</SubmitButton>
+        <SubmitButton>{item ? "Save changes" : "Add service record"}</SubmitButton>
       </div>
     </form>
   );

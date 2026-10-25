@@ -16,6 +16,7 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import { getHouseholdMemberCount } from "@/lib/household";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
+import { BackLink } from "@/components/BackLink";
 
 export const metadata: Metadata = { title: "Inventory Item" };
 
@@ -57,9 +58,7 @@ export default async function InventoryItemPage({
   return (
     <div className="max-w-2xl space-y-6">
       <div>
-        <Link href="/inventory" className="text-sm text-muted hover:text-foreground">
-          ← Back to inventory
-        </Link>
+        <BackLink href="/inventory" label="Inventory" />
       </div>
 
       <div className="flex flex-wrap items-start justify-between gap-4">

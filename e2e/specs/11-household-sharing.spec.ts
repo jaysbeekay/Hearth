@@ -71,7 +71,7 @@ test.describe("household-wide sharing", () => {
     // also remove it, subject only to the READONLY role.
     await page.getByRole("button", { name: "More actions" }).click();
     await page.getByRole("button", { name: /Delete/ }).click();
-    await page.getByRole("button", { name: "Delete item" }).click();
+    await page.getByRole("button", { name: "Move to Trash" }).click();
 
     await page.waitForURL(/\/inventory$/);
     await expect(page.locator("body")).not.toContainText("Member-edited Drill");

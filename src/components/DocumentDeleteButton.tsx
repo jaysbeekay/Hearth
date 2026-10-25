@@ -28,16 +28,14 @@ export function DocumentDeleteButton({
         action={deleteDocumentAction.bind(null, kind, documentId, ownerId)}
         undo={{ action: restoreDocumentAction.bind(null, kind, documentId) }}
         confirmText={`Move ${filename} to Trash? You can restore it within 30 days from Settings → Trash.`}
-        actionLabel="Delete document"
-        ariaLabel={`Delete ${filename}`}
-        successMessage="Document moved to Trash."
+        ariaLabel={`Move ${filename} to Trash`}
         className={className}
         offline={{
           entity: "document",
           kind,
           entityId: documentId,
           parentId: ownerId,
-          label: `Delete document: ${filename}`,
+          label: `Move to Trash: ${filename}`,
         }}
       >
         <Trash2 size={iconSize} />

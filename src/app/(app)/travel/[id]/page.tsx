@@ -20,6 +20,7 @@ import { computeSegmentDistance } from "@/lib/integrations/flightDistance";
 import { FlightRefreshForm } from "@/components/FlightRefreshForm";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
+import { BackLink } from "@/components/BackLink";
 
 const SEGMENT_ICONS: Record<string, LucideIcon> = {
   FLIGHT: Plane,
@@ -104,9 +105,7 @@ export default async function TripDetailPage({
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <Link href="/travel" className="text-sm text-muted hover:text-foreground">
-          ← Back to travel
-        </Link>
+        <BackLink href="/travel" label="Travel" />
       </div>
 
       <div className="flex flex-wrap items-start justify-between gap-4">

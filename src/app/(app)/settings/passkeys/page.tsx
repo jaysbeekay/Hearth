@@ -5,8 +5,10 @@ import { prisma } from "@/lib/prisma";
 import { PasskeyItem } from "@/components/PasskeyItem";
 import { PasskeyRegisterButton } from "@/components/PasskeyRegisterButton";
 import { getUserPreferences } from "@/lib/userPreferences";
+import { BackLink } from "@/components/BackLink";
+import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
 
-export const metadata: Metadata = { title: "Passkeys" };
+export const metadata: Metadata = { title: SETTINGS_ROUTES.passkeys.label };
 
 export default async function PasskeysPage() {
   const session = await auth();
@@ -25,8 +27,9 @@ export default async function PasskeysPage() {
 
   return (
     <div className="max-w-2xl space-y-6">
+      <BackLink {...settingsBackLink(SETTINGS_ROUTES.passkeys)} />
       <div>
-        <h1 className="text-2xl font-semibold">Passkeys</h1>
+        <h1 className="text-2xl font-semibold">{SETTINGS_ROUTES.passkeys.label}</h1>
         <p className="mt-1 text-sm text-muted">
           Sign in with Face ID, Touch ID, or a hardware security key instead of your password.
           Passkeys are per-device — register one on each device you want to use. Your password

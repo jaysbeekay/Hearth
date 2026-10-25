@@ -1,9 +1,13 @@
+import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { InventoryListClient } from "@/components/InventoryListClient";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
+import { MODULE_REGISTRY } from "@/lib/modules/registry";
+
+export const metadata: Metadata = { title: MODULE_REGISTRY.INVENTORY.label };
 
 export default async function InventoryPage() {
   await requireModuleEnabled("INVENTORY");

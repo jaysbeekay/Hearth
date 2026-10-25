@@ -26,7 +26,7 @@ import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
 
 const CHIPS: { chip: ToggleableFilter; label: string; onlyWhenActive?: boolean }[] = [
-  { chip: "dueSoon", label: "Expiring soon" },
+  { chip: "dueSoon", label: "Due soon" },
   // A Warranty past its end date is Lapsed, not Expired (GLOSSARY.md).
   { chip: "lapsed", label: "Lapsed" },
   { chip: "review", label: "Needs review" },
@@ -93,7 +93,7 @@ export function ProductListClient({
 
   const summary = [
     {
-      label: "expiring soon",
+      label: "due soon",
       value: counts.dueSoon ?? 0,
       tone: "warning" as const,
       onClick: () => {
@@ -121,7 +121,7 @@ export function ProductListClient({
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Purchases & warranties</h1>
+        <h1 className="text-2xl font-semibold">Warranties</h1>
         <div className="flex items-center gap-2">
           <details className="relative">
             <summary className={toolbarButtonClass}>
@@ -203,7 +203,7 @@ export function ProductListClient({
             <PendingRecordCard
               key={op.id}
               op={op}
-              title={op.formValues?.description || "Untitled product"}
+              title={op.formValues?.description || "Untitled warranty"}
               subtitle={op.formValues?.manufacturer}
               editHref={`/products/new?pendingOpId=${op.id}`}
               onDeleted={refreshPending}

@@ -11,7 +11,7 @@ export default async function NewTripPage() {
 
   return (
     <div className="max-w-3xl space-y-6">
-      <BackLink href="/travel" label="Back to travel" />
+      <BackLink href="/travel" label="Travel" />
       <div>
         <h1 className="text-2xl font-semibold">Add a trip</h1>
         <p className="text-sm text-muted">

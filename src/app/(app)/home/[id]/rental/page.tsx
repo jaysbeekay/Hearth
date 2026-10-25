@@ -19,6 +19,7 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
+import { BackLink } from "@/components/BackLink";
 
 function reconcile(
   periodStart: Date | null,
@@ -102,28 +103,23 @@ export default async function RentalOverviewPage({
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <Link
-          href={`/home/${property.id}`}
-          className="text-sm text-muted hover:text-foreground"
-        >
-          ← Back to property
-        </Link>
+        <BackLink href={`/home/${property.id}`} label={property.label} />
       </div>
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm text-muted">{property.label}</p>
-          <h1 className="text-2xl font-semibold">Rental tracking</h1>
+          <h1 className="text-2xl font-semibold">Tenancy</h1>
         </div>
         {canWrite && property.isRented && (
             <>
               <ConfirmForm
                 action={setPropertyRented.bind(null, property.id, false)}
-                confirmText="Disable rental tracking for this property? Agreements and statements will be kept."
-                actionLabel="Disable rental tracking"
+                confirmText="Stop tracking a tenancy for this property? Past tenancies and statements will be kept."
+                actionLabel="Stop tracking tenancy"
                 className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-muted hover:bg-hover"
               >
-                Disable rental tracking
+                Stop tracking tenancy
               </ConfirmForm>
             </>
         )}
@@ -132,7 +128,7 @@ export default async function RentalOverviewPage({
       {!property.isRented && agreements.length === 0 && (
         <div className="rounded-xl border border-dashed border-border p-10 text-center">
           <p className="text-sm text-muted">
-            This property isn&apos;t set up for rental tracking yet.
+            This property has no tenancy yet.
           </p>
           {canWrite && (
             <Link
@@ -140,7 +136,7 @@ export default async function RentalOverviewPage({
               className="mt-4 inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
             >
               <Plus size={16} />
-              Add first rental agreement
+              Add tenancy
             </Link>
           )}
         </div>
@@ -150,20 +146,20 @@ export default async function RentalOverviewPage({
       {(property.isRented || agreements.length > 0) && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="font-medium">Rental agreements</h2>
+            <h2 className="font-medium">Tenancies</h2>
             {canWrite && (
               <Link
                 href={`/home/${property.id}/rental/agreements/new`}
                 className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
               >
                 <Plus size={16} />
-                New agreement
+                New tenancy
               </Link>
             )}
           </div>
 
           {agreements.length === 0 ? (
-            <p className="text-sm text-muted">No rental agreements recorded yet.</p>
+            <p className="text-sm text-muted">No tenancies recorded yet.</p>
           ) : (
             <div className="space-y-3">
               {agreements.map((ag, i) => (
@@ -202,8 +198,8 @@ export default async function RentalOverviewPage({
                           </Link>
                           <ConfirmForm
                             action={deleteRentalAgreement.bind(null, property.id, ag.id)}
-                            confirmText="Delete this rental agreement? Statements are not affected."
-                            actionLabel="Delete agreement"
+                            confirmText="Delete this tenancy? Statements are not affected."
+                            actionLabel="Delete tenancy"
                             className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
                           >
                             <Trash2 size={16} />

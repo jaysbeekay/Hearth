@@ -182,7 +182,7 @@ export function VehicleForm({
           />
         </Field>
 
-        <Field label="Reminder days before" htmlFor="reminderDaysBefore">
+        <Field label="Reminder thresholds (days before, comma-separated)" htmlFor="reminderDaysBefore">
           <input
             id="reminderDaysBefore"
             name="reminderDaysBefore"

@@ -26,14 +26,14 @@ export function AddEntryPicker({ enabledModules }: { enabledModules: string[] })
       icon: Files,
     },
     {
-      label: "A bill or subscription",
-      description: "Ongoing agreements — leases, subscriptions, insurance.",
+      label: "A contract",
+      description: "Something with a term or a recurring cost, such as insurance, a phone plan or a lease.",
       href: "/contracts/new",
       icon: FileText,
     },
     {
-      label: "Something under warranty",
-      description: "A single purchased item, tracked by its warranty date.",
+      label: "A warranty",
+      description: "Something you bought, tracked by its warranty end date.",
       href: "/products/new",
       icon: Package,
     },

@@ -5,6 +5,7 @@ import { ProductForm } from "@/components/ProductForm";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
+import { BackLink } from "@/components/BackLink";
 
 export default async function EditProductPage({
   params,
@@ -27,8 +28,9 @@ export default async function EditProductPage({
 
   return (
     <div className="max-w-3xl space-y-6">
+      <BackLink href={`/products/${product.id}`} label={product.description} />
       <div>
-        <h1 className="text-2xl font-semibold">Edit product</h1>
+        <h1 className="text-2xl font-semibold">Edit warranty</h1>
         <p className="text-sm text-muted">{product.description}</p>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">

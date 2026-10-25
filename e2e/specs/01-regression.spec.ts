@@ -5,8 +5,8 @@ test.use({ storageState: ADMIN_AUTH_FILE });
 
 const PAGES: Array<[string, string[]]> = [
   ["/dashboard", ["Dashboard"]],
-  ["/contracts", ["Policies & contracts"]],
-  ["/products", ["Purchases & warranties"]],
+  ["/contracts", ["Contracts"]],
+  ["/products", ["Warranties"]],
   ["/travel", ["Travel"]],
   ["/home", ["Properties"]],
   ["/vehicles", ["Vehicles"]],
@@ -14,7 +14,7 @@ const PAGES: Array<[string, string[]]> = [
   ["/wealth", ["Wealth"]],
   ["/documents", ["Documents"]],
   ["/documents/inbox", ["Documents"]],
-  ["/spend", ["Spend"]],
+  ["/spend", ["Spending"]],
   ["/import", ["Upload"]],
   ["/calendar", ["Upcoming"]],
   ["/assistant", ["Assistant"]],
@@ -36,13 +36,13 @@ for (const [url, snippets] of PAGES) {
 test("all nav items appear together on one page", async ({ page }) => {
   await page.goto("/dashboard");
   const body = page.locator("body");
-  await expect(body).toContainText("Policies & contracts");
+  await expect(body).toContainText("Contracts");
   // #332 supersedes #174: nav, page heading and page title still all agree
   // with each other (that's what #174 actually established) — just using
   // #332's task-oriented aliases instead of the bare "Contracts"/
   // "Warranties" #174 originally picked. The /contracts, /products routes,
   // the Prisma models and the component names are unchanged.
-  await expect(body).toContainText("Purchases & warranties");
+  await expect(body).toContainText("Warranties");
   await expect(body).toContainText("Travel");
   await expect(body).toContainText("Settings");
 });

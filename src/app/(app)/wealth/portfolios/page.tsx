@@ -8,6 +8,7 @@ import { ConfirmForm } from "@/components/ConfirmForm";
 import { deletePortfolio } from "@/lib/actions/wealth";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
+import { BackLink } from "@/components/BackLink";
 
 export const metadata: Metadata = { title: "Portfolios" };
 
@@ -24,7 +25,7 @@ export default async function PortfoliosPage() {
     <div className="max-w-3xl space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <Link href="/wealth" className="text-sm text-muted hover:text-foreground">← Back to wealth</Link>
+          <BackLink href="/wealth" label="Wealth" />
           <h1 className="mt-1 text-2xl font-semibold">Portfolios</h1>
         </div>
         {canWrite && (

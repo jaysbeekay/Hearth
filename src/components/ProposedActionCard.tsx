@@ -34,7 +34,7 @@ const FIELD_LABELS: Record<string, string> = {
   contactPhone: "Contact phone",
   contactEmail: "Contact email",
   notes: "Notes",
-  reminderDaysBefore: "Reminder days",
+  reminderDaysBefore: "Reminder thresholds",
   isTaxDeductible: "Tax deductible",
   manufacturer: "Brand",
   model: "Model",

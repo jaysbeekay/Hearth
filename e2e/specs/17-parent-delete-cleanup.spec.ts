@@ -41,7 +41,7 @@ test("deleting a contract moves it to Trash without touching its files, until pe
   await page.goto(`/contracts/${contractId}`);
   await page.getByRole("button", { name: "More actions" }).click();
   await page.getByRole("button", { name: "Delete", exact: true }).click();
-  await page.getByRole("button", { name: "Delete contract", exact: true }).click();
+  await page.getByRole("button", { name: "Move to Trash", exact: true }).click();
   await page.waitForURL(/\/contracts$/);
 
   // Soft-deleted: gone from the active list, but the files are untouched.
@@ -87,7 +87,7 @@ test("deleting a product moves it to Trash without touching its files, until per
   await page.goto(`/products/${productId}`);
   await page.getByRole("button", { name: "More actions" }).click();
   await page.getByRole("button", { name: "Delete", exact: true }).click();
-  await page.getByRole("button", { name: "Delete warranty", exact: true }).click();
+  await page.getByRole("button", { name: "Move to Trash", exact: true }).click();
   await page.waitForURL(/\/products$/);
 
   await expect(page.locator("body")).not.toContainText("Delete Test Product");

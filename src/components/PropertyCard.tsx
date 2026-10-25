@@ -28,7 +28,7 @@ export function PropertyCard({
         <div className="mt-3 flex items-center justify-between text-sm text-muted">
           <span>{linkedCount} linked</span>
           <span>
-            {property._count.items} {property._count.items === 1 ? "item" : "items"}
+            {property._count.items} {property._count.items === 1 ? "maintenance record" : "maintenance records"}
           </span>
         </div>
       )}

@@ -30,6 +30,7 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import { getHouseholdMemberCount } from "@/lib/household";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
+import { BackLink } from "@/components/BackLink";
 
 export default async function ProductDetailPage({
   params,
@@ -77,15 +78,13 @@ export default async function ProductDetailPage({
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <Link href="/products" className="text-sm text-muted hover:text-foreground">
-          ← Back to products
-        </Link>
+        <BackLink href="/products" label="Warranties" />
       </div>
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm text-muted">
-            {product.manufacturer ?? product.vendor ?? "Product"}
+            {product.manufacturer ?? product.vendor ?? "Warranty"}
           </p>
           <h1 className="text-2xl font-semibold">{product.description}</h1>
           {product.vendor && <p className="text-muted">{product.vendor}</p>}
@@ -108,7 +107,7 @@ export default async function ProductDetailPage({
                   confirmText="Move this warranty to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash."
                   actionLabel="Delete warranty"
                   className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
-                  offline={{ entity: "product", entityId: product.id, label: `Delete product: ${product.description}` }}
+                  offline={{ entity: "product", entityId: product.id, label: `Delete warranty: ${product.description}` }}
                 >
                   <Trash2 size={16} />
                   Delete
@@ -183,7 +182,7 @@ export default async function ProductDetailPage({
                 <Home size={18} className="text-muted" />
                 <span>
                   <span className="block text-sm font-medium">{product.property.label}</span>
-                  <span className="block text-xs text-muted">Home or property</span>
+                  <span className="block text-xs text-muted">Property</span>
                 </span>
               </Link>
             )}

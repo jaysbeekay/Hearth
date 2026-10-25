@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
@@ -7,6 +6,7 @@ import { updateInventoryItem } from "@/lib/actions/inventory";
 import { InventoryItemForm } from "@/components/InventoryItemForm";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
+import { BackLink } from "@/components/BackLink";
 
 export const metadata: Metadata = { title: "Edit Item" };
 
@@ -36,9 +36,7 @@ export default async function EditInventoryItemPage({
   return (
     <div className="max-w-xl space-y-6">
       <div>
-        <Link href={`/inventory/${id}`} className="text-sm text-muted hover:text-foreground">
-          ← Back to item
-        </Link>
+        <BackLink href={`/inventory/${id}`} label={item.label} />
       </div>
       <h1 className="text-2xl font-semibold">Edit item</h1>
       <InventoryItemForm action={updateInventoryItem.bind(null, id)} item={item} products={products} />

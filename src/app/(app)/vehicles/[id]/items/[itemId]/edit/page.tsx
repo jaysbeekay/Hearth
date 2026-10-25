@@ -5,6 +5,7 @@ import { updateVehicleItem } from "@/lib/actions/vehicles";
 import { VehicleItemForm } from "@/components/VehicleItemForm";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
+import { BackLink } from "@/components/BackLink";
 
 export default async function EditVehicleItemPage({
   params,
@@ -25,8 +26,9 @@ export default async function EditVehicleItemPage({
 
   return (
     <div className="max-w-3xl space-y-6">
+      <BackLink href={`/vehicles/${vehicle.id}`} label={vehicle.label} />
       <div>
-        <h1 className="text-2xl font-semibold">Edit record</h1>
+        <h1 className="text-2xl font-semibold">Edit service record</h1>
         <p className="text-sm text-muted">{vehicle.label}</p>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">

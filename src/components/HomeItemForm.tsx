@@ -37,7 +37,7 @@ export function HomeItemForm({
   const offlineAwareAction = makeOfflineAwareAction(
     action,
     () => ({
-      label: item ? `Update item: ${item.title}` : "Add home item",
+      label: item ? `Update maintenance record: ${item.title}` : "Add maintenance record",
       entity: "homeItem",
       operation: item ? "update" : "create",
       entityId: item?.id,

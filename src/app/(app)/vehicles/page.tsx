@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
@@ -6,6 +7,9 @@ import { getDueContext } from "@/lib/appSettings";
 import { VehicleListClient } from "@/components/VehicleListClient";
 import { parseListFilters, vehicleFilterWheres, vehicleRules } from "@/lib/recordFilters";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
+import { MODULE_REGISTRY } from "@/lib/modules/registry";
+
+export const metadata: Metadata = { title: MODULE_REGISTRY.VEHICLES.label };
 
 export default async function VehiclesPage({
   searchParams,

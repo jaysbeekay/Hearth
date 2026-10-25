@@ -70,7 +70,7 @@ test.describe("signed in", () => {
     page,
   }) => {
     await page.goto("/products/new");
-    await expect(page.getByRole("button", { name: "Look up product info" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Look up barcode" })).toHaveCount(0);
 
     const description = `UX batch warranty ${Date.now()}`;
     await page.locator("#description").fill(description);

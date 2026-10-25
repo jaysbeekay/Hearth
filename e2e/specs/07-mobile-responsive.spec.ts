@@ -118,7 +118,7 @@ test("swiping a contract card left reveals a delete action, which still uses the
 
   await deleteBtn.click();
   await expect(page.getByText("Move this contract to Trash?")).toBeVisible();
-  await page.getByRole("button", { name: "Delete contract" }).click();
+  await page.getByRole("button", { name: "Move to Trash" }).click();
   await expect(page.getByText("Swipe Test Contract")).toHaveCount(0);
 });
 

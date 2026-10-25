@@ -87,6 +87,32 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- **One name for each thing (#362).** The nav, page headings, browser tab
+  titles, buttons, back links, Trash and Help now use the same words as
+  `GLOSSARY.md`:
+  - "Policies & contracts" is **Contracts** and "Purchases & warranties" is
+    **Warranties** again, so the mobile bottom bar labels fit on one line.
+    (Warranties becomes Items with #380.) Search still finds records by the
+    old words.
+  - The Spend page is **Spending**, Help's heading is **Help**, and the
+    Property module is **Properties** in the nav and on its page.
+  - Vehicle and property entries are **Service records** and **Maintenance
+    records**, a let-out property's page is **Tenancy**, and "Home or
+    property" is **Property**.
+  - Every back link uses one component with an arrow icon and the
+    destination's name ("Back to Warranties"), including new back links on
+    edit pages, the Settings sub-pages and Upload. "← Back to products" is
+    gone.
+  - Trash-backed deletes confirm with **Move to Trash** and say **Moved to
+    Trash** with Undo.
+  - "Expiring soon" is **Due soon**, reminder fields are **Reminder
+    thresholds**, and the contract number field is **Contract number**.
+  - en-AU spelling: Licence plate, Uncategorised, colours.
+  - Sign-in says "Forgot your password? Ask your admin." when email isn't
+    configured.
+  - Help's answers point only at pages and Settings sections that exist,
+    checked by a new unit test (`tests/unit/help-faq-labels.test.ts`).
+  - The standalone mobile shell uses the same nouns.
 - **Every screen follows the Due rules (#384).** The Contracts, Warranties
   and Vehicles lists and their cards, the "Expiring soon" and "Expired"
   filters and their counts, the dashboard's Needs attention, Search,

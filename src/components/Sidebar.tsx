@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Flame, Settings, Search, HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getNavItems } from "@/components/nav-items";
+import { getNavItems, FOOTER_NAV } from "@/components/nav-items";
 import type { ModuleKey } from "@/lib/modules/registry";
 import { SignOutButton } from "@/components/SignOutButton";
 import { openGlobalSearch } from "@/components/GlobalSearch";
@@ -116,7 +116,7 @@ export function Sidebar({
 
       <div className="border-t border-border px-3 py-3">
         <Link
-          href="/settings"
+          href={FOOTER_NAV.settings.href}
           className={cn(
             "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition",
             isActive("/settings", pathname)
@@ -125,10 +125,10 @@ export function Sidebar({
           )}
         >
           <Settings size={18} />
-          Settings
+          {FOOTER_NAV.settings.label}
         </Link>
         <Link
-          href="/help"
+          href={FOOTER_NAV.help.href}
           className={cn(
             "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition",
             isActive("/help", pathname)
@@ -137,7 +137,7 @@ export function Sidebar({
           )}
         >
           <HelpCircle size={18} />
-          Help
+          {FOOTER_NAV.help.label}
         </Link>
         <div className="mt-2 px-3">
           <p className="truncate text-sm font-medium">{userName}</p>

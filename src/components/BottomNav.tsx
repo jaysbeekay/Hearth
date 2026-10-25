@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Settings, HelpCircle, MoreHorizontal, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getNavItems } from "@/components/nav-items";
+import { getNavItems, FOOTER_NAV } from "@/components/nav-items";
 import type { ModuleKey } from "@/lib/modules/registry";
 import { Dialog } from "@/components/Dialog";
 
@@ -148,7 +148,7 @@ export function BottomNav({
                 </Link>
               ))}
               <Link
-                href="/settings"
+                href={FOOTER_NAV.settings.href}
                 className={cn(
                   "flex flex-col items-center gap-1.5 rounded-lg p-3 text-xs font-medium",
                   isActive("/settings", pathname)
@@ -157,10 +157,10 @@ export function BottomNav({
                 )}
               >
                 <Settings size={20} />
-                Settings
+                {FOOTER_NAV.settings.label}
               </Link>
               <Link
-                href="/help"
+                href={FOOTER_NAV.help.href}
                 className={cn(
                   "flex flex-col items-center gap-1.5 rounded-lg p-3 text-xs font-medium",
                   isActive("/help", pathname)
@@ -169,7 +169,7 @@ export function BottomNav({
                 )}
               >
                 <HelpCircle size={20} />
-                Help
+                {FOOTER_NAV.help.label}
               </Link>
             </div>
         </>

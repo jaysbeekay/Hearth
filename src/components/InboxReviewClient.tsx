@@ -31,19 +31,19 @@ export interface DuplicateMatch {
 }
 
 const STATUS_LABELS: Record<InboxDocumentStatus, string> = {
-  NEEDS_CLASSIFICATION: "Needs classification",
-  NEEDS_REVIEW: "Needs review",
+  NEEDS_CLASSIFICATION: "Not classified",
+  NEEDS_REVIEW: "Ready to file",
   EXTRACTION_FAILED: "Extraction failed",
   POSSIBLE_DUPLICATE: "Possible duplicate",
 };
 
 const KIND_LABELS: Record<string, string> = {
   CONTRACT: "a contract",
-  PRODUCT: "a product/warranty",
+  PRODUCT: "a warranty",
   TRIP_SEGMENT: "a trip",
   RENTAL_STATEMENT: "a rental statement",
-  HOME_ITEM: "a home item",
-  VEHICLE_ITEM: "a vehicle record",
+  HOME_ITEM: "a maintenance record",
+  VEHICLE_ITEM: "a service record",
   INVENTORY_ITEM: "an inventory item",
   TRADE: "a wealth trade",
   INBOX: "another unfiled document",
@@ -507,7 +507,7 @@ export function InboxReviewClient({
   if (remainingDocs.length === 0) {
     return (
       <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
-        Nothing needs review — every uploaded document has been filed.
+        Nothing in the Inbox.
       </p>
     );
   }
@@ -586,7 +586,7 @@ export function InboxReviewClient({
                   className="rounded-md border border-border bg-background px-2 py-1 text-xs outline-none focus:border-accent"
                 >
                   <option value="CONTRACT">Contract</option>
-                  <option value="PRODUCT">Product</option>
+                  <option value="PRODUCT">Warranty</option>
                   {inventoryEnabled && <option value="INVENTORY">Inventory item</option>}
                 </select>
                 <button

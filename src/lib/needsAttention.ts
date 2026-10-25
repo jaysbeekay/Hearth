@@ -193,7 +193,7 @@ export function buildTenancyAttentionItems(tenancies: AttentionTenancy[], ctx: D
           subtitle: tenancy.tenantName ?? undefined,
           entry,
           href,
-          action: { label: "Update lease", href: editHref },
+          action: { label: "Update tenancy", href: editHref },
         });
       }
     }
@@ -207,7 +207,7 @@ export function buildReminderNudgeItem(): AttentionItem {
     kind: "system",
     group: "housekeeping",
     title: "Reminders aren't configured",
-    subtitle: "Hearth can email or push a notification before things expire.",
+    subtitle: "Hearth can email or push a reminder before things come due.",
     href: "/settings/app",
     action: { label: "Configure reminders", href: "/settings/app" },
     badge: "Not configured",

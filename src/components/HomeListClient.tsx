@@ -74,7 +74,7 @@ export function HomeListClient({ properties, taxDeductibleSummary, region }: Pro
 
       {taxDeductibleSummary.length > 0 && (
         <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
-          <h2 className="mb-3 font-medium">Tax deductible spend by financial year</h2>
+          <h2 className="mb-3 font-medium">Tax-deductible spending by financial year</h2>
           <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
             {taxDeductibleSummary.map(({ label, amount, currency }) => (
               <div key={`${label}|${currency}`}>

@@ -10,6 +10,7 @@ import { auth } from "@/lib/auth";
 import { documentFileHref } from "@/lib/documents/kinds";
 import { LIVE_DOCUMENT_WHERE as LIVE } from "@/lib/documents/liveDocuments";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 export const metadata: Metadata = { title: "Documents" };
 
@@ -466,9 +467,10 @@ export default async function DocumentsPage({
           {page > 0 ? (
             <Link
               href={`/documents?page=${page - 1}${type ? `&type=${encodeURIComponent(type)}` : ""}${showAll ? "&view=all" : ""}`}
-              className="text-sm text-accent hover:underline"
+              className="inline-flex items-center gap-1 text-sm text-accent hover:underline"
             >
-              ← Newer
+              <ChevronLeft size={14} aria-hidden />
+              Newer
             </Link>
           ) : (
             <span />
@@ -476,9 +478,10 @@ export default async function DocumentsPage({
           {hasMore && (
             <Link
               href={`/documents?page=${page + 1}${type ? `&type=${encodeURIComponent(type)}` : ""}${showAll ? "&view=all" : ""}`}
-              className="text-sm text-accent hover:underline"
+              className="inline-flex items-center gap-1 text-sm text-accent hover:underline"
             >
-              Older →
+              Older
+              <ChevronRight size={14} aria-hidden />
             </Link>
           )}
         </div>

@@ -14,6 +14,7 @@ import type { ModuleKey } from "@/lib/modules/registry";
 import { COST_METHOD_LABELS } from "@/lib/validation/wealth";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
+import { BackLink } from "@/components/BackLink";
 
 export const metadata: Metadata = { title: "Portfolio" };
 
@@ -47,7 +48,7 @@ export default async function PortfolioPage({
   return (
     <div className="max-w-4xl space-y-6">
       <div>
-        <Link href="/wealth/portfolios" className="text-sm text-muted hover:text-foreground">← Portfolios</Link>
+        <BackLink href="/wealth/portfolios" label="Portfolios" />
         <div className="mt-1 flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold">{portfolio.name}</h1>

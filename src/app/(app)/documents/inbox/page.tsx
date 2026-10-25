@@ -9,6 +9,7 @@ import { InboxReviewClient, type DuplicateMatch } from "@/components/InboxReview
 import { DocumentsTabs, DocumentsUploadActions } from "@/components/DocumentsTabs";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 export const metadata: Metadata = { title: "Inbox" };
 
@@ -127,15 +128,17 @@ export default async function InboxPage({
       {(page > 0 || hasMore) && (
         <div className="flex items-center justify-between border-t border-border pt-4">
           {page > 0 ? (
-            <Link href={`/documents/inbox?page=${page - 1}`} className="text-sm text-accent hover:underline">
-              ← Newer
+            <Link href={`/documents/inbox?page=${page - 1}`} className="inline-flex items-center gap-1 text-sm text-accent hover:underline">
+              <ChevronLeft size={14} aria-hidden />
+              Newer
             </Link>
           ) : (
             <span />
           )}
           {hasMore && (
-            <Link href={`/documents/inbox?page=${page + 1}`} className="text-sm text-accent hover:underline">
-              Older →
+            <Link href={`/documents/inbox?page=${page + 1}`} className="inline-flex items-center gap-1 text-sm text-accent hover:underline">
+              Older
+              <ChevronRight size={14} aria-hidden />
             </Link>
           )}
         </div>

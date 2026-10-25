@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
@@ -7,6 +6,7 @@ import { RentalStatementForm } from "@/components/RentalStatementForm";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
+import { BackLink } from "@/components/BackLink";
 
 export default async function NewRentalStatementPage({
   params,
@@ -28,12 +28,7 @@ export default async function NewRentalStatementPage({
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <Link
-          href={`/home/${property.id}/rental`}
-          className="text-sm text-muted hover:text-foreground"
-        >
-          ← Back to rental overview
-        </Link>
+        <BackLink href={`/home/${property.id}/rental`} label="Tenancy" />
       </div>
 
       <div>
@@ -41,7 +36,7 @@ export default async function NewRentalStatementPage({
         <h1 className="text-2xl font-semibold">Add rental statement</h1>
         <p className="mt-1 text-sm text-muted">
           Upload your agent&apos;s statement — fields will be auto-filled where possible.
-          Expected amounts are calculated from your rental agreement for reconciliation.
+          Expected amounts are calculated from the tenancy for reconciliation.
         </p>
       </div>
 

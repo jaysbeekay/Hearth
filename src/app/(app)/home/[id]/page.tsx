@@ -33,6 +33,7 @@ import { currentTenancy, tenancyDue, TENANCY_AGREEMENT_SELECT } from "@/lib/dueR
 import { DetailStatusBanner } from "@/components/DetailStatusBanner";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
+import { BackLink } from "@/components/BackLink";
 
 const ITEM_ICONS: Record<string, LucideIcon> = {
   MAINTENANCE: Wrench,
@@ -96,9 +97,7 @@ export default async function PropertyDetailPage({
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <Link href="/home" className="text-sm text-muted hover:text-foreground">
-          ← Back to properties
-        </Link>
+        <BackLink href="/home" label="Properties" />
       </div>
 
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -125,7 +124,7 @@ export default async function PropertyDetailPage({
                 <ConfirmForm
                   action={deleteProperty.bind(null, property.id)}
                   undo={{ action: restoreProperty.bind(null, property.id), href: `/home/${property.id}` }}
-                  confirmText="Move this property to Trash? Its items and documents are kept, and you can restore it within 30 days from Settings → Trash."
+                  confirmText="Move this property to Trash? Its maintenance records and documents are kept, and you can restore it within 30 days from Settings → Trash."
                   actionLabel="Delete property"
                   className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
                   offline={{ entity: "property", entityId: property.id, label: `Delete property: ${property.label}` }}
@@ -145,7 +144,7 @@ export default async function PropertyDetailPage({
           hasDocuments
           documentsHref={`/home/${property.id}/rental`}
           editHref={`/home/${property.id}/rental/agreements/${tenancy.id}/edit`}
-          renewLabel="Update lease"
+          renewLabel="Update tenancy"
           newEndDateLabel="Set the new lease end"
           newEndDateMessage="Lease ended."
         />
@@ -169,21 +168,21 @@ export default async function PropertyDetailPage({
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="font-medium">Maintenance &amp; improvements</h2>
+          <h2 className="font-medium">Maintenance records</h2>
           {canWrite && (
             <Link
               href={`/home/${property.id}/items/new`}
               className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
             >
               <Plus size={16} />
-              Add item
+              Add maintenance record
             </Link>
           )}
         </div>
 
         {items.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
-            No items yet. Add a maintenance, improvement, or repair record to start tracking.
+            No maintenance records yet. Add maintenance, an improvement or a repair to start tracking.
           </p>
         ) : (
           <div className="space-y-3">
@@ -271,7 +270,7 @@ export default async function PropertyDetailPage({
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="font-medium">Contracts &amp; warranties linked to this property</h2>
+          <h2 className="font-medium">Contracts and warranties linked to this property</h2>
           {canWrite && (
             <Link
               href={`/contracts/new?propertyId=${property.id}`}
@@ -366,14 +365,14 @@ export default async function PropertyDetailPage({
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <Home size={18} className="text-muted" />
-              <h2 className="font-medium">Rental tracking</h2>
+              <h2 className="font-medium">Tenancy</h2>
             </div>
             {property.isRented ? (
               <Link
                 href={`/home/${property.id}/rental`}
                 className="text-sm font-medium text-accent hover:underline"
               >
-                View rental overview →
+                View tenancy →
               </Link>
             ) : (
               <Link

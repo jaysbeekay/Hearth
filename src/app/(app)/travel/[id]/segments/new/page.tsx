@@ -27,7 +27,7 @@ export default async function NewTripSegmentPage({
 
   return (
     <div className="max-w-3xl space-y-6">
-      <BackLink href={`/travel/${trip.id}`} label={`Back to ${trip.title}`} />
+      <BackLink href={`/travel/${trip.id}`} label={trip.title} />
       <div>
         <h1 className="text-2xl font-semibold">Add a segment</h1>
         <p className="text-sm text-muted">{trip.title}</p>

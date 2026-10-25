@@ -22,7 +22,7 @@ export const MODULE_REGISTRY: Record<ModuleKey, ModuleDefinition> = {
   },
   HOME: {
     key: "HOME",
-    label: "Property",
+    label: "Properties",
     description: "Track maintenance, improvements, and repairs across your properties, with receipts attached.",
     icon: HomeIcon,
     href: "/home",

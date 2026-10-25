@@ -37,15 +37,15 @@ export default async function NewContractPage({
 
   return (
     <div className="max-w-3xl space-y-6">
-      <BackLink href="/contracts" label="Back to contracts" />
+      <BackLink href="/contracts" label="Contracts" />
       <div>
         <h1 className="text-2xl font-semibold">Add a contract</h1>
         <p className="text-sm text-muted">
           Capture the key details so you never miss a renewal or cancellation deadline.
         </p>
         <p className="mt-1 text-xs text-muted">
-          Contracts are ongoing agreements — leases, subscriptions, insurance. For a single
-          purchased item under warranty, try{" "}
+          Contracts have a term or a recurring cost — insurance, a phone plan, a lease, a loan.
+          For something you bought that&apos;s under warranty, try{" "}
           <Link href="/products/new" className="text-accent hover:underline">
             add a warranty
           </Link>{" "}

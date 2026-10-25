@@ -5,6 +5,7 @@ import { updateTripSegment } from "@/lib/actions/trips";
 import { TripSegmentForm } from "@/components/TripSegmentForm";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
+import { BackLink } from "@/components/BackLink";
 
 export default async function EditTripSegmentPage({
   params,
@@ -15,13 +16,17 @@ export default async function EditTripSegmentPage({
 
   const { id, segmentId } = await params;
   redirectIfReadOnly(await auth(), `/travel/${id}`);
-  const segment = await prisma.tripSegment.findUnique({ where: { id: segmentId } });
+  const segment = await prisma.tripSegment.findUnique({
+    where: { id: segmentId },
+    include: { trip: { select: { title: true } } },
+  });
   if (!segment || segment.tripId !== id) notFound();
 
   const boundAction = updateTripSegment.bind(null, id, segmentId);
 
   return (
     <div className="max-w-3xl space-y-6">
+      <BackLink href={`/travel/${id}`} label={segment.trip.title} />
       <div>
         <h1 className="text-2xl font-semibold">Edit segment</h1>
         <p className="text-sm text-muted">{segment.title}</p>

@@ -4,8 +4,10 @@ import { auth } from "@/lib/auth";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { ModuleToggle } from "@/components/ModuleToggle";
+import { BackLink } from "@/components/BackLink";
+import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
 
-export const metadata: Metadata = { title: "Modules" };
+export const metadata: Metadata = { title: SETTINGS_ROUTES.modules.label };
 
 export default async function ModulesPage() {
   const session = await auth();
@@ -17,7 +19,8 @@ export default async function ModulesPage() {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <h1 className="text-2xl font-semibold">Modules</h1>
+      <BackLink {...settingsBackLink(SETTINGS_ROUTES.modules)} />
+      <h1 className="text-2xl font-semibold">{SETTINGS_ROUTES.modules.label}</h1>
       <p className="text-sm text-muted">
         Enable or disable optional features. Disabling a module hides it from navigation but
         keeps its data intact. Records in every module are visible to your whole household, not

@@ -15,6 +15,7 @@ import { PreferencesForm } from "@/components/PreferencesForm";
 import { OfflineDocumentsPanel } from "@/components/OfflineDocumentsPanel";
 import { UnconfiguredNotice } from "@/components/UnconfiguredNotice";
 import { ROLE_LABELS } from "@/lib/utils";
+import { SETTINGS_ROUTES } from "@/lib/routeLabels";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -69,23 +70,23 @@ export default async function SettingsPage() {
               className="mt-3 flex min-h-11 items-center gap-2 rounded-lg px-2 -mx-2 text-sm text-accent hover:bg-hover"
             >
               <ArrowRight size={16} />
-              Household &amp; System settings
+              {SETTINGS_ROUTES.household.label}
             </Link>
           )}
         </section>
 
         <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
-          <h2 className="mb-3 font-medium">Notifications</h2>
+          <h2 className="mb-3 font-medium">Reminders</h2>
           <p className="mb-3 text-sm text-muted">
-            Expiry reminders are sent by email{ntfyConfigured ? " and push (ntfy)" : ""}.{" "}
+            Reminders are sent by email{ntfyConfigured ? " and push (ntfy)" : ""}.{" "}
             {!smtpConfigured && !ntfyConfigured && (
               <span className="text-warning">
-                No notification channel is configured yet
+                No reminder channel is configured yet
                 {user.role === "ADMIN" ? (
                   <>
                     {" "}
                     — configure SMTP or ntfy in{" "}
-                    <Link href="/settings/app" className="underline">System settings</Link>.
+                    <Link href="/settings/app" className="underline">{SETTINGS_ROUTES.app.label}</Link>.
                   </>
                 ) : (
                   " — ask an admin to configure SMTP or ntfy."
@@ -112,7 +113,7 @@ export default async function SettingsPage() {
           <p className="mt-4 text-xs text-muted">
             The household timezone is {householdTimeZone}. Reminders and due dates will use it.{" "}
             {user.role === "ADMIN" ? (
-              <Link href="/settings/household" className="underline">Change it in Household &amp; System settings.</Link>
+              <Link href="/settings/household" className="underline">Change it in {SETTINGS_ROUTES.household.label}.</Link>
             ) : (
               "Only an admin can change it."
             )}

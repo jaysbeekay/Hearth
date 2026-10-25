@@ -5,8 +5,10 @@ import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 import type { SecurityEventType } from "@/generated/prisma/enums";
+import { BackLink } from "@/components/BackLink";
+import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
 
-export const metadata: Metadata = { title: "Security log" };
+export const metadata: Metadata = { title: SETTINGS_ROUTES.security.label };
 
 const EVENT_LABELS: Record<SecurityEventType, string> = {
   LOGIN_FAILED: "Failed sign-in",
@@ -38,7 +40,8 @@ export default async function SecurityLogPage() {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <h1 className="text-2xl font-semibold">Security log</h1>
+      <BackLink {...settingsBackLink(SETTINGS_ROUTES.security)} />
+      <h1 className="text-2xl font-semibold">{SETTINGS_ROUTES.security.label}</h1>
       <p className="text-sm text-muted">
         Auth-relevant events across the household — failed and throttled sign-ins, password
         and role changes, two-factor disablement, and account removal. The most recent 100
