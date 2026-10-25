@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Check, Circle, FileUp, Plus, Sparkles, X } from "lucide-react";
+import { Check, Circle, FileUp, Plus, X } from "lucide-react";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
 import { useDismissible } from "@/lib/useDismissible";
 import { linkButtonClass } from "@/lib/buttonStyles";
@@ -16,7 +16,7 @@ const MODULES_REVIEWED_KEY = "hearth:onboarding-modules-reviewed";
 // — these buttons sit on this card's own bg-accent/5 tint, so a transparent
 // button would let that tint bleed through instead of reading as a button.
 const secondaryOnAccentClass =
-  "flex min-h-11 items-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5";
+  "flex min-h-11 items-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-hover";
 
 export function OnboardingChecklist({
   enabledModules,
@@ -49,12 +49,11 @@ export function OnboardingChecklist({
         type="button"
         aria-label="Dismiss getting-started checklist"
         onClick={dismiss}
-        className="absolute right-1 top-1 flex size-11 items-center justify-center rounded-md text-muted hover:bg-black/5 dark:hover:bg-white/5"
+        className="absolute right-1 top-1 flex size-11 items-center justify-center rounded-md text-muted hover:bg-hover"
       >
         <X size={14} />
       </button>
 
-      <Sparkles className="mx-auto text-accent" size={28} />
       <div className="space-y-1">
         <h2 className="text-lg font-semibold">Add your first document</h2>
         <p className="mx-auto max-w-md text-sm text-muted">

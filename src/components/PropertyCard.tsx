@@ -15,7 +15,7 @@ export function PropertyCard({
   return (
     <Link
       href={`/home/${property.id}`}
-      className="block min-w-0 rounded-lg border border-border bg-surface p-4 shadow-stripe transition hover:border-accent/50"
+      className="block min-w-0 rounded-lg border border-border bg-surface p-4 transition hover:border-accent/50"
     >
       <div className="min-w-0">
         <p className="truncate text-sm text-muted">
@@ -26,8 +26,8 @@ export function PropertyCard({
 
       {property._count != null && (
         <div className="mt-3 flex items-center justify-between text-sm text-muted">
-          <span className="tabular-nums">{linkedCount} linked</span>
-          <span className="tabular-nums">
+          <span>{linkedCount} linked</span>
+          <span>
             {property._count.items} {property._count.items === 1 ? "item" : "items"}
           </span>
         </div>

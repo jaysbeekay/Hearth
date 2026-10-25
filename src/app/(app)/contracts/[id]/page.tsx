@@ -99,13 +99,13 @@ export default async function ContractDetailPage({
             {CATEGORY_LABELS[contract.category] ?? contract.category}
           </p>
           <h1 className="text-2xl font-semibold">{contract.title}</h1>
-          <p className="text-foreground/70">{contract.provider}</p>
+          <p className="text-muted">{contract.provider}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <ExpiryBadge days={days} cancelled={cancelled} cancelBy={timing.beforeCancelBy} />
           <Link
             href={`/contracts/${contract.id}/edit`}
-            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
+            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
           >
             <Pencil size={16} />
             Edit
@@ -119,7 +119,7 @@ export default async function ContractDetailPage({
               confirmText={statusConfirmText}
               actionLabel={statusLabel}
               ariaLabel={cancelled ? "Mark contract as active" : "Mark contract as cancelled"}
-              className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/5"
+              className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-hover"
             >
               {cancelled ? <RotateCcw size={16} /> : <Ban size={16} />}
               {statusLabel}
@@ -231,7 +231,7 @@ export default async function ContractDetailPage({
       {contract.notes && (
         <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-2 font-medium">Notes</h2>
-          <p className="whitespace-pre-wrap text-sm text-foreground/80">{contract.notes}</p>
+          <p className="whitespace-pre-wrap text-sm text-muted">{contract.notes}</p>
         </div>
       )}
 
@@ -242,7 +242,7 @@ export default async function ContractDetailPage({
             {contract.property && (
               <Link
                 href={`/home/${contract.property.id}`}
-                className="flex items-center gap-3 rounded-lg border border-border p-3 hover:bg-black/5 dark:hover:bg-white/5"
+                className="flex items-center gap-3 rounded-lg border border-border p-3 hover:bg-hover"
               >
                 <Home size={18} className="text-muted" />
                 <span>
@@ -254,7 +254,7 @@ export default async function ContractDetailPage({
             {contract.vehicle && (
               <Link
                 href={`/vehicles/${contract.vehicle.id}`}
-                className="flex items-center gap-3 rounded-lg border border-border p-3 hover:bg-black/5 dark:hover:bg-white/5"
+                className="flex items-center gap-3 rounded-lg border border-border p-3 hover:bg-hover"
               >
                 <Car size={18} className="text-muted" />
                 <span>

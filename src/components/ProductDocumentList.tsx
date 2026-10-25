@@ -63,7 +63,7 @@ export function ProductDocumentList({
                 type="button"
                 onClick={() => setPreview(doc)}
                 aria-label={`Preview ${doc.filename}`}
-                className="rounded-md p-2 text-muted hover:bg-black/5 dark:hover:bg-white/5"
+                className="rounded-md p-2 text-muted hover:bg-hover"
               >
                 <Eye size={16} />
               </button>

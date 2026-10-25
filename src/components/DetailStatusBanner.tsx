@@ -79,7 +79,7 @@ export function DetailStatusBanner({
         </div>
       )}
       {needsReview && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-info/30 bg-info/10 p-3 text-info">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-muted/10 p-3 text-foreground">
           <p className="flex items-center gap-2 text-sm font-medium">
             <AlertCircle size={16} className="shrink-0" aria-hidden />
             Needs review — some details were filled in automatically and haven&apos;t been confirmed

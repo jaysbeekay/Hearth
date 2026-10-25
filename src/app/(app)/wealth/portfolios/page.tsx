@@ -52,7 +52,7 @@ export default async function PortfoliosPage() {
                 <div className="flex items-center gap-2">
                   <Link
                     href={`/wealth/portfolios/${p.id}/edit`}
-                    className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
+                    className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
                   >
                     <Pencil size={16} />
                     Edit

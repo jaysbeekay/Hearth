@@ -29,7 +29,7 @@ export default async function AssistantPage({
     const isAdmin = session.user.role === "ADMIN";
     return (
       <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border p-12 text-center">
-        <Bot size={32} className="text-foreground/30" />
+        <Bot size={32} className="text-muted" />
         <h1 className="text-lg font-semibold">Assistant not configured</h1>
         <p className="max-w-sm text-sm text-muted">
           {isAdmin

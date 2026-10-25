@@ -98,13 +98,13 @@ export function BottomNav({
                 type="button"
                 onClick={() => setMoreOpen(false)}
                 aria-label="Close"
-                className="flex size-11 items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/5"
+                className="flex size-11 items-center justify-center rounded-full hover:bg-hover"
               >
                 <X size={18} />
               </button>
             </div>
             {overflowModules.length > 0 && (
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
+              <p className="mb-1.5 text-xs font-semibold text-muted">
                 Modules
               </p>
             )}
@@ -117,7 +117,7 @@ export function BottomNav({
                     "flex flex-col items-center gap-1.5 rounded-lg p-3 text-xs font-medium",
                     isActive(href, pathname)
                       ? "bg-accent/10 text-accent"
-                      : "text-foreground/70 hover:bg-black/5 dark:hover:bg-white/5",
+                      : "text-muted hover:bg-hover",
                   )}
                 >
                   <Icon size={20} />
@@ -127,7 +127,7 @@ export function BottomNav({
             </div>
 
             {overflowTools.length > 0 && (
-              <p className="mb-1.5 mt-3 text-xs font-semibold uppercase tracking-wide text-muted">
+              <p className="mb-1.5 mt-3 text-xs font-semibold text-muted">
                 Tools
               </p>
             )}
@@ -140,7 +140,7 @@ export function BottomNav({
                     "flex flex-col items-center gap-1.5 rounded-lg p-3 text-xs font-medium",
                     isActive(href, pathname)
                       ? "bg-accent/10 text-accent"
-                      : "text-foreground/70 hover:bg-black/5 dark:hover:bg-white/5",
+                      : "text-muted hover:bg-hover",
                   )}
                 >
                   <Icon size={20} />
@@ -153,7 +153,7 @@ export function BottomNav({
                   "flex flex-col items-center gap-1.5 rounded-lg p-3 text-xs font-medium",
                   isActive("/settings", pathname)
                     ? "bg-accent/10 text-accent"
-                    : "text-foreground/70 hover:bg-black/5 dark:hover:bg-white/5",
+                    : "text-muted hover:bg-hover",
                 )}
               >
                 <Settings size={20} />
@@ -165,7 +165,7 @@ export function BottomNav({
                   "flex flex-col items-center gap-1.5 rounded-lg p-3 text-xs font-medium",
                   isActive("/help", pathname)
                     ? "bg-accent/10 text-accent"
-                    : "text-foreground/70 hover:bg-black/5 dark:hover:bg-white/5",
+                    : "text-muted hover:bg-hover",
                 )}
               >
                 <HelpCircle size={20} />

@@ -7,9 +7,9 @@ import { cn } from "@/lib/utils";
 
 export const buttonVariants = {
   primary: "bg-accent text-accent-foreground hover:opacity-90",
-  danger: "bg-danger text-white hover:opacity-90",
+  danger: "bg-danger text-danger-foreground hover:opacity-90",
   secondary:
-    "bg-transparent border border-border hover:bg-black/5 dark:hover:bg-white/5",
+    "bg-transparent border border-border hover:bg-hover",
 };
 
 // min-h-11 (44px) meets the touch-target guideline on every consumer below —
@@ -35,7 +35,7 @@ export function linkButtonClass(
 // above, but still 44px tall so the smaller footprint doesn't cost touch
 // accuracy.
 export const compactButtonVariants = {
-  secondary: "border-border hover:bg-black/5 dark:hover:bg-white/5",
+  secondary: "border-border hover:bg-hover",
   danger: "border-border text-danger hover:bg-danger/5",
 };
 
@@ -51,8 +51,8 @@ export function compactButtonClass(
 // List-page toolbar: the "Export ▾" <details> trigger and its "Filter"
 // sibling share this look (bordered, no fill) across every list page.
 export const toolbarButtonClass =
-  "flex min-h-11 cursor-pointer list-none items-center justify-center gap-1 rounded-lg border border-border px-3 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5";
+  "flex min-h-11 cursor-pointer list-none items-center justify-center gap-1 rounded-lg border border-border px-3 text-sm font-medium hover:bg-hover";
 
 // Rows inside the "Export" <details> dropdown (CSV/PDF download links).
 export const exportMenuItemClass =
-  "flex min-h-11 items-center px-4 text-sm hover:bg-black/5 dark:hover:bg-white/5";
+  "flex min-h-11 items-center px-4 text-sm hover:bg-hover";

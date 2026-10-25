@@ -48,7 +48,7 @@ export function ChatThreadList({
               "group flex items-center gap-1 rounded-lg px-2 py-2 text-sm",
               thread.id === activeThreadId
                 ? "bg-accent/10 text-accent"
-                : "hover:bg-black/5 dark:hover:bg-white/5",
+                : "hover:bg-hover",
             )}
           >
             <Link

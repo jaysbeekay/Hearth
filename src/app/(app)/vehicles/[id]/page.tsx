@@ -86,7 +86,7 @@ export default async function VehicleDetailPage({
         <div className="flex flex-wrap items-center gap-2">
           <Link
             href={`/vehicles/${vehicle.id}/edit`}
-            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
+            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
           >
             <Pencil size={16} />
             Edit
@@ -131,7 +131,7 @@ export default async function VehicleDetailPage({
           {vehicle.colour && <Detail label="Colour" value={vehicle.colour} />}
         </dl>
         {vehicle.notes && (
-          <p className="mt-4 whitespace-pre-wrap text-sm text-foreground/80">{vehicle.notes}</p>
+          <p className="mt-4 whitespace-pre-wrap text-sm text-muted">{vehicle.notes}</p>
         )}
       </div>
 
@@ -165,7 +165,7 @@ export default async function VehicleDetailPage({
           <h2 className="font-medium">Contracts &amp; warranties linked to this vehicle</h2>
           <Link
             href={`/contracts/new?vehicleId=${vehicle.id}`}
-            className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
+            className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
           >
             <Plus size={16} />
             Add contract
@@ -218,14 +218,14 @@ export default async function VehicleDetailPage({
                         </p>
                         <p className="font-medium">{item.title}</p>
                         {item.provider && (
-                          <p className="text-sm text-foreground/70">{item.provider}</p>
+                          <p className="text-sm text-muted">{item.provider}</p>
                         )}
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <Link
                         href={`/vehicles/${vehicle.id}/items/${item.id}/edit`}
-                        className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
+                        className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
                       >
                         <Pencil size={16} />
                         Edit
@@ -252,7 +252,7 @@ export default async function VehicleDetailPage({
                   </dl>
 
                   {item.notes && (
-                    <p className="mt-4 whitespace-pre-wrap text-sm text-foreground/80">
+                    <p className="mt-4 whitespace-pre-wrap text-sm text-muted">
                       {item.notes}
                     </p>
                   )}

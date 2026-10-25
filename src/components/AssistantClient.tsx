@@ -168,7 +168,7 @@ export function AssistantClient({
           <button
             type="button"
             onClick={() => setThreadsOpen(true)}
-            className="flex h-11 items-center gap-2 rounded-lg px-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
+            className="flex h-11 items-center gap-2 rounded-lg px-2 text-sm font-medium hover:bg-hover"
           >
             <MessagesSquare size={16} />
             Chats
@@ -205,7 +205,7 @@ export function AssistantClient({
                 type="button"
                 onClick={() => setThreadsOpen(false)}
                 aria-label="Close"
-                className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/5"
+                className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-hover"
               >
                 <X size={18} />
               </button>

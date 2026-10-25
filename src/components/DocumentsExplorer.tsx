@@ -174,7 +174,7 @@ export function DocumentsExplorer({
                       <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
                         {doc.category ? DOCUMENT_CATEGORY_LABELS[doc.category as DocumentCategory] ?? doc.category : "Uncategorized"}
                       </span>
-                      <span className="ml-2 rounded-full bg-info/10 px-2 py-0.5 text-xs font-medium text-info">
+                      <span className="ml-2 rounded-full bg-muted/10 px-2 py-0.5 text-xs font-medium text-muted">
                         {doc.type}
                       </span>
                     </td>
@@ -186,7 +186,7 @@ export function DocumentsExplorer({
                     <td className="whitespace-nowrap px-4 py-2 text-muted">
                       {formatDate(doc.uploadedAt, dateFormat)}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-2 text-right tabular-nums text-muted">
+                    <td className="whitespace-nowrap px-4 py-2 text-right text-muted">
                       {humanFileSize(doc.size)}
                     </td>
                     <td className="px-4 py-2 text-right">
@@ -195,7 +195,7 @@ export function DocumentsExplorer({
                           type="button"
                           onClick={() => setPreview(doc)}
                           aria-label={`Preview ${doc.filename}`}
-                          className="rounded-md p-1 text-muted hover:bg-black/5 dark:hover:bg-white/5"
+                          className="rounded-md p-1 text-muted hover:bg-hover"
                         >
                           <Eye size={16} />
                         </button>
@@ -230,14 +230,14 @@ export function DocumentsExplorer({
                       type="button"
                       onClick={() => setPreview(doc)}
                       aria-label={`Preview ${doc.filename}`}
-                      className="shrink-0 rounded-md p-1 text-muted hover:bg-black/5 dark:hover:bg-white/5"
+                      className="shrink-0 rounded-md p-1 text-muted hover:bg-hover"
                     >
                       <Eye size={16} />
                     </button>
                   )}
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
-                  <span className="rounded-full bg-info/10 px-2 py-0.5 font-medium text-info">
+                  <span className="rounded-full bg-muted/10 px-2 py-0.5 font-medium text-muted">
                     {doc.type}
                   </span>
                   <span>{doc.category ? DOCUMENT_CATEGORY_LABELS[doc.category as DocumentCategory] ?? doc.category : "Uncategorized"}</span>
@@ -245,7 +245,7 @@ export function DocumentsExplorer({
                     {doc.parentTitle}
                   </Link>
                   <span>{formatDate(doc.uploadedAt, dateFormat)}</span>
-                  <span className="tabular-nums">{humanFileSize(doc.size)}</span>
+                  <span>{humanFileSize(doc.size)}</span>
                 </div>
               </div>
             ))}

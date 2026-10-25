@@ -18,7 +18,7 @@ export function ModuleToggle({ moduleKey, enabled }: { moduleKey: ModuleKey; ena
       <form action={action}>
         <SubmitButton
           variant="secondary"
-          className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-black/5 dark:hover:bg-white/5"
+          className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-hover"
         >
           {enabled ? "Disable" : "Enable"}
         </SubmitButton>

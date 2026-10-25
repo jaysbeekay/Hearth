@@ -35,35 +35,13 @@ export default async function WealthPage() {
     .sort((a, b) => (b.currentValue ?? 0) - (a.currentValue ?? 0))
     .slice(0, 6);
 
-  // SVG donut data — reuses the app's existing semantic tokens as chart
-  // colors rather than one-off hex, so the chart follows light/dark mode
-  // like everything else instead of staying fixed.
+  // Plain allocation list (#408 replaced the donut chart).
   const segments = [
-    { label: "Shares / ETFs / Crypto", value: data.sharesValue, color: "var(--color-accent)" },
-    { label: "Property", value: data.propertyValue, color: "var(--color-success)" },
-    { label: "Inventory", value: data.inventoryValue, color: "var(--color-warning)" },
+    { label: "Shares / ETFs / Crypto", value: data.sharesValue },
+    { label: "Property", value: data.propertyValue },
+    { label: "Inventory", value: data.inventoryValue },
   ].filter((s) => s.value > 0);
-
   const total = segments.reduce((s, seg) => s + seg.value, 0);
-  let cumulative = 0;
-  const slices = segments.map((seg) => {
-    const pct = total > 0 ? seg.value / total : 0;
-    const startAngle = cumulative * 360;
-    const endAngle = (cumulative + pct) * 360;
-    cumulative += pct;
-
-    const r = 60;
-    const cx = 80;
-    const cy = 80;
-    const toRad = (deg: number) => (deg - 90) * (Math.PI / 180);
-    const x1 = cx + r * Math.cos(toRad(startAngle));
-    const y1 = cy + r * Math.sin(toRad(startAngle));
-    const x2 = cx + r * Math.cos(toRad(endAngle));
-    const y2 = cy + r * Math.sin(toRad(endAngle));
-    const large = pct > 0.5 ? 1 : 0;
-
-    return { ...seg, pct, d: `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z` };
-  });
 
   return (
     <div className="max-w-4xl space-y-8">
@@ -104,47 +82,34 @@ export default async function WealthPage() {
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div className="col-span-2 rounded-xl border border-border bg-surface p-4">
           <p className="text-xs text-muted">Total net worth</p>
-          <p className="mt-1 text-3xl font-bold tabular-nums">{formatCurrency(data.totalNetWorth, "AUD", undefined, region, { showCode: true })}</p>
+          <p className="mt-1 text-3xl font-bold">{formatCurrency(data.totalNetWorth, "AUD", undefined, region, { showCode: true })}</p>
         </div>
         <div className="rounded-xl border border-border bg-surface p-4">
           <p className="text-xs text-muted">Shares / ETFs</p>
-          <p className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(data.sharesValue, "AUD", undefined, region, { showCode: true })}</p>
+          <p className="mt-1 text-xl font-semibold">{formatCurrency(data.sharesValue, "AUD", undefined, region, { showCode: true })}</p>
         </div>
         <div className="rounded-xl border border-border bg-surface p-4">
           <p className="text-xs text-muted">Property</p>
-          <p className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(data.propertyValue, "AUD", undefined, region, { showCode: true })}</p>
+          <p className="mt-1 text-xl font-semibold">{formatCurrency(data.propertyValue, "AUD", undefined, region, { showCode: true })}</p>
         </div>
       </div>
 
-      {/* Allocation chart + breakdown */}
+      {/* Allocation */}
       {total > 0 && (
-        <div className="flex flex-col gap-6 rounded-xl border border-border bg-surface p-4 md:flex-row md:p-6">
-          <div className="flex items-center justify-center">
-            <svg width="160" height="160" viewBox="0 0 160 160" aria-hidden="true">
-              {slices.length === 1 ? (
-                <circle cx="80" cy="80" r="60" fill={slices[0].color} />
-              ) : (
-                slices.map((s, i) => <path key={i} d={s.d} fill={s.color} />)
-              )}
-              <circle cx="80" cy="80" r="38" fill="var(--color-surface)" />
-            </svg>
-          </div>
-          <div className="flex-1 space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted mb-3">Asset breakdown</p>
+        <section className="space-y-3">
+          <h2 className="font-medium">Allocation</h2>
+          <ul className="divide-y divide-border rounded-xl border border-border bg-surface">
             {segments.map((seg) => (
-              <div key={seg.label} className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-2">
-                  <span className="h-3 w-3 shrink-0 rounded-sm" style={{ background: seg.color }} />
-                  <span className="text-sm">{seg.label}</span>
-                </div>
-                <div className="flex items-center gap-3 tabular-nums text-sm">
+              <li key={seg.label} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
+                <span>{seg.label}</span>
+                <span className="flex items-center gap-3">
                   <span className="text-muted">{((seg.value / total) * 100).toFixed(0)}%</span>
                   <span className="font-medium">{formatCurrency(seg.value, "AUD", undefined, region, { showCode: true })}</span>
-                </div>
-              </div>
+                </span>
+              </li>
             ))}
-          </div>
-        </div>
+          </ul>
+        </section>
       )}
 
       {/* Holdings */}
@@ -195,7 +160,7 @@ export default async function WealthPage() {
               </Link>
               <Link
                 href={`/wealth/portfolios/${data.portfolios[0].portfolioId}/import`}
-                className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
+                className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-hover"
               >
                 Import CSV
               </Link>

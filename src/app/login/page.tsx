@@ -53,7 +53,7 @@ export default async function LoginPage({
           <p className="text-sm text-muted">Sign in to your household hub.</p>
         </div>
         {passwordChanged && (
-          <p className="rounded-lg border border-border bg-surface px-4 py-3 text-sm text-foreground/70">
+          <p className="rounded-lg border border-border bg-surface px-4 py-3 text-sm text-muted">
             Password updated. Changing it signs out every device, so sign in again with your
             new password.
           </p>

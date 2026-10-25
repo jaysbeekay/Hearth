@@ -211,7 +211,7 @@ export function ProductForm({
       className="space-y-6"
     >
       {pendingOp && (
-        <p className="rounded-lg border border-dashed border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-700 dark:text-amber-400">
+        <p className="rounded-lg border border-dashed border-warning/40 bg-warning/10 px-4 py-2 text-sm text-warning">
           Editing an offline entry that hasn&apos;t synced yet — saving updates it in place.
         </p>
       )}
@@ -316,7 +316,7 @@ export function ProductForm({
               onClick={() => setScannerOpen(true)}
               aria-label="Scan barcode"
               title="Scan barcode"
-              className="flex items-center justify-center rounded-lg border border-border px-3 hover:bg-black/5 dark:hover:bg-white/5"
+              className="flex items-center justify-center rounded-lg border border-border px-3 hover:bg-hover"
             >
               <ScanBarcode size={16} />
             </button>

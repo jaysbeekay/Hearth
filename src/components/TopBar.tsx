@@ -10,7 +10,7 @@ export function TopBar() {
           type="button"
           onClick={openMobileNavDrawer}
           aria-label="Open navigation menu"
-          className="flex h-11 w-11 items-center justify-center rounded-full text-muted hover:bg-black/5 dark:hover:bg-white/5"
+          className="flex h-11 w-11 items-center justify-center rounded-full text-muted hover:bg-hover"
         >
           <Menu size={18} />
         </button>
@@ -22,7 +22,7 @@ export function TopBar() {
           type="button"
           onClick={openGlobalSearch}
           aria-label="Search"
-          className="flex h-11 w-11 items-center justify-center rounded-full text-muted hover:bg-black/5 dark:hover:bg-white/5"
+          className="flex h-11 w-11 items-center justify-center rounded-full text-muted hover:bg-hover"
         >
           <Search size={18} />
         </button>

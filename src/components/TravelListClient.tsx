@@ -72,7 +72,7 @@ export function TravelListClient({ trips, dateFormat, canWrite = true, distanceS
             <Route size={18} className="text-muted" />
             <h2 className="font-medium">Distance travelled</h2>
           </div>
-          <p className="mt-2 text-2xl font-semibold tabular-nums">
+          <p className="mt-2 text-2xl font-semibold">
             {formatDistance(distanceSummary.totalKm)}
           </p>
           {distanceSummary.byYear.length > 1 && (
@@ -80,7 +80,7 @@ export function TravelListClient({ trips, dateFormat, canWrite = true, distanceS
               {distanceSummary.byYear.map(({ year, km }) => (
                 <div key={year} className="flex items-baseline gap-1.5">
                   <dt className="text-xs text-muted">{year}</dt>
-                  <dd className="text-sm tabular-nums">{formatDistance(km)}</dd>
+                  <dd className="text-sm">{formatDistance(km)}</dd>
                 </div>
               ))}
             </dl>

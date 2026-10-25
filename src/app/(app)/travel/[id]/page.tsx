@@ -106,7 +106,7 @@ export default async function TripDetailPage({
         <div>
           <p className="text-sm text-muted">{trip.destination || "No destination set"}</p>
           <h1 className="text-2xl font-semibold">{trip.title}</h1>
-          <p className="text-foreground/70">
+          <p className="text-muted">
             {trip.startDate || trip.endDate
               ? `${formatDate(trip.startDate, dateFormat)} – ${formatDate(trip.endDate, dateFormat)}`
               : "No dates set"}
@@ -115,7 +115,7 @@ export default async function TripDetailPage({
         <div className="flex flex-wrap items-center gap-2">
           <Link
             href={`/travel/${trip.id}/edit`}
-            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
+            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
           >
             <Pencil size={16} />
             Edit
@@ -139,7 +139,7 @@ export default async function TripDetailPage({
       {trip.notes && (
         <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-2 font-medium">Notes</h2>
-          <p className="whitespace-pre-wrap text-sm text-foreground/80">{trip.notes}</p>
+          <p className="whitespace-pre-wrap text-sm text-muted">{trip.notes}</p>
         </div>
       )}
 
@@ -177,14 +177,14 @@ export default async function TripDetailPage({
                         </p>
                         <p className="font-medium">{segment.title}</p>
                         {segment.provider && (
-                          <p className="text-sm text-foreground/70">{segment.provider}</p>
+                          <p className="text-sm text-muted">{segment.provider}</p>
                         )}
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <Link
                         href={`/travel/${trip.id}/segments/${segment.id}/edit`}
-                        className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
+                        className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
                       >
                         <Pencil size={16} />
                         Edit
@@ -298,7 +298,7 @@ export default async function TripDetailPage({
                   )}
 
                   {segment.notes && (
-                    <p className="mt-4 whitespace-pre-wrap text-sm text-foreground/80">
+                    <p className="mt-4 whitespace-pre-wrap text-sm text-muted">
                       {segment.notes}
                     </p>
                   )}

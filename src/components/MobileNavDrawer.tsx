@@ -111,7 +111,7 @@ export function MobileNavDrawer({
             type="button"
             onClick={close}
             aria-label="Close navigation menu"
-            className="flex size-11 items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/5"
+            className="flex size-11 items-center justify-center rounded-full hover:bg-hover"
           >
             <X size={18} />
           </button>
@@ -126,7 +126,7 @@ export function MobileNavDrawer({
                 "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition",
                 isActive(href, pathname)
                   ? "bg-accent/10 text-accent"
-                  : "text-foreground/70 hover:bg-black/5 dark:hover:bg-white/5",
+                  : "text-muted hover:bg-hover",
               )}
             >
               <Icon size={18} />
@@ -134,7 +134,7 @@ export function MobileNavDrawer({
             </Link>
           ))}
 
-          <p className="mt-4 px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted">
+          <p className="mt-4 px-3 pb-1 text-xs font-semibold text-muted">
             Modules
           </p>
           {moduleItems.map(({ href, label, icon: Icon }) => (
@@ -146,7 +146,7 @@ export function MobileNavDrawer({
                 "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition",
                 isActive(href, pathname)
                   ? "bg-accent/10 text-accent"
-                  : "text-foreground/70 hover:bg-black/5 dark:hover:bg-white/5",
+                  : "text-muted hover:bg-hover",
               )}
             >
               <Icon size={18} />
@@ -154,7 +154,7 @@ export function MobileNavDrawer({
             </Link>
           ))}
 
-          <p className="mt-4 px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted">
+          <p className="mt-4 px-3 pb-1 text-xs font-semibold text-muted">
             Tools
           </p>
           {toolItems.map(({ href, label, icon: Icon }) => (
@@ -166,7 +166,7 @@ export function MobileNavDrawer({
                 "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition",
                 isActive(href, pathname)
                   ? "bg-accent/10 text-accent"
-                  : "text-foreground/70 hover:bg-black/5 dark:hover:bg-white/5",
+                  : "text-muted hover:bg-hover",
               )}
             >
               <Icon size={18} />
@@ -182,7 +182,7 @@ export function MobileNavDrawer({
               "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition",
               isActive("/settings", pathname)
                 ? "bg-accent/10 text-accent"
-                : "text-foreground/70 hover:bg-black/5 dark:hover:bg-white/5",
+                : "text-muted hover:bg-hover",
             )}
           >
             <Settings size={18} />
@@ -195,7 +195,7 @@ export function MobileNavDrawer({
               "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition",
               isActive("/help", pathname)
                 ? "bg-accent/10 text-accent"
-                : "text-foreground/70 hover:bg-black/5 dark:hover:bg-white/5",
+                : "text-muted hover:bg-hover",
             )}
           >
             <HelpCircle size={18} />

@@ -28,7 +28,7 @@ export function ContractCard({
   return (
     <Link
       href={`/contracts/${contract.id}`}
-      className="block min-w-0 rounded-lg border border-border bg-surface p-4 shadow-stripe transition hover:border-accent/50"
+      className="block min-w-0 rounded-lg border border-border bg-surface p-4 transition hover:border-accent/50"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -50,7 +50,7 @@ export function ContractCard({
               : "No end date"}
         </span>
         {contract.cost != null && (
-          <span className="tabular-nums">
+          <span>
             {formatCurrency(contract.cost, contract.currency, undefined, region)}
             {contract.billingFrequency ? ` / ${BILLING_LABELS[contract.billingFrequency]?.toLowerCase()}` : ""}
           </span>
@@ -62,7 +62,7 @@ export function ContractCard({
       )}
 
       {contract._count != null && contract._count.documents > 0 && (
-        <p className="mt-1 text-xs text-muted tabular-nums">
+        <p className="mt-1 text-xs text-muted">
           {contract._count.documents} {contract._count.documents === 1 ? "doc" : "docs"}
         </p>
       )}

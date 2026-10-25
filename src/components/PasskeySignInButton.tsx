@@ -56,7 +56,7 @@ export function PasskeySignInButton({ callbackUrl = "/dashboard" }: { callbackUr
         type="button"
         onClick={authenticate}
         disabled={pending}
-        className="flex w-full items-center justify-center gap-2 rounded-lg border border-border py-2 text-sm font-medium hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-white/5"
+        className="flex w-full items-center justify-center gap-2 rounded-lg border border-border py-2 text-sm font-medium hover:bg-hover disabled:cursor-not-allowed disabled:opacity-60"
       >
         {pending ? (
           "Waiting for passkey…"

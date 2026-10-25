@@ -70,7 +70,7 @@ export default async function InventoryItemPage({
         <div className="flex gap-2">
           <Link
             href={`/inventory/${id}/edit`}
-            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-black/5 dark:hover:bg-white/5"
+            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-hover"
           >
             <Pencil size={14} />
             Edit
@@ -129,7 +129,7 @@ export default async function InventoryItemPage({
           )}
         </dl>
         {item.notes && (
-          <p className="mt-4 whitespace-pre-wrap text-sm text-foreground/70">{item.notes}</p>
+          <p className="mt-4 whitespace-pre-wrap text-sm text-muted">{item.notes}</p>
         )}
       </section>
 

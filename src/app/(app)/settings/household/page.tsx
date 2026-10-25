@@ -24,7 +24,7 @@ export const metadata: Metadata = { title: "Household & System settings" };
 // min-h-11 (44px) keeps these comfortably tappable on mobile even though
 // they're plain text links, not buttons.
 const quickLinkClass =
-  "flex min-h-11 items-center justify-between gap-3 rounded-lg border border-border px-3 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5";
+  "flex min-h-11 items-center justify-between gap-3 rounded-lg border border-border px-3 text-sm font-medium hover:bg-hover";
 
 export default async function HouseholdSettingsPage() {
   const session = await auth();

@@ -142,7 +142,7 @@ export function InventoryItemForm({
       className="space-y-6"
     >
       {pendingOp && (
-        <p className="rounded-lg border border-dashed border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-700 dark:text-amber-400">
+        <p className="rounded-lg border border-dashed border-warning/40 bg-warning/10 px-4 py-2 text-sm text-warning">
           Editing an offline entry that hasn&apos;t synced yet — saving updates it in place.
         </p>
       )}
@@ -163,7 +163,7 @@ export function InventoryItemForm({
             </p>
           )}
           {scanMessage && (
-            <p role="status" aria-live="polite" className="text-xs text-foreground/70">
+            <p role="status" aria-live="polite" className="text-xs text-muted">
               {scanMessage}
             </p>
           )}

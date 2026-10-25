@@ -82,7 +82,7 @@ export function ToastContainer() {
           <div
             key={toast.id}
             className={cn(
-              "flex w-full max-w-sm items-center gap-2 rounded-lg border bg-surface px-4 py-3 text-sm shadow-stripe",
+              "flex w-full max-w-sm items-center gap-2 rounded-lg border bg-surface px-4 py-3 text-sm shadow-overlay",
               TONE_CLASSES[toast.variant ?? "success"],
             )}
           >

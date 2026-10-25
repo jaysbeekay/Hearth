@@ -82,12 +82,12 @@ export function DocumentPreviewModal({
             type="button"
             onClick={onClose}
             aria-label="Close preview"
-            className="shrink-0 rounded-md p-1 text-muted hover:bg-black/5 dark:hover:bg-white/5"
+            className="shrink-0 rounded-md p-1 text-muted hover:bg-hover"
           >
             <X size={16} />
           </button>
         </div>
-        <div className="flex flex-1 items-center justify-center overflow-auto bg-black/5 p-4 dark:bg-white/5">
+        <div className="flex flex-1 items-center justify-center overflow-auto bg-hover p-4">
           {error ? (
             <p className="text-sm text-muted">Couldn&apos;t load a preview for this file.</p>
           ) : !objectUrl ? (

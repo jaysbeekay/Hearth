@@ -52,7 +52,7 @@ export default async function PortfolioPage({
           </div>
           <Link
             href={`/wealth/portfolios/${id}/edit`}
-            className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
+            className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
           >
             <Pencil size={16} />
             Edit
@@ -64,17 +64,17 @@ export default async function PortfolioPage({
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           <div className="rounded-xl border border-border bg-surface p-4">
             <p className="text-xs text-muted">Market value</p>
-            <p className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(portfolioValue.totalValue, portfolio.currency, undefined, region, { showCode: true })}</p>
+            <p className="mt-1 text-xl font-semibold">{formatCurrency(portfolioValue.totalValue, portfolio.currency, undefined, region, { showCode: true })}</p>
           </div>
           <div className="rounded-xl border border-border bg-surface p-4">
             <p className="text-xs text-muted">
               Cost basis <span className="text-muted">({COST_METHOD_LABELS[portfolio.costMethod]})</span>
             </p>
-            <p className="mt-1 text-xl font-semibold tabular-nums">{formatCurrency(portfolioValue.totalCost, portfolio.currency, undefined, region, { showCode: true })}</p>
+            <p className="mt-1 text-xl font-semibold">{formatCurrency(portfolioValue.totalCost, portfolio.currency, undefined, region, { showCode: true })}</p>
           </div>
           <div className="rounded-xl border border-border bg-surface p-4">
             <p className="text-xs text-muted">Total gain / loss</p>
-            <p className={`mt-1 text-xl font-semibold tabular-nums ${(portfolioValue.totalValue - portfolioValue.totalCost) >= 0 ? "text-success" : "text-danger"}`}>
+            <p className={`mt-1 text-xl font-semibold ${(portfolioValue.totalValue - portfolioValue.totalCost) >= 0 ? "text-success" : "text-danger"}`}>
               {formatCurrency(portfolioValue.totalValue - portfolioValue.totalCost, portfolio.currency, undefined, region, { showCode: true })}
             </p>
           </div>
@@ -87,7 +87,7 @@ export default async function PortfolioPage({
           <div className="flex items-center gap-2">
             <Link
               href={`/wealth/portfolios/${id}/import`}
-              className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/5"
+              className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
             >
               <Upload size={16} />
               Import CSV

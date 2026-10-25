@@ -135,13 +135,13 @@ function emptyRowState(initialType: EntityType = "CONTRACT"): RowState {
 }
 
 // Heuristic hits get the accent color, AI-suggested values (BYOK/local LLM)
-// get info instead — same distinction as ContractForm's markAutoFilled,
+// get neutral grey instead — same distinction as ContractForm's markAutoFilled,
 // so a reviewer can tell pattern-matched fields from model-inferred ones
 // at a glance (#172).
 function fieldClass(autoFilled?: boolean, isAi?: boolean) {
   if (!autoFilled) return "rounded-md border px-2 py-1.5 text-sm outline-none focus:border-accent border-border bg-background";
   return `rounded-md border px-2 py-1.5 text-sm outline-none focus:border-accent ${
-    isAi ? "border-info/40 bg-info/5 ring-1 ring-info/40" : "border-accent/40 bg-accent/5 ring-1 ring-accent/40"
+    isAi ? "border-foreground/40 bg-foreground/5 ring-1 ring-foreground/40" : "border-accent/40 bg-accent/5 ring-1 ring-accent/40"
   }`;
 }
 
@@ -185,7 +185,7 @@ function FilterChip({
       className={`rounded-full border px-3 py-1 text-xs font-medium ${
         active
           ? "border-accent bg-accent/10 text-accent"
-          : "border-border bg-surface text-muted hover:bg-black/5 dark:hover:bg-white/5"
+          : "border-border bg-surface text-muted hover:bg-hover"
       }`}
     >
       {label} ({count})
@@ -221,7 +221,7 @@ function RowField({
             <span
               aria-hidden="true"
               className={`rounded px-1 py-0.5 text-[9px] font-medium ${
-                isAi ? "bg-info/10 text-info" : "bg-accent/10 text-accent"
+                isAi ? "bg-muted/10 text-muted" : "bg-accent/10 text-accent"
               }`}
             >
               Auto
@@ -547,7 +547,7 @@ export function InboxReviewClient({
                 <ul className="space-y-1 text-sm">
                   {doc.duplicateOf.map((match) => (
                     <li key={match.docId} className="flex flex-wrap items-center gap-2">
-                      <span className="text-foreground/70">
+                      <span className="text-muted">
                         Matches {KIND_LABELS[match.kind] ?? match.kind}:{" "}
                       </span>
                       {match.ownerHref ? (
@@ -562,7 +562,7 @@ export function InboxReviewClient({
                           type="button"
                           disabled={isAttaching}
                           onClick={() => attachAsVersion(doc, match)}
-                          className="rounded-md border border-border px-2 py-1 text-xs font-medium hover:bg-black/5 disabled:opacity-60 dark:hover:bg-white/5"
+                          className="rounded-md border border-border px-2 py-1 text-xs font-medium hover:bg-hover disabled:opacity-60"
                         >
                           {isAttaching ? "Attaching…" : "Attach as new version"}
                         </button>
@@ -574,7 +574,7 @@ export function InboxReviewClient({
                   <button
                     type="button"
                     onClick={() => keepSeparate(doc)}
-                    className="rounded-md border border-border px-2 py-1 text-xs font-medium hover:bg-black/5 dark:hover:bg-white/5"
+                    className="rounded-md border border-border px-2 py-1 text-xs font-medium hover:bg-hover"
                   >
                     Keep as separate document
                   </button>

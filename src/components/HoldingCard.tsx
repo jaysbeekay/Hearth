@@ -34,11 +34,11 @@ export function HoldingCard({ holding, portfolioId, region }: Props) {
       <dl className="mt-3 grid grid-cols-2 gap-3">
         <div>
           <dt className="text-xs text-muted">Units</dt>
-          <dd className="text-sm font-medium tabular-nums">{formatNumber(holding.unitsHeld, region)}</dd>
+          <dd className="text-sm font-medium">{formatNumber(holding.unitsHeld, region)}</dd>
         </div>
         <div>
           <dt className="text-xs text-muted">Current price</dt>
-          <dd className="flex items-center gap-1 text-sm font-medium tabular-nums">
+          <dd className="flex items-center gap-1 text-sm font-medium">
             {holding.currentPrice != null
               ? formatCurrency(holding.currentPrice, holding.currency, undefined, region, { showCode: true })
               : <span className="text-muted">—</span>}
@@ -51,13 +51,13 @@ export function HoldingCard({ holding, portfolioId, region }: Props) {
         </div>
         <div>
           <dt className="text-xs text-muted">Market value</dt>
-          <dd className="text-sm font-medium tabular-nums">
+          <dd className="text-sm font-medium">
             {hasValue ? formatCurrency(holding.currentValue!, holding.currency, undefined, region, { showCode: true }) : "—"}
           </dd>
         </div>
         <div>
           <dt className="text-xs text-muted">Gain / loss</dt>
-          <dd className={`flex items-center gap-0.5 text-sm font-medium tabular-nums ${hasValue ? (isPositive ? "text-success" : "text-danger") : "text-muted"}`}>
+          <dd className={`flex items-center gap-0.5 text-sm font-medium ${hasValue ? (isPositive ? "text-success" : "text-danger") : "text-muted"}`}>
             {hasValue ? (
               <>
                 {isPositive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}

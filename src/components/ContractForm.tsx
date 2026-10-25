@@ -189,7 +189,7 @@ export function ContractForm({
       className="space-y-6"
     >
       {pendingOp && (
-        <p className="rounded-lg border border-dashed border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-700 dark:text-amber-400">
+        <p className="rounded-lg border border-dashed border-warning/40 bg-warning/10 px-4 py-2 text-sm text-warning">
           Editing an offline entry that hasn&apos;t synced yet — saving updates it in place.
         </p>
       )}
@@ -214,7 +214,7 @@ export function ContractForm({
       )}
 
       <fieldset className="space-y-4 rounded-lg border border-border p-4">
-        <legend className="px-1 text-sm font-medium text-foreground/70">
+        <legend className="px-1 text-sm font-medium text-muted">
           Contract / policy details
         </legend>
         <div className="grid gap-4 md:grid-cols-2">
@@ -403,7 +403,7 @@ export function ContractForm({
       </fieldset>
 
       <fieldset className="space-y-4 rounded-lg border border-border p-4">
-        <legend className="px-1 text-sm font-medium text-foreground/70">
+        <legend className="px-1 text-sm font-medium text-muted">
           Contact details (optional)
         </legend>
         <div className="grid gap-4 md:grid-cols-3">

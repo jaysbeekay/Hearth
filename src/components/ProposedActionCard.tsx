@@ -107,7 +107,7 @@ export function ProposedActionCard({
         {action.operation === "create" ? "Create" : "Update"} {action.entity}
         {titleValue ? `: ${titleValue}` : ""}
       </p>
-      <dl className="mb-3 grid grid-cols-1 gap-x-4 gap-y-0.5 text-xs text-foreground/70 sm:grid-cols-2">
+      <dl className="mb-3 grid grid-cols-1 gap-x-4 gap-y-0.5 text-xs text-muted sm:grid-cols-2">
         {entries.map(([key, value]) => (
           <div key={key} className="flex gap-1">
             <dt className="shrink-0 font-medium">{FIELD_LABELS[key] ?? key}:</dt>
@@ -129,7 +129,7 @@ export function ProposedActionCard({
           type="button"
           onClick={handleCancel}
           disabled={working}
-          className="flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-black/5 dark:hover:bg-white/5 disabled:opacity-50"
+          className="flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-hover disabled:opacity-50"
         >
           <X size={14} />
           Cancel

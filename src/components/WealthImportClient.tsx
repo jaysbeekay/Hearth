@@ -68,7 +68,7 @@ export function WealthImportClient({ portfolioId }: Props) {
         </p>
         <label className="flex cursor-pointer items-center gap-3 rounded-lg border-2 border-dashed border-border px-4 py-6 hover:border-accent/50 transition-colors">
           <Upload size={20} className="text-muted" />
-          <span className="text-sm text-foreground/70">Choose CSV file…</span>
+          <span className="text-sm text-muted">Choose CSV file…</span>
           <input type="file" accept=".csv" className="sr-only" onChange={handleFile} disabled={isParsing || isImporting} />
           {isParsing && <Loader2 size={16} className="animate-spin text-accent" />}
         </label>
@@ -128,10 +128,10 @@ export function WealthImportClient({ portfolioId }: Props) {
                         {row.type}
                       </span>
                     </td>
-                    <td className="px-3 py-2 tabular-nums">{row.date}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{row.units.toLocaleString()}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{row.pricePerUnit.toFixed(4)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{row.fees > 0 ? row.fees.toFixed(2) : "—"}</td>
+                    <td className="px-3 py-2">{row.date}</td>
+                    <td className="px-3 py-2 text-right">{row.units.toLocaleString()}</td>
+                    <td className="px-3 py-2 text-right">{row.pricePerUnit.toFixed(4)}</td>
+                    <td className="px-3 py-2 text-right">{row.fees > 0 ? row.fees.toFixed(2) : "—"}</td>
                     <td className="px-3 py-2">{row.currency}</td>
                   </tr>
                 ))}

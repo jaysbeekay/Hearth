@@ -20,7 +20,7 @@ export function ProductCard({
   return (
     <Link
       href={`/products/${product.id}`}
-      className="block min-w-0 rounded-lg border border-border bg-surface p-4 shadow-stripe transition hover:border-accent/50"
+      className="block min-w-0 rounded-lg border border-border bg-surface p-4 transition hover:border-accent/50"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -42,7 +42,7 @@ export function ProductCard({
             : "No warranty end date"}
         </span>
         {product.price != null && (
-          <span className="tabular-nums">{formatCurrency(product.price, product.currency, undefined, region)}</span>
+          <span>{formatCurrency(product.price, product.currency, undefined, region)}</span>
         )}
       </div>
 
@@ -51,7 +51,7 @@ export function ProductCard({
       )}
 
       {product._count != null && product._count.documents > 0 && (
-        <p className="mt-1 text-xs text-muted tabular-nums">
+        <p className="mt-1 text-xs text-muted">
           {product._count.documents} {product._count.documents === 1 ? "doc" : "docs"}
         </p>
       )}

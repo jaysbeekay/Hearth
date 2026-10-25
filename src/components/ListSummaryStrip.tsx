@@ -28,7 +28,7 @@ export function ListSummaryStrip({
             key={item.label}
             type="button"
             onClick={item.onClick}
-            className={`rounded-full border px-3 py-1 hover:bg-black/5 dark:hover:bg-white/5 ${
+            className={`rounded-full border px-3 py-1 hover:bg-hover ${
               item.tone === "danger"
                 ? "border-danger/30 bg-danger/10 text-danger"
                 : item.tone === "warning"

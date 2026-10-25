@@ -41,7 +41,7 @@ export function Sidebar({
         <button
           type="button"
           onClick={openGlobalSearch}
-          className="flex w-full items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-muted hover:bg-black/5 dark:hover:bg-white/5"
+          className="flex w-full items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-muted hover:bg-hover"
         >
           <Search size={16} />
           <span className="flex-1 text-left">Search</span>
@@ -60,7 +60,7 @@ export function Sidebar({
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition",
                 active
                   ? "bg-accent/10 text-accent"
-                  : "text-muted hover:bg-black/5 dark:hover:bg-white/5",
+                  : "text-muted hover:bg-hover",
               )}
             >
               <Icon size={18} />
@@ -69,7 +69,7 @@ export function Sidebar({
           );
         })}
 
-        <p className="mt-4 px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted">
+        <p className="mt-4 px-3 pb-1 text-xs font-semibold text-muted">
           Modules
         </p>
         {moduleItems.map(({ href, label, icon: Icon }) => {
@@ -82,7 +82,7 @@ export function Sidebar({
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition",
                 active
                   ? "bg-accent/10 text-accent"
-                  : "text-muted hover:bg-black/5 dark:hover:bg-white/5",
+                  : "text-muted hover:bg-hover",
               )}
             >
               <Icon size={18} />
@@ -91,7 +91,7 @@ export function Sidebar({
           );
         })}
 
-        <p className="mt-4 px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted">
+        <p className="mt-4 px-3 pb-1 text-xs font-semibold text-muted">
           Tools
         </p>
         {toolItems.map(({ href, label, icon: Icon }) => {
@@ -104,7 +104,7 @@ export function Sidebar({
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition",
                 active
                   ? "bg-accent/10 text-accent"
-                  : "text-muted hover:bg-black/5 dark:hover:bg-white/5",
+                  : "text-muted hover:bg-hover",
               )}
             >
               <Icon size={18} />
@@ -121,7 +121,7 @@ export function Sidebar({
             "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition",
             isActive("/settings", pathname)
               ? "bg-accent/10 text-accent"
-              : "text-muted hover:bg-black/5 dark:hover:bg-white/5",
+              : "text-muted hover:bg-hover",
           )}
         >
           <Settings size={18} />
@@ -133,7 +133,7 @@ export function Sidebar({
             "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition",
             isActive("/help", pathname)
               ? "bg-accent/10 text-accent"
-              : "text-muted hover:bg-black/5 dark:hover:bg-white/5",
+              : "text-muted hover:bg-hover",
           )}
         >
           <HelpCircle size={18} />
