@@ -90,8 +90,9 @@ export async function purgeTrip(id: string) {
     include: { segments: { select: { id: true } } },
   });
   if (!existing) throw new RecordNotFoundError("Trip");
-  // The row delete cascades to segments and their Document rows; their
-  // files on disk aren't FK-linked, so they're removed straight after.
+  // The row delete cascades to segments and their Document rows (Trash
+  // ones included); their files on disk aren't FK-linked, so they're
+  // removed straight after, leaving no files without a row.
   await prisma.trip.delete({ where: { id } });
   for (const segment of existing.segments) {
     await removeOwnerDocumentFiles("TRIP_SEGMENT", segment.id);
@@ -152,8 +153,10 @@ export async function permanentlyDeleteTripSegmentCommand(id: string, scope: Tri
 // ── Flight lookups ──────────────────────────────────────────────────────────
 
 // What the AviationStack lookups (src/lib/integrations/flightStatus.ts and
-// flightDistance.ts) store on a FLIGHT segment. None of these fields is on
-// the segment form, so a user's edit never writes them.
+// flightDistance.ts) store on a FLIGHT segment. The airport codes are also
+// on the segment form, so the lookup only fills them in while they're
+// blank and never overwrites what the user typed; the rest aren't on the
+// form at all.
 export type TripSegmentFlightData = Partial<
   Pick<
     TripSegment,
@@ -180,6 +183,28 @@ export type TripSegmentFlightData = Partial<
 // revalidatePath can't be called), and that page, like the refresh action
 // that also calls it, has already checked the Travel module. Not a general
 // segment update: user edits go through updateTripSegmentCommand.
-export async function saveTripSegmentFlightData(id: string, data: TripSegmentFlightData) {
-  await prisma.tripSegment.update({ where: { id }, data });
+//
+// It keeps the segment's updatedAt as it was. updatedAt is what the stale
+// check compares an offline edit's base against, and a lookup's result
+// isn't an edit, so it mustn't make a queued edit look stale. The write is
+// guarded on that same updatedAt: if a user edit lands between the read and
+// the write, nothing is written (the next lookup tries again). Returns
+// whether the data was saved.
+export async function saveTripSegmentFlightData(id: string, data: TripSegmentFlightData): Promise<boolean> {
+  const current = await prisma.tripSegment.findUnique({
+    where: { id },
+    select: { updatedAt: true, departureIata: true, arrivalIata: true },
+  });
+  if (!current) throw new RecordNotFoundError("Segment");
+  const { departureIata, arrivalIata, ...rest } = data;
+  const { count } = await prisma.tripSegment.updateMany({
+    where: { id, updatedAt: current.updatedAt },
+    data: {
+      ...rest,
+      ...(current.departureIata == null && departureIata ? { departureIata } : {}),
+      ...(current.arrivalIata == null && arrivalIata ? { arrivalIata } : {}),
+      updatedAt: current.updatedAt,
+    },
+  });
+  return count > 0;
 }

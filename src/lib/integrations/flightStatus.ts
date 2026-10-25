@@ -132,8 +132,8 @@ export async function refreshFlightStatus(segmentId: string): Promise<void> {
       depGate: dep.gate ?? null,
       arrTerminal: arr.terminal ?? null,
       arrGate: arr.gate ?? null,
-      departureIata: dep.iata ?? segment.departureIata,
-      arrivalIata: arr.iata ?? segment.arrivalIata,
+      departureIata: dep.iata,
+      arrivalIata: arr.iata,
       flightStatusAt: new Date(),
     });
   } catch {

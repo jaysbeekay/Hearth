@@ -19,9 +19,20 @@ import { ModuleDisabledError } from "@/lib/modules/enablement";
 import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
 import { tripSchema, tripSegmentSchema } from "@/lib/validation/travel";
 import { formToTripInput, formToTripSegmentInput } from "@/lib/formMappers";
+import { purgeExpiredTrash, TRASH_RETENTION_DAYS } from "@/lib/trash";
+import { createTrip, updateTrip, deleteTrip, restoreTrip, updateTripSegment, deleteTripSegment } from "@/lib/actions/trips";
+import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
+// The server actions' sign-in; each action test sets the session it needs.
+vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
+// redirect() throws in Next; make it a recognisable throw here.
+vi.mock("next/navigation", () => ({
+  redirect: vi.fn((url: string) => {
+    throw new Error(`REDIRECT ${url}`);
+  }),
+}));
 
 const db = setupTestDb();
 
@@ -44,12 +55,20 @@ async function exists(p: string) {
 
 // Puts a file where storage.ts keeps a Trip segment's Documents, plus the
 // row pointing at it, so permanent delete has something real to clean up.
-async function attachFile(tripSegmentId: string) {
+async function attachFile(tripSegmentId: string, options: { storedName?: string; deletedAt?: Date } = {}) {
+  const storedName = options.storedName ?? "stored.pdf";
   const dir = path.join(db.uploadsDir, "trip-segments", tripSegmentId);
   await mkdir(dir, { recursive: true });
-  await writeFile(path.join(dir, "stored.pdf"), "%PDF-1.4 test");
+  await writeFile(path.join(dir, storedName), "%PDF-1.4 test");
   await db.prisma.tripSegmentDocument.create({
-    data: { tripSegmentId, filename: "booking.pdf", storedName: "stored.pdf", mimeType: "application/pdf", size: 13 },
+    data: {
+      tripSegmentId,
+      filename: "booking.pdf",
+      storedName,
+      mimeType: "application/pdf",
+      size: 13,
+      deletedAt: options.deletedAt,
+    },
   });
   return dir;
 }
@@ -288,10 +307,51 @@ describe("Trip segment commands", () => {
     expect(revalidatePath).toHaveBeenCalledWith(`/travel/${tripId}`);
   });
 
+  it("leaves the flight fields alone when a non-flight form doesn't submit them", async () => {
+    const segment = await createTripSegmentCommand(tripId, {
+      type: "ACTIVITY",
+      title: "Tour",
+      currency: "AUD",
+      flightNumber: "QF25",
+      departureIata: "SYD",
+    });
+    // The form hides the flight inputs for a non-flight segment, so they're
+    // not in its submission at all.
+    const submission = formData({
+      type: "ACTIVITY",
+      title: "Night tour",
+      provider: "",
+      confirmationCode: "",
+      startDate: "",
+      endDate: "",
+      location: "",
+      cost: "",
+      currency: "AUD",
+      notes: "",
+    });
+    const parsed = tripSegmentSchema.parse(formToTripSegmentInput(submission));
+    await updateTripSegmentCommand(segment.id, fullFormUpdate(tripSegmentSchema, parsed, submission), { tripId });
+    expect(await db.prisma.tripSegment.findUniqueOrThrow({ where: { id: segment.id } })).toMatchObject({
+      title: "Night tour",
+      flightNumber: "QF25",
+      departureIata: "SYD",
+    });
+  });
+});
+
+describe("saveTripSegmentFlightData", () => {
+  let tripId: string;
+
+  beforeEach(async () => {
+    tripId = (await createTripCommand({ title: "Japan" }, actorId)).id;
+  });
+
   it("stores flight lookup results without touching the user's fields", async () => {
     const segment = await createTripSegmentCommand(tripId, { ...flight, flightNumber: "QF25", notes: "Aisle" });
     const at = new Date("2027-01-01T00:00:00Z");
-    await saveTripSegmentFlightData(segment.id, { flightStatus: "landed", depGate: "12", flightStatusAt: at, distanceKm: 7800 });
+    expect(
+      await saveTripSegmentFlightData(segment.id, { flightStatus: "landed", depGate: "12", flightStatusAt: at, distanceKm: 7800 }),
+    ).toBe(true);
     expect(await db.prisma.tripSegment.findUniqueOrThrow({ where: { id: segment.id } })).toMatchObject({
       flightStatus: "landed",
       depGate: "12",
@@ -299,6 +359,111 @@ describe("Trip segment commands", () => {
       distanceKm: 7800,
       notes: "Aisle",
       flightNumber: "QF25",
+    });
+  });
+
+  it("keeps updatedAt, so an offline edit queued before the lookup still lands", async () => {
+    const segment = await createTripSegmentCommand(tripId, { ...flight, flightNumber: "QF25" });
+    const queuedFrom = segment.updatedAt.toISOString();
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await saveTripSegmentFlightData(segment.id, { flightStatus: "active", flightStatusAt: new Date() });
+    const afterLookup = await db.prisma.tripSegment.findUniqueOrThrow({ where: { id: segment.id } });
+    expect(afterLookup.updatedAt.toISOString()).toBe(queuedFrom);
+
+    await updateTripSegmentCommand(segment.id, { confirmationCode: "XYZ789" }, { tripId, baseUpdatedAt: queuedFrom });
+    expect(await db.prisma.tripSegment.findUniqueOrThrow({ where: { id: segment.id } })).toMatchObject({
+      confirmationCode: "XYZ789",
+      flightStatus: "active",
+    });
+  });
+
+  it("only fills in airport codes the user left blank", async () => {
+    const typed = await createTripSegmentCommand(tripId, { ...flight, departureIata: "SYD", arrivalIata: "HND" });
+    await saveTripSegmentFlightData(typed.id, { departureIata: "MEL", arrivalIata: "NRT" });
+    expect(await db.prisma.tripSegment.findUniqueOrThrow({ where: { id: typed.id } })).toMatchObject({
+      departureIata: "SYD",
+      arrivalIata: "HND",
+    });
+
+    const blank = await createTripSegmentCommand(tripId, { ...flight, arrivalIata: "HND" });
+    await saveTripSegmentFlightData(blank.id, { departureIata: "SYD", arrivalIata: "NRT" });
+    expect(await db.prisma.tripSegment.findUniqueOrThrow({ where: { id: blank.id } })).toMatchObject({
+      departureIata: "SYD",
+      arrivalIata: "HND",
+    });
+  });
+
+  it("reports a missing segment as not found", async () => {
+    await expect(saveTripSegmentFlightData("missing", { flightStatus: "landed" })).rejects.toBeInstanceOf(
+      RecordNotFoundError,
+    );
+  });
+});
+
+describe("Trash retention for Trips", () => {
+  it("purges an expired Trip with its segments, their Documents (Trash ones too) and files", async () => {
+    const longAgo = new Date(Date.now() - (TRASH_RETENTION_DAYS + 1) * 24 * 60 * 60 * 1000);
+    const trip = await createTripCommand({ title: "Expired" }, actorId);
+    const segment = await createTripSegmentCommand(trip.id, flight);
+    const dir = await attachFile(segment.id);
+    await attachFile(segment.id, { storedName: "trashed.pdf", deletedAt: longAgo });
+    await db.prisma.trip.update({ where: { id: trip.id }, data: { deletedAt: longAgo } });
+
+    const recent = await createTripCommand({ title: "Recently trashed" }, actorId);
+    await deleteTripCommand(recent.id);
+
+    await purgeExpiredTrash();
+
+    expect(await db.prisma.trip.findUnique({ where: { id: trip.id } })).toBeNull();
+    expect(await db.prisma.tripSegment.count({ where: { tripId: trip.id } })).toBe(0);
+    expect(await db.prisma.tripSegmentDocument.count()).toBe(0);
+    expect(await exists(dir)).toBe(false);
+    expect(await db.prisma.trip.findUnique({ where: { id: recent.id } })).not.toBeNull();
+  });
+});
+
+describe("Trip server actions", () => {
+  function signInAs(role: "ADMIN" | "MEMBER" | "READONLY") {
+    vi.mocked(auth).mockResolvedValue({ user: { id: actorId, role } } as never);
+  }
+
+  it("refuse a read-only member before writing anything", async () => {
+    const trip = await createTripCommand({ title: "Keep" }, actorId);
+    signInAs("READONLY");
+    await expect(createTrip({}, formData({ title: "New" }))).rejects.toThrow("read-only");
+    await expect(updateTrip(trip.id, {}, formData({ title: "Changed" }))).rejects.toThrow("read-only");
+    await expect(deleteTrip(trip.id)).rejects.toThrow("read-only");
+    expect(await db.prisma.trip.count()).toBe(1);
+    expect(await db.prisma.trip.findUniqueOrThrow({ where: { id: trip.id } })).toMatchObject({
+      title: "Keep",
+      deletedAt: null,
+    });
+  });
+
+  it("turn a command's not-found into the form's error", async () => {
+    signInAs("MEMBER");
+    expect(await updateTrip("missing", {}, formData({ title: "x" }))).toEqual({ error: "Trip not found." });
+    expect(await restoreTrip("missing")).toEqual({ error: "Trip not found." });
+
+    const trip = await createTripCommand({ title: "Mine" }, actorId);
+    const other = await createTripCommand({ title: "Other" }, actorId);
+    const segment = await createTripSegmentCommand(trip.id, flight);
+    expect(await deleteTripSegment(other.id, segment.id)).toEqual({ error: "Segment not found." });
+    expect(
+      await updateTripSegment(other.id, segment.id, {}, formData({ type: "FLIGHT", title: "x", currency: "AUD" })),
+    ).toEqual({ error: "Segment not found." });
+    expect(await db.prisma.tripSegment.findUnique({ where: { id: segment.id } })).not.toBeNull();
+  });
+
+  it("write through the command and redirect on success", async () => {
+    signInAs("MEMBER");
+    await expect(createTrip({}, formData({ title: "Via action", destination: "Hobart" }))).rejects.toThrow(
+      /^REDIRECT \/travel\//,
+    );
+    expect(await db.prisma.trip.findFirstOrThrow({ where: { title: "Via action" } })).toMatchObject({
+      destination: "Hobart",
+      createdById: actorId,
     });
   });
 });

@@ -20,7 +20,7 @@ import {
 } from "@/lib/commands/trips";
 import { RecordNotFoundError, StaleEditError } from "@/lib/commands/shared";
 import { formDataToStringValues } from "@/lib/form-state";
-import { isModuleEnabled, ModuleDisabledError } from "@/lib/modules/enablement";
+import { isModuleEnabled } from "@/lib/modules/enablement";
 import type { ActionState } from "@/lib/actions/auth";
 import { describeUploadRejection } from "@/lib/uploadValidation";
 
@@ -54,11 +54,13 @@ async function requireUser() {
   return session.user;
 }
 
-// Turns a command's not-found / stale-edit / module-disabled error into the
-// ActionState the form shows; anything else is unexpected and rethrown.
+// Turns a command's not-found / stale-edit error into the ActionState the
+// form shows; anything else is unexpected and rethrown. (requireUser has
+// already refused a disabled Travel module, so the command's
+// ModuleDisabledError can't reach here.)
 function commandError(error: unknown, notFound: string): ActionState {
   if (error instanceof RecordNotFoundError) return { error: notFound };
-  if (error instanceof StaleEditError || error instanceof ModuleDisabledError) return { error: error.message };
+  if (error instanceof StaleEditError) return { error: error.message };
   throw error;
 }
 
