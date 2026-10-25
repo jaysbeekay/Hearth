@@ -54,14 +54,14 @@ export default async function VehicleDetailPage({
   ]);
   if (!vehicle || vehicle.deletedAt) notFound();
 
-  const healthFor = (field: "regoExpiry" | "insuranceExpiry" | "nextServiceDue") =>
-    vehicle[field]
+  const healthFor = (field: "regoExpiry" | "insuranceExpiry" | "nextServiceDue", date: Date | null) =>
+    date
       ? getReminderHealth({ ownerType: "VEHICLE", ownerId: vehicle.id, field, record: { kind: "vehicle", ...vehicle } })
       : null;
   const [regoHealth, insuranceHealth, serviceHealth] = await Promise.all([
-    healthFor("regoExpiry"),
-    healthFor("insuranceExpiry"),
-    healthFor("nextServiceDue"),
+    healthFor("regoExpiry", vehicle.regoExpiry),
+    healthFor("insuranceExpiry", vehicle.insuranceExpiry),
+    healthFor("nextServiceDue", vehicle.nextServiceDue),
   ]);
 
   const items = [...vehicle.items].sort((a, b) => {
