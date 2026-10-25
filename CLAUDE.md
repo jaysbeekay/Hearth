@@ -131,10 +131,12 @@ to a record (`InboxReviewClient.tsx`).
 **Notifications** (`src/lib/notifications/`): a single `scheduler.ts` (node-cron, schedule
 from `REMINDER_CRON_SCHEDULE`) checks contracts/products/vehicles for crossed reminder
 thresholds and fans out to whichever channels are configured — email (`email.ts`), push
-via ntfy (`ntfy.ts`), and outbound webhooks (`webhook.ts`, HMAC-SHA256 signed). Threshold
-dedup logic lives in `thresholds.ts` — crossing several thresholds at once (e.g. adding an
-already-overdue contract) sends one catch-up notification per channel, not one per
-threshold. `/api/cron` lets an external scheduler trigger the same check
+via ntfy (`ntfy.ts`), and outbound webhooks (`webhook.ts`, HMAC-SHA256 signed). What to send
+and when comes from the pure Reminder schedule (`reminderSchedule.ts`), which works on the Due
+policy's entries; the health card uses the same schedule. Crossing several thresholds at once
+(e.g. adding an already-overdue contract) sends one catch-up notification per channel, not one
+per threshold. The sent log is keyed by the Due entry's date, so moving a date re-arms its
+Reminders without any writer clearing the log (ADR 0003). `/api/cron` lets an external scheduler trigger the same check
 (`x-cron-secret` header, gated on `CRON_SECRET` being set).
 
 **Backups** (`src/lib/backup/`): `snapshot.ts` takes a live `VACUUM INTO` SQLite snapshot,
