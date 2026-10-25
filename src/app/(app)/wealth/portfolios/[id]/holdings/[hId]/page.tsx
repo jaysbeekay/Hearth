@@ -345,15 +345,13 @@ export default async function HoldingPage({
         <div className="flex items-center justify-between">
           <h2 className="font-medium">Trade history</h2>
           {canWrite && (
-            <>
-              <Link
-                href={`/wealth/portfolios/${portfolioId}/holdings/${holdingId}/trades/new`}
-                className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
-              >
-                <Plus size={16} />
-                Add trade
-              </Link>
-            </>
+            <Link
+              href={`/wealth/portfolios/${portfolioId}/holdings/${holdingId}/trades/new`}
+              className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+            >
+              <Plus size={16} />
+              Add trade
+            </Link>
           )}
         </div>
 

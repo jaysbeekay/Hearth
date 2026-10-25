@@ -59,17 +59,15 @@ export function HomeListClient({ properties, taxDeductibleSummary, region }: Pro
             </div>
           </details>
           {canWrite && (
-            <>
-              <Link
-                href="/home/new"
-                aria-disabled={!online}
-                tabIndex={!online ? -1 : undefined}
-                className={linkButtonClass("primary", { online })}
-              >
-                <Plus size={16} />
-                Add property
-              </Link>
-            </>
+            <Link
+              href="/home/new"
+              aria-disabled={!online}
+              tabIndex={!online ? -1 : undefined}
+              className={linkButtonClass("primary", { online })}
+            >
+              <Plus size={16} />
+              Add property
+            </Link>
           )}
         </div>
       </div>

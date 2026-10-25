@@ -28,15 +28,13 @@ export default async function PortfoliosPage() {
           <h1 className="mt-1 text-2xl font-semibold">Portfolios</h1>
         </div>
         {canWrite && (
-          <>
-            <Link
-              href="/wealth/portfolios/new"
-              className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
-            >
-              <Plus size={16} />
-              New portfolio
-            </Link>
-          </>
+          <Link
+            href="/wealth/portfolios/new"
+            className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+          >
+            <Plus size={16} />
+            New portfolio
+          </Link>
         )}
       </div>
 

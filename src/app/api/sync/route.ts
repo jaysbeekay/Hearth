@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { readOnlyApiResponse } from "@/lib/readOnly";
 import { prisma } from "@/lib/prisma";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
@@ -35,9 +36,8 @@ export async function POST(request: NextRequest) {
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  if (session.user.role === "READONLY") {
-    return NextResponse.json({ error: "Your account has read-only access." }, { status: 403 });
-  }
+  const readOnly = readOnlyApiResponse(session);
+  if (readOnly) return readOnly;
 
   // Always multipart: the client sends a JSON "operations" field alongside
   // any staged file parts, keyed "file:<opId>:<fieldName>" (see

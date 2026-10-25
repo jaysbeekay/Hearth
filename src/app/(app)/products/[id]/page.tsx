@@ -215,11 +215,9 @@ export default async function ProductDetailPage({
         <h2 className="mb-3 font-medium">Documents</h2>
         <ProductDocumentList documents={product.documents} dateFormat={dateFormat} />
         {canWrite && (
-          <>
-            <div className="mt-4 border-t border-border pt-4">
-              <ProductDocumentUploadForm action={boundUpload} />
-            </div>
-          </>
+          <div className="mt-4 border-t border-border pt-4">
+            <ProductDocumentUploadForm action={boundUpload} />
+          </div>
         )}
       </div>
 

@@ -5,6 +5,7 @@ import { extractContractFields } from "@/lib/documents/fieldExtraction";
 import { getByokConfig } from "@/lib/ai/extract";
 import { readValidatedUploadDetails, UploadRejectedError } from "@/lib/uploadValidation";
 import { consumeLayeredRateLimit } from "@/lib/rateLimit";
+import { readOnlyApiResponse } from "@/lib/readOnly";
 
 // Previews auto-fill fields for a document before a contract exists yet —
 // nothing is persisted here, the file is only held in memory for the
@@ -15,6 +16,10 @@ export async function POST(request: NextRequest) {
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  // #400 — extraction spends OCR/AI on the household's behalf, and its
+  // result can only be saved by a member who can write.
+  const readOnly = readOnlyApiResponse(session);
+  if (readOnly) return readOnly;
 
   // OCR and AI extraction spawn processes or bill the household's API key, so
   // this counts every call, not just failures.

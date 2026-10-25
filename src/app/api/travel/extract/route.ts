@@ -6,6 +6,7 @@ import { getByokConfig } from "@/lib/ai/extract";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import { readValidatedUploadDetails, UploadRejectedError } from "@/lib/uploadValidation";
 import { consumeLayeredRateLimit } from "@/lib/rateLimit";
+import { readOnlyApiResponse } from "@/lib/readOnly";
 
 // Previews auto-fill fields for a document before a trip segment exists yet —
 // nothing is persisted here, the file is only held in memory for the
@@ -16,6 +17,10 @@ export async function POST(request: NextRequest) {
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  // #400 — extraction spends OCR/AI on the household's behalf, and its
+  // result can only be saved by a member who can write.
+  const readOnly = readOnlyApiResponse(session);
+  if (readOnly) return readOnly;
   if (!(await isModuleEnabled("TRAVEL"))) {
     return NextResponse.json({ error: "Travel module is disabled." }, { status: 403 });
   }

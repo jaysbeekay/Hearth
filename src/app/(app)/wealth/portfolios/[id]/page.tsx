@@ -54,15 +54,13 @@ export default async function PortfolioPage({
             {portfolio.description && <p className="text-sm text-muted">{portfolio.description}</p>}
           </div>
           {canWrite && (
-            <>
-              <Link
-                href={`/wealth/portfolios/${id}/edit`}
-                className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
-              >
-                <Pencil size={16} />
-                Edit
-              </Link>
-            </>
+            <Link
+              href={`/wealth/portfolios/${id}/edit`}
+              className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+            >
+              <Pencil size={16} />
+              Edit
+            </Link>
           )}
         </div>
       </div>
@@ -93,26 +91,22 @@ export default async function PortfolioPage({
           <h2 className="font-medium">Holdings</h2>
           <div className="flex items-center gap-2">
             {canWrite && (
-              <>
-                <Link
-                  href={`/wealth/portfolios/${id}/import`}
-                  className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
-                >
-                  <Upload size={16} />
-                  Import CSV
-                </Link>
-              </>
+              <Link
+                href={`/wealth/portfolios/${id}/import`}
+                className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+              >
+                <Upload size={16} />
+                Import CSV
+              </Link>
             )}
             {canWrite && (
-              <>
-                <Link
-                  href={`/wealth/portfolios/${id}/holdings/new`}
-                  className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
-                >
-                  <Plus size={16} />
-                  Add holding
-                </Link>
-              </>
+              <Link
+                href={`/wealth/portfolios/${id}/holdings/new`}
+                className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+              >
+                <Plus size={16} />
+                Add holding
+              </Link>
             )}
           </div>
         </div>

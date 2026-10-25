@@ -269,10 +269,14 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   Document star, delete and upload on every record type, the quick-add
   buttons for service records, maintenance, segments, rental agreements
   and statements, Wealth's holdings, trades and valuations, and the Inbox's
-  classify fields, which show as plain text. Every create, edit and import
-  page now redirects them to the record or its list. The dashboard says
-  "You have read-only access." The server actions still enforce the role;
-  this only stops offering what they would refuse.
+  classify fields, which show as plain text. Details still awaiting review
+  show as plain text too, with Reminders on hold. Every create, edit and
+  import page now redirects them to the record or its list. The dashboard
+  says "You have read-only access." The server actions still enforce the
+  role. The document extract endpoints, which only checked for a session,
+  now refuse read-only members with a 403, as `/api/sync` does, so they
+  can't spend the household's OCR or AI budget. Viewing a trip no longer
+  refreshes flight status for them.
 - **Clearing an optional field on an edit form clears it (#413).** A
   blanked field (an end date, rego expiry, cost, notes, Reminder days, a
   linked property) used to keep its old value even though the save said it

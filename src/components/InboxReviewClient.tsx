@@ -340,6 +340,10 @@ export function InboxReviewClient({
         scan(doc.id, doc.guessedType ?? "CONTRACT", doc.filename);
       }
     });
+    // Runs once on mount by design: re-running when `docs` or `scan` change
+    // identity would rescan every row and overwrite what the member has
+    // typed. `canWrite` comes from the session and is fixed for the page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function updateRow(id: string, patch: Partial<RowState>) {
@@ -507,12 +511,6 @@ export function InboxReviewClient({
     );
   }
 
-  // #400 — read-only members see what's waiting, as plain text, without
-  // the classify fields, Save or Discard.
-  if (!canWrite) {
-    return <ReadOnlyInboxList docs={remainingDocs} dateFormat={dateFormat} />;
-  }
-
   return (
     <div className="space-y-3">
       {remainingDocs.length > 1 && (
@@ -545,7 +543,11 @@ export function InboxReviewClient({
         </p>
       )}
 
-      {visibleDocs.map((doc) => {
+      {/* #400 — read-only members see what's waiting, and can filter it, as
+          plain text: no classify fields, Save or Discard. */}
+      {!canWrite && visibleDocs.length > 0 && <ReadOnlyInboxList docs={visibleDocs} dateFormat={dateFormat} />}
+
+      {canWrite && visibleDocs.map((doc) => {
         const row = rows[doc.id];
         if (!row) return null;
         const rowIsAi = row.source != null && isAiExtractionSource(row.source);

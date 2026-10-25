@@ -57,10 +57,12 @@ export default async function TripDetailPage({
     return a.startDate.getTime() - b.startDate.getTime();
   });
 
-  // Auto-refresh stale flight status for segments in the tracking window
+  // Auto-refresh stale flight status for segments in the tracking window.
+  // #400 — that writes the segment, so a read-only viewer sees the status
+  // as last refreshed instead.
   await Promise.all(
     segments
-      .filter((s) => shouldAutoRefresh(s))
+      .filter((s) => canWrite && shouldAutoRefresh(s))
       .map((s) => refreshFlightStatus(s.id)),
   );
 
@@ -154,15 +156,13 @@ export default async function TripDetailPage({
         <div className="flex items-center justify-between">
           <h2 className="font-medium">Itinerary</h2>
           {canWrite && (
-            <>
-              <Link
-                href={`/travel/${trip.id}/segments/new`}
-                className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
-              >
-                <Plus size={16} />
-                Add segment
-              </Link>
-            </>
+            <Link
+              href={`/travel/${trip.id}/segments/new`}
+              className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+            >
+              <Plus size={16} />
+              Add segment
+            </Link>
           )}
         </div>
 
@@ -259,11 +259,9 @@ export default async function TripDetailPage({
                           )}
                         </div>
                         {canWrite && (
-                          <>
-                            <FlightRefreshForm
-                              action={refreshFlightStatusAction.bind(null, segment.id, id)}
-                            />
-                          </>
+                          <FlightRefreshForm
+                            action={refreshFlightStatusAction.bind(null, segment.id, id)}
+                          />
                         )}
                       </div>
                       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -311,11 +309,9 @@ export default async function TripDetailPage({
                     <div className="mt-4 flex items-center justify-between rounded-lg border border-border p-3">
                       <p className="text-xs text-muted">No flight status data yet.</p>
                       {canWrite && (
-                        <>
-                          <FlightRefreshForm
-                            action={refreshFlightStatusAction.bind(null, segment.id, id)}
-                          />
-                        </>
+                        <FlightRefreshForm
+                          action={refreshFlightStatusAction.bind(null, segment.id, id)}
+                        />
                       )}
                     </div>
                   )}
@@ -333,11 +329,9 @@ export default async function TripDetailPage({
                       dateFormat={dateFormat}
                     />
                     {canWrite && (
-                      <>
-                        <div className="mt-3">
-                          <DocumentUploadForm action={addDocumentAction.bind(null, "TRIP_SEGMENT", segment.id)} />
-                        </div>
-                      </>
+                      <div className="mt-3">
+                        <DocumentUploadForm action={addDocumentAction.bind(null, "TRIP_SEGMENT", segment.id)} />
+                      </div>
                     )}
                   </div>
                 </div>

@@ -133,15 +133,13 @@ export default async function RentalOverviewPage({
             This property isn&apos;t set up for rental tracking yet.
           </p>
           {canWrite && (
-            <>
-              <Link
-                href={`/home/${property.id}/rental/agreements/new`}
-                className="mt-4 inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
-              >
-                <Plus size={16} />
-                Add first rental agreement
-              </Link>
-            </>
+            <Link
+              href={`/home/${property.id}/rental/agreements/new`}
+              className="mt-4 inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+            >
+              <Plus size={16} />
+              Add first rental agreement
+            </Link>
           )}
         </div>
       )}
@@ -152,15 +150,13 @@ export default async function RentalOverviewPage({
           <div className="flex items-center justify-between">
             <h2 className="font-medium">Rental agreements</h2>
             {canWrite && (
-              <>
-                <Link
-                  href={`/home/${property.id}/rental/agreements/new`}
-                  className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
-                >
-                  <Plus size={16} />
-                  New agreement
-                </Link>
-              </>
+              <Link
+                href={`/home/${property.id}/rental/agreements/new`}
+                className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+              >
+                <Plus size={16} />
+                New agreement
+              </Link>
             )}
           </div>
 
@@ -252,17 +248,15 @@ export default async function RentalOverviewPage({
                           </p>
                         </div>
                         {canWrite && (
-                          <>
-                            <form action={linkRentalAgreementContract.bind(null, property.id, ag.id)}>
-                              <input type="hidden" name="contractId" value="" />
-                              <button
-                                type="submit"
-                                className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium hover:bg-hover"
-                              >
-                                Unlink
-                              </button>
-                            </form>
-                          </>
+                          <form action={linkRentalAgreementContract.bind(null, property.id, ag.id)}>
+                            <input type="hidden" name="contractId" value="" />
+                            <button
+                              type="submit"
+                              className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium hover:bg-hover"
+                            >
+                              Unlink
+                            </button>
+                          </form>
                         )}
                       </div>
                     ) : !canWrite ? (
@@ -308,15 +302,13 @@ export default async function RentalOverviewPage({
           <div className="flex items-center justify-between">
             <h2 className="font-medium">Rental statements</h2>
             {canWrite && (
-              <>
-                <Link
-                  href={`/home/${property.id}/rental/statements/new`}
-                  className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
-                >
-                  <Plus size={16} />
-                  Add statement
-                </Link>
-              </>
+              <Link
+                href={`/home/${property.id}/rental/statements/new`}
+                className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+              >
+                <Plus size={16} />
+                Add statement
+              </Link>
             )}
           </div>
 
@@ -431,13 +423,11 @@ export default async function RentalOverviewPage({
                         dateFormat={dateFormat}
                       />
                       {canWrite && (
-                        <>
-                          <div className="mt-3">
-                            <DocumentUploadForm
-                              action={addDocumentAction.bind(null, "RENTAL_STATEMENT", stmt.id)}
-                            />
-                          </div>
-                        </>
+                        <div className="mt-3">
+                          <DocumentUploadForm
+                            action={addDocumentAction.bind(null, "RENTAL_STATEMENT", stmt.id)}
+                          />
+                        </div>
                       )}
                     </div>
                   </div>

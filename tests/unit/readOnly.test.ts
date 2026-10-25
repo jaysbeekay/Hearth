@@ -5,7 +5,7 @@ const redirect = vi.fn((to: string) => {
 });
 vi.mock("next/navigation", () => ({ redirect: (to: string) => redirect(to) }));
 
-const { canWrite, readOnlyRedirectTarget, redirectIfReadOnly } = await import("@/lib/readOnly");
+const { canWrite, readOnlyApiResponse, readOnlyRedirectTarget, redirectIfReadOnly } = await import("@/lib/readOnly");
 
 type Role = "ADMIN" | "MEMBER" | "READONLY";
 const as = (role: Role) => ({ user: { id: "u1", role, name: null, email: null } }) as never;
@@ -36,6 +36,14 @@ describe("redirectIfReadOnly (#400)", () => {
     expect(readOnlyRedirectTarget(as("READONLY"), "/home/1")).toBe("/home/1");
     expect(readOnlyRedirectTarget(as("MEMBER"), "/home/1")).toBeNull();
     expect(readOnlyRedirectTarget(null, "/home/1")).toBeNull();
+  });
+
+  it("readOnlyApiResponse refuses READONLY with a 403 and lets writers through", async () => {
+    const refused = readOnlyApiResponse(as("READONLY"));
+    expect(refused?.status).toBe(403);
+    expect(await refused?.json()).toEqual({ error: "Your account has read-only access." });
+    expect(readOnlyApiResponse(as("MEMBER"))).toBeNull();
+    expect(readOnlyApiResponse(as("ADMIN"))).toBeNull();
   });
 
   it("canWrite is false for READONLY and signed-out, true otherwise", () => {

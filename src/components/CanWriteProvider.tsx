@@ -6,8 +6,9 @@ import { createContext, useContext } from "react";
 // (app) layout from the session role so client components deep in a page
 // (document lists, banners, inbox rows) can hide write controls without the
 // flag being threaded through every layer (#400). This is UI only: the
-// server actions' requireUser() remains the enforcement.
-const CanWriteContext = createContext<boolean>(true);
+// server actions' requireUser() remains the enforcement. Outside the
+// provider it fails closed: no write controls.
+const CanWriteContext = createContext<boolean>(false);
 
 export function CanWriteProvider({
   canWrite,

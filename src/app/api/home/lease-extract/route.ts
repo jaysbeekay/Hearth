@@ -6,12 +6,17 @@ import { getByokConfig } from "@/lib/ai/extract";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import { readValidatedUploadDetails, UploadRejectedError } from "@/lib/uploadValidation";
 import { consumeLayeredRateLimit } from "@/lib/rateLimit";
+import { readOnlyApiResponse } from "@/lib/readOnly";
 
 export async function POST(request: NextRequest) {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  // #400 — extraction spends OCR/AI on the household's behalf, and its
+  // result can only be saved by a member who can write.
+  const readOnly = readOnlyApiResponse(session);
+  if (readOnly) return readOnly;
   if (!(await isModuleEnabled("HOME"))) {
     return NextResponse.json({ error: "Property module is disabled." }, { status: 403 });
   }

@@ -29,7 +29,9 @@ const FIELD_LABELS: Record<string, string> = {
   warrantyEndDate: "Warranty end date",
 };
 
-const DATE_FIELDS = new Set(["startDate", "endDate", "purchaseDate", "warrantyEndDate"]);
+const FIELD_LABEL_MAP = new Map<string, string>(Object.entries(FIELD_LABELS));
+
+const DATE_FIELDS =new Set(["startDate", "endDate", "purchaseDate", "warrantyEndDate"]);
 const NUMBER_FIELDS = new Set(["cost", "price"]);
 
 function inputTypeFor(fieldName: string): string {
@@ -60,9 +62,41 @@ export function ExtractionReviewPanel({
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(action, null);
 
-  // Read-only members can't write, so they get no form (#400).
+  // #400 — read-only members can't confirm, but still need to know the
+  // details are unconfirmed and Reminders are held, so they get the same
+  // proposed values as plain text.
   const canWrite = useCanWrite();
-  if (!canWrite) return null;
+  if (!canWrite) {
+    return (
+      <div className="space-y-3 rounded-xl border border-border bg-muted/10 p-4 md:p-6">
+        <p className="flex items-center gap-2 text-sm font-medium text-foreground">
+          <AlertCircle size={16} className="shrink-0" aria-hidden />
+          Needs review — {fields.length} field{fields.length === 1 ? "" : "s"} were filled in
+          automatically. Reminders are on hold until a household member confirms them.
+        </p>
+        <dl className="space-y-2">
+          {fields.map((field) => (
+            <div key={field.fieldName} className="grid gap-1 sm:grid-cols-[auto_1fr] sm:items-center sm:gap-3">
+              <dt className="text-sm font-medium text-foreground">
+                {FIELD_LABEL_MAP.get(field.fieldName) ?? field.fieldName}
+              </dt>
+              <dd className="flex flex-wrap items-center gap-2 text-sm">
+                {field.currentValue || "—"}
+                <span className="rounded bg-current/10 px-1.5 py-0.5 text-[10px] font-medium text-muted">
+                  {sourceLabel(field.source)}
+                </span>
+                {field.confidence != null && (
+                  <span className="text-[10px] text-muted">
+                    {Math.round(field.confidence * 100)}% confidence
+                  </span>
+                )}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+    );
+  }
 
   return (
     <form

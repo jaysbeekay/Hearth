@@ -171,15 +171,13 @@ export default async function PropertyDetailPage({
         <div className="flex items-center justify-between">
           <h2 className="font-medium">Maintenance &amp; improvements</h2>
           {canWrite && (
-            <>
-              <Link
-                href={`/home/${property.id}/items/new`}
-                className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
-              >
-                <Plus size={16} />
-                Add item
-              </Link>
-            </>
+            <Link
+              href={`/home/${property.id}/items/new`}
+              className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+            >
+              <Plus size={16} />
+              Add item
+            </Link>
           )}
         </div>
 
@@ -259,11 +257,9 @@ export default async function PropertyDetailPage({
                     <h3 className="mb-2 text-sm font-medium">Documents</h3>
                     <HomeItemDocumentList documents={item.documents} dateFormat={dateFormat} />
                     {canWrite && (
-                      <>
-                        <div className="mt-3">
-                          <DocumentUploadForm action={addDocumentAction.bind(null, "HOME_ITEM", item.id)} />
-                        </div>
-                      </>
+                      <div className="mt-3">
+                        <DocumentUploadForm action={addDocumentAction.bind(null, "HOME_ITEM", item.id)} />
+                      </div>
                     )}
                   </div>
                 </div>
@@ -277,15 +273,13 @@ export default async function PropertyDetailPage({
         <div className="flex items-center justify-between">
           <h2 className="font-medium">Contracts &amp; warranties linked to this property</h2>
           {canWrite && (
-            <>
-              <Link
-                href={`/contracts/new?propertyId=${property.id}`}
-                className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
-              >
-                <Plus size={16} />
-                Add contract
-              </Link>
-            </>
+            <Link
+              href={`/contracts/new?propertyId=${property.id}`}
+              className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+            >
+              <Plus size={16} />
+              Add contract
+            </Link>
           )}
         </div>
         {linkedContracts.length === 0 && linkedProducts.length === 0 ? (
@@ -334,17 +328,15 @@ export default async function PropertyDetailPage({
                   {v.notes && <p className="mt-0.5 text-xs text-foreground">{v.notes}</p>}
                 </div>
                 {canWrite && (
-                  <>
-                    <ConfirmForm
-                      action={deletePropertyValuation.bind(null, property.id, v.id)}
-                      confirmText="Remove this valuation? This can't be undone."
-                      actionLabel="Remove valuation"
-                      ariaLabel={`Remove valuation from ${formatDate(v.valuedAt, dateFormat)}`}
-                      className="rounded-lg border border-border p-2 text-danger hover:bg-danger/10"
-                    >
-                      <Trash2 size={14} />
-                    </ConfirmForm>
-                  </>
+                  <ConfirmForm
+                    action={deletePropertyValuation.bind(null, property.id, v.id)}
+                    confirmText="Remove this valuation? This can't be undone."
+                    actionLabel="Remove valuation"
+                    ariaLabel={`Remove valuation from ${formatDate(v.valuedAt, dateFormat)}`}
+                    className="rounded-lg border border-border p-2 text-danger hover:bg-danger/10"
+                  >
+                    <Trash2 size={14} />
+                  </ConfirmForm>
                 )}
               </div>
             ))}
@@ -352,16 +344,14 @@ export default async function PropertyDetailPage({
         )}
 
         {canWrite && (
-          <>
-            <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
-              <h3 className="mb-3 text-sm font-medium">Add valuation</h3>
-              <PropertyValuationForm
-                action={createPropertyValuation.bind(null, property.id)}
-                propertyId={property.id}
-                defaultCurrency={preferredCurrency}
-              />
-            </div>
-          </>
+          <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+            <h3 className="mb-3 text-sm font-medium">Add valuation</h3>
+            <PropertyValuationForm
+              action={createPropertyValuation.bind(null, property.id)}
+              propertyId={property.id}
+              defaultCurrency={preferredCurrency}
+            />
+          </div>
         )}
       </div>
 

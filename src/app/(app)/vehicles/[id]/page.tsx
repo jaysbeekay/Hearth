@@ -185,15 +185,13 @@ export default async function VehicleDetailPage({
         <div className="flex items-center justify-between">
           <h2 className="font-medium">Contracts &amp; warranties linked to this vehicle</h2>
           {canWrite && (
-            <>
-              <Link
-                href={`/contracts/new?vehicleId=${vehicle.id}`}
-                className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
-              >
-                <Plus size={16} />
-                Add contract
-              </Link>
-            </>
+            <Link
+              href={`/contracts/new?vehicleId=${vehicle.id}`}
+              className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+            >
+              <Plus size={16} />
+              Add contract
+            </Link>
           )}
         </div>
         {linkedContracts.length === 0 ? (
@@ -213,15 +211,13 @@ export default async function VehicleDetailPage({
         <div className="flex items-center justify-between">
           <h2 className="font-medium">Service &amp; records</h2>
           {canWrite && (
-            <>
-              <Link
-                href={`/vehicles/${vehicle.id}/items/new`}
-                className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
-              >
-                <Plus size={16} />
-                Add record
-              </Link>
-            </>
+            <Link
+              href={`/vehicles/${vehicle.id}/items/new`}
+              className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+            >
+              <Plus size={16} />
+              Add record
+            </Link>
           )}
         </div>
 
@@ -294,11 +290,9 @@ export default async function VehicleDetailPage({
                     <h3 className="mb-2 text-sm font-medium">Documents</h3>
                     <VehicleItemDocumentList documents={item.documents} dateFormat={dateFormat} />
                     {canWrite && (
-                      <>
-                        <div className="mt-3">
-                          <DocumentUploadForm action={addDocumentAction.bind(null, "VEHICLE_ITEM", item.id)} />
-                        </div>
-                      </>
+                      <div className="mt-3">
+                        <DocumentUploadForm action={addDocumentAction.bind(null, "VEHICLE_ITEM", item.id)} />
+                      </div>
                     )}
                   </div>
                 </div>

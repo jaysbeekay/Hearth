@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { NextResponse } from "next/server";
 import type { Session } from "next-auth";
 
 // Role gates actions, not visibility (CLAUDE.md): a READONLY member sees every
@@ -7,6 +8,9 @@ import type { Session } from "next-auth";
 // offering write controls and forms that can only fail (#400).
 
 type SessionLike = Pick<Session, "user"> | null | undefined;
+
+/** The same words every domain's requireUser() throws. */
+export const READ_ONLY_MESSAGE = "Your account has read-only access.";
 
 /** True when the signed-in member may create, edit or delete household records. */
 export function canWrite(session: SessionLike): boolean {
@@ -20,6 +24,17 @@ export function canWrite(session: SessionLike): boolean {
  */
 export function readOnlyRedirectTarget(session: SessionLike, to: string): string | null {
   return session?.user?.role === "READONLY" ? to : null;
+}
+
+/**
+ * For a route handler that writes, or spends the household's OCR/AI budget
+ * on its behalf: a 403 for a READONLY member, or null to carry on. Call it
+ * after the signed-in check.
+ */
+export function readOnlyApiResponse(session: SessionLike): NextResponse | null {
+  return session?.user?.role === "READONLY"
+    ? NextResponse.json({ error: READ_ONLY_MESSAGE }, { status: 403 })
+    : null;
 }
 
 /**
