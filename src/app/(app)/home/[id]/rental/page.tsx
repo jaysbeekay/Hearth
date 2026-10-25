@@ -86,7 +86,9 @@ export default async function RentalOverviewPage({
       },
     }),
     prisma.contract.findMany({
-      where: { category: "RENTAL" },
+      // A Contract links to one Tenancy at most, and one in Trash can't be
+      // linked (linkTenancyContractCommand refuses both).
+      where: { category: "RENTAL", deletedAt: null, rentalAgreement: null },
       select: { id: true, title: true, provider: true },
       orderBy: { title: "asc" },
     }),

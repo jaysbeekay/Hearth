@@ -1,15 +1,35 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { formToPropertyInput, formToHomeItemInput, formToRentalAgreementInput, formToRentalStatementInput } from "@/lib/formMappers";
-import { prisma } from "@/lib/prisma";
 import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
 import { propertySchema, homeItemSchema, rentalAgreementSchema, rentalStatementSchema } from "@/lib/validation/home";
-import { addDocumentCommand, removeOwnerDocumentFiles } from "@/lib/commands/documents";
+import { addDocumentCommand } from "@/lib/commands/documents";
 import { formDataToStringValues } from "@/lib/form-state";
-import { isModuleEnabled } from "@/lib/modules/enablement";
+import { isModuleEnabled, ModuleDisabledError } from "@/lib/modules/enablement";
+import {
+  createPropertyCommand,
+  updatePropertyCommand,
+  setPropertyRentedCommand,
+  deletePropertyCommand,
+  restorePropertyCommand,
+  permanentlyDeletePropertyCommand,
+  createMaintenanceRecordCommand,
+  updateMaintenanceRecordCommand,
+  deleteMaintenanceRecordCommand,
+  restoreMaintenanceRecordCommand,
+  permanentlyDeleteMaintenanceRecordCommand,
+  createTenancyCommand,
+  updateTenancyCommand,
+  linkTenancyContractCommand,
+  permanentlyDeleteTenancyCommand,
+  createRentalStatementCommand,
+  updateRentalStatementCommand,
+  permanentlyDeleteRentalStatementCommand,
+  TenancyContractLinkError,
+} from "@/lib/commands/home";
+import { RecordNotFoundError, StaleEditError } from "@/lib/commands/shared";
 import type { ActionState } from "@/lib/actions/auth";
 import { describeUploadRejection } from "@/lib/uploadValidation";
 import { parseDocumentCategory } from "@/lib/documents/categories";
@@ -73,6 +93,25 @@ async function requireUser() {
   return session.user;
 }
 
+// Turns a command's not-found / stale-edit / module-disabled error into the
+// ActionState the form shows; anything else is unexpected and rethrown.
+function commandError(error: unknown, notFound: string): ActionState {
+  if (error instanceof RecordNotFoundError) return { error: notFound };
+  if (
+    error instanceof StaleEditError ||
+    error instanceof ModuleDisabledError ||
+    error instanceof TenancyContractLinkError
+  ) {
+    return { error: error.message };
+  }
+  throw error;
+}
+
+function attachedFile(formData: FormData): File | null {
+  const file = formData.get("file");
+  return file instanceof File && file.size > 0 ? file : null;
+}
+
 export async function createProperty(
   _prevState: ActionState,
   formData: FormData,
@@ -87,11 +126,9 @@ export async function createProperty(
     };
   }
 
-  const property = await prisma.property.create({
-    data: { ...parsed.data, createdById: user.id },
-  });
-
-  revalidatePath("/home");
+  // requireUser() has already checked the module, and a create has no
+  // record to be missing, so there's no command error to map here.
+  const property = await createPropertyCommand(parsed.data, user.id);
   redirect(`/home/${property.id}`);
 }
 
@@ -110,66 +147,42 @@ export async function updateProperty(
     };
   }
 
-  const existing = await prisma.property.findUnique({ where: { id: propertyId } });
-  if (!existing) return { error: "Property not found." };
-
-  await prisma.property.update({
-    where: { id: propertyId },
-    data: { ...fullFormUpdate(propertySchema, parsed.data, formData), updatedById: user.id },
-  });
-
-  revalidatePath("/home");
-  revalidatePath(`/home/${propertyId}`);
+  try {
+    await updatePropertyCommand(propertyId, fullFormUpdate(propertySchema, parsed.data, formData), user.id);
+  } catch (error) {
+    return commandError(error, "Property not found.");
+  }
   redirect(`/home/${propertyId}`);
 }
 
 // #287 — soft-delete: see the equivalent comment on deleteContract (contracts.ts).
 export async function deleteProperty(propertyId: string): Promise<ActionState> {
   await requireUser();
-
-  const existing = await prisma.property.findUnique({ where: { id: propertyId } });
-  if (!existing) return { error: "Property not found." };
-
-  await prisma.property.update({ where: { id: propertyId }, data: { deletedAt: new Date() } });
-
-  revalidatePath("/home");
-  revalidatePath("/settings/trash");
+  try {
+    await deletePropertyCommand(propertyId);
+  } catch (error) {
+    return commandError(error, "Property not found.");
+  }
   redirect("/home");
 }
 
 export async function restoreProperty(propertyId: string): Promise<ActionState> {
   await requireUser();
-
-  const existing = await prisma.property.findUnique({ where: { id: propertyId } });
-  if (!existing) return { error: "Property not found." };
-
-  await prisma.property.update({ where: { id: propertyId }, data: { deletedAt: null } });
-
-  revalidatePath("/home");
-  revalidatePath("/settings/trash");
+  try {
+    await restorePropertyCommand(propertyId);
+  } catch (error) {
+    return commandError(error, "Property not found.");
+  }
   return { success: "Restored." };
 }
 
 export async function permanentlyDeleteProperty(propertyId: string): Promise<ActionState> {
   await requireUser();
-
-  const existing = await prisma.property.findUnique({
-    where: { id: propertyId },
-    include: { items: { select: { id: true } }, rentalStatements: { select: { id: true } } },
-  });
-  if (!existing) return { error: "Property not found." };
-
-  // Cascade removes the DB rows but not the uploaded files — clean those up first.
-  for (const item of existing.items) {
-    await removeOwnerDocumentFiles("HOME_ITEM", item.id);
+  try {
+    await permanentlyDeletePropertyCommand(propertyId);
+  } catch (error) {
+    return commandError(error, "Property not found.");
   }
-  for (const statement of existing.rentalStatements) {
-    await removeOwnerDocumentFiles("RENTAL_STATEMENT", statement.id);
-  }
-
-  await prisma.property.delete({ where: { id: propertyId } });
-
-  revalidatePath("/settings/trash");
   return { success: "Deleted permanently." };
 }
 
@@ -180,9 +193,6 @@ export async function addHomeItem(
 ): Promise<ActionState> {
   await requireUser();
 
-  const property = await prisma.property.findUnique({ where: { id: propertyId } });
-  if (!property) return { error: "Property not found." };
-
   const parsed = homeItemSchema.safeParse(formToHomeItemInput(formData));
   if (!parsed.success) {
     return {
@@ -191,24 +201,26 @@ export async function addHomeItem(
     };
   }
 
-  const file = formData.get("file");
-  if (file instanceof File && file.size > 0) {
+  const file = attachedFile(formData);
+  if (file) {
     const rejection = await describeUploadRejection(file);
     if (rejection) return { error: rejection };
   }
 
-  const item = await prisma.homeItem.create({
-    data: { ...parsed.data, propertyId },
-  });
+  let itemId: string;
+  try {
+    itemId = (await createMaintenanceRecordCommand(propertyId, parsed.data)).id;
+  } catch (error) {
+    return commandError(error, "Property not found.");
+  }
 
-  if (file instanceof File && file.size > 0) {
-    await addDocumentCommand("HOME_ITEM", item.id, {
+  if (file) {
+    await addDocumentCommand("HOME_ITEM", itemId, {
       file,
       category: parseDocumentCategory(formData.get("documentCategory")),
     });
   }
 
-  revalidatePath(`/home/${propertyId}`);
   redirect(`/home/${propertyId}`);
 }
 
@@ -228,61 +240,54 @@ export async function updateHomeItem(
     };
   }
 
-  const existing = await prisma.homeItem.findUnique({ where: { id: itemId } });
-  if (!existing || existing.propertyId !== propertyId) return { error: "Item not found." };
-
-  await prisma.homeItem.update({ where: { id: itemId }, data: fullFormUpdate(homeItemSchema, parsed.data, formData) });
-
-  revalidatePath(`/home/${propertyId}`);
+  try {
+    await updateMaintenanceRecordCommand(itemId, fullFormUpdate(homeItemSchema, parsed.data, formData), {
+      propertyId,
+    });
+  } catch (error) {
+    return commandError(error, "Item not found.");
+  }
   redirect(`/home/${propertyId}`);
 }
 
 export async function deleteHomeItem(propertyId: string, itemId: string): Promise<ActionState> {
   await requireUser();
-
-  const existing = await prisma.homeItem.findUnique({ where: { id: itemId } });
-  if (!existing || existing.propertyId !== propertyId) return { error: "Item not found." };
-
-  await prisma.homeItem.update({ where: { id: itemId }, data: { deletedAt: new Date() } });
-
-  revalidatePath(`/home/${propertyId}`);
-  revalidatePath("/settings/trash");
+  try {
+    await deleteMaintenanceRecordCommand(itemId, { propertyId });
+  } catch (error) {
+    return commandError(error, "Item not found.");
+  }
   return { success: "Item moved to Trash." };
 }
 
 export async function restoreHomeItem(itemId: string): Promise<ActionState> {
   await requireUser();
-
-  const item = await prisma.homeItem.findUnique({ where: { id: itemId } });
-  if (!item) return { error: "Item not found." };
-
-  await prisma.homeItem.update({ where: { id: itemId }, data: { deletedAt: null } });
-  revalidatePath(`/home/${item.propertyId}`);
-  revalidatePath("/settings/trash");
+  try {
+    await restoreMaintenanceRecordCommand(itemId);
+  } catch (error) {
+    return commandError(error, "Item not found.");
+  }
   return { success: "Restored." };
 }
 
 export async function permanentlyDeleteHomeItem(itemId: string): Promise<ActionState> {
   await requireUser();
-
-  const item = await prisma.homeItem.findUnique({ where: { id: itemId } });
-  if (!item) return { error: "Item not found." };
-
-  await removeOwnerDocumentFiles("HOME_ITEM", itemId);
-  await prisma.homeItem.delete({ where: { id: itemId } });
-  revalidatePath(`/home/${item.propertyId}`);
-  revalidatePath("/settings/trash");
+  try {
+    await permanentlyDeleteMaintenanceRecordCommand(itemId);
+  } catch (error) {
+    return commandError(error, "Item not found.");
+  }
   return { success: "Deleted permanently." };
 }
 
-// ─── Rental agreement ────────────────────────────────────────────────────────
+// ─── Rental agreement (Tenancy) ──────────────────────────────────────────────
 
 export async function createRentalAgreement(
   propertyId: string,
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  await requireUser();
+  const user = await requireUser();
 
   const parsed = rentalAgreementSchema.safeParse(formToRentalAgreementInput(formData));
   if (!parsed.success) {
@@ -292,16 +297,11 @@ export async function createRentalAgreement(
     };
   }
 
-  const existing = await prisma.property.findUnique({ where: { id: propertyId } });
-  if (!existing) return { error: "Property not found." };
-
-  await prisma.$transaction([
-    prisma.rentalAgreement.create({ data: { ...parsed.data, propertyId } }),
-    prisma.property.update({ where: { id: propertyId }, data: { isRented: true } }),
-  ]);
-
-  revalidatePath(`/home/${propertyId}`);
-  revalidatePath(`/home/${propertyId}/rental`);
+  try {
+    await createTenancyCommand(propertyId, parsed.data, user.id);
+  } catch (error) {
+    return commandError(error, "Property not found.");
+  }
   redirect(`/home/${propertyId}/rental`);
 }
 
@@ -321,16 +321,13 @@ export async function updateRentalAgreement(
     };
   }
 
-  const existing = await prisma.rentalAgreement.findUnique({ where: { id: agreementId } });
-  if (!existing || existing.propertyId !== propertyId) return { error: "Agreement not found." };
-
-  await prisma.rentalAgreement.update({
-    where: { id: agreementId },
-    data: fullFormUpdate(rentalAgreementSchema, parsed.data, formData),
-  });
-
-  revalidatePath(`/home/${propertyId}`);
-  revalidatePath(`/home/${propertyId}/rental`);
+  try {
+    await updateTenancyCommand(agreementId, fullFormUpdate(rentalAgreementSchema, parsed.data, formData), {
+      propertyId,
+    });
+  } catch (error) {
+    return commandError(error, "Agreement not found.");
+  }
   redirect(`/home/${propertyId}/rental`);
 }
 
@@ -339,47 +336,34 @@ export async function deleteRentalAgreement(
   agreementId: string,
 ): Promise<ActionState> {
   await requireUser();
-
-  const existing = await prisma.rentalAgreement.findUnique({ where: { id: agreementId } });
-  if (!existing || existing.propertyId !== propertyId) return { error: "Agreement not found." };
-
-  await prisma.rentalAgreement.delete({ where: { id: agreementId } });
-
-  revalidatePath(`/home/${propertyId}`);
-  revalidatePath(`/home/${propertyId}/rental`);
+  try {
+    await permanentlyDeleteTenancyCommand(agreementId, { propertyId });
+  } catch (error) {
+    return commandError(error, "Agreement not found.");
+  }
   return { success: "Agreement removed." };
 }
 
-async function setRentalAgreementContract(
+// Links (or, with a blank contractId, unlinks) a Tenancy's Contract and says
+// how it went. The form posts to linkRentalAgreementContract below, which
+// needs a void return.
+export async function setRentalAgreementContract(
   propertyId: string,
   agreementId: string,
   formData: FormData,
 ): Promise<ActionState> {
   await requireUser();
 
-  const existing = await prisma.rentalAgreement.findUnique({ where: { id: agreementId } });
-  if (!existing || existing.propertyId !== propertyId) return { error: "Agreement not found." };
-
   const contractId = formData.get("contractId");
-  let newContractId: string | null = null;
-  if (typeof contractId === "string" && contractId.trim() !== "") {
-    const contract = await prisma.contract.findUnique({ where: { id: contractId } });
-    if (!contract) return { error: "Contract not found." };
-    if (contract.category !== "RENTAL") {
-      return { error: "Only Rental-category contracts can be linked." };
-    }
-    newContractId = contract.id;
+  const newContractId = typeof contractId === "string" && contractId.trim() !== "" ? contractId : null;
+
+  try {
+    await linkTenancyContractCommand(agreementId, newContractId, { propertyId });
+  } catch (error) {
+    // A missing Contract is a TenancyContractLinkError with its own message;
+    // a RecordNotFoundError here is the Tenancy itself.
+    return commandError(error, "Agreement not found.");
   }
-
-  await prisma.rentalAgreement.update({
-    where: { id: agreementId },
-    data: { contractId: newContractId },
-  });
-
-  revalidatePath(`/home/${propertyId}/rental`);
-  revalidatePath("/contracts");
-  if (existing.contractId) revalidatePath(`/contracts/${existing.contractId}`);
-  if (newContractId) revalidatePath(`/contracts/${newContractId}`);
   return { success: newContractId ? "Contract linked." : "Contract unlinked." };
 }
 
@@ -395,15 +379,12 @@ export async function setPropertyRented(
   propertyId: string,
   isRented: boolean,
 ): Promise<ActionState> {
-  await requireUser();
-
-  const existing = await prisma.property.findUnique({ where: { id: propertyId } });
-  if (!existing) return { error: "Property not found." };
-
-  await prisma.property.update({ where: { id: propertyId }, data: { isRented } });
-
-  revalidatePath(`/home/${propertyId}`);
-  revalidatePath(`/home/${propertyId}/rental`);
+  const user = await requireUser();
+  try {
+    await setPropertyRentedCommand(propertyId, isRented, user.id);
+  } catch (error) {
+    return commandError(error, "Property not found.");
+  }
   return { success: isRented ? "Rental tracking enabled." : "Rental tracking disabled." };
 }
 
@@ -416,9 +397,6 @@ export async function createRentalStatement(
 ): Promise<ActionState> {
   await requireUser();
 
-  const property = await prisma.property.findUnique({ where: { id: propertyId } });
-  if (!property) return { error: "Property not found." };
-
   const parsed = rentalStatementSchema.safeParse(formToRentalStatementInput(formData));
   if (!parsed.success) {
     return {
@@ -427,21 +405,23 @@ export async function createRentalStatement(
     };
   }
 
-  const file = formData.get("file");
-  if (file instanceof File && file.size > 0) {
+  const file = attachedFile(formData);
+  if (file) {
     const rejection = await describeUploadRejection(file);
     if (rejection) return { error: rejection };
   }
 
-  const statement = await prisma.rentalStatement.create({
-    data: { ...parsed.data, propertyId },
-  });
-
-  if (file instanceof File && file.size > 0) {
-    await addDocumentCommand("RENTAL_STATEMENT", statement.id, { file });
+  let statementId: string;
+  try {
+    statementId = (await createRentalStatementCommand(propertyId, parsed.data)).id;
+  } catch (error) {
+    return commandError(error, "Property not found.");
   }
 
-  revalidatePath(`/home/${propertyId}/rental`);
+  if (file) {
+    await addDocumentCommand("RENTAL_STATEMENT", statementId, { file });
+  }
+
   redirect(`/home/${propertyId}/rental`);
 }
 
@@ -461,15 +441,15 @@ export async function updateRentalStatement(
     };
   }
 
-  const existing = await prisma.rentalStatement.findUnique({ where: { id: statementId } });
-  if (!existing || existing.propertyId !== propertyId) return { error: "Statement not found." };
-
-  await prisma.rentalStatement.update({
-    where: { id: statementId },
-    data: fullFormUpdate(rentalStatementSchema, parsed.data, formData),
-  });
-
-  revalidatePath(`/home/${propertyId}/rental`);
+  try {
+    await updateRentalStatementCommand(
+      statementId,
+      fullFormUpdate(rentalStatementSchema, parsed.data, formData),
+      { propertyId },
+    );
+  } catch (error) {
+    return commandError(error, "Statement not found.");
+  }
   redirect(`/home/${propertyId}/rental`);
 }
 
@@ -478,14 +458,10 @@ export async function deleteRentalStatement(
   statementId: string,
 ): Promise<ActionState> {
   await requireUser();
-
-  const existing = await prisma.rentalStatement.findUnique({ where: { id: statementId } });
-  if (!existing || existing.propertyId !== propertyId) return { error: "Statement not found." };
-
-  await prisma.rentalStatement.delete({ where: { id: statementId } });
-  await removeOwnerDocumentFiles("RENTAL_STATEMENT", statementId);
-
-  revalidatePath(`/home/${propertyId}/rental`);
+  try {
+    await permanentlyDeleteRentalStatementCommand(statementId, { propertyId });
+  } catch (error) {
+    return commandError(error, "Statement not found.");
+  }
   return { success: "Statement removed." };
 }
-
