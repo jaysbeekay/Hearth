@@ -164,8 +164,11 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   thresholds crossed at once) is now the only one for the thresholds it
   passed over, where the next checks used to send each of those too; a
   record that Needs review shows its Reminders as on hold; and a failed
-  Reminder for a date that has since moved no longer shows as a
-  Housekeeping item.
+  Reminder for a date that has since moved, or that a later threshold's
+  Reminder replaced, no longer shows as a Housekeeping item. Email counts
+  as a Reminder channel only when someone has reminder emails turned on.
+  "Send test reminder" previews the Reminder that would really go next and
+  when, and says plainly when none will.
 
 - **Simpler dashboard: what needs doing comes first (#356, #357).** The 11
   stat cards and the Documents block are gone. Under the heading is one line

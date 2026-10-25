@@ -15,6 +15,7 @@
 
 import {
   addDays,
+  daysBetween,
   dueEntries,
   type CalendarDay,
   type DueContext,
@@ -169,24 +170,127 @@ export function reminderPlan(
   };
 }
 
+export type NextReminderPreview =
+  | {
+      /** The entry the next Reminder is about, with `daysLeft` as the Reminder will say it. */
+      entry: DueEntry;
+      daysRemaining: number;
+      when: { kind: "next-check" } | { kind: "on"; day: CalendarDay };
+    }
+  | {
+      /** The record's date, shown for reference; no Reminder will go out for it. */
+      entry: DueEntry;
+      daysRemaining: number;
+      when: { kind: "none"; reason: string };
+    };
+
+/**
+ * What "Send test reminder" previews (#387): the next Reminder the schedule
+ * would really send for `record` on any of `channels` — its Due entry, the
+ * day count it will carry, and when it goes. When none will ever go out,
+ * the record's date and a plain reason why. Null when the record has no
+ * date at all. `field` narrows a Vehicle to one of its dates.
+ */
+export function nextReminderPreview(
+  record: ReminderRecord & { extractionPending?: boolean },
+  ctx: DueContext,
+  sentLog: SentLogRow[],
+  options: { field?: string; channels: readonly ReminderChannel[] },
+): NextReminderPreview | null {
+  const ofField = (entries: DueEntry[]) => (options.field ? entries.filter((e) => e.field === options.field) : entries);
+  const plan = reminderPlan(record, ctx, sentLog);
+
+  let best: { entry: DueEntry; day: CalendarDay; now: boolean } | null = null;
+  for (const { entry, schedule } of plan.entries) {
+    if (options.field && entry.field !== options.field) continue;
+    for (const channel of options.channels) {
+      const s = schedule[channel];
+      if (s.nextReminderOn == null) continue;
+      if (!best || s.nextReminderOn < best.day) best = { entry, day: s.nextReminderOn, now: s.sendNow != null };
+    }
+  }
+  if (best) {
+    return best.now
+      ? { entry: best.entry, daysRemaining: best.entry.daysLeft, when: { kind: "next-check" } }
+      : {
+          entry: best.entry,
+          // On the day it goes, the Reminder counts from that day.
+          daysRemaining: best.entry.daysLeft - daysBetween(ctx.today, best.day),
+          when: { kind: "on", day: best.day },
+        };
+  }
+
+  // Nothing will go out. Show the date the record is about, and say why.
+  const all = ofField(dueEntries(record, ctx));
+  const remindable = ofField(plan.entries.map((p) => p.entry));
+  const entry = remindable[0] ?? all.find((e) => e.field !== "noticeDeadline") ?? all[0];
+  if (!entry) return null;
+  const reason = (() => {
+    if (plan.held) return "it needs review, so its reminders are on hold until it's confirmed.";
+    if (plan.thresholds.length === 0) return "it has no reminder thresholds set.";
+    if (record.kind === "contract" && record.status !== "ACTIVE") return "it isn't active.";
+    if (remindable.length > 0) return "every reminder for its date has already been sent.";
+    if (entry.daysLeft < 0) return "its date has passed.";
+    if (record.kind === "contract" && record.renewalType === "AUTO_RENEW") {
+      return "it renews automatically, so its end date never gets a reminder.";
+    }
+    return "no reminder is left for its date.";
+  })();
+  return { entry, daysRemaining: entry.daysLeft, when: { kind: "none", reason } };
+}
+
 /** Whether a log row is about one of the record's current Reminder entries, rather than history for an earlier date. */
 export function isCurrentLogRow(row: Pick<SentLogRow, "field" | "dueDate">, entries: DueEntry[]): boolean {
   return row.dueDate != null && entries.some((e) => e.field === row.field && e.date === row.dueDate);
 }
 
+/** A household's records by log owner type and id. */
+export type ReminderRecordsByOwner = Record<"CONTRACT" | "PRODUCT" | "VEHICLE", Map<string, ReminderRecord>>;
+
+/** The parts of a log row that decide whether a failure is still live. */
+export interface FailureLogRow {
+  ownerType: string;
+  ownerId: string;
+  field: string;
+  channel: string;
+  dueDate: Date | null;
+  status: string;
+  sentAt: Date;
+}
+
 /**
- * Keeps the failed log rows that are still about a record's current
- * Reminder entries. With a date-keyed log, a failure for an earlier date
- * (since moved, or passed) is history, not a live problem.
+ * The FAILED rows in `logs` that no later send has replaced. A FAILED row
+ * stops counting once a later SENT row exists for the same owner, field,
+ * channel and date. Under catch-up a passed-over threshold is never retried,
+ * so its FAILED row is never overwritten; a later threshold's successful
+ * send is what clears it. The health card and the dashboard both use this,
+ * so they can't disagree about whether a Reminder failed.
  */
-export function currentFailedLogs<
-  L extends { ownerType: string; ownerId: string; field: string; dueDate: Date | null },
->(
+export function liveFailures<L extends FailureLogRow>(logs: L[]): L[] {
+  const sameKey = (a: FailureLogRow, b: FailureLogRow) =>
+    a.ownerType === b.ownerType &&
+    a.ownerId === b.ownerId &&
+    a.field === b.field &&
+    a.channel === b.channel &&
+    (a.dueDate?.getTime() ?? null) === (b.dueDate?.getTime() ?? null);
+  return logs.filter(
+    (f) => f.status === "FAILED" && !logs.some((s) => s.status === "SENT" && sameKey(s, f) && s.sentAt > f.sentAt),
+  );
+}
+
+/**
+ * The failed log rows that are still a live problem: about one of a
+ * record's current Reminder entries (with a date-keyed log, a failure for an
+ * earlier date, since moved or passed, is history), and not replaced by a
+ * later send (liveFailures). Pass every row for the owners concerned, SENT
+ * ones included, so a later send can be seen.
+ */
+export function currentFailedLogs<L extends FailureLogRow>(
   logs: L[],
-  records: { CONTRACT: Map<string, ReminderRecord>; PRODUCT: Map<string, ReminderRecord>; VEHICLE: Map<string, ReminderRecord> },
+  records: ReminderRecordsByOwner,
   ctx: DueContext,
 ): L[] {
-  return logs.filter((log) => {
+  return liveFailures(logs).filter((log) => {
     const record = records[log.ownerType as keyof typeof records]?.get(log.ownerId);
     if (!record) return false;
     const dueDate = log.dueDate ? dateToDay(log.dueDate) : null;

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { addDays, householdDay, type CalendarDay } from "@/lib/duePolicy";
 import {
+  liveFailures,
+  nextReminderPreview,
   REMINDER_CHANNELS,
   reminderPlan,
   reminderSchedule,
@@ -273,5 +275,100 @@ describe("Reminder schedule", () => {
     expect(reminderThresholds("14, 7, nope, 1.5", DEFAULT_DAYS)).toEqual([7, 14]);
     expect(reminderThresholds("nope", DEFAULT_DAYS)).toEqual([1, 7, 14, 30]);
     expect(reminderThresholds(null, "10,5")).toEqual([5, 10]);
+  });
+});
+
+// "Send test reminder" previews what the schedule would really send (#387 review).
+describe("nextReminderPreview", () => {
+  const ctx = (today: CalendarDay) => ({ today, defaultReminderDays: DEFAULT_DAYS });
+  const preview = (record: ReminderRecord & { extractionPending?: boolean }, today: CalendarDay, log: SentLogRow[] = [], field?: string) =>
+    nextReminderPreview(record, ctx(today), log, { field, channels: ["EMAIL"] });
+
+  it("a pending catch-up goes on the next check, with today's day count", () => {
+    expect(preview(warranty("2026-11-01"), "2026-10-25")).toMatchObject({
+      entry: { field: "warrantyEndDate", date: "2026-11-01" },
+      daysRemaining: 7,
+      when: { kind: "next-check" },
+    });
+  });
+
+  it("otherwise the next threshold's day, with the count it will carry then", () => {
+    expect(preview(warranty("2026-12-10"), "2026-10-25")).toMatchObject({
+      daysRemaining: 30,
+      when: { kind: "on", day: "2026-11-10" },
+    });
+    expect(preview(warranty("2026-11-01"), "2026-10-25", [sent("warrantyEndDate", "2026-11-01", 7)])).toMatchObject({
+      daysRemaining: 1,
+      when: { kind: "on", day: "2026-10-31" },
+    });
+  });
+
+  it("previews the notice deadline while it's ahead", () => {
+    expect(preview(contract("2026-12-30", "MANUAL_RENEWAL", 30), "2026-11-20")).toMatchObject({
+      entry: { field: "noticeDeadline", date: "2026-11-30" },
+      daysRemaining: 10,
+      when: { kind: "next-check" },
+    });
+  });
+
+  it("counts in the household's day, not UTC's", () => {
+    // 14:00 UTC is already 26 Oct in Sydney: 6 days to 1 Nov, not 7.
+    const today = householdDay(new Date("2026-10-25T14:00:00Z"), "Australia/Sydney");
+    expect(preview(warranty("2026-11-01"), today)?.daysRemaining).toBe(6);
+  });
+
+  it("says plainly that an auto-renewing Contract's end date never gets a Reminder", () => {
+    const p = preview(contract("2026-11-10", "AUTO_RENEW", 30), "2026-10-25");
+    expect(p).toMatchObject({ entry: { field: "endDate" }, when: { kind: "none" } });
+    expect(p?.when.kind === "none" && p.when.reason).toMatch(/renews automatically/);
+  });
+
+  it("says why for a passed date, a held record, no thresholds and all sent", () => {
+    const reason = (p: ReturnType<typeof preview>) => (p?.when.kind === "none" ? p.when.reason : null);
+    expect(reason(preview(warranty("2026-10-01"), "2026-10-25"))).toMatch(/passed/);
+    expect(reason(preview({ ...warranty("2026-11-01"), extractionPending: true }, "2026-10-25"))).toMatch(/needs review/);
+    expect(
+      reason(nextReminderPreview(warranty("2026-11-01"), { today: "2026-10-25", defaultReminderDays: "" }, [], { channels: ["EMAIL"] })),
+    ).toMatch(/no reminder thresholds/);
+    expect(reason(preview(warranty("2026-11-01"), "2026-10-31", [sent("warrantyEndDate", "2026-11-01", 1)]))).toMatch(
+      /already been sent/,
+    );
+  });
+
+  it("narrows a Vehicle to the date being tested", () => {
+    const v = vehicle({ regoExpiry: "2026-11-01", insuranceExpiry: "2026-12-10" });
+    expect(preview(v, "2026-10-25", [], "insuranceExpiry")).toMatchObject({
+      entry: { field: "insuranceExpiry" },
+      when: { kind: "on", day: "2026-11-10" },
+    });
+  });
+
+  it("is null for a record with no date", () => {
+    expect(preview(vehicle({}), "2026-10-25", [], "regoExpiry")).toBeNull();
+  });
+});
+
+describe("liveFailures", () => {
+  const row = (channel: string, thresholdDays: number, status: "SENT" | "FAILED", sentAt: string, dueDate = "2026-11-30") => ({
+    ownerType: "VEHICLE",
+    ownerId: "v1",
+    field: "regoExpiry",
+    channel,
+    thresholdDays,
+    status,
+    dueDate: new Date(`${dueDate}T00:00:00Z`),
+    sentAt: new Date(sentAt),
+  });
+
+  it("drops a failure once a later threshold sends on the same channel and date", () => {
+    const failed = row("WEBHOOK", 7, "FAILED", "2026-11-28T09:00:00Z");
+    expect(liveFailures([failed, row("WEBHOOK", 1, "SENT", "2026-11-29T09:00:00Z")])).toEqual([]);
+  });
+
+  it("keeps it when the send was earlier, on another channel, or for another date", () => {
+    const failed = row("WEBHOOK", 7, "FAILED", "2026-11-28T09:00:00Z");
+    expect(liveFailures([failed, row("WEBHOOK", 30, "SENT", "2026-10-31T09:00:00Z")])).toEqual([failed]);
+    expect(liveFailures([failed, row("EMAIL", 1, "SENT", "2026-11-29T09:00:00Z")])).toEqual([failed]);
+    expect(liveFailures([failed, row("WEBHOOK", 1, "SENT", "2026-11-29T09:00:00Z", "2027-11-30")])).toEqual([failed]);
   });
 });

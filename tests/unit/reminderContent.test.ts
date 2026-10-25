@@ -97,6 +97,29 @@ describe("buildReminderEmail (#352)", () => {
     expect(email.subject.startsWith("[Test] ")).toBe(true);
     expect(email.text).toContain("This is a test of the reminder");
   });
+
+  it("says when the real Reminder goes, or plainly that none will (#387)", () => {
+    const on = buildReminderEmail({
+      ...contract,
+      test: true,
+      testPreview: { kind: "on", date: new Date("2026-10-06T00:00:00.000Z") },
+    });
+    expect(on.text).toContain("The real one goes out on 6 October 2026.");
+    expect(buildReminderEmail({ ...contract, test: true, testPreview: { kind: "next-check" } }).text).toContain(
+      "The real one goes out on its next reminder check.",
+    );
+    const none = buildReminderEmail({
+      ...contract,
+      daysRemaining: -3,
+      test: true,
+      testPreview: { kind: "none", reason: "its date has passed." },
+    });
+    expect(none.text).toContain("Hearth won't send a reminder for this record: its date has passed.");
+    expect(none.text).toContain("(3 days ago)");
+    expect(none.html).toContain("Hearth won&#39;t send a reminder");
+    const ntfy = buildNtfyReminder({ ...contract, test: true, testPreview: { kind: "none", reason: "its date has passed." } });
+    expect(ntfy.body.startsWith("This is a test. Hearth won't send a reminder")).toBe(true);
+  });
 });
 
 describe("buildNtfyReminder (#352)", () => {

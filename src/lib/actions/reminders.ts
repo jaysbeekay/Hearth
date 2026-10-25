@@ -1,63 +1,93 @@
 "use server";
 
 import { auth } from "@/lib/auth";
-import { isSmtpConfigured, isNtfyConfigured } from "@/lib/appSettings";
+import { isSmtpConfigured, isNtfyConfigured, getReminderConfig, getHouseholdToday } from "@/lib/appSettings";
 import { sendReminderEmail, sendTestEmail } from "@/lib/notifications/email";
 import { sendNtfyReminder, sendTestNtfy } from "@/lib/notifications/ntfy";
 import { prisma } from "@/lib/prisma";
 import { env, isAppUrlConfigured } from "@/lib/env";
-import type { ReminderInput, VehicleReminderField } from "@/lib/notifications/reminderContent";
-import { contractTiming } from "@/lib/contractTiming";
+import type { ReminderInput, TestPreview, VehicleReminderField } from "@/lib/notifications/reminderContent";
+import { getNotificationLogsByOwner, toSentLogRow } from "@/lib/notifications/logs";
+import {
+  dayToDate,
+  nextReminderPreview,
+  type NextReminderPreview,
+  type ReminderChannel,
+} from "@/lib/notifications/reminderSchedule";
+import type { NotificationOwnerType } from "@/generated/prisma/enums";
 
 export type TestReminderTarget =
   | { kind: "contract" | "warranty"; id: string }
   | { kind: "vehicle"; id: string; field: VehicleReminderField };
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
-function daysUntil(date: Date): number {
-  const now = new Date();
-  const start = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-  const end = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
-  return Math.max(0, Math.round((end - start) / MS_PER_DAY));
-}
-
 // The reminder this record would actually send, so a test proves the
 // wording and the link back to the record (#352), not just the channel.
-// Household-wide lookup: any member may test any record's reminder.
-async function reminderForTarget(target: TestReminderTarget): Promise<Omit<ReminderInput, "dateFormat"> | null> {
+// It previews the Reminder schedule (#387): the next Due entry and
+// threshold that would really go out, counted in household days, and says
+// plainly when none ever will. Household-wide lookup: any member may test
+// any record's reminder.
+async function reminderForTarget(
+  target: TestReminderTarget,
+  channels: ReminderChannel[],
+): Promise<Omit<ReminderInput, "dateFormat"> | null> {
   const appUrl = isAppUrlConfigured() ? env.appUrl : null;
+  const [{ defaultDays }, today] = await Promise.all([getReminderConfig(), getHouseholdToday()]);
+  const ctx = { today, defaultReminderDays: defaultDays };
+
+  async function preview(
+    ownerType: NotificationOwnerType,
+    id: string,
+    record: Parameters<typeof nextReminderPreview>[0],
+    field?: string,
+  ) {
+    const logs = (await getNotificationLogsByOwner(ownerType, [id])).get(id) ?? [];
+    return nextReminderPreview(record, ctx, logs.map(toSentLogRow), { field, channels });
+  }
+  function testFields(p: NextReminderPreview) {
+    const testPreview: TestPreview = p.when.kind === "on" ? { kind: "on", date: dayToDate(p.when.day) } : p.when;
+    return { daysRemaining: p.daysRemaining, appUrl, test: true, testPreview };
+  }
+
   if (target.kind === "contract") {
     const c = await prisma.contract.findFirst({ where: { id: target.id, deletedAt: null } });
     if (!c?.endDate) return null;
-    // #351 — preview the notice-deadline reminder while that deadline is ahead.
-    const timing = contractTiming(c);
-    const notice =
-      timing.cancelBy && timing.beforeCancelBy
-        ? { cancelBy: timing.cancelBy, noticePeriodDays: c.noticePeriodDays! }
-        : undefined;
+    const p = await preview("CONTRACT", c.id, { kind: "contract", ...c });
+    if (!p) return null;
     return {
       kind: "contract",
       id: c.id,
       title: c.title,
       detail: c.provider,
       endDate: c.endDate,
-      notice,
-      daysRemaining: daysUntil(notice ? notice.cancelBy : c.endDate),
-      appUrl,
-      test: true,
+      // #351 — a notice-deadline Reminder is about the last day to give notice.
+      notice:
+        p.entry.field === "noticeDeadline"
+          ? { cancelBy: dayToDate(p.entry.date), noticePeriodDays: c.noticePeriodDays! }
+          : undefined,
+      ...testFields(p),
     };
   }
   if (target.kind === "warranty") {
-    const p = await prisma.product.findFirst({ where: { id: target.id, deletedAt: null } });
-    if (!p?.warrantyEndDate) return null;
-    return { kind: "warranty", id: p.id, title: p.description, detail: p.manufacturer ?? p.vendor ?? "", endDate: p.warrantyEndDate, daysRemaining: daysUntil(p.warrantyEndDate), appUrl, test: true };
+    const product = await prisma.product.findFirst({ where: { id: target.id, deletedAt: null } });
+    if (!product?.warrantyEndDate) return null;
+    const p = await preview("PRODUCT", product.id, { kind: "warranty", ...product });
+    if (!p) return null;
+    return {
+      kind: "warranty",
+      id: product.id,
+      title: product.description,
+      detail: product.manufacturer ?? product.vendor ?? "",
+      endDate: product.warrantyEndDate,
+      ...testFields(p),
+    };
   }
   if (target.kind !== "vehicle") return null;
   const v = await prisma.vehicle.findFirst({ where: { id: target.id, deletedAt: null } });
   const date = v?.[target.field];
   if (!v || !date) return null;
-  return { kind: "vehicle", id: v.id, title: v.label, vehicleField: target.field, endDate: date, daysRemaining: daysUntil(date), appUrl, test: true };
+  const p = await preview("VEHICLE", v.id, { kind: "vehicle", ...v }, target.field);
+  if (!p) return null;
+  return { kind: "vehicle", id: v.id, title: v.label, vehicleField: target.field, endDate: date, ...testFields(p) };
 }
 
 export type ActionState = { error?: string; success?: string } | null;
@@ -90,7 +120,11 @@ export async function sendTestReminder(target?: TestReminderTarget): Promise<Act
   const failed: string[] = [];
 
   // From a record's page: send that record's real reminder, marked [Test].
-  const reminder = target ? await reminderForTarget(target) : null;
+  const channels: ReminderChannel[] = [
+    ...(emailEnabled ? (["EMAIL"] as const) : []),
+    ...(ntfyEnabled ? (["NTFY"] as const) : []),
+  ];
+  const reminder = target ? await reminderForTarget(target, channels) : null;
   const dateFormat = reminder
     ? (await prisma.user.findUnique({ where: { id: user.id }, select: { dateFormat: true } }))?.dateFormat
     : null;

@@ -2,7 +2,13 @@ import { prisma } from "@/lib/prisma";
 import type { NotificationChannel, NotificationOwnerType, NotificationStatus } from "@/generated/prisma/enums";
 import type { NotificationLog } from "@/generated/prisma/client";
 import { ensureNotificationLogBackfill } from "@/lib/notifications/logBackfill";
-import { dateToDay, type SentLogRow } from "@/lib/notifications/reminderSchedule";
+import {
+  currentFailedLogs,
+  dateToDay,
+  type ReminderRecordsByOwner,
+  type SentLogRow,
+} from "@/lib/notifications/reminderSchedule";
+import type { DueContext } from "@/lib/duePolicy";
 
 /**
  * Bulk-fetches notification logs for a batch of owners of one type, grouped
@@ -30,6 +36,28 @@ export async function getNotificationLogsByOwner(
     map.set(row.ownerId, list);
   }
   return map;
+}
+
+/**
+ * The dashboard's "Reminder failed" rows, newest first: FAILED rows for a
+ * record's current Reminder entries that no later send has replaced — the
+ * same rule as the health card's "Last failure" (currentFailedLogs).
+ */
+export async function getCurrentReminderFailures(
+  records: ReminderRecordsByOwner,
+  ctx: DueContext,
+): Promise<NotificationLog[]> {
+  await ensureNotificationLogBackfill();
+  const failed = await prisma.notificationLog.findMany({
+    where: { status: "FAILED", dueDate: { not: null } },
+    orderBy: { sentAt: "desc" },
+  });
+  if (failed.length === 0) return [];
+  // The SENT rows for those owners, so a later send can replace a failure.
+  const sent = await prisma.notificationLog.findMany({
+    where: { status: "SENT", dueDate: { not: null }, ownerId: { in: [...new Set(failed.map((f) => f.ownerId))] } },
+  });
+  return currentFailedLogs([...failed, ...sent], records, ctx);
 }
 
 /** A log row as the Reminder schedule reads it. */

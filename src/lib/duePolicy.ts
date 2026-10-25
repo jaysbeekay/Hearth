@@ -169,7 +169,8 @@ export function addDays(day: CalendarDay, days: number): CalendarDay {
   return dayOf((dayNumber(day) + days) * DAY_MS) ?? day;
 }
 
-function daysBetween(from: CalendarDay, to: CalendarDay): number {
+/** Days from `from` to `to` (negative when `to` is earlier). */
+export function daysBetween(from: CalendarDay, to: CalendarDay): number {
   return dayNumber(to) - dayNumber(from);
 }
 

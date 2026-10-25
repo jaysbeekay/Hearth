@@ -1,11 +1,11 @@
-import { isSmtpConfigured, isNtfyConfigured, getReminderConfig, getHouseholdToday } from "@/lib/appSettings";
-import { getEnabledWebhookEndpoints } from "@/lib/notifications/webhook";
+import { getReminderConfig, getHouseholdToday } from "@/lib/appSettings";
+import { activeChannels, channelList } from "@/lib/notifications/channels";
 import { getNotificationLogsByOwner, toSentLogRow } from "@/lib/notifications/logs";
 import {
   dayToDate,
+  liveFailures,
   REMINDER_CHANNELS,
   reminderPlan,
-  type ReminderChannel,
   type ReminderPlan,
   type ReminderRecord,
 } from "@/lib/notifications/reminderSchedule";
@@ -39,14 +39,6 @@ export type ReminderHealthRecord = ReminderRecord & { extractionPending?: boolea
 
 type Channels = ReminderHealth["channels"];
 
-function configuredChannels(channels: Channels): ReminderChannel[] {
-  return [
-    ...(channels.email ? (["EMAIL"] as const) : []),
-    ...(channels.ntfy ? (["NTFY"] as const) : []),
-    ...(channels.webhook ? (["WEBHOOK"] as const) : []),
-  ];
-}
-
 const newestFirst = (a: NotificationLog, b: NotificationLog) => b.sentAt.getTime() - a.sentAt.getTime();
 
 // The health of one entry (a Contract's or Warranty's single entry, or one
@@ -65,7 +57,7 @@ function summarize(
   let nextReminder: NextReminder | null = null;
   if (planned) {
     // With nothing configured yet, show what would happen once a channel is.
-    const considered = configuredChannels(channels);
+    const considered = channelList(channels);
     const schedules = (considered.length > 0 ? considered : [...REMINDER_CHANNELS]).map((c) => planned.schedule[c]);
     if (schedules.some((s) => s.sendNow != null)) {
       nextReminder = { kind: "next-check" };
@@ -79,10 +71,7 @@ function summarize(
   const current = planned
     ? ownLogs.filter((l) => l.field === planned.entry.field && l.dueDate?.getTime() === dayToDate(planned.entry.date).getTime())
     : [];
-  const lastFailureLog = current
-    .filter((l) => l.status === "FAILED")
-    .filter((f) => !current.some((s) => s.status === "SENT" && s.channel === f.channel && s.sentAt > f.sentAt))
-    .sort(newestFirst)[0];
+  const lastFailureLog = liveFailures(current).sort(newestFirst)[0];
 
   const deliveryReady = channels.email || channels.ntfy || channels.webhook;
   return {
@@ -107,16 +96,15 @@ function summarize(
 }
 
 async function loadContext(): Promise<{ ctx: DueContext; channels: Channels }> {
-  const [{ defaultDays }, today, email, ntfy, webhookEndpoints] = await Promise.all([
+  const [{ defaultDays }, today, { email, ntfy, webhook }] = await Promise.all([
     getReminderConfig(),
     getHouseholdToday(),
-    isSmtpConfigured(),
-    isNtfyConfigured(),
-    getEnabledWebhookEndpoints(),
+    // The channels the scheduler will really send on (#387 review).
+    activeChannels(),
   ]);
   return {
     ctx: { today, defaultReminderDays: defaultDays },
-    channels: { email, ntfy, webhook: webhookEndpoints.length > 0 },
+    channels: { email, ntfy, webhook },
   };
 }
 

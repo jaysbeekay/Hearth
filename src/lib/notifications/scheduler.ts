@@ -1,8 +1,9 @@
 import { prisma } from "@/lib/prisma";
-import { isSmtpConfigured, isNtfyConfigured, getReminderConfig, getHouseholdToday } from "@/lib/appSettings";
+import { getReminderConfig, getHouseholdToday } from "@/lib/appSettings";
 import { sendReminderEmail } from "@/lib/notifications/email";
 import { sendNtfyReminder } from "@/lib/notifications/ntfy";
-import { sendExpiryWebhooks, getEnabledWebhookEndpoints } from "@/lib/notifications/webhook";
+import { sendExpiryWebhooks } from "@/lib/notifications/webhook";
+import { activeChannels, channelList } from "@/lib/notifications/channels";
 import { getNotificationLogsByOwner, recordNotificationOutcome, toSentLogRow } from "@/lib/notifications/logs";
 import { dayToDate, reminderPlan, type ReminderChannel, type ReminderPlan } from "@/lib/notifications/reminderSchedule";
 import { purgeExpiredTrash } from "@/lib/trash";
@@ -35,21 +36,17 @@ export async function runExpirationCheck(now: Date = new Date()) {
   });
 
   const { defaultDays } = await getReminderConfig();
-  const emailEnabled = await isSmtpConfigured();
-  const ntfyEnabled = await isNtfyConfigured();
-  const webhookEnabled = (await getEnabledWebhookEndpoints()).length > 0;
-  if (!emailEnabled && !ntfyEnabled && !webhookEnabled) {
+  // Email counts only when someone gets reminder emails; the health cards
+  // read the same list (activeChannels).
+  const active = await activeChannels();
+  const channels = channelList(active);
+  if (channels.length === 0) {
     return { checked: 0, sent: 0 };
   }
 
   // #352 — each email uses its recipient's own date format; ntfy and
   // webhooks are household-wide, so they use the first admin's.
-  const recipients = emailEnabled
-    ? await prisma.user.findMany({
-        where: { emailReminders: true },
-        select: { email: true, dateFormat: true },
-      })
-    : [];
+  const recipients = active.emailRecipients;
   const householdDateFormat =
     (
       await prisma.user.findFirst({
@@ -74,11 +71,6 @@ export async function runExpirationCheck(now: Date = new Date()) {
     }
   }
 
-  const channels: ReminderChannel[] = [
-    ...(emailEnabled && recipients.length > 0 ? (["EMAIL"] as const) : []),
-    ...(ntfyEnabled ? (["NTFY"] as const) : []),
-    ...(webhookEnabled ? (["WEBHOOK"] as const) : []),
-  ];
   // Day counts are in the household's day (ADR 0002), not the server's.
   const ctx = { today: await getHouseholdToday(now), defaultReminderDays: defaultDays };
   let sentCount = 0;

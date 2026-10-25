@@ -29,6 +29,27 @@ export interface ReminderInput {
   appUrl?: string | null;
   /** A "Send test reminder" preview of this exact message. */
   test?: boolean;
+  /**
+   * With `test`: when the real Reminder goes out, per the Reminder schedule
+   * (#387) — on the next check, on a day, or never (with why).
+   */
+  testPreview?: TestPreview;
+}
+
+export type TestPreview =
+  | { kind: "next-check" }
+  | { kind: "on"; date: Date }
+  | { kind: "none"; reason: string };
+
+function testNoteText(input: ReminderInput): string {
+  const preview = input.testPreview;
+  if (!preview) return "This is a test of the reminder Hearth sends for this record.";
+  if (preview.kind === "none") return `This is a test. Hearth won't send a reminder for this record: ${preview.reason}`;
+  const when =
+    preview.kind === "next-check"
+      ? "on its next reminder check"
+      : `on ${formatReminderDate(preview.date, input.dateFormat)}`;
+  return `This is a test of the reminder Hearth sends for this record. The real one goes out ${when}.`;
 }
 
 const RECORD_PATH: Record<ReminderKind, string> = {
@@ -70,7 +91,9 @@ export function formatReminderDate(date: Date, dateFormat?: string | null): stri
 }
 
 function inDays(days: number): string {
-  if (days <= 0) return "today";
+  // Only a test preview of a date that has passed is ever negative.
+  if (days < 0) return days === -1 ? "yesterday" : `${-days} days ago`;
+  if (days === 0) return "today";
   if (days === 1) return "tomorrow";
   return `in ${days} days`;
 }
@@ -127,9 +150,7 @@ export function buildReminderEmail(input: ReminderInput): { subject: string; tex
       : `${input.test ? "[Test] " : ""}Reminder: "${input.title}" ${noun} ${verb} ${when}`,
   );
 
-  const testNote = input.test
-    ? "This is a test of the reminder Hearth sends for this record.\n\n"
-    : "";
+  const testNote = input.test ? `${testNoteText(input)}\n\n` : "";
   const lead = input.notice
     ? `${noticeStart(input, (s) => `"${s}"`)} ${date} (${when}). ${noticeTail(input, endDate)}`
     : `${sentenceStart(input, (s) => `"${s}"`)} on ${date} (${when}).`;
@@ -143,7 +164,7 @@ export function buildReminderEmail(input: ReminderInput): { subject: string; tex
     ? `${noticeStart(htmlInput, strong)} ${strong(date)} (${when}). ${escapeHtml(noticeTail(input, endDate))}`
     : `${sentenceStart(htmlInput, strong)} on ${strong(date)} (${when}).`;
   const html = [
-    input.test ? "<p><em>This is a test of the reminder Hearth sends for this record.</em></p>" : "",
+    input.test ? `<p><em>${escapeHtml(testNoteText(input))}</em></p>` : "",
     `<p>${htmlLead}</p>`,
     url
       ? `<p><a href="${escapeHtml(url)}">Open it in Hearth</a></p>`
@@ -173,9 +194,11 @@ export function buildNtfyReminder(input: ReminderInput): { headers: Record<strin
     headers.Click = url;
     headers.Actions = `view, Open in Hearth, ${url}`;
   }
-  const body = input.notice
+  const lead = input.notice
     ? `${noticeStart(input, (s) => `"${s}"`)} ${formatReminderDate(input.notice.cancelBy, input.dateFormat)}. ${noticeTail(input, endDate)}`
     : `${sentenceStart(input, (s) => `"${s}"`)} on ${endDate}.`;
+  // A test that previews the schedule says when (or whether) the real one goes.
+  const body = input.test && input.testPreview ? `${testNoteText(input)}\n\n${lead}` : lead;
   return { headers, body };
 }
 
