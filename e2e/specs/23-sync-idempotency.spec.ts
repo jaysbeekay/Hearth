@@ -104,6 +104,7 @@ test("two concurrent requests for the same operation id only execute it once", a
 // satisfied by construction rather than exercised end-to-end here:
 // entityHandlers.ts's contract/product `update` (the offline-sync path) and
 // the online updateContract/updateProduct server actions both call the same
-// updateContractCommand/updateProductCommand (src/lib/commands/), which is
-// the single place reminder-log clearing on an endDate/warrantyEndDate
-// change happens. There is no separate offline code path left to diverge.
+// updateContractCommand/updateProductCommand (src/lib/commands/). Neither
+// clears the reminder log any more: it's keyed by date (#387, ADR 0003), so
+// a moved date resets its Reminders on both paths alike. There is no
+// separate offline code path left to diverge.

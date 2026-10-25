@@ -1,69 +1,97 @@
-import { isSmtpConfigured, isNtfyConfigured, getReminderConfig } from "@/lib/appSettings";
+import { isSmtpConfigured, isNtfyConfigured, getReminderConfig, getHouseholdToday } from "@/lib/appSettings";
 import { getEnabledWebhookEndpoints } from "@/lib/notifications/webhook";
-import { parseThresholds } from "@/lib/notifications/thresholds";
-import { getNotificationLogsByOwner } from "@/lib/notifications/logs";
+import { getNotificationLogsByOwner, toSentLogRow } from "@/lib/notifications/logs";
+import {
+  dayToDate,
+  REMINDER_CHANNELS,
+  reminderPlan,
+  type ReminderChannel,
+  type ReminderPlan,
+  type ReminderRecord,
+} from "@/lib/notifications/reminderSchedule";
+import type { DueContext, VehicleDueField } from "@/lib/duePolicy";
 import { prisma } from "@/lib/prisma";
 import type { NotificationOwnerType } from "@/generated/prisma/enums";
+import type { NotificationLog } from "@/generated/prisma/client";
+
+/**
+ * When the next Reminder goes out: on the next scheduler check (a catch-up
+ * is waiting), or on a future day. Never a day in the past (#381).
+ */
+export type NextReminder = { kind: "next-check" } | { kind: "on"; date: Date };
 
 export interface ReminderHealth {
-  /** True when there's a target date and at least one threshold configured — i.e. a reminder could fire at all. */
+  /** True when a Reminder can still go out for this record: it has a Reminder entry and thresholds, and isn't on hold. */
   enabled: boolean;
+  /** The record Needs review: its Reminders are held until someone confirms it. */
+  onHold: boolean;
   thresholds: number[];
-  /** Calendar date of the soonest not-yet-sent threshold, or null if none are outstanding (or reminders aren't enabled). */
-  nextReminderDate: Date | null;
+  /** Null when no Reminder is left (or Reminders aren't enabled). */
+  nextReminder: NextReminder | null;
   channels: { email: boolean; ntfy: boolean; webhook: boolean };
   deliveryReady: boolean;
   lastSent: { channel: string; thresholdDays: number; sentAt: Date } | null;
+  /** The latest failed attempt for the current date that no later send has replaced. */
   lastFailure: { channel: string; thresholdDays: number; sentAt: Date; error: string | null } | null;
 }
 
-/**
- * Computes the reminder-health block shown on contract/product/vehicle
- * detail pages and the dashboard (#201) — "is a reminder actually going to
- * fire, and did the last one work" rather than just "is a date set".
- */
-export async function getReminderHealth(params: {
-  ownerType: NotificationOwnerType;
-  ownerId: string;
-  /** Vehicle only — "regoExpiry" | "insuranceExpiry". Omit for contract/product. */
-  field?: string;
-  targetDate: Date | null;
-  reminderDaysBefore: string | null;
-}): Promise<ReminderHealth> {
-  const [{ defaultDays }, emailEnabled, ntfyEnabled, webhookEndpoints, logsByOwner] = await Promise.all([
-    getReminderConfig(),
-    isSmtpConfigured(),
-    isNtfyConfigured(),
-    getEnabledWebhookEndpoints(),
-    getNotificationLogsByOwner(params.ownerType, [params.ownerId]),
-  ]);
+export type ReminderHealthRecord = ReminderRecord & { extractionPending?: boolean };
 
-  const thresholds = parseThresholds(params.reminderDaysBefore, defaultDays);
-  const logs = (logsByOwner.get(params.ownerId) ?? []).filter((l) =>
-    params.field ? l.field === params.field : l.field === "",
-  );
+type Channels = ReminderHealth["channels"];
 
-  const sentThresholds = new Set(logs.filter((l) => l.status === "SENT").map((l) => l.thresholdDays));
-  const unsent = thresholds.filter((t) => !sentThresholds.has(t));
-  const nextThreshold = unsent.length > 0 ? Math.max(...unsent) : null;
-  const nextReminderDate =
-    params.targetDate && nextThreshold != null
-      ? new Date(params.targetDate.getTime() - nextThreshold * 86_400_000)
-      : null;
+function configuredChannels(channels: Channels): ReminderChannel[] {
+  return [
+    ...(channels.email ? (["EMAIL"] as const) : []),
+    ...(channels.ntfy ? (["NTFY"] as const) : []),
+    ...(channels.webhook ? (["WEBHOOK"] as const) : []),
+  ];
+}
 
-  const lastSentLog = [...logs.filter((l) => l.status === "SENT")].sort(
-    (a, b) => b.sentAt.getTime() - a.sentAt.getTime(),
-  )[0];
-  const lastFailureLog = [...logs.filter((l) => l.status === "FAILED")].sort(
-    (a, b) => b.sentAt.getTime() - a.sentAt.getTime(),
-  )[0];
+const newestFirst = (a: NotificationLog, b: NotificationLog) => b.sentAt.getTime() - a.sentAt.getTime();
 
+// The health of one entry (a Contract's or Warranty's single entry, or one
+// of a Vehicle's dates), read off the same Reminder plan the scheduler uses.
+function summarize(
+  plan: ReminderPlan,
+  field: VehicleDueField | undefined,
+  logs: NotificationLog[],
+  channels: Channels,
+): ReminderHealth {
+  const planned = field ? plan.entries.find((e) => e.entry.field === field) : plan.entries[0];
+  // A Vehicle's card covers one date; a Contract's history spans its notice
+  // deadline and end date.
+  const ownLogs = field ? logs.filter((l) => l.field === field) : logs;
+
+  let nextReminder: NextReminder | null = null;
+  if (planned) {
+    // With nothing configured yet, show what would happen once a channel is.
+    const considered = configuredChannels(channels);
+    const schedules = (considered.length > 0 ? considered : [...REMINDER_CHANNELS]).map((c) => planned.schedule[c]);
+    if (schedules.some((s) => s.sendNow != null)) {
+      nextReminder = { kind: "next-check" };
+    } else {
+      const days = schedules.map((s) => s.nextReminderOn).filter((d): d is string => d != null).sort();
+      if (days.length > 0) nextReminder = { kind: "on", date: dayToDate(days[0]) };
+    }
+  }
+
+  const lastSentLog = ownLogs.filter((l) => l.status === "SENT").sort(newestFirst)[0];
+  const current = planned
+    ? ownLogs.filter((l) => l.field === planned.entry.field && l.dueDate?.getTime() === dayToDate(planned.entry.date).getTime())
+    : [];
+  const lastFailureLog = current
+    .filter((l) => l.status === "FAILED")
+    .filter((f) => !current.some((s) => s.status === "SENT" && s.channel === f.channel && s.sentAt > f.sentAt))
+    .sort(newestFirst)[0];
+
+  const deliveryReady = channels.email || channels.ntfy || channels.webhook;
   return {
-    enabled: params.targetDate != null && thresholds.length > 0,
-    thresholds,
-    nextReminderDate,
-    channels: { email: emailEnabled, ntfy: ntfyEnabled, webhook: webhookEndpoints.length > 0 },
-    deliveryReady: emailEnabled || ntfyEnabled || webhookEndpoints.length > 0,
+    enabled: !plan.held && planned != null && plan.thresholds.length > 0,
+    onHold: plan.held,
+    thresholds: plan.thresholds,
+    nextReminder,
+    channels,
+    deliveryReady,
     lastSent: lastSentLog
       ? { channel: lastSentLog.channel, thresholdDays: lastSentLog.thresholdDays, sentAt: lastSentLog.sentAt }
       : null,
@@ -76,6 +104,42 @@ export async function getReminderHealth(params: {
         }
       : null,
   };
+}
+
+async function loadContext(): Promise<{ ctx: DueContext; channels: Channels }> {
+  const [{ defaultDays }, today, email, ntfy, webhookEndpoints] = await Promise.all([
+    getReminderConfig(),
+    getHouseholdToday(),
+    isSmtpConfigured(),
+    isNtfyConfigured(),
+    getEnabledWebhookEndpoints(),
+  ]);
+  return {
+    ctx: { today, defaultReminderDays: defaultDays },
+    channels: { email, ntfy, webhook: webhookEndpoints.length > 0 },
+  };
+}
+
+/**
+ * Computes the reminder-health block shown on contract/product/vehicle
+ * detail pages (#201) — "is a reminder actually going to fire, and did the
+ * last one work" rather than just "is a date set". It reads the same
+ * Reminder schedule the scheduler sends from (#387), so the two agree.
+ */
+export async function getReminderHealth(params: {
+  ownerType: NotificationOwnerType;
+  ownerId: string;
+  record: ReminderHealthRecord;
+  /** Vehicle only: which of its dates this card is about. */
+  field?: VehicleDueField;
+}): Promise<ReminderHealth> {
+  const [{ ctx, channels }, logsByOwner] = await Promise.all([
+    loadContext(),
+    getNotificationLogsByOwner(params.ownerType, [params.ownerId]),
+  ]);
+  const logs = logsByOwner.get(params.ownerId) ?? [];
+  const plan = reminderPlan(params.record, ctx, logs.map(toSentLogRow));
+  return summarize(plan, params.field, logs, channels);
 }
 
 export interface UncoveredRecord {
@@ -96,28 +160,30 @@ export interface HouseholdReminderHealth {
    * proxy for "did the scheduler do anything lately" available without a
    * dedicated job-run log (no job runner exists yet, see #250). */
   lastActivityAt: Date | null;
-  /** Active/non-cancelled, non-trashed records expiring within 90 days that
-   * have no working path to a delivered reminder — only computed when at
-   * least one channel is configured, since with none configured every
-   * expiring record is equally uncovered for the same one reason. */
+  /** Records with a Reminder entry within 90 days that have no working
+   * path to a delivered reminder — only computed when at least one channel
+   * is configured, since with none configured every record is equally
+   * uncovered for the same one reason. */
   uncovered: UncoveredRecord[];
 }
 
 const UNCOVERED_HORIZON_DAYS = 90;
 
+const VEHICLE_FIELD_TITLES: Record<VehicleDueField, string> = {
+  regoExpiry: "Registration",
+  insuranceExpiry: "Insurance",
+  nextServiceDue: "Service",
+};
+
 /**
  * Household-wide rollup of the same signals ReminderHealthCard shows per
  * record (#292) — so confirming "reminders are actually working" doesn't
- * require opening every record that happens to be expiring soon.
+ * require opening every record that happens to be expiring soon. Built on
+ * the same Reminder plan as the card and the scheduler.
  */
 export async function getHouseholdReminderHealth(): Promise<HouseholdReminderHealth> {
-  const [{ defaultDays }, emailEnabled, ntfyEnabled, webhookEndpoints] = await Promise.all([
-    getReminderConfig(),
-    isSmtpConfigured(),
-    isNtfyConfigured(),
-    getEnabledWebhookEndpoints(),
-  ]);
-  const deliveryReady = emailEnabled || ntfyEnabled || webhookEndpoints.length > 0;
+  const { ctx, channels } = await loadContext();
+  const deliveryReady = channels.email || channels.ntfy || channels.webhook;
 
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const [recentSent, recentFailed, lastLog] = await Promise.all([
@@ -128,129 +194,55 @@ export async function getHouseholdReminderHealth(): Promise<HouseholdReminderHea
 
   const uncovered: UncoveredRecord[] = [];
   if (deliveryReady) {
-    const now = new Date();
-    const horizon = new Date(now.getTime() + UNCOVERED_HORIZON_DAYS * 24 * 60 * 60 * 1000);
-
     const [contracts, products, vehicles] = await Promise.all([
-      prisma.contract.findMany({
-        where: { status: "ACTIVE", deletedAt: null, endDate: { gte: now, lte: horizon } },
-        select: { id: true, title: true, endDate: true, reminderDaysBefore: true },
-      }),
-      prisma.product.findMany({
-        where: { deletedAt: null, warrantyEndDate: { gte: now, lte: horizon } },
-        select: { id: true, description: true, warrantyEndDate: true, reminderDaysBefore: true },
-      }),
+      prisma.contract.findMany({ where: { status: "ACTIVE", deletedAt: null, endDate: { not: null } } }),
+      prisma.product.findMany({ where: { deletedAt: null, warrantyEndDate: { not: null } } }),
       prisma.vehicle.findMany({
         where: {
           deletedAt: null,
-          OR: [
-            { regoExpiry: { gte: now, lte: horizon } },
-            { insuranceExpiry: { gte: now, lte: horizon } },
-            { nextServiceDue: { gte: now, lte: horizon } },
-          ],
-        },
-        select: {
-          id: true,
-          label: true,
-          regoExpiry: true,
-          insuranceExpiry: true,
-          nextServiceDue: true,
-          reminderDaysBefore: true,
+          OR: [{ regoExpiry: { not: null } }, { insuranceExpiry: { not: null } }, { nextServiceDue: { not: null } }],
         },
       }),
     ]);
+    const [contractLogs, productLogs, vehicleLogs] = await Promise.all([
+      getNotificationLogsByOwner("CONTRACT", contracts.map((c) => c.id)),
+      getNotificationLogsByOwner("PRODUCT", products.map((p) => p.id)),
+      getNotificationLogsByOwner("VEHICLE", vehicles.map((v) => v.id)),
+    ]);
 
-    async function checkOne(params: {
-      ownerType: NotificationOwnerType;
-      ownerId: string;
-      field?: string;
-      targetDate: Date | null;
-      reminderDaysBefore: string | null;
-      title: string;
-      href: string;
-    }) {
-      const thresholds = parseThresholds(params.reminderDaysBefore, defaultDays);
-      if (thresholds.length === 0) {
-        uncovered.push({
-          ownerType: params.ownerType,
-          title: params.title,
-          href: params.href,
-          reason: "No reminder thresholds set",
-        });
-        return;
-      }
-      const health = await getReminderHealth(params);
-      const failedAfterLastSent =
-        health.lastFailure && (!health.lastSent || health.lastFailure.sentAt > health.lastSent.sentAt);
-      if (failedAfterLastSent) {
-        uncovered.push({
-          ownerType: params.ownerType,
-          title: params.title,
-          href: params.href,
-          reason: "Last delivery attempt failed",
-        });
+    function check(
+      ownerType: NotificationOwnerType,
+      record: ReminderHealthRecord,
+      logs: NotificationLog[],
+      title: string,
+      href: string,
+    ) {
+      const plan = reminderPlan(record, ctx, logs.map(toSentLogRow));
+      for (const { entry } of plan.entries) {
+        if (entry.daysLeft > UNCOVERED_HORIZON_DAYS) continue;
+        const field = record.kind === "vehicle" ? (entry.field as VehicleDueField) : undefined;
+        const entryTitle = field ? `${title} — ${VEHICLE_FIELD_TITLES[field]}` : title;
+        if (plan.thresholds.length === 0) {
+          uncovered.push({ ownerType, title: entryTitle, href, reason: "No reminder thresholds set" });
+        } else if (summarize(plan, field, logs, channels).lastFailure) {
+          uncovered.push({ ownerType, title: entryTitle, href, reason: "Last delivery attempt failed" });
+        }
       }
     }
 
     for (const c of contracts) {
-      await checkOne({
-        ownerType: "CONTRACT",
-        ownerId: c.id,
-        targetDate: c.endDate,
-        reminderDaysBefore: c.reminderDaysBefore,
-        title: c.title,
-        href: `/contracts/${c.id}`,
-      });
+      check("CONTRACT", { kind: "contract", ...c }, contractLogs.get(c.id) ?? [], c.title, `/contracts/${c.id}`);
     }
     for (const p of products) {
-      await checkOne({
-        ownerType: "PRODUCT",
-        ownerId: p.id,
-        targetDate: p.warrantyEndDate,
-        reminderDaysBefore: p.reminderDaysBefore,
-        title: p.description,
-        href: `/products/${p.id}`,
-      });
+      check("PRODUCT", { kind: "warranty", ...p }, productLogs.get(p.id) ?? [], p.description, `/products/${p.id}`);
     }
     for (const v of vehicles) {
-      if (v.regoExpiry && v.regoExpiry >= now && v.regoExpiry <= horizon) {
-        await checkOne({
-          ownerType: "VEHICLE",
-          ownerId: v.id,
-          field: "regoExpiry",
-          targetDate: v.regoExpiry,
-          reminderDaysBefore: v.reminderDaysBefore,
-          title: `${v.label} — Registration`,
-          href: `/vehicles/${v.id}`,
-        });
-      }
-      if (v.insuranceExpiry && v.insuranceExpiry >= now && v.insuranceExpiry <= horizon) {
-        await checkOne({
-          ownerType: "VEHICLE",
-          ownerId: v.id,
-          field: "insuranceExpiry",
-          targetDate: v.insuranceExpiry,
-          reminderDaysBefore: v.reminderDaysBefore,
-          title: `${v.label} — Insurance`,
-          href: `/vehicles/${v.id}`,
-        });
-      }
-      if (v.nextServiceDue && v.nextServiceDue >= now && v.nextServiceDue <= horizon) {
-        await checkOne({
-          ownerType: "VEHICLE",
-          ownerId: v.id,
-          field: "nextServiceDue",
-          targetDate: v.nextServiceDue,
-          reminderDaysBefore: v.reminderDaysBefore,
-          title: `${v.label} — Service`,
-          href: `/vehicles/${v.id}`,
-        });
-      }
+      check("VEHICLE", { kind: "vehicle", ...v }, vehicleLogs.get(v.id) ?? [], v.label, `/vehicles/${v.id}`);
     }
   }
 
   return {
-    channels: { email: emailEnabled, ntfy: ntfyEnabled, webhook: webhookEndpoints.length > 0 },
+    channels,
     deliveryReady,
     recentSent,
     recentFailed,

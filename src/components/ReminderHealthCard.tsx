@@ -50,12 +50,19 @@ export function ReminderHealthCard({
       <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">
         <div className="min-w-0">
           <dt className="text-xs text-muted">Enabled</dt>
-          <dd className="text-sm font-medium">{health.enabled ? "Yes" : "No"}</dd>
+          <dd className="text-sm font-medium">
+            {/* #387 — a record that Needs review holds its Reminders until it's confirmed. */}
+            {health.onHold ? "On hold until reviewed" : health.enabled ? "Yes" : "No"}
+          </dd>
         </div>
         <div className="min-w-0">
           <dt className="text-xs text-muted">Next reminder</dt>
           <dd className="text-sm font-medium">
-            {health.nextReminderDate ? formatDate(health.nextReminderDate, dateFormat) : "—"}
+            {health.nextReminder?.kind === "next-check"
+              ? "On the next check"
+              : health.nextReminder
+                ? formatDate(health.nextReminder.date, dateFormat)
+                : "—"}
           </dd>
         </div>
         <div className="min-w-0">

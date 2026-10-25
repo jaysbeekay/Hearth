@@ -61,8 +61,7 @@ export default async function ProductDetailPage({
   const reminderHealth = await getReminderHealth({
     ownerType: "PRODUCT",
     ownerId: product.id,
-    targetDate: product.warrantyEndDate,
-    reminderDaysBefore: product.reminderDaysBefore,
+    record: { kind: "warranty", ...product },
   });
   const photo = product.documents.find(
     (doc) => doc.kind === "PHOTO" && doc.mimeType.startsWith("image/"),

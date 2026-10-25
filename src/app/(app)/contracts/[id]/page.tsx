@@ -78,9 +78,7 @@ export default async function ContractDetailPage({
   const reminderHealth = await getReminderHealth({
     ownerType: "CONTRACT",
     ownerId: contract.id,
-    // Reminders follow the notice deadline and stop once it has passed.
-    targetDate: timing.cancelBy ? (timing.beforeCancelBy ? timing.cancelBy : null) : contract.endDate,
-    reminderDaysBefore: contract.reminderDaysBefore,
+    record: { kind: "contract", ...contract },
   });
 
   return (

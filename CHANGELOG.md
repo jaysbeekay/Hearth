@@ -148,6 +148,24 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   (ADR 0003). An offline Vehicle edit now records who made it, as an online
   one does. Vitest command tests run against a temporary migrated SQLite
   database (`tests/helpers/testDb.ts`) (#389).
+- **One Reminder schedule (#387).** The scheduler, the Reminder health
+  card and Settings' household Reminder health now read one pure schedule
+  (`src/lib/notifications/reminderSchedule.ts`) built on the Due policy, in
+  place of three copied scheduler loops and a separate health rule. Days
+  count in the household's timezone. The sent-Reminder log stores the Due
+  entry date each Reminder was for, and only rows for the current date
+  count, so moving a date resets its Reminders without anything clearing
+  the log (ADR 0003). After the upgrade, a one-off backfill dates existing
+  rows still inside their threshold's window, so nothing already sent goes
+  out again; older rows stay as history. Behaviour changes that come with
+  it: a manual-renewal Contract with a notice period now gets end-date
+  Reminders once its notice deadline has passed; an auto-renewing
+  Contract's end date never reminds; a catch-up Reminder (several
+  thresholds crossed at once) is now the only one for the thresholds it
+  passed over, where the next checks used to send each of those too; a
+  record that Needs review shows its Reminders as on hold; and a failed
+  Reminder for a date that has since moved no longer shows as a
+  Housekeeping item.
 
 - **Simpler dashboard: what needs doing comes first (#356, #357).** The 11
   stat cards and the Documents block are gone. Under the heading is one line
@@ -183,6 +201,16 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 - Permanently deleting a property (from Trash, or when its 30 days run
   out) now also removes its Rental statement files from disk; only the
   database rows were removed before (#396).
+- **"Next reminder" never shows a past date (#381).** The Reminder health
+  card picked the largest unsent threshold even when its day had gone by,
+  so a contract added late could show a "Next reminder" weeks ago. It now
+  shows the next day a Reminder will really go out, or "On the next check"
+  when a catch-up is waiting.
+- **Renewed rego, insurance and service dates get Reminders again (#382).**
+  Editing a Vehicle's dates (and extraction review, and a Contract's notice
+  period or renewal type) never cleared the sent-Reminder log, so a renewed
+  rego stayed silent. The log is now keyed by date, so a new date always
+  starts fresh; Vehicles already stuck start working after the upgrade.
 - **Notice periods now count.** A contract's notice period was collected
   but ignored, so reminders counted down to the end date — after the last
   day to cancel had already passed. For contracts with a notice period

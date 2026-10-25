@@ -10,7 +10,9 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import { refreshFxRates, getFxRateMap, convertAmount } from "@/lib/fx";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { auth } from "@/lib/auth";
-import { isSmtpConfigured, isNtfyConfigured } from "@/lib/appSettings";
+import { isSmtpConfigured, isNtfyConfigured, getHouseholdToday, getReminderConfig } from "@/lib/appSettings";
+import { currentFailedLogs } from "@/lib/notifications/reminderSchedule";
+import { ensureNotificationLogBackfill } from "@/lib/notifications/logBackfill";
 import { getDocumentStats } from "@/lib/documents/stats";
 import {
   buildContractAttentionItems,
@@ -65,9 +67,26 @@ export default async function DashboardPage() {
       prisma.notificationLog.findMany({
         where: { status: "FAILED" },
         orderBy: { sentAt: "desc" },
-        select: { ownerType: true, ownerId: true, error: true },
+        select: { ownerType: true, ownerId: true, field: true, dueDate: true, error: true },
       }),
     ]);
+
+  // #387 — the Reminder log is keyed by date, so a failure for a date that
+  // has since moved or passed is history; only current ones need attention.
+  const [today, { defaultDays }] = await Promise.all([
+    getHouseholdToday(),
+    getReminderConfig(),
+    ensureNotificationLogBackfill(),
+  ]);
+  const currentFailedReminderLogs = currentFailedLogs(
+    failedReminderLogs,
+    {
+      CONTRACT: new Map(contracts.map((c) => [c.id, { kind: "contract" as const, ...c }])),
+      PRODUCT: new Map(products.map((p) => [p.id, { kind: "warranty" as const, ...p }])),
+      VEHICLE: new Map(vehicles.map((v) => [v.id, { kind: "vehicle" as const, ...v }])),
+    },
+    { today, defaultReminderDays: defaultDays },
+  );
 
   const active = contracts.filter((c) => c.status === "ACTIVE");
 
@@ -109,7 +128,7 @@ export default async function DashboardPage() {
     ...buildContractAttentionItems(active),
     ...buildWarrantyAttentionItems(products),
     ...(enabledModules.has("VEHICLES") ? buildVehicleAttentionItems(vehicles) : []),
-    ...buildReminderFailureItems(failedReminderLogs, contracts, products, vehicles),
+    ...buildReminderFailureItems(currentFailedReminderLogs, contracts, products, vehicles),
     ...buildExtractionReviewItems(contracts, products),
     ...buildInboxItem(documentStats.inboxCount),
     ...buildMissingDetailsItems(missingDetails),
