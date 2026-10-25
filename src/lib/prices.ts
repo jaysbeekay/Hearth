@@ -156,10 +156,41 @@ export async function fetchHistoricalPrice(ticker: string, date: Date): Promise<
   }
 }
 
+// #432 — bounds on the price-history backfill. Ten years of trading days is
+// about 2,500 rows; a Holding whose earliest Trade is older than that charts
+// from the cap onwards rather than pulling decades of history in one go.
+export const MAX_HISTORY_DAYS = 3653;
+// Rows written per batch. Each batch is one createMany plus a lookup of the
+// dates already stored, so other requests wait at most one short batch for
+// the database rather than the whole backfill (see src/lib/prisma.ts).
+const HISTORY_WRITE_BATCH = 250;
+
+interface HistoryRow {
+  date: Date;
+  close: number;
+  adjClose: number | null;
+}
+
+// One backfill per ticker at a time in this process: two tabs opening the
+// same Holding share the first fetch instead of writing the same rows twice.
+const historyInFlight = new Map<string, Promise<void>>();
+
+function yieldToOtherRequests(): Promise<void> {
+  return new Promise((resolve) => {
+    setImmediate(resolve);
+  });
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return typeof error === "object" && error !== null && (error as { code?: unknown }).code === "P2002";
+}
+
 /**
- * Fetch and persist daily closing prices for a ticker from `fromDate` to today.
- * Skips crypto (no Yahoo Finance historical). Only re-fetches from the last stored
- * date to avoid redundant API calls.
+ * Fetch and persist daily closing prices for a ticker from `fromDate` (capped
+ * at MAX_HISTORY_DAYS ago) to today. Skips crypto (no Yahoo Finance
+ * historical). Only re-fetches from the last stored date to avoid redundant
+ * API calls. Best-effort: a failed fetch leaves what is stored and never
+ * throws.
  */
 export async function fetchAndStorePriceHistory(
   ticker: string,
@@ -167,46 +198,94 @@ export async function fetchAndStorePriceHistory(
   fromDate: Date,
 ): Promise<void> {
   if (exchange === "CRYPTO") return;
-
-  // Find the most recent stored date to avoid re-fetching the whole history
-  const latest = await prisma.priceHistory.findFirst({
-    where: { ticker },
-    orderBy: { date: "desc" },
-    select: { date: true },
+  const pending = historyInFlight.get(ticker);
+  if (pending) return pending;
+  const run = backfillPriceHistory(ticker, fromDate).finally(() => {
+    historyInFlight.delete(ticker);
   });
+  historyInFlight.set(ticker, run);
+  return run;
+}
 
-  const now = new Date();
-  const oneDayMs = 24 * 60 * 60 * 1000;
-
-  // If latest price is from today or yesterday (allowing for market hours), nothing to do
-  if (latest && now.getTime() - latest.date.getTime() < 2 * oneDayMs) return;
-
-  // Fetch from 2 days before latest (overlap handles late-arriving data) or fromDate if no history
-  const fetchFrom = latest
-    ? new Date(latest.date.getTime() - 2 * oneDayMs)
-    : fromDate;
-
+async function backfillPriceHistory(ticker: string, fromDate: Date): Promise<void> {
   try {
+    // Find the most recent stored date to avoid re-fetching the whole history
+    const latest = await prisma.priceHistory.findFirst({
+      where: { ticker },
+      orderBy: { date: "desc" },
+      select: { date: true },
+    });
+
+    const now = new Date();
+    const oneDayMs = 24 * 60 * 60 * 1000;
+
+    // If latest price is from today or yesterday (allowing for market hours), nothing to do
+    if (latest && now.getTime() - latest.date.getTime() < 2 * oneDayMs) return;
+
+    // Fetch from 2 days before latest (overlap handles late-arriving data) or
+    // fromDate if no history, never further back than the cap.
+    const earliestAllowed = now.getTime() - MAX_HISTORY_DAYS * oneDayMs;
+    const fetchFrom = new Date(
+      Math.max(latest ? latest.date.getTime() - 2 * oneDayMs : fromDate.getTime(), earliestAllowed),
+    );
+
     const yahooFinance = await getYahooFinance();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rows = (await yahooFinance.historical(ticker, { period1: fetchFrom, period2: now, interval: "1d" }, { validateResult: false })) as any[];
     if (!rows?.length) return;
 
-    const validRows = rows.filter((row) => row.date && row.close != null);
-    const queue = [...validRows];
-    const workers = Array.from({ length: Math.min(4, queue.length) }, async () => {
-      while (queue.length) {
-        const row = queue.shift();
-        if (!row) return;
-        const date = normaliseDate(new Date(row.date));
-        const close = row.close as number;
-        const adjClose = (row.adjClose ?? null) as number | null;
-        await prisma.priceHistory.upsert({ where: { ticker_date: { ticker, date } }, create: { ticker, date, close, adjClose, source: "yahoo" }, update: { close, adjClose } });
-      }
-    });
-    await Promise.all(workers);
+    const byDate = new Map<number, HistoryRow>();
+    for (const row of rows) {
+      if (!row?.date || row.close == null) continue;
+      const date = normaliseDate(new Date(row.date));
+      byDate.set(date.getTime(), { date, close: row.close as number, adjClose: (row.adjClose ?? null) as number | null });
+    }
+    await storePriceHistory(ticker, [...byDate.values()].sort((a, b) => a.date.getTime() - b.date.getTime()));
   } catch {
     // best-effort — don't break the page if historical fetch fails
+  }
+}
+
+// Upsert semantics in batches: dates already stored get their close/adjClose
+// updated, new dates are inserted with createMany. One writer, a yield
+// between batches, and no transaction spanning batches, so the adapter's
+// connection lock is never held for longer than one batch.
+async function storePriceHistory(ticker: string, rows: HistoryRow[]): Promise<void> {
+  for (let start = 0; start < rows.length; start += HISTORY_WRITE_BATCH) {
+    const batch = rows.slice(start, start + HISTORY_WRITE_BATCH);
+    const stored = await prisma.priceHistory.findMany({
+      where: { ticker, date: { in: batch.map((r) => r.date) } },
+      select: { date: true },
+    });
+    const storedDates = new Set(stored.map((r) => r.date.getTime()));
+    const toCreate = batch.filter((r) => !storedDates.has(r.date.getTime()));
+    const toUpdate = batch.filter((r) => storedDates.has(r.date.getTime()));
+
+    if (toCreate.length) {
+      try {
+        await prisma.priceHistory.createMany({
+          data: toCreate.map((r) => ({ ticker, date: r.date, close: r.close, adjClose: r.adjClose, source: "yahoo" })),
+        });
+      } catch (error) {
+        if (!isUniqueViolation(error)) throw error;
+        // Another process stored some of these dates in the meantime.
+        for (const r of toCreate) {
+          await prisma.priceHistory.upsert({
+            where: { ticker_date: { ticker, date: r.date } },
+            create: { ticker, date: r.date, close: r.close, adjClose: r.adjClose, source: "yahoo" },
+            update: { close: r.close, adjClose: r.adjClose },
+          });
+        }
+      }
+    }
+    for (const r of toUpdate) {
+      await prisma.priceHistory.updateMany({
+        where: { ticker, date: r.date },
+        data: { close: r.close, adjClose: r.adjClose },
+      });
+    }
+
+    await yieldToOtherRequests();
   }
 }
 

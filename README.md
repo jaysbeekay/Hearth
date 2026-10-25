@@ -598,7 +598,9 @@ that same Settings page.
 To restore: decrypt the downloaded file with AES-256-GCM using
 `ENCRYPTION_KEY` (the first 12 bytes are the IV, the next 16 are the auth
 tag, the rest is the encrypted SQLite database), then replace `data/app.db`
-with the decrypted file while the app is stopped.
+with the decrypted file while the app is stopped, deleting any
+`data/app.db-wal` and `data/app.db-shm` next to it (the database runs in
+WAL mode, and a leftover WAL file would be replayed onto the restored one).
 
 ## Webhooks
 

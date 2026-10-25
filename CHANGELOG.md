@@ -345,6 +345,17 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **Adding a Holding no longer hangs the app (#432).** Its price-history
+  backfill wrote one row at a time from four parallel workers, and the
+  database connection serialises every query, so other requests (session
+  lookups included) timed out until it finished and the job processor
+  logged "scheduled job processing failed" every 20s. History is now
+  written in batches of 250 by a single writer that steps aside between
+  batches, capped at ten years back, and fetched once per ticker even when
+  two pages ask at the same time. SQLite now runs in WAL mode with a 5 s
+  busy timeout, and job-processor ticks no longer pile up behind a slow
+  one. Restoring a backup by replacing `data/app.db` now also means
+  removing `app.db-wal` and `app.db-shm` (see README).
 - Linking a Tenancy to a Contract that another Tenancy already uses now
   says so ("That contract is already linked to another tenancy.") instead
   of failing with a server error, and a Contract in Trash can't be linked.

@@ -111,8 +111,21 @@ async function processOcr(payload: { kind: "contract" | "product" | "inbox"; id:
   else await prisma.inboxDocument.update({ where: { id: payload.id }, data: { extractedText: text, extractionStatus: text ? "COMPLETED" : "FAILED" } });
 }
 
-export async function runPendingJobs(limit = 4) {
-  for (let i = 0; i < limit; i += 1) {
-    if (!(await runOneJob())) break;
+// #432 — runs in this process are serialised: a call that arrives while
+// another is still draining the queue waits for it, then runs its own
+// pass, so two callers never claim and run jobs side by side.
+let draining: Promise<void> | null = null;
+
+export async function runPendingJobs(limit = 4): Promise<void> {
+  while (draining) {
+    await draining.catch(() => {});
   }
+  draining = (async () => {
+    for (let i = 0; i < limit; i += 1) {
+      if (!(await runOneJob())) break;
+    }
+  })().finally(() => {
+    draining = null;
+  });
+  return draining;
 }
