@@ -81,7 +81,9 @@ export function VehicleListClient({ vehicles, filters, counts, dateFormat, canWr
         <ListFilterChips
           filters={filters}
           chips={[{ chip: "missingDetails", label: "Missing key details" }]}
-          onToggle={(chip) => router.push(listHref("/vehicles", toggleListFilter(filters, chip)))}
+          onToggle={(chip) => {
+            router.push(listHref("/vehicles", toggleListFilter(filters, chip)));
+          }}
         />
       )}
 
@@ -92,7 +94,9 @@ export function VehicleListClient({ vehicles, filters, counts, dateFormat, canWr
           </span>
           <button
             type="button"
-            onClick={() => router.push("/vehicles")}
+            onClick={() => {
+              router.push("/vehicles");
+            }}
             className="text-xs text-muted underline hover:text-foreground"
           >
             Clear all

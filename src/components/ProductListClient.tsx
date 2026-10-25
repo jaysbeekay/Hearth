@@ -91,19 +91,25 @@ export function ProductListClient({
       label: "expiring within 30 days",
       value: counts.dueSoon ?? 0,
       tone: "warning" as const,
-      onClick: () => toggleFilter("dueSoon"),
+      onClick: () => {
+        toggleFilter("dueSoon");
+      },
     },
     {
       label: "expired",
       value: counts.overdue ?? 0,
       tone: "danger" as const,
-      onClick: () => toggleFilter("overdue"),
+      onClick: () => {
+        toggleFilter("overdue");
+      },
     },
     {
       label: "needs review",
       value: counts.review ?? 0,
       tone: "warning" as const,
-      onClick: () => toggleFilter("review"),
+      onClick: () => {
+        toggleFilter("review");
+      },
     },
     { label: "added this week", value: counts.recentlyAdded ?? 0 },
   ];
@@ -167,7 +173,9 @@ export function ProductListClient({
           {q && (
             <button
               type="button"
-              onClick={() => router.push(listHref("/products", filters))}
+              onClick={() => {
+                router.push(listHref("/products", filters));
+              }}
               className="flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:bg-black/5 dark:hover:bg-white/5"
             >
               &quot;{q}&quot; <X size={12} />
