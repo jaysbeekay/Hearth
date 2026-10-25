@@ -5,6 +5,7 @@ import { updateTrip } from "@/lib/actions/trips";
 import { TripForm } from "@/components/TripForm";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
+import { BackLink } from "@/components/BackLink";
 
 export default async function EditTripPage({
   params,
@@ -22,6 +23,7 @@ export default async function EditTripPage({
 
   return (
     <div className="max-w-3xl space-y-6">
+      <BackLink href={`/travel/${trip.id}`} label={trip.title} />
       <div>
         <h1 className="text-2xl font-semibold">Edit trip</h1>
         <p className="text-sm text-muted">{trip.title}</p>

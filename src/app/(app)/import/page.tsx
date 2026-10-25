@@ -4,6 +4,7 @@ import { redirectIfReadOnly } from "@/lib/readOnly";
 import { prisma } from "@/lib/prisma";
 import { ImportClient } from "@/components/ImportClient";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
+import { BackLink } from "@/components/BackLink";
 
 export const metadata: Metadata = { title: "Upload documents" };
 
@@ -25,6 +26,7 @@ export default async function ImportPage() {
 
   return (
     <div className="max-w-3xl space-y-6">
+      <BackLink href="/documents" label="Documents" />
       <div>
         <h1 className="text-2xl font-semibold">Upload documents</h1>
         <p className="text-sm text-muted">

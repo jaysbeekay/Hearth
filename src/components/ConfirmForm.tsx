@@ -15,15 +15,16 @@ export function ConfirmForm({
   children,
   className,
   ariaLabel,
-  successMessage = "Removed.",
+  successMessage,
   offline,
   undo,
 }: {
   action: () => Promise<unknown>;
   confirmText: string;
-  // #298: names the actual destructive verb + object ("Delete contract",
-  // "Remove Alex") instead of a generic "Confirm" that doesn't say what
-  // pressing it does.
+  // #298: names the actual destructive verb + object ("Remove Alex")
+  // instead of a generic "Confirm" that doesn't say what pressing it does.
+  // Ignored when `undo` is set: a trash-backed delete always says
+  // "Move to Trash" (#362).
   actionLabel?: string;
   children: React.ReactNode;
   className?: string;
@@ -37,7 +38,8 @@ export function ConfirmForm({
   // `kind` is the Document kind, for the "document" entity.
   offline?: { entity: string; entityId: string; label: string; parentId?: string; kind?: string };
   // #371 — for trash-backed deletes: the success toast offers Undo, which
-  // calls the matching restore action. `href` is where to go back to when
+  // calls the matching restore action. #362 — the confirm button then says
+  // "Move to Trash" and the toast "Moved to Trash", whatever the record. `href` is where to go back to when
   // the delete navigated away (deleting from a record's own detail page).
   undo?: { action: () => Promise<unknown>; href?: string };
 }) {
@@ -51,15 +53,17 @@ export function ConfirmForm({
     triggerRef.current?.focus();
   }
 
-  const destructive = /\b(delete|remove|trash|discard|permanently)\b/i.test(actionLabel);
+  const confirmLabel = undo ? "Move to Trash" : actionLabel;
+  const doneMessage = successMessage ?? (undo ? "Moved to Trash." : "Removed.");
+  const destructive = /\b(delete|remove|trash|discard|permanently)\b/i.test(confirmLabel);
 
   function showDoneToast() {
-    if (!successMessage) return;
+    if (!doneMessage) return;
     if (!undo) {
-      showToast(successMessage);
+      showToast(doneMessage);
       return;
     }
-    showToast(successMessage, "success", {
+    showToast(doneMessage, "success", {
       action: {
         label: "Undo",
         onClick: async () => {
@@ -177,7 +181,7 @@ export function ConfirmForm({
               buttonVariants.danger,
             )}
           >
-            {pending ? "Working…" : actionLabel}
+            {pending ? "Working…" : confirmLabel}
           </button>
         </div>
       </Dialog>

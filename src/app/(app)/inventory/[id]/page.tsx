@@ -16,6 +16,7 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import { getHouseholdMemberCount } from "@/lib/household";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
+import { BackLink } from "@/components/BackLink";
 
 export const metadata: Metadata = { title: "Inventory Item" };
 
@@ -57,9 +58,7 @@ export default async function InventoryItemPage({
   return (
     <div className="max-w-2xl space-y-6">
       <div>
-        <Link href="/inventory" className="text-sm text-muted hover:text-foreground">
-          ← Back to inventory
-        </Link>
+        <BackLink href="/inventory" label="Inventory" />
       </div>
 
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -85,7 +84,6 @@ export default async function InventoryItemPage({
                   action={deleteInventoryItem.bind(null, id)}
                   undo={{ action: restoreInventoryItem.bind(null, id), href: `/inventory/${id}` }}
                   confirmText="Move this item to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash."
-                  actionLabel="Delete item"
                   className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
                   offline={{ entity: "inventoryItem", entityId: id, label: `Delete item: ${item.label}` }}
                 >

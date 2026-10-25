@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { prisma } from "@/lib/prisma";
@@ -7,6 +6,7 @@ import { updateHolding } from "@/lib/actions/wealth";
 import { HoldingForm } from "@/components/HoldingForm";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
+import { BackLink } from "@/components/BackLink";
 
 export const metadata: Metadata = { title: "Edit Holding" };
 
@@ -32,9 +32,7 @@ export default async function EditHoldingPage({
   return (
     <div className="max-w-xl space-y-6">
       <div>
-        <Link href={`/wealth/portfolios/${portfolioId}/holdings/${holdingId}`} className="text-sm text-muted hover:text-foreground">
-          ← {holding.ticker}
-        </Link>
+        <BackLink href={`/wealth/portfolios/${portfolioId}/holdings/${holdingId}`} label={holding.ticker} />
         <h1 className="mt-1 text-2xl font-semibold">Edit holding</h1>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">

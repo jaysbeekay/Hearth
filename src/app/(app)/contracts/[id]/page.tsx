@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { BackLink } from "@/components/BackLink";
 import { notFound } from "next/navigation";
-import { Pencil, Trash2, Ban, RotateCcw, Home, ArrowLeft, Car } from "lucide-react";
+import { Pencil, Trash2, Ban, RotateCcw, Home, Car } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { addDocumentAction } from "@/lib/actions/documents";
 import {
@@ -94,13 +95,7 @@ export default async function ContractDetailPage({
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <Link
-          href="/contracts"
-          className="inline-flex items-center gap-1 text-sm text-muted hover:text-foreground"
-        >
-          <ArrowLeft size={16} />
-          Back to contracts
-        </Link>
+        <BackLink href="/contracts" label="Contracts" />
       </div>
 
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -140,7 +135,6 @@ export default async function ContractDetailPage({
                   action={deleteContract.bind(null, contract.id)}
                   undo={{ action: restoreContract.bind(null, contract.id), href: `/contracts/${contract.id}` }}
                   confirmText="Move this contract to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash."
-                  actionLabel="Delete contract"
                   className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
                   offline={{ entity: "contract", entityId: contract.id, label: `Delete contract: ${contract.title}` }}
                 >
@@ -163,7 +157,7 @@ export default async function ContractDetailPage({
           editHref={`/contracts/${contract.id}/edit`}
           // A fixed-term Contract is meant to end: nothing to renew, and
           // nothing to give notice of.
-          renewLabel={fixedTerm ? undefined : "Renew policy"}
+          renewLabel={fixedTerm ? undefined : "Renew"}
           newEndDateMessage="Renewed automatically, so its end date has passed."
           // Expiring is exactly when "I'm not renewing this" is the other
           // likely answer, so offer it beside Renew.
@@ -195,7 +189,7 @@ export default async function ContractDetailPage({
 
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">
-          <Detail label="Contract / policy number" value={contract.contractNumber ?? "—"} copyable />
+          <Detail label="Contract number" value={contract.contractNumber ?? "—"} copyable />
           <Detail label="Start date" value={formatDate(contract.startDate, dateFormat)} />
           <Detail label="End date" value={formatDate(contract.endDate, dateFormat)} />
           <Detail
@@ -265,7 +259,7 @@ export default async function ContractDetailPage({
                 <Home size={18} className="text-muted" />
                 <span>
                   <span className="block text-sm font-medium">{contract.property.label}</span>
-                  <span className="block text-xs text-muted">Home or property</span>
+                  <span className="block text-xs text-muted">Property</span>
                 </span>
               </Link>
             )}
@@ -289,7 +283,7 @@ export default async function ContractDetailPage({
         <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
           <div className="mb-3 flex items-center gap-2">
             <Home size={18} className="text-muted" />
-            <h2 className="font-medium">Linked rental agreement</h2>
+            <h2 className="font-medium">Linked tenancy</h2>
           </div>
           <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">
             <Detail
@@ -319,7 +313,7 @@ export default async function ContractDetailPage({
             href={`/home/${contract.rentalAgreement.propertyId}/rental`}
             className="mt-3 inline-block text-sm font-medium text-accent hover:underline"
           >
-            View rental overview →
+            View tenancy →
           </Link>
         </div>
       )}

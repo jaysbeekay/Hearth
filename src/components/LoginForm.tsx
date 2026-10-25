@@ -59,13 +59,15 @@ export function LoginForm({
             <label htmlFor="password" className="text-sm font-medium">
               Password
             </label>
-            {smtpConfigured && (
+            {smtpConfigured ? (
               <Link
                 href="/forgot-password"
                 className="text-xs text-accent hover:underline"
               >
                 Forgot your password?
               </Link>
+            ) : (
+              <span className="text-xs text-muted">Forgot your password? Ask your admin.</span>
             )}
           </div>
           <input

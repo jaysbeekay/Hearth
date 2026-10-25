@@ -83,7 +83,7 @@ test.describe.serial("Completeness filters", () => {
   test("old list URLs redirect to the new filter parameters", async ({ page }) => {
     for (const [from, to, chip] of [
       ["/contracts?missingInfo=true", "/contracts?missing=details", "Missing key details"],
-      ["/contracts?expiring=30", "/contracts?due=soon", "Expiring soon"],
+      ["/contracts?expiring=30", "/contracts?due=soon", "Due soon"],
       ["/contracts?expired=true", "/contracts?due=overdue", "Expired"],
       ["/contracts?needsReview=true", "/contracts?review=1", "Needs review"],
       ["/contracts?q=x&missingDocument=true", "/contracts?q=x&noDocument=1", "No document"],
@@ -115,7 +115,7 @@ test.describe.serial("Completeness filters", () => {
   test("an unknown category or status is ignored, not an error", async ({ page }) => {
     const res = await page.goto("/contracts?category=NOT_A_CATEGORY&status=NOPE");
     expect(res?.status()).toBe(200);
-    await expect(page.getByRole("heading", { name: "Policies & contracts" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Contracts", exact: true })).toBeVisible();
   });
 
   test("Warranties list hides Inventory items while a filter is on", async ({ page }) => {

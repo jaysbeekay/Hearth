@@ -407,10 +407,10 @@ export function ScheduleForm({
   return (
     <form action={formAction} className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Reminder cron" htmlFor="reminderCron" hint="When to send expiry reminders (cron syntax)">
+        <Field label="Reminder cron" htmlFor="reminderCron" hint="When to send reminders (cron syntax)">
           <input id="reminderCron" name="reminderCron" defaultValue={current.reminderCron} placeholder="0 8 * * *" className={inputClass} />
         </Field>
-        <Field label="Default reminder days" htmlFor="reminderDefaultDays" hint="Comma-separated days before expiry, e.g. 30,14,7,1">
+        <Field label="Default reminder thresholds" htmlFor="reminderDefaultDays" hint="Days before the date, comma-separated, e.g. 30,14,7,1">
           <input id="reminderDefaultDays" name="reminderDefaultDays" defaultValue={current.reminderDefaultDays} placeholder="30,14,7,1" className={inputClass} />
         </Field>
         <Field label="Backup cron" htmlFor="backupCron" hint="When to run automatic backups">

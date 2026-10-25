@@ -33,7 +33,7 @@ export default async function AssistantPage({
         <h1 className="text-lg font-semibold">Assistant not configured</h1>
         <p className="max-w-sm text-sm text-muted">
           {isAdmin
-            ? "Bring your own AI provider key to enable an assistant that can answer questions about your household's contracts, warranties, trips, vehicles, home, inventory, and wealth."
+            ? "Bring your own AI provider key to enable an assistant that can answer questions about your household's contracts, warranties, trips, vehicles, properties, inventory, and wealth."
             : "Ask a household admin to configure an AI provider so the assistant can answer questions about your household's data."}
         </p>
         {isAdmin && (
@@ -62,7 +62,7 @@ export default async function AssistantPage({
         <h1 className="text-2xl font-semibold">Assistant</h1>
         <p className="text-sm text-muted">
           Ask about your household data — it can also propose creating or updating a contract or
-          product, but nothing is written without your explicit confirmation first.
+          warranty, but nothing is written without your explicit confirmation first.
         </p>
       </div>
       <AssistantClient

@@ -6,8 +6,10 @@ import { CreateWebhookForm } from "@/components/CreateWebhookForm";
 import { WebhookActions } from "@/components/WebhookActions";
 import { formatDate } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
+import { BackLink } from "@/components/BackLink";
+import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
 
-export const metadata: Metadata = { title: "Webhooks" };
+export const metadata: Metadata = { title: SETTINGS_ROUTES.webhooks.label };
 
 export default async function WebhooksPage() {
   const session = await auth();
@@ -27,11 +29,12 @@ export default async function WebhooksPage() {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <h1 className="text-2xl font-semibold">Webhooks</h1>
+      <BackLink {...settingsBackLink(SETTINGS_ROUTES.webhooks)} />
+      <h1 className="text-2xl font-semibold">{SETTINGS_ROUTES.webhooks.label}</h1>
       <p className="text-sm text-muted">
         Notify other platforms (e.g. Home Assistant, or an MCP agent like Hermes) when a
-        contract or product warranty is approaching expiry. Each endpoint receives the same
-        reminders as email/push, at the thresholds set on each contract or product.
+        contract or warranty is coming due. Each endpoint receives the same reminders as
+        email/push, at the reminder thresholds set on each contract or warranty.
       </p>
 
       <section className="rounded-xl border border-border bg-surface p-4 md:p-6">

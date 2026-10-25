@@ -22,15 +22,15 @@ export default async function NewProductPage() {
 
   return (
     <div className="max-w-3xl space-y-6">
-      <BackLink href="/products" label="Back to warranties" />
+      <BackLink href="/products" label="Warranties" />
       <div>
         <h1 className="text-2xl font-semibold">Add a warranty</h1>
         <p className="text-sm text-muted">
           Capture the purchase details so you never miss a warranty deadline.
         </p>
         <p className="mt-1 text-xs text-muted">
-          Warranties cover things you&apos;ve bought. Looking for an ongoing bill or subscription
-          instead? Try{" "}
+          Warranties cover things you&apos;ve bought. Looking for insurance, a phone plan or
+          another recurring cost instead? Try{" "}
           <Link href="/contracts/new" className="text-accent hover:underline">
             add a contract
           </Link>

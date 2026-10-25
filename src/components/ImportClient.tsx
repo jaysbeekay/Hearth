@@ -325,7 +325,7 @@ export function ImportClient({
       >
         <Upload size={22} className="text-muted" />
         <p className="text-sm font-medium">Drag a file here or click to browse</p>
-        <p className="text-xs text-muted">Drop in more than one at a time if you have several — each is scanned and added to the queue below</p>
+        <p className="text-xs text-muted">Drop in more than one at a time if you have several — each is scanned and added to the list below</p>
         {/* #285 — capture-time disclosure that this isn't private storage. */}
         <p className="text-xs text-muted">Visible to your whole household once saved.</p>
         <input
@@ -389,7 +389,7 @@ export function ImportClient({
                           className="rounded-md border border-border bg-background px-2 py-1 text-xs outline-none focus:border-accent"
                         >
                           <option value="CONTRACT">Contract</option>
-                          <option value="PRODUCT">Product</option>
+                          <option value="PRODUCT">Warranty</option>
                           {inventoryEnabled && <option value="INVENTORY">Inventory item</option>}
                           <option value="INBOX">Save to review later</option>
                         </select>
@@ -694,7 +694,7 @@ export function ImportClient({
                 {(row.status === "ready" || row.status === "saving" || row.status === "error") &&
                   row.type === "INBOX" && (
                     <p className="text-sm text-muted">
-                      Saved to your inbox as-is — classify it as a contract, product, or other
+                      Saved to the Inbox as-is — say whether it&apos;s a contract, warranty or other
                       record later from{" "}
                       <a href="/documents/inbox" className="text-accent hover:underline">
                         Inbox

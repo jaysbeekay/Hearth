@@ -18,7 +18,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { ContractCategory, ContractStatus } from "@/generated/prisma/enums";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 
-export const metadata: Metadata = { title: "Policies & contracts" };
+export const metadata: Metadata = { title: "Contracts" };
 
 function first(value: string | string[] | undefined): string | undefined {
   return (Array.isArray(value) ? value[0] : value) || undefined;

@@ -13,6 +13,7 @@ import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
 import { formatDistance } from "@/lib/utils";
 import type { DistanceSummary } from "@/lib/integrations/flightDistance";
+import { MODULE_REGISTRY } from "@/lib/modules/registry";
 
 type TripWithCount = TripModel & { _count: { segments: number } };
 
@@ -41,7 +42,7 @@ export function TravelListClient({ trips, dateFormat, canWrite = true, distanceS
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Travel</h1>
+        <h1 className="text-2xl font-semibold">{MODULE_REGISTRY.TRAVEL.label}</h1>
         <div className="flex items-center gap-2">
           <details className="relative">
             <summary className={toolbarButtonClass}>
@@ -86,7 +87,7 @@ export function TravelListClient({ trips, dateFormat, canWrite = true, distanceS
             </dl>
           )}
           <p className="mt-2 text-xs text-muted">
-            Computed from flight segments with a known route — configure AviationStack (Settings → System
+            Computed from flight segments with a known route — configure AviationStack (Settings → Household &amp; System → System
             settings) to auto-fill distances for new flights.
           </p>
         </div>

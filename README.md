@@ -53,10 +53,10 @@ Everything else is optional. Set `SMTP_*` to enable email reminders, `NTFY_*` fo
 - Upload booking confirmations — AI extraction pre-fills confirmation codes, dates, locations, and costs
 - Shared household-wide so all members can view each other's trips
 
-**Property** *(opt-in module)*
+**Properties** *(opt-in module)*
 - Track properties and log maintenance, repairs, and improvements against each one
 - Attach receipts/invoices and record costs, providers, and dates
-- Manage rental agreements and track rental income statements per property
+- Track tenancies and rental income statements per property
 
 **Wealth** *(opt-in module)*
 - Track share, ETF, and crypto portfolios — full CRUD for portfolios, holdings, and trades with document attachments
@@ -87,7 +87,7 @@ Everything else is optional. Set `SMTP_*` to enable email reminders, `NTFY_*` fo
 - Multi-user/household accounts — everyone sees the same data
 - Admin-invite-only (no public sign-up) since this stores sensitive household data — with SMTP configured, adding a member sends a 48-hour expiring invitation link to set their own password, instead of the admin choosing one
 - Optional "Sign in with GitHub" on the login page (`GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`) — still only works for an email with an existing admin-invited account, it doesn't bypass the invite-only model
-- Help & FAQ page links straight to the project's GitHub issue templates for reporting a bug or suggesting an enhancement
+- Help page links straight to the project's GitHub issue templates for reporting a bug or suggesting an enhancement
 - Optional AI egress-proxy support — route document extraction/chat assistant calls through a local agent-firewall proxy (e.g. Pipelock) for network-level inspection of outbound AI traffic (`AI_EGRESS_PROXY_URL`)
 - Mobile-friendly responsive UI, installable as a PWA ("Add to Home Screen")
 - **Offline read cache** — a service worker caches previously-visited pages so they're still browsable when your home server is unreachable; an amber banner appears and writes are queued locally and synced automatically when you reconnect. Records created offline show up immediately as a "Pending sync" card on their list page — editable or discardable before they've synced (Contracts, Products, Vehicles, Travel, Home, Inventory)
@@ -111,17 +111,17 @@ Everything else is optional. Set `SMTP_*` to enable email reminders, `NTFY_*` fo
 | --- | --- |
 | ![Trip detail](docs/screenshots/trip-detail.png) | ![Vehicles list](docs/screenshots/vehicles-list.png) |
 
-| Vehicle detail | Property list |
+| Vehicle detail | Properties |
 | --- | --- |
-| ![Vehicle detail](docs/screenshots/vehicle-detail.png) | ![Property list](docs/screenshots/home-list.png) |
+| ![Vehicle detail](docs/screenshots/vehicle-detail.png) | ![Properties](docs/screenshots/home-list.png) |
 
 | Property detail — map | Settings — modules |
 | --- | --- |
 | ![Property detail](docs/screenshots/property-detail.png) | ![Settings — modules](docs/screenshots/settings-modules.png) |
 
-| Spend — yearly view | Contract — linked rental agreement |
+| Spending | Contract — linked tenancy |
 | --- | --- |
-| ![Spend](docs/screenshots/spend.png) | ![Contract rental link](docs/screenshots/contract-rental-link.png) |
+| ![Spending](docs/screenshots/spend.png) | ![Contract — linked tenancy](docs/screenshots/contract-rental-link.png) |
 
 | Settings — personal account | Settings — household & system |
 | --- | --- |
@@ -151,9 +151,9 @@ Everything else is optional. Set `SMTP_*` to enable email reminders, `NTFY_*` fo
 | --- | --- |
 | ![Settings — security log](docs/screenshots/settings-security.png) | ![Upcoming](docs/screenshots/upcoming.png) |
 
-| Purchases & warranties |  |
+| Warranties |  |
 | --- | --- |
-| ![Purchases & warranties](docs/screenshots/products-list.png) |  |
+| ![Warranties](docs/screenshots/products-list.png) |  |
 
 ## Tech stack
 

@@ -6,6 +6,7 @@ import { createInventoryItem } from "@/lib/actions/inventory";
 import { InventoryItemForm } from "@/components/InventoryItemForm";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
+import { BackLink } from "@/components/BackLink";
 
 export const metadata: Metadata = { title: "Add Item" };
 
@@ -22,9 +23,7 @@ export default async function NewInventoryItemPage() {
   return (
     <div className="max-w-xl space-y-6">
       <div>
-        <Link href="/inventory" className="text-sm text-muted hover:text-foreground">
-          ← Back to inventory
-        </Link>
+        <BackLink href="/inventory" label="Inventory" />
       </div>
       <div>
         <h1 className="text-2xl font-semibold">Add item</h1>

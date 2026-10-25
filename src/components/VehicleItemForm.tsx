@@ -37,7 +37,7 @@ export function VehicleItemForm({
   const offlineAwareAction = makeOfflineAwareAction(
     action,
     () => ({
-      label: item ? `Update record: ${item.title}` : "Add vehicle record",
+      label: item ? `Update service record: ${item.title}` : "Add service record",
       entity: "vehicleItem",
       operation: item ? "update" : "create",
       entityId: item?.id,
@@ -206,7 +206,7 @@ export function VehicleItemForm({
       <FormMessage error={state?.error} success={state?.success} />
 
       <div className="flex justify-end gap-3">
-        <SubmitButton>{item ? "Save changes" : "Add record"}</SubmitButton>
+        <SubmitButton>{item ? "Save changes" : "Add service record"}</SubmitButton>
       </div>
     </form>
   );

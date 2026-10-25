@@ -2,9 +2,9 @@ import { LayoutDashboard, FileText, Package, CalendarDays, TrendingUp, Files, Bo
 import { MODULE_REGISTRY, type ModuleKey } from "@/lib/modules/registry";
 
 // "dashboard" stands alone (not part of either group); "modules" are
-// record-type sections (Policies & contracts, Purchases & warranties, plus
+// record-type sections (Contracts, Warranties, plus
 // whichever optional modules are enabled); "tools" are cross-cutting views
-// that work across all record types (Documents, Calendar, Spending,
+// that work across all record types (Documents, Upcoming, Spending,
 // Assistant).
 export type NavGroup = "dashboard" | "modules" | "tools";
 
@@ -17,22 +17,27 @@ export interface NavItem {
 
 const BASE_NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, group: "dashboard" },
-  // #332 supersedes #174's "Contracts"/"Warranties" nav/heading/title
-  // decision — deliberately, not silently: #174 was itself only about
-  // keeping nav/heading/title consistent with EACH OTHER (whatever the
-  // term), not about the specific word. #332's task-oriented aliases keep
-  // that same consistency (see ContractListClient/ProductListClient's
-  // headings and each page's metadata.title), while search still
-  // recognizes the old terms (see CONTRACT_ALIASES/PRODUCT_ALIASES in
-  // src/app/api/search/route.ts) and the /contracts, /products routes and
+  // #362 — one name per object: the nav label is also the page's <h1> and
+  // metadata.title, and the BackLink label for anything returning here.
+  // "Contracts" and "Warranties" are interim nouns until #380 renames
+  // Warranties to Items. Search still recognises the older words ("policy",
+  // "purchase", "product"…) via CONTRACT_ALIASES/PRODUCT_ALIASES in
+  // src/app/api/search/route.ts, and the /contracts, /products routes and
   // Contract/Product model names are untouched.
-  { href: "/contracts", label: "Policies & contracts", icon: FileText, group: "modules" },
-  { href: "/products", label: "Purchases & warranties", icon: Package, group: "modules" },
+  { href: "/contracts", label: "Contracts", icon: FileText, group: "modules" },
+  { href: "/products", label: "Warranties", icon: Package, group: "modules" },
   { href: "/documents", label: "Documents", icon: Files, group: "tools" },
   { href: "/assistant", label: "Assistant", icon: Bot, group: "tools" },
   { href: "/calendar", label: "Upcoming", icon: CalendarDays, group: "tools" },
   { href: "/spend", label: "Spending", icon: TrendingUp, group: "tools" },
 ];
+
+// Always shown below the module and tool groups, in every nav (Sidebar,
+// MobileNavDrawer, BottomNav's More sheet).
+export const FOOTER_NAV = {
+  settings: { href: "/settings", label: "Settings" },
+  help: { href: "/help", label: "Help" },
+} as const;
 
 export function getNavItems(enabledModules: Set<ModuleKey>, chatConfigured: boolean): NavItem[] {
   const moduleItems = Object.values(MODULE_REGISTRY)

@@ -27,9 +27,9 @@ export default async function NewVehicleItemPage({
 
   return (
     <div className="max-w-3xl space-y-6">
-      <BackLink href={`/vehicles/${vehicle.id}`} label={`Back to ${vehicle.label}`} />
+      <BackLink href={`/vehicles/${vehicle.id}`} label={vehicle.label} />
       <div>
-        <h1 className="text-2xl font-semibold">Add a record</h1>
+        <h1 className="text-2xl font-semibold">Add service record</h1>
         <p className="text-sm text-muted">{vehicle.label}</p>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">

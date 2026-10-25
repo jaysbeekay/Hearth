@@ -111,16 +111,16 @@ export function LinkedToField({
           keep that pairing selectable so saving doesn't drop one of them. */}
       {initial.propertyId && initial.vehicleId && (
         <option value={BOTH}>
-          {propertyLabel ?? "Home"} + {vehicleLabel ?? "vehicle"}
+          {propertyLabel ?? "Property"} + {vehicleLabel ?? "vehicle"}
         </option>
       )}
       {initialMissing && (
         <option value={initialValue}>
-          {initial.propertyId ? (propertyLabel ?? "Current home") : (vehicleLabel ?? "Current vehicle")}
+          {initial.propertyId ? (propertyLabel ?? "Current property") : (vehicleLabel ?? "Current vehicle")}
         </option>
       )}
       {showProperties && (
-        <optgroup label="Homes">
+        <optgroup label="Properties">
           {properties.map((p) => (
             <option key={p.id} value={`property:${p.id}`}>
               {p.label}
@@ -152,11 +152,11 @@ export function LinkedToField({
       )}
       {homeEnabled && properties.length === 0 && (
         <p className="text-xs text-muted">
-          No homes yet —{" "}
+          No properties yet —{" "}
           <Link href="/home/new" className="text-accent hover:underline" {...hintLinkProps}>
             add one
           </Link>{" "}
-          to link this {recordNoun} to a home.
+          to link this {recordNoun} to a property.
         </p>
       )}
       {vehiclesEnabled && vehicles.length === 0 && (

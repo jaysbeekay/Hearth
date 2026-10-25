@@ -42,11 +42,11 @@ test.describe.serial("Vehicles module", () => {
 
   test("add a service record to the vehicle", async ({ page }) => {
     await page.goto(`/vehicles/${vehicleId}`);
-    await page.getByRole("link", { name: "Add record" }).click();
+    await page.getByRole("link", { name: "Add service record" }).click();
     await page.waitForURL(/\/vehicles\/[^/]+\/items\/new$/);
 
     await page.locator("#title").fill("Test Service Record");
-    await page.getByRole("button", { name: "Add record" }).click();
+    await page.getByRole("button", { name: "Add service record" }).click();
     await page.waitForURL(/\/vehicles\/(?!new$)[^/]+$/);
 
     const row = page.locator("div.rounded-xl.border.border-border.bg-surface", {
@@ -100,7 +100,7 @@ test.describe.serial("Vehicles module", () => {
       hasText: "Updated Service Record",
     });
     await row.getByRole("button", { name: "Delete", exact: true }).click();
-    await page.getByRole("button", { name: 'Delete "Updated Service Record"' }).click();
+    await page.getByRole("button", { name: "Move to Trash" }).click();
 
     // Soft-deleted: gone from the active list, but the files are untouched.
     await expect(page.locator("body")).not.toContainText("Updated Service Record");
@@ -125,12 +125,12 @@ test.describe.serial("Vehicles module", () => {
   // own item) so it doesn't disturb the shared vehicleId/itemId lifecycle.
   test("add a purchase record with a document to the vehicle", async ({ page }) => {
     await page.goto(`/vehicles/${vehicleId}`);
-    await page.getByRole("link", { name: "Add record" }).click();
+    await page.getByRole("link", { name: "Add service record" }).click();
     await page.waitForURL(/\/vehicles\/[^/]+\/items\/new$/);
 
     await page.locator("#type").selectOption("PURCHASE");
     await page.locator("#title").fill("Test Purchase Record");
-    await page.getByRole("button", { name: "Add record" }).click();
+    await page.getByRole("button", { name: "Add service record" }).click();
     await page.waitForURL(/\/vehicles\/(?!new$)[^/]+$/);
 
     const row = page.locator("div.rounded-xl.border.border-border.bg-surface", {
@@ -147,7 +147,7 @@ test.describe.serial("Vehicles module", () => {
     await expect(row).toContainText("Document uploaded.");
 
     await row.getByRole("button", { name: "Delete", exact: true }).click();
-    await page.getByRole("button", { name: 'Delete "Test Purchase Record"' }).click();
+    await page.getByRole("button", { name: "Move to Trash" }).click();
     await expect(page.locator("body")).not.toContainText("Test Purchase Record");
   });
 
@@ -177,7 +177,7 @@ test.describe.serial("Vehicles module", () => {
     await page.goto(`/vehicles/${vehicleId}`);
     await page.getByRole("button", { name: "More actions" }).click();
     await page.getByRole("button", { name: "Delete", exact: true }).click();
-    await page.getByRole("button", { name: "Delete vehicle" }).click();
+    await page.getByRole("button", { name: "Move to Trash" }).click();
     await page.waitForURL(/\/vehicles$/);
 
     await expect(page.locator("body")).not.toContainText("Test Vehicle");

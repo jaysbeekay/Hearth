@@ -20,7 +20,7 @@ import {
 } from "@/lib/recordFilters";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 
-export const metadata: Metadata = { title: "Purchases & warranties" };
+export const metadata: Metadata = { title: "Warranties" };
 
 function first(value: string | string[] | undefined): string | undefined {
   return (Array.isArray(value) ? value[0] : value) || undefined;

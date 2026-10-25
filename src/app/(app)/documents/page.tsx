@@ -10,6 +10,7 @@ import { auth } from "@/lib/auth";
 import { documentFileHref } from "@/lib/documents/kinds";
 import { LIVE_DOCUMENT_WHERE as LIVE } from "@/lib/documents/liveDocuments";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 export const metadata: Metadata = { title: "Documents" };
 
@@ -192,7 +193,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
 
   if (enabledModules.has("HOME")) {
     sources.push({
-      type: "Property",
+      type: "Properties",
       count: () =>
         Promise.all([
           prisma.homeItemDocument.count({ where: LIVE.HOME_ITEM }),
@@ -239,9 +240,9 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
             uploadedAt: r.uploadedAt,
             mimeType: r.mimeType,
             category: r.category,
-            type: "Property",
+            type: "Properties",
             parentTitle: r.homeItem.title,
-            parentHref: `/home/${r.homeItem.propertyId}/items/${r.homeItem.id}`,
+            parentHref: `/home/${r.homeItem.propertyId}`,
             downloadHref: documentFileHref(r.id),
           }));
           rows.push(
@@ -251,7 +252,7 @@ function buildSources(enabledModules: Set<string>): TypeSource[] {
               size: r.size,
               uploadedAt: r.uploadedAt,
               mimeType: r.mimeType,
-              type: "Property",
+              type: "Properties",
               parentTitle: "Rental statement",
               parentHref: `/home/${r.rentalStatement.propertyId}/rental`,
               downloadHref: documentFileHref(r.id),
@@ -466,9 +467,10 @@ export default async function DocumentsPage({
           {page > 0 ? (
             <Link
               href={`/documents?page=${page - 1}${type ? `&type=${encodeURIComponent(type)}` : ""}${showAll ? "&view=all" : ""}`}
-              className="text-sm text-accent hover:underline"
+              className="inline-flex items-center gap-1 text-sm text-accent hover:underline"
             >
-              ← Newer
+              <ChevronLeft size={14} aria-hidden />
+              Newer
             </Link>
           ) : (
             <span />
@@ -476,9 +478,10 @@ export default async function DocumentsPage({
           {hasMore && (
             <Link
               href={`/documents?page=${page + 1}${type ? `&type=${encodeURIComponent(type)}` : ""}${showAll ? "&view=all" : ""}`}
-              className="text-sm text-accent hover:underline"
+              className="inline-flex items-center gap-1 text-sm text-accent hover:underline"
             >
-              Older →
+              Older
+              <ChevronRight size={14} aria-hidden />
             </Link>
           )}
         </div>

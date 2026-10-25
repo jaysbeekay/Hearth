@@ -62,11 +62,11 @@ let db: Client;
 // Buttons that write. Names are matched whole, so a record whose title
 // happens to start with "Delete" (a link, not a button) can't trip this.
 const WRITE_BUTTON =
-  /^(Edit|Delete.*|Remove.*|More actions|Upload|Save.*|Discard.*|Confirm.*|Send test reminder|Unlink|Link|Restore.*|Mark .*|Unmark .*|Cancel|Not renewing\? Mark as cancelled|Disable rental tracking|Take photo|Keep as separate document|Attach as new version|Refresh|Add.*|New .*|Import.*)$/;
+  /^(Edit|Delete.*|Remove.*|More actions|Upload|Save.*|Discard.*|Confirm.*|Send test reminder|Unlink|Link|Restore.*|Mark .*|Unmark .*|Cancel|Not renewing\? Mark as cancelled|Stop tracking tenancy|Take photo|Keep as separate document|Attach as new version|Refresh|Add.*|New .*|Import.*)$/;
 // Links that lead to a write: by name for the actions whose target is the
 // record itself, and by href for every create, edit and import page.
 const WRITE_LINK =
-  /^(Edit|Renew policy|Renew or cancel|Set the new end date|Set the new lease end|Update lease|Upload document|Upload a document|Upload|Fill in|Confirm details|Review|Configure reminders|Add.*|New .*|Import CSV)$/;
+  /^(Edit|Renew|Renew or cancel|Set the new end date|Set the new lease end|Update tenancy|Upload document|Upload a document|Upload|Fill in|Confirm details|Review|Configure reminders|Add.*|New .*|Import CSV)$/;
 const WRITE_HREF = 'a[href$="/new"], a[href*="/new?"], a[href$="/edit"], a[href$="/import"], a[href="/import"]';
 // A form bound to a server action carries Next's $ACTION_ hidden inputs.
 // Plain GET forms (search, export, list filters) are the only forms a
@@ -113,6 +113,9 @@ test.describe("read-only member (#400)", () => {
 
   test.beforeAll(async () => {
     db = createClient({ url: DATABASE_URL });
+    // The app server writes to the same file; wait out its locks instead of
+    // failing with SQLITE_BUSY (seen in CI on #429).
+    await db.execute("PRAGMA busy_timeout = 5000");
     await db.execute("PRAGMA foreign_keys = ON");
     // A leftover account from an aborted run would make the create below
     // fail; clear it so that create can be held to succeeding.
@@ -288,7 +291,7 @@ test.describe("read-only member (#400)", () => {
     ids.trashedProduct = lastSegment(page);
     await page.getByRole("button", { name: "More actions" }).click();
     await page.getByRole("button", { name: /^Delete$/ }).click();
-    await page.getByRole("button", { name: "Delete warranty" }).click();
+    await page.getByRole("button", { name: "Move to Trash" }).click();
     await page.waitForURL(/\/products$/);
 
     // Positive control: the same checks do find the admin's controls.
@@ -379,7 +382,7 @@ test.describe("read-only member (#400)", () => {
     await expect(main.getByRole("heading", { name: "Profile" })).toBeVisible();
     await expect(main.getByRole("button", { name: "Save preferences" })).toBeVisible();
     await expect(main.getByRole("button", { name: "Update password" })).toBeVisible();
-    await expect(main.getByRole("link", { name: "Manage passkeys" })).toBeVisible();
+    await expect(main.getByRole("link", { name: "Passkeys", exact: true })).toBeVisible();
     await expect(main.getByRole("button", { name: "Enable two-factor authentication" })).toBeVisible();
 
     await page.goto("/calendar");

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Settings, HelpCircle, MoreHorizontal, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getNavItems } from "@/components/nav-items";
+import { getNavItems, FOOTER_NAV } from "@/components/nav-items";
 import type { ModuleKey } from "@/lib/modules/registry";
 import { Dialog } from "@/components/Dialog";
 
@@ -14,10 +14,10 @@ function isActive(href: string, pathname: string) {
 }
 
 // Fixed regardless of how many modules are enabled — everything else
-// (Calendar, Spend, module items, Settings) lives in the "More" sheet so the
+// (Upcoming, Spending, module items, Settings) lives in the "More" sheet so the
 // bar never grows past 5 slots on small screens. Documents is promoted here
-// over Calendar since capturing/reviewing receipts is a primary, frequent
-// action, while calendar is a secondary/glanceable view (#173).
+// over Upcoming since capturing/reviewing receipts is a primary, frequent
+// action, while Upcoming is a secondary/glanceable view (#173).
 const PRIMARY_HREFS = ["/dashboard", "/contracts", "/products", "/documents"];
 
 export function BottomNav({
@@ -148,7 +148,7 @@ export function BottomNav({
                 </Link>
               ))}
               <Link
-                href="/settings"
+                href={FOOTER_NAV.settings.href}
                 className={cn(
                   "flex flex-col items-center gap-1.5 rounded-lg p-3 text-xs font-medium",
                   isActive("/settings", pathname)
@@ -157,10 +157,10 @@ export function BottomNav({
                 )}
               >
                 <Settings size={20} />
-                Settings
+                {FOOTER_NAV.settings.label}
               </Link>
               <Link
-                href="/help"
+                href={FOOTER_NAV.help.href}
                 className={cn(
                   "flex flex-col items-center gap-1.5 rounded-lg p-3 text-xs font-medium",
                   isActive("/help", pathname)
@@ -169,7 +169,7 @@ export function BottomNav({
                 )}
               >
                 <HelpCircle size={20} />
-                Help
+                {FOOTER_NAV.help.label}
               </Link>
             </div>
         </>

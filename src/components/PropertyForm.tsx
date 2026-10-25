@@ -126,7 +126,7 @@ export function PropertyForm({
           {property ? (
             property.isRented ? (
               <>
-                Rental tracking is already set up for this property —{" "}
+                This property already has a tenancy —{" "}
                 <Link href={`/home/${property.id}/rental`} className="text-accent hover:underline">
                   view it
                 </Link>
@@ -134,8 +134,8 @@ export function PropertyForm({
               </>
             ) : (
               <>
-                Rental tracking (agreements, statements, rent reconciliation) isn&apos;t set up yet
-                for this property —{" "}
+                This property has no tenancy (rent, statements, reconciliation) yet
+                —{" "}
                 <Link href={`/home/${property.id}/rental`} className="text-accent hover:underline">
                   set it up
                 </Link>
@@ -143,7 +143,7 @@ export function PropertyForm({
               </>
             )
           ) : (
-            "You'll be able to set up rental tracking (agreements, statements) once this property is saved."
+            "You'll be able to add a tenancy once this property is saved."
           )}
         </p>
       )}

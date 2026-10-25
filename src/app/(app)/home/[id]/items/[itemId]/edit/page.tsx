@@ -5,6 +5,7 @@ import { updateHomeItem } from "@/lib/actions/home";
 import { HomeItemForm } from "@/components/HomeItemForm";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
+import { BackLink } from "@/components/BackLink";
 
 export default async function EditHomeItemPage({
   params,
@@ -15,15 +16,19 @@ export default async function EditHomeItemPage({
 
   const { id, itemId } = await params;
   redirectIfReadOnly(await auth(), `/home/${id}`);
-  const item = await prisma.homeItem.findUnique({ where: { id: itemId } });
+  const item = await prisma.homeItem.findUnique({
+    where: { id: itemId },
+    include: { property: { select: { label: true } } },
+  });
   if (!item || item.propertyId !== id) notFound();
 
   const boundAction = updateHomeItem.bind(null, id, itemId);
 
   return (
     <div className="max-w-3xl space-y-6">
+      <BackLink href={`/home/${id}`} label={item.property.label} />
       <div>
-        <h1 className="text-2xl font-semibold">Edit item</h1>
+        <h1 className="text-2xl font-semibold">Edit maintenance record</h1>
         <p className="text-sm text-muted">{item.title}</p>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">

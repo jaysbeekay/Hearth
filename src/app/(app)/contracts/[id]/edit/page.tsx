@@ -5,6 +5,7 @@ import { ContractForm } from "@/components/ContractForm";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
+import { BackLink } from "@/components/BackLink";
 
 export default async function EditContractPage({
   params,
@@ -31,6 +32,7 @@ export default async function EditContractPage({
 
   return (
     <div className="max-w-3xl space-y-6">
+      <BackLink href={`/contracts/${contract.id}`} label={contract.title} />
       <div>
         <h1 className="text-2xl font-semibold">Edit contract</h1>
         <p className="text-sm text-muted">{contract.title}</p>

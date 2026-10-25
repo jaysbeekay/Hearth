@@ -1,8 +1,12 @@
+import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { HomeListClient } from "@/components/HomeListClient";
 import { financialYearLabel, sumByYear } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
+import { MODULE_REGISTRY } from "@/lib/modules/registry";
+
+export const metadata: Metadata = { title: MODULE_REGISTRY.HOME.label };
 
 export default async function HomePage() {
   await requireModuleEnabled("HOME");

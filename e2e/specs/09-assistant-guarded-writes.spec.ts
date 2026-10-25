@@ -80,6 +80,8 @@ test("assistant proposes a contract, confirming creates it and cancelling doesn'
       .locator("xpath=ancestor::form[1]")
       .locator("button[type=submit]")
       .click();
+    // Wait for each save to land: navigating away mid-action drops it.
+    await expect(page.getByText("Ollama settings saved.").first()).toBeVisible();
 
     await page.selectOption("#chatProvider", "OLLAMA");
     await page.locator("#chatModel").fill("test-model");
@@ -88,6 +90,7 @@ test("assistant proposes a contract, confirming creates it and cancelling doesn'
       .locator("xpath=ancestor::form[1]")
       .locator("button[type=submit]")
       .click();
+    await expect(page.getByText("AI Assistant settings saved.").first()).toBeVisible();
 
     await page.goto("/assistant");
     await page.locator("textarea").last().fill("Add a Netflix subscription for me");

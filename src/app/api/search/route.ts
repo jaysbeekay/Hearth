@@ -55,12 +55,12 @@ function missingSubtitle(parts: string[]): string | undefined {
   return parts.length > 0 ? parts.join(" · ") : undefined;
 }
 
-// #332 — nav/headings now use task-oriented aliases ("Policies &
-// contracts", "Purchases & warranties") instead of the bare "Contracts"/
-// "Warranties" #174 originally picked. A query consisting of just the old
-// (or new) generic category word finds every record of that type, not only
-// ones whose title/provider/description happens to literally contain the
-// word — matching what a user typing that word almost certainly means.
+// #332/#362 — the nav said "Policies & contracts" / "Purchases &
+// warranties" for a while and now says "Contracts" / "Warranties" again.
+// A query consisting of just one of those generic category words, old or
+// new, finds every record of that type, not only ones whose
+// title/provider/description happens to literally contain the word —
+// matching what a user typing that word almost certainly means.
 const CONTRACT_ALIASES = new Set(["contract", "contracts", "policy", "policies"]);
 const PRODUCT_ALIASES = new Set(["warranty", "warranties", "purchase", "purchases"]);
 
@@ -469,7 +469,7 @@ export async function GET(request: NextRequest) {
             id: r.id,
             title: r.title,
             subtitle: r.property.label,
-            href: `/home/${r.propertyId}/items/${r.id}`,
+            href: `/home/${r.propertyId}`,
             group: "Property",
           })),
         ),
@@ -494,7 +494,7 @@ export async function GET(request: NextRequest) {
                 id: r.id,
                 title: r.filename,
                 subtitle: r.homeItem.title,
-                href: `/home/${r.homeItem.propertyId}/items/${r.homeItem.id}`,
+                href: `/home/${r.homeItem.propertyId}`,
                 group: "Documents",
               })),
           ),
@@ -523,7 +523,7 @@ export async function GET(request: NextRequest) {
                 id: r.id,
                 title: r.filename,
                 subtitle: r.rentalStatement.property.label,
-                href: `/home/${r.rentalStatement.propertyId}/rental/statements/${r.rentalStatement.id}`,
+                href: `/home/${r.rentalStatement.propertyId}/rental`,
                 group: "Documents",
               })),
           ),
@@ -627,7 +627,7 @@ export async function GET(request: NextRequest) {
                 id: r.id,
                 title: r.filename,
                 subtitle: r.trade.holding.ticker,
-                href: `/wealth/portfolios/${r.trade.holding.portfolioId}/holdings/${r.trade.holding.id}/trades/${r.trade.id}`,
+                href: `/wealth/portfolios/${r.trade.holding.portfolioId}/holdings/${r.trade.holding.id}`,
                 group: "Documents",
               })),
           ),

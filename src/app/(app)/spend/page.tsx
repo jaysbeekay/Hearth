@@ -13,7 +13,7 @@ import { buildMonthlyTimeline, buildYearlyTimeline, buildCategoryBreakdown } fro
 import { getUserPreferences } from "@/lib/userPreferences";
 import { refreshFxRates, getFxRateMap, convertAmount } from "@/lib/fx";
 
-export const metadata: Metadata = { title: "Spend" };
+export const metadata: Metadata = { title: "Spending" };
 
 export default async function SpendPage({
   searchParams,
@@ -124,7 +124,7 @@ export default async function SpendPage({
 
   return (
     <div className="max-w-3xl space-y-8">
-      <h1 className="text-2xl font-semibold">Spend</h1>
+      <h1 className="text-2xl font-semibold">Spending</h1>
 
       {hasUnconverted && (
         <p className="text-xs text-warning">
@@ -159,7 +159,7 @@ export default async function SpendPage({
       <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-medium">
-            Recurring spend — {view === "yearly" ? "last 5 years" : "last 12 months"}
+            Recurring cost — {view === "yearly" ? "last 5 years" : "last 12 months"}
           </h2>
           <div className="flex rounded-lg border border-border p-0.5 text-xs">
             <Link
@@ -216,7 +216,7 @@ export default async function SpendPage({
       {/* Category breakdown */}
       {categoryBreakdown.length > 0 && (
         <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
-          <h2 className="mb-4 font-medium">Recurring spend by category</h2>
+          <h2 className="mb-4 font-medium">Recurring cost by category</h2>
           <div className="space-y-2">
             {categoryBreakdown.map((bucket) => {
               const pct = categoryTotal > 0 ? (bucket.monthlyTotal / categoryTotal) * 100 : 0;

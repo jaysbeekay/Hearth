@@ -172,7 +172,7 @@ export function DocumentsExplorer({
                     </td>
                     <td className="px-4 py-2">
                       <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
-                        {doc.category ? DOCUMENT_CATEGORY_LABELS[doc.category as DocumentCategory] ?? doc.category : "Uncategorized"}
+                        {doc.category ? DOCUMENT_CATEGORY_LABELS[doc.category as DocumentCategory] ?? doc.category : "Uncategorised"}
                       </span>
                       <span className="ml-2 rounded-full bg-muted/10 px-2 py-0.5 text-xs font-medium text-muted">
                         {doc.type}
@@ -240,7 +240,7 @@ export function DocumentsExplorer({
                   <span className="rounded-full bg-muted/10 px-2 py-0.5 font-medium text-muted">
                     {doc.type}
                   </span>
-                  <span>{doc.category ? DOCUMENT_CATEGORY_LABELS[doc.category as DocumentCategory] ?? doc.category : "Uncategorized"}</span>
+                  <span>{doc.category ? DOCUMENT_CATEGORY_LABELS[doc.category as DocumentCategory] ?? doc.category : "Uncategorised"}</span>
                   <Link href={doc.parentHref} className="text-accent hover:underline">
                     {doc.parentTitle}
                   </Link>

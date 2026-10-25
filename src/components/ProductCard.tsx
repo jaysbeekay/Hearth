@@ -29,7 +29,7 @@ export function ProductCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-sm text-muted">
-            {product.manufacturer ?? product.vendor ?? "Product"}
+            {product.manufacturer ?? product.vendor ?? "Warranty"}
           </p>
           <p className="truncate font-medium">{product.description}</p>
           {product.serialNumber && (

@@ -37,7 +37,7 @@ export function ChatMessageList({
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center text-sm text-muted">
         <Bot size={28} className="text-muted" />
-        <p>Ask about your contracts, warranties, trips, vehicles, home, inventory, or wealth.</p>
+        <p>Ask about your contracts, warranties, trips, vehicles, properties, inventory, or wealth.</p>
       </div>
     );
   }

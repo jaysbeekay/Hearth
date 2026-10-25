@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: { default: "Hearth", template: "%s · Hearth" },
-  description: "Household management: contracts, products, travel, home, and more.",
+  description: "Household management: contracts, warranties, travel, properties, and more.",
   manifest: "/manifest.json",
   icons: {
     icon: "/icon.svg",

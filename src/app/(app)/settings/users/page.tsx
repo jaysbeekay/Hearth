@@ -10,8 +10,10 @@ import { CreateUserForm } from "@/components/CreateUserForm";
 import { MemberRoleForm } from "@/components/MemberRoleForm";
 import { formatDate, ROLE_LABELS } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
+import { BackLink } from "@/components/BackLink";
+import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
 
-export const metadata: Metadata = { title: "Household members" };
+export const metadata: Metadata = { title: SETTINGS_ROUTES.users.label };
 
 export default async function ManageUsersPage() {
   const session = await auth();
@@ -27,7 +29,8 @@ export default async function ManageUsersPage() {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <h1 className="text-2xl font-semibold">Household members</h1>
+      <BackLink {...settingsBackLink(SETTINGS_ROUTES.users)} />
+      <h1 className="text-2xl font-semibold">{SETTINGS_ROUTES.users.label}</h1>
 
       <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <ul className="divide-y divide-border">

@@ -5,8 +5,8 @@ test.use({ storageState: ADMIN_AUTH_FILE });
 
 const PAGES: Array<[string, string[]]> = [
   ["/dashboard", ["Dashboard"]],
-  ["/contracts", ["Policies & contracts"]],
-  ["/products", ["Purchases & warranties"]],
+  ["/contracts", ["Contracts"]],
+  ["/products", ["Warranties"]],
   ["/travel", ["Travel"]],
   ["/home", ["Properties"]],
   ["/vehicles", ["Vehicles"]],
@@ -14,7 +14,7 @@ const PAGES: Array<[string, string[]]> = [
   ["/wealth", ["Wealth"]],
   ["/documents", ["Documents"]],
   ["/documents/inbox", ["Documents"]],
-  ["/spend", ["Spend"]],
+  ["/spend", ["Spending"]],
   ["/import", ["Upload"]],
   ["/calendar", ["Upcoming"]],
   ["/assistant", ["Assistant"]],
@@ -33,18 +33,39 @@ for (const [url, snippets] of PAGES) {
   });
 }
 
+// #362 — one name per page: the sidebar link, the page's <h1> and its
+// document title all use the same label. The /contracts, /products, /home,
+// /calendar and /spend routes and the Prisma model names are unchanged.
+const TOP_LEVEL: Array<[string, string]> = [
+  ["/dashboard", "Dashboard"],
+  ["/contracts", "Contracts"],
+  ["/products", "Warranties"],
+  ["/travel", "Travel"],
+  ["/home", "Properties"],
+  ["/vehicles", "Vehicles"],
+  ["/wealth", "Wealth"],
+  ["/documents", "Documents"],
+  ["/calendar", "Upcoming"],
+  ["/spend", "Spending"],
+  ["/settings", "Settings"],
+  ["/help", "Help"],
+];
+
 test("all nav items appear together on one page", async ({ page }) => {
   await page.goto("/dashboard");
-  const body = page.locator("body");
-  await expect(body).toContainText("Policies & contracts");
-  // #332 supersedes #174: nav, page heading and page title still all agree
-  // with each other (that's what #174 actually established) — just using
-  // #332's task-oriented aliases instead of the bare "Contracts"/
-  // "Warranties" #174 originally picked. The /contracts, /products routes,
-  // the Prisma models and the component names are unchanged.
-  await expect(body).toContainText("Purchases & warranties");
-  await expect(body).toContainText("Travel");
-  await expect(body).toContainText("Settings");
+  const sidebar = page.getByRole("complementary");
+  for (const [, label] of TOP_LEVEL) {
+    await expect(sidebar.getByRole("link", { name: label, exact: true })).toBeVisible();
+  }
+});
+
+test("nav label, page heading and document title agree for every top-level page", async ({ page }) => {
+  for (const [url, label] of TOP_LEVEL) {
+    await page.goto(url);
+    await expect(page.getByRole("complementary").getByRole("link", { name: label, exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1 }).first()).toHaveText(label);
+    await expect(page).toHaveTitle(`${label} · Hearth`);
+  }
 });
 
 test("create a contract end-to-end", async ({ page }) => {

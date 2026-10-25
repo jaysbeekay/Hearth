@@ -56,7 +56,7 @@ export function VehicleCard({
 
         {vehicle._count != null && (
           <span className="text-sm text-muted">
-            {vehicle._count.items} {vehicle._count.items === 1 ? "record" : "records"}
+            {vehicle._count.items} {vehicle._count.items === 1 ? "service record" : "service records"}
             {/* #293 — linked-record count, mirroring PropertyCard's. */}
             {vehicle._count.contracts != null && ` · ${vehicle._count.contracts} linked`}
           </span>

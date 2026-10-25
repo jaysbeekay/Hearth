@@ -18,8 +18,10 @@ import { householdTimeZoneChoices } from "@/lib/timezones";
 import { BACKUP_DESTINATION_LABELS } from "@/lib/backupDestination";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
+import { BackLink } from "@/components/BackLink";
+import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
 
-export const metadata: Metadata = { title: "Household & System settings" };
+export const metadata: Metadata = { title: SETTINGS_ROUTES.household.label };
 
 // min-h-11 (44px) keeps these comfortably tappable on mobile even though
 // they're plain text links, not buttons.
@@ -53,59 +55,55 @@ export default async function HouseholdSettingsPage() {
 
   return (
     <div className="max-w-2xl space-y-6">
+      <BackLink {...settingsBackLink(SETTINGS_ROUTES.household)} />
       <div>
-        <Link href="/settings" className="text-sm text-muted hover:text-foreground">
-          ← Back to Settings
-        </Link>
-      </div>
-      <div>
-        <h1 className="text-2xl font-semibold">Household &amp; System</h1>
+        <h1 className="text-2xl font-semibold">{SETTINGS_ROUTES.household.label}</h1>
         <p className="mt-1 text-sm text-muted">
           Settings shared by the whole household, not just your own account.
         </p>
       </div>
 
       <div className="flex flex-col gap-2">
-        <Link href="/settings/users" className={quickLinkClass}>
+        <Link href={SETTINGS_ROUTES.users.href} className={quickLinkClass}>
           <span className="flex items-center gap-3">
             <Users size={18} />
-            Manage household members
+            {SETTINGS_ROUTES.users.label}
           </span>
           <span className="text-xs font-normal text-muted">
             {memberCount} {memberCount === 1 ? "member" : "members"}
           </span>
         </Link>
-        <Link href="/settings/backups" className={quickLinkClass}>
+        <Link href={SETTINGS_ROUTES.backups.href} className={quickLinkClass}>
           <span className="flex items-center gap-3">
             <DatabaseBackup size={18} />
-            Database backups
+            {SETTINGS_ROUTES.backups.label}
           </span>
           <span className={`text-xs font-normal ${backupConfigured ? "text-muted" : "text-warning"}`}>
             {backupConfigured ? BACKUP_DESTINATION_LABELS[backupDestination] : "Not configured"}
           </span>
         </Link>
-        <Link href="/settings/webhooks" className={quickLinkClass}>
+        <Link href={SETTINGS_ROUTES.webhooks.href} className={quickLinkClass}>
           <span className="flex items-center gap-3">
             <Webhook size={18} />
-            Webhooks
+            {SETTINGS_ROUTES.webhooks.label}
           </span>
           <span className="text-xs font-normal text-muted">
             {webhookCount === 0 ? "None configured" : `${webhookCount} configured`}
           </span>
         </Link>
-        <Link href="/settings/modules" className={quickLinkClass}>
+        <Link href={SETTINGS_ROUTES.modules.href} className={quickLinkClass}>
           <span className="flex items-center gap-3">
             <LayoutGrid size={18} />
-            Modules
+            {SETTINGS_ROUTES.modules.label}
           </span>
           <span className="text-xs font-normal text-muted">
             {enabledModules.size} of {Object.keys(MODULE_REGISTRY).length} enabled
           </span>
         </Link>
-        <Link href="/settings/app" className={quickLinkClass}>
+        <Link href={SETTINGS_ROUTES.app.href} className={quickLinkClass}>
           <span className="flex items-center gap-3">
             <Settings2 size={18} />
-            System settings
+            {SETTINGS_ROUTES.app.label}
           </span>
           <span className={`text-xs font-normal ${notificationsConfigured ? "text-muted" : "text-warning"}`}>
             {notificationsConfigured ? "Notifications configured" : "Notifications not configured"}

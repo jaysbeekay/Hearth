@@ -26,8 +26,10 @@ import { restoreInventoryItem, permanentlyDeleteInventoryItem } from "@/lib/acti
 import { restoreDocumentAction, permanentlyDeleteDocumentAction } from "@/lib/actions/documents";
 import { DOCUMENT_KIND_LABEL, type OwnedDocumentKind } from "@/lib/documents/kinds";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
+import { BackLink } from "@/components/BackLink";
+import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
 
-export const metadata: Metadata = { title: "Trash" };
+export const metadata: Metadata = { title: SETTINGS_ROUTES.trash.label };
 
 type RecordDomain = Exclude<TrashEntry["domain"], "document">;
 
@@ -41,8 +43,8 @@ const DOMAIN_META: Record<
   property: { label: "Property", icon: Home, restore: restoreProperty, permanentlyDelete: permanentlyDeleteProperty },
   trip: { label: "Trip", icon: Plane, restore: restoreTrip, permanentlyDelete: permanentlyDeleteTrip },
   inventoryItem: { label: "Inventory item", icon: Box, restore: restoreInventoryItem, permanentlyDelete: permanentlyDeleteInventoryItem },
-  homeItem: { label: "Property item", icon: Wrench, restore: restoreHomeItem, permanentlyDelete: permanentlyDeleteHomeItem },
-  vehicleItem: { label: "Vehicle item", icon: Wrench, restore: restoreVehicleItem, permanentlyDelete: permanentlyDeleteVehicleItem },
+  homeItem: { label: "Maintenance record", icon: Wrench, restore: restoreHomeItem, permanentlyDelete: permanentlyDeleteHomeItem },
+  vehicleItem: { label: "Service record", icon: Wrench, restore: restoreVehicleItem, permanentlyDelete: permanentlyDeleteVehicleItem },
 };
 
 // Looks a domain up without indexing by a caller-supplied key: restoreAction
@@ -105,8 +107,9 @@ export default async function TrashPage() {
 
   return (
     <div className="max-w-2xl space-y-6">
+      <BackLink {...settingsBackLink(SETTINGS_ROUTES.trash)} />
       <div>
-        <h1 className="text-2xl font-semibold">Trash</h1>
+        <h1 className="text-2xl font-semibold">{SETTINGS_ROUTES.trash.label}</h1>
         <p className="text-sm text-muted">
           Deleted records stay here for {TRASH_RETENTION_DAYS} days — restore them, or delete
           permanently right away. Their documents are kept until then too.

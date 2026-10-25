@@ -512,7 +512,7 @@ describe("Document actions", () => {
 
   it("maps command errors to ActionState", async () => {
     expect(await deleteDocumentAction("CONTRACT", "missing")).toEqual({ error: "Document not found." });
-    expect(await addDocumentAction("PRODUCT", "missing", null, upload())).toEqual({ error: "Product not found." });
+    expect(await addDocumentAction("PRODUCT", "missing", null, upload())).toEqual({ error: "Warranty not found." });
 
     const { ownerId } = await createOwner("CONTRACT");
     const bad = await addDocumentAction(

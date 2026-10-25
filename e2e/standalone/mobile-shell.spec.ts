@@ -418,11 +418,11 @@ test("standalone shell routes core records, documents, search, and wealth trade 
   // #332's terminology rename applies to the view title (typeLabel); the
   // space-constrained bottom nav keeps the original short labels.
   await page.locator(".bottom-nav").getByRole("button", { name: "Contracts" }).click();
-  await expect(page.locator("#view-title")).toHaveText("Policies & contracts");
+  await expect(page.locator("#view-title")).toHaveText("Contracts");
   await expect(page.getByRole("button", { name: /Broadband Plan/ })).toBeVisible();
 
   await page.locator(".bottom-nav").getByRole("button", { name: "Warranties" }).click();
-  await expect(page.locator("#view-title")).toHaveText("Purchases & warranties");
+  await expect(page.locator("#view-title")).toHaveText("Warranties");
   await expect(page.getByRole("button", { name: /Laptop/ })).toBeVisible();
 
   await page.locator(".bottom-nav").getByRole("button", { name: "Documents" }).click();
@@ -446,19 +446,19 @@ test("standalone shell routes core records, documents, search, and wealth trade 
   await expect(page.getByRole("button", { name: /BUY VAS/ })).toBeVisible();
 });
 
-test("standalone home screens expose 0.16 rental agreements and statements", async ({ page }) => {
+test("standalone property screens expose 0.16 tenancies and statements", async ({ page }) => {
   await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
-  await page.getByRole("button", { name: /Home/ }).click();
-  await expect(page.locator("#view-title")).toHaveText("Home");
+  await page.getByRole("button", { name: /Properties/ }).click();
+  await expect(page.locator("#view-title")).toHaveText("Properties");
   await page.getByRole("button", { name: /Home.*1 Hearth Street/ }).click();
 
-  await expect(page.getByRole("heading", { name: "Rental overview" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Rental agreements" })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Lease · Alex Tenant/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Tenancy", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Tenancies" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Tenancy · Alex Tenant/ })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Rental statements" })).toBeVisible();
   await expect(page.getByRole("button", { name: /Statement · 2099-02-01/ })).toBeVisible();
 
-  await page.getByRole("button", { name: /Lease · Alex Tenant/ }).click();
+  await page.getByRole("button", { name: /Tenancy · Alex Tenant/ }).click();
   await expect(page.getByText("Weekly rent")).toBeVisible();
   await expect(page.getByText("AUD 650", { exact: true })).toBeVisible();
   await page.locator("#back-button").click();
@@ -684,8 +684,8 @@ test("standalone document import accepts content-sniffed files with generic mobi
 
 test("standalone records view uses the policies/warranties terminology", async ({ page }) => {
   await page.locator(".bottom-nav").getByRole("button", { name: "Contracts" }).click();
-  await expect(page.locator(".tabs").getByRole("button", { name: "Policies & contracts" })).toBeVisible();
-  await expect(page.locator(".tabs").getByRole("button", { name: "Purchases & warranties" })).toBeVisible();
+  await expect(page.locator(".tabs").getByRole("button", { name: "Contracts" })).toBeVisible();
+  await expect(page.locator(".tabs").getByRole("button", { name: "Warranties" })).toBeVisible();
 });
 
 test("standalone warranty form links a warranty to a property", async ({ page }) => {
@@ -734,7 +734,7 @@ test("standalone vehicle service-due date feeds the detail page, calendar and re
 test("standalone dashboard's missing-info stat card deep-links into a pre-filtered warranty list", async ({ page }) => {
   await expect(page.getByRole("button", { name: /Warranties missing key details/ })).toBeVisible();
   await page.getByRole("button", { name: /Warranties missing key details/ }).click();
-  await expect(page.locator(".tabs").getByRole("button", { name: "Purchases & warranties" })).toHaveClass(/active/);
+  await expect(page.locator(".tabs").getByRole("button", { name: "Warranties" })).toHaveClass(/active/);
   await expect(page.locator(".chip.active")).toHaveText("Missing key details");
   await expect(page.locator(".list").getByRole("button", { name: /Laptop/ })).toBeVisible();
 });

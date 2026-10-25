@@ -5,6 +5,7 @@ import { updateProperty } from "@/lib/actions/home";
 import { PropertyForm } from "@/components/PropertyForm";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
+import { BackLink } from "@/components/BackLink";
 
 export default async function EditPropertyPage({
   params,
@@ -22,6 +23,7 @@ export default async function EditPropertyPage({
 
   return (
     <div className="max-w-3xl space-y-6">
+      <BackLink href={`/home/${property.id}`} label={property.label} />
       <div>
         <h1 className="text-2xl font-semibold">Edit property</h1>
         <p className="text-sm text-muted">{property.label}</p>

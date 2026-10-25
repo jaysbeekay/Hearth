@@ -245,7 +245,7 @@ export async function updateHomeItem(
       propertyId,
     });
   } catch (error) {
-    return commandError(error, "Item not found.");
+    return commandError(error, "Maintenance record not found.");
   }
   redirect(`/home/${propertyId}`);
 }
@@ -255,9 +255,9 @@ export async function deleteHomeItem(propertyId: string, itemId: string): Promis
   try {
     await deleteMaintenanceRecordCommand(itemId, { propertyId });
   } catch (error) {
-    return commandError(error, "Item not found.");
+    return commandError(error, "Maintenance record not found.");
   }
-  return { success: "Item moved to Trash." };
+  return { success: "Maintenance record moved to Trash." };
 }
 
 export async function restoreHomeItem(itemId: string): Promise<ActionState> {
@@ -265,7 +265,7 @@ export async function restoreHomeItem(itemId: string): Promise<ActionState> {
   try {
     await restoreMaintenanceRecordCommand(itemId);
   } catch (error) {
-    return commandError(error, "Item not found.");
+    return commandError(error, "Maintenance record not found.");
   }
   return { success: "Restored." };
 }
@@ -275,7 +275,7 @@ export async function permanentlyDeleteHomeItem(itemId: string): Promise<ActionS
   try {
     await permanentlyDeleteMaintenanceRecordCommand(itemId);
   } catch (error) {
-    return commandError(error, "Item not found.");
+    return commandError(error, "Maintenance record not found.");
   }
   return { success: "Deleted permanently." };
 }
@@ -326,7 +326,7 @@ export async function updateRentalAgreement(
       propertyId,
     });
   } catch (error) {
-    return commandError(error, "Agreement not found.");
+    return commandError(error, "Tenancy not found.");
   }
   redirect(`/home/${propertyId}/rental`);
 }
@@ -339,9 +339,9 @@ export async function deleteRentalAgreement(
   try {
     await permanentlyDeleteTenancyCommand(agreementId, { propertyId });
   } catch (error) {
-    return commandError(error, "Agreement not found.");
+    return commandError(error, "Tenancy not found.");
   }
-  return { success: "Agreement removed." };
+  return { success: "Tenancy removed." };
 }
 
 // Links (or, with a blank contractId, unlinks) a Tenancy's Contract and says
@@ -362,7 +362,7 @@ export async function setRentalAgreementContract(
   } catch (error) {
     // A missing Contract is a TenancyContractLinkError with its own message;
     // a RecordNotFoundError here is the Tenancy itself.
-    return commandError(error, "Agreement not found.");
+    return commandError(error, "Tenancy not found.");
   }
   return { success: newContractId ? "Contract linked." : "Contract unlinked." };
 }
@@ -385,7 +385,7 @@ export async function setPropertyRented(
   } catch (error) {
     return commandError(error, "Property not found.");
   }
-  return { success: isRented ? "Rental tracking enabled." : "Rental tracking disabled." };
+  return { success: isRented ? "Tracking a tenancy for this property." : "Stopped tracking tenancy." };
 }
 
 // ─── Rental statements ───────────────────────────────────────────────────────

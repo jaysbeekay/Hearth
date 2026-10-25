@@ -169,7 +169,7 @@ export default async function DashboardPage() {
         <div>
           <h1 className="text-2xl font-semibold">Dashboard</h1>
           <p className="text-sm text-muted">
-            What&apos;s expiring, what it costs, and what needs attention.
+            What&apos;s due, what it costs, and what needs attention.
           </p>
         </div>
         {/* Read-only members can't add or upload, so they get none of these (#400). */}

@@ -46,7 +46,7 @@ export function ProductForm({
   defaultCurrency?: string;
   properties?: { id: string; label: string }[];
   homeEnabled?: boolean;
-  /** #349 — only offer "Look up product info" when the server can do it. */
+  /** #349 — only offer "Look up barcode" when the server can do it. */
   barcodeLookupEnabled?: boolean;
 }) {
   const offlineAwareAction = makeOfflineAwareAction(
@@ -186,7 +186,7 @@ export function ProductForm({
       } else if (reason === "network_error") {
         setLookupMessage("Couldn't reach the barcode lookup service. Fill in remaining details manually.");
       } else {
-        setLookupMessage("No product info found for this barcode.");
+        setLookupMessage("Nothing found for this barcode.");
       }
     } catch {
       setLookupMessage("Couldn't look up this barcode. Fill in remaining details manually.");
@@ -328,7 +328,7 @@ export function ProductForm({
               disabled={lookingUp}
               className="mt-1 text-xs font-medium text-accent hover:underline disabled:opacity-50"
             >
-              {lookingUp ? "Looking up…" : "Look up product info"}
+              {lookingUp ? "Looking up…" : "Look up barcode"}
             </button>
           )}
           {lookupMessage && <p className="mt-1 text-sm text-muted">{lookupMessage}</p>}
@@ -400,7 +400,7 @@ export function ProductForm({
       </Field>
 
       <Field
-        label="Remind me before warranty expiry (days, comma-separated)"
+        label="Reminder thresholds (days before, comma-separated)"
         htmlFor="reminderDaysBefore"
       >
         <input

@@ -204,7 +204,7 @@ export async function updateVehicleItem(
   try {
     await updateServiceRecordCommand(itemId, fullFormUpdate(vehicleItemSchema, parsed.data, formData), { vehicleId });
   } catch (error) {
-    return commandError(error, "Item not found.");
+    return commandError(error, "Service record not found.");
   }
   redirect(`/vehicles/${vehicleId}`);
 }
@@ -214,9 +214,9 @@ export async function deleteVehicleItem(vehicleId: string, itemId: string): Prom
   try {
     await deleteServiceRecordCommand(itemId, { vehicleId });
   } catch (error) {
-    return commandError(error, "Item not found.");
+    return commandError(error, "Service record not found.");
   }
-  return { success: "Item moved to Trash." };
+  return { success: "Service record moved to Trash." };
 }
 
 export async function restoreVehicleItem(itemId: string): Promise<ActionState> {
@@ -224,7 +224,7 @@ export async function restoreVehicleItem(itemId: string): Promise<ActionState> {
   try {
     await restoreServiceRecordCommand(itemId);
   } catch (error) {
-    return commandError(error, "Item not found.");
+    return commandError(error, "Service record not found.");
   }
   return { success: "Restored." };
 }
@@ -234,7 +234,7 @@ export async function permanentlyDeleteVehicleItem(itemId: string): Promise<Acti
   try {
     await permanentlyDeleteServiceRecordCommand(itemId);
   } catch (error) {
-    return commandError(error, "Item not found.");
+    return commandError(error, "Service record not found.");
   }
   return { success: "Deleted permanently." };
 }

@@ -73,7 +73,7 @@ export default async function CalendarPage({
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-semibold">Upcoming</h1>
           <p className="text-sm text-muted">
-            What&apos;s coming up across contracts, warranties, vehicles, trips and property, from
+            What&apos;s coming up across contracts, warranties, vehicles, trips and properties, from
             today to the horizon you pick. Anything overdue is in Needs attention on the dashboard.
           </p>
         </div>

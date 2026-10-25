@@ -18,6 +18,7 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import { holdingUnitsAndCost } from "@/lib/wealth";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
+import { BackLink } from "@/components/BackLink";
 
 export const metadata: Metadata = { title: "Holding" };
 
@@ -239,9 +240,7 @@ export default async function HoldingPage({
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <Link href={`/wealth/portfolios/${portfolioId}`} className="text-sm text-muted hover:text-foreground">
-          ← {holding.portfolio.name}
-        </Link>
+        <BackLink href={`/wealth/portfolios/${portfolioId}`} label={holding.portfolio.name} />
         <div className="mt-1 flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-semibold">{holding.ticker}</h1>

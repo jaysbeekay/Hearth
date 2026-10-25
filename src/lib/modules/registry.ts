@@ -22,7 +22,7 @@ export const MODULE_REGISTRY: Record<ModuleKey, ModuleDefinition> = {
   },
   HOME: {
     key: "HOME",
-    label: "Property",
+    label: "Properties",
     description: "Track maintenance, improvements, and repairs across your properties, with receipts attached.",
     icon: HomeIcon,
     href: "/home",
@@ -30,7 +30,7 @@ export const MODULE_REGISTRY: Record<ModuleKey, ModuleDefinition> = {
   VEHICLES: {
     key: "VEHICLES",
     label: "Vehicles",
-    description: "Track cars, registration, insurance, and service history — with expiry reminders.",
+    description: "Track cars, registration, insurance, and service history — with reminders.",
     icon: Car,
     href: "/vehicles",
   },

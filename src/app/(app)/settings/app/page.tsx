@@ -38,8 +38,10 @@ import { HouseholdReminderHealthCard } from "@/components/HouseholdReminderHealt
 import { getHouseholdReminderHealth } from "@/lib/notifications/health";
 import { getUserPreferences } from "@/lib/userPreferences";
 import type { AiProviderId } from "@/lib/ai/types";
+import { BackLink } from "@/components/BackLink";
+import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
 
-export const metadata: Metadata = { title: "System settings" };
+export const metadata: Metadata = { title: SETTINGS_ROUTES.app.label };
 
 // Section headers grouping these forms into the categories called out in
 // #175 — this stays one page (rather than splitting into more routes) since
@@ -104,7 +106,8 @@ export default async function AppSettingsPage() {
   return (
     <div className="max-w-2xl space-y-10">
       <div>
-        <h1 className="text-2xl font-semibold">System settings</h1>
+        <BackLink {...settingsBackLink(SETTINGS_ROUTES.app)} />
+        <h1 className="text-2xl font-semibold">{SETTINGS_ROUTES.app.label}</h1>
         <p className="mt-1 text-sm text-muted">
           Configure application-wide settings. These override environment variables and are stored
           encrypted in the database where applicable.
@@ -116,7 +119,7 @@ export default async function AppSettingsPage() {
         <section className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
           <div>
             <h3 className="font-medium">Email (SMTP)</h3>
-            <p className="text-xs text-muted mt-0.5">Used for contract expiry reminders</p>
+            <p className="text-xs text-muted mt-0.5">Used to send reminders</p>
           </div>
           <SmtpForm
             action={saveSmtpSettings}
@@ -135,7 +138,7 @@ export default async function AppSettingsPage() {
         <section className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
           <div>
             <h3 className="font-medium">Push notifications (ntfy)</h3>
-            <p className="text-xs text-muted mt-0.5">Real-time push alerts via ntfy.sh or self-hosted</p>
+            <p className="text-xs text-muted mt-0.5">Real-time push via ntfy.sh or a self-hosted ntfy server</p>
           </div>
           <NtfyForm
             action={saveNtfySettings}
@@ -185,8 +188,8 @@ export default async function AppSettingsPage() {
             <h3 className="font-medium">AI Assistant</h3>
             <p className="text-xs text-muted mt-0.5">
               Bring your own API key to enable an assistant that can answer questions using the
-              household&apos;s own data — contracts, warranties, trips, vehicles, home, inventory,
-              and wealth. It can also propose creating or updating a contract or product, but
+              household&apos;s own data — contracts, warranties, trips, vehicles, properties,
+              inventory and wealth. It can also propose creating or updating a contract or warranty, but
               nothing is ever written without the requesting member&apos;s explicit confirmation
               first. Configure a different provider/model here than document extraction if you like
               — the two are independent.
@@ -231,7 +234,7 @@ export default async function AppSettingsPage() {
         <section className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
           <div>
             <h3 className="font-medium">Barcode lookup</h3>
-            <p className="text-xs text-muted mt-0.5">Scanned barcode product lookup for the Warranties module</p>
+            <p className="text-xs text-muted mt-0.5">Looks up a scanned barcode when adding a warranty</p>
           </div>
           <BarcodeForm
             action={saveBarcodeSettings}

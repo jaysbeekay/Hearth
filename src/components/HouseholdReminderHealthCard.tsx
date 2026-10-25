@@ -34,7 +34,7 @@ export function HouseholdReminderHealthCard({
           Reminder delivery health
         </h3>
         <p className="mt-0.5 text-xs text-muted">
-          Household-wide view of whether expiry reminders are actually reaching a channel.
+          Household-wide view of whether reminders are actually reaching a channel.
         </p>
       </div>
 
@@ -88,13 +88,13 @@ export function HouseholdReminderHealthCard({
       {!health.deliveryReady ? (
         <p className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
           <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden />
-          No delivery channel configured — every record expiring soon has no working reminder
+          No delivery channel configured — every record that comes due has no working reminder
           coverage until email, ntfy, or a webhook is set up above.
         </p>
       ) : health.uncovered.length > 0 ? (
         <div className="space-y-2">
           <p className="text-sm font-medium">
-            {health.uncovered.length} record{health.uncovered.length === 1 ? "" : "s"} expiring within
+            {health.uncovered.length} record{health.uncovered.length === 1 ? "" : "s"} due within
             90 days {health.uncovered.length === 1 ? "has" : "have"} no working reminder coverage:
           </p>
           <ul className="space-y-1">
@@ -111,7 +111,7 @@ export function HouseholdReminderHealthCard({
       ) : (
         <p className="flex items-center gap-2 text-sm text-success">
           <CheckCircle2 size={16} aria-hidden />
-          Every record expiring within 90 days has working reminder coverage.
+          Every record due within 90 days has working reminder coverage.
         </p>
       )}
     </div>

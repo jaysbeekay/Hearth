@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
@@ -7,6 +6,7 @@ import { RentalAgreementForm } from "@/components/RentalAgreementForm";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
+import { BackLink } from "@/components/BackLink";
 
 export default async function NewRentalAgreementPage({
   params,
@@ -28,20 +28,15 @@ export default async function NewRentalAgreementPage({
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <Link
-          href={`/home/${property.id}/rental`}
-          className="text-sm text-muted hover:text-foreground"
-        >
-          ← Back to rental overview
-        </Link>
+        <BackLink href={`/home/${property.id}/rental`} label="Tenancy" />
       </div>
 
       <div>
         <p className="text-sm text-muted">{property.label}</p>
-        <h1 className="text-2xl font-semibold">Add rental agreement</h1>
+        <h1 className="text-2xl font-semibold">New tenancy</h1>
         <p className="mt-1 text-sm text-muted">
-          Record a new rental agreement period — add a new one whenever rent, tenant, or terms
-          change so the history is preserved for reconciliation.
+          Record a tenancy for this property. Add a new one whenever the rent, tenant or terms
+          change, so the history is kept for reconciliation.
         </p>
       </div>
 

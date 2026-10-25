@@ -32,7 +32,7 @@ import { usePendingCreates } from "@/lib/usePendingCreates";
 const STATUS_LABELS: Record<string, string> = { ACTIVE: "Active", CANCELLED: "Cancelled" };
 
 const CHIPS: { chip: ToggleableFilter; label: string; onlyWhenActive?: boolean }[] = [
-  { chip: "dueSoon", label: "Expiring soon" },
+  { chip: "dueSoon", label: "Due soon" },
   { chip: "overdue", label: "Expired" },
   { chip: "review", label: "Needs review" },
   { chip: "noDocument", label: "No document" },
@@ -103,7 +103,7 @@ export function ContractListClient({
   const filtered = Boolean(q || category || status || hasListFilters(filters));
   const summary = [
     {
-      label: "expiring soon",
+      label: "due soon",
       value: counts.dueSoon ?? 0,
       tone: "warning" as const,
       onClick: () => {
@@ -132,7 +132,7 @@ export function ContractListClient({
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Policies & contracts</h1>
+        <h1 className="text-2xl font-semibold">Contracts</h1>
         <div className="flex items-center gap-2">
           <details className="relative">
             <summary className={toolbarButtonClass}>
@@ -299,7 +299,6 @@ export function ContractListClient({
                     action={deleteContract.bind(null, contract.id)}
                     undo={{ action: restoreContract.bind(null, contract.id) }}
                     confirmText={`Move this contract to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash.`}
-                    actionLabel="Delete contract"
                     ariaLabel={`Delete ${contract.title}`}
                     className="flex h-full w-full flex-col items-center justify-center gap-1 bg-danger text-xs font-medium text-danger-foreground"
                     offline={{ entity: "contract", entityId: contract.id, label: `Delete contract: ${contract.title}` }}

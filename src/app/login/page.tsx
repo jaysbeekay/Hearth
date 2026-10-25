@@ -50,7 +50,7 @@ export default async function LoginPage({
         <div className="flex flex-col items-center gap-2 text-center">
           <Flame size={32} className="text-accent" />
           <h1 className="text-2xl font-semibold">Welcome back</h1>
-          <p className="text-sm text-muted">Sign in to your household hub.</p>
+          <p className="text-sm text-muted">Sign in to Hearth.</p>
         </div>
         {passwordChanged && (
           <p className="rounded-lg border border-border bg-surface px-4 py-3 text-sm text-muted">

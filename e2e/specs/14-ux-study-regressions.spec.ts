@@ -143,10 +143,10 @@ test("copying an identifier from a detail page shows a confirmation state", asyn
     page.locator('form:has(#title) button[type="submit"]').click(),
   ]);
 
-  const copyButton = page.getByRole("button", { name: "Copy Contract / policy number" });
+  const copyButton = page.getByRole("button", { name: "Copy Contract number" });
   await expect(copyButton).toBeVisible();
   await copyButton.click();
-  await expect(page.getByRole("button", { name: "Copied Contract / policy number" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Copied Contract number" })).toBeVisible();
 });
 
 test("uploading a file identical to an already-filed document is flagged as a possible duplicate in the inbox", async ({

@@ -6,7 +6,7 @@ test.use({ storageState: ADMIN_AUTH_FILE });
 test.describe.serial("contracts and warranties can link to a property", () => {
   test("enable the Property module and create a property", async ({ page }) => {
     await page.goto("/settings/modules");
-    const propertyRow = page.locator("li", { hasText: "Property" });
+    const propertyRow = page.locator("li", { hasText: "Properties" });
     await expect(propertyRow).toBeVisible();
     if (await propertyRow.getByRole("button", { name: "Enable" }).count()) {
       await propertyRow.getByRole("button", { name: "Enable" }).click();
@@ -43,7 +43,7 @@ test.describe.serial("contracts and warranties can link to a property", () => {
     await page.locator("a", { hasText: "Linking Test Property" }).first().click();
     await page.waitForURL(/\/home\/[^/]+$/);
 
-    await expect(page.getByText("Contracts & warranties linked to this property")).toBeVisible();
+    await expect(page.getByText("Contracts and warranties linked to this property")).toBeVisible();
     await expect(page.getByText("Property-Linked Insurance")).toBeVisible();
   });
 

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Flame, Settings, HelpCircle, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getNavItems } from "@/components/nav-items";
+import { getNavItems, FOOTER_NAV } from "@/components/nav-items";
 import type { ModuleKey } from "@/lib/modules/registry";
 import { SignOutButton } from "@/components/SignOutButton";
 import { Dialog } from "@/components/Dialog";
@@ -176,7 +176,7 @@ export function MobileNavDrawer({
         </nav>
         <div className="border-t border-border px-3 py-3">
           <Link
-            href="/settings"
+            href={FOOTER_NAV.settings.href}
             onClick={close}
             className={cn(
               "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition",
@@ -186,10 +186,10 @@ export function MobileNavDrawer({
             )}
           >
             <Settings size={18} />
-            Settings
+            {FOOTER_NAV.settings.label}
           </Link>
           <Link
-            href="/help"
+            href={FOOTER_NAV.help.href}
             onClick={close}
             className={cn(
               "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition",
@@ -199,7 +199,7 @@ export function MobileNavDrawer({
             )}
           >
             <HelpCircle size={18} />
-            Help
+            {FOOTER_NAV.help.label}
           </Link>
           <div className="mt-2 px-3">
             <p className="truncate text-sm font-medium">{userName}</p>
