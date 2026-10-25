@@ -5,6 +5,7 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import { getDueContext } from "@/lib/appSettings";
 import { VehicleListClient } from "@/components/VehicleListClient";
 import { parseListFilters, vehicleFilterWheres, vehicleRules } from "@/lib/recordFilters";
+import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 
 export default async function VehiclesPage({
   searchParams,
@@ -38,7 +39,7 @@ export default async function VehiclesPage({
       counts={{ missingDetails: missingDetailsCount }}
       due={due}
       dateFormat={dateFormat}
-      canWrite={session?.user.role !== "READONLY"}
+      canWrite={sessionCanWrite(session)}
     />
   );
 }

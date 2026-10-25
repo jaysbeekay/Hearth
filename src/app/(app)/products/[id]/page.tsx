@@ -28,6 +28,8 @@ import { getDueContext } from "@/lib/appSettings";
 import { headlineEntry, warrantyDue } from "@/lib/dueRecords";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { getHouseholdMemberCount } from "@/lib/household";
+import { auth } from "@/lib/auth";
+import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 
 export default async function ProductDetailPage({
   params,
@@ -37,6 +39,7 @@ export default async function ProductDetailPage({
   searchParams: Promise<{ docFallback?: string }>;
 }) {
   const { id } = await params;
+  const canWrite = sessionCanWrite(await auth());
   const { docFallback } = await searchParams;
   const [product, { dateFormat, region }, memberCount, due] = await Promise.all([
     prisma.product.findUnique({
@@ -89,26 +92,30 @@ export default async function ProductDetailPage({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <ExpiryBadge entry={headlineEntry(dueEntries)} empty="No warranty end date" />
-          <Link
-            href={`/products/${product.id}/edit`}
-            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
-          >
-            <Pencil size={16} />
-            Edit
-          </Link>
-          <DetailOverflowMenu>
-            <ConfirmForm
-              action={deleteProduct.bind(null, product.id)}
-              undo={{ action: restoreProduct.bind(null, product.id), href: `/products/${product.id}` }}
-              confirmText="Move this warranty to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash."
-              actionLabel="Delete warranty"
-              className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
-              offline={{ entity: "product", entityId: product.id, label: `Delete product: ${product.description}` }}
-            >
-              <Trash2 size={16} />
-              Delete
-            </ConfirmForm>
-          </DetailOverflowMenu>
+          {canWrite && (
+            <>
+              <Link
+                href={`/products/${product.id}/edit`}
+                className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+              >
+                <Pencil size={16} />
+                Edit
+              </Link>
+              <DetailOverflowMenu>
+                <ConfirmForm
+                  action={deleteProduct.bind(null, product.id)}
+                  undo={{ action: restoreProduct.bind(null, product.id), href: `/products/${product.id}` }}
+                  confirmText="Move this warranty to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash."
+                  actionLabel="Delete warranty"
+                  className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
+                  offline={{ entity: "product", entityId: product.id, label: `Delete product: ${product.description}` }}
+                >
+                  <Trash2 size={16} />
+                  Delete
+                </ConfirmForm>
+              </DetailOverflowMenu>
+            </>
+          )}
         </div>
       </div>
 
@@ -207,9 +214,11 @@ export default async function ProductDetailPage({
       <div id="documents" className="scroll-mt-20 rounded-xl border border-border bg-surface p-4 md:p-6">
         <h2 className="mb-3 font-medium">Documents</h2>
         <ProductDocumentList documents={product.documents} dateFormat={dateFormat} />
-        <div className="mt-4 border-t border-border pt-4">
-          <ProductDocumentUploadForm action={boundUpload} />
-        </div>
+        {canWrite && (
+          <div className="mt-4 border-t border-border pt-4">
+            <ProductDocumentUploadForm action={boundUpload} />
+          </div>
+        )}
       </div>
 
       <RecordMeta

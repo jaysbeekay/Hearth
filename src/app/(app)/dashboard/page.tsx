@@ -31,6 +31,7 @@ import { contractRules, productRules, vehicleRules } from "@/lib/recordFilters";
 import { NeedsAttentionQueue } from "@/components/NeedsAttentionQueue";
 import { TakePhotoButton } from "@/components/TakePhotoButton";
 import { compactButtonClass } from "@/lib/buttonStyles";
+import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -160,6 +161,7 @@ export default async function DashboardPage() {
   });
 
   const isEmpty = contracts.length === 0 && products.length === 0;
+  const canWrite = sessionCanWrite(session);
 
   return (
     <div className="space-y-6">
@@ -170,25 +172,27 @@ export default async function DashboardPage() {
             What&apos;s expiring, what it costs, and what needs attention.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {/* Read-only members can't upload, so they get neither control. */}
-          {session?.user.role !== "READONLY" && (
-            <>
-              <TakePhotoButton />
-              <Link href="/import" className={`${compactButtonClass("secondary")} gap-2`}>
-                <Upload size={16} />
-                {/* Shortened on phones so it fits beside Take photo and Add. */}
-                <span>
-                  Upload<span className="hidden sm:inline"> a document</span>
-                </span>
-              </Link>
-            </>
-          )}
-          <AddEntryPicker enabledModules={[...enabledModules]} />
-        </div>
+        {/* Read-only members can't add or upload, so they get none of these (#400). */}
+        {canWrite && (
+          <div className="flex items-center gap-2">
+            <TakePhotoButton />
+            <Link href="/import" className={`${compactButtonClass("secondary")} gap-2`}>
+              <Upload size={16} />
+              {/* Shortened on phones so it fits beside Take photo and Add. */}
+              <span>
+                Upload<span className="hidden sm:inline"> a document</span>
+              </span>
+            </Link>
+            <AddEntryPicker enabledModules={[...enabledModules]} />
+          </div>
+        )}
       </div>
 
-      {isEmpty ? (
+      {!canWrite && <p className="text-sm text-muted">You have read-only access.</p>}
+
+      {isEmpty && !canWrite ? (
+        <p className="text-sm text-muted">Nothing has been added yet.</p>
+      ) : isEmpty ? (
         <OnboardingChecklist
           enabledModules={[...enabledModules]}
           memberCount={memberCount}
@@ -215,7 +219,7 @@ export default async function DashboardPage() {
 
       <section className="space-y-3">
         <h2 className="text-xl font-semibold">Needs attention</h2>
-        <NeedsAttentionQueue due={attention.due} housekeeping={attention.housekeeping} />
+        <NeedsAttentionQueue due={attention.due} housekeeping={attention.housekeeping} canWrite={canWrite} />
       </section>
 
       {enabledModules.has("TRAVEL") && upcomingTrips.length > 0 && (

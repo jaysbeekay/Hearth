@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { updateVehicle } from "@/lib/actions/vehicles";
 import { VehicleForm } from "@/components/VehicleForm";
+import { auth } from "@/lib/auth";
+import { redirectIfReadOnly } from "@/lib/readOnly";
 
 export default async function EditVehiclePage({
   params,
@@ -12,6 +14,7 @@ export default async function EditVehiclePage({
   await requireModuleEnabled("VEHICLES");
 
   const { id } = await params;
+  redirectIfReadOnly(await auth(), `/vehicles/${id}`);
   const vehicle = await prisma.vehicle.findUnique({ where: { id } });
   if (!vehicle || vehicle.deletedAt) notFound();
 

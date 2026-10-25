@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Star } from "lucide-react";
 import { showToast } from "@/components/Toast";
+import { useCanWrite } from "@/components/CanWriteProvider";
 import { cn } from "@/lib/utils";
 
 // #208 — a lightweight star toggle for flagging a document for quick
@@ -20,6 +21,17 @@ export function ImportantToggle({
 }) {
   const [pending, startTransition] = useTransition();
   const [optimistic, setOptimistic] = useState(isImportant);
+  const canWrite = useCanWrite();
+
+  // #400 — a read-only member can't change the flag, so they see a plain
+  // star on an important Document and nothing on the rest.
+  if (!canWrite) {
+    return isImportant ? (
+      <span className="p-2 text-warning" role="img" aria-label={`${label} is marked important`}>
+        <Star size={16} fill="currentColor" aria-hidden />
+      </span>
+    ) : null;
+  }
 
   return (
     <button

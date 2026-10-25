@@ -12,6 +12,8 @@ import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { getChatConfig, isChatConfigured } from "@/lib/ai/chat/dispatch";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { DateFormatProvider } from "@/components/DateFormatProvider";
+import { CanWriteProvider } from "@/components/CanWriteProvider";
+import { canWrite } from "@/lib/readOnly";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
@@ -32,6 +34,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <DateFormatProvider dateFormat={dateFormat}>
+    <CanWriteProvider canWrite={canWrite(session)}>
     <div className="flex min-h-screen">
       <a href="#main" className="sr-only-focusable">
         Skip to content
@@ -60,6 +63,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <GlobalSearch />
       <ToastContainer />
     </div>
+    </CanWriteProvider>
     </DateFormatProvider>
   );
 }

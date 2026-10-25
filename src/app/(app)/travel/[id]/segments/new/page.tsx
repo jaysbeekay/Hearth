@@ -5,6 +5,8 @@ import { addTripSegment } from "@/lib/actions/trips";
 import { TripSegmentForm } from "@/components/TripSegmentForm";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { BackLink } from "@/components/BackLink";
+import { auth } from "@/lib/auth";
+import { redirectIfReadOnly } from "@/lib/readOnly";
 
 export default async function NewTripSegmentPage({
   params,
@@ -14,6 +16,7 @@ export default async function NewTripSegmentPage({
   await requireModuleEnabled("TRAVEL");
 
   const { id } = await params;
+  redirectIfReadOnly(await auth(), `/travel/${id}`);
   const [trip, { preferredCurrency }] = await Promise.all([
     prisma.trip.findUnique({ where: { id } }),
     getUserPreferences(),

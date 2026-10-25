@@ -4,11 +4,14 @@ import { prisma } from "@/lib/prisma";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { createInventoryItem } from "@/lib/actions/inventory";
 import { InventoryItemForm } from "@/components/InventoryItemForm";
+import { auth } from "@/lib/auth";
+import { redirectIfReadOnly } from "@/lib/readOnly";
 
 export const metadata: Metadata = { title: "Add Item" };
 
 export default async function NewInventoryItemPage() {
   await requireModuleEnabled("INVENTORY");
+  redirectIfReadOnly(await auth(), "/inventory");
 
   const products = await prisma.product.findMany({
     where: { deletedAt: null },

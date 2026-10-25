@@ -16,6 +16,8 @@ import { DocumentLink } from "@/components/DocumentLink";
 import { ASSET_CLASS_LABELS, TRADE_TYPE_LABELS, COST_METHOD_LABELS } from "@/lib/validation/wealth";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { holdingUnitsAndCost } from "@/lib/wealth";
+import { auth } from "@/lib/auth";
+import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 
 export const metadata: Metadata = { title: "Holding" };
 
@@ -181,6 +183,7 @@ export default async function HoldingPage({
 }) {
   await requireModuleEnabled("WEALTH");
   const { id: portfolioId, hId: holdingId } = await params;
+  const canWrite = sessionCanWrite(await auth());
 
   const [holding, { dateFormat, region }] = await Promise.all([
     prisma.holding.findUnique({
@@ -246,22 +249,26 @@ export default async function HoldingPage({
             <p className="mt-0.5 text-xs text-muted">{ASSET_CLASS_LABELS[holding.assetClass] ?? holding.assetClass}{holding.exchange ? ` · ${holding.exchange}` : ""}</p>
           </div>
           <div className="flex items-center gap-2">
-            <Link
-              href={`/wealth/portfolios/${portfolioId}/holdings/${holdingId}/edit`}
-              className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
-            >
-              <Pencil size={16} />
-              Edit
-            </Link>
-            <ConfirmForm
-              action={deleteHolding.bind(null, portfolioId, holdingId)}
-              confirmText={`Delete ${holding.ticker} and all its trades? This cannot be undone.`}
-              actionLabel={`Delete ${holding.ticker}`}
-              className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
-            >
-              <Trash2 size={16} />
-              Delete
-            </ConfirmForm>
+            {canWrite && (
+              <>
+                <Link
+                  href={`/wealth/portfolios/${portfolioId}/holdings/${holdingId}/edit`}
+                  className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+                >
+                  <Pencil size={16} />
+                  Edit
+                </Link>
+                <ConfirmForm
+                  action={deleteHolding.bind(null, portfolioId, holdingId)}
+                  confirmText={`Delete ${holding.ticker} and all its trades? This cannot be undone.`}
+                  actionLabel={`Delete ${holding.ticker}`}
+                  className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
+                >
+                  <Trash2 size={16} />
+                  Delete
+                </ConfirmForm>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -337,13 +344,15 @@ export default async function HoldingPage({
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="font-medium">Trade history</h2>
-          <Link
-            href={`/wealth/portfolios/${portfolioId}/holdings/${holdingId}/trades/new`}
-            className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
-          >
-            <Plus size={16} />
-            Add trade
-          </Link>
+          {canWrite && (
+            <Link
+              href={`/wealth/portfolios/${portfolioId}/holdings/${holdingId}/trades/new`}
+              className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+            >
+              <Plus size={16} />
+              Add trade
+            </Link>
+          )}
         </div>
 
         {tradesDesc.length === 0 ? (
@@ -391,53 +400,59 @@ export default async function HoldingPage({
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Link
-                        href={`/wealth/portfolios/${portfolioId}/holdings/${holdingId}/trades/${trade.id}/edit`}
-                        className="rounded-lg border border-border p-2 hover:bg-hover"
-                        title="Edit trade"
-                      >
-                        <Pencil size={14} />
-                      </Link>
-                      <ConfirmForm
-                        action={deleteTrade.bind(null, holdingId, trade.id)}
-                        confirmText="Delete this trade? This can't be undone."
-                        actionLabel="Delete trade"
-                        ariaLabel={`Delete trade from ${formatDate(trade.date, dateFormat)}`}
-                        className="rounded-lg border border-border p-2 text-danger hover:bg-danger/10"
-                      >
-                        <Trash2 size={14} />
-                      </ConfirmForm>
+                      {canWrite && (
+                        <>
+                          <Link
+                            href={`/wealth/portfolios/${portfolioId}/holdings/${holdingId}/trades/${trade.id}/edit`}
+                            className="rounded-lg border border-border p-2 hover:bg-hover"
+                            title="Edit trade"
+                          >
+                            <Pencil size={14} />
+                          </Link>
+                          <ConfirmForm
+                            action={deleteTrade.bind(null, holdingId, trade.id)}
+                            confirmText="Delete this trade? This can't be undone."
+                            actionLabel="Delete trade"
+                            ariaLabel={`Delete trade from ${formatDate(trade.date, dateFormat)}`}
+                            className="rounded-lg border border-border p-2 text-danger hover:bg-danger/10"
+                          >
+                            <Trash2 size={14} />
+                          </ConfirmForm>
+                        </>
+                      )}
                     </div>
                   </div>
 
-                  <div className="mt-3 border-t border-border pt-3">
-                    {trade.documents.length > 0 && (
-                      <div className="mb-2 flex flex-wrap gap-2">
-                        {trade.documents.map((doc) => (
-                          <div key={doc.id} className="flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-xs">
-                            <DocumentLink
-                              href={documentFileHref(doc.id)}
-                              filename={doc.filename}
-                              mimeType={doc.mimeType}
-                              size={doc.size}
-                              className="text-accent hover:underline truncate max-w-40"
-                            >
-                              {doc.filename}
-                            </DocumentLink>
-                            <DocumentDeleteButton
-                              kind="TRADE"
-                              documentId={doc.id}
-                              ownerId={trade.id}
-                              filename={doc.filename}
-                              className="rounded p-1 text-danger hover:text-danger/70"
-                              iconSize={12}
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    <DocumentUploadForm action={addDocumentAction.bind(null, "TRADE", trade.id)} />
-                  </div>
+                  {(canWrite || trade.documents.length > 0) && (
+                    <div className="mt-3 border-t border-border pt-3">
+                      {trade.documents.length > 0 && (
+                        <div className="mb-2 flex flex-wrap gap-2">
+                          {trade.documents.map((doc) => (
+                            <div key={doc.id} className="flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-xs">
+                              <DocumentLink
+                                href={documentFileHref(doc.id)}
+                                filename={doc.filename}
+                                mimeType={doc.mimeType}
+                                size={doc.size}
+                                className="text-accent hover:underline truncate max-w-40"
+                              >
+                                {doc.filename}
+                              </DocumentLink>
+                              <DocumentDeleteButton
+                                kind="TRADE"
+                                documentId={doc.id}
+                                ownerId={trade.id}
+                                filename={doc.filename}
+                                className="rounded p-1 text-danger hover:text-danger/70"
+                                iconSize={12}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <DocumentUploadForm action={addDocumentAction.bind(null, "TRADE", trade.id)} />
+                    </div>
+                  )}
                 </div>
               );
             })}

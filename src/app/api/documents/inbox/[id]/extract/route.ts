@@ -7,6 +7,7 @@ import { extractInvoiceFields } from "@/lib/documents/invoiceFieldExtraction";
 import { extractInventoryItemFields } from "@/lib/documents/inventoryItemFieldExtraction";
 import { getByokConfig } from "@/lib/ai/extract";
 import { consumeLayeredRateLimit } from "@/lib/rateLimit";
+import { readOnlyApiResponse } from "@/lib/readOnly";
 
 // Previews auto-fill fields for a document already sitting in the inbox,
 // reusing the text extracted at upload time rather than re-running OCR.
@@ -18,6 +19,10 @@ export async function POST(
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  // #400 — extraction spends OCR/AI on the household's behalf, and its
+  // result can only be saved by a member who can write.
+  const readOnly = readOnlyApiResponse(session);
+  if (readOnly) return readOnly;
 
   // Skips OCR, but field extraction can still escalate to a cloud AI call
   // (see fieldExtraction.ts's stage 3), so it bills the same as the other

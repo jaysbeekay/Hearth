@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { updateProperty } from "@/lib/actions/home";
 import { PropertyForm } from "@/components/PropertyForm";
+import { auth } from "@/lib/auth";
+import { redirectIfReadOnly } from "@/lib/readOnly";
 
 export default async function EditPropertyPage({
   params,
@@ -12,6 +14,7 @@ export default async function EditPropertyPage({
   await requireModuleEnabled("HOME");
 
   const { id } = await params;
+  redirectIfReadOnly(await auth(), `/home/${id}`);
   const property = await prisma.property.findUnique({ where: { id } });
   if (!property || property.deletedAt) notFound();
 

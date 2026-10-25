@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { updateRentalAgreement } from "@/lib/actions/home";
 import { RentalAgreementForm } from "@/components/RentalAgreementForm";
+import { auth } from "@/lib/auth";
+import { redirectIfReadOnly } from "@/lib/readOnly";
 
 export default async function EditRentalAgreementPage({
   params,
@@ -13,6 +15,7 @@ export default async function EditRentalAgreementPage({
   await requireModuleEnabled("HOME");
 
   const { id, agreementId } = await params;
+  redirectIfReadOnly(await auth(), `/home/${id}/rental`);
   const agreement = await prisma.rentalAgreement.findUnique({ where: { id: agreementId } });
   if (!agreement || agreement.propertyId !== id) notFound();
 

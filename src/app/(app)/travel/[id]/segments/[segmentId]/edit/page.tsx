@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { updateTripSegment } from "@/lib/actions/trips";
 import { TripSegmentForm } from "@/components/TripSegmentForm";
+import { auth } from "@/lib/auth";
+import { redirectIfReadOnly } from "@/lib/readOnly";
 
 export default async function EditTripSegmentPage({
   params,
@@ -12,6 +14,7 @@ export default async function EditTripSegmentPage({
   await requireModuleEnabled("TRAVEL");
 
   const { id, segmentId } = await params;
+  redirectIfReadOnly(await auth(), `/travel/${id}`);
   const segment = await prisma.tripSegment.findUnique({ where: { id: segmentId } });
   if (!segment || segment.tripId !== id) notFound();
 

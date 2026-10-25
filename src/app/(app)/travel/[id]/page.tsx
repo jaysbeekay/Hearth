@@ -18,6 +18,8 @@ import { getHouseholdMemberCount } from "@/lib/household";
 import { shouldAutoRefresh, FLIGHT_STATUS_LABELS, flightStatusColour, refreshFlightStatus } from "@/lib/integrations/flightStatus";
 import { computeSegmentDistance } from "@/lib/integrations/flightDistance";
 import { FlightRefreshForm } from "@/components/FlightRefreshForm";
+import { auth } from "@/lib/auth";
+import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 
 const SEGMENT_ICONS: Record<string, LucideIcon> = {
   FLIGHT: Plane,
@@ -33,6 +35,7 @@ export default async function TripDetailPage({
   await requireModuleEnabled("TRAVEL");
 
   const { id } = await params;
+  const canWrite = sessionCanWrite(await auth());
   const [trip, { dateFormat, region }, memberCount] = await Promise.all([
     prisma.trip.findUnique({
       where: { id },
@@ -54,10 +57,12 @@ export default async function TripDetailPage({
     return a.startDate.getTime() - b.startDate.getTime();
   });
 
-  // Auto-refresh stale flight status for segments in the tracking window
+  // Auto-refresh stale flight status for segments in the tracking window.
+  // #400 — that writes the segment, so a read-only viewer sees the status
+  // as last refreshed instead.
   await Promise.all(
     segments
-      .filter((s) => shouldAutoRefresh(s))
+      .filter((s) => canWrite && shouldAutoRefresh(s))
       .map((s) => refreshFlightStatus(s.id)),
   );
 
@@ -113,26 +118,30 @@ export default async function TripDetailPage({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href={`/travel/${trip.id}/edit`}
-            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
-          >
-            <Pencil size={16} />
-            Edit
-          </Link>
-          <DetailOverflowMenu>
-            <ConfirmForm
-              action={deleteTrip.bind(null, trip.id)}
-              undo={{ action: restoreTrip.bind(null, trip.id), href: `/travel/${trip.id}` }}
-              confirmText="Move this trip to Trash? Its segments and documents are kept, and you can restore it within 30 days from Settings → Trash."
-              actionLabel="Delete trip"
-              className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
-              offline={{ entity: "trip", entityId: trip.id, label: `Delete trip: ${trip.title}` }}
-            >
-              <Trash2 size={16} />
-              Delete
-            </ConfirmForm>
-          </DetailOverflowMenu>
+          {canWrite && (
+            <>
+              <Link
+                href={`/travel/${trip.id}/edit`}
+                className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+              >
+                <Pencil size={16} />
+                Edit
+              </Link>
+              <DetailOverflowMenu>
+                <ConfirmForm
+                  action={deleteTrip.bind(null, trip.id)}
+                  undo={{ action: restoreTrip.bind(null, trip.id), href: `/travel/${trip.id}` }}
+                  confirmText="Move this trip to Trash? Its segments and documents are kept, and you can restore it within 30 days from Settings → Trash."
+                  actionLabel="Delete trip"
+                  className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
+                  offline={{ entity: "trip", entityId: trip.id, label: `Delete trip: ${trip.title}` }}
+                >
+                  <Trash2 size={16} />
+                  Delete
+                </ConfirmForm>
+              </DetailOverflowMenu>
+            </>
+          )}
         </div>
       </div>
 
@@ -146,13 +155,15 @@ export default async function TripDetailPage({
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="font-medium">Itinerary</h2>
-          <Link
-            href={`/travel/${trip.id}/segments/new`}
-            className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
-          >
-            <Plus size={16} />
-            Add segment
-          </Link>
+          {canWrite && (
+            <Link
+              href={`/travel/${trip.id}/segments/new`}
+              className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+            >
+              <Plus size={16} />
+              Add segment
+            </Link>
+          )}
         </div>
 
         {displaySegments.length === 0 ? (
@@ -182,22 +193,26 @@ export default async function TripDetailPage({
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <Link
-                        href={`/travel/${trip.id}/segments/${segment.id}/edit`}
-                        className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
-                      >
-                        <Pencil size={16} />
-                        Edit
-                      </Link>
-                      <ConfirmForm
-                        action={deleteTripSegment.bind(null, trip.id, segment.id)}
-                        confirmText={`Delete "${segment.title}" and its documents?`}
-                        actionLabel={`Delete "${segment.title}"`}
-                        className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
-                      >
-                        <Trash2 size={16} />
-                        Delete
-                      </ConfirmForm>
+                      {canWrite && (
+                        <>
+                          <Link
+                            href={`/travel/${trip.id}/segments/${segment.id}/edit`}
+                            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+                          >
+                            <Pencil size={16} />
+                            Edit
+                          </Link>
+                          <ConfirmForm
+                            action={deleteTripSegment.bind(null, trip.id, segment.id)}
+                            confirmText={`Delete "${segment.title}" and its documents?`}
+                            actionLabel={`Delete "${segment.title}"`}
+                            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
+                          >
+                            <Trash2 size={16} />
+                            Delete
+                          </ConfirmForm>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -243,9 +258,11 @@ export default async function TripDetailPage({
                             </span>
                           )}
                         </div>
-                        <FlightRefreshForm
-                          action={refreshFlightStatusAction.bind(null, segment.id, id)}
-                        />
+                        {canWrite && (
+                          <FlightRefreshForm
+                            action={refreshFlightStatusAction.bind(null, segment.id, id)}
+                          />
+                        )}
                       </div>
                       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                         {segment.depTerminal && (
@@ -291,9 +308,11 @@ export default async function TripDetailPage({
                   {segment.type === "FLIGHT" && segment.flightNumber && !segment.flightStatus && (
                     <div className="mt-4 flex items-center justify-between rounded-lg border border-border p-3">
                       <p className="text-xs text-muted">No flight status data yet.</p>
-                      <FlightRefreshForm
-                        action={refreshFlightStatusAction.bind(null, segment.id, id)}
-                      />
+                      {canWrite && (
+                        <FlightRefreshForm
+                          action={refreshFlightStatusAction.bind(null, segment.id, id)}
+                        />
+                      )}
                     </div>
                   )}
 
@@ -309,9 +328,11 @@ export default async function TripDetailPage({
                       documents={segment.documents}
                       dateFormat={dateFormat}
                     />
-                    <div className="mt-3">
-                      <DocumentUploadForm action={addDocumentAction.bind(null, "TRIP_SEGMENT", segment.id)} />
-                    </div>
+                    {canWrite && (
+                      <div className="mt-3">
+                        <DocumentUploadForm action={addDocumentAction.bind(null, "TRIP_SEGMENT", segment.id)} />
+                      </div>
+                    )}
                   </div>
                 </div>
               );

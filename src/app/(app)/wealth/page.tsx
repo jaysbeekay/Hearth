@@ -11,11 +11,14 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import { HoldingCard } from "@/components/HoldingCard";
 import type { ModuleKey } from "@/lib/modules/registry";
 import { linkButtonClass, toolbarButtonClass, exportMenuItemClass } from "@/lib/buttonStyles";
+import { auth } from "@/lib/auth";
+import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 
 export const metadata: Metadata = { title: "Wealth" };
 
 export default async function WealthPage() {
   await requireModuleEnabled("WEALTH");
+  const canWrite = sessionCanWrite(await auth());
   const enabledModules = await getEnabledModuleKeys();
   const { region } = await getUserPreferences();
 
@@ -62,7 +65,7 @@ export default async function WealthPage() {
               Manage portfolios
             </Link>
           )}
-          {!hasPortfolios && (
+          {canWrite && !hasPortfolios && (
             <Link href="/wealth/portfolios/new" className={linkButtonClass("primary")}>
               <Plus size={16} />
               Add portfolio
@@ -117,7 +120,7 @@ export default async function WealthPage() {
         <section className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="font-medium">Holdings</h2>
-            {data.portfolios.length === 1 && (
+            {canWrite && data.portfolios.length === 1 && (
               <Link
                 href={`/wealth/portfolios/${data.portfolios[0].portfolioId}/holdings/new`}
                 className="flex items-center gap-1 text-sm text-accent hover:underline"
@@ -149,7 +152,7 @@ export default async function WealthPage() {
               ? "No holdings yet. Add your first holding or import trades from a CSV."
               : "Create a portfolio to start tracking your shares and investments."}
           </p>
-          {hasPortfolios && data.portfolios[0] && (
+          {canWrite && hasPortfolios && data.portfolios[0] && (
             <div className="flex justify-center gap-3">
               <Link
                 href={`/wealth/portfolios/${data.portfolios[0].portfolioId}/holdings/new`}

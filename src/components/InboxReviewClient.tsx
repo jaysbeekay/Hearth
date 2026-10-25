@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FileText, X, Loader2, AlertTriangle, Copy } from "lucide-react";
 import Link from "next/link";
 import {
@@ -12,6 +12,7 @@ import {
 import { CATEGORY_LABELS, humanFileSize, formatDate } from "@/lib/utils";
 import { INVENTORY_ITEM_CATEGORIES } from "@/lib/validation/inventory";
 import { showToast } from "@/components/Toast";
+import { useCanWrite } from "@/components/CanWriteProvider";
 import { LinkedToField } from "@/components/LinkedToField";
 import { extractionMessage, isAiExtractionSource } from "@/lib/autoFillHighlight";
 
@@ -61,6 +62,55 @@ const INVENTORY_CATEGORY_LABELS: Record<string, string> = {
 };
 
 type EntityType = "CONTRACT" | "PRODUCT" | "INVENTORY";
+
+const STATUS_LABEL_MAP = new Map<string, string>(Object.entries(STATUS_LABELS));
+const KIND_LABEL_MAP = new Map<string, string>(Object.entries(KIND_LABELS));
+const GUESSED_TYPE_LABELS = new Map<string, string>([
+  ["CONTRACT", "contract"],
+  ["PRODUCT", "product"],
+  ["INVENTORY", "inventory item"],
+]);
+
+function ReadOnlyInboxList({ docs, dateFormat }: { docs: InboxDocSummary[]; dateFormat?: string }) {
+  return (
+    <ul className="space-y-3">
+      {docs.map((doc) => (
+        <li key={doc.id} className="space-y-1 rounded-xl border border-border bg-surface p-4">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <a href={doc.downloadHref} className="flex min-w-0 items-center gap-2 hover:underline">
+              <FileText size={16} className="shrink-0 text-muted" />
+              <span className="min-w-0 truncate text-sm font-medium">{doc.filename}</span>
+            </a>
+            <span className="shrink-0 text-xs text-muted">
+              {humanFileSize(doc.size)} · {formatDate(new Date(doc.uploadedAt), dateFormat)}
+              {doc.fromAddress && ` · via email from ${doc.fromAddress}`}
+            </span>
+          </div>
+          <p className="text-xs text-muted">
+            {STATUS_LABEL_MAP.get(doc.status) ?? doc.status}
+            {doc.guessedType && ` · looks like a ${GUESSED_TYPE_LABELS.get(doc.guessedType) ?? "record"}`}
+          </p>
+          {doc.duplicateOf.length > 0 && (
+            <ul className="space-y-0.5 text-xs">
+              {doc.duplicateOf.map((match) => (
+                <li key={match.docId} className="text-muted">
+                  Matches {KIND_LABEL_MAP.get(match.kind) ?? match.kind}:{" "}
+                  {match.ownerHref ? (
+                    <Link href={match.ownerHref} className="font-medium text-accent hover:underline">
+                      {match.filename}
+                    </Link>
+                  ) : (
+                    <span className="font-medium text-foreground">{match.filename}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 export interface InboxDocSummary {
   id: string;
@@ -275,8 +325,16 @@ export function InboxReviewClient({
   // immediately instead of waiting for the next full page load.
   const [keptSeparate, setKeptSeparate] = useState<Set<string>>(new Set());
   const [attaching, setAttaching] = useState<Set<string>>(new Set());
+  const canWrite = useCanWrite();
+  // The pre-fill scan runs once, on mount, with the first render's values:
+  // re-running when `docs` or `scan` change identity would rescan every row
+  // and overwrite what the member has typed. A ref makes that explicit.
+  const initialScan = useRef({ docs, canWrite, scan });
 
   useEffect(() => {
+    const { docs, canWrite, scan } = initialScan.current;
+    // A read-only member can't file anything, so there's nothing to pre-fill.
+    if (!canWrite) return;
     // Deferred one tick so the initial scan (which sets state) isn't a
     // direct call from the effect body — rows already start in "scanning"
     // via emptyRowState(), this just kicks off the actual fetches. Scans
@@ -486,7 +544,11 @@ export function InboxReviewClient({
         </p>
       )}
 
-      {visibleDocs.map((doc) => {
+      {/* #400 — read-only members see what's waiting, and can filter it, as
+          plain text: no classify fields, Save or Discard. */}
+      {!canWrite && visibleDocs.length > 0 && <ReadOnlyInboxList docs={visibleDocs} dateFormat={dateFormat} />}
+
+      {canWrite && visibleDocs.map((doc) => {
         const row = rows[doc.id];
         if (!row) return null;
         const rowIsAi = row.source != null && isAiExtractionSource(row.source);

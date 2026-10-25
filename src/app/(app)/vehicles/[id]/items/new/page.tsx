@@ -5,6 +5,8 @@ import { addVehicleItem } from "@/lib/actions/vehicles";
 import { VehicleItemForm } from "@/components/VehicleItemForm";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { BackLink } from "@/components/BackLink";
+import { auth } from "@/lib/auth";
+import { redirectIfReadOnly } from "@/lib/readOnly";
 
 export default async function NewVehicleItemPage({
   params,
@@ -14,6 +16,7 @@ export default async function NewVehicleItemPage({
   await requireModuleEnabled("VEHICLES");
 
   const { id } = await params;
+  redirectIfReadOnly(await auth(), `/vehicles/${id}`);
   const [vehicle, { preferredCurrency }] = await Promise.all([
     prisma.vehicle.findUnique({ where: { id } }),
     getUserPreferences(),

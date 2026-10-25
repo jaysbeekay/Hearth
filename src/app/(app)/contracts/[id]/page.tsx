@@ -35,6 +35,8 @@ import { getDueContext } from "@/lib/appSettings";
 import { addDays, calendarDayOf, noticeApplies } from "@/lib/duePolicy";
 import { contractDue, headlineEntry } from "@/lib/dueRecords";
 import { getHouseholdMemberCount } from "@/lib/household";
+import { auth } from "@/lib/auth";
+import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 
 export default async function ContractDetailPage({
   params,
@@ -45,6 +47,7 @@ export default async function ContractDetailPage({
 }) {
   const { id } = await params;
   const { docFallback } = await searchParams;
+  const canWrite = sessionCanWrite(await auth());
   const [contract, { dateFormat, region }, memberCount, due] = await Promise.all([
     prisma.contract.findUnique({
       where: { id },
@@ -110,39 +113,43 @@ export default async function ContractDetailPage({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <ExpiryBadge entry={entry} cancelled={cancelled} />
-          <Link
-            href={`/contracts/${contract.id}/edit`}
-            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
-          >
-            <Pencil size={16} />
-            Edit
-          </Link>
-          {/* #370 — status changes are rare, so they sit in the overflow
-              menu next to Delete (and in the expiry banner when it's
-              relevant), keeping the header to one row on mobile. */}
-          <DetailOverflowMenu>
-            <ConfirmForm
-              action={statusAction}
-              confirmText={statusConfirmText}
-              actionLabel={statusLabel}
-              ariaLabel={cancelled ? "Mark contract as active" : "Mark contract as cancelled"}
-              className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-hover"
-            >
-              {cancelled ? <RotateCcw size={16} /> : <Ban size={16} />}
-              {statusLabel}
-            </ConfirmForm>
-            <ConfirmForm
-              action={deleteContract.bind(null, contract.id)}
-              undo={{ action: restoreContract.bind(null, contract.id), href: `/contracts/${contract.id}` }}
-              confirmText="Move this contract to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash."
-              actionLabel="Delete contract"
-              className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
-              offline={{ entity: "contract", entityId: contract.id, label: `Delete contract: ${contract.title}` }}
-            >
-              <Trash2 size={16} />
-              Delete
-            </ConfirmForm>
-          </DetailOverflowMenu>
+          {canWrite && (
+            <>
+              <Link
+                href={`/contracts/${contract.id}/edit`}
+                className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+              >
+                <Pencil size={16} />
+                Edit
+              </Link>
+              {/* #370 — status changes are rare, so they sit in the overflow
+                  menu next to Delete (and in the expiry banner when it's
+                  relevant), keeping the header to one row on mobile. */}
+              <DetailOverflowMenu>
+                <ConfirmForm
+                  action={statusAction}
+                  confirmText={statusConfirmText}
+                  actionLabel={statusLabel}
+                  ariaLabel={cancelled ? "Mark contract as active" : "Mark contract as cancelled"}
+                  className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-hover"
+                >
+                  {cancelled ? <RotateCcw size={16} /> : <Ban size={16} />}
+                  {statusLabel}
+                </ConfirmForm>
+                <ConfirmForm
+                  action={deleteContract.bind(null, contract.id)}
+                  undo={{ action: restoreContract.bind(null, contract.id), href: `/contracts/${contract.id}` }}
+                  confirmText="Move this contract to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash."
+                  actionLabel="Delete contract"
+                  className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
+                  offline={{ entity: "contract", entityId: contract.id, label: `Delete contract: ${contract.title}` }}
+                >
+                  <Trash2 size={16} />
+                  Delete
+                </ConfirmForm>
+              </DetailOverflowMenu>
+            </>
+          )}
         </div>
       </div>
 
@@ -320,9 +327,11 @@ export default async function ContractDetailPage({
       <div id="documents" className="scroll-mt-20 rounded-xl border border-border bg-surface p-4 md:p-6">
         <h2 className="mb-3 font-medium">Documents</h2>
         <DocumentList documents={contract.documents} dateFormat={dateFormat} />
-        <div className="mt-4 border-t border-border pt-4">
-          <DocumentUploadForm action={boundUpload} />
-        </div>
+        {canWrite && (
+          <div className="mt-4 border-t border-border pt-4">
+            <DocumentUploadForm action={boundUpload} />
+          </div>
+        )}
       </div>
 
       <RecordMeta

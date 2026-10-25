@@ -5,6 +5,8 @@ import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { prisma } from "@/lib/prisma";
 import { createHolding } from "@/lib/actions/wealth";
 import { HoldingForm } from "@/components/HoldingForm";
+import { auth } from "@/lib/auth";
+import { redirectIfReadOnly } from "@/lib/readOnly";
 
 export const metadata: Metadata = { title: "Add Holding" };
 
@@ -15,6 +17,7 @@ export default async function NewHoldingPage({
 }) {
   await requireModuleEnabled("WEALTH");
   const { id } = await params;
+  redirectIfReadOnly(await auth(), `/wealth/portfolios/${id}`);
 
   const portfolio = await prisma.portfolio.findUnique({ where: { id } });
   if (!portfolio) notFound();

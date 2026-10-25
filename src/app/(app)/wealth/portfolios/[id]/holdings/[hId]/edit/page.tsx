@@ -5,6 +5,8 @@ import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { prisma } from "@/lib/prisma";
 import { updateHolding } from "@/lib/actions/wealth";
 import { HoldingForm } from "@/components/HoldingForm";
+import { auth } from "@/lib/auth";
+import { redirectIfReadOnly } from "@/lib/readOnly";
 
 export const metadata: Metadata = { title: "Edit Holding" };
 
@@ -15,6 +17,7 @@ export default async function EditHoldingPage({
 }) {
   await requireModuleEnabled("WEALTH");
   const { id: portfolioId, hId: holdingId } = await params;
+  redirectIfReadOnly(await auth(), `/wealth/portfolios/${portfolioId}/holdings/${holdingId}`);
 
   const holding = await prisma.holding.findUnique({
     where: { id: holdingId },

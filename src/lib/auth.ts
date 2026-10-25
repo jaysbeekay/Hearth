@@ -1,4 +1,5 @@
-import NextAuth, { CredentialsSignin } from "next-auth";
+import { cache } from "react";
+import NextAuth, { CredentialsSignin, type Session } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import GitHub from "next-auth/providers/github";
 import bcrypt from "bcryptjs";
@@ -22,7 +23,7 @@ export class InvalidTotpSignin extends CredentialsSignin {
   code = "invalid_totp";
 }
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+const nextAuth = NextAuth({
   ...authConfig,
   providers: [
     Credentials({
@@ -230,3 +231,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
 });
+
+export const { handlers, signIn, signOut } = nextAuth;
+
+/**
+ * The signed-in session, or null. Memoised per server render with React's
+ * cache(), so the (app) layout and the page it wraps share one lookup (and
+ * one jwt-callback database read) per request instead of one each (#400).
+ * Outside a render (server actions, route handlers) cache() doesn't
+ * memoise, so each call still sees the current cookie. Only the no-argument
+ * form is exported: src/proxy.ts builds its own middleware auth from
+ * auth.config.ts.
+ */
+export const auth = cache(async (): Promise<Session | null> => nextAuth.auth());

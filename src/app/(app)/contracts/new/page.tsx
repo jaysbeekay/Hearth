@@ -5,12 +5,15 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import { prisma } from "@/lib/prisma";
 import { BackLink } from "@/components/BackLink";
+import { auth } from "@/lib/auth";
+import { redirectIfReadOnly } from "@/lib/readOnly";
 
 export default async function NewContractPage({
   searchParams,
 }: {
   searchParams: Promise<{ propertyId?: string; vehicleId?: string }>;
 }) {
+  redirectIfReadOnly(await auth(), "/contracts");
   const [{ preferredCurrency }, homeEnabled, vehiclesEnabled, { propertyId, vehicleId }] = await Promise.all([
     getUserPreferences(),
     isModuleEnabled("HOME"),

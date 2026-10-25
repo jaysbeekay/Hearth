@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { updateInventoryItem } from "@/lib/actions/inventory";
 import { InventoryItemForm } from "@/components/InventoryItemForm";
+import { auth } from "@/lib/auth";
+import { redirectIfReadOnly } from "@/lib/readOnly";
 
 export const metadata: Metadata = { title: "Edit Item" };
 
@@ -16,6 +18,7 @@ export default async function EditInventoryItemPage({
   await requireModuleEnabled("INVENTORY");
 
   const { id } = await params;
+  redirectIfReadOnly(await auth(), `/inventory/${id}`);
   const item = await prisma.inventoryItem.findUnique({ where: { id } });
   if (!item || item.deletedAt) notFound();
   // The linked warranty stays an option even while it's in Trash: otherwise

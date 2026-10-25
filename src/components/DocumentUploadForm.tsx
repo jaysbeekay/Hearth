@@ -8,6 +8,7 @@ import { FormMessage } from "@/components/FormMessage";
 import { FileDropZone } from "@/components/FileDropZone";
 import { SelectWrapper } from "@/components/SelectWrapper";
 import { DOCUMENT_CATEGORIES, DOCUMENT_CATEGORY_LABELS } from "@/lib/documents/categories";
+import { useCanWrite } from "@/components/CanWriteProvider";
 
 export function DocumentUploadForm({
   action,
@@ -23,6 +24,10 @@ export function DocumentUploadForm({
       formRef.current?.reset();
     }
   }, [state]);
+
+  // Read-only members can't write, so they get no form (#400).
+  const canWrite = useCanWrite();
+  if (!canWrite) return null;
 
   return (
     <form ref={formRef} action={formAction} className="space-y-3">
