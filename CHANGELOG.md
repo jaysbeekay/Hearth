@@ -90,10 +90,12 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 - **One navigation on phones (#407, #369).** The bottom bar and its More
   sheet are now the only way around on a phone; the menu button and
   edge-swipe drawer are gone (the desktop sidebar is unchanged). More lists
-  every destination the bar doesn't, now including **Upload** (not shown to
-  read-only members) and the **Inbox**, plus your name and Sign out. The
-  number of Documents waiting in the Inbox shows as a badge on Documents, in
-  both the bottom bar and the sidebar.
+  every destination the bar doesn't, plus your name and Sign out, so phone
+  and desktop navigation match. Upload and the Inbox aren't nav entries:
+  Upload stays a button in the Dashboard and Documents headers (#401), and
+  the Inbox is a tab on Documents. The number of Documents waiting in the
+  Inbox shows as a badge on Documents, in both the bottom bar and the
+  sidebar.
 - **List page headers fit on a phone (#369).** Below tablet width the page
   heading keeps its own line, Export (CSV or PDF) moves into the ⋮ menu
   beside it, and the Add button runs full width underneath, on Contracts,

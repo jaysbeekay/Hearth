@@ -178,14 +178,16 @@ async function openMoreSheet(page: import("@playwright/test").Page) {
 }
 
 // #407: the bottom bar and its More sheet are the only navigation on phones.
-// Every destination a phone can reach, grouped so a change to one place
-// (say, moving Upload or Inbox out of More) is a one-line edit here.
+// Every destination a phone can reach, grouped so moving one is a one-line
+// edit here. Upload and the Inbox aren't nav entries, on phones or the
+// desktop sidebar: Upload is a page-header action on Dashboard and
+// Documents (#401), and the Inbox is a tab on Documents, whose bar tab
+// carries its count.
 const PHONE_DESTINATIONS = {
   bar: ["/dashboard", "/contracts", "/products", "/documents"],
   // The seed enables every optional module. Inventory has no nav entry of
   // its own (getNavItems leaves it out; it's reached from Warranties).
   modules: ["/travel", "/home", "/vehicles", "/wealth"],
-  documents: ["/import", "/documents/inbox"],
   // No /assistant: the seed configures no chat provider (spec 09 sets one
   // up later in the run).
   tools: ["/calendar", "/spend"],
@@ -214,13 +216,15 @@ test("phones have one navigation: no menu drawer, and each destination is in the
   expect(new Set(hrefs)).toEqual(new Set(Object.values(PHONE_DESTINATIONS).flat()));
   expect(hrefs).not.toContain("/assistant");
   expect(hrefs).not.toContain("/inventory");
+  expect(hrefs).not.toContain("/import");
+  expect(hrefs).not.toContain("/documents/inbox");
 
   await expect(moreSheet(page).getByText("E2E Admin", { exact: true })).toBeVisible();
   await expect(moreSheet(page).getByText(ADMIN_EMAIL, { exact: true })).toBeVisible();
   await expect(moreSheet(page).getByRole("button", { name: "Sign out" })).toBeVisible();
 
-  await moreSheet(page).getByRole("link", { name: "Upload", exact: true }).click();
-  await page.waitForURL(/\/import$/);
+  await moreSheet(page).getByRole("link", { name: "Upcoming", exact: true }).click();
+  await page.waitForURL(/\/calendar$/);
   await expect(moreSheet(page)).toBeHidden();
 });
 
@@ -547,11 +551,12 @@ test.describe("fixed mobile UI never covers controls (#401)", () => {
       await expect(viewer.getByRole("link", { name: /^Upload( a document)?$/ })).toHaveCount(0);
     }
 
-    // #407: the More sheet offers the Inbox but no Upload.
+    // #407: no Upload anywhere in the phone navigation either.
     await openMoreSheet(viewer);
-    await expect(moreSheet(viewer).getByRole("link", { name: /^Inbox/ })).toBeVisible();
-    await expect(moreSheet(viewer).getByRole("link", { name: "Upload", exact: true })).toHaveCount(0);
-    await expect(moreSheet(viewer).locator('a[href="/import"]')).toHaveCount(0);
+    for (const nav of [bottomBar(viewer), moreSheet(viewer)]) {
+      await expect(nav.getByRole("link", { name: /upload/i })).toHaveCount(0);
+      await expect(nav.locator('a[href="/import"]')).toHaveCount(0);
+    }
     await viewer.keyboard.press("Escape");
 
     await viewer.goto("/import");
@@ -569,8 +574,8 @@ test.describe("fixed mobile UI never covers controls (#401)", () => {
 });
 
 // #369, #407: the Inbox count shows on Documents in the bottom bar and the
-// desktop sidebar, and on Inbox in the More sheet.
-test("the Inbox count badge matches the Inbox tab on the bottom bar, the More sheet and the sidebar", async ({
+// desktop sidebar.
+test("the Inbox count badge matches the Inbox tab on the bottom bar and the sidebar", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -597,10 +602,7 @@ test("the Inbox count badge matches the Inbox tab on the bottom bar, the More sh
   await expect(documentsTab.locator("span[aria-hidden=true]")).toHaveText(count > 99 ? "99+" : String(count));
   await expectOneLine(documentsTab, "Documents tab with its badge");
 
-  await openMoreSheet(page);
-  const inboxLink = moreSheet(page).getByRole("link", { name: `Inbox, ${count} waiting` });
-  await expect(inboxLink).toHaveAttribute("href", "/documents/inbox");
-  await page.keyboard.press("Escape");
+  await expect(documentsTab).toHaveAttribute("href", "/documents");
 
   await page.setViewportSize({ width: 1280, height: 900 });
   const sidebarDocuments = page.locator("aside").getByRole("link", { name: `Documents, ${count} in Inbox` });

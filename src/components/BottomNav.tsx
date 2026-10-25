@@ -3,23 +3,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Settings,
-  HelpCircle,
-  MoreHorizontal,
-  X,
-  Upload,
-  Inbox,
-  type LucideIcon,
-} from "lucide-react";
+import { Settings, HelpCircle, MoreHorizontal, X, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getNavItems, FOOTER_NAV } from "@/components/nav-items";
 import type { ModuleKey } from "@/lib/modules/registry";
 import { Dialog } from "@/components/Dialog";
 import { InboxCountBadge, inboxLinkLabel } from "@/components/InboxCountBadge";
 import { SignOutButton } from "@/components/SignOutButton";
-import { useCanWrite } from "@/components/CanWriteProvider";
-import { DOCUMENTS_TABS } from "@/lib/routeLabels";
 
 function isActive(href: string, pathname: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -33,44 +23,36 @@ function isActive(href: string, pathname: string) {
 // swap the Documents slot for Upcoming; Documents would then move into More.
 const PRIMARY_HREFS = ["/dashboard", "/contracts", "/products", "/documents"];
 
-const UPLOAD = { href: "/import", label: "Upload" } as const;
-
 function MoreLink({
   href,
   label,
   icon: Icon,
   active,
-  badge,
-  ariaLabel,
 }: {
   href: string;
   label: string;
   icon: LucideIcon;
   active: boolean;
-  badge?: React.ReactNode;
-  ariaLabel?: string;
 }) {
   return (
     <Link
       href={href}
-      aria-label={ariaLabel}
       className={cn(
         "flex flex-col items-center gap-1.5 whitespace-nowrap rounded-lg p-3 text-xs font-medium",
         active ? "bg-accent/10 text-accent" : "text-muted hover:bg-hover",
       )}
     >
-      <span className="relative">
-        <Icon size={20} />
-        {badge}
-      </span>
+      <Icon size={20} />
       {label}
     </Link>
   );
 }
 
 // The only navigation on phones (#407): this bar plus its More sheet. The
-// sheet holds every destination the bar doesn't, including Upload (for
-// members who can write) and the Inbox, and the account's Sign out.
+// sheet holds every destination the bar doesn't, plus the account's Sign
+// out, so it matches the desktop sidebar. Upload and the Inbox aren't nav
+// entries: Upload is a page-header action on Dashboard and Documents (#401),
+// and the Inbox is a tab on Documents, whose bar tab carries its count.
 export function BottomNav({
   enabledModules,
   chatConfigured,
@@ -85,7 +67,6 @@ export function BottomNav({
   userEmail: string;
 }) {
   const pathname = usePathname();
-  const canWrite = useCanWrite();
   const [moreOpen, setMoreOpen] = useState(false);
   const items = getNavItems(new Set(enabledModules), chatConfigured);
 
@@ -102,10 +83,8 @@ export function BottomNav({
   const overflow = items.filter((i) => !PRIMARY_HREFS.includes(i.href));
   const overflowModules = overflow.filter((i) => i.group === "modules");
   const overflowTools = overflow.filter((i) => i.group === "tools");
-  // The Inbox lives under Documents, whose tab already lights up there.
   const overflowActive =
     overflow.some((i) => isActive(i.href, pathname)) ||
-    isActive(UPLOAD.href, pathname) ||
     isActive(FOOTER_NAV.settings.href, pathname) ||
     isActive(FOOTER_NAV.help.href, pathname);
   const inboxBadge = <InboxCountBadge count={inboxCount} className="absolute -right-3 -top-1.5" />;
@@ -187,22 +166,6 @@ export function BottomNav({
 
           <p className="mb-1.5 text-xs font-semibold text-muted">Tools</p>
           <div className="grid grid-cols-3 gap-2">
-            {canWrite && (
-              <MoreLink
-                href={UPLOAD.href}
-                label={UPLOAD.label}
-                icon={Upload}
-                active={isActive(UPLOAD.href, pathname)}
-              />
-            )}
-            <MoreLink
-              href={DOCUMENTS_TABS.inbox.href}
-              label={DOCUMENTS_TABS.inbox.label}
-              icon={Inbox}
-              active={isActive(DOCUMENTS_TABS.inbox.href, pathname)}
-              badge={inboxBadge}
-              ariaLabel={inboxLinkLabel(DOCUMENTS_TABS.inbox.label, inboxCount, "waiting")}
-            />
             {overflowTools.map(({ href, label, icon }) => (
               <MoreLink key={href} href={href} label={label} icon={icon} active={isActive(href, pathname)} />
             ))}
