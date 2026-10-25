@@ -1,10 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
-import Link from "next/link";
+import { ListPageHeader } from "@/components/ListPageHeader";
 import { useRouter } from "next/navigation";
-import { linkButtonClass, toolbarButtonClass, exportMenuItemClass } from "@/lib/buttonStyles";
-import { Plus, ChevronDown } from "lucide-react";
 import { ListFilterChips } from "@/components/ListFilterChips";
 import { VehicleCard } from "@/components/VehicleCard";
 import { PendingRecordCard } from "@/components/PendingRecordCard";
@@ -55,31 +53,11 @@ export function VehicleListClient({ vehicles, filters, counts, due, dateFormat, 
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">{MODULE_REGISTRY.VEHICLES.label}</h1>
-        <div className="flex items-center gap-2">
-          <details className="relative">
-            <summary className={toolbarButtonClass}>
-              Export <ChevronDown size={14} />
-            </summary>
-            <div className="absolute right-0 z-10 mt-1 w-28 overflow-hidden rounded-lg border border-border bg-surface shadow-md">
-              <a href="/api/export/vehicles?format=csv" download className={exportMenuItemClass}>CSV</a>
-              <a href="/api/export/vehicles?format=pdf" download className={exportMenuItemClass}>PDF</a>
-            </div>
-          </details>
-          {canWrite && (
-            <Link
-              href="/vehicles/new"
-              aria-disabled={!online}
-              tabIndex={!online ? -1 : undefined}
-              className={linkButtonClass("primary", { online })}
-            >
-              <Plus size={16} />
-              Add vehicle
-            </Link>
-          )}
-        </div>
-      </div>
+      <ListPageHeader
+        title={MODULE_REGISTRY.VEHICLES.label}
+        exportPath="/api/export/vehicles"
+        action={canWrite ? { href: "/vehicles/new", label: "Add vehicle", online } : undefined}
+      />
 
       {((counts.missingDetails ?? 0) > 0 || filtered) && (
         <ListFilterChips

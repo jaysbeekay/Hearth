@@ -5,7 +5,15 @@ import { MoreVertical, X } from "lucide-react";
 import { Dialog } from "@/components/Dialog";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 
-export function DetailOverflowMenu({ children }: { children: React.ReactNode }) {
+// Also the list pages' ⋮ menu below `md` (#369), where `label` names it
+// "More list actions" so it reads differently from a record's own menu.
+export function DetailOverflowMenu({
+  children,
+  label = "More actions",
+}: {
+  children: React.ReactNode;
+  label?: string;
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -36,7 +44,7 @@ export function DetailOverflowMenu({ children }: { children: React.ReactNode }) 
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        aria-label="More actions"
+        aria-label={label}
         aria-haspopup="dialog"
         aria-expanded={open}
         className="flex h-11 w-11 items-center justify-center rounded-lg border border-border hover:bg-hover"
@@ -53,7 +61,7 @@ export function DetailOverflowMenu({ children }: { children: React.ReactNode }) 
           <div
             ref={dropdownRef}
             role="dialog"
-            aria-label="More actions"
+            aria-label={label}
             className="absolute right-0 z-10 mt-1 hidden w-48 overflow-hidden rounded-lg border border-border bg-surface shadow-md md:block"
           >
             {children}
@@ -64,7 +72,7 @@ export function DetailOverflowMenu({ children }: { children: React.ReactNode }) 
           <Dialog
             open={open}
             onClose={() => setOpen(false)}
-            label="More actions"
+            label={label}
             backdropClassName="fixed inset-0 z-40 flex items-end bg-black/40 md:hidden"
             panelClassName="w-full rounded-t-2xl border-t border-border bg-surface p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]"
           >

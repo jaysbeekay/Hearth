@@ -166,12 +166,12 @@ export default async function PropertyDetailPage({
       )}
 
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-medium">Maintenance records</h2>
           {canWrite && (
             <Link
               href={`/home/${property.id}/items/new`}
-              className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+              className="flex items-center gap-2 whitespace-nowrap rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
             >
               <Plus size={16} />
               Add maintenance record
@@ -267,12 +267,12 @@ export default async function PropertyDetailPage({
       </div>
 
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-medium">Contracts and warranties linked to this property</h2>
           {canWrite && (
             <Link
               href={`/contracts/new?propertyId=${property.id}`}
-              className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+              className="flex items-center gap-2 whitespace-nowrap rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
             >
               <Plus size={16} />
               Add contract

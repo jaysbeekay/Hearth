@@ -33,7 +33,7 @@ const BASE_NAV_ITEMS: NavItem[] = [
 ];
 
 // Always shown below the module and tool groups, in every nav (Sidebar,
-// MobileNavDrawer, BottomNav's More sheet).
+// BottomNav's More sheet).
 export const FOOTER_NAV = {
   settings: { href: "/settings", label: "Settings" },
   help: { href: "/help", label: "Help" },
