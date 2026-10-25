@@ -24,6 +24,11 @@ import type { PropertyValuationInput } from "@/lib/validation/wealth";
 // deleted for good straight away, as they always have been. A Tenancy has
 // no `updatedAt` column, so its updates take no stale-edit check.
 //
+// A record in Trash is read-only until it's restored: a create or update
+// under a Property in Trash, or to a Maintenance record in Trash, is
+// refused as not found, as the pages already 404 them. Delete, restore and
+// permanent delete still work on it.
+//
 // No Property-module record has Reminders yet, so nothing here touches the
 // sent-Reminder log (Tenancy Reminders are #388).
 
@@ -37,6 +42,20 @@ async function findProperty(id: string) {
   const property = await prisma.property.findUnique({ where: { id } });
   if (!property) throw new RecordNotFoundError("Property");
   return property;
+}
+
+// For writes to a Property or under it: one in Trash counts as not found.
+async function findLiveProperty(id: string) {
+  const property = await findProperty(id);
+  if (property.deletedAt) throw new RecordNotFoundError("Property");
+  return property;
+}
+
+// For updates to a record under a Property: refused, as `what` not found,
+// while that Property is in Trash.
+async function assertPropertyLive(propertyId: string, what: string) {
+  const property = await prisma.property.findUnique({ where: { id: propertyId }, select: { deletedAt: true } });
+  if (!property || property.deletedAt) throw new RecordNotFoundError(what);
 }
 
 export async function createPropertyCommand(input: PropertyInput, actorId: string) {
@@ -56,7 +75,7 @@ export async function updatePropertyCommand(
   options: UpdateOptions = {},
 ) {
   await assertModuleEnabled("HOME");
-  await findProperty(id);
+  await findLiveProperty(id);
   await updateUnlessStale(options.baseUpdatedAt, (guard) =>
     prisma.property.updateMany({ where: { id, ...guard }, data: { ...patch, updatedById: actorId } }),
   );
@@ -68,7 +87,7 @@ export async function updatePropertyCommand(
 // Turns rental tracking (the Rental tab) on or off for a Property.
 export async function setPropertyRentedCommand(id: string, isRented: boolean, actorId: string) {
   await assertModuleEnabled("HOME");
-  await findProperty(id);
+  await findLiveProperty(id);
   await prisma.property.update({ where: { id }, data: { isRented, updatedById: actorId } });
   revalidatePath(`/home/${id}`);
   revalidatePath(`/home/${id}/rental`);
@@ -144,7 +163,7 @@ async function findMaintenanceRecord(id: string, scope: PropertyScope = {}) {
 
 export async function createMaintenanceRecordCommand(propertyId: string, input: HomeItemInput) {
   await assertModuleEnabled("HOME");
-  await findProperty(propertyId);
+  await findLiveProperty(propertyId);
   const item = await prisma.homeItem.create({ data: { ...input, propertyId } });
   revalidatePath(`/home/${propertyId}`);
   return item;
@@ -158,6 +177,8 @@ export async function updateMaintenanceRecordCommand(
 ) {
   await assertModuleEnabled("HOME");
   const existing = await findMaintenanceRecord(id, options);
+  if (existing.deletedAt) throw new RecordNotFoundError("Maintenance record");
+  await assertPropertyLive(existing.propertyId, "Maintenance record");
   await updateUnlessStale(options.baseUpdatedAt, (guard) =>
     prisma.homeItem.updateMany({ where: { id, ...guard }, data: patch }),
   );
@@ -199,12 +220,33 @@ export async function purgeMaintenanceRecord(id: string) {
 
 // ── Tenancy (RentalAgreement) ───────────────────────────────────────────────
 
-// Linking a Tenancy to a Contract that isn't in the Rental category.
-export class TenancyContractCategoryError extends Error {
-  constructor() {
-    super("Only Rental-category contracts can be linked.");
-    this.name = "TenancyContractCategoryError";
+// Why a Contract can't be linked to a Tenancy. Its own error, not a
+// RecordNotFoundError, so a caller can tell "that Contract" apart from
+// "this Tenancy" not being found.
+export type TenancyContractProblem = "not-found" | "wrong-category" | "already-linked";
+
+function tenancyContractMessage(problem: TenancyContractProblem) {
+  switch (problem) {
+    case "not-found":
+      return "Contract not found.";
+    case "wrong-category":
+      return "Only Rental-category contracts can be linked.";
+    case "already-linked":
+      return "That contract is already linked to another tenancy.";
   }
+}
+
+export class TenancyContractLinkError extends Error {
+  constructor(public readonly problem: TenancyContractProblem) {
+    super(tenancyContractMessage(problem));
+    this.name = "TenancyContractLinkError";
+  }
+}
+
+// RentalAgreement.contractId is unique, so a link racing another to the
+// same Contract fails its write with P2002 instead of the check before it.
+function isUniqueViolation(error: unknown) {
+  return typeof error === "object" && error !== null && (error as { code?: unknown }).code === "P2002";
 }
 
 function revalidateRental(propertyId: string) {
@@ -219,12 +261,12 @@ async function findTenancy(id: string, scope: PropertyScope = {}) {
 }
 
 // Adding a Tenancy also turns rental tracking on for its Property.
-export async function createTenancyCommand(propertyId: string, input: RentalAgreementInput) {
+export async function createTenancyCommand(propertyId: string, input: RentalAgreementInput, actorId: string) {
   await assertModuleEnabled("HOME");
-  await findProperty(propertyId);
+  await findLiveProperty(propertyId);
   const [agreement] = await prisma.$transaction([
     prisma.rentalAgreement.create({ data: { ...input, propertyId } }),
-    prisma.property.update({ where: { id: propertyId }, data: { isRented: true } }),
+    prisma.property.update({ where: { id: propertyId }, data: { isRented: true, updatedById: actorId } }),
   ]);
   revalidateRental(propertyId);
   return agreement;
@@ -239,12 +281,15 @@ export async function updateTenancyCommand(
 ) {
   await assertModuleEnabled("HOME");
   const existing = await findTenancy(id, scope);
+  await assertPropertyLive(existing.propertyId, "Tenancy");
   const agreement = await prisma.rentalAgreement.update({ where: { id }, data: patch });
   revalidateRental(existing.propertyId);
   return agreement;
 }
 
-// Links the Tenancy to a Rental-category Contract, or unlinks it (null).
+// Links the Tenancy to a Rental-category Contract, or unlinks it (null). A
+// Contract in Trash counts as not found, and one already linked to another
+// Tenancy is refused: a Contract links to one Tenancy at most.
 export async function linkTenancyContractCommand(
   id: string,
   contractId: string | null,
@@ -252,12 +297,26 @@ export async function linkTenancyContractCommand(
 ) {
   await assertModuleEnabled("HOME");
   const existing = await findTenancy(id, scope);
+  await assertPropertyLive(existing.propertyId, "Tenancy");
   if (contractId !== null) {
-    const contract = await prisma.contract.findUnique({ where: { id: contractId }, select: { category: true } });
-    if (!contract) throw new RecordNotFoundError("Contract");
-    if (contract.category !== "RENTAL") throw new TenancyContractCategoryError();
+    const contract = await prisma.contract.findUnique({
+      where: { id: contractId },
+      select: { category: true, deletedAt: true },
+    });
+    if (!contract || contract.deletedAt) throw new TenancyContractLinkError("not-found");
+    if (contract.category !== "RENTAL") throw new TenancyContractLinkError("wrong-category");
+    const other = await prisma.rentalAgreement.findFirst({
+      where: { contractId, id: { not: id } },
+      select: { id: true },
+    });
+    if (other) throw new TenancyContractLinkError("already-linked");
   }
-  await prisma.rentalAgreement.update({ where: { id }, data: { contractId } });
+  try {
+    await prisma.rentalAgreement.update({ where: { id }, data: { contractId } });
+  } catch (error) {
+    if (isUniqueViolation(error)) throw new TenancyContractLinkError("already-linked");
+    throw error;
+  }
   revalidatePath(`/home/${existing.propertyId}/rental`);
   revalidatePath("/contracts");
   if (existing.contractId) revalidatePath(`/contracts/${existing.contractId}`);
@@ -284,7 +343,7 @@ async function findRentalStatement(id: string, scope: PropertyScope = {}) {
 
 export async function createRentalStatementCommand(propertyId: string, input: RentalStatementInput) {
   await assertModuleEnabled("HOME");
-  await findProperty(propertyId);
+  await findLiveProperty(propertyId);
   const statement = await prisma.rentalStatement.create({ data: { ...input, propertyId } });
   revalidatePath(`/home/${propertyId}/rental`);
   return statement;
@@ -298,6 +357,7 @@ export async function updateRentalStatementCommand(
 ) {
   await assertModuleEnabled("HOME");
   const existing = await findRentalStatement(id, options);
+  await assertPropertyLive(existing.propertyId, "Rental statement");
   await updateUnlessStale(options.baseUpdatedAt, (guard) =>
     prisma.rentalStatement.updateMany({ where: { id, ...guard }, data: patch }),
   );
@@ -317,12 +377,14 @@ export async function permanentlyDeleteRentalStatementCommand(id: string, scope:
 
 // ── Property valuation ──────────────────────────────────────────────────────
 // Create and delete only: a valuation is never edited, a new one is added.
+// Valuations feed net worth, so /wealth is revalidated too.
 
 export async function createPropertyValuationCommand(propertyId: string, input: PropertyValuationInput) {
   await assertModuleEnabled("HOME");
-  await findProperty(propertyId);
+  await findLiveProperty(propertyId);
   const valuation = await prisma.propertyValuation.create({ data: { ...input, propertyId } });
   revalidatePath(`/home/${propertyId}`);
+  revalidatePath("/wealth");
   return valuation;
 }
 
@@ -332,4 +394,5 @@ export async function deletePropertyValuationCommand(id: string, scope: Property
   if (!valuation || !inScope(valuation, scope)) throw new RecordNotFoundError("Valuation");
   await prisma.propertyValuation.delete({ where: { id } });
   revalidatePath(`/home/${valuation.propertyId}`);
+  revalidatePath("/wealth");
 }

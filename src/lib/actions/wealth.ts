@@ -475,7 +475,7 @@ function valuationCommandError(error: unknown, notFound: string): ActionState {
   throw error;
 }
 
-async function requireHomeEnabled() {
+async function requireWriter() {
   const session = await auth();
   if (!session?.user) throw new Error("Not signed in");
   if (session.user.role === "READONLY") throw new Error("Your account has read-only access.");
@@ -487,7 +487,7 @@ export async function createPropertyValuation(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  await requireHomeEnabled();
+  await requireWriter();
   const parsed = propertyValuationSchema.safeParse(formToPropertyValuationInput(formData));
   if (!parsed.success) {
     return {
@@ -508,7 +508,7 @@ export async function deletePropertyValuation(
   propertyId: string,
   valuationId: string,
 ): Promise<ActionState> {
-  await requireHomeEnabled();
+  await requireWriter();
   try {
     await deletePropertyValuationCommand(valuationId, { propertyId });
   } catch (error) {

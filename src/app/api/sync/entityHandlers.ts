@@ -320,7 +320,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     input: formToRentalAgreementInput,
     requiresModule: "HOME",
     create: async (data, ctx) => {
-      const agreement = await createTenancyCommand(requireParentId(ctx), data);
+      const agreement = await createTenancyCommand(requireParentId(ctx), data, ctx.userId);
       return { id: agreement.id };
     },
     update: async (id, data, ctx) => {

@@ -24,7 +24,7 @@ import {
   permanentlyDeleteRentalStatementCommand,
   createPropertyValuationCommand,
   deletePropertyValuationCommand,
-  TenancyContractCategoryError,
+  TenancyContractLinkError,
 } from "@/lib/commands/home";
 import { RecordNotFoundError, StaleEditError } from "@/lib/commands/shared";
 import { ModuleDisabledError } from "@/lib/modules/enablement";
@@ -35,6 +35,7 @@ import {
   rentalAgreementSchema,
   rentalStatementSchema,
 } from "@/lib/validation/home";
+import { purgeExpiredTrash, TRASH_RETENTION_DAYS } from "@/lib/trash";
 import { revalidatePath } from "next/cache";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
@@ -63,12 +64,20 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 5));
 // Puts a file where storage.ts keeps a Maintenance record's (or Rental
 // statement's) Documents, plus the row pointing at it, so permanent delete
 // has something real to clean up.
-async function attachHomeItemFile(homeItemId: string) {
+// `deletedAt` puts the Document itself in Trash.
+async function attachHomeItemFile(homeItemId: string, deletedAt: Date | null = null) {
   const dir = path.join(db.uploadsDir, "home-items", homeItemId);
   await mkdir(dir, { recursive: true });
   await writeFile(path.join(dir, "stored.pdf"), "%PDF-1.4 test");
   await db.prisma.homeItemDocument.create({
-    data: { homeItemId, filename: "invoice.pdf", storedName: "stored.pdf", mimeType: "application/pdf", size: 13 },
+    data: {
+      homeItemId,
+      filename: "invoice.pdf",
+      storedName: "stored.pdf",
+      mimeType: "application/pdf",
+      size: 13,
+      deletedAt,
+    },
   });
   return dir;
 }
@@ -150,7 +159,7 @@ describe("Property commands", () => {
     const property = await createPropertyCommand(propertyInput(), actorId);
     const item = await createMaintenanceRecordCommand(property.id, itemInput());
     const statement = await createRentalStatementCommand(property.id, statementInput());
-    await createTenancyCommand(property.id, tenancyInput());
+    await createTenancyCommand(property.id, tenancyInput(), actorId);
     await createPropertyValuationCommand(property.id, { valuedAt: new Date(), value: 900_000, currency: "AUD" });
     const itemDir = await attachHomeItemFile(item.id);
     const statementDir = await attachStatementFile(statement.id);
@@ -168,11 +177,79 @@ describe("Property commands", () => {
     expect(await exists(statementDir)).toBe(false);
   });
 
-  it("purges for Trash retention even with the module off", async () => {
+  it("removes the file of a Document already in Trash on permanent delete", async () => {
     const property = await createPropertyCommand(propertyInput(), actorId);
+    const item = await createMaintenanceRecordCommand(property.id, itemInput());
+    const dir = await attachHomeItemFile(item.id, new Date());
+
+    await permanentlyDeletePropertyCommand(property.id);
+
+    expect(await db.prisma.homeItemDocument.count()).toBe(0);
+    expect(await exists(path.join(dir, "stored.pdf"))).toBe(false);
+  });
+
+  it("purges for Trash retention even with the module off, files included", async () => {
+    const property = await createPropertyCommand(propertyInput(), actorId);
+    const item = await createMaintenanceRecordCommand(property.id, itemInput());
+    const statement = await createRentalStatementCommand(property.id, statementInput());
+    const itemDir = await attachHomeItemFile(item.id);
+    const statementDir = await attachStatementFile(statement.id);
     await setModuleEnabled("HOME", false);
+
     await purgeProperty(property.id);
+
     expect(await db.prisma.property.findUnique({ where: { id: property.id } })).toBeNull();
+    expect(await exists(itemDir)).toBe(false);
+    expect(await exists(statementDir)).toBe(false);
+  });
+
+  it("Trash retention purges an expired Property and its files, and keeps a recent one", async () => {
+    const expired = await createPropertyCommand(propertyInput("Expired"), actorId);
+    const recent = await createPropertyCommand(propertyInput("Recent"), actorId);
+    const item = await createMaintenanceRecordCommand(expired.id, itemInput());
+    const dir = await attachHomeItemFile(item.id);
+    const longAgo = new Date(Date.now() - (TRASH_RETENTION_DAYS + 1) * 24 * 60 * 60 * 1000);
+    await db.prisma.property.update({ where: { id: expired.id }, data: { deletedAt: longAgo } });
+    await db.prisma.property.update({ where: { id: recent.id }, data: { deletedAt: new Date() } });
+
+    await purgeExpiredTrash();
+
+    expect(await db.prisma.property.findUnique({ where: { id: expired.id } })).toBeNull();
+    expect(await db.prisma.homeItem.count()).toBe(0);
+    expect(await exists(dir)).toBe(false);
+    expect(await db.prisma.property.findUnique({ where: { id: recent.id } })).not.toBeNull();
+  });
+
+  it("refuses writes under a Property in Trash until it's restored", async () => {
+    const property = await createPropertyCommand(propertyInput(), actorId);
+    const item = await createMaintenanceRecordCommand(property.id, itemInput());
+    const tenancy = await createTenancyCommand(property.id, tenancyInput(), actorId);
+    const statement = await createRentalStatementCommand(property.id, statementInput());
+    await deletePropertyCommand(property.id);
+
+    const writes = [
+      () => updatePropertyCommand(property.id, { label: "Renamed" }, actorId),
+      () => setPropertyRentedCommand(property.id, false, actorId),
+      () => createMaintenanceRecordCommand(property.id, itemInput("Offline")),
+      () => updateMaintenanceRecordCommand(item.id, { title: "Renamed" }),
+      () => createTenancyCommand(property.id, tenancyInput(), actorId),
+      () => updateTenancyCommand(tenancy.id, { weeklyRent: 1 }),
+      () => linkTenancyContractCommand(tenancy.id, null),
+      () => createRentalStatementCommand(property.id, statementInput()),
+      () => updateRentalStatementCommand(statement.id, { grossRent: 1 }),
+      () => createPropertyValuationCommand(property.id, { valuedAt: new Date(), value: 1, currency: "AUD" }),
+    ];
+    for (const write of writes) {
+      await expect(write()).rejects.toBeInstanceOf(RecordNotFoundError);
+    }
+    expect(await db.prisma.homeItem.count()).toBe(1);
+    expect(await db.prisma.rentalAgreement.count()).toBe(1);
+    expect(await db.prisma.rentalStatement.count()).toBe(1);
+    expect(await db.prisma.propertyValuation.count()).toBe(0);
+
+    await restorePropertyCommand(property.id);
+    await updateMaintenanceRecordCommand(item.id, { title: "Renamed" });
+    expect((await db.prisma.homeItem.findUniqueOrThrow({ where: { id: item.id } })).title).toBe("Renamed");
   });
 
   it("refuses a stale edit and accepts a current one", async () => {
@@ -196,7 +273,7 @@ describe("Property commands", () => {
     await expect(updatePropertyCommand("missing", { label: "x" }, actorId)).rejects.toBeInstanceOf(RecordNotFoundError);
     await expect(deletePropertyCommand("missing")).rejects.toBeInstanceOf(RecordNotFoundError);
     await expect(createMaintenanceRecordCommand("missing", itemInput())).rejects.toBeInstanceOf(RecordNotFoundError);
-    await expect(createTenancyCommand("missing", tenancyInput())).rejects.toBeInstanceOf(RecordNotFoundError);
+    await expect(createTenancyCommand("missing", tenancyInput(), actorId)).rejects.toBeInstanceOf(RecordNotFoundError);
     await expect(createRentalStatementCommand("missing", statementInput())).rejects.toBeInstanceOf(RecordNotFoundError);
   });
 });
@@ -265,6 +342,9 @@ describe("Maintenance record commands", () => {
     const item = await createMaintenanceRecordCommand(propertyId, itemInput());
     await deleteMaintenanceRecordCommand(item.id, { propertyId });
     expect((await db.prisma.homeItem.findUniqueOrThrow({ where: { id: item.id } })).deletedAt).toBeInstanceOf(Date);
+    await expect(updateMaintenanceRecordCommand(item.id, { title: "While in Trash" })).rejects.toBeInstanceOf(
+      RecordNotFoundError,
+    );
     await restoreMaintenanceRecordCommand(item.id);
     expect((await db.prisma.homeItem.findUniqueOrThrow({ where: { id: item.id } })).deletedAt).toBeNull();
   });
@@ -292,7 +372,7 @@ describe("Tenancy commands", () => {
   it("creates a Tenancy and turns rental tracking on", async () => {
     const tenancy = await createTenancyCommand(
       propertyId,
-      rentalAgreementSchema.parse({ tenantName: "Sam", weeklyRent: 600, bondAmount: 2400 }),
+      rentalAgreementSchema.parse({ tenantName: "Sam", weeklyRent: 600, bondAmount: 2400 }), actorId,
     );
     expect(await db.prisma.rentalAgreement.findUniqueOrThrow({ where: { id: tenancy.id } })).toMatchObject({
       propertyId,
@@ -306,7 +386,7 @@ describe("Tenancy commands", () => {
   it("applies a partial patch, clears blanked fields and enforces the Property scope", async () => {
     const tenancy = await createTenancyCommand(
       propertyId,
-      rentalAgreementSchema.parse({ tenantName: "Sam", weeklyRent: 600, notes: "Pets ok" }),
+      rentalAgreementSchema.parse({ tenantName: "Sam", weeklyRent: 600, notes: "Pets ok" }), actorId,
     );
     await updateTenancyCommand(tenancy.id, { weeklyRent: 650 }, { propertyId });
     expect(await db.prisma.rentalAgreement.findUniqueOrThrow({ where: { id: tenancy.id } })).toMatchObject({
@@ -333,7 +413,7 @@ describe("Tenancy commands", () => {
   });
 
   it("links only a Rental-category Contract, and unlinks", async () => {
-    const tenancy = await createTenancyCommand(propertyId, tenancyInput());
+    const tenancy = await createTenancyCommand(propertyId, tenancyInput(), actorId);
     const lease = await db.prisma.contract.create({
       data: { title: "Head lease", category: "RENTAL", provider: "Agent", createdById: actorId },
     });
@@ -341,8 +421,12 @@ describe("Tenancy commands", () => {
       data: { title: "Mobile", category: "OTHER", provider: "Telco", createdById: actorId },
     });
 
-    await expect(linkTenancyContractCommand(tenancy.id, phone.id)).rejects.toBeInstanceOf(TenancyContractCategoryError);
-    await expect(linkTenancyContractCommand(tenancy.id, "missing")).rejects.toBeInstanceOf(RecordNotFoundError);
+    await expect(linkTenancyContractCommand(tenancy.id, phone.id)).rejects.toMatchObject({
+      name: "TenancyContractLinkError",
+      problem: "wrong-category",
+    });
+    await expect(linkTenancyContractCommand(tenancy.id, "missing")).rejects.toMatchObject({ problem: "not-found" });
+    await expect(linkTenancyContractCommand("missing", lease.id)).rejects.toBeInstanceOf(RecordNotFoundError);
 
     await linkTenancyContractCommand(tenancy.id, lease.id, { propertyId });
     expect((await db.prisma.rentalAgreement.findUniqueOrThrow({ where: { id: tenancy.id } })).contractId).toBe(lease.id);
@@ -352,8 +436,39 @@ describe("Tenancy commands", () => {
     expect((await db.prisma.rentalAgreement.findUniqueOrThrow({ where: { id: tenancy.id } })).contractId).toBeNull();
   });
 
+  it("won't link a Contract already linked to another Tenancy, or one in Trash", async () => {
+    const first = await createTenancyCommand(propertyId, tenancyInput(), actorId);
+    const second = await createTenancyCommand(propertyId, tenancyInput(700), actorId);
+    const lease = await db.prisma.contract.create({
+      data: { title: "Head lease", category: "RENTAL", provider: "Agent", createdById: actorId },
+    });
+    const trashed = await db.prisma.contract.create({
+      data: { title: "Old lease", category: "RENTAL", provider: "Agent", createdById: actorId, deletedAt: new Date() },
+    });
+    await linkTenancyContractCommand(first.id, lease.id);
+
+    const taken = linkTenancyContractCommand(second.id, lease.id);
+    await expect(taken).rejects.toBeInstanceOf(TenancyContractLinkError);
+    await expect(taken).rejects.toMatchObject({
+      problem: "already-linked",
+      message: "That contract is already linked to another tenancy.",
+    });
+    await expect(linkTenancyContractCommand(second.id, trashed.id)).rejects.toMatchObject({ problem: "not-found" });
+    expect((await db.prisma.rentalAgreement.findUniqueOrThrow({ where: { id: second.id } })).contractId).toBeNull();
+
+    // Re-linking the same Tenancy to its own Contract isn't a conflict.
+    await linkTenancyContractCommand(first.id, lease.id);
+    expect((await db.prisma.rentalAgreement.findUniqueOrThrow({ where: { id: first.id } })).contractId).toBe(lease.id);
+  });
+
+  it("records who turned rental tracking on when a Tenancy is added", async () => {
+    const editor = await createTestUser();
+    await createTenancyCommand(propertyId, tenancyInput(), editor.id);
+    expect((await db.prisma.property.findUniqueOrThrow({ where: { id: propertyId } })).updatedById).toBe(editor.id);
+  });
+
   it("deletes a Tenancy for good, leaving its linked Contract", async () => {
-    const tenancy = await createTenancyCommand(propertyId, tenancyInput());
+    const tenancy = await createTenancyCommand(propertyId, tenancyInput(), actorId);
     const lease = await db.prisma.contract.create({
       data: { title: "Head lease", category: "RENTAL", provider: "Agent", createdById: actorId },
     });
@@ -473,7 +588,7 @@ describe("Property module gate", () => {
   it("rejects every write when the Property module is disabled", async () => {
     const property = await createPropertyCommand(propertyInput(), actorId);
     const item = await createMaintenanceRecordCommand(property.id, itemInput());
-    const tenancy = await createTenancyCommand(property.id, tenancyInput());
+    const tenancy = await createTenancyCommand(property.id, tenancyInput(), actorId);
     const statement = await createRentalStatementCommand(property.id, statementInput());
     const valuation = await createPropertyValuationCommand(property.id, { valuedAt: new Date(), value: 1, currency: "AUD" });
     await setModuleEnabled("HOME", false);
@@ -490,7 +605,7 @@ describe("Property module gate", () => {
       () => deleteMaintenanceRecordCommand(item.id),
       () => restoreMaintenanceRecordCommand(item.id),
       () => permanentlyDeleteMaintenanceRecordCommand(item.id),
-      () => createTenancyCommand(property.id, tenancyInput()),
+      () => createTenancyCommand(property.id, tenancyInput(), actorId),
       () => updateTenancyCommand(tenancy.id, { weeklyRent: 1 }),
       () => linkTenancyContractCommand(tenancy.id, null),
       () => permanentlyDeleteTenancyCommand(tenancy.id),

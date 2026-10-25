@@ -27,7 +27,7 @@ import {
   createRentalStatementCommand,
   updateRentalStatementCommand,
   permanentlyDeleteRentalStatementCommand,
-  TenancyContractCategoryError,
+  TenancyContractLinkError,
 } from "@/lib/commands/home";
 import { RecordNotFoundError, StaleEditError } from "@/lib/commands/shared";
 import type { ActionState } from "@/lib/actions/auth";
@@ -100,7 +100,7 @@ function commandError(error: unknown, notFound: string): ActionState {
   if (
     error instanceof StaleEditError ||
     error instanceof ModuleDisabledError ||
-    error instanceof TenancyContractCategoryError
+    error instanceof TenancyContractLinkError
   ) {
     return { error: error.message };
   }
@@ -126,13 +126,10 @@ export async function createProperty(
     };
   }
 
-  let propertyId: string;
-  try {
-    propertyId = (await createPropertyCommand(parsed.data, user.id)).id;
-  } catch (error) {
-    return commandError(error, "Property not found.");
-  }
-  redirect(`/home/${propertyId}`);
+  // requireUser() has already checked the module, and a create has no
+  // record to be missing, so there's no command error to map here.
+  const property = await createPropertyCommand(parsed.data, user.id);
+  redirect(`/home/${property.id}`);
 }
 
 export async function updateProperty(
@@ -290,7 +287,7 @@ export async function createRentalAgreement(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  await requireUser();
+  const user = await requireUser();
 
   const parsed = rentalAgreementSchema.safeParse(formToRentalAgreementInput(formData));
   if (!parsed.success) {
@@ -301,7 +298,7 @@ export async function createRentalAgreement(
   }
 
   try {
-    await createTenancyCommand(propertyId, parsed.data);
+    await createTenancyCommand(propertyId, parsed.data, user.id);
   } catch (error) {
     return commandError(error, "Property not found.");
   }
@@ -347,7 +344,10 @@ export async function deleteRentalAgreement(
   return { success: "Agreement removed." };
 }
 
-async function setRentalAgreementContract(
+// Links (or, with a blank contractId, unlinks) a Tenancy's Contract and says
+// how it went. The form posts to linkRentalAgreementContract below, which
+// needs a void return.
+export async function setRentalAgreementContract(
   propertyId: string,
   agreementId: string,
   formData: FormData,
@@ -360,7 +360,8 @@ async function setRentalAgreementContract(
   try {
     await linkTenancyContractCommand(agreementId, newContractId, { propertyId });
   } catch (error) {
-    if (error instanceof RecordNotFoundError) return { error: `${error.message}.` };
+    // A missing Contract is a TenancyContractLinkError with its own message;
+    // a RecordNotFoundError here is the Tenancy itself.
     return commandError(error, "Agreement not found.");
   }
   return { success: newContractId ? "Contract linked." : "Contract unlinked." };
