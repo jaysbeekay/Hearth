@@ -51,6 +51,13 @@ if [ "$(id -u)" = "0" ]; then
     echo "[entrypoint] adopting $DB_FILE for the $APP_USER user (uid $(id -u "$APP_USER"))"
     chown "$APP_USER:$APP_USER" "$DB_FILE"
   fi
+  # Under SQLITE_JOURNAL_MODE=WAL the database also has -wal/-shm files
+  # beside it, which need the same owner or the app can't open it.
+  for SIDE_FILE in "$DB_FILE-wal" "$DB_FILE-shm"; do
+    if [ -e "$SIDE_FILE" ] && [ "$(stat -c %u "$SIDE_FILE")" != "$(id -u "$APP_USER")" ]; then
+      chown "$APP_USER:$APP_USER" "$SIDE_FILE"
+    fi
+  done
 
   # Re-exec this same script as the app user; the block below then runs.
   exec su-exec "$APP_USER" "$0" "$@"

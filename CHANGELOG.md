@@ -345,6 +345,28 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **Adding a Holding no longer hangs the app (#432).** Its price-history
+  backfill wrote one row at a time from four parallel workers, and the
+  database connection serialises every query, so other requests (session
+  lookups included) timed out until it finished and the job processor
+  logged "scheduled job processing failed" every 20s. History is now
+  written in batches of 250 by a single writer that steps aside between
+  batches, and fetched after the Holding page has been sent rather than
+  while it renders, with a 15 s limit per Yahoo request. It reaches back up
+  to 30 years, and fills in older prices when a Holding or Trade dates from
+  before the history already stored; the chart says "Chart shows prices
+  from …" when it starts after the first Trade. A job that hangs (a stalled
+  S3 or SFTP upload) is now given up on before its lease ends and retried,
+  so it no longer stops reminders, backups and other jobs; job-processor
+  ticks no longer pile up behind a slow one; and a job that loses its lease
+  on its last attempt is marked failed instead of blocking its type.
+- **SQLite settings (#432).** One database client per process, with a 1 s
+  busy timeout on every connection. The new `SQLITE_JOURNAL_MODE` setting
+  is `DELETE` by default and can be set to `WAL` for a database on a local
+  disk; don't use WAL on a NAS share or a Windows folder under WSL2. Under
+  WAL each backup also checkpoints the WAL file, and the container
+  entrypoint fixes the owner of `app.db-wal`/`app.db-shm`. README's backup
+  and restore notes now cover copying the data directory safely.
 - Linking a Tenancy to a Contract that another Tenancy already uses now
   says so ("That contract is already linked to another tenancy.") instead
   of failing with a server error, and a Contract in Trash can't be linked.

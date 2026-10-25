@@ -192,7 +192,12 @@ This pulls the prebuilt image from
 Prisma migrations automatically on container start, and serves the app on
 port 3000. The SQLite database (`data/app.db`) and uploaded documents
 (`data/uploads/`) live in `./data` on the host, mounted into the container —
-back up that directory to back up everything.
+back up that directory to back up everything. Copy it with the app stopped
+(`docker compose stop`): a copy of `app.db` taken while the app is writing
+can be inconsistent. For a copy while it runs, use the built-in database
+backups (below) or `sqlite3 data/app.db ".backup backup.db"`. With
+`SQLITE_JOURNAL_MODE=WAL`, a stopped-app copy must include `app.db-wal`
+and `app.db-shm` alongside `app.db` if they exist.
 
 The app itself runs as an unprivileged user (uid 1000), not root. The
 entrypoint briefly starts as root only to take ownership of `./data` — images
@@ -598,7 +603,12 @@ that same Settings page.
 To restore: decrypt the downloaded file with AES-256-GCM using
 `ENCRYPTION_KEY` (the first 12 bytes are the IV, the next 16 are the auth
 tag, the rest is the encrypted SQLite database), then replace `data/app.db`
-with the decrypted file while the app is stopped.
+with the decrypted file while the app is stopped. The decrypted file is a
+complete database on its own, so if `data/app.db-wal` or `data/app.db-shm`
+exist (only under `SQLITE_JOURNAL_MODE=WAL`), delete them too: they belong
+to the database being replaced, and SQLite would replay a leftover WAL onto
+the restored file. (Restoring a whole-directory copy is different: put back
+`app.db` and its `-wal`/`-shm` files together, exactly as copied.)
 
 ## Webhooks
 
@@ -675,6 +685,7 @@ for the full list with defaults. Notable ones:
 | `AUTH_SECRET` | Required. Signs session JWTs. Generate with `openssl rand -base64 32`. |
 | `APP_URL` | The public URL of the app (e.g. `https://hearth.example.com`). Required for passkeys — its hostname becomes the WebAuthn Relying Party ID. Also used in webhook `url` fields and reminder links. |
 | `DATABASE_URL` | SQLite file path, e.g. `file:./data/app.db`. |
+| `SQLITE_JOURNAL_MODE` | Optional. `DELETE` (default) or `WAL`. WAL lets pages keep loading while a large write commits. Only turn it on when `./data` is on a local disk: on a NAS share (NFS/SMB) or a Windows folder under WSL2 (`/mnt/c`) it can corrupt the database or stop the app starting. Under WAL the database also keeps `app.db-wal` and `app.db-shm` files; see the backup notes above. Setting `DELETE` again switches an existing database back on the next start. |
 | `SMTP_HOST` / `SMTP_USER` | Set both to enable email reminders. |
 | `NTFY_TOPIC` | Set to enable push reminders via ntfy. |
 | `REMINDER_CRON_SCHEDULE` | When the built-in scheduler checks for expiring contracts (cron syntax, default daily at 08:00). |

@@ -64,7 +64,7 @@ export async function register() {
   };
 
   const cron = await import("node-cron");
-  const { enqueueJobUnlessPending, runPendingJobs } = await import("@/lib/jobs/runner");
+  const { enqueueJobUnlessPending, createJobTick } = await import("@/lib/jobs/runner");
   const { cronDue } = await import("@/lib/jobs/cronDue");
 
   if (!globalForCron.__jobTickerStarted) {
@@ -115,10 +115,13 @@ export async function register() {
     // it on its own — a household with no external cron hitting that
     // endpoint would have queued jobs (enqueueJobUnlessPending above,
     // or the existing price-refresh/OCR queuing) sit PENDING forever.
+    //
+    // #432 — createJobTick skips a tick while the previous one is still
+    // running (for up to the job lease), so ticks don't pile up behind a
+    // slow database, and logs a failed run.
+    const tick = createJobTick();
     cron.schedule("*/20 * * * * *", () => {
-      runPendingJobs().catch((error) => {
-        console.error("[jobs] scheduled job processing failed:", error);
-      });
+      void tick();
     });
 
     console.log("[jobs] job processor started (checks every 20s)");
