@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
-import { ENTITY_SYNC_CONFIGS, normalizeSyncOperation } from "@/app/api/sync/entityHandlers";
+import { ENTITY_SYNC_CONFIGS, normalizeSyncOperation, parseSyncFormValues } from "@/app/api/sync/entityHandlers";
 import {
   assertRequestWithinUploadBudget,
   UploadRejectedError,
@@ -203,17 +203,15 @@ async function processOperation(
   }
 
   if (!config.schema) throw new Error(`${op.entity} doesn't support this offline`);
-  const parsed = config.schema.safeParse(op.formValues ?? {});
-  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid data");
 
   let recordId: string;
   if (op.operation === "create") {
     if (!config.create) throw new Error(`${op.entity} can't be created offline`);
-    recordId = (await config.create(parsed.data, ctx)).id;
+    recordId = (await config.create(parseSyncFormValues(config, "create", op.formValues), ctx)).id;
   } else if (op.operation === "update") {
     if (!op.entityId) throw new Error("Missing record to update");
     if (!config.update) throw new Error(`${op.entity} can't be edited offline`);
-    await config.update(op.entityId, parsed.data, ctx);
+    await config.update(op.entityId, parseSyncFormValues(config, "update", op.formValues), ctx);
     recordId = op.entityId;
   } else {
     throw new Error(`Unsupported operation: ${op.operation}`);

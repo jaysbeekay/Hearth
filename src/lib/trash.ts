@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
-import { clearNotificationLogs } from "@/lib/notifications/logs";
 import { purgeVehicle, purgeServiceRecord } from "@/lib/commands/vehicles";
+import { purgeContract } from "@/lib/commands/contracts";
+import { purgeProduct } from "@/lib/commands/products";
 import { purgeDocument, removeOwnerDocumentFiles } from "@/lib/commands/documents";
 import { DOCUMENT_KIND_MODULE, type OwnedDocumentKind } from "@/lib/documents/kinds";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
@@ -80,14 +81,10 @@ export async function purgeExpiredTrash(): Promise<void> {
     await purgeServiceRecord(i.id);
   }
   for (const c of contracts) {
-    await prisma.contract.delete({ where: { id: c.id } });
-    await clearNotificationLogs("CONTRACT", c.id);
-    await removeOwnerDocumentFiles("CONTRACT", c.id);
+    await purgeContract(c.id);
   }
   for (const p of products) {
-    await prisma.product.delete({ where: { id: p.id } });
-    await clearNotificationLogs("PRODUCT", p.id);
-    await removeOwnerDocumentFiles("PRODUCT", p.id);
+    await purgeProduct(p.id);
   }
   for (const v of vehicles) {
     await purgeVehicle(v.id);

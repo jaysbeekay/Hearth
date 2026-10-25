@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { productSchema } from "@/lib/validation/product";
+import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
 import { ProductDocumentKind } from "@/generated/prisma/enums";
 import { formDataToStringValues } from "@/lib/form-state";
 import { formToProductInput } from "@/lib/formMappers";
@@ -130,7 +131,7 @@ export async function updateProduct(
   try {
     await updateProductCommand(
       productId,
-      { ...parsed.data, ...extractionFieldsFromForm(formData) },
+      { ...fullFormUpdate(productSchema, parsed.data, formData), ...extractionFieldsFromForm(formData) },
       user.id,
     );
     await saveExtractionReviewFieldsFromForm("PRODUCT", productId, formData);

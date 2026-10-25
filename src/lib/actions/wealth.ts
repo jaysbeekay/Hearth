@@ -3,7 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
+import {
+  formToPortfolioInput,
+  formToHoldingInput,
+  formToTradeInput,
+  formToPropertyValuationInput,
+} from "@/lib/formMappers";
 import { prisma } from "@/lib/prisma";
+import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
 import {
   portfolioSchema,
   holdingSchema,
@@ -44,12 +51,7 @@ export async function createPortfolio(
   formData: FormData,
 ): Promise<ActionState> {
   const user = await requireUser();
-  const parsed = portfolioSchema.safeParse({
-    name: formData.get("name"),
-    description: formData.get("description"),
-    currency: formData.get("currency") || "AUD",
-    costMethod: formData.get("costMethod") || "FIFO",
-  });
+  const parsed = portfolioSchema.safeParse(formToPortfolioInput(formData));
   if (!parsed.success) {
     return {
       error: firstIssueMessage(parsed.error),
@@ -69,12 +71,7 @@ export async function updatePortfolio(
   formData: FormData,
 ): Promise<ActionState> {
   await requireUser();
-  const parsed = portfolioSchema.safeParse({
-    name: formData.get("name"),
-    description: formData.get("description"),
-    currency: formData.get("currency") || "AUD",
-    costMethod: formData.get("costMethod") || "FIFO",
-  });
+  const parsed = portfolioSchema.safeParse(formToPortfolioInput(formData));
   if (!parsed.success) {
     return {
       error: firstIssueMessage(parsed.error),
@@ -84,7 +81,7 @@ export async function updatePortfolio(
   const existing = await prisma.portfolio.findUnique({ where: { id: portfolioId } });
   if (!existing) return { error: "Portfolio not found." };
 
-  await prisma.portfolio.update({ where: { id: portfolioId }, data: parsed.data });
+  await prisma.portfolio.update({ where: { id: portfolioId }, data: fullFormUpdate(portfolioSchema, parsed.data, formData) });
   revalidatePath("/wealth");
   revalidatePath(`/wealth/portfolios/${portfolioId}`);
   redirect(`/wealth/portfolios/${portfolioId}`);
@@ -119,12 +116,7 @@ export async function createHolding(
   formData: FormData,
 ): Promise<ActionState> {
   await requireUser();
-  const parsed = holdingSchema.safeParse({
-    ticker: formData.get("ticker"),
-    name: formData.get("name"),
-    assetClass: formData.get("assetClass") || "SHARE",
-    exchange: formData.get("exchange"),
-  });
+  const parsed = holdingSchema.safeParse(formToHoldingInput(formData));
   if (!parsed.success) {
     return {
       error: firstIssueMessage(parsed.error),
@@ -154,12 +146,7 @@ export async function updateHolding(
   formData: FormData,
 ): Promise<ActionState> {
   await requireUser();
-  const parsed = holdingSchema.safeParse({
-    ticker: formData.get("ticker"),
-    name: formData.get("name"),
-    assetClass: formData.get("assetClass") || "SHARE",
-    exchange: formData.get("exchange"),
-  });
+  const parsed = holdingSchema.safeParse(formToHoldingInput(formData));
   if (!parsed.success) {
     return {
       error: firstIssueMessage(parsed.error),
@@ -170,7 +157,7 @@ export async function updateHolding(
   const holding = await prisma.holding.findUnique({ where: { id: holdingId } });
   if (!holding) return { error: "Holding not found." };
 
-  await prisma.holding.update({ where: { id: holdingId }, data: parsed.data });
+  await prisma.holding.update({ where: { id: holdingId }, data: fullFormUpdate(holdingSchema, parsed.data, formData) });
   revalidatePath(`/wealth/portfolios/${portfolioId}/holdings/${holdingId}`);
   redirect(`/wealth/portfolios/${portfolioId}/holdings/${holdingId}`);
 }
@@ -209,16 +196,7 @@ export async function createTrade(
   const holding = await requireHolding(holdingId);
   if (!holding) return { error: "Holding not found." };
 
-  const parsed = tradeSchema.safeParse({
-    type: formData.get("type"),
-    date: formData.get("date"),
-    units: formData.get("units"),
-    pricePerUnit: formData.get("pricePerUnit"),
-    fees: formData.get("fees"),
-    currency: formData.get("currency") || "AUD",
-    fxRate: formData.get("fxRate"),
-    notes: formData.get("notes"),
-  });
+  const parsed = tradeSchema.safeParse(formToTradeInput(formData));
   if (!parsed.success) {
     return {
       error: firstIssueMessage(parsed.error),
@@ -266,16 +244,7 @@ export async function updateTrade(
   const trade = await prisma.trade.findUnique({ where: { id: tradeId } });
   if (!trade || trade.holdingId !== holdingId) return { error: "Trade not found." };
 
-  const parsed = tradeSchema.safeParse({
-    type: formData.get("type"),
-    date: formData.get("date"),
-    units: formData.get("units"),
-    pricePerUnit: formData.get("pricePerUnit"),
-    fees: formData.get("fees"),
-    currency: formData.get("currency") || "AUD",
-    fxRate: formData.get("fxRate"),
-    notes: formData.get("notes"),
-  });
+  const parsed = tradeSchema.safeParse(formToTradeInput(formData));
   if (!parsed.success) {
     return {
       error: firstIssueMessage(parsed.error),
@@ -283,7 +252,7 @@ export async function updateTrade(
     };
   }
 
-  await prisma.trade.update({ where: { id: tradeId }, data: parsed.data });
+  await prisma.trade.update({ where: { id: tradeId }, data: fullFormUpdate(tradeSchema, parsed.data, formData) });
   revalidatePath(`/wealth/portfolios/${holding.portfolioId}/holdings/${holdingId}`);
   redirect(`/wealth/portfolios/${holding.portfolioId}/holdings/${holdingId}`);
 }
@@ -508,13 +477,7 @@ export async function createPropertyValuation(
   formData: FormData,
 ): Promise<ActionState> {
   await requireHomeEnabled();
-  const parsed = propertyValuationSchema.safeParse({
-    valuedAt: formData.get("valuedAt"),
-    value: formData.get("value"),
-    currency: formData.get("currency") || "AUD",
-    source: formData.get("source"),
-    notes: formData.get("notes"),
-  });
+  const parsed = propertyValuationSchema.safeParse(formToPropertyValuationInput(formData));
   if (!parsed.success) {
     return {
       error: firstIssueMessage(parsed.error),

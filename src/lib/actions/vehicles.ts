@@ -2,7 +2,9 @@
 
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
+import { formToVehicleInput, formToVehicleItemInput } from "@/lib/formMappers";
 import { vehicleSchema, vehicleItemSchema } from "@/lib/validation/vehicles";
+import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
 import { addDocumentCommand } from "@/lib/commands/documents";
 import { formDataToStringValues } from "@/lib/form-state";
 import { isModuleEnabled, ModuleDisabledError } from "@/lib/modules/enablement";
@@ -60,35 +62,6 @@ async function requireUser() {
   return session.user;
 }
 
-function formToVehicleInput(formData: FormData) {
-  return {
-    label: formData.get("label"),
-    make: formData.get("make"),
-    model: formData.get("model"),
-    year: formData.get("year"),
-    colour: formData.get("colour"),
-    licensePlate: formData.get("licensePlate"),
-    vin: formData.get("vin"),
-    regoExpiry: formData.get("regoExpiry"),
-    insuranceExpiry: formData.get("insuranceExpiry"),
-    nextServiceDue: formData.get("nextServiceDue"),
-    reminderDaysBefore: formData.get("reminderDaysBefore"),
-    notes: formData.get("notes"),
-  };
-}
-
-function formToVehicleItemInput(formData: FormData) {
-  return {
-    type: formData.get("type"),
-    title: formData.get("title"),
-    provider: formData.get("provider"),
-    date: formData.get("date"),
-    cost: formData.get("cost"),
-    currency: formData.get("currency") || "AUD",
-    notes: formData.get("notes"),
-  };
-}
-
 // Turns a command's not-found / stale-edit / module-disabled error into the
 // ActionState the form shows; anything else is unexpected and rethrown.
 function commandError(error: unknown, notFound: string): ActionState {
@@ -136,7 +109,7 @@ export async function updateVehicle(
   }
 
   try {
-    await updateVehicleCommand(vehicleId, parsed.data, user.id);
+    await updateVehicleCommand(vehicleId, fullFormUpdate(vehicleSchema, parsed.data, formData), user.id);
   } catch (error) {
     return commandError(error, "Vehicle not found.");
   }
@@ -229,7 +202,7 @@ export async function updateVehicleItem(
   }
 
   try {
-    await updateServiceRecordCommand(itemId, parsed.data, { vehicleId });
+    await updateServiceRecordCommand(itemId, fullFormUpdate(vehicleItemSchema, parsed.data, formData), { vehicleId });
   } catch (error) {
     return commandError(error, "Item not found.");
   }

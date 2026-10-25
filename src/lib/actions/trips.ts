@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
+import { formToTripInput, formToTripSegmentInput } from "@/lib/formMappers";
 import { prisma } from "@/lib/prisma";
+import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
 import { tripSchema, tripSegmentSchema } from "@/lib/validation/travel";
 import { addDocumentCommand, removeOwnerDocumentFiles } from "@/lib/commands/documents";
 import { formDataToStringValues } from "@/lib/form-state";
@@ -39,34 +41,6 @@ async function requireUser() {
   if (!(await isModuleEnabled("TRAVEL"))) throw new Error("Travel module is disabled");
   if (session.user.role === "READONLY") throw new Error("Your account has read-only access.");
   return session.user;
-}
-
-function formToTripInput(formData: FormData) {
-  return {
-    title: formData.get("title"),
-    destination: formData.get("destination"),
-    startDate: formData.get("startDate"),
-    endDate: formData.get("endDate"),
-    notes: formData.get("notes"),
-  };
-}
-
-function formToTripSegmentInput(formData: FormData) {
-  return {
-    type: formData.get("type"),
-    title: formData.get("title"),
-    provider: formData.get("provider"),
-    confirmationCode: formData.get("confirmationCode"),
-    startDate: formData.get("startDate"),
-    endDate: formData.get("endDate"),
-    location: formData.get("location"),
-    cost: formData.get("cost"),
-    currency: formData.get("currency") || "AUD",
-    notes: formData.get("notes"),
-    flightNumber: formData.get("flightNumber"),
-    departureIata: formData.get("departureIata"),
-    arrivalIata: formData.get("arrivalIata"),
-  };
 }
 
 export async function createTrip(
@@ -109,7 +83,7 @@ export async function updateTrip(
   const existing = await prisma.trip.findUnique({ where: { id: tripId } });
   if (!existing) return { error: "Trip not found." };
 
-  await prisma.trip.update({ where: { id: tripId }, data: { ...parsed.data, updatedById: user.id } });
+  await prisma.trip.update({ where: { id: tripId }, data: { ...fullFormUpdate(tripSchema, parsed.data, formData), updatedById: user.id } });
 
   revalidatePath("/travel");
   revalidatePath(`/travel/${tripId}`);
@@ -218,7 +192,7 @@ export async function updateTripSegment(
   const existing = await prisma.tripSegment.findUnique({ where: { id: segmentId } });
   if (!existing || existing.tripId !== tripId) return { error: "Segment not found." };
 
-  await prisma.tripSegment.update({ where: { id: segmentId }, data: parsed.data });
+  await prisma.tripSegment.update({ where: { id: segmentId }, data: fullFormUpdate(tripSegmentSchema, parsed.data, formData) });
 
   revalidatePath(`/travel/${tripId}`);
   redirect(`/travel/${tripId}`);

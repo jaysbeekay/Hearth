@@ -1,4 +1,4 @@
-import type { ZodTypeAny } from "zod";
+import type { ZodObject } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import type { ModuleKey } from "@/lib/modules/registry";
@@ -29,7 +29,25 @@ import {
   createServiceRecordCommand,
   updateServiceRecordCommand,
 } from "@/lib/commands/vehicles";
-import { assertNotStale as assertRecordNotStale } from "@/lib/commands/shared";
+import { updateUnlessStale } from "@/lib/commands/shared";
+import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
+import {
+  formToContractInput,
+  formToProductInput,
+  formToVehicleInput,
+  formToVehicleItemInput,
+  formToTripInput,
+  formToTripSegmentInput,
+  formToPropertyInput,
+  formToHomeItemInput,
+  formToRentalAgreementInput,
+  formToRentalStatementInput,
+  formToInventoryItemInput,
+  formToPortfolioInput,
+  formToHoldingInput,
+  formToTradeInput,
+  formToPropertyValuationInput,
+} from "@/lib/formMappers";
 import { ProductDocumentKind } from "@/generated/prisma/enums";
 import { MAX_UPLOAD_BYTES } from "@/lib/storage";
 import {
@@ -54,7 +72,12 @@ export interface EntitySyncConfig<T = any> {
   // Omitted for delete-only entities (the `document` entity below) — the
   // sync route never validates formValues for a "delete" op, so no schema
   // is needed there.
-  schema?: ZodTypeAny;
+  schema?: ZodObject;
+  // The same FormData -> schema-input mapper the online server action uses
+  // (src/lib/formMappers.ts), so a queued op gets the action's checkbox
+  // handling ("on" -> true, absent -> false) and its fallbacks (currency
+  // "AUD", assetClass "SHARE", ...) instead of parsing raw strings (#413).
+  input?: (formData: FormData) => unknown;
   requiresModule?: ModuleKey;
   // Omitted for delete-only entities — an offline "create" for one of those
   // is rejected as unsupported (there's no such flow: documents are only
@@ -86,30 +109,37 @@ function validateFile(file: File) {
   if (file.size > MAX_UPLOAD_BYTES) throw new Error("File is too large (15MB max).");
 }
 
-// Detects (doesn't merge) a conflicting edit: if the record's updatedAt has
-// moved on from what the client had loaded when it made this offline edit,
-// don't silently overwrite — surface it as a sync failure instead. Skipped
-// when the client didn't send a baseUpdatedAt (e.g. RentalAgreement, which
-// has no updatedAt column) or online writes made before this feature shipped.
-// Entities with a record command pass ctx.baseUpdatedAt to it instead, and
-// the command runs the same check (src/lib/commands/shared.ts).
-function assertNotStale(existing: { updatedAt: Date }, ctx: SyncContext) {
-  assertRecordNotStale(existing, ctx.baseUpdatedAt);
+function toFormData(values: Record<string, string>): FormData {
+  const formData = new FormData();
+  for (const [key, value] of Object.entries(values)) formData.append(key, value);
+  return formData;
+}
+
+// Validates an offline create/update's formValues against the entity's
+// schema. An update is the edit form's full submission, so every field it
+// sent blank becomes `null` and clears, as in the online action (#413).
+export function parseSyncFormValues(
+  config: EntitySyncConfig,
+  operation: "create" | "update",
+  formValues: Record<string, string> = {},
+) {
+  if (!config.schema) throw new Error("This record type doesn't support this offline");
+  const parsed = config.schema.safeParse(config.input ? config.input(toFormData(formValues)) : formValues);
+  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid data");
+  return operation === "update" ? fullFormUpdate(config.schema, parsed.data, formValues) : parsed.data;
 }
 
 export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
   // ── Contracts (always-on, household-wide) ─────────────────────────────────
   contract: defineEntity({
     schema: contractSchema,
+    input: formToContractInput,
     create: async (data, { userId }) => {
       const contract = await createContractCommand(data, userId);
       return { id: contract.id };
     },
     update: async (id, data, ctx) => {
-      const existing = await prisma.contract.findUnique({ where: { id } });
-      if (!existing) throw new Error("Contract not found");
-      assertNotStale(existing, ctx);
-      await updateContractCommand(id, data, ctx.userId);
+      await updateContractCommand(id, data, ctx.userId, { baseUpdatedAt: ctx.baseUpdatedAt });
     },
     // #287 — soft-delete, matching deleteContract in actions/contracts.ts:
     // moves to Trash instead of removing the row and files outright.
@@ -125,15 +155,13 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
   // ── Products (always-on, household-wide) ──────────────────────────────────
   product: defineEntity({
     schema: productSchema,
+    input: formToProductInput,
     create: async (data, { userId }) => {
       const product = await createProductCommand(data, userId);
       return { id: product.id };
     },
     update: async (id, data, ctx) => {
-      const existing = await prisma.product.findUnique({ where: { id } });
-      if (!existing) throw new Error("Product not found");
-      assertNotStale(existing, ctx);
-      await updateProductCommand(id, data, ctx.userId);
+      await updateProductCommand(id, data, ctx.userId, { baseUpdatedAt: ctx.baseUpdatedAt });
     },
     // #287 — soft-delete, matching deleteProduct in actions/products.ts.
     remove: async (id) => {
@@ -155,6 +183,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
   // ── Vehicles (household-shared — no ownership check, matches the live action) ─
   vehicle: defineEntity({
     schema: vehicleSchema,
+    input: formToVehicleInput,
     requiresModule: "VEHICLES",
     create: async (data, { userId }) => {
       const vehicle = await createVehicleCommand(data, userId);
@@ -171,6 +200,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
 
   vehicleItem: defineEntity({
     schema: vehicleItemSchema,
+    input: formToVehicleItemInput,
     requiresModule: "VEHICLES",
     create: async (data, ctx) => {
       const item = await createServiceRecordCommand(requireParentId(ctx), data);
@@ -191,6 +221,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
   // ── Travel (household-shared) ──────────────────────────────────────────────
   trip: defineEntity({
     schema: tripSchema,
+    input: formToTripInput,
     requiresModule: "TRAVEL",
     create: async (data, { userId }) => {
       const trip = await prisma.trip.create({ data: { ...data, createdById: userId } });
@@ -200,8 +231,12 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     update: async (id, data, ctx) => {
       const existing = await prisma.trip.findUnique({ where: { id } });
       if (!existing) throw new Error("Trip not found");
-      assertNotStale(existing, ctx);
-      await prisma.trip.update({ where: { id }, data });
+      // Refuses (doesn't merge) an offline edit made from an older updatedAt
+      // than the row's, atomically in the write's own where clause (see
+      // src/lib/commands/shared.ts). The direct writers below do the same.
+      await updateUnlessStale(ctx.baseUpdatedAt, (guard) =>
+        prisma.trip.updateMany({ where: { id, ...guard }, data }),
+      );
       revalidatePath("/travel");
       revalidatePath(`/travel/${id}`);
     },
@@ -217,6 +252,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
 
   tripSegment: defineEntity({
     schema: tripSegmentSchema,
+    input: formToTripSegmentInput,
     requiresModule: "TRAVEL",
     create: async (data, ctx) => {
       const tripId = requireParentId(ctx);
@@ -230,8 +266,9 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       const tripId = requireParentId(ctx);
       const existing = await prisma.tripSegment.findUnique({ where: { id } });
       if (!existing || existing.tripId !== tripId) throw new Error("Segment not found");
-      assertNotStale(existing, ctx);
-      await prisma.tripSegment.update({ where: { id }, data });
+      await updateUnlessStale(ctx.baseUpdatedAt, (guard) =>
+        prisma.tripSegment.updateMany({ where: { id, ...guard }, data }),
+      );
       revalidatePath(`/travel/${tripId}`);
     },
     saveFile: async (segmentId, file) => {
@@ -243,6 +280,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
   // ── Home (household-shared) ────────────────────────────────────────────────
   property: defineEntity({
     schema: propertySchema,
+    input: formToPropertyInput,
     requiresModule: "HOME",
     create: async (data, { userId }) => {
       const property = await prisma.property.create({ data: { ...data, createdById: userId } });
@@ -252,8 +290,9 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     update: async (id, data, ctx) => {
       const existing = await prisma.property.findUnique({ where: { id } });
       if (!existing) throw new Error("Property not found");
-      assertNotStale(existing, ctx);
-      await prisma.property.update({ where: { id }, data });
+      await updateUnlessStale(ctx.baseUpdatedAt, (guard) =>
+        prisma.property.updateMany({ where: { id, ...guard }, data }),
+      );
       revalidatePath("/home");
       revalidatePath(`/home/${id}`);
     },
@@ -269,6 +308,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
 
   homeItem: defineEntity({
     schema: homeItemSchema,
+    input: formToHomeItemInput,
     requiresModule: "HOME",
     create: async (data, ctx) => {
       const propertyId = requireParentId(ctx);
@@ -282,8 +322,9 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       const propertyId = requireParentId(ctx);
       const existing = await prisma.homeItem.findUnique({ where: { id } });
       if (!existing || existing.propertyId !== propertyId) throw new Error("Item not found");
-      assertNotStale(existing, ctx);
-      await prisma.homeItem.update({ where: { id }, data });
+      await updateUnlessStale(ctx.baseUpdatedAt, (guard) =>
+        prisma.homeItem.updateMany({ where: { id, ...guard }, data }),
+      );
       revalidatePath(`/home/${propertyId}`);
     },
     saveFile: async (homeItemId, file) => {
@@ -296,6 +337,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
   // other model here) — it's exempt from the Phase 6 conflict check.
   rentalAgreement: defineEntity({
     schema: rentalAgreementSchema,
+    input: formToRentalAgreementInput,
     requiresModule: "HOME",
     create: async (data, ctx) => {
       const propertyId = requireParentId(ctx);
@@ -321,6 +363,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
 
   rentalStatement: defineEntity({
     schema: rentalStatementSchema,
+    input: formToRentalStatementInput,
     requiresModule: "HOME",
     create: async (data, ctx) => {
       const propertyId = requireParentId(ctx);
@@ -334,8 +377,9 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       const propertyId = requireParentId(ctx);
       const existing = await prisma.rentalStatement.findUnique({ where: { id } });
       if (!existing || existing.propertyId !== propertyId) throw new Error("Statement not found");
-      assertNotStale(existing, ctx);
-      await prisma.rentalStatement.update({ where: { id }, data });
+      await updateUnlessStale(ctx.baseUpdatedAt, (guard) =>
+        prisma.rentalStatement.updateMany({ where: { id, ...guard }, data }),
+      );
       revalidatePath(`/home/${propertyId}/rental`);
     },
     saveFile: async (statementId, file) => {
@@ -347,6 +391,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
   // ── Inventory (per-user ownership) ─────────────────────────────────────────
   inventoryItem: defineEntity({
     schema: inventoryItemSchema,
+    input: formToInventoryItemInput,
     requiresModule: "INVENTORY",
     create: async (data, { userId }) => {
       const item = await prisma.inventoryItem.create({ data: { ...data, createdById: userId } });
@@ -356,8 +401,9 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     update: async (id, data, ctx) => {
       const existing = await prisma.inventoryItem.findUnique({ where: { id } });
       if (!existing) throw new Error("Item not found");
-      assertNotStale(existing, ctx);
-      await prisma.inventoryItem.update({ where: { id }, data });
+      await updateUnlessStale(ctx.baseUpdatedAt, (guard) =>
+        prisma.inventoryItem.updateMany({ where: { id, ...guard }, data }),
+      );
       revalidatePath("/inventory");
       revalidatePath(`/inventory/${id}`);
     },
@@ -378,6 +424,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
   // ── Wealth (household-wide, like every other module) ──────────────────────
   portfolio: defineEntity({
     schema: portfolioSchema,
+    input: formToPortfolioInput,
     requiresModule: "WEALTH",
     create: async (data, { userId }) => {
       const portfolio = await prisma.portfolio.create({ data: { ...data, createdById: userId } });
@@ -387,8 +434,9 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     update: async (id, data, ctx) => {
       const existing = await prisma.portfolio.findUnique({ where: { id } });
       if (!existing) throw new Error("Portfolio not found");
-      assertNotStale(existing, ctx);
-      await prisma.portfolio.update({ where: { id }, data });
+      await updateUnlessStale(ctx.baseUpdatedAt, (guard) =>
+        prisma.portfolio.updateMany({ where: { id, ...guard }, data }),
+      );
       revalidatePath("/wealth");
       revalidatePath(`/wealth/portfolios/${id}`);
     },
@@ -412,6 +460,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
 
   holding: defineEntity({
     schema: holdingSchema,
+    input: formToHoldingInput,
     requiresModule: "WEALTH",
     create: async (data, ctx) => {
       const portfolioId = requireParentId(ctx);
@@ -431,14 +480,16 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
         include: { portfolio: true },
       });
       if (!holding) throw new Error("Holding not found");
-      assertNotStale(holding, ctx);
-      await prisma.holding.update({ where: { id }, data });
+      await updateUnlessStale(ctx.baseUpdatedAt, (guard) =>
+        prisma.holding.updateMany({ where: { id, ...guard }, data }),
+      );
       revalidatePath(`/wealth/portfolios/${holding.portfolioId}/holdings/${id}`);
     },
   }),
 
   trade: defineEntity({
     schema: tradeSchema,
+    input: formToTradeInput,
     requiresModule: "WEALTH",
     create: async (data, ctx) => {
       const holdingId = requireParentId(ctx);
@@ -469,8 +520,9 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       if (!holding) throw new Error("Holding not found");
       const trade = await prisma.trade.findUnique({ where: { id } });
       if (!trade || trade.holdingId !== holdingId) throw new Error("Trade not found");
-      assertNotStale(trade, ctx);
-      await prisma.trade.update({ where: { id }, data });
+      await updateUnlessStale(ctx.baseUpdatedAt, (guard) =>
+        prisma.trade.updateMany({ where: { id, ...guard }, data }),
+      );
       revalidatePath(`/wealth/portfolios/${holding.portfolioId}/holdings/${holdingId}`);
     },
     saveFile: async (tradeId, file) => {
@@ -483,6 +535,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
   // only) — offline queue never produces an "update" for it, so `update` is omitted.
   propertyValuation: defineEntity({
     schema: propertyValuationSchema,
+    input: formToPropertyValuationInput,
     // Matches the live action (requireHomeEnabled): no module gate here, only auth.
     create: async (data, ctx) => {
       const propertyId = requireParentId(ctx);

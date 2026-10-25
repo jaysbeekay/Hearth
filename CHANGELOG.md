@@ -213,6 +213,29 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **Clearing an optional field on an edit form clears it (#413).** A
+  blanked field (an end date, rego expiry, cost, notes, Reminder days, a
+  linked property) used to keep its old value even though the save said it
+  worked, on every record type and in offline sync. Edit forms now clear
+  every field they submit blank, and anything worked out from it (Due
+  entries, Reminders, Missing key details) follows. A blank cost clears to
+  nothing rather than 0. Changes that only touch some fields, like
+  extraction review or status changes, still leave the others alone. A
+  link the edit form can't list (a warranty in Trash, a home or vehicle
+  whose module is off, an exchange outside the usual list) stays selected,
+  so saving doesn't drop it. Offline edits queued before upgrading replay
+  with this clearing too, which is safe: each carries the record's
+  `updatedAt`, so one made against an older version is refused as stale.
+- Offline sync reads a queued form the same way the online form does: a
+  ticked "Tax deductible" box no longer fails the sync, and a blank
+  currency, asset class, cost method or occupancy falls back to the same
+  default as online (#413).
+- Two offline edits of the same record synced at the same moment can no
+  longer both be applied: the "changed elsewhere" check now happens in the
+  write itself, so the second is refused (#413).
+- Permanently deleting a Contract, Warranty or Vehicle now removes its
+  files before clearing its Reminder history, so a failure there can't
+  leave files on disk with nothing pointing at them (#413).
 - Permanently deleting a property (from Trash, or when its 30 days run
   out) now also removes its Rental statement files from disk; only the
   database rows were removed before (#396).

@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
+import { formToPropertyInput, formToHomeItemInput, formToRentalAgreementInput, formToRentalStatementInput } from "@/lib/formMappers";
 import { prisma } from "@/lib/prisma";
+import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
 import { propertySchema, homeItemSchema, rentalAgreementSchema, rentalStatementSchema } from "@/lib/validation/home";
 import { addDocumentCommand, removeOwnerDocumentFiles } from "@/lib/commands/documents";
 import { formDataToStringValues } from "@/lib/form-state";
@@ -71,34 +73,6 @@ async function requireUser() {
   return session.user;
 }
 
-function formToPropertyInput(formData: FormData) {
-  return {
-    label: formData.get("label"),
-    street: formData.get("street"),
-    suburb: formData.get("suburb"),
-    state: formData.get("state"),
-    postcode: formData.get("postcode"),
-    country: formData.get("country"),
-    lat: formData.get("lat"),
-    lng: formData.get("lng"),
-    notes: formData.get("notes"),
-    occupancyStatus: formData.get("occupancyStatus") || undefined,
-  };
-}
-
-function formToHomeItemInput(formData: FormData) {
-  return {
-    type: formData.get("type"),
-    title: formData.get("title"),
-    provider: formData.get("provider"),
-    date: formData.get("date"),
-    cost: formData.get("cost"),
-    currency: formData.get("currency") || "AUD",
-    isTaxDeductible: formData.get("isTaxDeductible") === "on",
-    notes: formData.get("notes"),
-  };
-}
-
 export async function createProperty(
   _prevState: ActionState,
   formData: FormData,
@@ -139,7 +113,10 @@ export async function updateProperty(
   const existing = await prisma.property.findUnique({ where: { id: propertyId } });
   if (!existing) return { error: "Property not found." };
 
-  await prisma.property.update({ where: { id: propertyId }, data: { ...parsed.data, updatedById: user.id } });
+  await prisma.property.update({
+    where: { id: propertyId },
+    data: { ...fullFormUpdate(propertySchema, parsed.data, formData), updatedById: user.id },
+  });
 
   revalidatePath("/home");
   revalidatePath(`/home/${propertyId}`);
@@ -254,7 +231,7 @@ export async function updateHomeItem(
   const existing = await prisma.homeItem.findUnique({ where: { id: itemId } });
   if (!existing || existing.propertyId !== propertyId) return { error: "Item not found." };
 
-  await prisma.homeItem.update({ where: { id: itemId }, data: parsed.data });
+  await prisma.homeItem.update({ where: { id: itemId }, data: fullFormUpdate(homeItemSchema, parsed.data, formData) });
 
   revalidatePath(`/home/${propertyId}`);
   redirect(`/home/${propertyId}`);
@@ -299,19 +276,6 @@ export async function permanentlyDeleteHomeItem(itemId: string): Promise<ActionS
 }
 
 // ─── Rental agreement ────────────────────────────────────────────────────────
-
-function formToRentalAgreementInput(formData: FormData) {
-  return {
-    tenantName: formData.get("tenantName"),
-    weeklyRent: formData.get("weeklyRent"),
-    managementFeePercent: formData.get("managementFeePercent"),
-    leaseStart: formData.get("leaseStart"),
-    leaseEnd: formData.get("leaseEnd"),
-    bondAmount: formData.get("bondAmount"),
-    currency: formData.get("currency") || "AUD",
-    notes: formData.get("notes"),
-  };
-}
 
 export async function createRentalAgreement(
   propertyId: string,
@@ -360,7 +324,10 @@ export async function updateRentalAgreement(
   const existing = await prisma.rentalAgreement.findUnique({ where: { id: agreementId } });
   if (!existing || existing.propertyId !== propertyId) return { error: "Agreement not found." };
 
-  await prisma.rentalAgreement.update({ where: { id: agreementId }, data: parsed.data });
+  await prisma.rentalAgreement.update({
+    where: { id: agreementId },
+    data: fullFormUpdate(rentalAgreementSchema, parsed.data, formData),
+  });
 
   revalidatePath(`/home/${propertyId}`);
   revalidatePath(`/home/${propertyId}/rental`);
@@ -442,20 +409,6 @@ export async function setPropertyRented(
 
 // ─── Rental statements ───────────────────────────────────────────────────────
 
-function formToRentalStatementInput(formData: FormData) {
-  return {
-    periodStart: formData.get("periodStart"),
-    periodEnd: formData.get("periodEnd"),
-    statementDate: formData.get("statementDate"),
-    grossRent: formData.get("grossRent"),
-    managementFee: formData.get("managementFee"),
-    otherDeductions: formData.get("otherDeductions"),
-    netAmount: formData.get("netAmount"),
-    currency: formData.get("currency") || "AUD",
-    notes: formData.get("notes"),
-  };
-}
-
 export async function createRentalStatement(
   propertyId: string,
   _prevState: ActionState,
@@ -511,7 +464,10 @@ export async function updateRentalStatement(
   const existing = await prisma.rentalStatement.findUnique({ where: { id: statementId } });
   if (!existing || existing.propertyId !== propertyId) return { error: "Statement not found." };
 
-  await prisma.rentalStatement.update({ where: { id: statementId }, data: parsed.data });
+  await prisma.rentalStatement.update({
+    where: { id: statementId },
+    data: fullFormUpdate(rentalStatementSchema, parsed.data, formData),
+  });
 
   revalidatePath(`/home/${propertyId}/rental`);
   redirect(`/home/${propertyId}/rental`);
