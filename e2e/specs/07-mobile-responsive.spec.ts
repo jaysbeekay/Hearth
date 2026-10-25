@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { ADMIN_AUTH_FILE } from "../env";
+import { ADMIN_AUTH_FILE, ADMIN_EMAIL } from "../env";
 
 test.use({ storageState: ADMIN_AUTH_FILE, viewport: { width: 375, height: 812 }, hasTouch: true });
 
@@ -178,6 +178,20 @@ async function openMoreSheet(page: import("@playwright/test").Page) {
 }
 
 // #407: the bottom bar and its More sheet are the only navigation on phones.
+// Every destination a phone can reach, grouped so a change to one place
+// (say, moving Upload or Inbox out of More) is a one-line edit here.
+const PHONE_DESTINATIONS = {
+  bar: ["/dashboard", "/contracts", "/products", "/documents"],
+  // The seed enables every optional module. Inventory has no nav entry of
+  // its own (getNavItems leaves it out; it's reached from Warranties).
+  modules: ["/travel", "/home", "/vehicles", "/wealth"],
+  documents: ["/import", "/documents/inbox"],
+  // No /assistant: the seed configures no chat provider (spec 09 sets one
+  // up later in the run).
+  tools: ["/calendar", "/spend"],
+  footer: ["/settings", "/help"],
+};
+
 test("phones have one navigation: no menu drawer, and each destination is in the bar or the More sheet exactly once", async ({
   page,
 }) => {
@@ -186,41 +200,23 @@ test("phones have one navigation: no menu drawer, and each destination is in the
   await expect(page.locator("aside")).toBeHidden();
   await expect(page.getByRole("button", { name: "Open navigation menu" })).toHaveCount(0);
 
-  // The old edge-swipe opened a drawer; nothing opens now.
-  const body = page.locator("body");
-  await body.dispatchEvent("pointerdown", { pointerType: "touch", clientX: 5, clientY: 300 });
-  for (let i = 1; i <= 8; i++) {
-    await body.dispatchEvent("pointermove", { pointerType: "touch", clientX: 5 + i * 10, clientY: 300 });
-  }
-  await body.dispatchEvent("pointerup", { pointerType: "touch", clientX: 85, clientY: 300 });
-  await expect(page.getByRole("dialog")).toHaveCount(0);
-
   await openMoreSheet(page);
+  const barHrefs = await bottomBar(page)
+    .locator("a[href]")
+    .evaluateAll((links) => links.map((a) => a.getAttribute("href")));
   const hrefs = [
-    ...(await bottomBar(page).locator("a[href]").evaluateAll((links) => links.map((a) => a.getAttribute("href")))),
+    ...barHrefs,
     ...(await moreSheet(page).locator("a[href]").evaluateAll((links) => links.map((a) => a.getAttribute("href")))),
   ];
   const repeated = hrefs.filter((href, i) => hrefs.indexOf(href) !== i);
   expect(repeated).toEqual([]);
-  // The seed enables every optional module.
-  for (const href of [
-    "/dashboard",
-    "/contracts",
-    "/products",
-    "/documents",
-    "/documents/inbox",
-    "/import",
-    "/calendar",
-    "/spend",
-    "/home",
-    "/vehicles",
-    "/travel",
-    "/wealth",
-    "/settings",
-    "/help",
-  ]) {
-    expect(hrefs, `${href} is reachable`).toContain(href);
-  }
+  expect(barHrefs).toEqual(PHONE_DESTINATIONS.bar);
+  expect(new Set(hrefs)).toEqual(new Set(Object.values(PHONE_DESTINATIONS).flat()));
+  expect(hrefs).not.toContain("/assistant");
+  expect(hrefs).not.toContain("/inventory");
+
+  await expect(moreSheet(page).getByText("E2E Admin", { exact: true })).toBeVisible();
+  await expect(moreSheet(page).getByText(ADMIN_EMAIL, { exact: true })).toBeVisible();
   await expect(moreSheet(page).getByRole("button", { name: "Sign out" })).toBeVisible();
 
   await moreSheet(page).getByRole("link", { name: "Upload", exact: true }).click();

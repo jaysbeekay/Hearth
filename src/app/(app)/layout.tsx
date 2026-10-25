@@ -24,6 +24,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Icon components can't cross the server/client boundary as props, so we
   // only pass the enabled module keys down and let Sidebar/BottomNav build
   // their own nav item list (with icons) on the client.
+  // The Inbox badge count refreshes with this layout (after a server action, router.refresh() or a full load), not live.
   const [enabledModulesSet, chatConfig, { dateFormat }, inboxCount] = await Promise.all([
     getEnabledModuleKeys(),
     getChatConfig(),
