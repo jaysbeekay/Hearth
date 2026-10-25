@@ -7,6 +7,7 @@ import { getDocumentStats } from "@/lib/documents/stats";
 import { findDocumentsByHashBatch, type DocumentKind } from "@/lib/documents/documentQueries";
 import { InboxReviewClient, type DuplicateMatch } from "@/components/InboxReviewClient";
 import { DocumentsTabs, DocumentsUploadActions } from "@/components/DocumentsTabs";
+import { auth } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Inbox" };
 
@@ -32,6 +33,8 @@ export default async function InboxPage({
 }) {
   const { page: pageParam } = await searchParams;
   const page = Math.max(0, Number(pageParam) || 0);
+  const session = await auth();
+  const canWrite = session?.user.role !== "READONLY";
 
   const [rows, enabledModules, { dateFormat }] = await Promise.all([
     prisma.inboxDocument.findMany({
@@ -90,7 +93,7 @@ export default async function InboxPage({
             Documents saved without picking a destination yet. Classify each one, or discard it.
           </p>
         </div>
-        <DocumentsUploadActions />
+        {canWrite && <DocumentsUploadActions />}
       </div>
 
       <DocumentsTabs

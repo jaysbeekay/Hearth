@@ -46,35 +46,36 @@ export function TakePhotoButton() {
   }
 
   return (
-    <label
-      htmlFor={inputId}
-      aria-disabled={uploading}
-      className={cn(
-        compactButtonClass("secondary"),
-        "cursor-pointer gap-2 whitespace-nowrap md:hidden has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent",
-      )}
-    >
-      {uploading ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
-      Take photo
-      <input
-        ref={inputRef}
-        id={inputId}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        disabled={uploading}
-        aria-describedby={`${inputId}-hint`}
-        className="sr-only"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) {
-            void handleCapture(file);
-          }
-        }}
-      />
+    <>
+      <label
+        htmlFor={inputId}
+        className={cn(
+          compactButtonClass("secondary"),
+          "cursor-pointer gap-2 whitespace-nowrap md:hidden has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent",
+        )}
+      >
+        {uploading ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
+        Take photo
+        <input
+          ref={inputRef}
+          id={inputId}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          disabled={uploading}
+          aria-describedby={`${inputId}-hint`}
+          className="sr-only"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) {
+              void handleCapture(file);
+            }
+          }}
+        />
+      </label>
       <span id={`${inputId}-hint`} className="sr-only">
         The photo is saved to the shared household Inbox for review.
       </span>
-    </label>
+    </>
   );
 }

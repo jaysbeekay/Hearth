@@ -240,7 +240,10 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   cover rows and buttons on the Dashboard and Documents pages (#401). Both
   are gone: "Take photo" now sits in the page header next to Upload on the
   Dashboard and every Documents tab, and still saves the photo to the Inbox.
-  Documents also gets an Upload button in its header.
+  Documents also gets an Upload button in its header. Read-only members see
+  neither button, and `/import` sends them back to Documents.
+- The Documents Filed tab no longer says "No undefined documents yet." when
+  nothing is filed but the Inbox has documents.
 - Permanently deleting a property (from Trash, or when its 30 days run
   out) now also removes its Rental statement files from disk; only the
   database rows were removed before (#396).

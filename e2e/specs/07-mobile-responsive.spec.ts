@@ -168,16 +168,19 @@ test("swiping from the left screen edge opens the navigation drawer, and the men
   await expect(drawer).toBeHidden();
 });
 
-// #401 (regression of #348): nothing fixed may sit over a tappable control
-// at any scroll position. The bottom nav is the one fixed bar allowed, since
-// <main>'s bottom padding lets the end of every page scroll clear of it.
-// Everything else (the old floating camera button and "Choose file" pill
-// covered dashboard rows and Documents links mid-page) fails this check.
+// #401 (regression of #348): nothing fixed, or stuck to the bottom edge, may
+// sit over a tappable control at any scroll position. The bottom nav is the
+// one bar allowed, since <main>'s bottom padding lets the end of every page
+// scroll clear of it (checked separately below). Everything else (the old
+// floating camera button and "Choose file" pill covered dashboard rows and
+// Documents links mid-page) fails this check.
 async function controlsCoveredByFixedUi(page: import("@playwright/test").Page) {
   return page.evaluate(() => {
     const bottomNav = document.querySelector("nav.fixed.bottom-0");
     const fixed = [...document.querySelectorAll<HTMLElement>("body *")].filter((el) => {
-      if (getComputedStyle(el).position !== "fixed") {
+      const style = getComputedStyle(el);
+      const pinnedToBottom = style.position === "sticky" && style.bottom !== "auto";
+      if (style.position !== "fixed" && !pinnedToBottom) {
         return false;
       }
       if (bottomNav && (el === bottomNav || bottomNav.contains(el))) {
@@ -215,6 +218,45 @@ async function controlsCoveredByFixedUi(page: import("@playwright/test").Page) {
   });
 }
 
+// With the page scrolled to the end, the last control in <main> must sit
+// fully above the bottom nav. This catches losing <main>'s bottom padding,
+// which the per-offset check above deliberately ignores.
+async function lastControlClearOfBottomNav(page: import("@playwright/test").Page) {
+  return page.evaluate(() => {
+    window.scrollTo(0, document.documentElement.scrollHeight);
+    const nav = document.querySelector("nav.fixed.bottom-0");
+    if (!nav) {
+      return { ok: false, detail: "bottom nav not found" };
+    }
+    const navTop = nav.getBoundingClientRect().top;
+    let lowest: { bottom: number; name: string } | null = null;
+    const controls = document.querySelectorAll<HTMLElement>(
+      "main a[href], main button, main label[for], main select, main textarea, main input:not([type=hidden]):not(.sr-only)",
+    );
+    for (const control of controls) {
+      const r = control.getBoundingClientRect();
+      if (r.width <= 1 || r.height <= 1 || !control.checkVisibility()) {
+        continue;
+      }
+      if (!lowest || r.bottom > lowest.bottom) {
+        lowest = { bottom: r.bottom, name: (control.textContent ?? "").trim().slice(0, 40) };
+      }
+    }
+    if (!lowest) {
+      return { ok: true, detail: "no controls" };
+    }
+    return {
+      ok: lowest.bottom <= navTop,
+      detail: `"${lowest.name}" ends at y=${Math.round(lowest.bottom)}, nav starts at y=${Math.round(navTop)}`,
+    };
+  });
+}
+
+async function inboxCount(page: import("@playwright/test").Page) {
+  const text = await page.getByRole("link", { name: /^Inbox/ }).textContent();
+  return Number(/\((\d+)\)/.exec(text ?? "")?.[1] ?? 0);
+}
+
 test.describe("fixed mobile UI never covers controls (#401)", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
@@ -245,6 +287,7 @@ test.describe("fixed mobile UI never covers controls (#401)", () => {
     await page.goto("/documents");
     await expect(page.getByRole("link", { name: "Upload", exact: true })).toBeVisible();
     for (let i = 0; i < 2; i++) {
+      const before = await inboxCount(page);
       await page.locator('main input[type="file"][accept="image/*"][capture]').setInputFiles({
         name: `overlap-photo-${stamp}-${i}.png`,
         mimeType: "image/png",
@@ -258,7 +301,9 @@ test.describe("fixed mobile UI never covers controls (#401)", () => {
           Buffer.from(`${stamp}-${i}`),
         ]),
       });
-      await expect(page.getByText("Saved to your Inbox for review.").first()).toBeVisible();
+      // Each capture must really land: the Inbox tab's count goes up by one
+      // (the button refreshes the page after saving).
+      await expect(page.getByRole("link", { name: /^Inbox/ })).toHaveText(`Inbox (${before + 1})`);
     }
 
     // The old floating controls are gone.
@@ -285,6 +330,59 @@ test.describe("fixed mobile UI never covers controls (#401)", () => {
         }
       }
       expect(covered).toEqual([]);
+
+      const end = await lastControlClearOfBottomNav(page);
+      expect(end.ok, `${path}: ${end.detail}`).toBe(true);
     }
+  });
+
+  test("read-only members see no upload controls, and /import sends them back to Documents", async ({
+    browser,
+  }) => {
+    const email = `readonly-${Date.now()}@e2e.local`;
+    const password = "E2eTestPassw0rd!23";
+
+    const adminContext = await browser.newContext({ storageState: ADMIN_AUTH_FILE });
+    const adminPage = await adminContext.newPage();
+    await adminPage.goto("/settings/users");
+    await adminPage.locator("#name").fill("Read-only Viewer");
+    await adminPage.locator("#email").fill(email);
+    await adminPage.locator("#password").fill(password);
+    await adminPage.locator("form:has(#password) select#role").selectOption("READONLY");
+    await adminPage.locator("form:has(#password) button[type=submit]").click();
+    await expect(adminPage.locator("body")).toContainText(email);
+
+    // Empty storage state: this file's test.use() would otherwise hand the
+    // new context the admin session too.
+    const viewerContext = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      storageState: { cookies: [], origins: [] },
+    });
+    const viewer = await viewerContext.newPage();
+    await viewer.goto("/login");
+    await viewer.locator('input[name="email"]').fill(email);
+    await viewer.locator('input[name="password"]').fill(password);
+    await viewer.locator("form button[type=submit]").click();
+    await viewer.waitForURL(/\/dashboard/);
+
+    for (const path of ["/dashboard", "/documents", "/documents/inbox"]) {
+      await viewer.goto(path);
+      await expect(viewer.locator("h1")).toBeVisible();
+      await expect(viewer.locator("main label", { hasText: "Take photo" })).toHaveCount(0);
+      await expect(viewer.locator('main input[type="file"][capture]')).toHaveCount(0);
+      await expect(viewer.getByRole("link", { name: /^Upload( a document)?$/ })).toHaveCount(0);
+    }
+
+    await viewer.goto("/import");
+    await expect(viewer).toHaveURL(/\/documents$/);
+    await viewerContext.close();
+
+    // Remove the extra account again so later specs see the usual household.
+    await adminPage.goto("/settings/users");
+    const row = adminPage.locator("li", { hasText: email });
+    await row.getByRole("button", { name: /Remove .* from the household/ }).click();
+    await adminPage.getByRole("button", { name: "Remove Read-only Viewer", exact: true }).click();
+    await expect(adminPage.locator("body")).not.toContainText(email);
+    await adminContext.close();
   });
 });
