@@ -13,10 +13,13 @@ export function ContractCard({
   contract,
   dateFormat,
   region,
+  missing,
 }: {
   contract: ContractModel & { _count?: { documents: number } };
   dateFormat?: string;
   region?: string;
+  /** #395 — which key details are missing, shown when the list is filtered to them. */
+  missing?: string[];
 }) {
   const timing = contractTiming(contract);
   const days = timing.days;
@@ -53,6 +56,10 @@ export function ContractCard({
           </span>
         )}
       </div>
+
+      {missing && missing.length > 0 && (
+        <p className="mt-1 text-xs font-medium text-warning">{missing.join(" · ")}</p>
+      )}
 
       {contract._count != null && contract._count.documents > 0 && (
         <p className="mt-1 text-xs text-muted tabular-nums">

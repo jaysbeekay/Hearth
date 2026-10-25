@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import { linkButtonClass, toolbarButtonClass, exportMenuItemClass } from "@/lib/buttonStyles";
 import { useRouter } from "next/navigation";
@@ -11,25 +11,42 @@ import { PendingRecordCard } from "@/components/PendingRecordCard";
 import { SwipeableListItem } from "@/components/SwipeableListItem";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { ListSummaryStrip } from "@/components/ListSummaryStrip";
+import { ListFilterChips, ListFilterHiddenInputs } from "@/components/ListFilterChips";
 import { deleteContract, restoreContract } from "@/lib/actions/contracts";
 import type { ContractModel } from "@/generated/prisma/models";
 import { CATEGORY_LABELS } from "@/lib/utils";
-import { contractTiming } from "@/lib/contractTiming";
+import {
+  contractMissingParts,
+  hasListFilters,
+  listHref,
+  toggleListFilter,
+  type ListFilterCounts,
+  type ListFilters,
+  type ToggleableFilter,
+} from "@/lib/recordFilters";
 import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
 
 const STATUS_LABELS: Record<string, string> = { ACTIVE: "Active", CANCELLED: "Cancelled" };
 
+const CHIPS: { chip: ToggleableFilter; label: string; onlyWhenActive?: boolean }[] = [
+  { chip: "dueSoon", label: "Expiring soon" },
+  { chip: "overdue", label: "Expired" },
+  { chip: "review", label: "Needs review" },
+  { chip: "noDocument", label: "No document" },
+  { chip: "missingDetails", label: "Missing key details" },
+  { chip: "important", label: "Important", onlyWhenActive: true },
+];
+
 interface Props {
   contracts: ContractModel[];
+  /** #395 — household-wide, from the server; never recounted here. */
+  counts: ListFilterCounts;
+  filters: ListFilters;
   q?: string;
   category?: string;
   status?: string;
-  expiring?: string;
-  expired?: string;
-  needsReview?: string;
-  missingDocument?: string;
   dateFormat?: string;
   region?: string;
   canWrite?: boolean;
@@ -37,13 +54,11 @@ interface Props {
 
 export function ContractListClient({
   contracts,
+  counts,
+  filters,
   q,
   category,
   status,
-  expiring,
-  expired,
-  needsReview,
-  missingDocument,
   dateFormat,
   region,
   canWrite = true,
@@ -61,87 +76,54 @@ export function ContractListClient({
   }, [router]);
 
   function removeFilter(key: "q" | "category" | "status") {
-    const params = new URLSearchParams();
-    if (key !== "q" && q) params.set("q", q);
-    if (key !== "category" && category) params.set("category", category);
-    if (key !== "status" && status) params.set("status", status);
-    if (expiring) params.set("expiring", expiring);
-    if (expired) params.set("expired", expired);
-    if (needsReview) params.set("needsReview", needsReview);
-    if (missingDocument) params.set("missingDocument", missingDocument);
-    router.push(`/contracts${params.toString() ? `?${params.toString()}` : ""}`);
+    router.push(
+      listHref("/contracts", filters, {
+        q: key === "q" ? undefined : q,
+        category: key === "category" ? undefined : category,
+        status: key === "status" ? undefined : status,
+      }),
+    );
   }
 
-  // #207 — completeness filter chips. expiring/expired are mutually
-  // exclusive (clicking one clears the other); needsReview/missingDocument
-  // are independent and can be combined with any other filter.
-  const toggleCompletenessFilter = useCallback(
-    (key: "expiring" | "expired" | "needsReview" | "missingDocument", value: string) => {
-      const params = new URLSearchParams();
-      if (q) params.set("q", q);
-      if (category) params.set("category", category);
-      if (status) params.set("status", status);
-      if (expiring) params.set("expiring", expiring);
-      if (expired) params.set("expired", expired);
-      if (needsReview) params.set("needsReview", needsReview);
-      if (missingDocument) params.set("missingDocument", missingDocument);
-
-      const isActive = params.get(key) === value;
-      if (key === "expiring" || key === "expired") {
-        params.delete("expiring");
-        params.delete("expired");
-      }
-      if (!isActive) params.set(key, value);
-      else params.delete(key);
-      router.push(`/contracts${params.toString() ? `?${params.toString()}` : ""}`);
+  const toggleFilter = useCallback(
+    (chip: ToggleableFilter) => {
+      router.push(listHref("/contracts", toggleListFilter(filters, chip), { q, category, status }));
     },
-    [q, category, status, expiring, expired, needsReview, missingDocument, router],
+    [filters, q, category, status, router],
   );
 
   useEffect(() => {
     cachePageData("contracts:list", contracts).catch(() => {});
   }, [contracts]);
 
-  const filtered = Boolean(
-    q || category || status || expiring || expired || needsReview || missingDocument,
-  );
-  const summary = useMemo(() => {
-    let expiringSoon = 0;
-    let expired = 0;
-    let recentlyAdded = 0;
-    let needsReview = 0;
-    const weekAgo = new Date().getTime() - 7 * 86_400_000;
-    for (const contract of contracts) {
-      if (contract.status === "ACTIVE") {
-        const days = contractTiming(contract).days;
-        if (days != null && days < 0) expired++;
-        else if (days != null && days <= 30) expiringSoon++;
-      }
-      if (new Date(contract.createdAt).getTime() >= weekAgo) recentlyAdded++;
-      if (contract.extractionPending) needsReview++;
-    }
-    return [
-      {
-        label: "expiring within 30 days",
-        value: expiringSoon,
-        tone: "warning" as const,
-        onClick: () => toggleCompletenessFilter("expiring", "30"),
+  const filtered = Boolean(q || category || status || hasListFilters(filters));
+  const summary = [
+    {
+      label: "expiring within 30 days",
+      value: counts.dueSoon ?? 0,
+      tone: "warning" as const,
+      onClick: () => {
+        toggleFilter("dueSoon");
       },
-      {
-        label: "expired",
-        value: expired,
-        tone: "danger" as const,
-        onClick: () => toggleCompletenessFilter("expired", "true"),
+    },
+    {
+      label: "expired",
+      value: counts.overdue ?? 0,
+      tone: "danger" as const,
+      onClick: () => {
+        toggleFilter("overdue");
       },
-      {
-        label: "needs review",
-        value: needsReview,
-        tone: "warning" as const,
-        onClick: () => toggleCompletenessFilter("needsReview", "true"),
+    },
+    {
+      label: "needs review",
+      value: counts.review ?? 0,
+      tone: "warning" as const,
+      onClick: () => {
+        toggleFilter("review");
       },
-      { label: "added this week", value: recentlyAdded },
-    ];
-  }, [contracts, toggleCompletenessFilter]);
+    },
+    { label: "added this week", value: counts.recentlyAdded ?? 0 },
+  ];
 
   return (
     <div className="space-y-6">
@@ -172,6 +154,7 @@ export function ContractListClient({
       </div>
 
       <form ref={formRef} className="flex flex-col gap-3 md:flex-row" method="GET">
+        <ListFilterHiddenInputs filters={filters} />
         <input
           type="search"
           name="q"
@@ -218,33 +201,7 @@ export function ContractListClient({
         </button>
       </form>
 
-      <div className="flex flex-wrap gap-2 text-sm">
-        {[
-          { key: "expiring" as const, value: "30", label: "Expiring soon", active: expiring === "30" },
-          { key: "expired" as const, value: "true", label: "Expired", active: expired === "true" },
-          { key: "needsReview" as const, value: "true", label: "Needs review", active: needsReview === "true" },
-          {
-            key: "missingDocument" as const,
-            value: "true",
-            label: "Missing document",
-            active: missingDocument === "true",
-          },
-        ].map((chip) => (
-          <button
-            key={chip.key}
-            type="button"
-            onClick={() => toggleCompletenessFilter(chip.key, chip.value)}
-            aria-pressed={chip.active}
-            className={`rounded-full border px-3 py-1 text-xs font-medium ${
-              chip.active
-                ? "border-accent bg-accent/10 text-accent"
-                : "border-border bg-surface text-muted hover:bg-black/5 dark:hover:bg-white/5"
-            }`}
-          >
-            {chip.label}
-          </button>
-        ))}
-      </div>
+      <ListFilterChips filters={filters} chips={CHIPS} onToggle={toggleFilter} />
 
       {filtered && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -348,10 +305,21 @@ export function ContractListClient({
                   </ConfirmForm>
                 }
               >
-                <ContractCard contract={contract} dateFormat={dateFormat} region={region} />
+                <ContractCard
+                  contract={contract}
+                  dateFormat={dateFormat}
+                  region={region}
+                  missing={filters.missingDetails ? contractMissingParts(contract) : undefined}
+                />
               </SwipeableListItem>
             ) : (
-              <ContractCard key={contract.id} contract={contract} dateFormat={dateFormat} region={region} />
+              <ContractCard
+                key={contract.id}
+                contract={contract}
+                dateFormat={dateFormat}
+                region={region}
+                missing={filters.missingDetails ? contractMissingParts(contract) : undefined}
+              />
             ),
           )}
         </div>

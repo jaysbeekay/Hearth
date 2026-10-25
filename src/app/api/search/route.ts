@@ -4,6 +4,22 @@ import { prisma } from "@/lib/prisma";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { formatPropertyAddress } from "@/lib/utils";
 import { searchDocumentsFts, hitOwnerIds, hitDocIds, sortByHitRank } from "@/lib/documents/documentSearch";
+import {
+  contractFilterWheres,
+  contractMissingParts,
+  CONTRACT_MISSING_SELECT,
+  hasListFilters,
+  inventoryMissingParts,
+  inventoryRules,
+  parseSearchFilters,
+  productFilterWheres,
+  productMissingParts,
+  PRODUCT_MISSING_SELECT,
+  vehicleFilterWheres,
+  vehicleMissingParts,
+  VEHICLE_MISSING_SELECT,
+} from "@/lib/recordFilters";
+import { contractDueFilter, warrantyDueWhere } from "@/lib/listDue";
 
 export interface SearchResult {
   id: string;
@@ -25,29 +41,11 @@ function matchedViaFields(q: string, fields: (string | null | undefined)[]) {
   return fields.some((f) => f?.toLowerCase().includes(needle));
 }
 
-// #328 — every row returned under a missing* filter satisfies that filter's
-// where-clause by construction, so the reason is fixed per (domain, filter)
-// pair rather than needing a per-row check.
-const CONTRACT_MISSING_REASONS: Record<string, string> = {
-  missingDate: "Missing end date",
-  missingReminder: "Missing reminder threshold",
-  missingRelationship: "Not linked to a home or vehicle",
-  missingIdentifier: "Missing policy/contract number",
-};
-const PRODUCT_MISSING_REASONS: Record<string, string> = {
-  missingDate: "Missing warranty end date",
-  missingReminder: "Missing reminder threshold",
-  missingRelationship: "Not linked to a home",
-  missingIdentifier: "Missing serial number/barcode",
-};
-const VEHICLE_MISSING_REASONS: Record<string, string> = {
-  missingDate: "Missing rego, insurance, or service date",
-  missingReminder: "Missing reminder threshold",
-  missingIdentifier: "Missing VIN/license plate",
-};
-const INVENTORY_MISSING_REASONS: Record<string, string> = {
-  missingIdentifier: "Missing serial number",
-};
+// #395 — under Missing key details each row says which part is missing
+// ("No end date"), from the same rule that selected it.
+function missingSubtitle(parts: string[]): string | undefined {
+  return parts.length > 0 ? parts.join(" · ") : undefined;
+}
 
 // #332 — nav/headings now use task-oriented aliases ("Policies &
 // contracts", "Purchases & warranties") instead of the bare "Contracts"/
@@ -65,34 +63,30 @@ export async function GET(request: NextRequest) {
   }
 
   const q = request.nextUrl.searchParams.get("q")?.trim() ?? "";
+  const now = new Date();
 
-  // #205/#328 — memory-fragment / completeness filters. Each filter only
-  // applies to the record types that have the underlying concept:
-  // - expiring/needsReview/noDocument/important: Contract, Product (the
-  //   two types with an expiry date and the extraction-review/document
-  //   infrastructure these key off).
-  // - missingDate/missingReminder/missingRelationship/missingIdentifier:
-  //   Contract, Product, and (expiring/missingDate/missingReminder/
-  //   missingIdentifier only — no extraction review or property/vehicle
-  //   link) Vehicle. InventoryItem only supports missingIdentifier (no
-  //   dates, reminders, or relationships). Property/Trip have none of
-  //   these concepts and stay text-search-only rather than growing
-  //   bespoke semantics for shapes that don't naturally have them.
-  const FILTER_VALUES = ["expiring", "needsReview", "noDocument", "important", "missingDate", "missingReminder", "missingRelationship", "missingIdentifier"] as const;
-  type SearchFilter = (typeof FILTER_VALUES)[number];
-  const filterParam = request.nextUrl.searchParams.get("filter");
-  const filter: SearchFilter | undefined = (FILTER_VALUES as readonly string[]).includes(
-    filterParam ?? "",
-  )
-    ? (filterParam as SearchFilter)
-    : undefined;
+  // #205/#328/#395 — the same filter parameters as the lists (?due=,
+  // ?missing=details, ?review=1, ?noDocument=1, ?important=1), with the
+  // rules from src/lib/recordFilters.ts and src/lib/listDue.ts. The old
+  // single `filter=` values still work. Filters narrow Contracts and
+  // Warranties (all filters), Vehicles (Due soon and Missing key details;
+  // Vehicles are left out under any other filter) and Inventory items
+  // (Missing key details only; left out under any other filter). Trips,
+  // Property, Wealth and Document-name hits don't take part in filters:
+  // they only appear for search text, and then unfiltered.
+  const filters = parseSearchFilters(request.nextUrl.searchParams);
+  const filter = hasListFilters(filters);
+  const vehicleFilterOnly =
+    !filters.review && !filters.noDocument && !filters.important && filters.due !== "overdue";
+  // Due needs notice deadlines, which SQL can't express: the query narrows
+  // roughly and `contractDue.matches` decides, exactly as on the list (ADR 0002).
+  const contractDue = filters.due ? contractDueFilter(filters.due, now) : null;
 
   const textOk = q.length >= 2;
   if (!textOk && !filter) {
     return NextResponse.json({ groups: {} }, { headers: { "Cache-Control": "no-store" } });
   }
 
-  const now = new Date();
   const soon = new Date(now.getTime() + 30 * 86_400_000);
 
   const enabledModules = await getEnabledModuleKeys();
@@ -128,29 +122,32 @@ export async function GET(request: NextRequest) {
                   },
                 ]
               : []),
-            ...(filter === "expiring" ? [{ status: "ACTIVE" as const, endDate: { gte: now, lte: soon } }] : []),
-            ...(filter === "needsReview" ? [{ extractionPending: true }] : []),
-            ...(filter === "noDocument" ? [{ documents: { none: {} } }] : []),
-            ...(filter === "important" ? [{ documents: { some: { isImportant: true } } }] : []),
-            ...(filter === "missingDate" ? [{ endDate: null }] : []),
-            ...(filter === "missingReminder" ? [{ reminderDaysBefore: null }] : []),
-            ...(filter === "missingRelationship" ? [{ propertyId: null, vehicleId: null }] : []),
-            ...(filter === "missingIdentifier" ? [{ contractNumber: null }] : []),
+            ...(contractDue ? [contractDue.where] : []),
+            ...contractFilterWheres(filters),
           ],
         },
-        select: { id: true, title: true, provider: true, contractNumber: true },
+        select: {
+          id: true,
+          title: true,
+          provider: true,
+          contractNumber: true,
+          noticePeriodDays: true,
+          ...CONTRACT_MISSING_SELECT,
+        },
         // Most-recent-first: relevant always, but load-bearing for
         // isContractAlias/missing* results, which can return far more rows
         // than LIMIT with no relevance signal to rank by otherwise.
         orderBy: { createdAt: "desc" },
-        take: LIMIT,
+        // Under Due the in-memory check runs first, so the limit applies after it.
+        ...(contractDue ? {} : { take: LIMIT }),
       })
+      .then((rows) => (contractDue ? rows.filter(contractDue.matches).slice(0, LIMIT) : rows))
       .then((rows) =>
         rows.map((r) => ({
           id: r.id,
           title: r.title,
-          subtitle: filter && CONTRACT_MISSING_REASONS[filter]
-            ? CONTRACT_MISSING_REASONS[filter]
+          subtitle: filters.missingDetails
+            ? missingSubtitle(contractMissingParts(r))
             : !isContractAlias && textOk && matchedViaFields(q, [r.contractNumber]) && !matchedViaFields(q, [r.title, r.provider])
               ? [r.provider, `№ ${r.contractNumber}`].filter(Boolean).join(" · ")
               : r.provider,
@@ -182,14 +179,8 @@ export async function GET(request: NextRequest) {
                   },
                 ]
               : []),
-            ...(filter === "expiring" ? [{ warrantyEndDate: { gte: now, lte: soon } }] : []),
-            ...(filter === "needsReview" ? [{ extractionPending: true }] : []),
-            ...(filter === "noDocument" ? [{ documents: { none: {} } }] : []),
-            ...(filter === "important" ? [{ documents: { some: { isImportant: true } } }] : []),
-            ...(filter === "missingDate" ? [{ warrantyEndDate: null }] : []),
-            ...(filter === "missingReminder" ? [{ reminderDaysBefore: null }] : []),
-            ...(filter === "missingRelationship" ? [{ propertyId: null }] : []),
-            ...(filter === "missingIdentifier" ? [{ OR: [{ serialNumber: null }, { barcode: null }] }] : []),
+            ...(filters.due ? [warrantyDueWhere(filters.due, now)] : []),
+            ...productFilterWheres(filters),
           ],
         },
         select: {
@@ -197,8 +188,7 @@ export async function GET(request: NextRequest) {
           description: true,
           manufacturer: true,
           vendor: true,
-          serialNumber: true,
-          barcode: true,
+          ...PRODUCT_MISSING_SELECT,
         },
         // See the equivalent comment on the contract query above.
         orderBy: { createdAt: "desc" },
@@ -208,8 +198,8 @@ export async function GET(request: NextRequest) {
         rows.map((r) => ({
           id: r.id,
           title: r.description,
-          subtitle: filter && PRODUCT_MISSING_REASONS[filter]
-            ? PRODUCT_MISSING_REASONS[filter]
+          subtitle: filters.missingDetails
+            ? missingSubtitle(productMissingParts(r))
             : !isProductAlias &&
               textOk &&
               matchedViaFields(q, [r.serialNumber, r.barcode]) &&
@@ -271,7 +261,7 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  if (enabledModules.has("VEHICLES") && (textOk || filter)) {
+  if (enabledModules.has("VEHICLES") && (textOk || filter) && vehicleFilterOnly) {
     queries.push(
       prisma.vehicle
         .findMany({
@@ -293,28 +283,23 @@ export async function GET(request: NextRequest) {
                 : []),
               // Vehicles track three independent expiry-ish dates (rego,
               // insurance, next service) instead of Contract/Product's
-              // single one — "expiring"/"missingDate" treat any of them
-              // as satisfying the filter, since a vehicle with even one
-              // upcoming date is being actively tracked.
-              ...(filter === "expiring"
+              // single one — Due soon treats any of them as satisfying the
+              // filter, since a vehicle with even one upcoming date is
+              // being actively tracked.
+              ...(filters.due === "soon"
                 ? [{ OR: [
                     { regoExpiry: { gte: now, lte: soon } },
                     { insuranceExpiry: { gte: now, lte: soon } },
                     { nextServiceDue: { gte: now, lte: soon } },
                   ] }]
                 : []),
-              ...(filter === "missingDate"
-                ? [{ regoExpiry: null, insuranceExpiry: null, nextServiceDue: null }]
-                : []),
-              ...(filter === "missingReminder" ? [{ reminderDaysBefore: null }] : []),
-              ...(filter === "missingIdentifier" ? [{ vin: null, licensePlate: null }] : []),
-              // No "needsReview"/"noDocument"/"important" or
-              // "missingRelationship" equivalent — vehicles have no
-              // extraction-review flag and aren't linked to a home the way
-              // a contract/product can be.
+              // No review/noDocument/important equivalent: vehicles have no
+              // extraction-review flag, so those filters skip vehicles
+              // entirely (vehicleFilterOnly above).
+              ...vehicleFilterWheres(filters),
             ],
           },
-          select: { id: true, label: true, make: true, model: true, licensePlate: true, vin: true },
+          select: { id: true, label: true, make: true, model: true, ...VEHICLE_MISSING_SELECT },
           // See the equivalent comment on the contract query above.
           orderBy: { createdAt: "desc" },
           take: LIMIT,
@@ -323,8 +308,8 @@ export async function GET(request: NextRequest) {
           rows.map((r) => ({
             id: r.id,
             title: r.label,
-            subtitle: filter && VEHICLE_MISSING_REASONS[filter]
-              ? VEHICLE_MISSING_REASONS[filter]
+            subtitle: filters.missingDetails
+              ? missingSubtitle(vehicleMissingParts(r))
               : textOk && matchedViaFields(q, [r.vin, r.licensePlate]) && !matchedViaFields(q, [r.make, r.model])
                 ? [[r.make, r.model].filter(Boolean).join(" "), r.licensePlate ?? r.vin]
                     .filter(Boolean)
@@ -543,7 +528,9 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  if (enabledModules.has("INVENTORY") && (textOk || filter === "missingIdentifier")) {
+  // Inventory items only have Missing key details; any other filter leaves them out.
+  const inventoryFilterOk = !filter || (filters.missingDetails && !filters.due && vehicleFilterOnly);
+  if (enabledModules.has("INVENTORY") && (textOk || filter) && inventoryFilterOk) {
     queries.push(
       prisma.inventoryItem
         .findMany({
@@ -551,13 +538,10 @@ export async function GET(request: NextRequest) {
             deletedAt: null,
             AND: [
               ...(textOk ? [{ OR: [{ label: contains }, { brand: contains }, { model: contains }] }] : []),
-              // Inventory items have no expiry date, reminder, or
-              // property/vehicle link — only missingIdentifier applies
-              // (serialNumber); the other filters would flag every item.
-              ...(filter === "missingIdentifier" ? [{ serialNumber: null }] : []),
+              ...(filters.missingDetails ? [inventoryRules.missingDetails.where] : []),
             ],
           },
-          select: { id: true, label: true, brand: true },
+          select: { id: true, label: true, brand: true, deletedAt: true, serialNumber: true },
           // See the equivalent comment on the contract query above.
           orderBy: { createdAt: "desc" },
           take: LIMIT,
@@ -566,7 +550,7 @@ export async function GET(request: NextRequest) {
           rows.map((r) => ({
             id: r.id,
             title: r.label,
-            subtitle: filter && INVENTORY_MISSING_REASONS[filter] ? INVENTORY_MISSING_REASONS[filter] : (r.brand ?? undefined),
+            subtitle: filters.missingDetails ? missingSubtitle(inventoryMissingParts(r)) : (r.brand ?? undefined),
             href: `/inventory/${r.id}`,
             group: "Inventory",
           })),

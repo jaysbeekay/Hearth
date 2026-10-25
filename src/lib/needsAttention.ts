@@ -1,6 +1,7 @@
 import type { Contract, Product, Vehicle } from "@/generated/prisma/client";
 import { daysUntil } from "@/lib/utils";
 import { contractTiming } from "@/lib/contractTiming";
+import { contractRules, listHref, productRules } from "@/lib/recordFilters";
 
 export type AttentionKind = "contract" | "warranty" | "vehicle" | "system";
 
@@ -157,7 +158,7 @@ export function buildExtractionReviewItems(
 ): AttentionItem[] {
   const items: AttentionItem[] = [];
   for (const contract of contracts) {
-    if (!contract.extractionPending) continue;
+    if (!contractRules.review.matches(contract)) continue;
     items.push({
       id: `review-contract-${contract.id}`,
       kind: "contract",
@@ -171,7 +172,7 @@ export function buildExtractionReviewItems(
     });
   }
   for (const product of products) {
-    if (!product.extractionPending) continue;
+    if (!productRules.review.matches(product)) continue;
     items.push({
       id: `review-product-${product.id}`,
       kind: "warranty",
@@ -285,54 +286,56 @@ export function buildInboxItem(inboxCount: number): AttentionItem[] {
   ];
 }
 
-export function buildMissingInfoItems(
-  contractsMissingInfo: number,
-  warrantiesMissingInfo: number,
-): AttentionItem[] {
+// #395 — one row per record type, counted with the rules in
+// src/lib/recordFilters.ts and linking to the list filtered by the same rule.
+// A Contract's cost with no billing frequency (#303) is one of its key
+// details rather than a row of its own.
+export function buildMissingDetailsItems(counts: {
+  contracts: number;
+  warranties: number;
+  vehicles?: number;
+}): AttentionItem[] {
   const items: AttentionItem[] = [];
-  if (contractsMissingInfo > 0) {
+  if (counts.contracts > 0) {
+    const href = listHref("/contracts", { missingDetails: true });
     items.push({
-      id: "missing-info-contracts",
+      id: "missing-details-contracts",
       kind: "contract",
       group: "housekeeping",
-      title: `${plural(contractsMissingInfo, "contract is", "contracts are")} missing key details`,
-      subtitle: "No end date or no policy number.",
+      title: `${plural(counts.contracts, "contract is", "contracts are")} missing key details`,
+      subtitle: "No end date, or a cost with no billing frequency.",
       days: null,
-      href: "/contracts?missingInfo=true",
-      action: { label: "Fill in", href: "/contracts?missingInfo=true" },
+      href,
+      action: { label: "Fill in", href },
     });
   }
-  if (warrantiesMissingInfo > 0) {
+  if (counts.warranties > 0) {
+    const href = listHref("/products", { missingDetails: true });
     items.push({
-      id: "missing-info-warranties",
+      id: "missing-details-warranties",
       kind: "warranty",
       group: "housekeeping",
-      title: `${plural(warrantiesMissingInfo, "warranty is", "warranties are")} missing key details`,
-      subtitle: "No end date or no serial number.",
+      title: `${plural(counts.warranties, "warranty is", "warranties are")} missing key details`,
+      subtitle: "No end date, or no serial number or barcode.",
       days: null,
-      href: "/products?missingInfo=true",
-      action: { label: "Fill in", href: "/products?missingInfo=true" },
+      href,
+      action: { label: "Fill in", href },
+    });
+  }
+  if (counts.vehicles && counts.vehicles > 0) {
+    const href = listHref("/vehicles", { missingDetails: true });
+    items.push({
+      id: "missing-details-vehicles",
+      kind: "vehicle",
+      group: "housekeeping",
+      title: `${plural(counts.vehicles, "vehicle is", "vehicles are")} missing key details`,
+      subtitle: "No VIN or plate.",
+      days: null,
+      href,
+      action: { label: "Fill in", href },
     });
   }
   return items;
-}
-
-// #303 — a cost with no billing frequency adds nothing to the monthly
-// estimate, which otherwise reads as the total being wrong.
-export function buildMissingFrequencyItem(count: number): AttentionItem[] {
-  if (count === 0) return [];
-  return [
-    {
-      id: "missing-billing-frequency",
-      kind: "contract",
-      group: "housekeeping",
-      title: `${plural(count, "contract has", "contracts have")} a cost but no billing frequency`,
-      subtitle: "Not counted in the monthly estimate until one is set.",
-      days: null,
-      href: "/contracts?status=ACTIVE",
-      action: { label: "Fix", href: "/contracts?status=ACTIVE" },
-    },
-  ];
 }
 
 /**

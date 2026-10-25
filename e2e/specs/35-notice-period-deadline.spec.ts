@@ -27,7 +27,7 @@ test("an auto-renewing contract with a notice period counts down to the notice d
   await expect(page.getByText(/Give notice by .+ — 10 days left\./)).toBeVisible();
   await expect(page.getByText(/30 days · give notice by /)).toBeVisible();
 
-  await page.goto("/contracts?expiring=30");
+  await page.goto("/contracts?due=soon");
   await expect(page.getByText(title)).toBeVisible();
 
   await page.goto("/calendar");

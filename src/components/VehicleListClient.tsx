@@ -5,25 +5,39 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { linkButtonClass, toolbarButtonClass, exportMenuItemClass } from "@/lib/buttonStyles";
 import { Plus, ChevronDown } from "lucide-react";
+import { ListFilterChips } from "@/components/ListFilterChips";
 import { VehicleCard } from "@/components/VehicleCard";
 import { PendingRecordCard } from "@/components/PendingRecordCard";
 import type { VehicleModel } from "@/generated/prisma/models";
 import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
+import {
+  hasListFilters,
+  listHref,
+  toggleListFilter,
+  vehicleMissingParts,
+  type ListFilterCounts,
+  type ListFilters,
+} from "@/lib/recordFilters";
 
 type VehicleWithCount = VehicleModel & { _count: { items: number } };
 
 interface Props {
   vehicles: VehicleWithCount[];
+  filters: ListFilters;
+  /** #395 — household-wide, from the server; never recounted here. */
+  counts: ListFilterCounts;
   dateFormat?: string;
   canWrite?: boolean;
 }
 
-export function VehicleListClient({ vehicles, dateFormat, canWrite = true }: Props) {
+export function VehicleListClient({ vehicles, filters, counts, dateFormat, canWrite = true }: Props) {
   const online = useOnlineStatus();
   const router = useRouter();
   const { pendingOps, refresh: refreshPending } = usePendingCreates("vehicle");
+
+  const filtered = hasListFilters(filters);
 
   useEffect(() => {
     cachePageData("vehicles:list", vehicles).catch(() => {});
@@ -63,6 +77,33 @@ export function VehicleListClient({ vehicles, dateFormat, canWrite = true }: Pro
         </div>
       </div>
 
+      {((counts.missingDetails ?? 0) > 0 || filtered) && (
+        <ListFilterChips
+          filters={filters}
+          chips={[{ chip: "missingDetails", label: "Missing key details" }]}
+          onToggle={(chip) => {
+            router.push(listHref("/vehicles", toggleListFilter(filters, chip)));
+          }}
+        />
+      )}
+
+      {filtered && (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-muted">
+            {vehicles.length} {vehicles.length === 1 ? "vehicle" : "vehicles"}
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              router.push("/vehicles");
+            }}
+            className="text-xs text-muted underline hover:text-foreground"
+          >
+            Clear all
+          </button>
+        </div>
+      )}
+
       {pendingOps.length > 0 && (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {pendingOps.map((op) => (
@@ -81,13 +122,20 @@ export function VehicleListClient({ vehicles, dateFormat, canWrite = true }: Pro
       {vehicles.length === 0 ? (
         pendingOps.length === 0 && (
           <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
-            No vehicles yet. Add your first vehicle to start tracking registration, insurance, and service history.
+            {filtered
+              ? "No vehicles match these filters."
+              : "No vehicles yet. Add your first vehicle to start tracking registration, insurance, and service history."}
           </p>
         )
       ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           {vehicles.map((vehicle) => (
-            <VehicleCard key={vehicle.id} vehicle={vehicle} dateFormat={dateFormat} />
+            <VehicleCard
+              key={vehicle.id}
+              vehicle={vehicle}
+              dateFormat={dateFormat}
+              missing={filters.missingDetails ? vehicleMissingParts(vehicle) : undefined}
+            />
           ))}
         </div>
       )}

@@ -60,7 +60,7 @@ test("starring a document marks it Important and the star persists after reload"
   await expect(page.getByRole("button", { name: "Unmark important-flag-test.pdf as important" })).toBeVisible();
 });
 
-test("the Missing document filter chip on the Contracts list filters correctly", async ({ page }) => {
+test("the No document filter chip on the Contracts list filters correctly", async ({ page }) => {
   await page.goto("/contracts/new");
   await page.locator("#title").fill("Filter Regression - Has Document");
   await page.locator("#provider").fill("Regression Provider");
@@ -85,8 +85,8 @@ test("the Missing document filter chip on the Contracts list filters correctly",
   ]);
 
   await page.goto("/contracts");
-  await page.getByRole("button", { name: "Missing document" }).click();
-  await page.waitForURL(/missingDocument=true/);
+  await page.getByRole("button", { name: "No document" }).click();
+  await page.waitForURL(/noDocument=1/);
 
   await expect(page.getByText("Filter Regression - Missing Document")).toBeVisible();
   await expect(page.getByText("Filter Regression - Has Document")).toHaveCount(0);

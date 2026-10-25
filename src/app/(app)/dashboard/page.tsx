@@ -20,10 +20,10 @@ import {
   buildExtractionReviewItems,
   buildReminderFailureItems,
   buildInboxItem,
-  buildMissingInfoItems,
-  buildMissingFrequencyItem,
+  buildMissingDetailsItems,
   groupAttentionItems,
 } from "@/lib/needsAttention";
+import { contractRules, productRules, vehicleRules } from "@/lib/recordFilters";
 import { NeedsAttentionQueue } from "@/components/NeedsAttentionQueue";
 
 export const metadata: Metadata = { title: "Dashboard" };
@@ -43,12 +43,12 @@ export default async function DashboardPage() {
       prisma.contract.findMany({
         where: { deletedAt: null },
         orderBy: { endDate: "asc" },
-        include: { _count: { select: { documents: true } } },
+        include: { _count: { select: { documents: { where: { deletedAt: null } } } } },
       }),
       prisma.product.findMany({
         where: { deletedAt: null },
         orderBy: { warrantyEndDate: "asc" },
-        include: { _count: { select: { documents: true } } },
+        include: { _count: { select: { documents: { where: { deletedAt: null } } } } },
       }),
       enabledModules.has("VEHICLES")
         ? prisma.vehicle.findMany({ where: { deletedAt: null }, orderBy: { createdAt: "desc" } })
@@ -92,23 +92,15 @@ export default async function DashboardPage() {
     );
   }
 
-  // #303: a contract with a cost but no billing frequency contributes $0 to
-  // the monthly estimate (monthlyEquivalent has no frequency to convert
-  // from) — surfaced as a housekeeping row so the total doesn't just look wrong.
-  const missingFrequencyCount = active.filter(
-    (c) => c.cost != null && c.billingFrequency == null,
-  ).length;
-
-  // #328 — a completeness gap (no end date, no policy/serial number),
-  // independent of urgency: mirrors the narrower missingInfo filter
-  // contracts/products list pages support (see the comment there for why
-  // reminder/relationship gaps aren't folded into this aggregate).
-  const contractsMissingInfo = active.filter(
-    (c) => c.endDate == null || c.contractNumber == null,
-  ).length;
-  const warrantiesMissingInfo = products.filter(
-    (p) => p.warrantyEndDate == null || (p.serialNumber == null && p.barcode == null),
-  ).length;
+  // #395 — Missing key details, counted with the same rules the lists use
+  // (src/lib/recordFilters.ts), so each count is the length of the list its
+  // row opens. A cost with no billing frequency (#303, which would otherwise
+  // add $0 to the monthly estimate) is part of a Contract's key details.
+  const missingDetails = {
+    contracts: contracts.filter(contractRules.missingDetails.matches).length,
+    warranties: products.filter(productRules.missingDetails.matches).length,
+    vehicles: enabledModules.has("VEHICLES") ? vehicles.filter(vehicleRules.missingDetails.matches).length : 0,
+  };
 
   // #356/#357 — the dashboard leads with what needs doing: dated items
   // (Due) first, then records to tidy (Housekeeping), each with its next
@@ -120,8 +112,7 @@ export default async function DashboardPage() {
     ...buildReminderFailureItems(failedReminderLogs, contracts, products, vehicles),
     ...buildExtractionReviewItems(contracts, products),
     ...buildInboxItem(documentStats.inboxCount),
-    ...buildMissingInfoItems(contractsMissingInfo, warrantiesMissingInfo),
-    ...buildMissingFrequencyItem(missingFrequencyCount),
+    ...buildMissingDetailsItems(missingDetails),
     ...(session?.user.role === "ADMIN" && !smtpConfigured && !ntfyConfigured
       ? [buildReminderNudgeItem()]
       : []),

@@ -7,10 +7,13 @@ export function ProductCard({
   product,
   dateFormat,
   region,
+  missing,
 }: {
   product: ProductModel & { _count?: { documents: number } };
   dateFormat?: string;
   region?: string;
+  /** #395 — which key details are missing, shown when the list is filtered to them. */
+  missing?: string[];
 }) {
   const days = daysUntil(product.warrantyEndDate);
 
@@ -42,6 +45,10 @@ export function ProductCard({
           <span className="tabular-nums">{formatCurrency(product.price, product.currency, undefined, region)}</span>
         )}
       </div>
+
+      {missing && missing.length > 0 && (
+        <p className="mt-1 text-xs font-medium text-warning">{missing.join(" · ")}</p>
+      )}
 
       {product._count != null && product._count.documents > 0 && (
         <p className="mt-1 text-xs text-muted tabular-nums">

@@ -87,6 +87,28 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- **One definition of Missing key details (#395).** The Contracts,
+  Warranties and Vehicles lists, Search and the dashboard now share one set
+  of filter rules (`src/lib/recordFilters.ts`), so a count always matches
+  the list it opens. A Contract is missing key details when it has no end
+  date (unless it auto-renews) or a cost with no billing frequency; contract
+  number no longer counts. A Vehicle is missing key details when it has
+  neither VIN nor plate. Cancelled and deleted records never count. The
+  dashboard shows one "N contracts are missing key details" row (the
+  separate "cost but no billing frequency" row is folded in), plus a
+  Vehicles row, and each row in the filtered list says what is missing
+  ("No end date", "No billing frequency", "No VIN or plate").
+- **New list filter URLs (#395):** `?due=soon`, `?due=overdue`,
+  `?missing=details`, `?review=1`, `?noDocument=1`, `?important=1`. Old
+  links (`?expiring=30`, `?expired=true`, `?missingInfo=true`,
+  `?needsReview=true`, `?missingDocument=true`) redirect to them, and
+  Search still accepts its old `filter=` values. Following a dashboard link
+  now shows the filter as an active chip with Clear all.
+- Search's "Missing date" and "Missing identifier" chips are merged into
+  "Missing key details", and its "Expiring soon" counts to a Contract's
+  notice deadline, as the Contracts list does. The "Missing document" list chip is now "No
+  document". "Expired" on the Contracts list leaves out Cancelled
+  Contracts, matching the dashboard (#395).
 - Reminder dates follow each recipient's date format preference (#352).
 - `vehicle.expiring` webhook event: vehicle reminders now carry
   `"field": "regoExpiry" | "insuranceExpiry" | "nextServiceDue"` and link
@@ -133,6 +155,9 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Removed
 
+- Search's "Missing reminder" and "Missing link" filters. A blank Reminder
+  threshold means the household default and linking is optional, so
+  neither was a real gap (#395).
 - **Snyk CI checks.** The Snyk Security workflow (Open Source, Code and
   Container scans) and its `.snyk` policy file are gone. Docker Scout stays
   as the container scan that blocks on critical and high CVEs, and CodeQL

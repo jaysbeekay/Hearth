@@ -3,18 +3,28 @@ import { auth } from "@/lib/auth";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { VehicleListClient } from "@/components/VehicleListClient";
+import { parseListFilters, vehicleFilterWheres, vehicleRules } from "@/lib/recordFilters";
 
-export default async function VehiclesPage() {
+export default async function VehiclesPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   await requireModuleEnabled("VEHICLES");
 
-  const [vehicles, { dateFormat }, session] = await Promise.all([
+  // #395 — Vehicles only have the Missing key details filter.
+  const { missingDetails } = parseListFilters(await searchParams);
+  const filters = { missingDetails };
+
+  const [vehicles, missingDetailsCount, { dateFormat }, session] = await Promise.all([
     prisma.vehicle.findMany({
-      where: { deletedAt: null },
+      where: { deletedAt: null, AND: vehicleFilterWheres(filters) },
       include: {
         _count: { select: { items: true, contracts: { where: { deletedAt: null } } } },
       },
       orderBy: { createdAt: "desc" },
     }),
+    prisma.vehicle.count({ where: vehicleRules.missingDetails.where }),
     getUserPreferences(),
     auth(),
   ]);
@@ -22,6 +32,8 @@ export default async function VehiclesPage() {
   return (
     <VehicleListClient
       vehicles={vehicles}
+      filters={filters}
+      counts={{ missingDetails: missingDetailsCount }}
       dateFormat={dateFormat}
       canWrite={session?.user.role !== "READONLY"}
     />

@@ -4,22 +4,20 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, X, Loader2 } from "lucide-react";
 import type { SearchResult } from "@/app/api/search/route";
+import { toggleListFilter, writeListFilters, type ToggleableFilter } from "@/lib/recordFilters";
 
 const OPEN_EVENT = "hearth:open-search";
 
-// #205 — memory-fragment filters, mirrored from the server's supported
-// `filter` values (src/app/api/search/route.ts). Single-select: picking one
+// #205/#395 — memory-fragment filters, sent with the same URL parameters as
+// the list pages (src/lib/recordFilters.ts). Single-select: picking one
 // clears any other, since they express mutually-relevant "what am I looking
 // for" states rather than a combinable checklist.
-const SEARCH_FILTERS: { value: string; label: string }[] = [
-  { value: "expiring", label: "Expiring soon" },
-  { value: "needsReview", label: "Needs review" },
+const SEARCH_FILTERS: { value: ToggleableFilter; label: string }[] = [
+  { value: "dueSoon", label: "Expiring soon" },
+  { value: "review", label: "Needs review" },
   { value: "noDocument", label: "No document attached" },
   { value: "important", label: "Important" },
-  { value: "missingDate", label: "Missing date" },
-  { value: "missingReminder", label: "Missing reminder" },
-  { value: "missingRelationship", label: "Missing link" },
-  { value: "missingIdentifier", label: "Missing identifier" },
+  { value: "missingDetails", label: "Missing key details" },
 ];
 
 export function openGlobalSearch() {
@@ -30,7 +28,7 @@ export function GlobalSearch() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<string | null>(null);
+  const [filter, setFilter] = useState<ToggleableFilter | null>(null);
   const [groups, setGroups] = useState<Record<string, SearchResult[]>>({});
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -101,7 +99,7 @@ export function GlobalSearch() {
       setLoading(true);
       const params = new URLSearchParams();
       if (textOk) params.set("q", query.trim());
-      if (filter) params.set("filter", filter);
+      if (filter) writeListFilters(params, toggleListFilter({}, filter));
       fetch(`/api/search?${params.toString()}`)
         .then((res) => res.json())
         .then((data) => {
