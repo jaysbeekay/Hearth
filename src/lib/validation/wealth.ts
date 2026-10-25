@@ -88,6 +88,8 @@ export const importedTradeSchema = z.object({
   currency: z.string().trim().min(1).max(10),
 });
 
+export type ImportedTrade = z.infer<typeof importedTradeSchema>;
+
 // A household's brokerage export is thousands of rows at the very most, and
 // each row costs an upsert plus a duplicate lookup.
 export const MAX_IMPORTED_TRADES = 5000;

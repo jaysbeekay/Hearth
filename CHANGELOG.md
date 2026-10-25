@@ -236,6 +236,14 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   doesn't exist or is in Trash is refused with a message, and if saving a
   confirmed Assistant change fails, the card says so and can be retried
   instead of staying on "Saving…" (#393).
+- Portfolio, Holding and Trade writes go through one command module
+  (`src/lib/commands/wealth.ts`) shared by the server actions, offline
+  sync and CSV import (ADR 0003). Cost basis is still worked out from the
+  Trades on each view. Changing a Holding's ticker to one already in the
+  Portfolio now shows "already in this portfolio" instead of failing, an
+  offline Holding edit is checked against the Portfolio it was made under,
+  and the market price looked up after a new Trade no longer makes a
+  queued offline edit of that Trade look stale (#392).
 - **One Reminder schedule (#387).** The scheduler, the Reminder health
   card and Settings' household Reminder health now read one pure schedule
   (`src/lib/notifications/reminderSchedule.ts`) built on the Due policy, in

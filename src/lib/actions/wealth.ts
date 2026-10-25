@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import {
@@ -19,11 +18,23 @@ import {
   importedTradesSchema,
   MAX_IMPORTED_TRADES,
 } from "@/lib/validation/wealth";
-import { addDocumentCommand, removeOwnerDocumentFiles } from "@/lib/commands/documents";
-import { fetchHistoricalPrice } from "@/lib/prices";
+import { addDocumentCommand } from "@/lib/commands/documents";
 import { isModuleEnabled, ModuleDisabledError } from "@/lib/modules/enablement";
 import { createPropertyValuationCommand, deletePropertyValuationCommand } from "@/lib/commands/home";
-import { RecordNotFoundError } from "@/lib/commands/shared";
+import {
+  createPortfolioCommand,
+  updatePortfolioCommand,
+  permanentlyDeletePortfolioCommand,
+  createHoldingCommand,
+  updateHoldingCommand,
+  permanentlyDeleteHoldingCommand,
+  createTradeCommand,
+  updateTradeCommand,
+  permanentlyDeleteTradeCommand,
+  importTradesCommand,
+  DuplicateHoldingError,
+} from "@/lib/commands/wealth";
+import { RecordNotFoundError, StaleEditError } from "@/lib/commands/shared";
 import { formDataToStringValues } from "@/lib/form-state";
 import type { ActionState } from "@/lib/actions/auth";
 import { parse } from "csv-parse/sync";
@@ -46,6 +57,22 @@ async function requireUser() {
   return session.user;
 }
 
+// Turns a command's not-found / stale-edit / module-disabled / duplicate-
+// ticker error into the ActionState the form shows; anything else is
+// unexpected and rethrown. (requireUser checks the Wealth module first, but
+// the command's own gate can still refuse if it's switched off in between.)
+function commandError(error: unknown, notFound: string): ActionState {
+  if (error instanceof RecordNotFoundError) return { error: notFound };
+  if (
+    error instanceof StaleEditError ||
+    error instanceof ModuleDisabledError ||
+    error instanceof DuplicateHoldingError
+  ) {
+    return { error: error.message };
+  }
+  throw error;
+}
+
 // ── Portfolios ──────────────────────────────────────────────────────────────
 
 export async function createPortfolio(
@@ -60,11 +87,13 @@ export async function createPortfolio(
       values: formDataToStringValues(formData, PORTFOLIO_FIELDS),
     };
   }
-  const portfolio = await prisma.portfolio.create({
-    data: { ...parsed.data, createdById: user.id },
-  });
-  revalidatePath("/wealth");
-  redirect(`/wealth/portfolios/${portfolio.id}`);
+  let portfolioId: string;
+  try {
+    portfolioId = (await createPortfolioCommand(parsed.data, user.id)).id;
+  } catch (error) {
+    return commandError(error, "Portfolio not found.");
+  }
+  redirect(`/wealth/portfolios/${portfolioId}`);
 }
 
 export async function updatePortfolio(
@@ -80,33 +109,22 @@ export async function updatePortfolio(
       values: formDataToStringValues(formData, PORTFOLIO_FIELDS),
     };
   }
-  const existing = await prisma.portfolio.findUnique({ where: { id: portfolioId } });
-  if (!existing) return { error: "Portfolio not found." };
-
-  await prisma.portfolio.update({ where: { id: portfolioId }, data: fullFormUpdate(portfolioSchema, parsed.data, formData) });
-  revalidatePath("/wealth");
-  revalidatePath(`/wealth/portfolios/${portfolioId}`);
+  try {
+    await updatePortfolioCommand(portfolioId, fullFormUpdate(portfolioSchema, parsed.data, formData));
+  } catch (error) {
+    return commandError(error, "Portfolio not found.");
+  }
   redirect(`/wealth/portfolios/${portfolioId}`);
 }
 
+// Permanent: Portfolios have no Trash (see commands/wealth.ts).
 export async function deletePortfolio(portfolioId: string): Promise<ActionState> {
   await requireUser();
-  const existing = await prisma.portfolio.findUnique({
-    where: { id: portfolioId },
-    include: { holdings: { include: { trades: { select: { id: true } } } } },
-  });
-  if (!existing) return { error: "Portfolio not found." };
-
-  // Cascade removes the DB rows but not the uploaded trade-document files —
-  // clean those up first.
-  for (const holding of existing.holdings) {
-    for (const trade of holding.trades) {
-      await removeOwnerDocumentFiles("TRADE", trade.id);
-    }
+  try {
+    await permanentlyDeletePortfolioCommand(portfolioId);
+  } catch (error) {
+    return commandError(error, "Portfolio not found.");
   }
-
-  await prisma.portfolio.delete({ where: { id: portfolioId } });
-  revalidatePath("/wealth");
   redirect("/wealth");
 }
 
@@ -125,20 +143,13 @@ export async function createHolding(
       values: formDataToStringValues(formData, HOLDING_FIELDS),
     };
   }
-
-  const portfolio = await prisma.portfolio.findUnique({ where: { id: portfolioId } });
-  if (!portfolio) return { error: "Portfolio not found." };
-
-  const existing = await prisma.holding.findUnique({
-    where: { portfolioId_ticker: { portfolioId, ticker: parsed.data.ticker } },
-  });
-  if (existing) return { error: `${parsed.data.ticker} is already in this portfolio.` };
-
-  const holding = await prisma.holding.create({
-    data: { ...parsed.data, portfolioId },
-  });
-  revalidatePath(`/wealth/portfolios/${portfolioId}`);
-  redirect(`/wealth/portfolios/${portfolioId}/holdings/${holding.id}`);
+  let holdingId: string;
+  try {
+    holdingId = (await createHoldingCommand(portfolioId, parsed.data)).id;
+  } catch (error) {
+    return commandError(error, "Portfolio not found.");
+  }
+  redirect(`/wealth/portfolios/${portfolioId}/holdings/${holdingId}`);
 }
 
 export async function updateHolding(
@@ -155,38 +166,31 @@ export async function updateHolding(
       values: formDataToStringValues(formData, HOLDING_FIELDS),
     };
   }
-
-  const holding = await prisma.holding.findUnique({ where: { id: holdingId } });
-  if (!holding) return { error: "Holding not found." };
-
-  await prisma.holding.update({ where: { id: holdingId }, data: fullFormUpdate(holdingSchema, parsed.data, formData) });
-  revalidatePath(`/wealth/portfolios/${portfolioId}/holdings/${holdingId}`);
+  try {
+    await updateHoldingCommand(holdingId, fullFormUpdate(holdingSchema, parsed.data, formData), { portfolioId });
+  } catch (error) {
+    return commandError(error, "Holding not found.");
+  }
   redirect(`/wealth/portfolios/${portfolioId}/holdings/${holdingId}`);
 }
 
+// Permanent, with all its Trades (see commands/wealth.ts).
 export async function deleteHolding(portfolioId: string, holdingId: string): Promise<ActionState> {
   await requireUser();
-  const holding = await prisma.holding.findUnique({
-    where: { id: holdingId },
-    include: { trades: { select: { id: true } } },
-  });
-  if (!holding) return { error: "Holding not found." };
-
-  // Cascade removes the DB rows but not the uploaded trade-document files —
-  // clean those up first.
-  for (const trade of holding.trades) {
-    await removeOwnerDocumentFiles("TRADE", trade.id);
+  try {
+    await permanentlyDeleteHoldingCommand(holdingId, { portfolioId });
+  } catch (error) {
+    return commandError(error, "Holding not found.");
   }
-
-  await prisma.holding.delete({ where: { id: holdingId } });
-  revalidatePath(`/wealth/portfolios/${portfolioId}`);
   redirect(`/wealth/portfolios/${portfolioId}`);
 }
 
 // ── Trades ──────────────────────────────────────────────────────────────────
 
-async function requireHolding(holdingId: string) {
-  return prisma.holding.findUnique({ where: { id: holdingId } });
+// Where a Trade form goes back to: its Holding's page.
+async function holdingPageFor(holdingId: string) {
+  const holding = await prisma.holding.findUnique({ where: { id: holdingId }, select: { portfolioId: true } });
+  return holding ? `/wealth/portfolios/${holding.portfolioId}/holdings/${holdingId}` : "/wealth";
 }
 
 export async function createTrade(
@@ -195,9 +199,6 @@ export async function createTrade(
   formData: FormData,
 ): Promise<ActionState> {
   await requireUser();
-  const holding = await requireHolding(holdingId);
-  if (!holding) return { error: "Holding not found." };
-
   const parsed = tradeSchema.safeParse(formToTradeInput(formData));
   if (!parsed.success) {
     return {
@@ -212,25 +213,18 @@ export async function createTrade(
     if (rejection) return { error: rejection };
   }
 
-  const trade = await prisma.trade.create({ data: { ...parsed.data, holdingId } });
+  let tradeId: string;
+  try {
+    tradeId = (await createTradeCommand(holdingId, parsed.data)).id;
+  } catch (error) {
+    return commandError(error, "Holding not found.");
+  }
 
   if (file instanceof File && file.size > 0) {
-    await addDocumentCommand("TRADE", trade.id, { file });
+    await addDocumentCommand("TRADE", tradeId, { file });
   }
 
-  // Back-fill market price on trade date (non-blocking — don't fail the trade if fetch errors)
-  if (holding.exchange !== "CRYPTO") {
-    fetchHistoricalPrice(holding.ticker, parsed.data.date)
-      .then((marketPrice) => {
-        if (marketPrice != null) {
-          return prisma.trade.update({ where: { id: trade.id }, data: { marketPriceOnDate: marketPrice } });
-        }
-      })
-      .catch(() => {});
-  }
-
-  revalidatePath(`/wealth/portfolios/${holding.portfolioId}/holdings/${holdingId}`);
-  redirect(`/wealth/portfolios/${holding.portfolioId}/holdings/${holdingId}`);
+  redirect(await holdingPageFor(holdingId));
 }
 
 export async function updateTrade(
@@ -240,12 +234,6 @@ export async function updateTrade(
   formData: FormData,
 ): Promise<ActionState> {
   await requireUser();
-  const holding = await requireHolding(holdingId);
-  if (!holding) return { error: "Holding not found." };
-
-  const trade = await prisma.trade.findUnique({ where: { id: tradeId } });
-  if (!trade || trade.holdingId !== holdingId) return { error: "Trade not found." };
-
   const parsed = tradeSchema.safeParse(formToTradeInput(formData));
   if (!parsed.success) {
     return {
@@ -253,23 +241,22 @@ export async function updateTrade(
       values: formDataToStringValues(formData, TRADE_FIELDS),
     };
   }
-
-  await prisma.trade.update({ where: { id: tradeId }, data: fullFormUpdate(tradeSchema, parsed.data, formData) });
-  revalidatePath(`/wealth/portfolios/${holding.portfolioId}/holdings/${holdingId}`);
-  redirect(`/wealth/portfolios/${holding.portfolioId}/holdings/${holdingId}`);
+  try {
+    await updateTradeCommand(tradeId, fullFormUpdate(tradeSchema, parsed.data, formData), { holdingId });
+  } catch (error) {
+    return commandError(error, "Trade not found.");
+  }
+  redirect(await holdingPageFor(holdingId));
 }
 
+// Permanent: Trades have no Trash yet (#427).
 export async function deleteTrade(holdingId: string, tradeId: string): Promise<ActionState> {
   await requireUser();
-  const holding = await requireHolding(holdingId);
-  if (!holding) return { error: "Holding not found." };
-
-  const trade = await prisma.trade.findUnique({ where: { id: tradeId } });
-  if (!trade || trade.holdingId !== holdingId) return { error: "Trade not found." };
-
-  await removeOwnerDocumentFiles("TRADE", tradeId);
-  await prisma.trade.delete({ where: { id: tradeId } });
-  revalidatePath(`/wealth/portfolios/${holding.portfolioId}/holdings/${holdingId}`);
+  try {
+    await permanentlyDeleteTradeCommand(tradeId, { holdingId });
+  } catch (error) {
+    return commandError(error, "Trade not found.");
+  }
   return { success: "Trade deleted." };
 }
 
@@ -398,8 +385,6 @@ export async function importTrades(
   rows: ParsedTrade[],
 ): Promise<ActionState> {
   await requireUser();
-  const portfolio = await prisma.portfolio.findUnique({ where: { id: portfolioId } });
-  if (!portfolio) return { error: "Portfolio not found." };
 
   // `rows` arrives from the client. The ParsedTrade[] type is compile-time
   // only, so validate it for real before any of it reaches the database.
@@ -408,59 +393,13 @@ export async function importTrades(
     return { error: firstIssueMessage(validated.error) };
   }
 
-  let imported = 0;
-  let skipped = 0;
-
-  for (const row of validated.data) {
-    const date = new Date(row.date);
-    if (isNaN(date.getTime())) { skipped++; continue; }
-
-    const holding = await prisma.holding.upsert({
-      where: { portfolioId_ticker: { portfolioId, ticker: row.ticker } },
-      create: { portfolioId, ticker: row.ticker, assetClass: "SHARE" },
-      update: {},
-    });
-
-    // Duplicate check: same holding, date, type, units, price
-    const existing = await prisma.trade.findFirst({
-      where: {
-        holdingId: holding.id,
-        date,
-        type: row.type,
-        units: row.units,
-        pricePerUnit: row.pricePerUnit,
-      },
-    });
-    if (existing) { skipped++; continue; }
-
-    const newTrade = await prisma.trade.create({
-      data: {
-        holdingId: holding.id,
-        type: row.type,
-        date,
-        units: row.units,
-        pricePerUnit: row.pricePerUnit,
-        fees: row.fees || null,
-        currency: row.currency,
-      },
-    });
-
-    // Fetch market price for this trade date (non-blocking)
-    if (row.currency !== "CRYPTO") {
-      fetchHistoricalPrice(row.ticker, date)
-        .then((marketPrice) => {
-          if (marketPrice != null) {
-            return prisma.trade.update({ where: { id: newTrade.id }, data: { marketPriceOnDate: marketPrice } });
-          }
-        })
-        .catch(() => {});
-    }
-
-    imported++;
+  let result: { imported: number; skipped: number };
+  try {
+    result = await importTradesCommand(portfolioId, validated.data);
+  } catch (error) {
+    return commandError(error, "Portfolio not found.");
   }
-
-  revalidatePath(`/wealth/portfolios/${portfolioId}`);
-  revalidatePath("/wealth");
+  const { imported, skipped } = result;
   return { success: `Imported ${imported} trade${imported !== 1 ? "s" : ""}${skipped ? `, skipped ${skipped} duplicate${skipped !== 1 ? "s" : ""}` : ""}.` };
 }
 
