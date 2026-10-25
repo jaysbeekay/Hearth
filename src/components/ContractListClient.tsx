@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
-import { linkButtonClass, toolbarButtonClass, exportMenuItemClass } from "@/lib/buttonStyles";
+import { ListPageHeader } from "@/components/ListPageHeader";
+import { linkButtonClass, toolbarButtonClass } from "@/lib/buttonStyles";
 import { useRouter } from "next/navigation";
-import { Plus, ChevronDown, X, Trash2, Upload } from "lucide-react";
+import { Plus, X, Trash2, Upload } from "lucide-react";
 import { SelectWrapper } from "@/components/SelectWrapper";
 import { ContractCard } from "@/components/ContractCard";
 import { PendingRecordCard } from "@/components/PendingRecordCard";
@@ -131,31 +132,11 @@ export function ContractListClient({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Contracts</h1>
-        <div className="flex items-center gap-2">
-          <details className="relative">
-            <summary className={toolbarButtonClass}>
-              Export <ChevronDown size={14} />
-            </summary>
-            <div className="absolute right-0 z-10 mt-1 w-28 overflow-hidden rounded-lg border border-border bg-surface shadow-md">
-              <a href="/api/export/contracts?format=csv" download className={exportMenuItemClass}>CSV</a>
-              <a href="/api/export/contracts?format=pdf" download className={exportMenuItemClass}>PDF</a>
-            </div>
-          </details>
-          {canWrite && (
-            <Link
-              href="/contracts/new"
-              aria-disabled={!online}
-              tabIndex={!online ? -1 : undefined}
-              className={linkButtonClass("primary", { online })}
-            >
-              <Plus size={16} />
-              Add contract
-            </Link>
-          )}
-        </div>
-      </div>
+      <ListPageHeader
+        title="Contracts"
+        exportPath="/api/export/contracts"
+        action={canWrite ? { href: "/contracts/new", label: "Add contract", online } : undefined}
+      />
 
       <form ref={formRef} className="flex flex-col gap-3 md:flex-row" method="GET">
         <ListFilterHiddenInputs filters={filters} />

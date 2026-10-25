@@ -23,8 +23,8 @@ async function openGlobalSearch(page: import("@playwright/test").Page, query: st
   // listener that isn't wired up until React hydrates. Right after goto(),
   // the button is already painted (SSR) but a click can land before that
   // listener exists and silently no-op — the same class of race documented
-  // in 07-mobile-responsive.spec.ts for the nav drawer's edge-swipe
-  // listener. Retrying the click until the dialog actually opens beats
+  // in 07-mobile-responsive.spec.ts, where openMoreSheet retries its tap
+  // until the More sheet opens. Retrying the click until the dialog opens beats
   // guessing how long hydration takes.
   await expect(async () => {
     await searchButton.click();

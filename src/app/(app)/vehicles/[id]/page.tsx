@@ -180,12 +180,12 @@ export default async function VehicleDetailPage({
       )}
 
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-medium">Contracts and warranties linked to this vehicle</h2>
           {canWrite && (
             <Link
               href={`/contracts/new?vehicleId=${vehicle.id}`}
-              className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+              className="flex items-center gap-2 whitespace-nowrap rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
             >
               <Plus size={16} />
               Add contract

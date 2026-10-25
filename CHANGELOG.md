@@ -87,6 +87,21 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- **One navigation on phones (#407, #369).** The bottom bar and its More
+  sheet are now the only way around on a phone; the menu button and
+  edge-swipe drawer are gone (the desktop sidebar is unchanged). More lists
+  every destination the bar doesn't, plus your name and Sign out, so phone
+  and desktop navigation match. Upload and the Inbox aren't nav entries:
+  Upload stays a button in the Dashboard and Documents headers (#401), and
+  the Inbox is a tab on Documents. The number of Documents waiting in the
+  Inbox shows as a badge on Documents, in both the bottom bar and the
+  sidebar.
+- **List page headers fit on a phone (#369).** Below tablet width the page
+  heading keeps its own line, Export (CSV or PDF) moves into the ⋮ menu
+  beside it, and the Add button runs full width underneath, on Contracts,
+  Warranties, Properties, Vehicles, Travel, Inventory and Wealth. Section
+  buttons on property and vehicle pages, "Send test reminder", Help's report
+  button and Spending's totals no longer wrap or overflow at 360px.
 - **One name for each thing (#362).** The nav, page headings, browser tab
   titles, buttons, back links, Trash and Help now use the same words as
   `GLOSSARY.md`:
@@ -318,6 +333,8 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Removed
 
+- The mobile navigation drawer (`MobileNavDrawer`), its menu button and
+  its left-edge swipe; the bottom bar's More sheet replaces it (#407).
 - Search's "Missing reminder" and "Missing link" filters. A blank Reminder
   threshold means the household default and linking is optional, so
   neither was a real gap (#395).

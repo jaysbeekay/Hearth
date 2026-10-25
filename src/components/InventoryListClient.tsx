@@ -1,10 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { linkButtonClass } from "@/lib/buttonStyles";
-import { Plus } from "lucide-react";
+import { ListPageHeader } from "@/components/ListPageHeader";
 import { InventoryCard } from "@/components/InventoryCard";
 import { PendingRecordCard } from "@/components/PendingRecordCard";
 import type { InventoryItemModel } from "@/generated/prisma/models";
@@ -39,20 +37,10 @@ export function InventoryListClient({ items, dateFormat, region, canWrite = true
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">{MODULE_REGISTRY.INVENTORY.label}</h1>
-        {canWrite && (
-          <Link
-            href="/inventory/new"
-            aria-disabled={!online}
-            tabIndex={!online ? -1 : undefined}
-            className={linkButtonClass("primary", { online })}
-          >
-            <Plus size={16} />
-            Add item
-          </Link>
-        )}
-      </div>
+      <ListPageHeader
+        title={MODULE_REGISTRY.INVENTORY.label}
+        action={canWrite ? { href: "/inventory/new", label: "Add item", online } : undefined}
+      />
 
       {pendingOps.length > 0 && (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">

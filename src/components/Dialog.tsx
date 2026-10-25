@@ -6,11 +6,11 @@ import { useHasMounted } from "@/lib/useHasMounted";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 
 // Shared modal/sheet primitive (#297) — every hand-rolled overlay in the app
-// (ConfirmForm, MobileNavDrawer, BottomNav's "More" sheet,
+// (ConfirmForm, BottomNav's "More" sheet,
 // DetailOverflowMenu's mobile sheet) used to reimplement its own portal,
 // backdrop, and Escape handling with no focus trap, no initial focus, and no
 // focus restore. This centralizes that behavior; callers only supply the
-// panel's own visual chrome (centered card vs bottom sheet vs side drawer)
+// panel's own visual chrome (centered card vs bottom sheet)
 // via `panelClassName`.
 export function Dialog({
   open,

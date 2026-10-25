@@ -135,21 +135,21 @@ export default async function SpendPage({
 
       {/* Summary tiles */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-border bg-surface p-4">
+        <div className="min-w-0 rounded-xl border border-border bg-surface p-4">
           <p className="text-xs text-muted">Monthly recurring</p>
-          <p className="mt-1 text-2xl font-semibold">
+          <p className="mt-1 break-words text-xl font-semibold sm:text-2xl">
             {formatCurrency(monthlyTotal, preferredCurrency, undefined, region, { showCode: true })}
           </p>
         </div>
-        <div className="rounded-xl border border-border bg-surface p-4">
+        <div className="min-w-0 rounded-xl border border-border bg-surface p-4">
           <p className="text-xs text-muted">Annual projection</p>
-          <p className="mt-1 text-2xl font-semibold">
+          <p className="mt-1 break-words text-xl font-semibold sm:text-2xl">
             {formatCurrency(annualTotal, preferredCurrency, undefined, region, { showCode: true })}
           </p>
         </div>
-        <div className="rounded-xl border border-border bg-surface p-4">
+        <div className="min-w-0 rounded-xl border border-border bg-surface p-4">
           <p className="text-xs text-muted">Tax-deductible / mo</p>
-          <p className="mt-1 text-2xl font-semibold">
+          <p className="mt-1 break-words text-xl font-semibold sm:text-2xl">
             {formatCurrency(taxDeductibleMonthly, preferredCurrency, undefined, region, { showCode: true })}
           </p>
         </div>

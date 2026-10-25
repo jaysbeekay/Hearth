@@ -70,7 +70,7 @@ export default function HelpPage() {
           rel="noopener noreferrer"
           className={linkButtonClass("primary")}
         >
-          Report a bug or suggest an enhancement
+          Report a bug or suggestion
         </a>
       </section>
     </div>

@@ -8,6 +8,7 @@ import { getNavItems, FOOTER_NAV } from "@/components/nav-items";
 import type { ModuleKey } from "@/lib/modules/registry";
 import { SignOutButton } from "@/components/SignOutButton";
 import { openGlobalSearch } from "@/components/GlobalSearch";
+import { InboxCountBadge, inboxLinkLabel } from "@/components/InboxCountBadge";
 
 function isActive(href: string, pathname: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -18,11 +19,13 @@ export function Sidebar({
   userEmail,
   enabledModules,
   chatConfigured,
+  inboxCount,
 }: {
   userName: string;
   userEmail: string;
   enabledModules: ModuleKey[];
   chatConfigured: boolean;
+  inboxCount: number;
 }) {
   const pathname = usePathname();
   const items = getNavItems(new Set(enabledModules), chatConfigured);
@@ -96,10 +99,12 @@ export function Sidebar({
         </p>
         {toolItems.map(({ href, label, icon: Icon }) => {
           const active = isActive(href, pathname);
+          const documents = href === "/documents";
           return (
             <Link
               key={href}
               href={href}
+              aria-label={documents ? inboxLinkLabel(label, inboxCount) : undefined}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition",
                 active
@@ -109,6 +114,7 @@ export function Sidebar({
             >
               <Icon size={18} />
               {label}
+              {documents && <InboxCountBadge count={inboxCount} className="ml-auto" />}
             </Link>
           );
         })}

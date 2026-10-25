@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Plus, ChevronDown, AlertTriangle } from "lucide-react";
+import { Plus, AlertTriangle } from "lucide-react";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { getNetWorth } from "@/lib/wealth";
@@ -9,8 +9,8 @@ import { prisma } from "@/lib/prisma";
 import { formatCurrency } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { HoldingCard } from "@/components/HoldingCard";
+import { ListPageHeader, type ListPageAction } from "@/components/ListPageHeader";
 import type { ModuleKey } from "@/lib/modules/registry";
-import { linkButtonClass, toolbarButtonClass, exportMenuItemClass } from "@/lib/buttonStyles";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 
@@ -46,33 +46,16 @@ export default async function WealthPage() {
   ].filter((s) => s.value > 0);
   const total = segments.reduce((s, seg) => s + seg.value, 0);
 
+  let headerAction: ListPageAction | undefined;
+  if (hasPortfolios) {
+    headerAction = { href: "/wealth/portfolios", label: "Manage portfolios", variant: "secondary" };
+  } else if (canWrite) {
+    headerAction = { href: "/wealth/portfolios/new", label: "Add portfolio" };
+  }
+
   return (
     <div className="max-w-4xl space-y-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Wealth</h1>
-        <div className="flex items-center gap-2">
-          <details className="relative">
-            <summary className={toolbarButtonClass}>
-              Export <ChevronDown size={14} />
-            </summary>
-            <div className="absolute right-0 z-10 mt-1 w-28 overflow-hidden rounded-lg border border-border bg-surface shadow-md">
-              <a href="/api/export/wealth?format=csv" download className={exportMenuItemClass}>CSV</a>
-              <a href="/api/export/wealth?format=pdf" download className={exportMenuItemClass}>PDF</a>
-            </div>
-          </details>
-          {hasPortfolios && (
-            <Link href="/wealth/portfolios" className={toolbarButtonClass}>
-              Manage portfolios
-            </Link>
-          )}
-          {canWrite && !hasPortfolios && (
-            <Link href="/wealth/portfolios/new" className={linkButtonClass("primary")}>
-              <Plus size={16} />
-              Add portfolio
-            </Link>
-          )}
-        </div>
-      </div>
+      <ListPageHeader title="Wealth" exportPath="/api/export/wealth" action={headerAction} />
 
       {data.propertyStale && enabledModules.has("HOME") && (
         <div className="flex items-start gap-3 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">

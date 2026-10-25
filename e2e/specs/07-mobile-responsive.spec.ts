@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { ADMIN_AUTH_FILE } from "../env";
+import { ADMIN_AUTH_FILE, ADMIN_EMAIL } from "../env";
 
 test.use({ storageState: ADMIN_AUTH_FILE, viewport: { width: 375, height: 812 }, hasTouch: true });
 
@@ -122,50 +122,228 @@ test("swiping a contract card left reveals a delete action, which still uses the
   await expect(page.getByText("Swipe Test Contract")).toHaveCount(0);
 });
 
-test("swiping from the left screen edge opens the navigation drawer, and the menu button does too", async ({
+// How many lines a control's own text runs over. Text inside an
+// aria-hidden badge (the Inbox count sits on the icon, a line above the
+// label) is left out. A label that wraps returns 2 or more.
+async function textLines(locator: import("@playwright/test").Locator) {
+  return locator.evaluate((el) => {
+    const tops: number[] = [];
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (!node.textContent?.trim() || node.parentElement?.closest("[aria-hidden=true], .sr-only")) {
+        continue;
+      }
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      for (const rect of range.getClientRects()) {
+        if (rect.width > 0 && !tops.some((top) => Math.abs(top - rect.top) < 4)) {
+          tops.push(rect.top);
+        }
+      }
+    }
+    return tops.length;
+  });
+}
+
+async function expectOneLine(locator: import("@playwright/test").Locator, what: string) {
+  await expect(locator).toBeVisible();
+  expect(await textLines(locator), `${what} wraps`).toBe(1);
+}
+
+// Every element sits on one row: their vertical centres agree.
+async function expectSameRow(locators: import("@playwright/test").Locator[], what: string) {
+  const centres: number[] = [];
+  for (const locator of locators) {
+    const box = await locator.boundingBox();
+    if (!box) {
+      throw new Error(`${what}: element not visible`);
+    }
+    centres.push(box.y + box.height / 2);
+  }
+  expect(Math.max(...centres) - Math.min(...centres), `${what} spans more than one row`).toBeLessThan(8);
+}
+
+const PHONE_WIDTHS = [360, 390, 430];
+
+const bottomBar = (page: import("@playwright/test").Page) => page.locator("nav.fixed.bottom-0");
+const moreSheet = (page: import("@playwright/test").Page) =>
+  page.getByRole("dialog", { name: "More navigation options" });
+
+async function openMoreSheet(page: import("@playwright/test").Page) {
+  // Retried: a tap that lands before hydration does nothing.
+  await expect(async () => {
+    await bottomBar(page).getByRole("button", { name: "More navigation options" }).click();
+    await expect(moreSheet(page)).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 15_000 });
+}
+
+// #407: the bottom bar and its More sheet are the only navigation on phones.
+// Every destination a phone can reach, grouped so moving one is a one-line
+// edit here. Upload and the Inbox aren't nav entries, on phones or the
+// desktop sidebar: Upload is a page-header action on Dashboard and
+// Documents (#401), and the Inbox is a tab on Documents, whose bar tab
+// carries its count.
+const PHONE_DESTINATIONS = {
+  bar: ["/dashboard", "/contracts", "/products", "/documents"],
+  // The seed enables every optional module. Inventory has no nav entry of
+  // its own (getNavItems leaves it out; it's reached from Warranties).
+  modules: ["/travel", "/home", "/vehicles", "/wealth"],
+  // No /assistant: the seed configures no chat provider (spec 09 sets one
+  // up later in the run).
+  tools: ["/calendar", "/spend"],
+  footer: ["/settings", "/help"],
+};
+
+test("phones have one navigation: no menu drawer, and each destination is in the bar or the More sheet exactly once", async ({
   page,
 }) => {
   await page.goto("/dashboard");
+  await expect(bottomBar(page)).toBeVisible();
+  await expect(page.locator("aside")).toBeHidden();
+  await expect(page.getByRole("button", { name: "Open navigation menu" })).toHaveCount(0);
 
-  // The edge-swipe listener is attached by MobileNavDrawer's useEffect, so it
-  // doesn't exist until the client bundle has hydrated. Dispatching straight
-  // after goto() raced that and intermittently sent the gesture into a page
-  // with no handler. The menu button comes from the same client component, so
-  // waiting for it is a proxy for "that tree is interactive".
-  await expect(page.getByRole("button", { name: "Open navigation menu" })).toBeVisible();
+  await openMoreSheet(page);
+  const barHrefs = await bottomBar(page)
+    .locator("a[href]")
+    .evaluateAll((links) => links.map((a) => a.getAttribute("href")));
+  const hrefs = [
+    ...barHrefs,
+    ...(await moreSheet(page).locator("a[href]").evaluateAll((links) => links.map((a) => a.getAttribute("href")))),
+  ];
+  const repeated = hrefs.filter((href, i) => hrefs.indexOf(href) !== i);
+  expect(repeated).toEqual([]);
+  expect(barHrefs).toEqual(PHONE_DESTINATIONS.bar);
+  expect(new Set(hrefs)).toEqual(new Set(Object.values(PHONE_DESTINATIONS).flat()));
+  expect(hrefs).not.toContain("/assistant");
+  expect(hrefs).not.toContain("/inventory");
+  expect(hrefs).not.toContain("/import");
+  expect(hrefs).not.toContain("/documents/inbox");
 
-  const body = page.locator("body");
-  const drawer = page.getByRole("dialog", { name: "Navigation menu" });
-  // The menu button is server-rendered, so seeing it doesn't prove the
-  // listener is attached yet. Repeat the gesture until hydration has caught
-  // up; a swipe that lands first is simply ignored.
-  await expect(async () => {
-    await body.dispatchEvent("pointerdown", { pointerType: "touch", clientX: 5, clientY: 300 });
-    for (let i = 1; i <= 8; i++) {
-      await body.dispatchEvent("pointermove", { pointerType: "touch", clientX: 5 + i * 10, clientY: 300 });
+  await expect(moreSheet(page).getByText("E2E Admin", { exact: true })).toBeVisible();
+  await expect(moreSheet(page).getByText(ADMIN_EMAIL, { exact: true })).toBeVisible();
+  await expect(moreSheet(page).getByRole("button", { name: "Sign out" })).toBeVisible();
+
+  await moreSheet(page).getByRole("link", { name: "Upcoming", exact: true }).click();
+  await page.waitForURL(/\/calendar$/);
+  await expect(moreSheet(page)).toBeHidden();
+});
+
+test("bottom-bar labels and More sheet labels stay on one line at 360, 390 and 430px", async ({ page }) => {
+  for (const width of PHONE_WIDTHS) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto("/dashboard");
+    const tabs = bottomBar(page).locator("a, button");
+    await expect(tabs).toHaveCount(5);
+    for (const tab of await tabs.all()) {
+      await expectOneLine(tab, `${width}px bottom-bar tab "${await tab.textContent()}"`);
     }
-    await body.dispatchEvent("pointerup", { pointerType: "touch", clientX: 85, clientY: 300 });
-    await expect(drawer).toBeVisible({ timeout: 1000 });
-  }).toPass({ timeout: 15000 });
-  await expect(drawer.getByRole("link", { name: "Contracts" })).toBeVisible();
-
-  await page.keyboard.press("Escape");
-  await expect(drawer).toBeHidden();
-
-  // A swipe starting further from the edge (past EDGE_ZONE) must not open it.
-  await body.dispatchEvent("pointerdown", { pointerType: "touch", clientX: 120, clientY: 300 });
-  for (let i = 1; i <= 8; i++) {
-    await body.dispatchEvent("pointermove", { pointerType: "touch", clientX: 120 + i * 10, clientY: 300 });
+    await openMoreSheet(page);
+    for (const link of await moreSheet(page).locator("a").all()) {
+      await expectOneLine(link, `${width}px More sheet "${await link.textContent()}"`);
+    }
+    await page.keyboard.press("Escape");
+    await expectNoHorizontalOverflow(page);
   }
-  await body.dispatchEvent("pointerup", { pointerType: "touch", clientX: 200, clientY: 300 });
-  await expect(drawer).toBeHidden();
+});
 
-  // The visible menu button is the reliable fallback trigger.
-  await page.locator('button[aria-label="Open navigation menu"]').click();
-  await expect(drawer).toBeVisible();
-  await drawer.getByRole("link", { name: "Contracts" }).click();
-  await page.waitForURL(/\/contracts$/);
-  await expect(drawer).toBeHidden();
+// #369: below md the heading keeps its own line, Export moves into the ⋮
+// menu beside it, and the one button runs full width underneath.
+test("list page headers don't wrap at 360, 390 and 430px, and Export sits in the ⋮ menu", async ({ page }) => {
+  test.setTimeout(120_000);
+  const lists = [
+    { path: "/contracts", button: "Add contract" },
+    { path: "/products", button: "Add warranty" },
+    { path: "/home", button: "Add property" },
+    { path: "/vehicles", button: "Add vehicle" },
+    { path: "/travel", button: "Add trip" },
+    { path: "/inventory", button: "Add item", noExport: true },
+    // Add portfolio until the household has one, then Manage portfolios.
+    { path: "/wealth", button: /^(Add portfolio|Manage portfolios)$/ },
+  ];
+  for (const width of PHONE_WIDTHS) {
+    await page.setViewportSize({ width, height: 800 });
+    for (const { path, button, noExport } of lists) {
+      await page.goto(path);
+      const heading = page.locator("main h1");
+      await expectOneLine(heading, `${width}px ${path} heading`);
+      const add = page.locator("main").getByRole("link", { name: button, exact: true }).first();
+      await expectOneLine(add, `${width}px ${path} "${button}"`);
+      // Full width: as wide as the heading's row.
+      const addBox = await add.boundingBox();
+      const rowBox = await heading.locator("xpath=..").boundingBox();
+      expect(Math.abs((addBox?.width ?? 0) - (rowBox?.width ?? 0)), `${path} button is full width`).toBeLessThan(2);
+      expect(addBox?.y ?? 0).toBeGreaterThan((rowBox?.y ?? 0) + (rowBox?.height ?? 0) - 1);
+
+      await expect(page.locator("main summary", { hasText: "Export" })).toBeHidden();
+      const menu = page.getByRole("button", { name: "More list actions" });
+      if (noExport) {
+        await expect(menu).toHaveCount(0);
+      } else {
+        await expectSameRow([heading, menu], `${width}px ${path} heading and ⋮`);
+      }
+      await expectNoHorizontalOverflow(page);
+    }
+  }
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/contracts");
+  await expect(async () => {
+    await page.getByRole("button", { name: "More list actions" }).click();
+    await expect(page.getByRole("dialog", { name: "More list actions" })).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 15_000 });
+  const sheet = page.getByRole("dialog", { name: "More list actions" });
+  await expect(sheet.getByRole("link", { name: "Export CSV" })).toHaveAttribute(
+    "href",
+    "/api/export/contracts?format=csv",
+  );
+  await expect(sheet.getByRole("link", { name: "Export PDF" })).toHaveAttribute(
+    "href",
+    "/api/export/contracts?format=pdf",
+  );
+});
+
+test("from md up the list header is unchanged: Export ▾ and the button beside the heading", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/contracts");
+  const heading = page.locator("main h1");
+  const exportToggle = page.locator("main summary", { hasText: "Export" });
+  const add = page.locator("main").getByRole("link", { name: "Add contract", exact: true }).first();
+  await expectSameRow([heading, exportToggle, add], "desktop list header");
+  await expect(page.getByRole("button", { name: "More list actions" })).toBeHidden();
+});
+
+test("detail page headers keep the badge, Edit and ⋮ on one row at 360, 390 and 430px", async ({ page }) => {
+  test.setTimeout(120_000);
+  const end = new Date(Date.now() + 20 * 86_400_000).toISOString().slice(0, 10);
+  await page.goto("/contracts/new");
+  await page.locator("#title").fill("Home insurance");
+  await page.locator("#provider").fill("Allianz");
+  await page.locator("#endDate").fill(end);
+  await page.locator("main button[type=submit]").click();
+  await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
+  const contractUrl = page.url();
+
+  await page.goto("/products/new");
+  await page.locator("#description").fill("Dishwasher");
+  await page.locator("main button[type=submit]").click();
+  await page.waitForURL(/\/products\/(?!new$)[^/]+$/);
+  const productUrl = page.url();
+
+  for (const width of PHONE_WIDTHS) {
+    await page.setViewportSize({ width, height: 800 });
+    for (const url of [contractUrl, productUrl]) {
+      await page.goto(url);
+      const heading = page.locator("main h1");
+      await expectOneLine(heading, `${width}px detail heading`);
+      const badge = heading.locator("xpath=../following-sibling::div/*[1]");
+      const edit = page.locator("main").getByRole("link", { name: "Edit", exact: true });
+      const more = page.getByRole("button", { name: "More actions" });
+      await expectOneLine(badge, `${width}px detail badge`);
+      await expectOneLine(edit, `${width}px detail Edit`);
+      await expectSameRow([badge, edit, more], `${width}px detail actions`);
+      await expectNoHorizontalOverflow(page);
+    }
+  }
 });
 
 // #401 (regression of #348): nothing fixed, or stuck to the bottom edge, may
@@ -373,6 +551,14 @@ test.describe("fixed mobile UI never covers controls (#401)", () => {
       await expect(viewer.getByRole("link", { name: /^Upload( a document)?$/ })).toHaveCount(0);
     }
 
+    // #407: no Upload anywhere in the phone navigation either.
+    await openMoreSheet(viewer);
+    for (const nav of [bottomBar(viewer), moreSheet(viewer)]) {
+      await expect(nav.getByRole("link", { name: /upload/i })).toHaveCount(0);
+      await expect(nav.locator('a[href="/import"]')).toHaveCount(0);
+    }
+    await viewer.keyboard.press("Escape");
+
     await viewer.goto("/import");
     await expect(viewer).toHaveURL(/\/documents$/);
     await viewerContext.close();
@@ -385,4 +571,41 @@ test.describe("fixed mobile UI never covers controls (#401)", () => {
     await expect(adminPage.locator("body")).not.toContainText(email);
     await adminContext.close();
   });
+});
+
+// #369, #407: the Inbox count shows on Documents in the bottom bar and the
+// desktop sidebar.
+test("the Inbox count badge matches the Inbox tab on the bottom bar and the sidebar", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/documents");
+  const before = await inboxCount(page);
+  await page.locator('main input[type="file"][accept="image/*"][capture]').setInputFiles({
+    name: `badge-photo-${Date.now()}.png`,
+    mimeType: "image/png",
+    buffer: Buffer.concat([
+      Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+        "base64",
+      ),
+      Buffer.from(`badge-${Date.now()}`),
+    ]),
+  });
+  await expect(page.getByRole("link", { name: /^Inbox/ })).toHaveText(`Inbox (${before + 1})`);
+  const count = before + 1;
+
+  // The photo button refreshes the page, layout included, so the badge
+  // already shows the new count.
+  const documentsTab = bottomBar(page).getByRole("link", { name: `Documents, ${count} in Inbox` });
+  await expect(documentsTab).toBeVisible();
+  await expect(documentsTab.locator("span[aria-hidden=true]")).toHaveText(count > 99 ? "99+" : String(count));
+  await expectOneLine(documentsTab, "Documents tab with its badge");
+
+  await expect(documentsTab).toHaveAttribute("href", "/documents");
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const sidebarDocuments = page.locator("aside").getByRole("link", { name: `Documents, ${count} in Inbox` });
+  await expect(sidebarDocuments).toBeVisible();
+  await expect(sidebarDocuments.locator("span[aria-hidden=true]")).toHaveText(count > 99 ? "99+" : String(count));
 });

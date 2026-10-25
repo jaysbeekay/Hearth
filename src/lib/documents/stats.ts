@@ -13,6 +13,11 @@ export interface DocumentStats {
   total: number;
 }
 
+/** Documents waiting in the household's Inbox: the nav badge on Documents (#369, #407). */
+export function getInboxCount(): Promise<number> {
+  return prisma.inboxDocument.count();
+}
+
 // Aggregates counts across every per-entity document table (gated the same
 // way /documents itself is) plus the inbox, for the dashboard's document
 // summary section. Documents in Trash, or under a record in Trash, aren't

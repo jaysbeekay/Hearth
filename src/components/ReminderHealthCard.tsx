@@ -33,7 +33,7 @@ export function ReminderHealthCard({
 }) {
   return (
     <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 font-medium">
           {health.enabled ? (
             <BellRing size={16} className="text-muted" aria-hidden />
