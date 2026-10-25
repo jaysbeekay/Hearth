@@ -147,9 +147,13 @@ Everything else is optional. Set `SMTP_*` to enable email reminders, `NTFY_*` fo
 | --- | --- |
 | ![Mobile dashboard](docs/screenshots/mobile-dashboard.png) | ![Form validation error](docs/screenshots/error-state-form.png) |
 
-| Settings — security log |  |
+| Settings — security log | Upcoming |
 | --- | --- |
-| ![Settings — security log](docs/screenshots/settings-security.png) |  |
+| ![Settings — security log](docs/screenshots/settings-security.png) | ![Upcoming](docs/screenshots/upcoming.png) |
+
+| Purchases & warranties |  |
+| --- | --- |
+| ![Purchases & warranties](docs/screenshots/products-list.png) |  |
 
 ## Tech stack
 

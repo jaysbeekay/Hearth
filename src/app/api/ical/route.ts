@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
     // #351 — the last day to give notice, alongside the end date, by the
     // Due policy's notice rule.
     if (noticeApplies(c)) {
-      const cancelBy = dayStart(addDays(end, -c.noticePeriodDays!));
+      const cancelBy = dayStart(addDays(end, -(c.noticePeriodDays ?? 0)));
       calendar.createEvent({
         id: `contract-${c.id}-notice`,
         start: cancelBy,

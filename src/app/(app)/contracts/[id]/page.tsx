@@ -73,7 +73,7 @@ export default async function ContractDetailPage({
   const entry = headlineEntry(dueEntries);
   // The notice deadline as a date, for the Notice period field.
   const endDay = calendarDayOf(contract.endDate);
-  const noticeDeadline = endDay && noticeApplies(contract) ? addDays(endDay, -contract.noticePeriodDays!) : null;
+  const noticeDeadline = endDay && noticeApplies(contract) ? addDays(endDay, -(contract.noticePeriodDays ?? 0)) : null;
   const cancelled = contract.status === "CANCELLED";
   const boundUpload = addDocumentAction.bind(null, "CONTRACT", contract.id);
   const statusAction = setContractStatus.bind(null, contract.id, cancelled ? "ACTIVE" : "CANCELLED");
