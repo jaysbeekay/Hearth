@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FileText, X, Loader2, AlertTriangle, Copy } from "lucide-react";
 import Link from "next/link";
 import {
@@ -326,8 +326,13 @@ export function InboxReviewClient({
   const [keptSeparate, setKeptSeparate] = useState<Set<string>>(new Set());
   const [attaching, setAttaching] = useState<Set<string>>(new Set());
   const canWrite = useCanWrite();
+  // The pre-fill scan runs once, on mount, with the first render's values:
+  // re-running when `docs` or `scan` change identity would rescan every row
+  // and overwrite what the member has typed. A ref makes that explicit.
+  const initialScan = useRef({ docs, canWrite, scan });
 
   useEffect(() => {
+    const { docs, canWrite, scan } = initialScan.current;
     // A read-only member can't file anything, so there's nothing to pre-fill.
     if (!canWrite) return;
     // Deferred one tick so the initial scan (which sets state) isn't a
@@ -340,10 +345,6 @@ export function InboxReviewClient({
         scan(doc.id, doc.guessedType ?? "CONTRACT", doc.filename);
       }
     });
-    // Runs once on mount by design: re-running when `docs` or `scan` change
-    // identity would rescan every row and overwrite what the member has
-    // typed. `canWrite` comes from the session and is fixed for the page.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function updateRow(id: string, patch: Partial<RowState>) {
