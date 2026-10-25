@@ -31,7 +31,7 @@ export function ListFilterChips({
             className={`rounded-full border px-3 py-1 text-xs font-medium ${
               active
                 ? "border-accent bg-accent/10 text-accent"
-                : "border-border bg-surface text-muted hover:bg-black/5 dark:hover:bg-white/5"
+                : "border-border bg-surface text-muted hover:bg-hover"
             }`}
           >
             {label}

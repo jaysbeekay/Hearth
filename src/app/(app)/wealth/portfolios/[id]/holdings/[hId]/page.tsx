@@ -387,7 +387,7 @@ export default async function HoldingPage({
                             )}
                           </p>
                         )}
-                        {trade.notes && <p className="mt-1 text-xs text-muted">{trade.notes}</p>}
+                        {trade.notes && <p className="mt-1 text-xs text-foreground">{trade.notes}</p>}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">

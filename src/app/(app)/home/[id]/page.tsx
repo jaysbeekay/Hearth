@@ -287,7 +287,7 @@ export default async function PropertyDetailPage({
                   <p className="text-xs text-muted">
                     {formatDate(v.valuedAt, dateFormat)}{v.source ? ` · ${v.source}` : ""}
                   </p>
-                  {v.notes && <p className="mt-0.5 text-xs text-muted">{v.notes}</p>}
+                  {v.notes && <p className="mt-0.5 text-xs text-foreground">{v.notes}</p>}
                 </div>
                 <ConfirmForm
                   action={deletePropertyValuation.bind(null, property.id, v.id)}
