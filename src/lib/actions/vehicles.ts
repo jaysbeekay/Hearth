@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { vehicleSchema, vehicleItemSchema } from "@/lib/validation/vehicles";
+import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
 import { addDocumentCommand } from "@/lib/commands/documents";
 import { formDataToStringValues } from "@/lib/form-state";
 import { isModuleEnabled, ModuleDisabledError } from "@/lib/modules/enablement";
@@ -136,7 +137,7 @@ export async function updateVehicle(
   }
 
   try {
-    await updateVehicleCommand(vehicleId, parsed.data, user.id);
+    await updateVehicleCommand(vehicleId, fullFormUpdate(vehicleSchema, parsed.data, formData), user.id);
   } catch (error) {
     return commandError(error, "Vehicle not found.");
   }
@@ -229,7 +230,7 @@ export async function updateVehicleItem(
   }
 
   try {
-    await updateServiceRecordCommand(itemId, parsed.data, { vehicleId });
+    await updateServiceRecordCommand(itemId, fullFormUpdate(vehicleItemSchema, parsed.data, formData), { vehicleId });
   } catch (error) {
     return commandError(error, "Item not found.");
   }

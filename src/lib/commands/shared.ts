@@ -23,10 +23,27 @@ export interface UpdateOptions {
   baseUpdatedAt?: string | Date | null;
 }
 
-// Detects (doesn't merge) a conflicting edit. Skipped when no baseUpdatedAt
-// was sent (e.g. online form submits, or records with no updatedAt column).
-export function assertNotStale(existing: { updatedAt: Date }, baseUpdatedAt?: string | Date | null) {
-  if (!baseUpdatedAt) return;
-  const base = baseUpdatedAt instanceof Date ? baseUpdatedAt.toISOString() : baseUpdatedAt;
-  if (existing.updatedAt.toISOString() !== base) throw new StaleEditError();
+// Detects (doesn't merge) a conflicting edit, atomically (#413). `write` is
+// the record's updateMany with `guard` spread into its where clause: with a
+// baseUpdatedAt, the guard only matches the row while its updatedAt is still
+// that value, so of two edits made from the same base only the first lands
+// and the second matches nothing and is refused as stale. A read-compare-
+// write would let both pass the compare before either wrote.
+//
+// Callers confirm the record exists (and is in scope) first, so a not-found
+// stays a RecordNotFoundError rather than turning into a stale edit. With no
+// baseUpdatedAt (online form submits, records with no updatedAt column) the
+// guard is empty and the write is unconditional.
+export async function updateUnlessStale(
+  baseUpdatedAt: string | Date | null | undefined,
+  write: (guard: { updatedAt?: Date }) => Promise<{ count: number }>,
+): Promise<void> {
+  if (!baseUpdatedAt) {
+    await write({});
+    return;
+  }
+  const base = baseUpdatedAt instanceof Date ? baseUpdatedAt : new Date(baseUpdatedAt);
+  if (Number.isNaN(base.getTime())) throw new StaleEditError();
+  const { count } = await write({ updatedAt: base });
+  if (count === 0) throw new StaleEditError();
 }

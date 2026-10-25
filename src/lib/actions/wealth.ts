@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
 import {
   portfolioSchema,
   holdingSchema,
@@ -84,7 +85,7 @@ export async function updatePortfolio(
   const existing = await prisma.portfolio.findUnique({ where: { id: portfolioId } });
   if (!existing) return { error: "Portfolio not found." };
 
-  await prisma.portfolio.update({ where: { id: portfolioId }, data: parsed.data });
+  await prisma.portfolio.update({ where: { id: portfolioId }, data: fullFormUpdate(portfolioSchema, parsed.data, formData) });
   revalidatePath("/wealth");
   revalidatePath(`/wealth/portfolios/${portfolioId}`);
   redirect(`/wealth/portfolios/${portfolioId}`);
@@ -170,7 +171,7 @@ export async function updateHolding(
   const holding = await prisma.holding.findUnique({ where: { id: holdingId } });
   if (!holding) return { error: "Holding not found." };
 
-  await prisma.holding.update({ where: { id: holdingId }, data: parsed.data });
+  await prisma.holding.update({ where: { id: holdingId }, data: fullFormUpdate(holdingSchema, parsed.data, formData) });
   revalidatePath(`/wealth/portfolios/${portfolioId}/holdings/${holdingId}`);
   redirect(`/wealth/portfolios/${portfolioId}/holdings/${holdingId}`);
 }
@@ -283,7 +284,7 @@ export async function updateTrade(
     };
   }
 
-  await prisma.trade.update({ where: { id: tradeId }, data: parsed.data });
+  await prisma.trade.update({ where: { id: tradeId }, data: fullFormUpdate(tradeSchema, parsed.data, formData) });
   revalidatePath(`/wealth/portfolios/${holding.portfolioId}/holdings/${holdingId}`);
   redirect(`/wealth/portfolios/${holding.portfolioId}/holdings/${holdingId}`);
 }

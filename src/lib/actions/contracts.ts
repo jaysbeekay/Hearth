@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { contractSchema } from "@/lib/validation/contract";
+import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
 import { formDataToStringValues } from "@/lib/form-state";
 import { formToContractInput } from "@/lib/formMappers";
 import { addDocumentCommand } from "@/lib/commands/documents";
@@ -122,7 +123,7 @@ export async function updateContract(
   try {
     await updateContractCommand(
       contractId,
-      { ...parsed.data, ...extractionFieldsFromForm(formData) },
+      { ...fullFormUpdate(contractSchema, parsed.data, formData), ...extractionFieldsFromForm(formData) },
       user.id,
     );
     await saveExtractionReviewFieldsFromForm("CONTRACT", contractId, formData);

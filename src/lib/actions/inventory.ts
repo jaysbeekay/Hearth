@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
 import { inventoryItemSchema } from "@/lib/validation/inventory";
 import { addDocumentCommand, removeOwnerDocumentFiles } from "@/lib/commands/documents";
 import { formDataToStringValues } from "@/lib/form-state";
@@ -117,7 +118,10 @@ export async function updateInventoryItem(
   if (!existing) return { error: "Item not found." };
 
   try {
-    await prisma.inventoryItem.update({ where: { id: itemId }, data: { ...parsed.data, updatedById: user.id } });
+    await prisma.inventoryItem.update({
+      where: { id: itemId },
+      data: { ...fullFormUpdate(inventoryItemSchema, parsed.data, formData), updatedById: user.id },
+    });
   } catch {
     return { error: "Linked warranty no longer exists.", values: formDataToStringValues(formData, INVENTORY_ITEM_FORM_FIELDS) };
   }

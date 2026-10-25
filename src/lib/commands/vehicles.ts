@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { removeOwnerDocumentFiles } from "@/lib/commands/documents";
 import { clearNotificationLogs } from "@/lib/notifications/logs";
 import { assertModuleEnabled } from "@/lib/modules/enablement";
-import { assertNotStale, RecordNotFoundError, type UpdateOptions } from "@/lib/commands/shared";
+import { updateUnlessStale, RecordNotFoundError, type UpdateOptions } from "@/lib/commands/shared";
+import type { ClearablePatch } from "@/lib/validation/fullFormUpdate";
 import type { VehicleInput, VehicleItemInput } from "@/lib/validation/vehicles";
 
 // Record commands for Vehicles and Service records (#389, ADR 0003). Every
@@ -35,20 +36,23 @@ export async function createVehicleCommand(input: VehicleInput, actorId: string)
   return vehicle;
 }
 
-// Partial patch: only the keys present (and not undefined) are written.
+// Partial patch: keys left out (or undefined) are not written, and a `null`
+// clears the field. A full edit form sends fullFormUpdate()'s patch, where
+// every field it submitted blank is `null` (#413).
 export async function updateVehicleCommand(
   id: string,
-  patch: Partial<VehicleInput>,
+  patch: ClearablePatch<VehicleInput>,
   actorId: string,
   options: UpdateOptions = {},
 ) {
   await assertModuleEnabled("VEHICLES");
-  const existing = await findVehicle(id);
-  assertNotStale(existing, options.baseUpdatedAt);
-  const vehicle = await prisma.vehicle.update({ where: { id }, data: { ...patch, updatedById: actorId } });
+  await findVehicle(id);
+  await updateUnlessStale(options.baseUpdatedAt, (guard) =>
+    prisma.vehicle.updateMany({ where: { id, ...guard }, data: { ...patch, updatedById: actorId } }),
+  );
   revalidateVehicleLists();
   revalidatePath(`/vehicles/${id}`);
-  return vehicle;
+  return findVehicle(id);
 }
 
 // #287 — soft delete: moves the Vehicle to Trash. Its Service records and
@@ -90,11 +94,13 @@ export async function purgeVehicle(id: string) {
   // The row delete cascades to Service records and their Document rows;
   // their files on disk aren't FK-linked, so they're removed here.
   await prisma.vehicle.delete({ where: { id } });
-  // NotificationLog is polymorphic (#201), so no cascade: clear it explicitly.
-  await clearNotificationLogs("VEHICLE", id);
+  // Files straight after the row: if clearing the log below throws, the
+  // files mustn't be left orphaned with no row pointing at them (#413).
   for (const item of existing.items) {
     await removeOwnerDocumentFiles("VEHICLE_ITEM", item.id);
   }
+  // NotificationLog is polymorphic (#201), so no cascade: clear it explicitly.
+  await clearNotificationLogs("VEHICLE", id);
 }
 
 // ── Service record (VehicleItem) ────────────────────────────────────────────
@@ -121,18 +127,19 @@ export async function createServiceRecordCommand(vehicleId: string, input: Vehic
   return item;
 }
 
-// Partial patch: only the keys present (and not undefined) are written.
+// Partial patch, as for updateVehicleCommand.
 export async function updateServiceRecordCommand(
   id: string,
-  patch: Partial<VehicleItemInput>,
+  patch: ClearablePatch<VehicleItemInput>,
   options: UpdateOptions & ServiceRecordScope = {},
 ) {
   await assertModuleEnabled("VEHICLES");
   const existing = await findServiceRecord(id, options);
-  assertNotStale(existing, options.baseUpdatedAt);
-  const item = await prisma.vehicleItem.update({ where: { id }, data: patch });
+  await updateUnlessStale(options.baseUpdatedAt, (guard) =>
+    prisma.vehicleItem.updateMany({ where: { id, ...guard }, data: patch }),
+  );
   revalidatePath(`/vehicles/${existing.vehicleId}`);
-  return item;
+  return findServiceRecord(id);
 }
 
 export async function deleteServiceRecordCommand(id: string, scope: ServiceRecordScope = {}) {
