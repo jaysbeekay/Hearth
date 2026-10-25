@@ -75,6 +75,7 @@ export default async function ContractDetailPage({
   const endDay = calendarDayOf(contract.endDate);
   const noticeDeadline = endDay && noticeApplies(contract) ? addDays(endDay, -(contract.noticePeriodDays ?? 0)) : null;
   const cancelled = contract.status === "CANCELLED";
+  const fixedTerm = contract.renewalType === "FIXED_TERM";
   const boundUpload = addDocumentAction.bind(null, "CONTRACT", contract.id);
   const statusAction = setContractStatus.bind(null, contract.id, cancelled ? "ACTIVE" : "CANCELLED");
   const statusLabel = cancelled ? "Mark as active" : "Mark as cancelled";
@@ -153,21 +154,25 @@ export default async function ContractDetailPage({
           hasDocuments={contract.documents.length > 0}
           documentsHref="#documents"
           editHref={`/contracts/${contract.id}/edit`}
-          renewLabel="Renew policy"
-          newEndDateNote="it renewed automatically."
+          // A fixed-term Contract is meant to end: nothing to renew, and
+          // nothing to give notice of.
+          renewLabel={fixedTerm ? undefined : "Renew policy"}
+          newEndDateMessage="Renewed automatically, so its end date has passed."
           // Expiring is exactly when "I'm not renewing this" is the other
           // likely answer, so offer it beside Renew.
           secondaryAction={
-            <ConfirmForm
-              action={statusAction}
-              confirmText={statusConfirmText}
-              actionLabel={statusLabel}
-              ariaLabel="Mark contract as cancelled"
-              className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium hover:bg-hover-surface"
-            >
-              <Ban size={14} />
-              Not renewing? Mark as cancelled
-            </ConfirmForm>
+            fixedTerm ? undefined : (
+              <ConfirmForm
+                action={statusAction}
+                confirmText={statusConfirmText}
+                actionLabel={statusLabel}
+                ariaLabel="Mark contract as cancelled"
+                className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium hover:bg-hover-surface"
+              >
+                <Ban size={14} />
+                Not renewing? Mark as cancelled
+              </ConfirmForm>
+            )
           }
           needsReview={
             contract.extractionPending && pendingReview.length === 0

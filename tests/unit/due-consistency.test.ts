@@ -81,7 +81,7 @@ beforeAll(async () => {
   });
 }, 120_000);
 
-async function searchTitles(group: string, due: "soon" | "overdue"): Promise<string[]> {
+async function searchTitles(group: string, due: "soon" | "overdue" | "lapsed"): Promise<string[]> {
   const res = await GET(new NextRequest(`http://localhost/api/search?due=${due}`));
   const body = (await res.json()) as { groups: Record<string, { title: string }[]> };
   return (body.groups[group] ?? []).map((r) => r.title).sort();
@@ -159,9 +159,15 @@ describe("Warranties show one state everywhere", () => {
     const f = warrantyDueFilter("soon", ctx);
     expect((await db.prisma.product.findMany({ where: f.where })).filter(f.matches).map((r) => r.description)).toEqual(soon);
     expect(await searchTitles("Products", "soon")).toEqual(soon);
-    // `?due=overdue` is the Lapsed chip on the Warranties list.
-    expect(await searchTitles("Products", "overdue")).toEqual(lapsed);
-    expect(await warrantyDueCounts(ctx)).toEqual({ dueSoon: soon.length, overdue: lapsed.length });
+    // A Lapsed Warranty is never Due, so `?due=overdue` never selects one;
+    // the Warranties list's Lapsed chip is `?due=lapsed`.
+    expect(await searchTitles("Products", "overdue")).toEqual([]);
+    expect(await searchTitles("Products", "lapsed")).toEqual(lapsed);
+    const lapsedFilter = warrantyDueFilter("lapsed", ctx);
+    expect(
+      (await db.prisma.product.findMany({ where: lapsedFilter.where })).filter(lapsedFilter.matches).map((r) => r.description),
+    ).toEqual(lapsed);
+    expect(await warrantyDueCounts(ctx)).toEqual({ dueSoon: soon.length, lapsed: lapsed.length });
 
     // Lapsed Warranties leave Needs attention.
     expect(buildWarrantyAttentionItems(all, ctx).map((i) => i.title)).toEqual(soon);

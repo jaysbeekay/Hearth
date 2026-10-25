@@ -69,9 +69,9 @@ export function buildContractAttentionItems(contracts: AttentionContract[], ctx:
           kind: "contract",
           group: "housekeeping",
           title: contract.title,
-          subtitle: "Renewed automatically. Set the new end date.",
+          subtitle: "Renewed automatically, so its end date has passed.",
           entry,
-          href: `/contracts/${contract.id}`,
+        href: `/contracts/${contract.id}`,
           action: { label: "Set the new end date", href },
         });
         continue;
@@ -86,8 +86,13 @@ export function buildContractAttentionItems(contracts: AttentionContract[], ctx:
         entry,
         href: `/contracts/${contract.id}`,
         // The detail page's expiry banner is where renewing or cancelling
-        // actually happens; the edit form isn't a renewal (#353).
-        action: { label: "Renew or cancel", href: `/contracts/${contract.id}` },
+        // actually happens; the edit form isn't a renewal (#353). A
+        // fixed-term Contract is meant to end, so there's nothing to renew:
+        // like an expiring Warranty, its row is to know about.
+        action:
+          contract.renewalType === "FIXED_TERM"
+            ? undefined
+            : { label: "Renew or cancel", href: `/contracts/${contract.id}` },
         noDocument: contract._count.documents === 0,
         canMarkCancelled: entry.state === "overdue",
       });
@@ -285,7 +290,7 @@ export function buildReminderFailureItems(
         group: "housekeeping",
         title: contract.title,
         subtitle: `Reminder delivery failed${suffix}`,
-          href: `/contracts/${contract.id}`,
+        href: `/contracts/${contract.id}`,
         action: { label: "View", href: `/contracts/${contract.id}` },
         badge: "Reminder failed",
       });
@@ -298,7 +303,7 @@ export function buildReminderFailureItems(
         group: "housekeeping",
         title: product.description,
         subtitle: `Reminder delivery failed${suffix}`,
-          href: `/products/${product.id}`,
+        href: `/products/${product.id}`,
         action: { label: "View", href: `/products/${product.id}` },
         badge: "Reminder failed",
       });
@@ -311,7 +316,7 @@ export function buildReminderFailureItems(
         group: "housekeeping",
         title: vehicle.label,
         subtitle: `Reminder delivery failed${suffix}`,
-          href: `/vehicles/${vehicle.id}`,
+        href: `/vehicles/${vehicle.id}`,
         action: { label: "View", href: `/vehicles/${vehicle.id}` },
         badge: "Reminder failed",
       });

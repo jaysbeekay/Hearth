@@ -116,15 +116,40 @@ export function dueTone(state: DueState): DueTone {
   }
 }
 
+type TenancyAgreement = { leaseStart: Date | null; leaseEnd: Date | null; createdAt: Date };
+
+// Missing dates sort before any real one.
+const time = (date: Date | null) => (date ? date.getTime() : Number.NEGATIVE_INFINITY);
+
+/** Positive when `a` is the more recent lease: latest start, then latest end, then latest entered. */
+function compareLeases(a: TenancyAgreement, b: TenancyAgreement): number {
+  return (
+    time(a.leaseStart) - time(b.leaseStart) ||
+    time(a.leaseEnd) - time(b.leaseEnd) ||
+    a.createdAt.getTime() - b.createdAt.getTime()
+  );
+}
+
 /**
- * A Property's current Tenancy: its newest rental agreement, while rental
- * tracking is on. Older agreements are history, so their lease ends are
- * never Due.
+ * A Property's current Tenancy: its most recent lease, while rental
+ * tracking is on. Most recent means the latest lease start, then the latest
+ * lease end, and only then the latest entered, so back-entering an old
+ * lease never displaces the running one. Older agreements are history, so
+ * their lease ends are never Due.
  */
-export function currentTenancy<T extends { createdAt: Date }>(property: {
+export function currentTenancy<T extends TenancyAgreement>(property: {
   isRented: boolean;
   rentalAgreements: T[];
 }): T | null {
   if (!property.isRented || property.rentalAgreements.length === 0) return null;
-  return property.rentalAgreements.reduce((newest, a) => (a.createdAt > newest.createdAt ? a : newest));
+  return property.rentalAgreements.reduce((current, a) => (compareLeases(a, current) > 0 ? a : current));
 }
+
+/** The rental agreement fields `currentTenancy` and the Due policy need, for a Prisma `select`. */
+export const TENANCY_AGREEMENT_SELECT = {
+  id: true,
+  tenantName: true,
+  leaseStart: true,
+  leaseEnd: true,
+  createdAt: true,
+} as const;

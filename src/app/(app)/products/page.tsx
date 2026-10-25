@@ -12,6 +12,7 @@ import type { DueContext } from "@/lib/duePolicy";
 import {
   hasListFilters,
   legacyListRedirect,
+  warrantyLapsedRedirect,
   parseListFilters,
   productFilterWheres,
   productRules,
@@ -27,7 +28,7 @@ function first(value: string | string[] | undefined): string | undefined {
 // Household-wide chip counts from the same rules the list uses (#395).
 async function warrantyCounts(now: Date, ctx: DueContext): Promise<ListFilterCounts> {
   const weekAgo = new Date(now.getTime() - 7 * 86_400_000);
-  const [{ dueSoon, overdue }, review, noDocument, missingDetails, important, recentlyAdded] = await Promise.all([
+  const [{ dueSoon, lapsed }, review, noDocument, missingDetails, important, recentlyAdded] = await Promise.all([
     warrantyDueCounts(ctx),
     prisma.product.count({ where: productRules.review.where }),
     prisma.product.count({ where: productRules.noDocument.where }),
@@ -35,7 +36,7 @@ async function warrantyCounts(now: Date, ctx: DueContext): Promise<ListFilterCou
     prisma.product.count({ where: productRules.important.where }),
     prisma.product.count({ where: { deletedAt: null, createdAt: { gte: weekAgo } } }),
   ]);
-  return { dueSoon, overdue, review, noDocument, missingDetails, important, recentlyAdded };
+  return { dueSoon, lapsed, review, noDocument, missingDetails, important, recentlyAdded };
 }
 
 export default async function ProductsPage({
@@ -47,6 +48,9 @@ export default async function ProductsPage({
   // #395 — pre-#395 links (?expiring=30, ?missingInfo=true…) land on the same filter.
   const legacy = legacyListRedirect("/products", params);
   if (legacy) redirect(legacy);
+  // #384 — the Lapsed chip was `?due=overdue`; a Lapsed Warranty is never Due.
+  const lapsedLink = warrantyLapsedRedirect(params);
+  if (lapsedLink) redirect(lapsedLink);
 
   const q = first(params.q);
   const filters = parseListFilters(params);
@@ -67,9 +71,9 @@ export default async function ProductsPage({
       ],
     });
   }
-  // `?due=soon` is a Warranty ending inside its due-soon window; `?due=overdue`
-  // selects Lapsed ones (the "Lapsed" chip). The query narrows roughly and
-  // the policy decides.
+  // `?due=soon` is a Warranty ending inside its due-soon window; `?due=lapsed`
+  // is one past its end date (the "Lapsed" chip). The query narrows roughly
+  // and the policy decides.
   const dueFilter = filters.due ? warrantyDueFilter(filters.due, due) : null;
   if (dueFilter) and.push(dueFilter.where);
   and.push(...productFilterWheres(filters));

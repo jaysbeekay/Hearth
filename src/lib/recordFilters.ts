@@ -20,11 +20,17 @@ import type { Prisma } from "@/generated/prisma/client";
 // URL vocabulary
 // ---------------------------------------------------------------------------
 
-export type DueFilter = "soon" | "overdue";
+/**
+ * `?due=` values. `soon` and `overdue` are Due states (GLOSSARY.md). `lapsed`
+ * is not: a Lapsed Warranty is never Due, but the Warranties list still
+ * offers it as a filter, so it has its own word rather than borrowing
+ * `overdue` (#384).
+ */
+export type DueFilter = "soon" | "overdue" | "lapsed";
 
 /** The list filters a URL can carry. Absent means "not filtered by this". */
 export interface ListFilters {
-  /** `?due=soon` / `?due=overdue` */
+  /** `?due=soon` / `?due=overdue` / `?due=lapsed` */
   due?: DueFilter;
   /** `?missing=details` */
   missingDetails?: boolean;
@@ -36,7 +42,7 @@ export interface ListFilters {
   important?: boolean;
 }
 
-export type ToggleableFilter = "dueSoon" | "overdue" | "missingDetails" | "review" | "noDocument" | "important";
+export type ToggleableFilter = "dueSoon" | "overdue" | "lapsed" | "missingDetails" | "review" | "noDocument" | "important";
 
 /** Query parameter names owned by this module. Pages keep their own (q, category, status…). */
 export const LIST_FILTER_PARAMS = ["due", "missing", "review", "noDocument", "important"] as const;
@@ -65,7 +71,7 @@ function entries(params: SearchParamsLike): [string, string][] {
 export function parseListFilters(params: SearchParamsLike): ListFilters {
   const filters: ListFilters = {};
   const due = read(params, "due");
-  if (due === "soon" || due === "overdue") filters.due = due;
+  if (due === "soon" || due === "overdue" || due === "lapsed") filters.due = due;
   if (read(params, "missing") === "details") filters.missingDetails = true;
   if (read(params, "review") === "1") filters.review = true;
   if (read(params, "noDocument") === "1") filters.noDocument = true;
@@ -100,7 +106,7 @@ export function listHref(path: string, filters: ListFilters, extra: Record<strin
   return query ? `${path}?${query}` : path;
 }
 
-/** Flips one chip. Due soon and overdue share `?due=`, so turning one on turns the other off. */
+/** Flips one chip. Due soon, overdue and lapsed share `?due=`, so turning one on turns the others off. */
 export function toggleListFilter(filters: ListFilters, chip: ToggleableFilter): ListFilters {
   const next = { ...filters };
   switch (chip) {
@@ -109,6 +115,9 @@ export function toggleListFilter(filters: ListFilters, chip: ToggleableFilter): 
       break;
     case "overdue":
       next.due = filters.due === "overdue" ? undefined : "overdue";
+      break;
+    case "lapsed":
+      next.due = filters.due === "lapsed" ? undefined : "lapsed";
       break;
     default:
       next[chip] = !filters[chip] || undefined;
@@ -119,6 +128,7 @@ export function toggleListFilter(filters: ListFilters, chip: ToggleableFilter): 
 export function isChipActive(filters: ListFilters, chip: ToggleableFilter): boolean {
   if (chip === "dueSoon") return filters.due === "soon";
   if (chip === "overdue") return filters.due === "overdue";
+  if (chip === "lapsed") return filters.due === "lapsed";
   return Boolean(filters[chip]);
 }
 
@@ -128,7 +138,7 @@ export function isChipActive(filters: ListFilters, chip: ToggleableFilter): bool
  * parameters (q, category, status…) are kept.
  *
  * - `expiring=<days>` → `due=soon`
- * - `expired=true` → `due=overdue`
+ * - `expired=true` → `due=overdue` (`due=lapsed` on the Warranties list)
  * - `missingInfo=true` → `missing=details`
  * - `needsReview=true` → `review=1`
  * - `missingDocument=true` → `noDocument=1`
@@ -143,7 +153,7 @@ export function legacyListRedirect(path: string, params: SearchParamsLike): stri
   }
   const filters = parseListFilters(next);
   const expiringDays = Number(read(params, "expiring"));
-  if (read(params, "expired") === "true") filters.due ??= "overdue";
+  if (read(params, "expired") === "true") filters.due ??= path === "/products" ? "lapsed" : "overdue";
   else if (Number.isFinite(expiringDays) && expiringDays > 0) filters.due ??= "soon";
   if (read(params, "missingInfo") === "true") filters.missingDetails = true;
   if (read(params, "needsReview") === "true") filters.review = true;
@@ -151,6 +161,19 @@ export function legacyListRedirect(path: string, params: SearchParamsLike): stri
   writeListFilters(next, filters);
   const query = next.toString();
   return query ? `${path}?${query}` : path;
+}
+
+/**
+ * #384 — the Warranties list's Lapsed filter used to be `?due=overdue`, but a
+ * Lapsed Warranty is never Due, so it's `?due=lapsed` now. Returns the
+ * `/products` URL to redirect an old link to, or null. Other parameters are
+ * kept.
+ */
+export function warrantyLapsedRedirect(params: SearchParamsLike): string | null {
+  if (read(params, "due") !== "overdue") return null;
+  const next = new URLSearchParams(entries(params));
+  next.set("due", "lapsed");
+  return `/products?${next.toString()}`;
 }
 
 /**

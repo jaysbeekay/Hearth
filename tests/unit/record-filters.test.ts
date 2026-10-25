@@ -19,6 +19,7 @@ import {
   vehicleMissingParts,
   vehicleRules,
   type RecordRule,
+  warrantyLapsedRedirect,
 } from "@/lib/recordFilters";
 import { contractDueFilter } from "@/lib/listDue";
 
@@ -256,7 +257,7 @@ describe("old URLs map onto the new ones", () => {
   });
 
   it("accepts a Next.js searchParams object", () => {
-    expect(legacyListRedirect("/products", { expired: "true", q: ["a", "b"] })).toBe("/products?q=a&q=b&due=overdue");
+    expect(legacyListRedirect("/products", { expired: "true", q: ["a", "b"] })).toBe("/products?q=a&q=b&due=lapsed");
   });
 
   it.each([
@@ -271,5 +272,22 @@ describe("old URLs map onto the new ones", () => {
     ["missing=details", { missingDetails: true }],
   ])("Search ?%s", (query, expected) => {
     expect(parseSearchFilters(new URLSearchParams(query))).toEqual(expected);
+  });
+});
+
+describe("?due=lapsed (#384)", () => {
+  it("is its own URL word, sharing ?due= with the Due chips", () => {
+    expect(parseListFilters(new URLSearchParams("due=lapsed"))).toEqual({ due: "lapsed" });
+    expect(toggleListFilter({ due: "soon" }, "lapsed")).toEqual({ due: "lapsed" });
+    expect(toggleListFilter({ due: "lapsed" }, "lapsed")).toEqual({ due: undefined });
+    expect(isChipActive({ due: "lapsed" }, "lapsed")).toBe(true);
+    expect(isChipActive({ due: "lapsed" }, "overdue")).toBe(false);
+  });
+
+  it("old Warranties links to the Lapsed chip land on ?due=lapsed", () => {
+    expect(warrantyLapsedRedirect(new URLSearchParams("q=tv&due=overdue"))).toBe("/products?q=tv&due=lapsed");
+    expect(warrantyLapsedRedirect(new URLSearchParams("due=soon"))).toBeNull();
+    expect(legacyListRedirect("/products", { expired: "true" })).toBe("/products?due=lapsed");
+    expect(legacyListRedirect("/contracts", { expired: "true" })).toBe("/contracts?due=overdue");
   });
 });

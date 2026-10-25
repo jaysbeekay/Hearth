@@ -5,6 +5,7 @@ import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { env } from "@/lib/env";
 import { addDays, calendarDayOf, noticeApplies } from "@/lib/duePolicy";
 import { dayStart } from "@/lib/listDue";
+import { currentTenancy, TENANCY_AGREEMENT_SELECT } from "@/lib/dueRecords";
 import { hashToken } from "@/lib/crypto";
 
 export async function GET(request: NextRequest) {
@@ -159,6 +160,28 @@ export async function GET(request: NextRequest) {
         allDay: true,
         summary: `${item.title} (${item.property.label})`,
         url: `${appUrl}/home/${item.property.id}`,
+      });
+    }
+
+    // A Tenancy's lease end, as on Upcoming: only the current Tenancy of a
+    // Property with rental tracking on (#384). The UID is the agreement's,
+    // so moving the lease end updates the event instead of adding one.
+    const rentedProperties = await prisma.property.findMany({
+      where: { deletedAt: null, isRented: true },
+      select: { id: true, label: true, isRented: true, rentalAgreements: { select: TENANCY_AGREEMENT_SELECT } },
+    });
+    for (const property of rentedProperties) {
+      const tenancy = currentTenancy(property);
+      const leaseEnd = calendarDayOf(tenancy?.leaseEnd);
+      if (!tenancy || !leaseEnd) continue;
+      calendar.createEvent({
+        id: `lease-${tenancy.id}`,
+        start: dayStart(leaseEnd),
+        end: new Date(dayStart(leaseEnd).getTime() + 86_400_000),
+        allDay: true,
+        summary: `${property.label} lease ends`,
+        description: tenancy.tenantName ?? undefined,
+        url: `${appUrl}/home/${property.id}/rental`,
       });
     }
   }

@@ -29,7 +29,7 @@ import {
 import { getUserPreferences } from "@/lib/userPreferences";
 import { getHouseholdMemberCount } from "@/lib/household";
 import { getDueContext } from "@/lib/appSettings";
-import { currentTenancy, tenancyDue } from "@/lib/dueRecords";
+import { currentTenancy, tenancyDue, TENANCY_AGREEMENT_SELECT } from "@/lib/dueRecords";
 import { DetailStatusBanner } from "@/components/DetailStatusBanner";
 
 const ITEM_ICONS: Record<string, LucideIcon> = {
@@ -65,7 +65,7 @@ export default async function PropertyDetailPage({
             include: { documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" } } },
           },
           valuations: { orderBy: { valuedAt: "desc" } },
-          rentalAgreements: { select: { id: true, leaseEnd: true, createdAt: true } },
+          rentalAgreements: { select: TENANCY_AGREEMENT_SELECT },
         },
       }),
       getUserPreferences(),
@@ -140,6 +140,7 @@ export default async function PropertyDetailPage({
           editHref={`/home/${property.id}/rental/agreements/${tenancy.id}/edit`}
           renewLabel="Update lease"
           newEndDateLabel="Set the new lease end"
+          newEndDateMessage="Lease ended."
         />
       )}
 

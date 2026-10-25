@@ -12,7 +12,7 @@ import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { auth } from "@/lib/auth";
 import { isSmtpConfigured, isNtfyConfigured, getDueContext } from "@/lib/appSettings";
 import { addDays, calendarDayOf } from "@/lib/duePolicy";
-import { currentTenancy } from "@/lib/dueRecords";
+import { currentTenancy, TENANCY_AGREEMENT_SELECT } from "@/lib/dueRecords";
 import { getCurrentReminderFailures } from "@/lib/notifications/logs";
 import { getDocumentStats } from "@/lib/documents/stats";
 import {
@@ -73,7 +73,7 @@ export default async function DashboardPage() {
               id: true,
               label: true,
               isRented: true,
-              rentalAgreements: { select: { id: true, tenantName: true, leaseEnd: true, createdAt: true } },
+              rentalAgreements: { select: TENANCY_AGREEMENT_SELECT },
             },
           })
         : [],

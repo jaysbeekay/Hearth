@@ -13,9 +13,10 @@ const TONE_CLASS = new Map<DueTone, string>([
 const actionClass =
   "inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium hover:bg-hover-surface";
 
-// The policy's label, plus how many days are left while there are some.
-function message(entry: DueEntry, note?: string): string {
-  if (entry.state === "needs-new-end-date") return note ? `${entry.label} — ${note}` : `${entry.label}.`;
+// The policy's label, plus how many days are left while there are some. A
+// date that needs replacing says what happened; its button says what to do.
+function message(entry: DueEntry, newEndDateMessage?: string): string {
+  if (entry.state === "needs-new-end-date") return newEndDateMessage ?? `${entry.label}.`;
   if (entry.daysLeft > 0) return `${entry.label} — ${entry.daysLeft} day${entry.daysLeft === 1 ? "" : "s"} left.`;
   return `${entry.label}.`;
 }
@@ -36,7 +37,7 @@ export function DetailStatusBanner({
   renewLabel,
   secondaryAction,
   newEndDateLabel = "Set the new end date",
-  newEndDateNote,
+  newEndDateMessage,
   needsReview,
 }: {
   /** The record's Due entries, as the Due policy returns them. */
@@ -44,13 +45,14 @@ export function DetailStatusBanner({
   hasDocuments: boolean;
   documentsHref: string;
   editHref: string;
-  renewLabel: string;
+  /** The renew action on a Due row; absent when there's nothing to renew, such as a fixed-term Contract. */
+  renewLabel?: string;
   /** Shown beside Renew/Upload on a Due row — e.g. contract "Mark as cancelled" (#370). */
   secondaryAction?: React.ReactNode;
   /** The action on a row whose date has passed and needs replacing. */
   newEndDateLabel?: string;
-  /** Explains that row, such as why an auto-renewing Contract needs one. */
-  newEndDateNote?: string;
+  /** That row's text in place of the policy's label, so it doesn't repeat the button. */
+  newEndDateMessage?: string;
   /** Set when extractionPending is true — some critical fields were auto-filled and haven't been confirmed yet. */
   needsReview?: { onConfirm: () => Promise<ActionState> };
 }) {
@@ -69,7 +71,7 @@ export function DetailStatusBanner({
           >
             <p className="flex items-center gap-2 text-sm font-medium">
               <Icon size={16} className="shrink-0" aria-hidden />
-              {message(entry, newEndDateNote)}
+              {message(entry, newEndDateMessage)}
             </p>
             <div className="flex flex-wrap items-center gap-2">
               {housekeeping ? (
@@ -80,7 +82,7 @@ export function DetailStatusBanner({
               ) : (
                 <>
                   {secondaryAction}
-                  {hasDocuments ? (
+                  {!renewLabel ? null : hasDocuments ? (
                     <Link href={editHref} className={actionClass}>
                       <RotateCw size={14} />
                       {renewLabel}

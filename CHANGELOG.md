@@ -94,9 +94,12 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   Due policy, so the same record reads the same everywhere. What you'll
   notice:
   - Warranties past their end date read **Lapsed** and leave Needs
-    attention. The Warranties list's "Expired" chip is now "Lapsed".
+    attention. The Warranties list's "Expired" chip is now "Lapsed", at
+    `?due=lapsed`; old `?due=overdue` and `?expired=true` links to it
+    redirect there.
   - Fixed-term Contracts past their end date read **Ended**. Only
-    manual-renewal Contracts read **Expired**.
+    manual-renewal Contracts read **Expired**. A fixed-term Contract ending
+    soon is still Due but no longer offers "Renew".
   - An auto-renewing Contract past its end date is no longer "Expired": it
     becomes a Housekeeping row, "Set the new end date". Its end date is
     never Due, only its notice deadline.
@@ -116,7 +119,10 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   - Day counts follow the household timezone.
   - Cancelled Contracts leave Upcoming and the iCal feed. The feed calls a
     Contract's end date "renews", "ends" or "expires" by its renewal type,
-    and a Warranty's "warranty ends".
+    and a Warranty's "warranty ends", and it now includes the current
+    Tenancy's lease end.
+  - A Property's current Tenancy is its most recent lease (latest lease
+    start), so back-entering an older lease doesn't replace it.
   - Search has no end-date range of its own; its "Expiring soon" filter
     matches the lists exactly, Vehicles included.
 

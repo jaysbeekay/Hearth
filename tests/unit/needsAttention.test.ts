@@ -121,6 +121,14 @@ describe("Due rows follow the Due policy (#384)", () => {
     expect(item.canMarkCancelled).toBeUndefined();
   });
 
+  it("a fixed-term Contract ending soon is Due but offers nothing to renew", () => {
+    const [item] = buildContractAttentionItems([contract("fixed", 5, { renewalType: "FIXED_TERM" })], ctx);
+    expect(item.group).toBe("due");
+    expect(item.entry).toMatchObject({ state: "due-soon" });
+    expect(item.action).toBeUndefined();
+    expect(item.canMarkCancelled).toBe(false);
+  });
+
   it("an auto-renewing Contract's end date is never Due", () => {
     expect(buildContractAttentionItems([contract("auto", 5, { renewalType: "AUTO_RENEW" })], ctx)).toEqual([]);
   });

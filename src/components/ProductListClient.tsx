@@ -28,7 +28,7 @@ import { usePendingCreates } from "@/lib/usePendingCreates";
 const CHIPS: { chip: ToggleableFilter; label: string; onlyWhenActive?: boolean }[] = [
   { chip: "dueSoon", label: "Expiring soon" },
   // A Warranty past its end date is Lapsed, not Expired (GLOSSARY.md).
-  { chip: "overdue", label: "Lapsed" },
+  { chip: "lapsed", label: "Lapsed" },
   { chip: "review", label: "Needs review" },
   { chip: "noDocument", label: "No document" },
   { chip: "missingDetails", label: "Missing key details" },
@@ -102,9 +102,9 @@ export function ProductListClient({
     },
     {
       label: "lapsed",
-      value: counts.overdue ?? 0,
+      value: counts.lapsed ?? 0,
       onClick: () => {
-        toggleFilter("overdue");
+        toggleFilter("lapsed");
       },
     },
     {

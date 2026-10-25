@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { calendarDayOf, type CalendarDay, type DueContext, type DueEntry } from "@/lib/duePolicy";
-import { contractDue, currentTenancy, tenancyDue, vehicleDue, warrantyDue } from "@/lib/dueRecords";
+import { contractDue, currentTenancy, tenancyDue, TENANCY_AGREEMENT_SELECT, vehicleDue, warrantyDue } from "@/lib/dueRecords";
 import { dayStart } from "@/lib/listDue";
 
 export type CalendarKind =
@@ -48,10 +48,12 @@ export function calendarKindLabel(kind: CalendarKind): string {
   }
 }
 
+// The date's name only: the badge beside it says what's happening ("Rego
+// due 8 Nov"), from the Due policy.
 const VEHICLE_TITLES = new Map<string, string>([
-  ["regoExpiry", "Rego expires"],
-  ["insuranceExpiry", "Insurance expires"],
-  ["nextServiceDue", "Service due"],
+  ["regoExpiry", "Rego"],
+  ["insuranceExpiry", "Insurance"],
+  ["nextServiceDue", "Service"],
 ]);
 
 /**
@@ -104,7 +106,7 @@ export async function getCalendarEvents(
         id: entry.field === "noticeDeadline" ? `contract-${c.id}-notice` : `contract-${c.id}`,
         date: entry.date,
         title: c.title,
-        subtitle: entry.field === "noticeDeadline" ? `Last day to give notice · ${c.provider}` : c.provider,
+        subtitle: `${entry.field === "noticeDeadline" ? "Last day to give notice" : "End date"} · ${c.provider}`,
         href,
         kind: "contract",
         entry,
@@ -202,7 +204,7 @@ export async function getCalendarEvents(
           id: true,
           label: true,
           isRented: true,
-          rentalAgreements: { select: { id: true, tenantName: true, leaseEnd: true, createdAt: true } },
+          rentalAgreements: { select: TENANCY_AGREEMENT_SELECT },
         },
       }),
     ]);
@@ -226,7 +228,7 @@ export async function getCalendarEvents(
         events.push({
           id: `lease-${tenancy.id}`,
           date: entry.date,
-          title: `${property.label} — Lease ends`,
+          title: `${property.label} — Lease end`,
           subtitle: tenancy.tenantName ?? undefined,
           href: `/home/${property.id}/rental`,
           kind: "tenancy",

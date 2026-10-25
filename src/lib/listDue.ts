@@ -1,5 +1,5 @@
-// #395/#384 — what `?due=soon` / `?due=overdue` select on the Contracts and
-// Warranties lists, their chip counts, and Search's same filters. The Due
+// #395/#384 — what `?due=soon` / `?due=overdue` / `?due=lapsed` select on the
+// Contracts and Warranties lists, their chip counts, and Search's same filters. The Due
 // policy decides (ADR 0002): each filter is a rough `where` that only
 // narrows candidates, plus the in-memory `matches` that asks the policy.
 // Don't tighten the `where` into exact SQL; that's how lists and Search
@@ -7,12 +7,14 @@
 //
 // - `soon`: an entry is due soon, inside the record's own due-soon window.
 // - `overdue`: on Contracts, an Expired (manual-renewal) one. Ended and
-//   auto-renewing Contracts are never overdue. On Warranties, which are
-//   never Due, it selects Lapsed ones, so the list's "Lapsed" chip has
-//   something to show. On Vehicles, any date that has passed.
+//   auto-renewing Contracts are never overdue. On Vehicles, any date that
+//   has passed. A Warranty is never overdue, so it selects none.
+// - `lapsed`: Warranties past their end date, for the list's "Lapsed" chip.
+//   Lapsed is not a Due state (GLOSSARY.md), so it isn't spelled `overdue`;
+//   only Warranties lapse, so it selects nothing else.
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import type { CalendarDay, DueContext, DueEntry } from "@/lib/duePolicy";
+import type { CalendarDay, DueContext, DueEntry, DueState } from "@/lib/duePolicy";
 import { contractDue, vehicleDue, warrantyDue, type ContractDueRow, type VehicleDueRow, type WarrantyDueRow } from "@/lib/dueRecords";
 import type { DueFilter } from "@/lib/recordFilters";
 
@@ -51,46 +53,60 @@ export const VEHICLE_DUE_SELECT = {
 
 type Live = { deletedAt: Date | null };
 
+/**
+ * The state a `?due=` value selects on each kind of record, or null when it
+ * can select nothing there: only Warranties are ever Lapsed, and a Warranty
+ * is never overdue (it lapses instead).
+ */
+function selectedState(kind: "contract" | "warranty" | "vehicle", due: DueFilter): DueState | null {
+  switch (due) {
+    case "soon":
+      return "due-soon";
+    case "overdue":
+      return kind === "warranty" ? null : "overdue";
+    case "lapsed":
+      return kind === "warranty" ? "lapsed" : null;
+  }
+}
+
+/** Matches no row: for a `?due=` value that selects nothing on this record type. */
+const NO_ROWS = { id: { in: [] as string[] } };
+
+/** Overdue and Lapsed dates have passed; due-soon ones are today or later. */
+function dateRange(state: DueState, today: Date) {
+  return state === "due-soon" ? { gte: today } : { lt: today };
+}
+
 export function contractDueFilter(due: DueFilter, ctx: DueContext) {
-  const today = dayStart(ctx.today);
+  const state = selectedState("contract", due);
   // A notice deadline is before its end date, so anything due soon still
   // has an end date of today or later.
-  const where: Prisma.ContractWhereInput = {
-    deletedAt: null,
-    status: { not: "CANCELLED" },
-    endDate: due === "overdue" ? { lt: today } : { gte: today },
-  };
-  const matches = (row: ContractDueRow & Live) => {
-    if (row.deletedAt != null) return false;
-    return hasState(contractDue(row, ctx), due === "overdue" ? "overdue" : "due-soon");
-  };
+  const where: Prisma.ContractWhereInput = state
+    ? { deletedAt: null, status: { not: "CANCELLED" }, endDate: dateRange(state, dayStart(ctx.today)) }
+    : NO_ROWS;
+  const matches = (row: ContractDueRow & Live) =>
+    state != null && row.deletedAt == null && hasState(contractDue(row, ctx), state);
   return { where, matches };
 }
 
 export function warrantyDueFilter(due: DueFilter, ctx: DueContext) {
-  const today = dayStart(ctx.today);
-  const where: Prisma.ProductWhereInput = {
-    deletedAt: null,
-    warrantyEndDate: due === "overdue" ? { lt: today } : { gte: today },
-  };
-  const matches = (row: WarrantyDueRow & Live) => {
-    if (row.deletedAt != null) return false;
-    return hasState(warrantyDue(row, ctx), due === "overdue" ? "lapsed" : "due-soon");
-  };
+  const state = selectedState("warranty", due);
+  const where: Prisma.ProductWhereInput = state
+    ? { deletedAt: null, warrantyEndDate: dateRange(state, dayStart(ctx.today)) }
+    : NO_ROWS;
+  const matches = (row: WarrantyDueRow & Live) =>
+    state != null && row.deletedAt == null && hasState(warrantyDue(row, ctx), state);
   return { where, matches };
 }
 
 export function vehicleDueFilter(due: DueFilter, ctx: DueContext) {
-  const today = dayStart(ctx.today);
-  const range = due === "overdue" ? { lt: today } : { gte: today };
-  const where: Prisma.VehicleWhereInput = {
-    deletedAt: null,
-    OR: [{ regoExpiry: range }, { insuranceExpiry: range }, { nextServiceDue: range }],
-  };
-  const matches = (row: VehicleDueRow & Live) => {
-    if (row.deletedAt != null) return false;
-    return hasState(vehicleDue(row, ctx), due === "overdue" ? "overdue" : "due-soon");
-  };
+  const state = selectedState("vehicle", due);
+  const range = state ? dateRange(state, dayStart(ctx.today)) : null;
+  const where: Prisma.VehicleWhereInput = range
+    ? { deletedAt: null, OR: [{ regoExpiry: range }, { insuranceExpiry: range }, { nextServiceDue: range }] }
+    : NO_ROWS;
+  const matches = (row: VehicleDueRow & Live) =>
+    state != null && row.deletedAt == null && hasState(vehicleDue(row, ctx), state);
   return { where, matches };
 }
 
@@ -105,13 +121,13 @@ export async function contractDueCounts(ctx: DueContext): Promise<{ dueSoon: num
   return { dueSoon: soonRows.filter(soon.matches).length, overdue: overdueRows.filter(overdue.matches).length };
 }
 
-/** Household-wide `?due=` chip counts for Warranties. */
-export async function warrantyDueCounts(ctx: DueContext): Promise<{ dueSoon: number; overdue: number }> {
+/** Household-wide `?due=` chip counts for Warranties: due soon, and Lapsed. */
+export async function warrantyDueCounts(ctx: DueContext): Promise<{ dueSoon: number; lapsed: number }> {
   const soon = warrantyDueFilter("soon", ctx);
-  const lapsed = warrantyDueFilter("overdue", ctx);
+  const lapsed = warrantyDueFilter("lapsed", ctx);
   const [soonRows, lapsedRows] = await Promise.all([
     prisma.product.findMany({ where: soon.where, select: WARRANTY_DUE_SELECT }),
     prisma.product.findMany({ where: lapsed.where, select: WARRANTY_DUE_SELECT }),
   ]);
-  return { dueSoon: soonRows.filter(soon.matches).length, overdue: lapsedRows.filter(lapsed.matches).length };
+  return { dueSoon: soonRows.filter(soon.matches).length, lapsed: lapsedRows.filter(lapsed.matches).length };
 }
