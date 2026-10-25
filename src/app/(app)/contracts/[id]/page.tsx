@@ -31,7 +31,9 @@ import {
   formatDate,
 } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
-import { contractTiming } from "@/lib/contractTiming";
+import { getDueContext } from "@/lib/appSettings";
+import { addDays, calendarDayOf, noticeApplies } from "@/lib/duePolicy";
+import { contractDue, headlineEntry } from "@/lib/dueRecords";
 import { getHouseholdMemberCount } from "@/lib/household";
 
 export default async function ContractDetailPage({
@@ -43,7 +45,7 @@ export default async function ContractDetailPage({
 }) {
   const { id } = await params;
   const { docFallback } = await searchParams;
-  const [contract, { dateFormat, region }, memberCount] = await Promise.all([
+  const [contract, { dateFormat, region }, memberCount, due] = await Promise.all([
     prisma.contract.findUnique({
       where: { id },
       include: {
@@ -57,6 +59,7 @@ export default async function ContractDetailPage({
     }),
     getUserPreferences(),
     getHouseholdMemberCount(),
+    getDueContext(),
   ]);
   if (!contract || contract.deletedAt) notFound();
 
@@ -64,10 +67,13 @@ export default async function ContractDetailPage({
     ? await getPendingExtractionReview("CONTRACT", contract.id)
     : [];
 
-  // #351 — counts to the last day to give notice while that's ahead.
-  const timing = contractTiming(contract);
-  const days = timing.days;
-  const cancelByLabel = timing.beforeCancelBy ? formatDate(timing.cancelBy, dateFormat) : undefined;
+  // #384 — the badge and banner show the Due policy's entry: the notice
+  // deadline while it's ahead (#351), then the end date.
+  const dueEntries = contractDue(contract, due);
+  const entry = headlineEntry(dueEntries);
+  // The notice deadline as a date, for the Notice period field.
+  const endDay = calendarDayOf(contract.endDate);
+  const noticeDeadline = endDay && noticeApplies(contract) ? addDays(endDay, -contract.noticePeriodDays!) : null;
   const cancelled = contract.status === "CANCELLED";
   const boundUpload = addDocumentAction.bind(null, "CONTRACT", contract.id);
   const statusAction = setContractStatus.bind(null, contract.id, cancelled ? "ACTIVE" : "CANCELLED");
@@ -102,7 +108,7 @@ export default async function ContractDetailPage({
           <p className="text-muted">{contract.provider}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <ExpiryBadge days={days} cancelled={cancelled} cancelBy={timing.beforeCancelBy} />
+          <ExpiryBadge entry={entry} cancelled={cancelled} />
           <Link
             href={`/contracts/${contract.id}/edit`}
             className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
@@ -143,12 +149,12 @@ export default async function ContractDetailPage({
 
       {!cancelled && (
         <DetailStatusBanner
-          days={days}
+          entries={dueEntries}
           hasDocuments={contract.documents.length > 0}
           documentsHref="#documents"
           editHref={`/contracts/${contract.id}/edit`}
           renewLabel="Renew policy"
-          cancelBy={cancelByLabel}
+          newEndDateNote="it renewed automatically."
           // Expiring is exactly when "I'm not renewing this" is the other
           // likely answer, so offer it beside Renew.
           secondaryAction={
@@ -189,7 +195,7 @@ export default async function ContractDetailPage({
             value={
               contract.noticePeriodDays != null
                 ? `${contract.noticePeriodDays} days${
-                    timing.cancelBy ? ` · give notice by ${formatDate(timing.cancelBy, dateFormat)}` : ""
+                    noticeDeadline ? ` · give notice by ${formatDate(noticeDeadline, dateFormat)}` : ""
                   }`
                 : "—"
             }

@@ -23,7 +23,9 @@ import { RecordMeta } from "@/components/RecordMeta";
 import { ReminderHealthCard } from "@/components/ReminderHealthCard";
 import { getReminderHealth } from "@/lib/notifications/health";
 import { DocFallbackBanner } from "@/components/DocFallbackBanner";
-import { daysUntil, formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
+import { getDueContext } from "@/lib/appSettings";
+import { headlineEntry, warrantyDue } from "@/lib/dueRecords";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { getHouseholdMemberCount } from "@/lib/household";
 
@@ -36,7 +38,7 @@ export default async function ProductDetailPage({
 }) {
   const { id } = await params;
   const { docFallback } = await searchParams;
-  const [product, { dateFormat, region }, memberCount] = await Promise.all([
+  const [product, { dateFormat, region }, memberCount, due] = await Promise.all([
     prisma.product.findUnique({
       where: { id },
       include: {
@@ -49,6 +51,7 @@ export default async function ProductDetailPage({
     }),
     getUserPreferences(),
     getHouseholdMemberCount(),
+    getDueContext(),
   ]);
   if (!product || product.deletedAt) notFound();
 
@@ -56,7 +59,8 @@ export default async function ProductDetailPage({
     ? await getPendingExtractionReview("PRODUCT", product.id)
     : [];
 
-  const days = daysUntil(product.warrantyEndDate);
+  // #384 — from the Due policy: due soon, later, or Lapsed (never Expired).
+  const dueEntries = warrantyDue(product, due);
   const boundUpload = addDocumentAction.bind(null, "PRODUCT", product.id);
   const reminderHealth = await getReminderHealth({
     ownerType: "PRODUCT",
@@ -84,7 +88,7 @@ export default async function ProductDetailPage({
           {product.vendor && <p className="text-muted">{product.vendor}</p>}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <ExpiryBadge days={days} />
+          <ExpiryBadge entry={headlineEntry(dueEntries)} empty="No warranty end date" />
           <Link
             href={`/products/${product.id}/edit`}
             className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
@@ -120,7 +124,7 @@ export default async function ProductDetailPage({
       <DocFallbackBanner docFallback={docFallback} />
 
       <DetailStatusBanner
-        days={days}
+        entries={dueEntries}
         hasDocuments={product.documents.length > 0}
         documentsHref="#documents"
         editHref={`/products/${product.id}/edit`}

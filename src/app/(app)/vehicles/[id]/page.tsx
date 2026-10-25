@@ -18,6 +18,9 @@ import { getReminderHealth } from "@/lib/notifications/health";
 import { VEHICLE_ITEM_TYPE_LABELS, formatCurrency, formatDate } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { getHouseholdMemberCount } from "@/lib/household";
+import { getDueContext } from "@/lib/appSettings";
+import { vehicleDue } from "@/lib/dueRecords";
+import { DetailStatusBanner } from "@/components/DetailStatusBanner";
 
 const ITEM_ICONS: Record<string, LucideIcon> = {
   SERVICE: Wrench,
@@ -36,7 +39,7 @@ export default async function VehicleDetailPage({
   await requireModuleEnabled("VEHICLES");
 
   const { id } = await params;
-  const [vehicle, { dateFormat, region }, linkedContracts, memberCount] = await Promise.all([
+  const [vehicle, { dateFormat, region }, linkedContracts, memberCount, due] = await Promise.all([
     prisma.vehicle.findUnique({
       where: { id },
       include: {
@@ -51,6 +54,7 @@ export default async function VehicleDetailPage({
     getUserPreferences(),
     prisma.contract.findMany({ where: { vehicleId: id, deletedAt: null }, orderBy: { title: "asc" } }),
     getHouseholdMemberCount(),
+    getDueContext(),
   ]);
   if (!vehicle || vehicle.deletedAt) notFound();
 
@@ -106,6 +110,16 @@ export default async function VehicleDetailPage({
           </DetailOverflowMenu>
         </div>
       </div>
+
+      {/* #384 — one row per Due entry (rego, insurance, service), each with
+          its own state from the Due policy. */}
+      <DetailStatusBanner
+        entries={vehicleDue(vehicle, due)}
+        hasDocuments
+        documentsHref={`/vehicles/${vehicle.id}`}
+        editHref={`/vehicles/${vehicle.id}/edit`}
+        renewLabel="Update dates"
+      />
 
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">
@@ -178,7 +192,7 @@ export default async function VehicleDetailPage({
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
             {linkedContracts.map((contract) => (
-              <ContractCard key={contract.id} contract={contract} dateFormat={dateFormat} region={region} />
+              <ContractCard key={contract.id} contract={contract} due={due} dateFormat={dateFormat} region={region} />
             ))}
           </div>
         )}

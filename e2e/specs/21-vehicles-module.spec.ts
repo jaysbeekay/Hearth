@@ -169,7 +169,8 @@ test.describe.serial("Vehicles module", () => {
 
     await page.goto("/vehicles");
     const card = page.locator("a", { hasText: "Test Vehicle" });
-    await expect(card.getByText(/^Service in \d+d$/)).toBeVisible();
+    // #384 — the Due policy's label for a service date inside its window.
+    await expect(card.getByText(/^Service due \d{1,2} [A-Z][a-z]{2}( \d{4})?$/)).toBeVisible();
   });
 
   test("delete the vehicle", async ({ page }) => {

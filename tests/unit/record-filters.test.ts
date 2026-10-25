@@ -133,11 +133,11 @@ describe("Contract rules", () => {
   });
 });
 
-describe("Contract Due filter (stand-in until #384)", () => {
+describe("Contract Due filter (the Due policy, #384)", () => {
   it("leaves Cancelled Contracts out", async () => {
-    const now = new Date();
-    const inTen = new Date(now.getTime() + 10 * 86_400_000);
-    const tenAgo = new Date(now.getTime() - 10 * 86_400_000);
+    const ctx = { today: "2026-10-25", defaultReminderDays: "30,14,7,1" };
+    const inTen = new Date("2026-11-04T00:00:00Z");
+    const tenAgo = new Date("2026-10-15T00:00:00Z");
     await contract("soon", { endDate: inTen });
     await contract("soon, cancelled", { endDate: inTen, status: "CANCELLED" });
     await contract("overdue", { endDate: tenAgo });
@@ -145,7 +145,7 @@ describe("Contract Due filter (stand-in until #384)", () => {
     await contract("far", { endDate: END });
 
     for (const [due, expected] of [["soon", ["soon"]], ["overdue", ["overdue"]]] as const) {
-      const f = contractDueFilter(due, now);
+      const f = contractDueFilter(due, ctx);
       const rows = await db.prisma.contract.findMany({ where: f.where });
       expect(rows.filter(f.matches).map((r) => r.title)).toEqual(expected);
       const all = await db.prisma.contract.findMany();

@@ -1,31 +1,41 @@
 import { describe, expect, it } from "vitest";
-import type { Contract, Product } from "@/generated/prisma/client";
 import {
   buildContractAttentionItems,
   buildInboxItem,
   buildMissingDetailsItems,
   buildReminderNudgeItem,
+  buildTenancyAttentionItems,
+  buildVehicleAttentionItems,
   buildWarrantyAttentionItems,
   groupAttentionItems,
   type AttentionItem,
 } from "@/lib/needsAttention";
+import { addDays, type DueContext, type DueEntry } from "@/lib/duePolicy";
 
-const DAY = 86_400_000;
+const TODAY = "2026-10-25";
+const ctx: DueContext = { today: TODAY, defaultReminderDays: "30,14,7,1" };
 
+/** A stored calendar date `days` from the household's today. */
 function inDays(days: number): Date {
-  return new Date(Date.now() + days * DAY);
+  return new Date(`${addDays(TODAY, days)}T00:00:00.000Z`);
 }
 
-function contract(id: string, endInDays: number, documents = 0) {
+function contract(
+  id: string,
+  endInDays: number | null,
+  extra: Partial<{ documents: number; renewalType: string; noticePeriodDays: number | null; status: string; reminderDaysBefore: string | null }> = {},
+) {
   return {
     id,
     title: `Contract ${id}`,
     provider: "Provider",
-    endDate: inDays(endInDays),
-    renewalType: "MANUAL_RENEWAL",
-    noticePeriodDays: null,
-    _count: { documents },
-  } as unknown as Contract & { _count: { documents: number } };
+    endDate: endInDays == null ? null : inDays(endInDays),
+    renewalType: extra.renewalType ?? "MANUAL_RENEWAL",
+    noticePeriodDays: extra.noticePeriodDays ?? null,
+    status: extra.status ?? "ACTIVE",
+    reminderDaysBefore: extra.reminderDaysBefore ?? null,
+    _count: { documents: extra.documents ?? 0 },
+  };
 }
 
 function warranty(id: string, endInDays: number) {
@@ -34,12 +44,14 @@ function warranty(id: string, endInDays: number) {
     description: `Warranty ${id}`,
     manufacturer: null,
     warrantyEndDate: inDays(endInDays),
+    reminderDaysBefore: null,
     _count: { documents: 0 },
-  } as unknown as Product & { _count: { documents: number } };
+  };
 }
 
-function dueItem(id: string, days: number): AttentionItem {
-  return { id, kind: "contract", group: "due", title: id, days, href: `/contracts/${id}` };
+function dueItem(id: string, daysLeft: number): AttentionItem {
+  const entry: DueEntry = { field: "endDate", date: addDays(TODAY, daysLeft), daysLeft, state: daysLeft < 0 ? "overdue" : "due-soon", label: id };
+  return { id, kind: "contract", group: "due", title: id, entry, href: `/contracts/${id}` };
 }
 
 describe("groupAttentionItems", () => {
@@ -69,8 +81,8 @@ describe("groupAttentionItems", () => {
 describe("attention item actions", () => {
   it("never makes uploading a document the main action", () => {
     const items = [
-      ...buildContractAttentionItems([contract("a", 5), contract("b", -3, 2)]),
-      ...buildWarrantyAttentionItems([warranty("w", 10)]),
+      ...buildContractAttentionItems([contract("a", 5), contract("b", -3, { documents: 2 })], ctx),
+      ...buildWarrantyAttentionItems([warranty("w", 10)], ctx),
     ];
     for (const item of items) {
       expect(item.action?.label ?? "").not.toMatch(/upload/i);
@@ -80,9 +92,90 @@ describe("attention item actions", () => {
   });
 
   it("gives an expiring warranty no action button", () => {
-    const [item] = buildWarrantyAttentionItems([warranty("w", 10)]);
+    const [item] = buildWarrantyAttentionItems([warranty("w", 10)], ctx);
     expect(item.group).toBe("due");
     expect(item.action).toBeUndefined();
+  });
+});
+
+describe("Due rows follow the Due policy (#384)", () => {
+  it("only an Expired manual-renewal Contract is overdue and can be marked cancelled", () => {
+    const items = buildContractAttentionItems(
+      [
+        contract("manual", -3),
+        contract("fixed", -3, { renewalType: "FIXED_TERM" }),
+        contract("cancelled", 5, { status: "CANCELLED" }),
+      ],
+      ctx,
+    );
+    expect(items.map((i) => i.id)).toEqual(["manual"]);
+    expect(items[0].entry?.state).toBe("overdue");
+    expect(items[0].canMarkCancelled).toBe(true);
+  });
+
+  it("an auto-renewing Contract past its end date is Housekeeping, not Due", () => {
+    const [item] = buildContractAttentionItems([contract("auto", -3, { renewalType: "AUTO_RENEW" })], ctx);
+    expect(item.group).toBe("housekeeping");
+    expect(item.entry?.state).toBe("needs-new-end-date");
+    expect(item.action?.label).toBe("Set the new end date");
+    expect(item.canMarkCancelled).toBeUndefined();
+  });
+
+  it("an auto-renewing Contract's end date is never Due", () => {
+    expect(buildContractAttentionItems([contract("auto", 5, { renewalType: "AUTO_RENEW" })], ctx)).toEqual([]);
+  });
+
+  it("uses each record's due-soon window, not a fixed 30 days", () => {
+    const items = buildContractAttentionItems(
+      [contract("wide", 50, { reminderDaysBefore: "60" }), contract("narrow", 10, { reminderDaysBefore: "7" })],
+      ctx,
+    );
+    expect(items.map((i) => i.id)).toEqual(["wide"]);
+  });
+
+  it("a date of today is due soon, not overdue", () => {
+    const [item] = buildContractAttentionItems([contract("today", 0)], ctx);
+    expect(item.entry).toMatchObject({ state: "due-soon", label: "Expires today" });
+  });
+
+  it("a Lapsed Warranty leaves the queue", () => {
+    expect(buildWarrantyAttentionItems([warranty("lapsed", -1)], ctx)).toEqual([]);
+  });
+
+  it("gives a Vehicle one row per Due entry, each with its own state", () => {
+    const items = buildVehicleAttentionItems(
+      [
+        {
+          id: "v",
+          label: "Car",
+          regoExpiry: inDays(-2),
+          insuranceExpiry: inDays(90),
+          nextServiceDue: inDays(5),
+          reminderDaysBefore: null,
+        },
+      ],
+      ctx,
+    );
+    expect(items.map((i) => [i.entry?.field, i.entry?.state, i.action?.label])).toEqual([
+      ["regoExpiry", "overdue", "Renew registration"],
+      ["nextServiceDue", "due-soon", "Book service"],
+    ]);
+  });
+
+  it("a Tenancy's lease end is Due, then Housekeeping once it passes", () => {
+    const tenancy = (agreementId: string, leaseEnd: Date) => ({
+      propertyId: "p",
+      propertyLabel: "Flat",
+      agreementId,
+      tenantName: "Sam",
+      leaseEnd,
+    });
+    const items = buildTenancyAttentionItems([tenancy("soon", inDays(10)), tenancy("ended", inDays(-1))], ctx);
+    expect(items.map((i) => [i.id, i.group])).toEqual([
+      ["lease-soon", "due"],
+      ["lease-ended-ended", "housekeeping"],
+    ]);
+    expect(items[1].entry?.label).toBe("Lease ended — set the new lease end");
   });
 });
 

@@ -5,7 +5,9 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
-import { getCalendarEvents } from "@/lib/calendarEvents";
+import { calendarKindLabel, getCalendarEvents } from "@/lib/calendarEvents";
+import { getDueContext } from "@/lib/appSettings";
+import { addDays, type CalendarDay } from "@/lib/duePolicy";
 import { formatDate } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { ExpiryBadge } from "@/components/ExpiryBadge";
@@ -14,30 +16,22 @@ import type { CalendarEvent } from "@/lib/calendarEvents";
 
 export const metadata: Metadata = { title: "Upcoming" };
 
-const KIND_LABELS: Record<CalendarEvent["kind"], string> = {
-  contract: "Contract",
-  product: "Product",
-  trip: "Travel",
-  homeItem: "Property",
-  vehicleExpiry: "Vehicle",
-  vehicleItem: "Vehicle record",
-};
-
-// #288 — horizon chips answering "what's expiring in the next N days"
-// directly, instead of only a fixed 30-day window. Already-overdue events
-// always show regardless of horizon — they're not "upcoming" but hiding
-// them behind a horizon filter would regress what the calendar already did.
+// #288 — horizon chips answering "what's coming up in the next N days".
+// #402 — Upcoming runs from the household's today to today + horizon, with
+// no history: anything Overdue is in Needs attention instead.
 const HORIZONS = [30, 60, 90] as const;
 const DEFAULT_HORIZON = 30;
 
-function monthKey(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+// Calendar days are UTC dates (the Due policy's input contract), so they're
+// formatted in UTC to stay on the same day everywhere.
+function dayDate(day: CalendarDay): Date {
+  return new Date(`${day}T00:00:00.000Z`);
 }
 
+/** "October 2026", in sentence case whatever the locale's own casing. */
 function monthLabel(key: string, region: string) {
-  const [year, month] = key.split("-");
-  const d = new Date(Number(year), Number(month) - 1, 1);
-  return d.toLocaleDateString(region, { month: "long", year: "numeric" });
+  const label = dayDate(`${key}-01`).toLocaleDateString(region, { month: "long", year: "numeric", timeZone: "UTC" });
+  return label.charAt(0).toLocaleUpperCase(region) + label.slice(1);
 }
 
 export default async function CalendarPage({
@@ -59,15 +53,13 @@ export default async function CalendarPage({
     ? parsedHorizon
     : DEFAULT_HORIZON;
 
-  const allEvents = await getCalendarEvents(enabledModules);
-  const events = allEvents.filter(
-    (e) => e.daysUntilDate == null || e.daysUntilDate < 0 || e.daysUntilDate <= horizon,
-  );
+  const due = await getDueContext();
+  const events = await getCalendarEvents(enabledModules, due, addDays(due.today, horizon));
 
   // Group by year-month
   const grouped = new Map<string, CalendarEvent[]>();
   for (const event of events) {
-    const key = monthKey(event.date);
+    const key = event.date.slice(0, 7);
     const existing = grouped.get(key) ?? [];
     existing.push(event);
     grouped.set(key, existing);
@@ -81,8 +73,8 @@ export default async function CalendarPage({
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-semibold">Upcoming</h1>
           <p className="text-sm text-muted">
-            Everything expiring or coming up across contracts, warranties, vehicles, trips, and
-            property — pick a horizon to answer &quot;what&apos;s expiring in the next N days&quot;.
+            What&apos;s coming up across contracts, warranties, vehicles, trips and property, from
+            today to the horizon you pick. Anything overdue is in Needs attention on the dashboard.
           </p>
         </div>
         <CalendarSubscribeButton hasToken={Boolean(user?.icalTokenHash)} appUrl={env.appUrl} />
@@ -107,7 +99,7 @@ export default async function CalendarPage({
 
       {months.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
-          Nothing expiring or coming up within {horizon} days.
+          Nothing coming up in the next {horizon} days.
         </p>
       ) : (
         months.map(([key, monthEvents]) => (
@@ -123,23 +115,25 @@ export default async function CalendarPage({
                   className="flex items-start gap-3 rounded-lg border border-border bg-surface p-3 transition hover:border-accent/50"
                 >
                   <div className="mt-0.5 w-10 shrink-0 text-center">
-                    <p className="text-xs text-muted">{event.date.toLocaleDateString(region, { month: "short" })}</p>
-                    <p className="text-lg font-semibold leading-none">{event.date.getDate()}</p>
+                    <p className="text-xs text-muted">
+                      {dayDate(event.date).toLocaleDateString(region, { month: "short", timeZone: "UTC" })}
+                    </p>
+                    <p className="text-lg font-semibold leading-none">{Number(event.date.slice(8, 10))}</p>
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">{event.title}</p>
                     {event.subtitle && (
                       <p className="truncate text-sm text-muted">{event.subtitle}</p>
                     )}
-                    {event.endDate && event.endDate.getTime() !== event.date.getTime() && (
+                    {event.endDate && event.endDate !== event.date && (
                       <p className="text-xs text-muted">until {formatDate(event.endDate, dateFormat)}</p>
                     )}
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1.5">
                     <span className="text-xs text-muted">
-                      {KIND_LABELS[event.kind]}
+                      {calendarKindLabel(event.kind)}
                     </span>
-                    <ExpiryBadge days={event.daysUntilDate} />
+                    {event.entry && <ExpiryBadge entry={event.entry} />}
                   </div>
                 </Link>
               ))}

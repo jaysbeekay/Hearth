@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { env, isEncryptionConfigured } from "@/lib/env";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import type { BackupDestinationChoice } from "@/lib/backupDestination";
-import { householdDay, resolveTimeZone, serverTimeZone, type CalendarDay } from "@/lib/duePolicy";
+import { householdDay, resolveTimeZone, serverTimeZone, type CalendarDay, type DueContext } from "@/lib/duePolicy";
 
 // Keys whose values are encrypted at rest using ENCRYPTION_KEY.
 const ENCRYPTED_KEYS = new Set([
@@ -330,6 +330,16 @@ export async function getHouseholdTimeZone(): Promise<string> {
 
 export async function getHouseholdToday(now: Date = new Date()): Promise<CalendarDay> {
   return householdDay(now, await getHouseholdTimeZone());
+}
+
+/**
+ * What every screen hands the Due policy (ADR 0002, #384): the household's
+ * today, and its default Reminder thresholds, which set the due-soon window
+ * of a record with none of its own.
+ */
+export async function getDueContext(now: Date = new Date()): Promise<DueContext> {
+  const [today, { defaultDays }] = await Promise.all([getHouseholdToday(now), getReminderConfig()]);
+  return { today, defaultReminderDays: defaultDays };
 }
 
 export async function getAviationStackConfig() {

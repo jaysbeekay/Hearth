@@ -34,8 +34,8 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   the household's day. Its rules are pinned by a shared case file,
   `tests/fixtures/due-policy-cases.json`, which replaces the
   `contractTiming` unit tests and which the standalone app will run too.
-  Nothing uses it yet, so no screen changes; lists, the dashboard,
-  Search, Upcoming and iCal move onto it next (#383, #384).
+  The Reminder schedule and every screen use it; see "Every screen follows
+  the Due rules" under Changed (#383, #384).
 - **Reminders link to the record.** Email reminders include an "Open it in
   Hearth" link; ntfy notifications open the record when tapped and add an
   Open action. Links are only included when `APP_URL` is set, and Settings
@@ -87,6 +87,47 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- **Every screen follows the Due rules (#384).** The Contracts, Warranties
+  and Vehicles lists and their cards, the "Expiring soon" and "Expired"
+  filters and their counts, the dashboard's Needs attention, Search,
+  Upcoming, the iCal feed and the detail-page banners now all ask the one
+  Due policy, so the same record reads the same everywhere. What you'll
+  notice:
+  - Warranties past their end date read **Lapsed** and leave Needs
+    attention. The Warranties list's "Expired" chip is now "Lapsed".
+  - Fixed-term Contracts past their end date read **Ended**. Only
+    manual-renewal Contracts read **Expired**.
+  - An auto-renewing Contract past its end date is no longer "Expired": it
+    becomes a Housekeeping row, "Set the new end date". Its end date is
+    never Due, only its notice deadline.
+  - A rented Property's lease end is Due as it approaches. Once it passes,
+    it becomes a Housekeeping row, "Lease ended — set the new lease end",
+    and the property page shows a banner for it.
+  - "Expiring soon" means inside each record's due-soon window (its
+    largest Reminder threshold, else the household default) instead of a
+    fixed 30 days. The dashboard's empty state reads "Nothing due".
+  - A Vehicle's rego, insurance and service dates are separate rows in
+    Needs attention, each with its own state, and the vehicle page now has
+    a banner for each one that's due soon (warning) or overdue (danger).
+  - Badges show the policy's labels ("Cancel by 4 Nov", "Expires today",
+    "Expired 3 days ago", "Ended 2 Oct", "Lapsed 1 Sep") instead of
+    "12d left". Lapsed, Ended and "Needs new end date" are neutral, not red.
+  - A Contract or Warranty ending today is due soon ("today"), not Expired.
+  - Day counts follow the household timezone.
+  - Cancelled Contracts leave Upcoming and the iCal feed. The feed calls a
+    Contract's end date "renews", "ends" or "expires" by its renewal type,
+    and a Warranty's "warranty ends".
+  - Search has no end-date range of its own; its "Expiring soon" filter
+    matches the lists exactly, Vehicles included.
+
+  The MCP server and the Assistant move onto the same rules in #394.
+- **Upcoming shows what's coming up (#402).** It now runs from today to
+  the horizon you pick, with no history: anything overdue is in Needs
+  attention instead. Service and Maintenance records and Trip segments
+  never read "Expired", and Trips show while any of them is still ahead.
+  Record-type tags use the glossary's nouns ("Warranty", "Service record",
+  "Maintenance record", "Trip", "Tenancy"), month headers are in sentence
+  case, and a rented Property's lease end appears too.
 - **One definition of Missing key details (#395).** The Contracts,
   Warranties and Vehicles lists, Search and the dashboard now share one set
   of filter rules (`src/lib/recordFilters.ts`), so a count always matches

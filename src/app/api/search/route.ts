@@ -19,7 +19,15 @@ import {
   vehicleMissingParts,
   VEHICLE_MISSING_SELECT,
 } from "@/lib/recordFilters";
-import { contractDueFilter, warrantyDueWhere } from "@/lib/listDue";
+import {
+  CONTRACT_DUE_SELECT,
+  VEHICLE_DUE_SELECT,
+  WARRANTY_DUE_SELECT,
+  contractDueFilter,
+  vehicleDueFilter,
+  warrantyDueFilter,
+} from "@/lib/listDue";
+import { getDueContext } from "@/lib/appSettings";
 
 export interface SearchResult {
   id: string;
@@ -63,31 +71,32 @@ export async function GET(request: NextRequest) {
   }
 
   const q = request.nextUrl.searchParams.get("q")?.trim() ?? "";
-  const now = new Date();
 
   // #205/#328/#395 — the same filter parameters as the lists (?due=,
   // ?missing=details, ?review=1, ?noDocument=1, ?important=1), with the
   // rules from src/lib/recordFilters.ts and src/lib/listDue.ts. The old
   // single `filter=` values still work. Filters narrow Contracts and
-  // Warranties (all filters), Vehicles (Due soon and Missing key details;
+  // Warranties (all filters), Vehicles (Due and Missing key details;
   // Vehicles are left out under any other filter) and Inventory items
   // (Missing key details only; left out under any other filter). Trips,
   // Property, Wealth and Document-name hits don't take part in filters:
   // they only appear for search text, and then unfiltered.
   const filters = parseSearchFilters(request.nextUrl.searchParams);
   const filter = hasListFilters(filters);
-  const vehicleFilterOnly =
-    !filters.review && !filters.noDocument && !filters.important && filters.due !== "overdue";
-  // Due needs notice deadlines, which SQL can't express: the query narrows
-  // roughly and `contractDue.matches` decides, exactly as on the list (ADR 0002).
-  const contractDue = filters.due ? contractDueFilter(filters.due, now) : null;
+  const vehicleFilterOnly = !filters.review && !filters.noDocument && !filters.important;
 
   const textOk = q.length >= 2;
   if (!textOk && !filter) {
     return NextResponse.json({ groups: {} }, { headers: { "Cache-Control": "no-store" } });
   }
 
-  const soon = new Date(now.getTime() + 30 * 86_400_000);
+  // #384 — Due is the Due policy's, exactly as on the lists: each query
+  // narrows roughly and the filter's `matches` decides in memory (ADR 0002),
+  // so Search has no end-date range of its own.
+  const dueContext = filters.due ? await getDueContext() : null;
+  const contractDue = filters.due && dueContext ? contractDueFilter(filters.due, dueContext) : null;
+  const warrantyDue = filters.due && dueContext ? warrantyDueFilter(filters.due, dueContext) : null;
+  const vehicleDue = filters.due && dueContext ? vehicleDueFilter(filters.due, dueContext) : null;
 
   const enabledModules = await getEnabledModuleKeys();
   const contains = { contains: q };
@@ -131,8 +140,8 @@ export async function GET(request: NextRequest) {
           title: true,
           provider: true,
           contractNumber: true,
-          noticePeriodDays: true,
           ...CONTRACT_MISSING_SELECT,
+          ...CONTRACT_DUE_SELECT,
         },
         // Most-recent-first: relevant always, but load-bearing for
         // isContractAlias/missing* results, which can return far more rows
@@ -179,7 +188,7 @@ export async function GET(request: NextRequest) {
                   },
                 ]
               : []),
-            ...(filters.due ? [warrantyDueWhere(filters.due, now)] : []),
+            ...(warrantyDue ? [warrantyDue.where] : []),
             ...productFilterWheres(filters),
           ],
         },
@@ -189,11 +198,13 @@ export async function GET(request: NextRequest) {
           manufacturer: true,
           vendor: true,
           ...PRODUCT_MISSING_SELECT,
+          ...WARRANTY_DUE_SELECT,
         },
         // See the equivalent comment on the contract query above.
         orderBy: { createdAt: "desc" },
-        take: LIMIT,
+        ...(warrantyDue ? {} : { take: LIMIT }),
       })
+      .then((rows) => (warrantyDue ? rows.filter(warrantyDue.matches).slice(0, LIMIT) : rows))
       .then((rows) =>
         rows.map((r) => ({
           id: r.id,
@@ -281,29 +292,21 @@ export async function GET(request: NextRequest) {
                     },
                   ]
                 : []),
-              // Vehicles track three independent expiry-ish dates (rego,
-              // insurance, next service) instead of Contract/Product's
-              // single one — Due soon treats any of them as satisfying the
-              // filter, since a vehicle with even one upcoming date is
-              // being actively tracked.
-              ...(filters.due === "soon"
-                ? [{ OR: [
-                    { regoExpiry: { gte: now, lte: soon } },
-                    { insuranceExpiry: { gte: now, lte: soon } },
-                    { nextServiceDue: { gte: now, lte: soon } },
-                  ] }]
-                : []),
+              // A Vehicle has a Due entry per date (rego, insurance, next
+              // service); any one of them in the state asked for matches.
+              ...(vehicleDue ? [vehicleDue.where] : []),
               // No review/noDocument/important equivalent: vehicles have no
               // extraction-review flag, so those filters skip vehicles
               // entirely (vehicleFilterOnly above).
               ...vehicleFilterWheres(filters),
             ],
           },
-          select: { id: true, label: true, make: true, model: true, ...VEHICLE_MISSING_SELECT },
+          select: { id: true, label: true, make: true, model: true, ...VEHICLE_MISSING_SELECT, ...VEHICLE_DUE_SELECT },
           // See the equivalent comment on the contract query above.
           orderBy: { createdAt: "desc" },
-          take: LIMIT,
+          ...(vehicleDue ? {} : { take: LIMIT }),
         })
+        .then((rows) => (vehicleDue ? rows.filter(vehicleDue.matches).slice(0, LIMIT) : rows))
         .then((rows) =>
           rows.map((r) => ({
             id: r.id,

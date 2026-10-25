@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ContractModel } from "@/generated/prisma/models";
 import { ExpiryBadge } from "@/components/ExpiryBadge";
-import { contractTiming } from "@/lib/contractTiming";
+import { contractDue, headlineEntry, type DueContext } from "@/lib/dueRecords";
 import {
   CATEGORY_LABELS,
   BILLING_LABELS,
@@ -11,18 +11,20 @@ import {
 
 export function ContractCard({
   contract,
+  due,
   dateFormat,
   region,
   missing,
 }: {
   contract: ContractModel & { _count?: { documents: number } };
+  /** #384 — the household's today and default thresholds, for the Due policy. */
+  due: DueContext;
   dateFormat?: string;
   region?: string;
   /** #395 — which key details are missing, shown when the list is filtered to them. */
   missing?: string[];
 }) {
-  const timing = contractTiming(contract);
-  const days = timing.days;
+  const entry = headlineEntry(contractDue(contract, due));
   const cancelled = contract.status === "CANCELLED";
 
   return (
@@ -38,16 +40,12 @@ export function ContractCard({
           <p className="truncate font-medium">{contract.title}</p>
           <p className="truncate text-sm text-muted">{contract.provider}</p>
         </div>
-        <ExpiryBadge days={days} cancelled={cancelled} cancelBy={timing.beforeCancelBy} />
+        <ExpiryBadge entry={entry} cancelled={cancelled} />
       </div>
 
       <div className="mt-3 flex items-center justify-between text-sm text-muted">
         <span>
-          {timing.beforeCancelBy && !cancelled
-            ? `Give notice by ${formatDate(timing.cancelBy, dateFormat)}`
-            : contract.endDate
-              ? `Ends ${formatDate(contract.endDate, dateFormat)}`
-              : "No end date"}
+          {contract.endDate ? `Ends ${formatDate(contract.endDate, dateFormat)}` : "No end date"}
         </span>
         {contract.cost != null && (
           <span>
