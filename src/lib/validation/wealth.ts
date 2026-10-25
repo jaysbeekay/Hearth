@@ -78,7 +78,13 @@ export type PropertyValuationInput = z.infer<typeof propertyValuationSchema>;
 // yields NaN), an arbitrary string for `type` where the column is an enum, or
 // an unbounded number of rows (#162).
 export const importedTradeSchema = z.object({
-  ticker: z.string().trim().min(1).max(32),
+  // Upper-cased like holdingSchema, so "vas.ax" lands on the VAS.AX Holding.
+  ticker: z
+    .string()
+    .trim()
+    .min(1)
+    .max(32)
+    .transform((v) => v.toUpperCase()),
   type: z.enum(TRADE_TYPES),
   date: z.string().trim().min(1).max(40),
   // .finite() is the point: z.number() alone accepts NaN and ±Infinity.

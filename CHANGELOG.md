@@ -240,7 +240,9 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   (`src/lib/commands/wealth.ts`) shared by the server actions, offline
   sync and CSV import (ADR 0003). Cost basis is still worked out from the
   Trades on each view. Changing a Holding's ticker to one already in the
-  Portfolio now shows "already in this portfolio" instead of failing, an
+  Portfolio now shows "already in this portfolio" instead of failing (also
+  when two saves race), an imported ticker is upper-cased so "vas.ax"
+  lands on the existing VAS.AX Holding, an
   offline Holding edit is checked against the Portfolio it was made under,
   and the market price looked up after a new Trade no longer makes a
   queued offline edit of that Trade look stale (#392).

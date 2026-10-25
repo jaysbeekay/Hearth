@@ -6,7 +6,7 @@ import { fetchHistoricalPrice } from "@/lib/prices";
 import { updateUnlessStale, RecordNotFoundError, type UpdateOptions } from "@/lib/commands/shared";
 import type { ClearablePatch } from "@/lib/validation/fullFormUpdate";
 import type { PortfolioInput, HoldingInput, TradeInput, ImportedTrade } from "@/lib/validation/wealth";
-import type { Holding } from "@/generated/prisma/client";
+import { Prisma, type Holding } from "@/generated/prisma/client";
 
 // Record commands for Portfolios, Holdings and Trades (#392, ADR 0003).
 // Every write to `portfolio` / `holding` / `trade` goes through here: the
@@ -141,11 +141,27 @@ async function assertTickerFree(portfolioId: string, ticker: string, exceptHoldi
   if (clash && clash.id !== exceptHoldingId) throw new DuplicateHoldingError(ticker);
 }
 
+// assertTickerFree is the friendly check; the unique index is the real one.
+// Two writes racing past the check both reach the database, and the second
+// fails there with P2002, which is the same clash and gets the same error.
+async function withTickerGuard<T>(ticker: string | null | undefined, write: () => Promise<T>): Promise<T> {
+  try {
+    return await write();
+  } catch (error) {
+    if (ticker && error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      throw new DuplicateHoldingError(ticker);
+    }
+    throw error;
+  }
+}
+
 export async function createHoldingCommand(portfolioId: string, input: HoldingInput) {
   await assertModuleEnabled("WEALTH");
   await findLivePortfolio(portfolioId);
   await assertTickerFree(portfolioId, input.ticker);
-  const holding = await prisma.holding.create({ data: { ...input, portfolioId } });
+  const holding = await withTickerGuard(input.ticker, () =>
+    prisma.holding.create({ data: { ...input, portfolioId } }),
+  );
   revalidateHolding(portfolioId, holding.id);
   return holding;
 }
@@ -162,8 +178,10 @@ export async function updateHoldingCommand(
   if (patch.ticker !== undefined && patch.ticker !== existing.ticker) {
     await assertTickerFree(existing.portfolioId, patch.ticker, id);
   }
-  await updateUnlessStale(options.baseUpdatedAt, (guard) =>
-    prisma.holding.updateMany({ where: { id, ...guard }, data: patch }),
+  await withTickerGuard(patch.ticker, () =>
+    updateUnlessStale(options.baseUpdatedAt, (guard) =>
+      prisma.holding.updateMany({ where: { id, ...guard }, data: patch }),
+    ),
   );
   revalidateHolding(existing.portfolioId, id);
   return findHolding(id);
@@ -228,17 +246,20 @@ export async function saveTradeMarketPrice(id: string, marketPriceOnDate: number
   return count > 0;
 }
 
+// Returns the Trade with its Holding's portfolioId, for the caller's
+// redirect back to the Holding page.
 export async function createTradeCommand(holdingId: string, input: TradeInput) {
   await assertModuleEnabled("WEALTH");
   const holding = await findLiveHolding(holdingId);
   const trade = await prisma.trade.create({ data: { ...input, holdingId } });
   backfillMarketPrice(trade.id, holding, input.date);
   revalidateHolding(holding.portfolioId, holdingId);
-  return trade;
+  return { ...trade, portfolioId: holding.portfolioId };
 }
 
 // Partial patch, as for updatePortfolioCommand. The Holding's units and cost
 // basis follow on the next view, since they're worked out from its Trades.
+// Returns the Trade with its Holding's portfolioId, as createTradeCommand.
 export async function updateTradeCommand(
   id: string,
   patch: ClearablePatch<TradeInput>,
@@ -251,7 +272,7 @@ export async function updateTradeCommand(
     prisma.trade.updateMany({ where: { id, ...guard }, data: patch }),
   );
   revalidateHolding(holding.portfolioId, holding.id);
-  return findTrade(id);
+  return { ...(await findTrade(id)), portfolioId: holding.portfolioId };
 }
 
 // Trades have no Trash yet (#427): deleting one is permanent and takes its

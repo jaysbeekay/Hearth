@@ -188,9 +188,8 @@ export async function deleteHolding(portfolioId: string, holdingId: string): Pro
 // ── Trades ──────────────────────────────────────────────────────────────────
 
 // Where a Trade form goes back to: its Holding's page.
-async function holdingPageFor(holdingId: string) {
-  const holding = await prisma.holding.findUnique({ where: { id: holdingId }, select: { portfolioId: true } });
-  return holding ? `/wealth/portfolios/${holding.portfolioId}/holdings/${holdingId}` : "/wealth";
+function holdingPage(portfolioId: string, holdingId: string) {
+  return `/wealth/portfolios/${portfolioId}/holdings/${holdingId}`;
 }
 
 export async function createTrade(
@@ -213,18 +212,18 @@ export async function createTrade(
     if (rejection) return { error: rejection };
   }
 
-  let tradeId: string;
+  let trade: { id: string; portfolioId: string };
   try {
-    tradeId = (await createTradeCommand(holdingId, parsed.data)).id;
+    trade = await createTradeCommand(holdingId, parsed.data);
   } catch (error) {
     return commandError(error, "Holding not found.");
   }
 
   if (file instanceof File && file.size > 0) {
-    await addDocumentCommand("TRADE", tradeId, { file });
+    await addDocumentCommand("TRADE", trade.id, { file });
   }
 
-  redirect(await holdingPageFor(holdingId));
+  redirect(holdingPage(trade.portfolioId, holdingId));
 }
 
 export async function updateTrade(
@@ -241,12 +240,15 @@ export async function updateTrade(
       values: formDataToStringValues(formData, TRADE_FIELDS),
     };
   }
+  let portfolioId: string;
   try {
-    await updateTradeCommand(tradeId, fullFormUpdate(tradeSchema, parsed.data, formData), { holdingId });
+    ({ portfolioId } = await updateTradeCommand(tradeId, fullFormUpdate(tradeSchema, parsed.data, formData), {
+      holdingId,
+    }));
   } catch (error) {
     return commandError(error, "Trade not found.");
   }
-  redirect(await holdingPageFor(holdingId));
+  redirect(holdingPage(portfolioId, holdingId));
 }
 
 // Permanent: Trades have no Trash yet (#427).

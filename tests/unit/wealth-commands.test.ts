@@ -19,7 +19,13 @@ import {
 import { RecordNotFoundError, StaleEditError } from "@/lib/commands/shared";
 import { ModuleDisabledError } from "@/lib/modules/enablement";
 import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
-import { portfolioSchema, holdingSchema, tradeSchema, type TradeInput } from "@/lib/validation/wealth";
+import {
+  portfolioSchema,
+  holdingSchema,
+  tradeSchema,
+  importedTradesSchema,
+  type TradeInput,
+} from "@/lib/validation/wealth";
 import { formToPortfolioInput, formToHoldingInput, formToTradeInput } from "@/lib/formMappers";
 import { holdingUnitsAndCost } from "@/lib/wealth";
 import {
@@ -178,6 +184,27 @@ describe("Holding commands", () => {
     await expect(newHolding(portfolio.id, "VGS.AX")).rejects.toThrow("VGS.AX is already in this portfolio.");
     // The same ticker in another Portfolio is fine.
     await newHolding((await newPortfolio("Other")).id, "VGS.AX");
+  });
+
+  // Two writes can both pass the friendly ticker check before either lands;
+  // the unique index then refuses the second with P2002. Simulated here by
+  // hiding the clash from the check, so the write itself hits the index.
+  it("turns a ticker clash the check missed (a race) into DuplicateHoldingError", async () => {
+    const portfolio = await newPortfolio();
+    await newHolding(portfolio.id, "VAS.AX");
+    const vgs = await newHolding(portfolio.id, "VGS.AX");
+    const realFindUnique = db.prisma.holding.findUnique.bind(db.prisma.holding);
+    const spy = vi.spyOn(db.prisma.holding, "findUnique").mockImplementation(((args: { where: object }) =>
+      "portfolioId_ticker" in args.where ? Promise.resolve(null) : realFindUnique(args as never)) as never);
+    try {
+      await expect(newHolding(portfolio.id, "VAS.AX")).rejects.toThrow(new DuplicateHoldingError("VAS.AX").message);
+      await expect(newHolding(portfolio.id, "VAS.AX")).rejects.toBeInstanceOf(DuplicateHoldingError);
+      await expect(updateHoldingCommand(vgs.id, { ticker: "VAS.AX" })).rejects.toBeInstanceOf(DuplicateHoldingError);
+    } finally {
+      spy.mockRestore();
+    }
+    expect(await db.prisma.holding.count()).toBe(2);
+    expect((await db.prisma.holding.findUniqueOrThrow({ where: { id: vgs.id } })).ticker).toBe("VGS.AX");
   });
 
   it("refuses a Holding under a Portfolio that's gone (#428)", async () => {
@@ -351,57 +378,84 @@ describe("Trade commands", () => {
     await expect(permanentlyDeleteTradeCommand(trade.id)).rejects.toBeInstanceOf(RecordNotFoundError);
   });
 
-  // Cost basis is worked out from the Trades on each view (src/lib/wealth.ts).
-  // Editing or deleting Trades through the commands must leave a Holding with
-  // the same units and cost as the direct Prisma writes the actions made
-  // before the commands existed.
-  it("leaves units and cost basis as the old direct writes did, for FIFO and average cost", async () => {
-    const lots = [
-      buy(10, 100, "2025-01-02", { fees: 10 }),
-      buy(10, 120, "2025-02-02", { fees: 10 }),
-      tradeSchema.parse({ type: "SELL", date: "2025-03-02", units: 12, pricePerUnit: 130, fees: 10 }),
-      buy(5, 90, "2025-04-02"),
+  // Cost basis is worked out from the Trades on each view (src/lib/wealth.ts),
+  // so a Trade edit or delete through the commands must leave exactly the
+  // Trades that give these hand-worked figures. Cost basis adds up raw
+  // amounts in each Trade's own currency (fxRate isn't applied; see #404),
+  // so the USD lot counts at face value here.
+  //
+  // Realised gain isn't something the app works out; the test derives it as
+  // the sale's proceeds less its fees less the cost the sale took out of the
+  // Holding, to pin which lots each method consumes.
+  it("gives the hand-worked units, cost basis and realised gain after a Trade edit and a delete", async () => {
+    const sell = (units: number, price: number, date: string, fees?: number) =>
+      tradeSchema.parse({ type: "SELL", date, units, pricePerUnit: price, fees });
+    const t1 = await createTradeCommand(holdingId, buy(10, 100, "2025-01-02", { fees: 10 })); // lot cost 1010
+    const t2 = await createTradeCommand(
+      holdingId,
+      buy(10, 120, "2025-02-02", { fees: 10, currency: "USD", fxRate: 1.5 }), // lot cost 1210
+    );
+    await createTradeCommand(holdingId, sell(12, 130, "2025-03-02", 10)); // proceeds 1560, fees 10
+    const t4 = await createTradeCommand(holdingId, buy(5, 90, "2025-04-02")); // lot cost 450
+    await createTradeCommand(
+      holdingId,
       tradeSchema.parse({ type: "DIVIDEND", date: "2025-05-02", units: 1, pricePerUnit: 15 }),
-    ];
-    const viaCommands = holdingId;
-    const viaPrisma = (await newHolding(portfolioId, "OLD.AX")).id;
-    const commandTrades = [];
-    const prismaTrades = [];
-    for (const lot of lots) {
-      commandTrades.push(await createTradeCommand(viaCommands, lot));
-      prismaTrades.push(await db.prisma.trade.create({ data: { ...lot, holdingId: viaPrisma } }));
-    }
+    );
+    expect(t1.portfolioId).toBe(portfolioId);
 
-    // Edit the second buy through the edit form's full submission.
+    const trades = () => db.prisma.trade.findMany({ where: { holdingId }, orderBy: { date: "asc" } });
+    const position = async (method: "FIFO" | "AVERAGE") => holdingUnitsAndCost(await trades(), method);
+    // Realised gain on the 12-unit sale (index 2 once sorted).
+    const realisedOnSale = async (method: "FIFO" | "AVERAGE") => {
+      const all = await trades();
+      const before = holdingUnitsAndCost(all.slice(0, 2), method).cost;
+      const after = holdingUnitsAndCost(all.slice(0, 3), method).cost;
+      return all[2].units * all[2].pricePerUnit - (all[2].fees ?? 0) - (before - after);
+    };
+
+    // Edit the USD buy through the edit form's full submission: 8 @ 125,
+    // fees cleared, so its lot costs 1000.
     const submission = formData({
       type: "BUY",
       date: "2025-02-02",
       units: "8",
       pricePerUnit: "125",
       fees: "",
-      currency: "AUD",
-      fxRate: "",
+      currency: "USD",
+      fxRate: "1.5",
       notes: "",
     });
     const patch = fullFormUpdate(tradeSchema, tradeSchema.parse(formToTradeInput(submission)), submission);
-    await updateTradeCommand(commandTrades[1].id, patch, { holdingId: viaCommands });
-    await db.prisma.trade.update({ where: { id: prismaTrades[1].id }, data: patch });
-    // Delete the later buy.
-    await permanentlyDeleteTradeCommand(commandTrades[3].id, { holdingId: viaCommands });
-    await db.prisma.trade.delete({ where: { id: prismaTrades[3].id } });
+    expect((await updateTradeCommand(t2.id, patch, { holdingId })).portfolioId).toBe(portfolioId);
 
-    const tradesOf = (id: string) => db.prisma.trade.findMany({ where: { holdingId: id }, orderBy: { date: "asc" } });
-    const fromCommands = await tradesOf(viaCommands);
-    const fromPrisma = await tradesOf(viaPrisma);
-    expect(fromCommands).toHaveLength(4);
-    for (const method of ["FIFO", "AVERAGE"] as const) {
-      const expected = holdingUnitsAndCost(fromPrisma, method);
-      expect(holdingUnitsAndCost(fromCommands, method)).toEqual(expected);
-      expect(expected.units).toBe(6);
-    }
+    // FIFO: the sale takes all of lot 1 (1010) and 2 of lot 2's 8 units
+    // (250), leaving 6 units at 750 plus the 5 @ 90 lot: 11 units, 1200.
+    // Realised: 1560 - 10 - 1260 = 290.
+    expect(await position("FIFO")).toEqual({ units: 11, cost: 1200 });
+    expect(await realisedOnSale("FIFO")).toBe(290);
+    // Average: 18 units cost 2010 before the sale, which keeps 6/18 of it
+    // (670); then the 5 @ 90 lot: 11 units, 1120. Realised: 1550 - 1340 = 210.
+    const average = await position("AVERAGE");
+    expect(average.units).toBe(11);
+    expect(average.cost).toBeCloseTo(1120, 9);
+    expect(await realisedOnSale("AVERAGE")).toBeCloseTo(210, 9);
+
+    // Delete the later buy: its 450 goes; the sale's realised gain doesn't move.
+    await permanentlyDeleteTradeCommand(t4.id, { holdingId });
+    expect(await position("FIFO")).toEqual({ units: 6, cost: 750 });
+    const averageAfterDelete = await position("AVERAGE");
+    expect(averageAfterDelete.units).toBe(6);
+    expect(averageAfterDelete.cost).toBeCloseTo(670, 9);
+    expect(await realisedOnSale("FIFO")).toBe(290);
+    expect(await realisedOnSale("AVERAGE")).toBeCloseTo(210, 9);
+
+    // A sale of more than is held empties the position rather than going
+    // negative, under both methods.
+    await createTradeCommand(holdingId, sell(10, 140, "2025-06-02"));
+    expect(await position("FIFO")).toEqual({ units: 0, cost: 0 });
+    expect(await position("AVERAGE")).toEqual({ units: 0, cost: 0 });
   });
 });
-
 describe("importTradesCommand", () => {
   it("creates Holdings as needed, skips duplicates and unreadable dates", async () => {
     const portfolio = await newPortfolio();
@@ -426,6 +480,17 @@ describe("importTradesCommand", () => {
 
     // A re-import of the same file adds nothing.
     expect(await importTradesCommand(portfolio.id, [row])).toEqual({ imported: 0, skipped: 1 });
+  });
+
+  it("upper-cases an imported ticker onto the existing Holding", async () => {
+    const portfolio = await newPortfolio();
+    const existing = await newHolding(portfolio.id, "VAS.AX");
+    const rows = importedTradesSchema.parse([
+      { ticker: " vas.ax ", type: "BUY", date: "2025-01-02", units: 1, pricePerUnit: 100, fees: 0, currency: "AUD" },
+    ]);
+    expect(await importTradesCommand(portfolio.id, rows)).toEqual({ imported: 1, skipped: 0 });
+    expect(await db.prisma.holding.count()).toBe(1);
+    expect(await db.prisma.trade.count({ where: { holdingId: existing.id } })).toBe(1);
   });
 
   it("refuses a Portfolio that's gone", async () => {
