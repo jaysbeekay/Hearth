@@ -29,6 +29,13 @@ import {
   createServiceRecordCommand,
   updateServiceRecordCommand,
 } from "@/lib/commands/vehicles";
+import {
+  createTripCommand,
+  updateTripCommand,
+  deleteTripCommand,
+  createTripSegmentCommand,
+  updateTripSegmentCommand,
+} from "@/lib/commands/trips";
 import { updateUnlessStale } from "@/lib/commands/shared";
 import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
 import {
@@ -224,29 +231,15 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     input: formToTripInput,
     requiresModule: "TRAVEL",
     create: async (data, { userId }) => {
-      const trip = await prisma.trip.create({ data: { ...data, createdById: userId } });
-      revalidatePath("/travel");
+      const trip = await createTripCommand(data, userId);
       return { id: trip.id };
     },
     update: async (id, data, ctx) => {
-      const existing = await prisma.trip.findUnique({ where: { id } });
-      if (!existing) throw new Error("Trip not found");
-      // Refuses (doesn't merge) an offline edit made from an older updatedAt
-      // than the row's, atomically in the write's own where clause (see
-      // src/lib/commands/shared.ts). The direct writers below do the same.
-      await updateUnlessStale(ctx.baseUpdatedAt, (guard) =>
-        prisma.trip.updateMany({ where: { id, ...guard }, data }),
-      );
-      revalidatePath("/travel");
-      revalidatePath(`/travel/${id}`);
+      await updateTripCommand(id, data, ctx.userId, { baseUpdatedAt: ctx.baseUpdatedAt });
     },
     // #287 — soft-delete, matching deleteTrip in actions/trips.ts.
     remove: async (id) => {
-      const existing = await prisma.trip.findUnique({ where: { id } });
-      if (!existing) throw new Error("Trip not found");
-      await prisma.trip.update({ where: { id }, data: { deletedAt: new Date() } });
-      revalidatePath("/travel");
-      revalidatePath("/settings/trash");
+      await deleteTripCommand(id);
     },
   }),
 
@@ -255,21 +248,14 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     input: formToTripSegmentInput,
     requiresModule: "TRAVEL",
     create: async (data, ctx) => {
-      const tripId = requireParentId(ctx);
-      const trip = await prisma.trip.findUnique({ where: { id: tripId } });
-      if (!trip) throw new Error("Trip not found");
-      const segment = await prisma.tripSegment.create({ data: { ...data, tripId } });
-      revalidatePath(`/travel/${tripId}`);
+      const segment = await createTripSegmentCommand(requireParentId(ctx), data);
       return { id: segment.id };
     },
     update: async (id, data, ctx) => {
-      const tripId = requireParentId(ctx);
-      const existing = await prisma.tripSegment.findUnique({ where: { id } });
-      if (!existing || existing.tripId !== tripId) throw new Error("Segment not found");
-      await updateUnlessStale(ctx.baseUpdatedAt, (guard) =>
-        prisma.tripSegment.updateMany({ where: { id, ...guard }, data }),
-      );
-      revalidatePath(`/travel/${tripId}`);
+      await updateTripSegmentCommand(id, data, {
+        tripId: requireParentId(ctx),
+        baseUpdatedAt: ctx.baseUpdatedAt,
+      });
     },
     saveFile: async (segmentId, file) => {
       validateFile(file);

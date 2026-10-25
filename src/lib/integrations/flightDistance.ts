@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getAviationStackConfig } from "@/lib/appSettings";
+import { saveTripSegmentFlightData } from "@/lib/commands/trips";
 
 const EARTH_RADIUS_KM = 6371;
 
@@ -152,7 +153,5 @@ export async function computeSegmentDistance(segmentId: string): Promise<void> {
   ]);
   if (!dep || !arr) return;
 
-  await prisma.tripSegment
-    .update({ where: { id: segmentId }, data: { distanceKm: haversineKm(dep, arr) } })
-    .catch(() => {});
+  await saveTripSegmentFlightData(segmentId, { distanceKm: haversineKm(dep, arr) }).catch(() => {});
 }
