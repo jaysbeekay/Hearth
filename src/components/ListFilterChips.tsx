@@ -24,7 +24,9 @@ export function ListFilterChips({
           <button
             key={chip}
             type="button"
-            onClick={() => onToggle(chip)}
+            onClick={() => {
+              onToggle(chip);
+            }}
             aria-pressed={active}
             className={`rounded-full border px-3 py-1 text-xs font-medium ${
               active
