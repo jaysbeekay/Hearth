@@ -207,6 +207,11 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   (ADR 0003). An offline Vehicle edit now records who made it, as an online
   one does. Vitest command tests run against a temporary migrated SQLite
   database (`tests/helpers/testDb.ts`) (#389).
+- Trip and Trip segment writes go through one command module
+  (`src/lib/commands/trips.ts`) shared by the server actions, offline sync,
+  Trash retention and the flight status and distance lookups (ADR 0003).
+  An offline Trip edit now records who made it, as an online one does
+  (#391).
 - **One Reminder schedule (#387).** The scheduler, the Reminder health
   card and Settings' household Reminder health now read one pure schedule
   (`src/lib/notifications/reminderSchedule.ts`) built on the Due policy, in

@@ -7,7 +7,18 @@ import { formToTripInput, formToTripSegmentInput } from "@/lib/formMappers";
 import { prisma } from "@/lib/prisma";
 import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
 import { tripSchema, tripSegmentSchema } from "@/lib/validation/travel";
-import { addDocumentCommand, removeOwnerDocumentFiles } from "@/lib/commands/documents";
+import { addDocumentCommand } from "@/lib/commands/documents";
+import {
+  createTripCommand,
+  updateTripCommand,
+  deleteTripCommand,
+  restoreTripCommand,
+  permanentlyDeleteTripCommand,
+  createTripSegmentCommand,
+  updateTripSegmentCommand,
+  permanentlyDeleteTripSegmentCommand,
+} from "@/lib/commands/trips";
+import { RecordNotFoundError, StaleEditError } from "@/lib/commands/shared";
 import { formDataToStringValues } from "@/lib/form-state";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import type { ActionState } from "@/lib/actions/auth";
@@ -43,6 +54,16 @@ async function requireUser() {
   return session.user;
 }
 
+// Turns a command's not-found / stale-edit error into the ActionState the
+// form shows; anything else is unexpected and rethrown. (requireUser has
+// already refused a disabled Travel module, so the command's
+// ModuleDisabledError can't reach here.)
+function commandError(error: unknown, notFound: string): ActionState {
+  if (error instanceof RecordNotFoundError) return { error: notFound };
+  if (error instanceof StaleEditError) return { error: error.message };
+  throw error;
+}
+
 export async function createTrip(
   _prevState: ActionState,
   formData: FormData,
@@ -57,12 +78,13 @@ export async function createTrip(
     };
   }
 
-  const trip = await prisma.trip.create({
-    data: { ...parsed.data, createdById: user.id },
-  });
-
-  revalidatePath("/travel");
-  redirect(`/travel/${trip.id}`);
+  let tripId: string;
+  try {
+    tripId = (await createTripCommand(parsed.data, user.id)).id;
+  } catch (error) {
+    return commandError(error, "Trip not found.");
+  }
+  redirect(`/travel/${tripId}`);
 }
 
 export async function updateTrip(
@@ -80,60 +102,42 @@ export async function updateTrip(
     };
   }
 
-  const existing = await prisma.trip.findUnique({ where: { id: tripId } });
-  if (!existing) return { error: "Trip not found." };
-
-  await prisma.trip.update({ where: { id: tripId }, data: { ...fullFormUpdate(tripSchema, parsed.data, formData), updatedById: user.id } });
-
-  revalidatePath("/travel");
-  revalidatePath(`/travel/${tripId}`);
+  try {
+    await updateTripCommand(tripId, fullFormUpdate(tripSchema, parsed.data, formData), user.id);
+  } catch (error) {
+    return commandError(error, "Trip not found.");
+  }
   redirect(`/travel/${tripId}`);
 }
 
 // #287 — soft-delete: see the equivalent comment on deleteContract (contracts.ts).
 export async function deleteTrip(tripId: string): Promise<ActionState> {
   await requireUser();
-
-  const existing = await prisma.trip.findUnique({ where: { id: tripId } });
-  if (!existing) return { error: "Trip not found." };
-
-  await prisma.trip.update({ where: { id: tripId }, data: { deletedAt: new Date() } });
-
-  revalidatePath("/travel");
-  revalidatePath("/settings/trash");
+  try {
+    await deleteTripCommand(tripId);
+  } catch (error) {
+    return commandError(error, "Trip not found.");
+  }
   redirect("/travel");
 }
 
 export async function restoreTrip(tripId: string): Promise<ActionState> {
   await requireUser();
-
-  const existing = await prisma.trip.findUnique({ where: { id: tripId } });
-  if (!existing) return { error: "Trip not found." };
-
-  await prisma.trip.update({ where: { id: tripId }, data: { deletedAt: null } });
-
-  revalidatePath("/travel");
-  revalidatePath("/settings/trash");
+  try {
+    await restoreTripCommand(tripId);
+  } catch (error) {
+    return commandError(error, "Trip not found.");
+  }
   return { success: "Restored." };
 }
 
 export async function permanentlyDeleteTrip(tripId: string): Promise<ActionState> {
   await requireUser();
-
-  const existing = await prisma.trip.findUnique({
-    where: { id: tripId },
-    include: { segments: { select: { id: true } } },
-  });
-  if (!existing) return { error: "Trip not found." };
-
-  // Cascade removes the DB rows but not the uploaded files — clean those up first.
-  for (const segment of existing.segments) {
-    await removeOwnerDocumentFiles("TRIP_SEGMENT", segment.id);
+  try {
+    await permanentlyDeleteTripCommand(tripId);
+  } catch (error) {
+    return commandError(error, "Trip not found.");
   }
-
-  await prisma.trip.delete({ where: { id: tripId } });
-
-  revalidatePath("/settings/trash");
   return { success: "Deleted permanently." };
 }
 
@@ -143,9 +147,6 @@ export async function addTripSegment(
   formData: FormData,
 ): Promise<ActionState> {
   await requireUser();
-
-  const trip = await prisma.trip.findUnique({ where: { id: tripId } });
-  if (!trip) return { error: "Trip not found." };
 
   const parsed = tripSegmentSchema.safeParse(formToTripSegmentInput(formData));
   if (!parsed.success) {
@@ -161,15 +162,17 @@ export async function addTripSegment(
     if (rejection) return { error: rejection };
   }
 
-  const segment = await prisma.tripSegment.create({
-    data: { ...parsed.data, tripId },
-  });
-
-  if (file instanceof File && file.size > 0) {
-    await addDocumentCommand("TRIP_SEGMENT", segment.id, { file });
+  let segmentId: string;
+  try {
+    segmentId = (await createTripSegmentCommand(tripId, parsed.data)).id;
+  } catch (error) {
+    return commandError(error, "Trip not found.");
   }
 
-  revalidatePath(`/travel/${tripId}`);
+  if (file instanceof File && file.size > 0) {
+    await addDocumentCommand("TRIP_SEGMENT", segmentId, { file });
+  }
+
   redirect(`/travel/${tripId}`);
 }
 
@@ -189,25 +192,22 @@ export async function updateTripSegment(
     };
   }
 
-  const existing = await prisma.tripSegment.findUnique({ where: { id: segmentId } });
-  if (!existing || existing.tripId !== tripId) return { error: "Segment not found." };
-
-  await prisma.tripSegment.update({ where: { id: segmentId }, data: fullFormUpdate(tripSegmentSchema, parsed.data, formData) });
-
-  revalidatePath(`/travel/${tripId}`);
+  try {
+    await updateTripSegmentCommand(segmentId, fullFormUpdate(tripSegmentSchema, parsed.data, formData), { tripId });
+  } catch (error) {
+    return commandError(error, "Segment not found.");
+  }
   redirect(`/travel/${tripId}`);
 }
 
+// Permanent: segments have no Trash of their own (see the command).
 export async function deleteTripSegment(tripId: string, segmentId: string): Promise<ActionState> {
   await requireUser();
-
-  const existing = await prisma.tripSegment.findUnique({ where: { id: segmentId } });
-  if (!existing || existing.tripId !== tripId) return { error: "Segment not found." };
-
-  await prisma.tripSegment.delete({ where: { id: segmentId } });
-  await removeOwnerDocumentFiles("TRIP_SEGMENT", segmentId);
-
-  revalidatePath(`/travel/${tripId}`);
+  try {
+    await permanentlyDeleteTripSegmentCommand(segmentId, { tripId });
+  } catch (error) {
+    return commandError(error, "Segment not found.");
+  }
   return { success: "Segment removed." };
 }
 

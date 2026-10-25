@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { purgeVehicle, purgeServiceRecord } from "@/lib/commands/vehicles";
 import { purgeContract } from "@/lib/commands/contracts";
 import { purgeProduct } from "@/lib/commands/products";
+import { purgeTrip } from "@/lib/commands/trips";
 import { purgeDocument, removeOwnerDocumentFiles } from "@/lib/commands/documents";
 import { DOCUMENT_KIND_MODULE, type OwnedDocumentKind } from "@/lib/documents/kinds";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
@@ -64,10 +65,7 @@ export async function purgeExpiredTrash(): Promise<void> {
         where: { deletedAt: { lt: cutoff } },
         select: { id: true, items: { select: { id: true } }, rentalStatements: { select: { id: true } } },
       }),
-      prisma.trip.findMany({
-        where: { deletedAt: { lt: cutoff } },
-        select: { id: true, segments: { select: { id: true } } },
-      }),
+      prisma.trip.findMany(expired(cutoff)),
       prisma.inventoryItem.findMany(expired(cutoff)),
       prisma.homeItem.findMany(expired(cutoff)),
       prisma.vehicleItem.findMany(expired(cutoff)),
@@ -95,8 +93,7 @@ export async function purgeExpiredTrash(): Promise<void> {
     await prisma.property.delete({ where: { id: p.id } });
   }
   for (const t of trips) {
-    for (const segment of t.segments) await removeOwnerDocumentFiles("TRIP_SEGMENT", segment.id);
-    await prisma.trip.delete({ where: { id: t.id } });
+    await purgeTrip(t.id);
   }
   for (const i of inventoryItems) {
     await removeOwnerDocumentFiles("INVENTORY_ITEM", i.id);

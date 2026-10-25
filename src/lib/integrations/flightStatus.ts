@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getAviationStackConfig } from "@/lib/appSettings";
+import { saveTripSegmentFlightData } from "@/lib/commands/trips";
 
 const STALE_MS = 15 * 60 * 1000; // 15 minutes
 
@@ -119,30 +120,24 @@ export async function refreshFlightStatus(segmentId: string): Promise<void> {
     const dep = flight.departure ?? {};
     const arr = flight.arrival ?? {};
 
-    await prisma.tripSegment.update({
-      where: { id: segmentId },
-      data: {
-        flightStatus: flight.flight_status ?? null,
-        scheduledDep: parseDate(dep.scheduled),
-        scheduledArr: parseDate(arr.scheduled),
-        estimatedDep: parseDate(dep.estimated),
-        estimatedArr: parseDate(arr.estimated),
-        actualDep: parseDate(dep.actual),
-        actualArr: parseDate(arr.actual),
-        depTerminal: dep.terminal ?? null,
-        depGate: dep.gate ?? null,
-        arrTerminal: arr.terminal ?? null,
-        arrGate: arr.gate ?? null,
-        departureIata: dep.iata ?? segment.departureIata,
-        arrivalIata: arr.iata ?? segment.arrivalIata,
-        flightStatusAt: new Date(),
-      },
+    await saveTripSegmentFlightData(segmentId, {
+      flightStatus: flight.flight_status ?? null,
+      scheduledDep: parseDate(dep.scheduled),
+      scheduledArr: parseDate(arr.scheduled),
+      estimatedDep: parseDate(dep.estimated),
+      estimatedArr: parseDate(arr.estimated),
+      actualDep: parseDate(dep.actual),
+      actualArr: parseDate(arr.actual),
+      depTerminal: dep.terminal ?? null,
+      depGate: dep.gate ?? null,
+      arrTerminal: arr.terminal ?? null,
+      arrGate: arr.gate ?? null,
+      departureIata: dep.iata,
+      arrivalIata: arr.iata,
+      flightStatusAt: new Date(),
     });
   } catch {
     // Network error — update timestamp to avoid hammering the API
-    await prisma.tripSegment.update({
-      where: { id: segmentId },
-      data: { flightStatusAt: new Date() },
-    }).catch(() => {});
+    await saveTripSegmentFlightData(segmentId, { flightStatusAt: new Date() }).catch(() => {});
   }
 }

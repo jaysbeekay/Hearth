@@ -75,8 +75,10 @@ export default async function TripDetailPage({
   // risk this page shouldn't take on for a nice-to-have enrichment. The
   // computed distance shows up on the next view instead of this one; the
   // negative-cache TTL in flightDistance.ts keeps a background retry storm
-  // from ever building up behind it.
+  // from ever building up behind it. #400/#391 — it writes the segment, so,
+  // like the status refresh, only a member who can write triggers it.
   const needsDistance = (s: (typeof segments)[number]) =>
+    canWrite &&
     s.type === "FLIGHT" && s.distanceKm == null && Boolean(s.departureIata) && Boolean(s.arrivalIata);
   void Promise.all(segments.filter(needsDistance).map((s) => computeSegmentDistance(s.id))).catch(() => {});
 
