@@ -1,6 +1,6 @@
 # Palette and type options (design audit, 24 Oct 2026)
 
-Decision on 24 Oct 2026: **Option B (plain blue)**. Option A is kept here for later review. Applied through #408; the shared UI rules are in their own issue.
+Decision on 24 Oct 2026: **Option B (plain blue)**. On 25 Oct three light values were darkened slightly so a tinted button on a tinted banner still reaches 4.5:1 (see "Final light values" below). Option A is kept here for later review. Applied through #408; the shared UI rules are in their own issue.
 
 The current tokens (`src/app/globals.css`) copy Stripe's design system: accent `#533afd`, navy `#061b31`, `--shadow-stripe`, and an indigo dark theme `#1c1e54`. Both options below replace them with neutral greys and one accent.
 
@@ -27,6 +27,18 @@ Contrast is shown as bg / surface. Also set `color-scheme: light dark`.
 | **B: plain blue (chosen)** | `#1f5fbf` | 5.6 / 6.1 / 6.1 / 5.3 | `#7eaaf2` | 7.8 / 7.2 / 7.8 |
 
 With B, `--info` is dropped because blue becomes the accent.
+
+## Final light values (25 Oct 2026)
+
+The stacked-tint contrast check in `scripts/check-contrast.mjs` (tone text on tone/10 over tone/10) found three light tokens just under 4.5:1. Each was darkened by the smallest same-hue step that passes. Dark-mode values are unchanged.
+
+| Token | Approved | Final |
+|---|---|---|
+| accent | `#1f5fbf` | `#1e5bb6` |
+| danger | `#b42318` | `#b02218` |
+| success | `#1a7340` | `#186b3c` |
+
+The specimen images still show the approved values; the difference isn't visible at that size.
 
 ## Semantic colours (one tone each; pill = 10% tint on surface)
 
