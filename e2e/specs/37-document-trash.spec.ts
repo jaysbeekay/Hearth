@@ -31,8 +31,10 @@ async function uploadToSegment(page: Page, filename: string): Promise<string> {
   await expect(submit).toBeEnabled({ timeout: 30_000 });
   const link = page.locator('a[href^="/api/documents/"]', { hasText: filename }).first();
   await expect(link).toBeVisible();
-  const href = await link.getAttribute("href");
-  return href!.split("/").pop()!;
+  const href = (await link.getAttribute("href")) ?? "";
+  const id = href.split("/").pop() ?? "";
+  expect(id).not.toBe("");
+  return id;
 }
 
 async function deleteFromList(page: Page, filename: string) {
