@@ -33,9 +33,9 @@ describe("token parser", () => {
 
   it("reads hex values and solid color-mix tokens", () => {
     const { light, dark } = parseThemes(css("#ff8b80"));
-    expect(dark.danger).toEqual([255, 139, 128]);
+    expect(dark.get("danger")).toEqual([255, 139, 128]);
     // The dark theme's mix uses the dark danger over the inherited surface.
-    expect(light["hover-surface"]).not.toEqual(dark["hover-surface"]);
+    expect(light.get("hover-surface")).not.toEqual(dark.get("hover-surface"));
   });
 
   it.each(["rgb(255, 139, 128)", "#ff8b80cc"])("throws on an unparseable dark override: %s", (value) => {

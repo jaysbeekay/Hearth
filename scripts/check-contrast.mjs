@@ -46,16 +46,17 @@ export function contrast(a, b) {
   return (l1 + 0.05) / (l2 + 0.05);
 }
 
-function mix(fg, bg, alpha) {
-  return fg.map((c, i) => Math.round(c * alpha + bg[i] * (1 - alpha)));
+function mix([r, g, b], [underR, underG, underB], alpha) {
+  const blend = (c, under) => Math.round(c * alpha + under * (1 - alpha));
+  return [blend(r, underR), blend(g, underG), blend(b, underB)];
 }
 
 const HEX = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 // color-mix(in srgb, var(--a) N%, var(--b)): a solid mix of two other tokens.
-const SOLID_MIX = /^color-mix\(in srgb,\s*var\(--([a-z-]+)\)\s+(\d+(?:\.\d+)?)%,\s*var\(--([a-z-]+)\)\)$/;
+const SOLID_MIX = /^color-mix\(in srgb,\s*var\(--([a-z-]+)\)\s+([\d.]+)%,\s*var\(--([a-z-]+)\)\)$/;
 // color-mix(in srgb, var(--a) N%, transparent): a translucent overlay, which
 // has no fixed colour of its own to check.
-const TRANSLUCENT_MIX = /^color-mix\(in srgb,\s*var\(--[a-z-]+\)\s+\d+(?:\.\d+)?%,\s*transparent\)$/;
+const TRANSLUCENT_MIX = /^color-mix\(in srgb,\s*var\(--[a-z-]+\)\s+[\d.]+%,\s*transparent\)$/;
 // Tokens that aren't colours at all.
 const isNonColourToken = (name) => name.startsWith("font-") || name.endsWith("-shadow");
 
@@ -65,19 +66,19 @@ const isNonColourToken = (name) => name.startsWith("font-") || name.endsWith("-s
  * rgb() or 8-digit-hex override can't silently fall back to the light value.
  */
 function parseBlock(block, label) {
-  const tokens = {};
+  const tokens = new Map();
   for (const line of block.split("\n")) {
     const m = line.match(/^\s*--([a-z0-9-]+):\s*(.*?)\s*;?\s*$/);
     if (!m) continue;
     const [, name, value] = m;
     if (isNonColourToken(name) || TRANSLUCENT_MIX.test(value)) continue;
     if (HEX.test(value)) {
-      tokens[name] = hexToRgb(value);
+      tokens.set(name, hexToRgb(value));
       continue;
     }
     const mixed = value.match(SOLID_MIX);
     if (mixed) {
-      tokens[name] = { mix: [mixed[1], Number(mixed[2]) / 100, mixed[3]] };
+      tokens.set(name, { mix: [mixed[1], Number(mixed[2]) / 100, mixed[3]] });
       continue;
     }
     throw new Error(`Can't parse --${name} in the ${label} token block: "${value}"`);
@@ -86,25 +87,31 @@ function parseBlock(block, label) {
 }
 
 function resolveMixes(tokens, label) {
-  /** @type {Record<string, number[]>} */
-  const out = {};
+  /** @type {Map<string, number[]>} */
+  const out = new Map();
+  /** @type {(name: string, seen?: string[]) => number[]} */
   const resolve = (name, seen = []) => {
-    if (out[name]) return out[name];
-    const t = tokens[name];
+    const done = out.get(name);
+    if (done) return done;
+    const t = tokens.get(name);
     if (!t) throw new Error(`Missing --${name} in the ${label} theme`);
-    if (Array.isArray(t)) return (out[name] = t);
     if (seen.includes(name)) throw new Error(`--${name} refers to itself in the ${label} theme`);
-    const [a, alpha, b] = t.mix;
-    return (out[name] = mix(resolve(a, [...seen, name]), resolve(b, [...seen, name]), alpha));
+    let rgb = t;
+    if (!Array.isArray(t)) {
+      const [a, alpha, b] = t.mix;
+      rgb = mix(resolve(a, [...seen, name]), resolve(b, [...seen, name]), alpha);
+    }
+    out.set(name, rgb);
+    return rgb;
   };
-  for (const name of Object.keys(tokens)) resolve(name);
+  for (const name of tokens.keys()) resolve(name);
   return out;
 }
 
 /**
  * Extracts the light and dark colour tokens from globals.css source.
  * @param {string} css
- * @returns {{ light: Record<string, number[]>, dark: Record<string, number[]> }}
+ * @returns {{ light: Map<string, number[]>, dark: Map<string, number[]> }}
  */
 export function parseThemes(css) {
   const light = css.match(/^:root\s*\{([\s\S]*?)\n\}/m);
@@ -113,7 +120,7 @@ export function parseThemes(css) {
   const lightTokens = parseBlock(light[1], "light");
   // Dark mode only overrides what changes, so start from the light set. Mixes
   // resolve after the merge, so a light-only mix uses the dark inputs.
-  const darkTokens = { ...lightTokens, ...parseBlock(dark[1], "dark") };
+  const darkTokens = new Map([...lightTokens, ...parseBlock(dark[1], "dark")]);
   return { light: resolveMixes(lightTokens, "light"), dark: resolveMixes(darkTokens, "dark") };
 }
 
@@ -123,8 +130,9 @@ export function checkContrast(css) {
   const rows = [];
   for (const [theme, t] of Object.entries(themes)) {
     const need = (name) => {
-      if (!t[name]) throw new Error(`Missing --${name} in the ${theme} theme`);
-      return t[name];
+      const rgb = t.get(name);
+      if (!rgb) throw new Error(`Missing --${name} in the ${theme} theme`);
+      return rgb;
     };
     const add = (pair, ratio, min) => rows.push({ theme, pair, ratio, min, pass: ratio >= min });
 
