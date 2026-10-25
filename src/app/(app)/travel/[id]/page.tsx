@@ -139,7 +139,7 @@ export default async function TripDetailPage({
       {trip.notes && (
         <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-2 font-medium">Notes</h2>
-          <p className="whitespace-pre-wrap text-sm text-muted">{trip.notes}</p>
+          <p className="whitespace-pre-wrap text-sm text-foreground">{trip.notes}</p>
         </div>
       )}
 
@@ -298,7 +298,7 @@ export default async function TripDetailPage({
                   )}
 
                   {segment.notes && (
-                    <p className="mt-4 whitespace-pre-wrap text-sm text-muted">
+                    <p className="mt-4 whitespace-pre-wrap text-sm text-foreground">
                       {segment.notes}
                     </p>
                   )}

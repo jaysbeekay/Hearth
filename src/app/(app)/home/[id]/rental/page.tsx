@@ -211,7 +211,7 @@ export default async function RentalOverviewPage({
                     <Detail label="Added" value={formatDate(ag.createdAt, dateFormat)} />
                   </dl>
                   {ag.notes && (
-                    <p className="mt-3 text-sm text-muted">{ag.notes}</p>
+                    <p className="mt-3 whitespace-pre-wrap text-sm text-foreground">{ag.notes}</p>
                   )}
 
                   <div className="mt-4 border-t border-border pt-4">
@@ -387,7 +387,7 @@ export default async function RentalOverviewPage({
                     </div>
 
                     {stmt.notes && (
-                      <p className="mt-3 text-sm text-muted">{stmt.notes}</p>
+                      <p className="mt-3 whitespace-pre-wrap text-sm text-foreground">{stmt.notes}</p>
                     )}
 
                     <div className="mt-4 border-t border-border pt-4">

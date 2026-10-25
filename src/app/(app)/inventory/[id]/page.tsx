@@ -129,7 +129,7 @@ export default async function InventoryItemPage({
           )}
         </dl>
         {item.notes && (
-          <p className="mt-4 whitespace-pre-wrap text-sm text-muted">{item.notes}</p>
+          <p className="mt-4 whitespace-pre-wrap text-sm text-foreground">{item.notes}</p>
         )}
       </section>
 

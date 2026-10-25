@@ -181,7 +181,7 @@ export default function HelpPage() {
                     <span className="text-muted transition group-open:rotate-45">+</span>
                   </span>
                 </summary>
-                <p className="mt-2 text-sm text-muted">{entry.a}</p>
+                <p className="mt-2 text-sm text-foreground">{entry.a}</p>
               </details>
             ))}
           </div>

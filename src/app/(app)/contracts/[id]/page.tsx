@@ -157,7 +157,7 @@ export default async function ContractDetailPage({
               confirmText={statusConfirmText}
               actionLabel={statusLabel}
               ariaLabel="Mark contract as cancelled"
-              className="inline-flex items-center gap-2 rounded-lg bg-current/10 px-3 py-1.5 text-xs font-medium hover:opacity-80"
+              className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium hover:bg-hover-surface"
             >
               <Ban size={14} />
               Not renewing? Mark as cancelled
@@ -231,7 +231,7 @@ export default async function ContractDetailPage({
       {contract.notes && (
         <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-2 font-medium">Notes</h2>
-          <p className="whitespace-pre-wrap text-sm text-muted">{contract.notes}</p>
+          <p className="whitespace-pre-wrap text-sm text-foreground">{contract.notes}</p>
         </div>
       )}
 

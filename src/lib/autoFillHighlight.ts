@@ -4,7 +4,7 @@
 // inferred by a model and worth a closer look (#172).
 const AUTOFILL_CLASSES = {
   heuristic: ["ring-1", "ring-accent/50", "bg-accent/5"],
-  ai: ["ring-1", "ring-foreground/40", "bg-foreground/5"],
+  ai: ["ring-2", "ring-foreground/60", "bg-foreground/5"],
 };
 
 const AUTOFILL_BADGE_CLASSES = {

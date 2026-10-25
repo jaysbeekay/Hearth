@@ -61,7 +61,7 @@ export function DetailStatusBanner({
             {hasDocuments ? (
               <Link
                 href={editHref}
-                className="inline-flex items-center gap-2 rounded-lg bg-current/10 px-3 py-1.5 text-xs font-medium hover:opacity-80"
+                className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium hover:bg-hover-surface"
               >
                 <RotateCw size={14} />
                 {renewLabel}
@@ -69,7 +69,7 @@ export function DetailStatusBanner({
             ) : (
               <Link
                 href={documentsHref}
-                className="inline-flex items-center gap-2 rounded-lg bg-current/10 px-3 py-1.5 text-xs font-medium hover:opacity-80"
+                className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium hover:bg-hover-surface"
               >
                 <Upload size={14} />
                 Upload document

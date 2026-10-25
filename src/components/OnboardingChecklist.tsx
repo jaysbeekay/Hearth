@@ -16,7 +16,7 @@ const MODULES_REVIEWED_KEY = "hearth:onboarding-modules-reviewed";
 // — these buttons sit on this card's own bg-accent/5 tint, so a transparent
 // button would let that tint bleed through instead of reading as a button.
 const secondaryOnAccentClass =
-  "flex min-h-11 items-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-hover";
+  "flex min-h-11 items-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-hover-surface";
 
 export function OnboardingChecklist({
   enabledModules,

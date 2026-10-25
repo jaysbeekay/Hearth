@@ -135,7 +135,7 @@ export default async function PropertyDetailPage({
       {property.notes && (
         <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-2 font-medium">Notes</h2>
-          <p className="whitespace-pre-wrap text-sm text-muted">{property.notes}</p>
+          <p className="whitespace-pre-wrap text-sm text-foreground">{property.notes}</p>
         </div>
       )}
 
@@ -214,7 +214,7 @@ export default async function PropertyDetailPage({
                   </dl>
 
                   {item.notes && (
-                    <p className="mt-4 whitespace-pre-wrap text-sm text-muted">
+                    <p className="mt-4 whitespace-pre-wrap text-sm text-foreground">
                       {item.notes}
                     </p>
                   )}

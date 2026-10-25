@@ -97,7 +97,7 @@ export default async function CalendarPage({
             className={`rounded-full border px-3 py-1 text-sm font-medium ${
               horizon === h
                 ? "border-accent bg-accent/10 text-accent"
-                : "border-border bg-surface text-muted hover:bg-hover"
+                : "border-border bg-surface text-muted hover:bg-hover-surface"
             }`}
           >
             {h} days

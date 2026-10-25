@@ -14,10 +14,13 @@
   --surface: #ffffff;
   --border: #cfccc6;
   --hover: color-mix(in srgb, var(--foreground) 5%, transparent);
-  --accent: #1f5fbf;
+  /* Solid hover for controls on a filled surface that float over content or
+     a tint, where the translucent --hover would let what's behind show through. */
+  --hover-surface: color-mix(in srgb, var(--foreground) 5%, var(--surface));
+  --accent: #1e5bb6;
   --accent-foreground: #ffffff;
-  --success: #1a7340;
-  --danger: #b42318;
+  --success: #186b3c;
+  --danger: #b02218;
   --danger-foreground: #ffffff;
   --warning: #8a4b00;
   --overlay-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
@@ -32,6 +35,7 @@
   --color-surface: var(--surface);
   --color-border: var(--border);
   --color-hover: var(--hover);
+  --color-hover-surface: var(--hover-surface);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-success: var(--success);

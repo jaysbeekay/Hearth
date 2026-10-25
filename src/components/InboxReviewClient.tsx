@@ -141,7 +141,7 @@ function emptyRowState(initialType: EntityType = "CONTRACT"): RowState {
 function fieldClass(autoFilled?: boolean, isAi?: boolean) {
   if (!autoFilled) return "rounded-md border px-2 py-1.5 text-sm outline-none focus:border-accent border-border bg-background";
   return `rounded-md border px-2 py-1.5 text-sm outline-none focus:border-accent ${
-    isAi ? "border-foreground/40 bg-foreground/5 ring-1 ring-foreground/40" : "border-accent/40 bg-accent/5 ring-1 ring-accent/40"
+    isAi ? "border-foreground/60 bg-foreground/5 ring-2 ring-foreground/60" : "border-accent/40 bg-accent/5 ring-1 ring-accent/40"
   }`;
 }
 

@@ -65,7 +65,7 @@ export function MobileUploadFab() {
       <Link
         href="/import"
         aria-label="Choose a file to upload"
-        className="flex h-11 items-center gap-2 rounded-full bg-surface px-4 text-sm font-medium text-foreground shadow-lg ring-1 ring-border hover:bg-hover"
+        className="flex h-11 items-center gap-2 rounded-full bg-surface px-4 text-sm font-medium text-foreground shadow-lg ring-1 ring-border hover:bg-hover-surface"
       >
         <Upload size={16} />
         Choose file

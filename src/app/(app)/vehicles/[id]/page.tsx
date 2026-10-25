@@ -131,7 +131,7 @@ export default async function VehicleDetailPage({
           {vehicle.colour && <Detail label="Colour" value={vehicle.colour} />}
         </dl>
         {vehicle.notes && (
-          <p className="mt-4 whitespace-pre-wrap text-sm text-muted">{vehicle.notes}</p>
+          <p className="mt-4 whitespace-pre-wrap text-sm text-foreground">{vehicle.notes}</p>
         )}
       </div>
 
@@ -252,7 +252,7 @@ export default async function VehicleDetailPage({
                   </dl>
 
                   {item.notes && (
-                    <p className="mt-4 whitespace-pre-wrap text-sm text-muted">
+                    <p className="mt-4 whitespace-pre-wrap text-sm text-foreground">
                       {item.notes}
                     </p>
                   )}

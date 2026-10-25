@@ -196,7 +196,7 @@ export default async function ProductDetailPage({
       {product.notes && (
         <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-2 font-medium">Notes</h2>
-          <p className="whitespace-pre-wrap text-sm text-muted">{product.notes}</p>
+          <p className="whitespace-pre-wrap text-sm text-foreground">{product.notes}</p>
         </div>
       )}
 
