@@ -21,8 +21,14 @@ import {
   confirmContractExtraction,
   reviewContractExtraction,
   updateContractFromAssistant,
+  createContractFromAssistant,
 } from "@/lib/actions/contracts";
-import { confirmProductExtraction, reviewProductExtraction } from "@/lib/actions/products";
+import {
+  confirmProductExtraction,
+  reviewProductExtraction,
+  createProductFromAssistant,
+  updateProductFromAssistant,
+} from "@/lib/actions/products";
 import { contractSchema } from "@/lib/validation/contract";
 import { productSchema } from "@/lib/validation/product";
 import { prisma } from "@/lib/prisma";
@@ -294,11 +300,117 @@ describe("the server actions", () => {
 
   it("the update command still refuses a stale edit", async () => {
     const contract = await newContract();
-    const base = contract.updatedAt;
+    // An explicit earlier base, so the first update's own updatedAt can't
+    // land in the same millisecond as it.
+    const base = new Date(Date.now() - 60_000);
+    await db.prisma.contract.update({ where: { id: contract.id }, data: { updatedAt: base } });
     await updateContractCommand(contract.id, { title: "First" }, actorId, { baseUpdatedAt: base });
     await expect(
       updateContractCommand(contract.id, { title: "Second" }, actorId, { baseUpdatedAt: base }),
     ).rejects.toBeInstanceOf(StaleEditError);
     expect((await db.prisma.contract.findUniqueOrThrow({ where: { id: contract.id } })).title).toBe("First");
+  });
+});
+
+describe("the Assistant's actions", () => {
+  const contractData = { title: "Gym", category: "SUBSCRIPTION", provider: "FitCo", renewalType: "FIXED_TERM" };
+
+  it("report an unexpected failure generically and log it", async () => {
+    const contract = await newContract();
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(prisma, "$transaction").mockRejectedValueOnce(new Error("disk I/O error at /secret/path"));
+    expect(await updateContractFromAssistant(contract.id, contractData)).toEqual({
+      success: false,
+      error: "Couldn't save that change.",
+    });
+    expect(logged).toHaveBeenCalled();
+    logged.mockRestore();
+  });
+
+  it("refuse a link to a Property or Vehicle that's missing or in Trash", async () => {
+    const contract = await newContract();
+    expect(await updateContractFromAssistant(contract.id, { ...contractData, propertyId: "nope" })).toEqual({
+      success: false,
+      error: "That property doesn't exist or is in Trash.",
+    });
+    const vehicle = await db.prisma.vehicle.create({
+      data: { label: "Ute", createdById: actorId, deletedAt: new Date() },
+    });
+    expect(await createContractFromAssistant({ ...contractData, vehicleId: vehicle.id })).toEqual({
+      success: false,
+      error: "That vehicle doesn't exist or is in Trash.",
+    });
+    expect(await createProductFromAssistant({ description: "TV", propertyId: "nope" })).toEqual({
+      success: false,
+      error: "That property doesn't exist or is in Trash.",
+    });
+    expect(await updateProductFromAssistant((await newProduct()).id, { description: "TV", propertyId: "nope" })).toEqual({
+      success: false,
+      error: "That property doesn't exist or is in Trash.",
+    });
+    expect((await db.prisma.contract.findUniqueOrThrow({ where: { id: contract.id } })).propertyId).toBeNull();
+  });
+
+  it("still link to a live Property", async () => {
+    const property = await db.prisma.property.create({ data: { label: "Home", createdById: actorId } });
+    const result = await createContractFromAssistant({ ...contractData, propertyId: property.id });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("review checks", () => {
+  it("refuses an end date before the start date, against the saved start date", async () => {
+    const contract = await newContract({ startDate: "2026-01-01" });
+    await addPendingFields("CONTRACT", contract.id, ["endDate"]);
+    expect(
+      await reviewContractExtraction(contract.id, null, formData({ "reviewField:endDate": "2025-12-01" })),
+    ).toEqual({ error: "End date can't be before the start date." });
+    const saved = await db.prisma.contract.findUniqueOrThrow({ where: { id: contract.id } });
+    expect(saved.endDate?.toISOString().slice(0, 10)).toBe("2027-06-01");
+    expect(saved.extractionPending).toBe(true);
+    expect((await reviewFields(contract.id))[0].reviewedAt).toBeNull();
+  });
+
+  it("refuses a warranty end before the purchase date", async () => {
+    const product = await createProductCommand(
+      productSchema.parse({ description: "TV", purchaseDate: "2026-05-01" }),
+      actorId,
+      { extractionPending: true },
+    );
+    await addPendingFields("PRODUCT", product.id, ["warrantyEndDate"]);
+    expect(
+      await reviewProductExtraction(product.id, null, formData({ "reviewField:warrantyEndDate": "2026-04-01" })),
+    ).toEqual({ error: "Warranty end date can't be before the purchase date." });
+    expect((await db.prisma.product.findUniqueOrThrow({ where: { id: product.id } })).extractionPending).toBe(true);
+  });
+
+  it("refuses an over-long title with the form's message instead of cutting it short", async () => {
+    const contract = await newContract();
+    await addPendingFields("CONTRACT", contract.id, ["title"]);
+    const formMessage = contractSchema.shape.title.safeParse("x".repeat(201)).error?.issues[0]?.message;
+    expect(formMessage).toBeTruthy();
+    expect(
+      await reviewContractExtraction(contract.id, null, formData({ "reviewField:title": "x".repeat(201) })),
+    ).toEqual({ error: formMessage });
+    expect((await db.prisma.contract.findUniqueOrThrow({ where: { id: contract.id } })).title).toBe("Gym");
+  });
+
+  it("works out the corrections from the fields pending inside the transaction", async () => {
+    const contract = await newContract();
+    await addPendingFields("CONTRACT", contract.id, ["endDate", "title"]);
+    await db.prisma.extractionReviewField.updateMany({
+      where: { ownerId: contract.id, fieldName: "title" },
+      data: { reviewedAt: new Date() },
+    });
+    const seen: string[][] = [];
+    await confirmContractExtractionCommand(
+      contract.id,
+      (pending) => {
+        seen.push([...pending].sort());
+        return {};
+      },
+      actorId,
+    );
+    expect(seen).toEqual([["endDate"]]);
   });
 });

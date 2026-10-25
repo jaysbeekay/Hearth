@@ -2,7 +2,12 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { removeOwnerDocumentFiles } from "@/lib/commands/documents";
 import { clearNotificationLogs } from "@/lib/notifications/logs";
-import { updateUnlessStale, RecordNotFoundError, type UpdateOptions } from "@/lib/commands/shared";
+import {
+  updateUnlessStale,
+  RecordNotFoundError,
+  RecordValidationError,
+  type UpdateOptions,
+} from "@/lib/commands/shared";
 import type { ClearablePatch } from "@/lib/validation/fullFormUpdate";
 import type { ProductInput } from "@/lib/validation/product";
 import type { Prisma } from "@/generated/prisma/client";
@@ -45,21 +50,40 @@ function revalidateProduct(id: string) {
   revalidatePath("/dashboard");
 }
 
-// The one write behind every update, as writeContract.
-async function writeProduct(
-  id: string,
+// As the Contract check: a patch that moves either date mustn't leave the
+// warranty ending before the purchase.
+function assertDateOrder(
+  existing: { purchaseDate: Date | null; warrantyEndDate: Date | null },
   patch: ProductPatch,
-  actorId: string,
-  options: UpdateOptions,
-  alsoInTransaction?: (tx: Prisma.TransactionClient) => Promise<unknown>,
 ) {
+  if (patch.purchaseDate === undefined && patch.warrantyEndDate === undefined) return;
+  const purchaseDate = patch.purchaseDate === undefined ? existing.purchaseDate : patch.purchaseDate;
+  const warrantyEndDate = patch.warrantyEndDate === undefined ? existing.warrantyEndDate : patch.warrantyEndDate;
+  if (purchaseDate && warrantyEndDate && warrantyEndDate < purchaseDate) {
+    throw new RecordValidationError("Warranty end date can't be before the purchase date.");
+  }
+}
+
+interface ProductWrite {
+  // The patch, or a function that works it out inside the transaction.
+  patch: ProductPatch | ((tx: Prisma.TransactionClient) => Promise<ProductPatch>);
+  // More writes that must land with the patch or not at all.
+  alsoInTransaction?: (tx: Prisma.TransactionClient) => Promise<unknown>;
+}
+
+// The one write behind every update, as writeContract. Everything in here
+// must use `tx`, never the global `prisma` (see writeContract: a query on
+// `prisma` deadlocks against the open transaction).
+async function writeProduct(id: string, actorId: string, options: UpdateOptions, write: ProductWrite) {
   await prisma.$transaction(async (tx) => {
-    await findLiveProduct(id, tx);
+    const existing = await findLiveProduct(id, tx);
+    const patch = typeof write.patch === "function" ? await write.patch(tx) : write.patch;
+    assertDateOrder(existing, patch);
     // A date change needs no Reminder-log reset: the log is keyed by date (ADR 0003).
     await updateUnlessStale(options.baseUpdatedAt, (guard) =>
       tx.product.updateMany({ where: { id, ...guard }, data: { ...patch, updatedById: actorId } }),
     );
-    if (alsoInTransaction) await alsoInTransaction(tx);
+    if (write.alsoInTransaction) await write.alsoInTransaction(tx);
   });
   revalidateProduct(id);
 }
@@ -86,7 +110,7 @@ export async function updateProductCommand(
   actorId: string,
   options: UpdateOptions = {},
 ) {
-  await writeProduct(id, patch, actorId, options);
+  await writeProduct(id, actorId, options, { patch });
   return { id };
 }
 
@@ -94,21 +118,23 @@ export async function updateProductCommand(
 // confirmContractExtractionCommand.
 export async function confirmProductExtractionCommand(
   id: string,
-  corrections: ProductReviewCorrections,
+  corrections: ProductReviewCorrections | ((pendingFieldNames: ReadonlySet<string>) => ProductReviewCorrections),
   actorId: string,
 ) {
   const reviewedAt = new Date();
-  await writeProduct(
-    id,
-    { ...corrections, extractionPending: false, extractionConfirmedAt: reviewedAt },
-    actorId,
-    {},
-    (tx) =>
-      tx.extractionReviewField.updateMany({
-        where: { ownerType: "PRODUCT", ownerId: id, reviewedAt: null },
-        data: { reviewedAt, reviewedById: actorId },
-      }),
-  );
+  const pendingWhere = { ownerType: "PRODUCT" as const, ownerId: id, reviewedAt: null };
+  await writeProduct(id, actorId, {}, {
+    patch: async (tx) => {
+      let reviewed = corrections;
+      if (typeof reviewed === "function") {
+        const pending = await tx.extractionReviewField.findMany({ where: pendingWhere, select: { fieldName: true } });
+        reviewed = reviewed(new Set(pending.map((f) => f.fieldName)));
+      }
+      return { ...reviewed, extractionPending: false, extractionConfirmedAt: reviewedAt };
+    },
+    alsoInTransaction: (tx) =>
+      tx.extractionReviewField.updateMany({ where: pendingWhere, data: { reviewedAt, reviewedById: actorId } }),
+  });
   return { id };
 }
 

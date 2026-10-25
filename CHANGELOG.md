@@ -228,9 +228,14 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   who made it and refreshes the same pages as an edit. A Contract or
   Product in Trash can't be edited, Cancelled, Reactivated or confirmed
   until it's restored. A review that blanks a title, provider or
-  description, or enters a value that isn't a number or date, is now
-  refused with a message, where it used to fail as "Record no longer
-  exists" or quietly clear the field (#393).
+  description, makes one too long, enters a value that isn't a number or
+  date, or leaves an end date before the start date (a warranty end before
+  the purchase date) is now refused with a message, where it used to fail
+  as "Record no longer exists", cut the text short or quietly clear the
+  field. An Assistant change that links to a Property or Vehicle that
+  doesn't exist or is in Trash is refused with a message, and if saving a
+  confirmed Assistant change fails, the card says so and can be retried
+  instead of staying on "Saving…" (#393).
 - **One Reminder schedule (#387).** The scheduler, the Reminder health
   card and Settings' household Reminder health now read one pure schedule
   (`src/lib/notifications/reminderSchedule.ts`) built on the Due policy, in

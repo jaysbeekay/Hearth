@@ -24,7 +24,8 @@ import {
   restoreProductCommand,
   permanentlyDeleteProductCommand,
 } from "@/lib/commands/products";
-import { RecordNotFoundError, StaleEditError } from "@/lib/commands/shared";
+import { RecordNotFoundError, RecordValidationError, StaleEditError } from "@/lib/commands/shared";
+import { linkedRecordError } from "@/lib/commands/links";
 
 export type ActionState = {
   error?: string;
@@ -56,8 +57,20 @@ function firstIssueMessage(error: { issues: { message: string }[] }) {
 // caller shows; anything else is unexpected and rethrown.
 function commandError(error: unknown): { error: string } {
   if (error instanceof RecordNotFoundError) return { error: "Product not found." };
-  if (error instanceof StaleEditError) return { error: error.message };
+  if (error instanceof StaleEditError || error instanceof RecordValidationError) return { error: error.message };
   throw error;
+}
+
+// For the Assistant's actions, which return a result the chat shows rather
+// than throwing: a command error keeps its message, and anything unexpected
+// is logged here and reported generically, never as the raw error.
+function assistantFailure(error: unknown): { success: false; error: string } {
+  try {
+    return { success: false, ...commandError(error) };
+  } catch (unexpected) {
+    console.error("[assistant] product write failed:", unexpected);
+    return { success: false, error: "Couldn't save that change." };
+  }
 }
 
 async function requireUser() {
@@ -178,10 +191,8 @@ export async function reviewProductExtraction(
 ): Promise<ActionState> {
   const user = await requireUser();
 
-  const result = await productReviewCorrectionsFromForm(productId, formData);
-  if ("error" in result) return { error: result.error };
   try {
-    await confirmProductExtractionCommand(productId, result.corrections, user.id);
+    await confirmProductExtractionCommand(productId, productReviewCorrectionsFromForm(formData), user.id);
   } catch (error) {
     return commandError(error);
   }
@@ -205,8 +216,15 @@ export async function createProductFromAssistant(
   const parsed = productSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: firstIssueMessage(parsed.error) };
 
-  const product = await createProductCommand(parsed.data, user.id);
-  return { success: true, productId: product.id };
+  const linkError = await linkedRecordError(parsed.data);
+  if (linkError) return { success: false, error: linkError };
+
+  try {
+    const product = await createProductCommand(parsed.data, user.id);
+    return { success: true, productId: product.id };
+  } catch (error) {
+    return assistantFailure(error);
+  }
 }
 
 export async function updateProductFromAssistant(
@@ -218,10 +236,13 @@ export async function updateProductFromAssistant(
   const parsed = productSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: firstIssueMessage(parsed.error) };
 
+  const linkError = await linkedRecordError(parsed.data);
+  if (linkError) return { success: false, error: linkError };
+
   try {
     await updateProductCommand(productId, parsed.data, user.id);
   } catch (error) {
-    return { success: false, ...commandError(error) };
+    return assistantFailure(error);
   }
   return { success: true, productId };
 }

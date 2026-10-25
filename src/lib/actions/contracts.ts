@@ -23,7 +23,8 @@ import {
   restoreContractCommand,
   permanentlyDeleteContractCommand,
 } from "@/lib/commands/contracts";
-import { RecordNotFoundError, StaleEditError } from "@/lib/commands/shared";
+import { RecordNotFoundError, RecordValidationError, StaleEditError } from "@/lib/commands/shared";
+import { linkedRecordError } from "@/lib/commands/links";
 
 export type ActionState = {
   error?: string;
@@ -62,8 +63,20 @@ function firstIssueMessage(error: { issues: { message: string }[] }) {
 // caller shows; anything else is unexpected and rethrown.
 function commandError(error: unknown): { error: string } {
   if (error instanceof RecordNotFoundError) return { error: "Contract not found." };
-  if (error instanceof StaleEditError) return { error: error.message };
+  if (error instanceof StaleEditError || error instanceof RecordValidationError) return { error: error.message };
   throw error;
+}
+
+// For the Assistant's actions, which return a result the chat shows rather
+// than throwing: a command error keeps its message, and anything unexpected
+// is logged here and reported generically, never as the raw error.
+function assistantFailure(error: unknown): { success: false; error: string } {
+  try {
+    return { success: false, ...commandError(error) };
+  } catch (unexpected) {
+    console.error("[assistant] contract write failed:", unexpected);
+    return { success: false, error: "Couldn't save that change." };
+  }
 }
 
 async function requireUser() {
@@ -169,10 +182,8 @@ export async function reviewContractExtraction(
 ): Promise<ActionState> {
   const user = await requireUser();
 
-  const result = await contractReviewCorrectionsFromForm(contractId, formData);
-  if ("error" in result) return { error: result.error };
   try {
-    await confirmContractExtractionCommand(contractId, result.corrections, user.id);
+    await confirmContractExtractionCommand(contractId, contractReviewCorrectionsFromForm(formData), user.id);
   } catch (error) {
     return commandError(error);
   }
@@ -196,8 +207,15 @@ export async function createContractFromAssistant(
   const parsed = contractSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: firstIssueMessage(parsed.error) };
 
-  const contract = await createContractCommand(parsed.data, user.id);
-  return { success: true, contractId: contract.id };
+  const linkError = await linkedRecordError(parsed.data);
+  if (linkError) return { success: false, error: linkError };
+
+  try {
+    const contract = await createContractCommand(parsed.data, user.id);
+    return { success: true, contractId: contract.id };
+  } catch (error) {
+    return assistantFailure(error);
+  }
 }
 
 export async function updateContractFromAssistant(
@@ -209,10 +227,13 @@ export async function updateContractFromAssistant(
   const parsed = contractSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: firstIssueMessage(parsed.error) };
 
+  const linkError = await linkedRecordError(parsed.data);
+  if (linkError) return { success: false, error: linkError };
+
   try {
     await updateContractCommand(contractId, parsed.data, user.id);
   } catch (error) {
-    return { success: false, ...commandError(error) };
+    return assistantFailure(error);
   }
   return { success: true, contractId };
 }

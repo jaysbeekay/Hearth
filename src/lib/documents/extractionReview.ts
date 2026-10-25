@@ -1,6 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import type { ContractReviewCorrections } from "@/lib/commands/contracts";
 import type { ProductReviewCorrections } from "@/lib/commands/products";
+import { RecordValidationError } from "@/lib/commands/shared";
+import { contractSchema } from "@/lib/validation/contract";
+import { productSchema } from "@/lib/validation/product";
+import type { ZodType } from "zod";
 
 export type ExtractionReviewOwnerType = "CONTRACT" | "PRODUCT";
 
@@ -152,24 +156,28 @@ function submittedReviewValue(pending: ReadonlySet<string>, formData: FormData, 
   return typeof raw === "string" ? raw.trim() : undefined;
 }
 
-class ReviewValueError extends Error {}
 
-function requiredText(raw: string | undefined, label: string): string | undefined {
+// A text field is checked by its own form-schema field, so a review is
+// refused with the same message the edit form would show (too long, or a
+// required one left blank) instead of being cut short or saved blank.
+function reviewedText(field: ZodType, raw: string | undefined): string | null | undefined {
   if (raw === undefined) return undefined;
-  if (raw === "") throw new ReviewValueError(`${label} is required`);
-  return raw.slice(0, 200);
+  const parsed = field.safeParse(raw);
+  if (!parsed.success) throw new RecordValidationError(parsed.error.issues[0]?.message ?? "Invalid input");
+  return typeof parsed.data === "string" ? parsed.data : null;
 }
 
-function optionalText(raw: string | undefined): string | null | undefined {
-  if (raw === undefined) return undefined;
-  return raw === "" ? null : raw.slice(0, 200);
+// For a required field (title, provider, description): never null, since
+// its schema field refuses a blank value.
+function requiredText(field: ZodType, raw: string | undefined): string | undefined {
+  return reviewedText(field, raw) ?? undefined;
 }
 
 function optionalAmount(raw: string | undefined, label: string): number | null | undefined {
   if (raw === undefined) return undefined;
   if (raw === "") return null;
   const n = Number(raw);
-  if (!Number.isFinite(n) || n < 0) throw new ReviewValueError(`${label} must be a number of 0 or more`);
+  if (!Number.isFinite(n) || n < 0) throw new RecordValidationError(`${label} must be a number of 0 or more`);
   return n;
 }
 
@@ -177,7 +185,7 @@ function optionalDate(raw: string | undefined, label: string): Date | null | und
   if (raw === undefined) return undefined;
   if (raw === "") return null;
   const d = new Date(raw);
-  if (Number.isNaN(d.getTime())) throw new ReviewValueError(`${label} isn't a valid date`);
+  if (Number.isNaN(d.getTime())) throw new RecordValidationError(`${label} isn't a valid date`);
   return d;
 }
 
@@ -186,63 +194,38 @@ function definedOnly<T extends object>(patch: T): T {
   return Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined)) as T;
 }
 
-async function pendingFieldNames(ownerType: ExtractionReviewOwnerType, ownerId: string) {
-  const allowed = reviewableFieldsFor(ownerType);
-  const pending = await prisma.extractionReviewField.findMany({
-    where: { ownerType, ownerId, reviewedAt: null },
-    select: { fieldName: true },
-  });
-  return new Set(pending.map((f) => f.fieldName).filter((name) => allowed.includes(name)));
-}
-
-export type ReviewCorrectionsResult<T> = { corrections: T } | { error: string };
-
-// The corrections submitted from the review panel for a Contract's pending
-// fields, ready for confirmContractExtractionCommand. A blank optional field
-// clears it; a blank title or provider, or a value that doesn't parse, is
-// refused. The plain "Confirm details" fallback submits no fields, so it
-// confirms the values as they are.
-export async function contractReviewCorrectionsFromForm(
-  contractId: string,
-  formData: FormData,
-): Promise<ReviewCorrectionsResult<ContractReviewCorrections>> {
-  const pending = await pendingFieldNames("CONTRACT", contractId);
-  const value = (fieldName: string) => submittedReviewValue(pending, formData, fieldName);
-  try {
-    return {
-      corrections: definedOnly<ContractReviewCorrections>({
-        title: requiredText(value("title"), "Title"),
-        provider: requiredText(value("provider"), "Provider/company"),
-        cost: optionalAmount(value("cost"), "Cost"),
-        startDate: optionalDate(value("startDate"), "Start date"),
-        endDate: optionalDate(value("endDate"), "End date"),
-      }),
-    };
-  } catch (error) {
-    if (error instanceof ReviewValueError) return { error: error.message };
-    throw error;
-  }
+// The corrections submitted from the review panel for a Contract, as a
+// function of the fields still pending. confirmContractExtractionCommand
+// calls it with the pending fields it reads in its own transaction, so only
+// fields that are still pending are written. A blank optional field clears
+// it; a blank or over-long title or provider, or a value that doesn't
+// parse, is refused (RecordValidationError). The plain "Confirm details"
+// fallback submits no fields, so it confirms the values as they are.
+export function contractReviewCorrectionsFromForm(formData: FormData) {
+  return (pending: ReadonlySet<string>): ContractReviewCorrections => {
+    const value = (fieldName: string) => submittedReviewValue(pending, formData, fieldName);
+    const { shape } = contractSchema;
+    return definedOnly<ContractReviewCorrections>({
+      title: requiredText(shape.title, value("title")),
+      provider: requiredText(shape.provider, value("provider")),
+      cost: optionalAmount(value("cost"), "Cost"),
+      startDate: optionalDate(value("startDate"), "Start date"),
+      endDate: optionalDate(value("endDate"), "End date"),
+    });
+  };
 }
 
 // As contractReviewCorrectionsFromForm, for a Product.
-export async function productReviewCorrectionsFromForm(
-  productId: string,
-  formData: FormData,
-): Promise<ReviewCorrectionsResult<ProductReviewCorrections>> {
-  const pending = await pendingFieldNames("PRODUCT", productId);
-  const value = (fieldName: string) => submittedReviewValue(pending, formData, fieldName);
-  try {
-    return {
-      corrections: definedOnly<ProductReviewCorrections>({
-        description: requiredText(value("description"), "Description"),
-        manufacturer: optionalText(value("manufacturer")),
-        price: optionalAmount(value("price"), "Price"),
-        purchaseDate: optionalDate(value("purchaseDate"), "Purchase date"),
-        warrantyEndDate: optionalDate(value("warrantyEndDate"), "Warranty end date"),
-      }),
-    };
-  } catch (error) {
-    if (error instanceof ReviewValueError) return { error: error.message };
-    throw error;
-  }
+export function productReviewCorrectionsFromForm(formData: FormData) {
+  return (pending: ReadonlySet<string>): ProductReviewCorrections => {
+    const value = (fieldName: string) => submittedReviewValue(pending, formData, fieldName);
+    const { shape } = productSchema;
+    return definedOnly<ProductReviewCorrections>({
+      description: requiredText(shape.description, value("description")),
+      manufacturer: reviewedText(shape.manufacturer, value("manufacturer")),
+      price: optionalAmount(value("price"), "Price"),
+      purchaseDate: optionalDate(value("purchaseDate"), "Purchase date"),
+      warrantyEndDate: optionalDate(value("warrantyEndDate"), "Warranty end date"),
+    });
+  };
 }
