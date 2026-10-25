@@ -220,7 +220,16 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   every field they submit blank, and anything worked out from it (Due
   entries, Reminders, Missing key details) follows. A blank cost clears to
   nothing rather than 0. Changes that only touch some fields, like
-  extraction review or status changes, still leave the others alone.
+  extraction review or status changes, still leave the others alone. A
+  link the edit form can't list (a warranty in Trash, a home or vehicle
+  whose module is off, an exchange outside the usual list) stays selected,
+  so saving doesn't drop it. Offline edits queued before upgrading replay
+  with this clearing too, which is safe: each carries the record's
+  `updatedAt`, so one made against an older version is refused as stale.
+- Offline sync reads a queued form the same way the online form does: a
+  ticked "Tax deductible" box no longer fails the sync, and a blank
+  currency, asset class, cost method or occupancy falls back to the same
+  default as online (#413).
 - Two offline edits of the same record synced at the same moment can no
   longer both be applied: the "changed elsewhere" check now happens in the
   write itself, so the second is refused (#413).

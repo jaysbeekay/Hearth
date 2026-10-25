@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
+import { formToTripInput, formToTripSegmentInput } from "@/lib/formMappers";
 import { prisma } from "@/lib/prisma";
 import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
 import { tripSchema, tripSegmentSchema } from "@/lib/validation/travel";
@@ -40,34 +41,6 @@ async function requireUser() {
   if (!(await isModuleEnabled("TRAVEL"))) throw new Error("Travel module is disabled");
   if (session.user.role === "READONLY") throw new Error("Your account has read-only access.");
   return session.user;
-}
-
-function formToTripInput(formData: FormData) {
-  return {
-    title: formData.get("title"),
-    destination: formData.get("destination"),
-    startDate: formData.get("startDate"),
-    endDate: formData.get("endDate"),
-    notes: formData.get("notes"),
-  };
-}
-
-function formToTripSegmentInput(formData: FormData) {
-  return {
-    type: formData.get("type"),
-    title: formData.get("title"),
-    provider: formData.get("provider"),
-    confirmationCode: formData.get("confirmationCode"),
-    startDate: formData.get("startDate"),
-    endDate: formData.get("endDate"),
-    location: formData.get("location"),
-    cost: formData.get("cost"),
-    currency: formData.get("currency") || "AUD",
-    notes: formData.get("notes"),
-    flightNumber: formData.get("flightNumber"),
-    departureIata: formData.get("departureIata"),
-    arrivalIata: formData.get("arrivalIata"),
-  };
 }
 
 export async function createTrip(

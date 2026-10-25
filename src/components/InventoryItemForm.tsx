@@ -297,6 +297,11 @@ export function InventoryItemForm({
               className={selectClass}
             >
               <option value="">No linked warranty</option>
+              {/* A current link that isn't in the list must still be the
+                  selected option, or saving would post it blank and unlink it. */}
+              {item?.warrantyProductId && !products.some((product) => product.id === item.warrantyProductId) && (
+                <option value={item.warrantyProductId}>Current warranty</option>
+              )}
               {products.map((product) => (
                 <option key={product.id} value={product.id}>
                   {product.description}

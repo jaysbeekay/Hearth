@@ -83,6 +83,14 @@ export function LinkedToField({
   const showVehicles = vehiclesEnabled && vehicles.length > 0;
   const propertyLabel = properties.find((p) => p.id === initial.propertyId)?.label;
   const vehicleLabel = vehicles.find((v) => v.id === initial.vehicleId)?.label;
+  // The current link must stay selectable even when its list isn't shown
+  // (its module is off) or doesn't include it, or the select would show
+  // "Nothing" and choosing anything else would drop it unseen (#413).
+  const initialValue = encode(initial);
+  const initialShown =
+    (showProperties && properties.some((p) => `property:${p.id}` === initialValue)) ||
+    (showVehicles && vehicles.some((v) => `vehicle:${v.id}` === initialValue));
+  const initialMissing = initialValue !== "" && initialValue !== BOTH && !initialShown;
 
   const hintLinkProps = hintLinksInNewTab ? { target: "_blank", rel: "noopener" } : {};
 
@@ -104,6 +112,11 @@ export function LinkedToField({
       {initial.propertyId && initial.vehicleId && (
         <option value={BOTH}>
           {propertyLabel ?? "Home"} + {vehicleLabel ?? "vehicle"}
+        </option>
+      )}
+      {initialMissing && (
+        <option value={initialValue}>
+          {initial.propertyId ? (propertyLabel ?? "Current home") : (vehicleLabel ?? "Current vehicle")}
         </option>
       )}
       {showProperties && (

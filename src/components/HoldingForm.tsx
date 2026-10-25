@@ -92,10 +92,15 @@ export function HoldingForm({
             <select
               id="exchange"
               name="exchange"
-              defaultValue={state?.values?.exchange ?? holding?.exchange ?? "ASX"}
+              defaultValue={state?.values?.exchange ?? (holding ? holding.exchange ?? "" : "ASX")}
               className={selectClass}
             >
               <option value="">— Select —</option>
+              {/* An exchange outside the common list (e.g. from an import)
+                  stays selectable, or saving would post it blank (#413). */}
+              {holding?.exchange && !COMMON_EXCHANGES.includes(holding.exchange) && (
+                <option value={holding.exchange}>{holding.exchange}</option>
+              )}
               {COMMON_EXCHANGES.map((e) => <option key={e} value={e}>{e}</option>)}
             </select>
           </SelectWrapper>

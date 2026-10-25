@@ -16,15 +16,19 @@ export default async function EditInventoryItemPage({
   await requireModuleEnabled("INVENTORY");
 
   const { id } = await params;
-  const [item, products] = await Promise.all([
-    prisma.inventoryItem.findUnique({ where: { id } }),
-    prisma.product.findMany({
-      where: { deletedAt: null },
-      select: { id: true, description: true },
-      orderBy: { description: "asc" },
-    }),
-  ]);
+  const item = await prisma.inventoryItem.findUnique({ where: { id } });
   if (!item || item.deletedAt) notFound();
+  // The linked warranty stays an option even while it's in Trash: otherwise
+  // the select would post it blank and saving would unlink it (#413).
+  const products = (
+    await prisma.product.findMany({
+      where: item.warrantyProductId
+        ? { OR: [{ deletedAt: null }, { id: item.warrantyProductId }] }
+        : { deletedAt: null },
+      select: { id: true, description: true, deletedAt: true },
+      orderBy: { description: "asc" },
+    })
+  ).map((p) => ({ id: p.id, description: p.deletedAt ? `${p.description} (in Trash)` : p.description }));
 
   return (
     <div className="max-w-xl space-y-6">

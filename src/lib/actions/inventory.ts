@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
+import { formToInventoryItemInput } from "@/lib/formMappers";
 import { prisma } from "@/lib/prisma";
 import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
 import { inventoryItemSchema } from "@/lib/validation/inventory";
@@ -39,24 +40,6 @@ async function requireUser() {
   if (!(await isModuleEnabled("INVENTORY"))) throw new Error("Inventory module is disabled");
   if (session.user.role === "READONLY") throw new Error("Your account has read-only access.");
   return session.user;
-}
-
-function formToInventoryItemInput(formData: FormData) {
-  return {
-    label: formData.get("label"),
-    category: formData.get("category") || "OTHER",
-    brand: formData.get("brand"),
-    model: formData.get("model"),
-    serialNumber: formData.get("serialNumber"),
-    purchaseDate: formData.get("purchaseDate"),
-    purchasePrice: formData.get("purchasePrice"),
-    currency: formData.get("currency") || "AUD",
-    location: formData.get("location"),
-    notes: formData.get("notes"),
-    warrantyRegistered: formData.get("warrantyRegistered") === "on",
-    warrantyExtended: formData.get("warrantyExtended") === "on",
-    warrantyProductId: formData.get("warrantyProductId"),
-  };
 }
 
 export async function createInventoryItem(

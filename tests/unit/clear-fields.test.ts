@@ -28,6 +28,8 @@ import { updateVehicleCommand, permanentlyDeleteVehicleCommand } from "@/lib/com
 import { RecordNotFoundError, StaleEditError } from "@/lib/commands/shared";
 import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
 import { contractSchema } from "@/lib/validation/contract";
+import EditInventoryItemPage from "@/app/(app)/inventory/[id]/edit/page";
+import { InventoryItemForm } from "@/components/InventoryItemForm";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
 // The actions redirect() after a successful save; a no-op lets them return.
@@ -92,6 +94,7 @@ const cases: ClearCase[] = [
     entity: "contract",
     seed: async () => {
       const property = await seedProperty();
+      const vehicle = await p.vehicle.create({ data: { label: "Hatch", createdById: actorId } });
       const c = await p.contract.create({
         data: {
           title: "Internet",
@@ -105,6 +108,7 @@ const cases: ClearCase[] = [
           notes: "Old notes",
           reminderDaysBefore: "30,7",
           propertyId: property.id,
+          vehicleId: vehicle.id,
           createdById: actorId,
         },
       });
@@ -128,11 +132,14 @@ const cases: ClearCase[] = [
       contactEmail: "",
       notes: "",
       reminderDaysBefore: "",
+      // LinkedToField's hidden inputs, as the form posts them with both the
+      // Home and Vehicles modules on and "Nothing" chosen.
       propertyId: "",
+      vehicleId: "",
     }),
     action: ({ id }, fd) => updateContract(id, null, fd),
     read: (id) => p.contract.findUniqueOrThrow({ where: { id } }),
-    cleared: ["contractNumber", "endDate", "cost", "billingFrequency", "notes", "reminderDaysBefore", "propertyId"],
+    cleared: ["contractNumber", "endDate", "cost", "billingFrequency", "notes", "reminderDaysBefore", "propertyId", "vehicleId"],
     kept: { title: "Internet", provider: "Telco" },
   },
   {
@@ -637,5 +644,133 @@ describe("purge order", () => {
     await expect(purgeProduct(product.id)).rejects.toThrow("log cleanup failed");
     expect(await p.product.findUnique({ where: { id: product.id } })).toBeNull();
     expect(await exists(dir)).toBe(false);
+  });
+});
+
+describe("an Inventory item linked to a warranty in Trash", () => {
+  async function seedLinked() {
+    const warranty = await p.product.create({
+      data: { description: "Dishwasher warranty", deletedAt: new Date(), createdById: actorId },
+    });
+    const item = await p.inventoryItem.create({
+      data: { label: "Dishwasher", warrantyProductId: warranty.id, createdById: actorId },
+    });
+    return { warranty, item };
+  }
+
+  // Finds the InventoryItemForm element in the page's rendered tree.
+  function findFormProps(node: unknown): { products: { id: string; description: string }[] } | undefined {
+    if (!node || typeof node !== "object") return undefined;
+    if (Array.isArray(node)) {
+      for (const child of node) {
+        const found = findFormProps(child);
+        if (found) return found;
+      }
+      return undefined;
+    }
+    const element = node as { type?: unknown; props?: { children?: unknown } };
+    if (element.type === InventoryItemForm) return element.props as never;
+    return findFormProps(element.props?.children);
+  }
+
+  it("the edit page still offers the trashed warranty, marked as in Trash", async () => {
+    const { warranty, item } = await seedLinked();
+    await p.product.create({ data: { description: "Other trashed", deletedAt: new Date(), createdById: actorId } });
+    const page = await EditInventoryItemPage({ params: Promise.resolve({ id: item.id }) });
+    const props = findFormProps(page);
+    expect(props?.products).toEqual([{ id: warranty.id, description: "Dishwasher warranty (in Trash)" }]);
+  });
+
+  const editForm = (warrantyProductId: string) => ({
+    label: "Dishwasher",
+    category: "APPLIANCE",
+    brand: "",
+    model: "",
+    serialNumber: "",
+    purchaseDate: "",
+    purchasePrice: "",
+    currency: "AUD",
+    location: "Kitchen",
+    notes: "",
+    warrantyProductId,
+  });
+
+  it("saving the edit form online keeps the link", async () => {
+    const { warranty, item } = await seedLinked();
+    await updateInventoryItem(item.id, null, formData(editForm(warranty.id)));
+    const row = await p.inventoryItem.findUniqueOrThrow({ where: { id: item.id } });
+    expect(row).toMatchObject({ warrantyProductId: warranty.id, location: "Kitchen" });
+  });
+
+  it("saving the edit form offline keeps the link", async () => {
+    const { warranty, item } = await seedLinked();
+    const config = ENTITY_SYNC_CONFIGS.inventoryItem;
+    await config.update!(item.id, parseSyncFormValues(config, "update", editForm(warranty.id)), { userId: actorId });
+    const row = await p.inventoryItem.findUniqueOrThrow({ where: { id: item.id } });
+    expect(row).toMatchObject({ warrantyProductId: warranty.id, location: "Kitchen" });
+  });
+});
+
+// Offline ops replay the same form mapper as the online action, so
+// checkboxes and the actions' fallbacks behave the same in both paths.
+describe("offline sync parses formValues like the online form", () => {
+  const parse = (entity: string, values: Record<string, string>, operation: "create" | "update" = "create") =>
+    parseSyncFormValues(new Map(Object.entries(ENTITY_SYNC_CONFIGS)).get(entity)!, operation, values) as Record<
+      string,
+      unknown
+    >;
+
+  const contract = { title: "T", category: "OTHER", provider: "P", renewalType: "FIXED_TERM" };
+  const homeItem = { type: "REPAIR", title: "Roof" };
+  const inventory = { label: "Drill" };
+
+  it("a ticked checkbox is true and an unticked one false", () => {
+    expect(parse("contract", { ...contract, isTaxDeductible: "on" }).isTaxDeductible).toBe(true);
+    expect(parse("contract", contract).isTaxDeductible).toBe(false);
+    expect(parse("homeItem", { ...homeItem, isTaxDeductible: "on" }).isTaxDeductible).toBe(true);
+    expect(parse("homeItem", homeItem).isTaxDeductible).toBe(false);
+    expect(parse("inventoryItem", { ...inventory, warrantyRegistered: "on", warrantyExtended: "on" })).toMatchObject({
+      warrantyRegistered: true,
+      warrantyExtended: true,
+    });
+    expect(parse("inventoryItem", inventory)).toMatchObject({ warrantyRegistered: false, warrantyExtended: false });
+    // Only "on" counts as ticked; z.coerce.boolean() alone would read "false" as true.
+    expect(parse("inventoryItem", { ...inventory, warrantyRegistered: "false" }).warrantyRegistered).toBe(false);
+  });
+
+  it("unticking a checkbox offline clears it on the record", async () => {
+    const property = await seedProperty();
+    const item = await p.homeItem.create({
+      data: { propertyId: property.id, type: "REPAIR", title: "Roof", isTaxDeductible: true },
+    });
+    const config = ENTITY_SYNC_CONFIGS.homeItem;
+    await config.update!(item.id, parseSyncFormValues(config, "update", { ...homeItem, currency: "AUD" }), {
+      userId: actorId,
+      parentId: property.id,
+    });
+    expect((await p.homeItem.findUniqueOrThrow({ where: { id: item.id } })).isTaxDeductible).toBe(false);
+  });
+
+  it("applies the online action's fallbacks", () => {
+    expect(parse("contract", { ...contract, currency: "" }).currency).toBe("AUD");
+    expect(parse("contract", contract).status).toBe("ACTIVE");
+    expect(parse("product", { description: "TV" }).currency).toBe("AUD");
+    expect(parse("vehicleItem", { type: "SERVICE", title: "Oil" }).currency).toBe("AUD");
+    expect(parse("tripSegment", { type: "ACTIVITY", title: "Tour" }).currency).toBe("AUD");
+    expect(parse("rentalStatement", {}).currency).toBe("AUD");
+    expect(parse("inventoryItem", { ...inventory, category: "" }).category).toBe("OTHER");
+    expect(parse("portfolio", { name: "Super", costMethod: "" })).toMatchObject({ currency: "AUD", costMethod: "FIFO" });
+    expect(parse("holding", { ticker: "vas", assetClass: "" })).toMatchObject({ ticker: "VAS", assetClass: "SHARE" });
+    expect(parse("trade", { type: "BUY", date: "2026-01-01", units: "1", pricePerUnit: "1" }).currency).toBe("AUD");
+    expect(parse("property", { label: "Home", occupancyStatus: "" }).occupancyStatus).toBe("OWNER_OCCUPIED");
+    expect(parse("propertyValuation", { valuedAt: "2026-01-01", value: "1" }).currency).toBe("AUD");
+  });
+
+  it("an offline create with a ticked checkbox succeeds", async () => {
+    const config = ENTITY_SYNC_CONFIGS.contract;
+    const { id } = await config.create!(parseSyncFormValues(config, "create", { ...contract, isTaxDeductible: "on" }), {
+      userId: actorId,
+    });
+    expect((await p.contract.findUniqueOrThrow({ where: { id } })).isTaxDeductible).toBe(true);
   });
 });

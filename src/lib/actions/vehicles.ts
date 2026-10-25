@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
+import { formToVehicleInput, formToVehicleItemInput } from "@/lib/formMappers";
 import { vehicleSchema, vehicleItemSchema } from "@/lib/validation/vehicles";
 import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
 import { addDocumentCommand } from "@/lib/commands/documents";
@@ -59,35 +60,6 @@ async function requireUser() {
   if (!(await isModuleEnabled("VEHICLES"))) throw new Error("Vehicles module is disabled");
   if (session.user.role === "READONLY") throw new Error("Your account has read-only access.");
   return session.user;
-}
-
-function formToVehicleInput(formData: FormData) {
-  return {
-    label: formData.get("label"),
-    make: formData.get("make"),
-    model: formData.get("model"),
-    year: formData.get("year"),
-    colour: formData.get("colour"),
-    licensePlate: formData.get("licensePlate"),
-    vin: formData.get("vin"),
-    regoExpiry: formData.get("regoExpiry"),
-    insuranceExpiry: formData.get("insuranceExpiry"),
-    nextServiceDue: formData.get("nextServiceDue"),
-    reminderDaysBefore: formData.get("reminderDaysBefore"),
-    notes: formData.get("notes"),
-  };
-}
-
-function formToVehicleItemInput(formData: FormData) {
-  return {
-    type: formData.get("type"),
-    title: formData.get("title"),
-    provider: formData.get("provider"),
-    date: formData.get("date"),
-    cost: formData.get("cost"),
-    currency: formData.get("currency") || "AUD",
-    notes: formData.get("notes"),
-  };
 }
 
 // Turns a command's not-found / stale-edit / module-disabled error into the

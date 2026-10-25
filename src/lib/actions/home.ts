@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
+import { formToPropertyInput, formToHomeItemInput, formToRentalAgreementInput, formToRentalStatementInput } from "@/lib/formMappers";
 import { prisma } from "@/lib/prisma";
 import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
 import { propertySchema, homeItemSchema, rentalAgreementSchema, rentalStatementSchema } from "@/lib/validation/home";
@@ -70,34 +71,6 @@ async function requireUser() {
   if (!(await isModuleEnabled("HOME"))) throw new Error("Property module is disabled");
   if (session.user.role === "READONLY") throw new Error("Your account has read-only access.");
   return session.user;
-}
-
-function formToPropertyInput(formData: FormData) {
-  return {
-    label: formData.get("label"),
-    street: formData.get("street"),
-    suburb: formData.get("suburb"),
-    state: formData.get("state"),
-    postcode: formData.get("postcode"),
-    country: formData.get("country"),
-    lat: formData.get("lat"),
-    lng: formData.get("lng"),
-    notes: formData.get("notes"),
-    occupancyStatus: formData.get("occupancyStatus") || undefined,
-  };
-}
-
-function formToHomeItemInput(formData: FormData) {
-  return {
-    type: formData.get("type"),
-    title: formData.get("title"),
-    provider: formData.get("provider"),
-    date: formData.get("date"),
-    cost: formData.get("cost"),
-    currency: formData.get("currency") || "AUD",
-    isTaxDeductible: formData.get("isTaxDeductible") === "on",
-    notes: formData.get("notes"),
-  };
 }
 
 export async function createProperty(
@@ -304,19 +277,6 @@ export async function permanentlyDeleteHomeItem(itemId: string): Promise<ActionS
 
 // ─── Rental agreement ────────────────────────────────────────────────────────
 
-function formToRentalAgreementInput(formData: FormData) {
-  return {
-    tenantName: formData.get("tenantName"),
-    weeklyRent: formData.get("weeklyRent"),
-    managementFeePercent: formData.get("managementFeePercent"),
-    leaseStart: formData.get("leaseStart"),
-    leaseEnd: formData.get("leaseEnd"),
-    bondAmount: formData.get("bondAmount"),
-    currency: formData.get("currency") || "AUD",
-    notes: formData.get("notes"),
-  };
-}
-
 export async function createRentalAgreement(
   propertyId: string,
   _prevState: ActionState,
@@ -448,20 +408,6 @@ export async function setPropertyRented(
 }
 
 // ─── Rental statements ───────────────────────────────────────────────────────
-
-function formToRentalStatementInput(formData: FormData) {
-  return {
-    periodStart: formData.get("periodStart"),
-    periodEnd: formData.get("periodEnd"),
-    statementDate: formData.get("statementDate"),
-    grossRent: formData.get("grossRent"),
-    managementFee: formData.get("managementFee"),
-    otherDeductions: formData.get("otherDeductions"),
-    netAmount: formData.get("netAmount"),
-    currency: formData.get("currency") || "AUD",
-    notes: formData.get("notes"),
-  };
-}
 
 export async function createRentalStatement(
   propertyId: string,
