@@ -164,11 +164,13 @@ function dayNumber(day: CalendarDay): number {
   return utcMidnight(y, m, d) / DAY_MS;
 }
 
-function addDays(day: CalendarDay, days: number): CalendarDay {
+/** The calendar day `days` after `day` (before it, when negative). */
+export function addDays(day: CalendarDay, days: number): CalendarDay {
   return dayOf((dayNumber(day) + days) * DAY_MS) ?? day;
 }
 
-function daysBetween(from: CalendarDay, to: CalendarDay): number {
+/** Days from `from` to `to` (negative when `to` is earlier). */
+export function daysBetween(from: CalendarDay, to: CalendarDay): number {
   return dayNumber(to) - dayNumber(from);
 }
 

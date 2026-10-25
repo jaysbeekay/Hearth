@@ -194,10 +194,11 @@ export interface FailedReminderLog {
   error: string | null;
 }
 
-// #201: a FAILED NotificationLog row is always the *current* state for that
-// threshold — recordNotificationOutcome upserts the same row to SENT the
-// moment a retry succeeds, so anything still FAILED here is a live problem,
-// not stale history. One row per owner (not per failed channel/threshold) —
+// #201: a FAILED NotificationLog row is the current state for that
+// threshold and date — recordNotificationOutcome upserts the same row to
+// SENT the moment a retry succeeds. Callers pass only rows for a record's
+// current Reminder entries (currentFailedLogs, #387), since rows for an
+// earlier date are history. One row per owner (not per failed channel/threshold) —
 // a household doesn't need the same broken delivery reported repeatedly.
 export function buildReminderFailureItems(
   failedLogs: FailedReminderLog[],

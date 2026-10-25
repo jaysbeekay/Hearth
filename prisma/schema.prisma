@@ -444,18 +444,24 @@ model NotificationLog {
   id            String                @id @default(cuid())
   ownerType     NotificationOwnerType
   ownerId       String
-  // Vehicle only — distinguishes rego vs insurance reminders on the same
-  // vehicle. Empty string (never null) for contract/product so the unique
-  // index below fully enforces uniqueness — SQLite treats each NULL in a
-  // unique index as distinct, which would silently defeat it here.
+  // Which Due entry of the record, by the Due policy's field name:
+  // "noticeDeadline" / "endDate", "warrantyEndDate", "regoExpiry" /
+  // "insuranceExpiry" / "nextServiceDue". Never null. Rows from before #387
+  // used "" for contracts and products; the backfill renames them.
   field         String                @default("")
   channel       NotificationChannel
   thresholdDays Int
   status        NotificationStatus    @default(SENT)
   error         String?
   sentAt        DateTime              @default(now())
+  // ADR 0003 (#387): the Due entry date (UTC midnight) this Reminder was for.
+  // A threshold counts as sent only for a row with the entry's current
+  // date, so moving a date resets its Reminders without any writer clearing
+  // the log. Null means stale history from before the upgrade: shown as
+  // "Last sent", never counted (src/lib/notifications/logBackfill.ts).
+  dueDate       DateTime?
 
-  @@unique([ownerType, ownerId, field, channel, thresholdDays])
+  @@unique([ownerType, ownerId, field, channel, thresholdDays, dueDate])
   @@index([ownerType, ownerId])
   @@map("notification_logs")
 }
