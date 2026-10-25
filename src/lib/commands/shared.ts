@@ -16,6 +16,16 @@ export class StaleEditError extends Error {
   }
 }
 
+// A write the command refuses because of what it would leave behind (an end
+// date before its start date, say), rather than input Zod already caught.
+// The message is written for the person and is safe to show as-is.
+export class RecordValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RecordValidationError";
+  }
+}
+
 export interface UpdateOptions {
   // The record's updatedAt as the client last loaded it (ISO string or Date).
   // When given and the record has moved on since, the update is refused

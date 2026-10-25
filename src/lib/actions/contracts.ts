@@ -1,10 +1,8 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { contractSchema } from "@/lib/validation/contract";
+import { contractSchema, CONTRACT_STATUSES } from "@/lib/validation/contract";
 import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
 import { formDataToStringValues } from "@/lib/form-state";
 import { formToContractInput } from "@/lib/formMappers";
@@ -13,17 +11,20 @@ import { describeUploadRejection, UploadRejectedError } from "@/lib/uploadValida
 import { extractionFieldsFromForm } from "@/lib/documents/extractionConfirmation";
 import {
   saveExtractionReviewFieldsFromForm,
-  reviewAndConfirmExtraction,
+  contractReviewCorrectionsFromForm,
 } from "@/lib/documents/extractionReview";
 import { saveFileToInboxFallback } from "@/lib/documents/inboxFallback";
 import { parseDocumentCategory } from "@/lib/documents/categories";
 import {
   createContractCommand,
   updateContractCommand,
+  confirmContractExtractionCommand,
   deleteContractCommand,
   restoreContractCommand,
   permanentlyDeleteContractCommand,
 } from "@/lib/commands/contracts";
+import { RecordNotFoundError, RecordValidationError, StaleEditError } from "@/lib/commands/shared";
+import { linkedRecordError } from "@/lib/commands/links";
 
 export type ActionState = {
   error?: string;
@@ -56,6 +57,26 @@ const CONTRACT_FORM_FIELDS = [
 
 function firstIssueMessage(error: { issues: { message: string }[] }) {
   return error.issues[0]?.message ?? "Invalid input";
+}
+
+// Turns a command's not-found / stale-edit error into the ActionState the
+// caller shows; anything else is unexpected and rethrown.
+function commandError(error: unknown): { error: string } {
+  if (error instanceof RecordNotFoundError) return { error: "Contract not found." };
+  if (error instanceof StaleEditError || error instanceof RecordValidationError) return { error: error.message };
+  throw error;
+}
+
+// For the Assistant's actions, which return a result the chat shows rather
+// than throwing: a command error keeps its message, and anything unexpected
+// is logged here and reported generically, never as the raw error.
+function assistantFailure(error: unknown): { success: false; error: string } {
+  try {
+    return { success: false, ...commandError(error) };
+  } catch (unexpected) {
+    console.error("[assistant] contract write failed:", unexpected);
+    return { success: false, error: "Couldn't save that change." };
+  }
 }
 
 async function requireUser() {
@@ -128,7 +149,7 @@ export async function updateContract(
     );
     await saveExtractionReviewFieldsFromForm("CONTRACT", contractId, formData);
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "Contract not found." };
+    return commandError(error);
   }
   redirect(`/contracts/${contractId}`);
 }
@@ -141,23 +162,11 @@ export async function updateContract(
 export async function confirmContractExtraction(contractId: string): Promise<ActionState> {
   const user = await requireUser();
 
-  const existing = await prisma.contract.findUnique({ where: { id: contractId } });
-  if (!existing) return { error: "Contract not found." };
-
-  const reviewedAt = new Date();
-  await prisma.$transaction([
-    prisma.contract.update({
-      where: { id: contractId },
-      data: { extractionPending: false, extractionConfirmedAt: reviewedAt, updatedById: user.id },
-    }),
-    prisma.extractionReviewField.updateMany({
-      where: { ownerType: "CONTRACT", ownerId: contractId, reviewedAt: null },
-      data: { reviewedAt, reviewedById: user.id },
-    }),
-  ]);
-
-  revalidatePath(`/contracts/${contractId}`);
-  revalidatePath("/dashboard");
+  try {
+    await confirmContractExtractionCommand(contractId, {}, user.id);
+  } catch (error) {
+    return commandError(error);
+  }
   return { success: "Details confirmed." };
 }
 
@@ -173,11 +182,11 @@ export async function reviewContractExtraction(
 ): Promise<ActionState> {
   const user = await requireUser();
 
-  const result = await reviewAndConfirmExtraction("CONTRACT", contractId, user.id, formData);
-  if (result.error) return { error: result.error };
-
-  revalidatePath(`/contracts/${contractId}`);
-  revalidatePath("/dashboard");
+  try {
+    await confirmContractExtractionCommand(contractId, contractReviewCorrectionsFromForm(formData), user.id);
+  } catch (error) {
+    return commandError(error);
+  }
   return { success: "Details confirmed." };
 }
 
@@ -198,8 +207,15 @@ export async function createContractFromAssistant(
   const parsed = contractSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: firstIssueMessage(parsed.error) };
 
-  const contract = await createContractCommand(parsed.data, user.id);
-  return { success: true, contractId: contract.id };
+  const linkError = await linkedRecordError(parsed.data);
+  if (linkError) return { success: false, error: linkError };
+
+  try {
+    const contract = await createContractCommand(parsed.data, user.id);
+    return { success: true, contractId: contract.id };
+  } catch (error) {
+    return assistantFailure(error);
+  }
 }
 
 export async function updateContractFromAssistant(
@@ -211,10 +227,13 @@ export async function updateContractFromAssistant(
   const parsed = contractSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: firstIssueMessage(parsed.error) };
 
+  const linkError = await linkedRecordError(parsed.data);
+  if (linkError) return { success: false, error: linkError };
+
   try {
     await updateContractCommand(contractId, parsed.data, user.id);
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : "Contract not found." };
+    return assistantFailure(error);
   }
   return { success: true, contractId };
 }
@@ -229,7 +248,7 @@ export async function deleteContract(contractId: string): Promise<ActionState> {
   try {
     await deleteContractCommand(contractId);
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "Contract not found." };
+    return commandError(error);
   }
   redirect("/contracts");
 }
@@ -240,7 +259,7 @@ export async function restoreContract(contractId: string): Promise<ActionState> 
   try {
     await restoreContractCommand(contractId);
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "Contract not found." };
+    return commandError(error);
   }
   return { success: "Restored." };
 }
@@ -251,7 +270,7 @@ export async function permanentlyDeleteContract(contractId: string): Promise<Act
   try {
     await permanentlyDeleteContractCommand(contractId);
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "Contract not found." };
+    return commandError(error);
   }
   return { success: "Deleted permanently." };
 }
@@ -260,15 +279,16 @@ export async function setContractStatus(
   contractId: string,
   status: "ACTIVE" | "CANCELLED",
 ): Promise<ActionState> {
-  await requireUser();
+  const user = await requireUser();
+  // A bound server action's arguments can still be tampered with.
+  if (!CONTRACT_STATUSES.includes(status)) return { error: "Invalid status." };
 
-  const existing = await prisma.contract.findUnique({ where: { id: contractId } });
-  if (!existing) return { error: "Contract not found." };
-
-  await prisma.contract.update({ where: { id: contractId }, data: { status } });
-
-  revalidatePath(`/contracts/${contractId}`);
-  revalidatePath("/contracts");
-  revalidatePath("/dashboard");
+  // A partial patch: only the status changes, and the command revalidates
+  // the same paths as any other update.
+  try {
+    await updateContractCommand(contractId, { status }, user.id);
+  } catch (error) {
+    return commandError(error);
+  }
   return { success: status === "CANCELLED" ? "Contract cancelled." : "Contract reactivated." };
 }

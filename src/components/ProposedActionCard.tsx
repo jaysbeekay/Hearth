@@ -66,20 +66,31 @@ export function ProposedActionCard({
   onResolved: (result: { success: boolean; message: string }) => void;
 }) {
   const [working, setWorking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [resolved, setResolved] = useState(false);
 
   async function handleConfirm() {
     setWorking(true);
-    const result =
-      action.entity === "contract"
-        ? action.operation === "create"
-          ? await createContractFromAssistant(action.data)
-          : await updateContractFromAssistant(action.entityId!, action.data)
-        : action.operation === "create"
-          ? await createProductFromAssistant(action.data)
-          : await updateProductFromAssistant(action.entityId!, action.data);
+    setError(null);
+    let result: { success: true } | { success: false; error: string };
+    try {
+      result =
+        action.entity === "contract"
+          ? action.operation === "create"
+            ? await createContractFromAssistant(action.data)
+            : await updateContractFromAssistant(action.entityId!, action.data)
+          : action.operation === "create"
+            ? await createProductFromAssistant(action.data)
+            : await updateProductFromAssistant(action.entityId!, action.data);
+    } catch {
+      // The action threw (signed out, read-only, server unreachable): keep
+      // the card open so the user can see it failed and try again.
+      setError("Couldn't save that change. Try again.");
+      return;
+    } finally {
+      setWorking(false);
+    }
 
-    setWorking(false);
     setResolved(true);
     onResolved(
       result.success
@@ -115,6 +126,11 @@ export function ProposedActionCard({
           </div>
         ))}
       </dl>
+      {error && (
+        <p role="alert" className="mb-2 text-xs text-danger">
+          {error}
+        </p>
+      )}
       <div className="flex gap-2">
         <button
           type="button"

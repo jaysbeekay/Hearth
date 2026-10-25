@@ -1,9 +1,7 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
 import { productSchema } from "@/lib/validation/product";
 import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
 import { ProductDocumentKind } from "@/generated/prisma/enums";
@@ -12,16 +10,22 @@ import { formToProductInput } from "@/lib/formMappers";
 import { addDocumentCommand } from "@/lib/commands/documents";
 import { describeUploadRejection, UploadRejectedError } from "@/lib/uploadValidation";
 import { extractionFieldsFromForm } from "@/lib/documents/extractionConfirmation";
-import { saveExtractionReviewFieldsFromForm, reviewAndConfirmExtraction } from "@/lib/documents/extractionReview";
+import {
+  saveExtractionReviewFieldsFromForm,
+  productReviewCorrectionsFromForm,
+} from "@/lib/documents/extractionReview";
 import { saveFileToInboxFallback } from "@/lib/documents/inboxFallback";
 import { parseDocumentCategory } from "@/lib/documents/categories";
 import {
   createProductCommand,
   updateProductCommand,
+  confirmProductExtractionCommand,
   deleteProductCommand,
   restoreProductCommand,
   permanentlyDeleteProductCommand,
 } from "@/lib/commands/products";
+import { RecordNotFoundError, RecordValidationError, StaleEditError } from "@/lib/commands/shared";
+import { linkedRecordError } from "@/lib/commands/links";
 
 export type ActionState = {
   error?: string;
@@ -47,6 +51,26 @@ const PRODUCT_FORM_FIELDS = [
 
 function firstIssueMessage(error: { issues: { message: string }[] }) {
   return error.issues[0]?.message ?? "Invalid input";
+}
+
+// Turns a command's not-found / stale-edit error into the ActionState the
+// caller shows; anything else is unexpected and rethrown.
+function commandError(error: unknown): { error: string } {
+  if (error instanceof RecordNotFoundError) return { error: "Product not found." };
+  if (error instanceof StaleEditError || error instanceof RecordValidationError) return { error: error.message };
+  throw error;
+}
+
+// For the Assistant's actions, which return a result the chat shows rather
+// than throwing: a command error keeps its message, and anything unexpected
+// is logged here and reported generically, never as the raw error.
+function assistantFailure(error: unknown): { success: false; error: string } {
+  try {
+    return { success: false, ...commandError(error) };
+  } catch (unexpected) {
+    console.error("[assistant] product write failed:", unexpected);
+    return { success: false, error: "Couldn't save that change." };
+  }
 }
 
 async function requireUser() {
@@ -136,7 +160,7 @@ export async function updateProduct(
     );
     await saveExtractionReviewFieldsFromForm("PRODUCT", productId, formData);
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "Product not found." };
+    return commandError(error);
   }
   redirect(`/products/${productId}`);
 }
@@ -148,23 +172,11 @@ export async function updateProduct(
 export async function confirmProductExtraction(productId: string): Promise<ActionState> {
   const user = await requireUser();
 
-  const existing = await prisma.product.findUnique({ where: { id: productId } });
-  if (!existing) return { error: "Product not found." };
-
-  const reviewedAt = new Date();
-  await prisma.$transaction([
-    prisma.product.update({
-      where: { id: productId },
-      data: { extractionPending: false, extractionConfirmedAt: reviewedAt, updatedById: user.id },
-    }),
-    prisma.extractionReviewField.updateMany({
-      where: { ownerType: "PRODUCT", ownerId: productId, reviewedAt: null },
-      data: { reviewedAt, reviewedById: user.id },
-    }),
-  ]);
-
-  revalidatePath(`/products/${productId}`);
-  revalidatePath("/dashboard");
+  try {
+    await confirmProductExtractionCommand(productId, {}, user.id);
+  } catch (error) {
+    return commandError(error);
+  }
   return { success: "Details confirmed." };
 }
 
@@ -179,11 +191,11 @@ export async function reviewProductExtraction(
 ): Promise<ActionState> {
   const user = await requireUser();
 
-  const result = await reviewAndConfirmExtraction("PRODUCT", productId, user.id, formData);
-  if (result.error) return { error: result.error };
-
-  revalidatePath(`/products/${productId}`);
-  revalidatePath("/dashboard");
+  try {
+    await confirmProductExtractionCommand(productId, productReviewCorrectionsFromForm(formData), user.id);
+  } catch (error) {
+    return commandError(error);
+  }
   return { success: "Details confirmed." };
 }
 
@@ -204,8 +216,15 @@ export async function createProductFromAssistant(
   const parsed = productSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: firstIssueMessage(parsed.error) };
 
-  const product = await createProductCommand(parsed.data, user.id);
-  return { success: true, productId: product.id };
+  const linkError = await linkedRecordError(parsed.data);
+  if (linkError) return { success: false, error: linkError };
+
+  try {
+    const product = await createProductCommand(parsed.data, user.id);
+    return { success: true, productId: product.id };
+  } catch (error) {
+    return assistantFailure(error);
+  }
 }
 
 export async function updateProductFromAssistant(
@@ -217,10 +236,13 @@ export async function updateProductFromAssistant(
   const parsed = productSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: firstIssueMessage(parsed.error) };
 
+  const linkError = await linkedRecordError(parsed.data);
+  if (linkError) return { success: false, error: linkError };
+
   try {
     await updateProductCommand(productId, parsed.data, user.id);
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : "Product not found." };
+    return assistantFailure(error);
   }
   return { success: true, productId };
 }
@@ -232,7 +254,7 @@ export async function deleteProduct(productId: string): Promise<ActionState> {
   try {
     await deleteProductCommand(productId);
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "Product not found." };
+    return commandError(error);
   }
   redirect("/products");
 }
@@ -243,7 +265,7 @@ export async function restoreProduct(productId: string): Promise<ActionState> {
   try {
     await restoreProductCommand(productId);
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "Product not found." };
+    return commandError(error);
   }
   return { success: "Restored." };
 }
@@ -254,7 +276,7 @@ export async function permanentlyDeleteProduct(productId: string): Promise<Actio
   try {
     await permanentlyDeleteProductCommand(productId);
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "Product not found." };
+    return commandError(error);
   }
   return { success: "Deleted permanently." };
 }
