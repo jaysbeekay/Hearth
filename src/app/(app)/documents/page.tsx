@@ -4,7 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { DocumentsExplorer, type DocRow } from "@/components/DocumentsExplorer";
-import { DocumentsTabs } from "@/components/DocumentsTabs";
+import { DocumentsTabs, DocumentsUploadActions } from "@/components/DocumentsTabs";
+import { documentsEmptyMessage } from "@/lib/documents/emptyMessage";
+import { auth } from "@/lib/auth";
 import { documentFileHref } from "@/lib/documents/kinds";
 import { LIVE_DOCUMENT_WHERE as LIVE } from "@/lib/documents/liveDocuments";
 
@@ -368,6 +370,8 @@ export default async function DocumentsPage({
   searchParams: Promise<{ type?: string; view?: string; page?: string }>;
 }) {
   const { type, view, page: pageParam } = await searchParams;
+  const session = await auth();
+  const canWrite = session?.user.role !== "READONLY";
   const showAll = view === "all";
   const page = Math.max(0, Number(pageParam) || 0);
 
@@ -405,15 +409,25 @@ export default async function DocumentsPage({
     docs = windowRows.slice(0, PAGE_SIZE);
   }
 
+  // null makes the explorer show its "Upload a document" empty state, which a
+  // read-only member can't use, so they get plain text instead.
+  let emptyMessage: string | null = documentsEmptyMessage(type, showAll);
+  if (totalCount === 0) {
+    emptyMessage = canWrite ? null : "No documents uploaded yet.";
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Documents</h1>
-        <p className="text-sm text-muted">
-          {showAll
-            ? "Every uploaded document, including anything still waiting to be filed."
-            : "Documents you've saved to a contract, warranty, or other record."}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">Documents</h1>
+          <p className="text-sm text-muted">
+            {showAll
+              ? "Every uploaded document, including anything still waiting to be filed."
+              : "Documents you've saved to a contract, warranty, or other record."}
+          </p>
+        </div>
+        {canWrite && <DocumentsUploadActions />}
       </div>
 
       <DocumentsTabs
@@ -443,7 +457,7 @@ export default async function DocumentsPage({
       <DocumentsExplorer
         docs={docs}
         dateFormat={dateFormat}
-        emptyMessage={totalCount === 0 ? null : `No ${type?.toLowerCase()} documents yet.`}
+        emptyMessage={emptyMessage}
       />
 
       {(page > 0 || hasMore) && (

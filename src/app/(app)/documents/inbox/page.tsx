@@ -6,7 +6,8 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import { getDocumentStats } from "@/lib/documents/stats";
 import { findDocumentsByHashBatch, type DocumentKind } from "@/lib/documents/documentQueries";
 import { InboxReviewClient, type DuplicateMatch } from "@/components/InboxReviewClient";
-import { DocumentsTabs } from "@/components/DocumentsTabs";
+import { DocumentsTabs, DocumentsUploadActions } from "@/components/DocumentsTabs";
+import { auth } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Inbox" };
 
@@ -32,6 +33,8 @@ export default async function InboxPage({
 }) {
   const { page: pageParam } = await searchParams;
   const page = Math.max(0, Number(pageParam) || 0);
+  const session = await auth();
+  const canWrite = session?.user.role !== "READONLY";
 
   const [rows, enabledModules, { dateFormat }] = await Promise.all([
     prisma.inboxDocument.findMany({
@@ -83,11 +86,14 @@ export default async function InboxPage({
 
   return (
     <div className="max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Documents</h1>
-        <p className="text-sm text-muted">
-          Documents saved without picking a destination yet. Classify each one, or discard it.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">Documents</h1>
+          <p className="text-sm text-muted">
+            Documents saved without picking a destination yet. Classify each one, or discard it.
+          </p>
+        </div>
+        {canWrite && <DocumentsUploadActions />}
       </div>
 
       <DocumentsTabs
