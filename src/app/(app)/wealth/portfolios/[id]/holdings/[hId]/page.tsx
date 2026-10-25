@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { after } from "next/server";
 import { Pencil, Trash2, Plus } from "lucide-react";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { prisma } from "@/lib/prisma";
@@ -217,10 +218,14 @@ export default async function HoldingPage({
   const gainLossPct = gainLoss != null && cost > 0 ? (gainLoss / cost) * 100 : null;
   const currency = priceEntry?.currency ?? holding.portfolio.currency;
 
-  // Fetch and store price history for the chart (non-blocking — show with whatever is stored)
+  // #432 — the chart shows whatever history is stored; missing history is
+  // fetched after the response is sent, so a slow or hung Yahoo request
+  // never holds up the page.
   const earliestTrade = sortedTrades[0];
-  if (earliestTrade && holding.exchange !== "CRYPTO") {
-    await fetchAndStorePriceHistory(holding.ticker, holding.exchange, earliestTrade.date).catch(() => {});
+  const tracksHistory = Boolean(earliestTrade) && holding.exchange !== "CRYPTO";
+  if (earliestTrade && tracksHistory) {
+    const { ticker, exchange } = holding;
+    after(() => fetchAndStorePriceHistory(ticker, exchange, earliestTrade.date));
   }
 
   const priceHistory = earliestTrade
@@ -234,6 +239,13 @@ export default async function HoldingPage({
       value: unitsAtTime(sortedTrades, pt.date.getTime()) * pt.price,
     }))
     .filter((pt) => pt.value > 0);
+  // Stored prices can start later than the first Trade: history older than
+  // MAX_HISTORY_DAYS, a ticker Yahoo lists from a later date, or a backfill
+  // still running.
+  const chartStartsLate =
+    earliestTrade != null &&
+    chartPoints.length >= 2 &&
+    chartPoints[0].date.getTime() - earliestTrade.date.getTime() > 7 * 24 * 60 * 60 * 1000;
 
   const tradesDesc = [...holding.trades].sort((a, b) => b.date.getTime() - a.date.getTime());
 
@@ -336,7 +348,13 @@ export default async function HoldingPage({
         <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-4 font-medium">Performance since first purchase</h2>
           <PerformanceChart points={chartPoints} currency={currency} dateFormat={dateFormat} region={region} />
+          {chartStartsLate && (
+            <p className="mt-2 text-xs text-muted">Chart shows prices from {formatDate(chartPoints[0].date, dateFormat)}.</p>
+          )}
         </section>
+      )}
+      {chartPoints.length < 2 && tracksHistory && holding.trades.length > 0 && units > 0 && (
+        <p className="text-sm text-muted">No price history yet. It is fetched in the background; refresh in a moment to see the chart.</p>
       )}
 
       {/* Trade history */}

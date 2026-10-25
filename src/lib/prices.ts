@@ -5,8 +5,12 @@ const CRYPTO_TTL_MS = 5 * 60 * 1000;  // 5 minutes
 
 // yahoo-finance2 v3 requires instantiating the default export rather than
 // calling its methods directly (v2-style) — https://github.com/gadicc/yahoo-finance2/blob/dev/docs/UPGRADING.md
+// Loaded once and shared: concurrent first calls would otherwise each start
+// their own import of the module.
+let yahooFinanceModule: Promise<typeof import("yahoo-finance2")> | undefined;
 async function getYahooFinance() {
-  const YahooFinance = (await import("yahoo-finance2")).default;
+  yahooFinanceModule ??= import("yahoo-finance2");
+  const YahooFinance = (await yahooFinanceModule).default;
   return new YahooFinance({ suppressNotices: ["yahooSurvey"] });
 }
 
@@ -156,14 +160,21 @@ export async function fetchHistoricalPrice(ticker: string, date: Date): Promise<
   }
 }
 
-// #432 — bounds on the price-history backfill. Ten years of trading days is
-// about 2,500 rows; a Holding whose earliest Trade is older than that charts
-// from the cap onwards rather than pulling decades of history in one go.
-export const MAX_HISTORY_DAYS = 3653;
-// Rows written per batch. Each batch is one createMany plus a lookup of the
-// dates already stored, so other requests wait at most one short batch for
-// the database rather than the whole backfill (see src/lib/prisma.ts).
+// #432 — bounds on the price-history backfill. Thirty years of daily rows is
+// at most about 11,000 (about 7,600 trading days on most exchanges), written
+// in short batches, so the cap only guards against a nonsense Trade date.
+export const MAX_HISTORY_DAYS = 30 * 365;
+// Rows written per batch. Each batch is one lookup of the dates already
+// stored plus one createMany, so other requests wait at most one short batch
+// for the database rather than the whole backfill (see src/lib/prisma.ts).
 const HISTORY_WRITE_BATCH = 250;
+// A Yahoo request that hangs would otherwise hold its ticker's in-flight
+// entry, and every later backfill of that ticker, until a restart.
+export const HISTORY_FETCH_TIMEOUT_MS = 15_000;
+// Stored history counts as reaching back to fromDate if it starts within a
+// week of it: the first stored row is the first trading day, which can be a
+// few days after a weekend or holiday fromDate.
+const BACKWARD_GAP_MS = 7 * 24 * 60 * 60 * 1000;
 
 interface HistoryRow {
   date: Date;
@@ -171,9 +182,14 @@ interface HistoryRow {
   adjClose: number | null;
 }
 
-// One backfill per ticker at a time in this process: two tabs opening the
-// same Holding share the first fetch instead of writing the same rows twice.
+// One backfill per ticker and start date at a time in this process: two tabs
+// opening the same Holding share the first fetch instead of writing the same
+// rows twice, while a caller asking for an earlier start gets its own run.
 const historyInFlight = new Map<string, Promise<void>>();
+// Earliest start already fetched backwards per ticker, so a ticker whose
+// Yahoo history begins after the earliest Trade isn't re-fetched on every
+// view. In-process only: worst case one extra fetch after a restart.
+const backwardFetched = new Map<string, number>();
 
 function yieldToOtherRequests(): Promise<void> {
   return new Promise((resolve) => {
@@ -188,61 +204,89 @@ function isUniqueViolation(error: unknown): boolean {
 /**
  * Fetch and persist daily closing prices for a ticker from `fromDate` (capped
  * at MAX_HISTORY_DAYS ago) to today. Skips crypto (no Yahoo Finance
- * historical). Only re-fetches from the last stored date to avoid redundant
- * API calls. Best-effort: a failed fetch leaves what is stored and never
- * throws.
+ * historical). Fetches only what isn't stored: forwards from two days before
+ * the latest stored date, and backwards when `fromDate` is earlier than the
+ * earliest stored date. Best-effort: a failed or timed-out fetch leaves what
+ * is stored and never throws.
  */
-export async function fetchAndStorePriceHistory(
+export function fetchAndStorePriceHistory(
   ticker: string,
   exchange: string | null,
   fromDate: Date,
 ): Promise<void> {
-  if (exchange === "CRYPTO") return;
-  const pending = historyInFlight.get(ticker);
+  if (exchange === "CRYPTO") return Promise.resolve();
+  const key = `${ticker}|${normaliseDate(fromDate).getTime()}`;
+  const pending = historyInFlight.get(key);
   if (pending) return pending;
-  const run = backfillPriceHistory(ticker, fromDate).finally(() => {
-    historyInFlight.delete(ticker);
-  });
-  historyInFlight.set(ticker, run);
+  const run = backfillPriceHistory(ticker, fromDate)
+    .catch(() => {
+      // best-effort — don't break the page if historical fetch fails
+    })
+    .finally(() => {
+      historyInFlight.delete(key);
+    });
+  historyInFlight.set(key, run);
   return run;
 }
 
-async function backfillPriceHistory(ticker: string, fromDate: Date): Promise<void> {
+async function fetchHistoryRows(ticker: string, period1: Date, period2: Date): Promise<HistoryRow[]> {
+  const yahooFinance = await getYahooFinance();
+  const signal = AbortSignal.timeout(HISTORY_FETCH_TIMEOUT_MS);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(`price history fetch for ${ticker} timed out`));
+    }, HISTORY_FETCH_TIMEOUT_MS);
+  });
   try {
-    // Find the most recent stored date to avoid re-fetching the whole history
-    const latest = await prisma.priceHistory.findFirst({
-      where: { ticker },
-      orderBy: { date: "desc" },
-      select: { date: true },
-    });
-
-    const now = new Date();
-    const oneDayMs = 24 * 60 * 60 * 1000;
-
-    // If latest price is from today or yesterday (allowing for market hours), nothing to do
-    if (latest && now.getTime() - latest.date.getTime() < 2 * oneDayMs) return;
-
-    // Fetch from 2 days before latest (overlap handles late-arriving data) or
-    // fromDate if no history, never further back than the cap.
-    const earliestAllowed = now.getTime() - MAX_HISTORY_DAYS * oneDayMs;
-    const fetchFrom = new Date(
-      Math.max(latest ? latest.date.getTime() - 2 * oneDayMs : fromDate.getTime(), earliestAllowed),
-    );
-
-    const yahooFinance = await getYahooFinance();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rows = (await yahooFinance.historical(ticker, { period1: fetchFrom, period2: now, interval: "1d" }, { validateResult: false })) as any[];
-    if (!rows?.length) return;
-
+    const rows = (await Promise.race([
+      yahooFinance.historical(ticker, { period1, period2, interval: "1d" }, { validateResult: false, fetchOptions: { signal } }),
+      timeout,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ])) as any[];
     const byDate = new Map<number, HistoryRow>();
-    for (const row of rows) {
+    for (const row of rows ?? []) {
       if (!row?.date || row.close == null) continue;
       const date = normaliseDate(new Date(row.date));
       byDate.set(date.getTime(), { date, close: row.close as number, adjClose: (row.adjClose ?? null) as number | null });
     }
-    await storePriceHistory(ticker, [...byDate.values()].sort((a, b) => a.date.getTime() - b.date.getTime()));
-  } catch {
-    // best-effort — don't break the page if historical fetch fails
+    return [...byDate.values()].sort((a, b) => a.date.getTime() - b.date.getTime());
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function backfillPriceHistory(ticker: string, fromDate: Date): Promise<void> {
+  const [earliest, latest] = await Promise.all([
+    prisma.priceHistory.findFirst({ where: { ticker }, orderBy: { date: "asc" }, select: { date: true } }),
+    prisma.priceHistory.findFirst({ where: { ticker }, orderBy: { date: "desc" }, select: { date: true } }),
+  ]);
+
+  const now = new Date();
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  const wantFrom = new Date(Math.max(fromDate.getTime(), now.getTime() - MAX_HISTORY_DAYS * oneDayMs));
+
+  if (!earliest || !latest) {
+    await storePriceHistory(ticker, await fetchHistoryRows(ticker, wantFrom, now));
+    backwardFetched.set(ticker, wantFrom.getTime());
+    return;
+  }
+
+  // Older history than what is stored: a Trade dated before the first one
+  // this ticker was fetched for (or a second Holding of it).
+  const alreadyFetchedFrom = backwardFetched.get(ticker);
+  const needsOlder =
+    earliest.date.getTime() - wantFrom.getTime() > BACKWARD_GAP_MS &&
+    (alreadyFetchedFrom === undefined || alreadyFetchedFrom > wantFrom.getTime());
+  if (needsOlder) {
+    await storePriceHistory(ticker, await fetchHistoryRows(ticker, wantFrom, earliest.date));
+    backwardFetched.set(ticker, wantFrom.getTime());
+  }
+
+  // Newer history: from 2 days before the latest stored date (the overlap
+  // handles late-arriving data), unless that is from today or yesterday.
+  if (now.getTime() - latest.date.getTime() >= 2 * oneDayMs) {
+    await storePriceHistory(ticker, await fetchHistoryRows(ticker, new Date(latest.date.getTime() - 2 * oneDayMs), now));
   }
 }
 
@@ -268,7 +312,7 @@ async function storePriceHistory(ticker: string, rows: HistoryRow[]): Promise<vo
         });
       } catch (error) {
         if (!isUniqueViolation(error)) throw error;
-        // Another process stored some of these dates in the meantime.
+        // Another writer stored some of these dates in the meantime.
         for (const r of toCreate) {
           await prisma.priceHistory.upsert({
             where: { ticker_date: { ticker, date: r.date } },

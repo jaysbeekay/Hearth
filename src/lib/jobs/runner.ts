@@ -17,8 +17,32 @@ export type JobType =
   | "REMINDER_CHECK"
   | "BACKUP_RUN"
   | "EMAIL_INGEST";
-const LEASE_MS = 5 * 60_000;
+export const LEASE_MS = 5 * 60_000;
 const MAX_ATTEMPTS = 3;
+// #432 — a job that never settles (an S3 upload with no request timeout, a
+// stalled SFTP session, a hung fetch) is given up on before its lease runs
+// out, so its row is released for a retry and nothing waits on it forever.
+// The work itself can't be cancelled; it is only no longer waited for.
+export const JOB_TIMEOUT_MS = LEASE_MS - 30_000;
+
+export class JobTimeoutError extends Error {
+  constructor(type: string, ms: number) {
+    super(`${type} job timed out after ${Math.round(ms / 1000)}s`);
+    this.name = "JobTimeoutError";
+  }
+}
+
+function withTimeout<T>(work: Promise<T>, ms: number, type: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new JobTimeoutError(type, ms));
+    }, ms);
+  });
+  return Promise.race([work, timeout]).finally(() => {
+    clearTimeout(timer);
+  });
+}
 
 export async function enqueueJob(type: JobType, payload: Record<string, unknown> = {}) {
   return prisma.backgroundJob.create({ data: { type, payload: JSON.stringify(payload) } });
@@ -58,6 +82,13 @@ export async function enqueueJobUnlessPending(type: JobType, payload: Record<str
 
 async function claimJob() {
   const now = new Date();
+  // A job whose last allowed attempt lost its lease (the process died, or
+  // the attempt hung past LEASE_MS) can't be reclaimed below; fail it and
+  // release its singleton key, or that job type could never be queued again.
+  await prisma.backgroundJob.updateMany({
+    where: { status: "RUNNING", leasedUntil: { lt: now }, attempts: { gte: MAX_ATTEMPTS } },
+    data: { status: "FAILED", finishedAt: now, leasedUntil: null, activeDedupeKey: null, lastError: "Lease expired on the last attempt" },
+  });
   const candidate = await prisma.backgroundJob.findFirst({
     where: { OR: [{ status: "PENDING", availableAt: { lte: now } }, { status: "RUNNING", leasedUntil: { lt: now } }], attempts: { lt: MAX_ATTEMPTS } },
     orderBy: { createdAt: "asc" },
@@ -71,16 +102,20 @@ async function claimJob() {
   return result.count === 1 ? { ...candidate, leasedUntil } : null;
 }
 
-export async function runOneJob() {
+async function executeJob(job: { type: string; payload: string }) {
+  if (job.type === "PRICE_REFRESH") await refreshAllPortfolioPrices();
+  else if (job.type === "OCR_DOCUMENT") await processOcr(JSON.parse(job.payload));
+  else if (job.type === "REMINDER_CHECK") await runExpirationCheck();
+  else if (job.type === "BACKUP_RUN") await runBackup();
+  else if (job.type === "EMAIL_INGEST") await runEmailIngestion();
+  else throw new Error(`Unsupported job type: ${job.type}`);
+}
+
+export async function runOneJob(options: { timeoutMs?: number } = {}) {
   const job = await claimJob();
   if (!job) return false;
   try {
-    if (job.type === "PRICE_REFRESH") await refreshAllPortfolioPrices();
-    else if (job.type === "OCR_DOCUMENT") await processOcr(JSON.parse(job.payload));
-    else if (job.type === "REMINDER_CHECK") await runExpirationCheck();
-    else if (job.type === "BACKUP_RUN") await runBackup();
-    else if (job.type === "EMAIL_INGEST") await runEmailIngestion();
-    else throw new Error(`Unsupported job type: ${job.type}`);
+    await withTimeout(executeJob(job), options.timeoutMs ?? JOB_TIMEOUT_MS, job.type);
     await prisma.backgroundJob.update({
       where: { id: job.id },
       data: { status: "DONE", finishedAt: new Date(), leasedUntil: null, activeDedupeKey: null },
@@ -111,21 +146,36 @@ async function processOcr(payload: { kind: "contract" | "product" | "inbox"; id:
   else await prisma.inboxDocument.update({ where: { id: payload.id }, data: { extractedText: text, extractionStatus: text ? "COMPLETED" : "FAILED" } });
 }
 
-// #432 — runs in this process are serialised: a call that arrives while
-// another is still draining the queue waits for it, then runs its own
-// pass, so two callers never claim and run jobs side by side.
-let draining: Promise<void> | null = null;
-
-export async function runPendingJobs(limit = 4): Promise<void> {
-  while (draining) {
-    await draining.catch(() => {});
+export async function runPendingJobs(limit = 4, options: { timeoutMs?: number } = {}): Promise<void> {
+  for (let i = 0; i < limit; i += 1) {
+    if (!(await runOneJob(options))) break;
   }
-  draining = (async () => {
-    for (let i = 0; i < limit; i += 1) {
-      if (!(await runOneJob())) break;
+}
+
+/**
+ * #432 — the 20s job-processor tick (instrumentation.ts). A tick that
+ * arrives while the previous one is still running is skipped, so slow
+ * ticks don't stack up queries behind each other, but only for up to
+ * LEASE_MS: a tick stuck longer than that no longer holds the processor.
+ */
+export function createJobTick(
+  run: () => Promise<void> = () => runPendingJobs(),
+  options: { maxBusyMs?: number; now?: () => number } = {},
+): () => Promise<void> {
+  const maxBusyMs = options.maxBusyMs ?? LEASE_MS;
+  const now = options.now ?? Date.now;
+  let busySince: number | null = null;
+  return async () => {
+    if (busySince !== null && now() - busySince < maxBusyMs) return;
+    const startedAt = now();
+    busySince = startedAt;
+    try {
+      await run();
+    } catch (error) {
+      console.error("[jobs] scheduled job processing failed:", error);
+    } finally {
+      // A newer tick may have taken over from a stuck one; leave its marker.
+      if (busySince === startedAt) busySince = null;
     }
-  })().finally(() => {
-    draining = null;
-  });
-  return draining;
+  };
 }

@@ -15,6 +15,7 @@ process.env.HEARTH_TEST_TMP_DIR = dir;
 // src/lib/prisma.ts caches its client on globalThis outside production; drop
 // any client a previous file in this worker left behind for its own database.
 delete (globalThis as { prisma?: unknown }).prisma;
+delete (globalThis as { hearthPrismaClients?: unknown }).hearthPrismaClients;
 
 afterAll(() => {
   rmSync(dir, { recursive: true, force: true });
