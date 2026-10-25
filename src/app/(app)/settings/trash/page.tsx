@@ -44,6 +44,12 @@ const DOMAIN_META: Record<
   vehicleItem: { label: "Vehicle item", icon: Wrench, restore: restoreVehicleItem, permanentlyDelete: permanentlyDeleteVehicleItem },
 };
 
+// Looks a domain up without indexing by a caller-supplied key: restoreAction
+// is a server action, so its bound `domain` argument arrives from the browser.
+function recordDomainMeta(domain: string) {
+  return Object.entries(DOMAIN_META).find(([key]) => key === domain)?.[1];
+}
+
 // One restore entry point for every row, returning the domain action's
 // ActionState so TrashRestoreButton can show an error.
 async function restoreAction(
@@ -56,7 +62,9 @@ async function restoreAction(
     if (!documentKind) return { error: "Document not found." };
     return restoreDocumentAction(documentKind, id);
   }
-  return DOMAIN_META[domain].restore(id);
+  const meta = recordDomainMeta(domain);
+  if (!meta) return { error: "Record not found." };
+  return meta.restore(id);
 }
 
 // A Document of any kind is one domain; its kind picks the label and the
@@ -65,12 +73,13 @@ function metaFor(entry: TrashEntry) {
   if (entry.domain === "document" && entry.documentKind) {
     const kind = entry.documentKind;
     return {
-      label: DOCUMENT_KIND_LABEL[kind],
+      label: Object.entries(DOCUMENT_KIND_LABEL).find(([key]) => key === kind)?.[1] ?? "Document",
       icon: FileText,
       permanentlyDelete: permanentlyDeleteDocumentAction.bind(null, kind, entry.id),
     };
   }
-  const meta = DOMAIN_META[entry.domain as RecordDomain];
+  const meta = recordDomainMeta(entry.domain);
+  if (!meta) throw new Error(`Unknown Trash domain: ${entry.domain}`);
   return { ...meta, permanentlyDelete: meta.permanentlyDelete.bind(null, entry.id) };
 }
 
