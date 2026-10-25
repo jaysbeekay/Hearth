@@ -269,7 +269,7 @@ describe("a record in Trash", () => {
     await expect(confirmProductExtractionCommand(product.id, {}, actorId)).rejects.toBeInstanceOf(
       RecordNotFoundError,
     );
-    expect(await confirmProductExtraction(product.id)).toEqual({ error: "Product not found." });
+    expect(await confirmProductExtraction(product.id)).toEqual({ error: "Warranty not found." });
   });
 });
 
@@ -291,7 +291,7 @@ describe("the server actions", () => {
   it("map a missing record through commandError", async () => {
     expect(await setContractStatus("missing", "CANCELLED")).toEqual({ error: "Contract not found." });
     expect(await confirmContractExtraction("missing")).toEqual({ error: "Contract not found." });
-    expect(await confirmProductExtraction("missing")).toEqual({ error: "Product not found." });
+    expect(await confirmProductExtraction("missing")).toEqual({ error: "Warranty not found." });
     expect(await updateContractFromAssistant("missing", { title: "x", category: "OTHER", provider: "y", renewalType: "FIXED_TERM" })).toEqual({
       success: false,
       error: "Contract not found.",
