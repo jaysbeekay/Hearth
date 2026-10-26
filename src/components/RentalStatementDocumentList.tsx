@@ -1,9 +1,10 @@
+import { Timestamp } from "@/components/Timestamp";
 import { FileText } from "lucide-react";
 import type { RentalStatementDocumentModel } from "@/generated/prisma/models";
 import { DocumentDeleteButton } from "@/components/DocumentDeleteButton";
 import { DocumentLink } from "@/components/DocumentLink";
 import { documentFileHref } from "@/lib/documents/kinds";
-import { formatDate, humanFileSize } from "@/lib/utils";
+import { humanFileSize } from "@/lib/utils";
 
 export function RentalStatementDocumentList({
   documents,
@@ -30,7 +31,7 @@ export function RentalStatementDocumentList({
             <FileText size={18} className="shrink-0 text-muted" />
             <span className="min-w-0 truncate">{doc.filename}</span>
             <span className="shrink-0 text-muted">
-              {humanFileSize(doc.size)} · {formatDate(doc.uploadedAt, dateFormat)}
+              {humanFileSize(doc.size)} · <Timestamp value={doc.uploadedAt} dateFormat={dateFormat} />
             </span>
           </DocumentLink>
           <DocumentDeleteButton

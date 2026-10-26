@@ -4,7 +4,7 @@ import type { LucideIcon } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { getTrashEntries, purgeExpiredTrash, TRASH_RETENTION_DAYS, type TrashEntry } from "@/lib/trash";
 import { getUserPreferences } from "@/lib/userPreferences";
-import { formatDate } from "@/lib/utils";
+import { formatTimestamp } from "@/lib/utils";
 import { TrashRestoreButton } from "@/components/TrashRestoreButton";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { restoreContract, permanentlyDeleteContract } from "@/lib/actions/contracts";
@@ -98,7 +98,7 @@ export default async function TrashPage() {
   // other, lower-latency-independent trigger for the same purge.
   await purgeExpiredTrash().catch(() => {});
 
-  const [session, { dateFormat }, entries] = await Promise.all([
+  const [session, { dateFormat, displayTimeZone }, entries] = await Promise.all([
     auth(),
     getUserPreferences(),
     getTrashEntries(),
@@ -135,7 +135,7 @@ export default async function TrashPage() {
                     <p className="truncate text-xs text-muted">
                       {meta.label}
                       {entry.subtitle ? ` · ${entry.subtitle}` : ""} · Deleted{" "}
-                      {formatDate(entry.deletedAt, dateFormat)} ·{" "}
+                      {formatTimestamp(entry.deletedAt, dateFormat, displayTimeZone)} ·{" "}
                       {remaining === 0 ? "Expires today" : `${remaining} day${remaining === 1 ? "" : "s"} left`}
                     </p>
                   </div>

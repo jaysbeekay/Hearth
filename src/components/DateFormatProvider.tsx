@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext } from "react";
-import type { DateFormat } from "@/lib/utils";
+import { DEFAULT_REGION, type DateFormat } from "@/lib/utils";
 
 // A native date input always renders in the *browser's* locale, so a household
 // that has chosen DD/MM/YYYY still sees 07/29/2026 in every form while the
@@ -12,18 +12,44 @@ import type { DateFormat } from "@/lib/utils";
 // what you picked is unambiguous even when the picker disagrees. It reads the
 // format from here rather than taking a prop, because otherwise every form and
 // every page rendering one would have to thread it through.
-const DateFormatContext = createContext<DateFormat>("DD/MM/YYYY");
+//
+// #422 — the same goes for Due labels and timestamps (DueLabelText,
+// Timestamp): they read the viewer's region and display timezone from here.
+export interface DisplayPreferences {
+  dateFormat: DateFormat;
+  region: string;
+  /** Where timestamps display (utils' displayTimeZone). Calendar dates always read in UTC. */
+  timeZone: string;
+}
+
+const DisplayPreferencesContext = createContext<DisplayPreferences>({
+  dateFormat: "DD/MM/YYYY",
+  region: DEFAULT_REGION,
+  timeZone: "UTC",
+});
 
 export function DateFormatProvider({
   dateFormat,
+  region = DEFAULT_REGION,
+  timeZone = "UTC",
   children,
 }: {
   dateFormat: DateFormat;
+  region?: string;
+  timeZone?: string;
   children: React.ReactNode;
 }) {
-  return <DateFormatContext.Provider value={dateFormat}>{children}</DateFormatContext.Provider>;
+  return (
+    <DisplayPreferencesContext.Provider value={{ dateFormat, region, timeZone }}>
+      {children}
+    </DisplayPreferencesContext.Provider>
+  );
 }
 
 export function useDateFormat(): DateFormat {
-  return useContext(DateFormatContext);
+  return useContext(DisplayPreferencesContext).dateFormat;
+}
+
+export function useDisplayPreferences(): DisplayPreferences {
+  return useContext(DisplayPreferencesContext);
 }

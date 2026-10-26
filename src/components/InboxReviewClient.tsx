@@ -1,5 +1,6 @@
 "use client";
 
+import { Timestamp } from "@/components/Timestamp";
 import { useEffect, useRef, useState } from "react";
 import { FileText, X, Loader2, AlertTriangle, Copy } from "lucide-react";
 import Link from "next/link";
@@ -9,7 +10,7 @@ import {
   keepInboxDocumentSeparate,
   attachInboxDocumentAsVersion,
 } from "@/lib/actions/import";
-import { CATEGORY_LABELS, humanFileSize, formatDate } from "@/lib/utils";
+import { CATEGORY_LABELS, humanFileSize } from "@/lib/utils";
 import { INVENTORY_ITEM_CATEGORIES } from "@/lib/validation/inventory";
 import { showToast } from "@/components/Toast";
 import { useCanWrite } from "@/components/CanWriteProvider";
@@ -82,7 +83,7 @@ function ReadOnlyInboxList({ docs, dateFormat }: { docs: InboxDocSummary[]; date
               <span className="min-w-0 truncate text-sm font-medium">{doc.filename}</span>
             </a>
             <span className="shrink-0 text-xs text-muted">
-              {humanFileSize(doc.size)} · {formatDate(new Date(doc.uploadedAt), dateFormat)}
+              {humanFileSize(doc.size)} · <Timestamp value={doc.uploadedAt} dateFormat={dateFormat} />
               {doc.fromAddress && ` · via email from ${doc.fromAddress}`}
             </span>
           </div>
@@ -569,7 +570,7 @@ export function InboxReviewClient({
                   <span className="min-w-0 truncate text-sm font-medium">{doc.filename}</span>
                 </a>
                 <span className="shrink-0 text-xs text-muted">
-                  {humanFileSize(doc.size)} · {formatDate(new Date(doc.uploadedAt), dateFormat)}
+                  {humanFileSize(doc.size)} · <Timestamp value={doc.uploadedAt} dateFormat={dateFormat} />
                   {doc.fromAddress && ` · via email from ${doc.fromAddress}`}
                 </span>
               </div>

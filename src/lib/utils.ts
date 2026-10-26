@@ -1,4 +1,5 @@
 import { clsx, type ClassValue } from "clsx";
+import { isValidTimeZone } from "@/lib/duePolicy";
 
 export function cn(...inputs: ClassValue[]) {
   return clsx(...inputs);
@@ -55,20 +56,64 @@ export const REGION_LABELS: Record<Region, string> = {
   "zh-CN": "China (1,234.56)",
 };
 
+function toValidDate(date: Date | string): Date | null {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+// A date in the user's format, read in `timeZone` ("UTC" for a calendar date).
+function formatInZone(d: Date, dateFormat: string | null | undefined, timeZone: string): string {
+  switch (dateFormat) {
+    case "MM/DD/YYYY":
+      return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric", timeZone });
+    case "YYYY-MM-DD":
+      // en-CA writes dates as YYYY-MM-DD.
+      return d.toLocaleDateString("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone });
+    default:
+      return d.toLocaleDateString("en-AU", { year: "numeric", month: "short", day: "numeric", timeZone });
+  }
+}
+
+/**
+ * A calendar date (an end date, expiry, purchase date and so on) in the
+ * user's date format. Calendar dates are stored at UTC midnight (the Due
+ * policy's input contract), so this reads them in UTC: a stored 1 Dec shows
+ * as 1 Dec whatever the server's or browser's timezone (#422). For a moment
+ * in time, such as when a document was uploaded, use `formatTimestamp`.
+ */
 export function formatDate(
   date: Date | string | null | undefined,
   dateFormat?: string | null,
 ) {
   if (!date) return "—";
-  const d = typeof date === "string" ? new Date(date) : date;
-  switch (dateFormat) {
-    case "MM/DD/YYYY":
-      return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
-    case "YYYY-MM-DD":
-      return d.toISOString().slice(0, 10);
-    default:
-      return d.toLocaleDateString("en-AU", { year: "numeric", month: "short", day: "numeric" });
-  }
+  const d = toValidDate(date);
+  return d ? formatInZone(d, dateFormat, "UTC") : "—";
+}
+
+/**
+ * The day a moment in time (uploadedAt, sentAt, createdAt...) fell on in
+ * `timeZone`, the viewer's display timezone, in the user's date format. An
+ * invalid or missing zone falls back to the runtime's own.
+ */
+export function formatTimestamp(
+  date: Date | string | null | undefined,
+  dateFormat?: string | null,
+  timeZone?: string | null,
+) {
+  if (!date) return "—";
+  const d = toValidDate(date);
+  if (!d) return "—";
+  return formatInZone(d, dateFormat, isValidTimeZone(timeZone) ? timeZone : Intl.DateTimeFormat().resolvedOptions().timeZone);
+}
+
+/**
+ * The timezone a viewer's timestamps display in: their own Preferences
+ * timezone once they've picked one, else the household's. "UTC" is the
+ * stored default for someone who has never chosen, so it defers to the
+ * household's zone, which in turn defaults to the server's.
+ */
+export function displayTimeZone(userTimeZone: string | null | undefined, householdTimeZone: string): string {
+  return isValidTimeZone(userTimeZone) && userTimeZone !== "UTC" ? userTimeZone : householdTimeZone;
 }
 
 export interface CurrencyFormatOptions {

@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { DueLabelText } from "@/components/DueLabelText";
 import { dueTone, type DueEntry, type DueTone } from "@/lib/dueRecords";
 
 const TONE_CLASS = new Map<DueTone, string>([
@@ -9,7 +10,8 @@ const TONE_CLASS = new Map<DueTone, string>([
 ]);
 
 // #384 — renders a Due entry's state and label, both from the Due policy
-// (ADR 0002). It decides nothing itself.
+// (ADR 0002). It decides nothing itself. #422 — the label reads in the
+// viewer's date format and region.
 export function ExpiryBadge({
   entry,
   cancelled,
@@ -29,7 +31,7 @@ export function ExpiryBadge({
         TONE_CLASS.get(tone),
       )}
     >
-      {cancelled ? "Cancelled" : (entry?.label ?? empty)}
+      {cancelled ? "Cancelled" : entry ? <DueLabelText entry={entry} /> : empty}
     </span>
   );
 }

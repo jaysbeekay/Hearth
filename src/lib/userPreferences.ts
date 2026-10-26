@@ -1,16 +1,23 @@
 import { cache } from "react";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { DEFAULT_REGION, type DateFormat, type Region } from "@/lib/utils";
+import { getHouseholdTimeZone } from "@/lib/appSettings";
+import { DEFAULT_REGION, displayTimeZone, type DateFormat, type Region } from "@/lib/utils";
 
 export interface UserPreferences {
   dateFormat: DateFormat;
   preferredCurrency: string;
   timezone: string;
   region: Region;
+  /**
+   * #422 — where this viewer's timestamps display: their own timezone once
+   * they've picked one, else the household's (utils' displayTimeZone).
+   * Calendar dates don't use it; they always read in UTC.
+   */
+  displayTimeZone: string;
 }
 
-const DEFAULT_PREFERENCES: UserPreferences = {
+const DEFAULT_PREFERENCES: Omit<UserPreferences, "displayTimeZone"> = {
   dateFormat: "DD/MM/YYYY",
   preferredCurrency: "AUD",
   timezone: "UTC",
@@ -23,18 +30,23 @@ const DEFAULT_PREFERENCES: UserPreferences = {
 // immediately instead of waiting for the session token to refresh.
 export const getUserPreferences = cache(async (): Promise<UserPreferences> => {
   const session = await auth();
-  if (!session?.user?.id) return DEFAULT_PREFERENCES;
+  const [user, householdTimeZone] = await Promise.all([
+    session?.user?.id
+      ? prisma.user.findUnique({
+          where: { id: session.user.id },
+          select: { dateFormat: true, preferredCurrency: true, timezone: true, region: true },
+        })
+      : null,
+    getHouseholdTimeZone(),
+  ]);
+  if (!user) return { ...DEFAULT_PREFERENCES, displayTimeZone: householdTimeZone };
 
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { dateFormat: true, preferredCurrency: true, timezone: true, region: true },
-  });
-  if (!user) return DEFAULT_PREFERENCES;
-
+  const timezone = user.timezone || DEFAULT_PREFERENCES.timezone;
   return {
     dateFormat: (user.dateFormat as DateFormat) || DEFAULT_PREFERENCES.dateFormat,
     preferredCurrency: user.preferredCurrency || DEFAULT_PREFERENCES.preferredCurrency,
-    timezone: user.timezone || DEFAULT_PREFERENCES.timezone,
+    timezone,
     region: (user.region as Region) || DEFAULT_PREFERENCES.region,
+    displayTimeZone: displayTimeZone(timezone, householdTimeZone),
   };
 });

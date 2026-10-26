@@ -8,7 +8,7 @@ import { isSmtpConfigured } from "@/lib/appSettings";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { CreateUserForm } from "@/components/CreateUserForm";
 import { MemberRoleForm } from "@/components/MemberRoleForm";
-import { formatDate, ROLE_LABELS } from "@/lib/utils";
+import { formatTimestamp, ROLE_LABELS } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
@@ -21,7 +21,7 @@ export default async function ManageUsersPage() {
     redirect("/settings");
   }
 
-  const [users, { dateFormat }, smtpConfigured] = await Promise.all([
+  const [users, { dateFormat, displayTimeZone }, smtpConfigured] = await Promise.all([
     prisma.user.findMany({ orderBy: { createdAt: "asc" } }),
     getUserPreferences(),
     isSmtpConfigured(),
@@ -41,7 +41,7 @@ export default async function ManageUsersPage() {
                   {user.name} <span className="text-muted">· {ROLE_LABELS[user.role] ?? user.role}</span>
                 </p>
                 <p className="text-xs text-muted">
-                  {user.email} · joined {formatDate(user.createdAt, dateFormat)}
+                  {user.email} · joined {formatTimestamp(user.createdAt, dateFormat, displayTimeZone)}
                 </p>
               </div>
               {user.id !== session.user.id && (
