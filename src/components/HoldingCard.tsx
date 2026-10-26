@@ -13,7 +13,8 @@ interface Props {
 export function HoldingCard({ holding, portfolioId, region }: Props) {
   const isPositive = (holding.gainLoss ?? 0) >= 0;
   const hasValue = holding.currentValue != null;
-  const hasGainLoss = holding.gainLoss != null;
+  const { gainLoss } = holding;
+  const hasGainLoss = gainLoss != null;
 
   return (
     <Link
@@ -59,11 +60,11 @@ export function HoldingCard({ holding, portfolioId, region }: Props) {
         <div>
           <dt className="text-xs text-muted">Gain / loss</dt>
           <dd className={`flex items-center gap-0.5 text-sm font-medium ${hasGainLoss ? (isPositive ? "text-success" : "text-danger") : "text-muted"}`}>
-            {hasGainLoss ? (
+            {gainLoss != null ? (
               <>
                 {isPositive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
                 {isPositive ? "+" : ""}
-                {formatCurrency(holding.gainLoss!, holding.costCurrency, undefined, region, { showCode: true })}
+                {formatCurrency(gainLoss,holding.costCurrency, undefined, region, { showCode: true })}
                 {holding.gainLossPct != null && (
                   <span className="ml-1 text-xs">
                     ({isPositive ? "+" : ""}{holding.gainLossPct.toFixed(1)}%)
