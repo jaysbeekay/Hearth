@@ -53,6 +53,10 @@ export function TradeForm({
   );
   const priceHintTicker = lookUpMarketPrice ? ticker : undefined;
   const [marketPrice, setMarketPrice] = useState<number | null>(null);
+  // Yahoo's quote currency for the ticker, when known (#404 review): the
+  // close is in it, so "Use" sets the Trade's currency to match.
+  const [marketCurrency, setMarketCurrency] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const [priceHintLoading, setPriceHintLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const priceInputRef = useRef<HTMLInputElement>(null);
@@ -68,10 +72,12 @@ export function TradeForm({
         const res = await fetch(
           `/api/wealth/price?ticker=${encodeURIComponent(priceHintTicker)}&date=${encodeURIComponent(selectedDate)}`,
         );
-        const data = (await res.json()) as { price: number | null };
+        const data = (await res.json()) as { price: number | null; currency?: string | null };
         setMarketPrice(data.price ?? null);
+        setMarketCurrency(data.currency ?? null);
       } catch {
         setMarketPrice(null);
+        setMarketCurrency(null);
       } finally {
         setPriceHintLoading(false);
       }
@@ -84,10 +90,15 @@ export function TradeForm({
   function applyMarketPrice() {
     if (marketPrice == null || !priceInputRef.current) return;
     priceInputRef.current.value = marketPrice.toFixed(4);
+    const currencySelect = formRef.current?.elements.namedItem("currency");
+    if (marketCurrency && currencySelect instanceof HTMLSelectElement) {
+      const listed = Array.from(currencySelect.options).some((o) => o.value === marketCurrency);
+      if (listed) currencySelect.value = marketCurrency;
+    }
   }
 
   return (
-    <form action={formAction} className="space-y-5">
+    <form ref={formRef} action={formAction} className="space-y-5">
       <FormMessage error={state?.error} success={state?.success} />
 
       <div className="grid grid-cols-2 gap-4">
@@ -158,7 +169,7 @@ export function TradeForm({
                 <span>Fetching market price…</span>
               ) : marketPrice != null ? (
                 <>
-                  <span>Market close {selectedDate}: {marketPrice.toFixed(4)}</span>
+                  <span>Market close {selectedDate}: {marketPrice.toFixed(4)}{marketCurrency ? ` ${marketCurrency}` : ""}</span>
                   <button
                     type="button"
                     onClick={applyMarketPrice}

@@ -12,7 +12,6 @@ interface Props {
 
 export function HoldingCard({ holding, portfolioId, region }: Props) {
   const isPositive = (holding.gainLoss ?? 0) >= 0;
-  const hasValue = holding.currentValue != null;
   const { gainLoss } = holding;
   const hasGainLoss = gainLoss != null;
 
@@ -54,7 +53,7 @@ export function HoldingCard({ holding, portfolioId, region }: Props) {
         <div>
           <dt className="text-xs text-muted">Market value</dt>
           <dd className="text-sm font-medium">
-            {hasValue ? formatCurrency(holding.currentValue!, holding.currency, undefined, region, { showCode: true }) : "—"}
+            {holding.currentValue != null ? formatCurrency(holding.currentValue, holding.currency, undefined, region, { showCode: true }) : "—"}
           </dd>
         </div>
         <div>
@@ -64,13 +63,15 @@ export function HoldingCard({ holding, portfolioId, region }: Props) {
               <>
                 {isPositive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
                 {isPositive ? "+" : ""}
-                {formatCurrency(gainLoss,holding.costCurrency, undefined, region, { showCode: true })}
+                {formatCurrency(gainLoss, holding.costCurrency, undefined, region, { showCode: true })}
                 {holding.gainLossPct != null && (
                   <span className="ml-1 text-xs">
                     ({isPositive ? "+" : ""}{holding.gainLossPct.toFixed(1)}%)
                   </span>
                 )}
               </>
+            ) : holding.unpricedReason === "NO_FX" ? (
+              <span>No exchange rate</span>
             ) : (
               <><Minus size={12} />—</>
             )}

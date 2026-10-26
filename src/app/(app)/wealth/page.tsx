@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Plus, AlertTriangle } from "lucide-react";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
-import { getNetWorth } from "@/lib/wealth";
+import { getNetWorth, netWorthExclusionNote } from "@/lib/wealth";
 import { refreshPricesForTickers } from "@/lib/prices";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency } from "@/lib/utils";
@@ -22,9 +22,9 @@ export default async function WealthPage() {
   const enabledModules = await getEnabledModuleKeys();
   const { region } = await getUserPreferences();
 
-  // Warm up prices in background before rendering
+  // Refresh prices before rendering. Not distinct by ticker: a crypto and an
+  // equity can share one (#404) and are priced separately.
   const holdings = await prisma.holding.findMany({
-    distinct: ["ticker"],
     select: { ticker: true, exchange: true, assetClass: true },
   });
   if (holdings.length) {
@@ -32,10 +32,12 @@ export default async function WealthPage() {
   }
 
   const data = await getNetWorth(enabledModules as Set<ModuleKey>);
+  const exclusionNote = netWorthExclusionNote(data.excluded);
   const hasPortfolios = data.portfolios.length > 0;
   const allHoldings = data.portfolios.flatMap((p) => p.holdings);
+  // Ranked by value in the net-worth currency, not raw mixed currencies.
   const topHoldings = [...allHoldings]
-    .sort((a, b) => (b.currentValue ?? 0) - (a.currentValue ?? 0))
+    .sort((a, b) => (b.netWorthValue ?? 0) - (a.netWorthValue ?? 0))
     .slice(0, 6);
 
   // #404 — one plain list of every part of the total, so the figures shown
@@ -78,11 +80,7 @@ export default async function WealthPage() {
             </li>
           ))}
         </ul>
-        {data.unpricedCount > 0 && (
-          <p className="text-sm text-muted">
-            {data.unpricedCount === 1 ? "1 holding has" : `${data.unpricedCount} holdings have`} no price yet and {data.unpricedCount === 1 ? "isn't" : "aren't"} counted.
-          </p>
-        )}
+        {exclusionNote && <p className="text-sm text-muted">{exclusionNote}</p>}
       </section>
 
       {/* Holdings */}

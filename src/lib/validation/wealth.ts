@@ -92,6 +92,9 @@ export const importedTradeSchema = z.object({
   pricePerUnit: z.number().finite().min(0).max(1e12),
   fees: z.number().finite().min(0).max(1e12),
   currency: z.string().trim().min(1).max(10),
+  // Asset class for a Holding this row creates (#404): CRYPTO when the CSV
+  // says so, see inferImportedAssetClass. Absent means SHARE.
+  assetClass: z.enum(["SHARE", "CRYPTO"]).optional(),
 });
 
 export type ImportedTrade = z.infer<typeof importedTradeSchema>;

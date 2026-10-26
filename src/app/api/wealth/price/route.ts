@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { isModuleEnabled } from "@/lib/modules/enablement";
-import { fetchHistoricalPrice } from "@/lib/prices";
+import { fetchHistoricalPrice, getQuoteCurrency } from "@/lib/prices";
 
 export async function GET(request: Request) {
   const session = await auth();
@@ -17,6 +17,8 @@ export async function GET(request: Request) {
   const date = new Date(dateStr);
   if (isNaN(date.getTime())) return NextResponse.json({ price: null });
 
-  const price = await fetchHistoricalPrice(ticker, date);
-  return NextResponse.json({ price });
+  // The close is in the ticker's quote currency; send it along (when a
+  // price refresh has cached it) so the Trade form can label it (#404).
+  const [price, currency] = await Promise.all([fetchHistoricalPrice(ticker, date), getQuoteCurrency(ticker)]);
+  return NextResponse.json({ price, currency: price != null ? currency : null });
 }

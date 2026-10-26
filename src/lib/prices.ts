@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { isCryptoHolding, priceSourceFor, type PricedHolding, type PriceRoutingFields } from "@/lib/priceSource";
+import { isCryptoHolding, priceCacheKey, priceSourceFor, type PricedHolding, type PriceRoutingFields } from "@/lib/priceSource";
 
 const EQUITY_TTL_MS = 15 * 60 * 1000; // 15 minutes
 const CRYPTO_TTL_MS = 5 * 60 * 1000;  // 5 minutes
@@ -48,16 +48,16 @@ export async function fetchEquityPrices(symbols: string[]): Promise<PriceResult[
   }
 }
 
-type CoinGeckoRow = { aud?: number; aud_24h_change?: number };
+type CoinGeckoRow = { aud?: number; aud_24h_change?: number; aud_market_cap?: number };
 
 // One CoinGecko /simple/price request, keyed by "ids" (CoinGecko coin IDs,
 // e.g. bitcoin) or "symbols" (e.g. btc). Returns rows by lowercased key; an
-// error or non-OK response is an empty map, so the ticker stays unpriced.
+// error, timeout or non-OK response (429 included) is an empty map.
 async function fetchCoinGecko(param: "ids" | "symbols", keys: string[]): Promise<Map<string, CoinGeckoRow>> {
   if (!keys.length) return new Map();
   try {
-    const url = `https://api.coingecko.com/api/v3/simple/price?${param}=${encodeURIComponent(keys.join(","))}&vs_currencies=aud&include_24hr_change=true`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    const url = `https://api.coingecko.com/api/v3/simple/price?${param}=${encodeURIComponent(keys.join(","))}&vs_currencies=aud&include_24hr_change=true&include_market_cap=true`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(COINGECKO_TIMEOUT_MS) });
     if (!res.ok) return new Map();
     const data = (await res.json()) as Record<string, CoinGeckoRow> | null;
     return new Map(Object.entries(data ?? {}).map(([key, row]) => [key.toLowerCase(), row]));
@@ -66,77 +66,146 @@ async function fetchCoinGecko(param: "ids" | "symbols", keys: string[]): Promise
   }
 }
 
+const COINGECKO_TIMEOUT_MS = 10_000;
+// How long a ticker's resolution (coin ID or symbol) is trusted before both
+// lookups run again.
+const RESOLUTION_TTL_MS = 24 * 60 * 60 * 1000;
+type CryptoLookup = "ids" | "symbols";
+// Lowercased ticker -> which lookup found the major coin. In-process only:
+// after a restart the first refresh asks both again, which costs one extra
+// request, not a wrong price.
+const cryptoResolution = new Map<string, { lookup: CryptoLookup; at: number }>();
+
+/** For tests: forget every ticker's resolved lookup. */
+export function clearCryptoResolution(): void {
+  cryptoResolution.clear();
+}
+
+function usable(row: CoinGeckoRow | undefined): row is CoinGeckoRow & { aud: number } {
+  return row?.aud != null && Number.isFinite(row.aud) && row.aud > 0;
+}
+
 /**
- * Prices crypto tickers in AUD from CoinGecko. A ticker is tried as a
- * CoinGecko coin ID first (what the Holding form asks for, e.g. bitcoin),
- * then as a coin symbol (e.g. BTC, #404). A ticker neither finds is left
- * out, so it shows as unpriced rather than borrowing another feed's price.
+ * Picks between a ticker's coin-ID hit and its symbol hit: the larger AUD
+ * market cap wins, and a tie (or no caps) goes to the coin ID, which the
+ * user typed on purpose. A coin ID can be an obscure token that happens to
+ * share a major coin's symbol: `ids=dot` is "Dot" at about AUD 0.01, while
+ * `symbols=dot` is Polkadot (#404 review).
+ */
+export function pickCoinGeckoHit(
+  byId: CoinGeckoRow | undefined,
+  bySymbol: CoinGeckoRow | undefined,
+): { row: CoinGeckoRow & { aud: number }; lookup: CryptoLookup } | null {
+  const id = usable(byId) ? byId : null;
+  const symbol = usable(bySymbol) ? bySymbol : null;
+  if (id && symbol) {
+    return (symbol.aud_market_cap ?? 0) > (id.aud_market_cap ?? 0)
+      ? { row: symbol, lookup: "symbols" }
+      : { row: id, lookup: "ids" };
+  }
+  if (id) return { row: id, lookup: "ids" };
+  if (symbol) return { row: symbol, lookup: "symbols" };
+  return null;
+}
+
+/**
+ * Prices crypto tickers in AUD from CoinGecko, in at most two requests run
+ * side by side (coin IDs and symbols), each with a 10s timeout. A ticker not
+ * resolved yet is looked up both ways and the bigger coin wins (see
+ * pickCoinGeckoHit); once resolved it's only looked up the winning way. A
+ * ticker neither lookup finds is left out, so it shows as unpriced rather
+ * than borrowing another feed's price.
  */
 export async function fetchCryptoPrices(tickers: string[]): Promise<PriceResult[]> {
   if (!tickers.length) return [];
+  const now = Date.now();
   const keys = [...new Set(tickers.map((t) => t.trim().toLowerCase()))];
-  const byId = await fetchCoinGecko("ids", keys);
-  const missing = keys.filter((k) => !byId.get(k)?.aud);
-  const bySymbol = await fetchCoinGecko("symbols", missing);
+  const resolvedLookup = (key: string) => {
+    const entry = cryptoResolution.get(key);
+    return entry && now - entry.at < RESOLUTION_TTL_MS ? entry.lookup : null;
+  };
+  const [byId, bySymbol] = await Promise.all([
+    fetchCoinGecko("ids", keys.filter((k) => resolvedLookup(k) !== "symbols")),
+    fetchCoinGecko("symbols", keys.filter((k) => resolvedLookup(k) !== "ids")),
+  ]);
+
+  const picked = new Map<string, CoinGeckoRow & { aud: number }>();
+  for (const key of keys) {
+    const hit = pickCoinGeckoHit(byId.get(key), bySymbol.get(key));
+    if (!hit) {
+      // Maybe the coin was renamed or delisted: ask both ways next time.
+      cryptoResolution.delete(key);
+      continue;
+    }
+    picked.set(key, hit.row);
+    if (!resolvedLookup(key)) cryptoResolution.set(key, { lookup: hit.lookup, at: now });
+  }
+
   return tickers.flatMap((ticker) => {
-    const key = ticker.trim().toLowerCase();
-    const row = byId.get(key)?.aud ? byId.get(key) : bySymbol.get(key);
-    if (!row?.aud) return [];
+    const row = picked.get(ticker.trim().toLowerCase());
+    if (!row) return [];
     return [{ ticker, price: row.aud, currency: "AUD", changePct: row.aud_24h_change ?? null, source: "coingecko" }];
   });
 }
 
-function uniqueByTicker<T extends { ticker: string }>(holdings: T[]): T[] {
-  return [...new Map(holdings.map((h) => [h.ticker, h])).values()];
-}
+// A failed lookup keeps the last good price this long (bumping its cachedAt
+// so it isn't re-requested on every view); after that it's dropped.
+const LAST_GOOD_PRICE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Refreshes the price cache for these Holdings: crypto from CoinGecko,
- * everything else from Yahoo (see isCryptoHolding). A cached row from the
- * other feed counts as stale whatever its age, so a crypto ticker that was
- * priced from Yahoo before #404 is re-fetched from CoinGecko on the next
- * refresh. getPriceMap ignores such a row meanwhile.
+ * everything else from Yahoo (see isCryptoHolding), each under its own
+ * priceCacheKey. A row from the other feed, or older than its TTL (15 min
+ * for equities, 5 min for crypto), is stale. A lookup that fails or finds
+ * nothing is cached too, for the same TTL, so a no-match or rate-limited
+ * ticker isn't re-requested on every page view: the last good price is kept
+ * for up to a day, otherwise the row records price 0, which getPriceMap
+ * treats as no price.
  */
 export async function refreshPricesForTickers(holdings: PricedHolding[]): Promise<void> {
   if (!holdings.length) return;
-  const unique = uniqueByTicker(holdings);
+  const byKey = new Map(holdings.map((h) => [priceCacheKey(h), h]));
 
   const now = new Date();
   const equityThreshold = new Date(now.getTime() - EQUITY_TTL_MS);
   const cryptoThreshold = new Date(now.getTime() - CRYPTO_TTL_MS);
 
-  const cached = await prisma.priceCache.findMany({
-    where: { ticker: { in: unique.map((t) => t.ticker) } },
-  });
+  const cached = await prisma.priceCache.findMany({ where: { ticker: { in: [...byKey.keys()] } } });
   const cacheMap = new Map(cached.map((c) => [c.ticker, c]));
 
-  const isStale = (holding: PricedHolding) => {
-    const entry = cacheMap.get(holding.ticker);
+  const stale = [...byKey.entries()].filter(([key, holding]) => {
+    const entry = cacheMap.get(key);
     const source = priceSourceFor(holding);
     if (!entry || entry.source !== source) return true;
     return entry.cachedAt < (source === "coingecko" ? cryptoThreshold : equityThreshold);
-  };
-  const stale = unique.filter(isStale);
-  const staleCryptos = stale.filter((h) => isCryptoHolding(h));
-  const staleEquities = stale.filter((h) => !isCryptoHolding(h));
+  });
+  if (!stale.length) return;
+  const staleCryptos = stale.filter(([, h]) => isCryptoHolding(h));
+  const staleEquities = stale.filter(([, h]) => !isCryptoHolding(h));
 
   const [equityResults, cryptoResults] = await Promise.all([
-    fetchEquityPrices(staleEquities.map((t) => t.ticker)),
-    fetchCryptoPrices(staleCryptos.map((t) => t.ticker)),
+    fetchEquityPrices(staleEquities.map(([, h]) => h.ticker)),
+    fetchCryptoPrices(staleCryptos.map(([, h]) => h.ticker)),
   ]);
+  const found = new Map<string, PriceResult>();
+  for (const r of equityResults) found.set(r.ticker, r);
+  for (const r of cryptoResults) found.set(priceCacheKey({ ticker: r.ticker, assetClass: "CRYPTO", exchange: null }), r);
 
-  const allResults = [...equityResults, ...cryptoResults];
-  if (!allResults.length) return;
-
-  await Promise.all(
-    allResults.map((r) =>
-      prisma.priceCache.upsert({
-        where: { ticker: r.ticker },
-        create: { ...r, cachedAt: now },
-        update: { price: r.price, currency: r.currency, changePct: r.changePct, source: r.source, cachedAt: now },
-      }),
-    ),
-  );
+  const lastGoodAfter = new Date(now.getTime() - LAST_GOOD_PRICE_MAX_AGE_MS);
+  for (const [key, holding] of stale) {
+    const result = found.get(key);
+    const source = priceSourceFor(holding);
+    const entry = cacheMap.get(key);
+    if (result) {
+      const data = { price: result.price, currency: result.currency, changePct: result.changePct, source, cachedAt: now };
+      await prisma.priceCache.upsert({ where: { ticker: key }, create: { ticker: key, ...data }, update: data });
+    } else if (entry && entry.source === source && entry.price > 0 && entry.cachedAt >= lastGoodAfter) {
+      await prisma.priceCache.update({ where: { ticker: key }, data: { cachedAt: now } });
+    } else {
+      const data = { price: 0, currency: entry?.currency ?? "AUD", changePct: null, source, cachedAt: now };
+      await prisma.priceCache.upsert({ where: { ticker: key }, create: { ticker: key, ...data }, update: data });
+    }
+  }
 }
 
 export async function refreshAllPortfolioPrices(): Promise<void> {
@@ -153,19 +222,25 @@ export interface CachedPrice {
 }
 
 /**
- * Cached prices for these Holdings, by ticker. Only a row from the Holding's
- * own feed counts: a Yahoo price cached for a crypto ticker (#404) is left
- * out, so the Holding shows as unpriced until CoinGecko answers.
+ * Cached prices for these Holdings, by priceCacheKey. Only a usable price
+ * (above zero) from the Holding's own feed counts, so a Yahoo price cached
+ * for a crypto ticker before #404 is never used.
  */
 export async function getPriceMap(holdings: PricedHolding[]): Promise<Map<string, CachedPrice>> {
   if (!holdings.length) return new Map();
-  const sources = new Map(uniqueByTicker(holdings).map((h) => [h.ticker, priceSourceFor(h)]));
+  const sources = new Map(holdings.map((h) => [priceCacheKey(h), priceSourceFor(h)]));
   const rows = await prisma.priceCache.findMany({ where: { ticker: { in: [...sources.keys()] } } });
   return new Map(
     rows
       .filter((r) => sources.get(r.ticker) === r.source && Number.isFinite(r.price) && r.price > 0)
       .map((r) => [r.ticker, { price: r.price, currency: r.currency, changePct: r.changePct }]),
   );
+}
+
+/** The quote currency Yahoo last reported for an equity ticker, if cached. */
+export async function getQuoteCurrency(ticker: string): Promise<string | null> {
+  const row = await prisma.priceCache.findUnique({ where: { ticker }, select: { currency: true, source: true } });
+  return row?.source === "yahoo" ? row.currency : null;
 }
 
 // ── Historical price functions ───────────────────────────────────────────────

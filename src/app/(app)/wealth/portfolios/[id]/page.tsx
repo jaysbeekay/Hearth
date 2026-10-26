@@ -6,7 +6,7 @@ import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency } from "@/lib/utils";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
-import { getNetWorth } from "@/lib/wealth";
+import { getNetWorth, unpricedHoldingsNote } from "@/lib/wealth";
 import { refreshPricesForTickers } from "@/lib/prices";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { HoldingCard } from "@/components/HoldingCard";
@@ -44,6 +44,10 @@ export default async function PortfolioPage({
   ]);
   const netWorth = await getNetWorth(enabledModules as Set<ModuleKey>);
   const portfolioValue = netWorth.portfolios.find((p) => p.portfolioId === id);
+  // Gain/loss compares counted holdings' value with their own cost only, so
+  // an unpriced holding's cost doesn't show as a loss (#404).
+  const pricedGainLoss = portfolioValue ? portfolioValue.totalValue - portfolioValue.pricedCost : 0;
+  const unpricedNote = unpricedHoldingsNote(portfolioValue?.unpricedCount ?? 0);
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -80,11 +84,14 @@ export default async function PortfolioPage({
           </div>
           <div className="rounded-xl border border-border bg-surface p-4">
             <p className="text-xs text-muted">Total gain / loss</p>
-            <p className={`mt-1 text-xl font-semibold ${(portfolioValue.totalValue - portfolioValue.totalCost) >= 0 ? "text-success" : "text-danger"}`}>
-              {formatCurrency(portfolioValue.totalValue - portfolioValue.totalCost, portfolio.currency, undefined, region, { showCode: true })}
+            <p className={`mt-1 text-xl font-semibold ${pricedGainLoss >= 0 ? "text-success" : "text-danger"}`}>
+              {formatCurrency(pricedGainLoss, portfolio.currency, undefined, region, { showCode: true })}
             </p>
           </div>
         </div>
+      )}
+      {unpricedNote && (
+        <p className="text-sm text-muted">{unpricedNote}</p>
       )}
 
       <div className="space-y-3">

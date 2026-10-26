@@ -346,20 +346,33 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 ### Fixed
 
 - **Wealth: net worth adds up, and crypto is priced from CoinGecko (#404).**
-  The Wealth page now shows the total above a plain list of every part of it
+  The Wealth page shows the total above a plain list of every part of it
   (shares/ETFs/crypto, Property, Items), so the figures always sum to the
-  total; Items were counted but had no tile. Crypto routing is keyed on the
-  Holding's asset class (falling back to an exchange of CRYPTO) in one
-  shared `isCryptoHolding` helper used by live prices, price history, the
-  Trade-date market-close backfill, CSV import and the Trade form's close
-  hint. Before, a CRYPTO "BTC" with a blank exchange went to Yahoo, where
-  BTC is an ETF, and showed USD 35.89 at -99.9%. A crypto ticker that isn't a
-  CoinGecko coin ID (e.g. BTC) is now tried as a coin symbol. Prices cached
-  from the wrong feed are ignored and re-fetched on the next refresh, and
-  stored Yahoo history and market closes are no longer shown for crypto. A
-  Holding with no price shows "No price", is left out of the total (with a
-  count shown under it), and gets no gain/loss. Gain/loss and cost basis are
-  shown in the portfolio's currency, converting the price first.
+  total; Items were counted but had no tile. Anything left out (a holding
+  with no price or exchange rate, or a portfolio, property or item with no
+  exchange rate) is named in a note under it.
+  - Crypto routing is keyed on the Holding's asset class (falling back to an
+    exchange of CRYPTO) in one `isCryptoHolding` helper, used by live
+    prices, price history, the Trade-date market-close backfill and the
+    Trade form's close hint. Before, a CRYPTO "BTC" with a blank exchange
+    went to Yahoo, where BTC is an ETF, and showed USD 35.89 at -99.9%.
+  - CoinGecko looks a ticker up as a coin ID and as a symbol and takes the
+    coin with the larger market cap (`ids=dot` alone is an obscure "Dot", not
+    Polkadot), then remembers which lookup won. Misses and rate limits are
+    cached for the price TTL, keeping the last good price for up to a day.
+  - Crypto prices are cached under their own key, so a BTC ETF and BTC the
+    coin are priced separately; a price cached from the wrong feed is never
+    used, and stored Yahoo history and market closes aren't shown for crypto.
+  - CSV import creates a crypto Holding when the generic format's Asset
+    Class or Exchange column says so, or for a common coin ticker such as
+    BTC when it has neither.
+  - Cost basis converts each Trade from its own currency into the
+    portfolio's (the Trade's FX rate to AUD when entered, else today's
+    rate), and gain/loss converts the price too. A holding with no price
+    shows "No price", one missing a rate "No exchange rate"; neither is
+    counted or given a gain/loss. A portfolio's gain/loss compares counted
+    holdings with their own cost. The Trade form's "Use" market close also
+    sets the Trade's currency to the quote currency.
 - **Adding a Holding no longer hangs the app (#432).** Its price-history
   backfill wrote one row at a time from four parallel workers, and the
   database connection serialises every query, so other requests (session

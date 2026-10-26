@@ -16,9 +16,9 @@ import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { DocumentLink } from "@/components/DocumentLink";
 import { ASSET_CLASS_LABELS, TRADE_TYPE_LABELS, COST_METHOD_LABELS } from "@/lib/validation/wealth";
 import { getUserPreferences } from "@/lib/userPreferences";
-import { holdingUnitsAndCost, valueHolding } from "@/lib/wealth";
+import { holdingUnitsAndCostIn, valueHolding } from "@/lib/wealth";
 import { refreshFxRates, getFxRateMap } from "@/lib/fx";
-import { isCryptoHolding } from "@/lib/priceSource";
+import { isCryptoHolding, priceCacheKey } from "@/lib/priceSource";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
@@ -208,26 +208,26 @@ export default async function HoldingPage({
 
   await refreshPricesForTickers([holding]).catch(() => {});
   const priceMap = await getPriceMap([holding]);
-  const priceEntry = priceMap.get(holding.ticker);
+  const priceEntry = priceMap.get(priceCacheKey(holding));
   const crypto = isCryptoHolding(holding);
 
   const sortedTrades = [...holding.trades].sort((a, b) => a.date.getTime() - b.date.getTime());
 
-  const { units, cost } = holdingUnitsAndCost(sortedTrades, holding.portfolio.costMethod);
-
   // Price and value are in the price feed's currency; cost basis and
-  // gain/loss in the portfolio's (#404).
+  // gain/loss in the portfolio's, converting each Trade's currency (#404).
   const currency = priceEntry?.currency ?? holding.portfolio.currency;
   const costCurrency = holding.portfolio.currency;
-  const fxPairs = [{ from: currency, to: costCurrency }];
+  const fxPairs = [currency, ...sortedTrades.map((t) => t.currency)].map((from) => ({ from, to: costCurrency }));
   await refreshFxRates(fxPairs).catch(() => {});
-  const { currentPrice, currentValue, gainLoss, gainLossPct } = valueHolding({
+  const rateMap = await getFxRateMap(fxPairs);
+  const { units, cost } = holdingUnitsAndCostIn(sortedTrades, holding.portfolio.costMethod, costCurrency, rateMap);
+  const { currentPrice, currentValue, gainLoss, gainLossPct, unpricedReason } = valueHolding({
     units,
     cost,
     price: priceEntry?.price,
     priceCurrency: currency,
     portfolioCurrency: costCurrency,
-    rateMap: await getFxRateMap(fxPairs),
+    rateMap,
   });
 
   // #432 — the chart shows whatever history is stored; missing history is
@@ -328,7 +328,9 @@ export default async function HoldingPage({
           <p className={`mt-1 text-lg font-semibold ${gainLoss == null ? "" : gainLoss >= 0 ? "text-success" : "text-danger"}`}>
             {gainLoss != null
               ? `${gainLoss >= 0 ? "+" : ""}${formatCurrency(gainLoss, costCurrency, undefined, region, { showCode: true })}`
-              : "—"}
+              : unpricedReason === "NO_FX"
+                ? <span className="text-muted">No exchange rate</span>
+                : "—"}
           </p>
           {gainLossPct != null && (
             <p className={`text-xs ${gainLossPct >= 0 ? "text-success" : "text-danger"}`}>
@@ -343,12 +345,12 @@ export default async function HoldingPage({
           <dt className="text-xs text-muted">
             Cost basis <span className="text-muted">({COST_METHOD_LABELS[holding.portfolio.costMethod]})</span>
           </dt>
-          <dd className="text-sm font-medium break-words">{formatCurrency(cost, costCurrency, undefined, region, { showCode: true })}</dd>
+          <dd className="text-sm font-medium break-words">{cost != null ? formatCurrency(cost, costCurrency, undefined, region, { showCode: true }) : <span className="text-muted">No exchange rate</span>}</dd>
         </div>
         <div className="min-w-0">
           <dt className="text-xs text-muted">Avg cost / unit</dt>
           <dd className="text-sm font-medium break-words">
-            {units > 0 && cost > 0 ? formatCurrency(cost / units, costCurrency, undefined, region, { showCode: true }) : "—"}
+            {units > 0 && cost != null && cost > 0 ? formatCurrency(cost / units, costCurrency, undefined, region, { showCode: true }) : "—"}
           </dd>
         </div>
         <div className="min-w-0">

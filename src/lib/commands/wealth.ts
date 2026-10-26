@@ -294,8 +294,8 @@ export async function permanentlyDeleteTradeCommand(id: string, scope: TradeScop
 // ── CSV import ──────────────────────────────────────────────────────────────
 
 // Imports rows already validated against importedTradesSchema. Each row's
-// ticker finds or creates its Holding in the Portfolio (a new one as a
-// SHARE); a row with an unreadable date, or one matching an existing Trade
+// ticker finds or creates its Holding in the Portfolio (a new one with the
+// row's inferred asset class, CRYPTO or SHARE, #404); a row with an unreadable date, or one matching an existing Trade
 // on the same Holding (date, type, units and price), is skipped.
 export async function importTradesCommand(portfolioId: string, rows: ImportedTrade[]) {
   await assertModuleEnabled("WEALTH");
@@ -312,7 +312,7 @@ export async function importTradesCommand(portfolioId: string, rows: ImportedTra
 
     const holding = await prisma.holding.upsert({
       where: { portfolioId_ticker: { portfolioId, ticker: row.ticker } },
-      create: { portfolioId, ticker: row.ticker, assetClass: "SHARE" },
+      create: { portfolioId, ticker: row.ticker, assetClass: row.assetClass ?? "SHARE" },
       update: {},
     });
 
