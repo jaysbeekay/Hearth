@@ -5,13 +5,33 @@ import { ADMIN_AUTH_FILE } from "../env";
 
 test.use({ storageState: ADMIN_AUTH_FILE });
 
+interface MockToolCall {
+  name: string;
+  arguments: Record<string, unknown>;
+}
+
+const CREATE_NETFLIX: MockToolCall = {
+  name: "propose_create_contract",
+  arguments: {
+    title: "Netflix Subscription",
+    category: "SUBSCRIPTION",
+    provider: "Netflix",
+    renewalType: "AUTO_RENEW",
+    cost: 15.99,
+    currency: "AUD",
+    billingFrequency: "MONTHLY",
+  },
+};
+
 // A minimal Ollama-compatible /api/chat mock: the first round (no "tool"
-// role message yet) proposes creating a contract; the second round (after
-// the tool result comes back) streams a short closing reply. Mirrors
+// role message yet) makes the tool call `nextCall()` returns; the second
+// round (after the tool result comes back) streams a short closing reply. Mirrors
 // Ollama's real newline-delimited-JSON streaming shape closely enough to
 // exercise the app's own NDJSON parser (src/lib/ai/chat/providers/ollama.ts)
 // end-to-end, without needing a real provider/API key.
-function startMockOllama(): Promise<{ url: string; close: () => Promise<void> }> {
+function startMockOllama(
+  nextCall: () => MockToolCall = () => CREATE_NETFLIX,
+): Promise<{ url: string; close: () => Promise<void> }> {
   return new Promise((resolve) => {
     const server = http.createServer((req, res) => {
       if (req.method !== "POST" || req.url !== "/api/chat") {
@@ -31,22 +51,7 @@ function startMockOllama(): Promise<{ url: string; close: () => Promise<void> }>
               message: {
                 role: "assistant",
                 content: "",
-                tool_calls: [
-                  {
-                    function: {
-                      name: "propose_create_contract",
-                      arguments: {
-                        title: "Netflix Subscription",
-                        category: "SUBSCRIPTION",
-                        provider: "Netflix",
-                        renewalType: "AUTO_RENEW",
-                        cost: 15.99,
-                        currency: "AUD",
-                        billingFrequency: "MONTHLY",
-                      },
-                    },
-                  },
-                ],
+                tool_calls: [{ function: nextCall() }],
               },
               done: true,
             }) + "\n",
@@ -115,6 +120,72 @@ test("assistant proposes a contract, confirming creates it and cancelling doesn'
 
     await page.goto("/contracts");
     await expect(page.locator("a", { hasText: "Netflix Subscription" })).toHaveCount(1);
+  } finally {
+    await mock.close();
+  }
+});
+
+// #420: an update proposal carries only the fields the Assistant named, the
+// card lists exactly those, and confirming changes only them.
+test("assistant update proposal lists and writes only the named fields", async ({ page }) => {
+  let contractId = "";
+  const createGym: MockToolCall = {
+    name: "propose_create_contract",
+    arguments: {
+      title: "Assistant Gym",
+      category: "SUBSCRIPTION",
+      provider: "FitCo",
+      renewalType: "AUTO_RENEW",
+      cost: 60,
+      billingFrequency: "MONTHLY",
+    },
+  };
+  const mock = await startMockOllama(() =>
+    contractId ? { name: "propose_update_contract", arguments: { contractId, cost: 72.5 } } : createGym,
+  );
+  try {
+    await page.goto("/settings/app");
+    await page.locator("#ollamaBaseUrl").fill(mock.url);
+    await page
+      .locator("#ollamaBaseUrl")
+      .locator("xpath=ancestor::form[1]")
+      .locator("button[type=submit]")
+      .click();
+    await expect(page.getByText("Ollama settings saved.").first()).toBeVisible();
+
+    await page.selectOption("#chatProvider", "OLLAMA");
+    await page.locator("#chatModel").fill("test-model");
+    await page
+      .locator("#chatProvider")
+      .locator("xpath=ancestor::form[1]")
+      .locator("button[type=submit]")
+      .click();
+    await expect(page.getByText("AI Assistant settings saved.").first()).toBeVisible();
+
+    await page.goto("/assistant");
+    await page.locator("textarea").last().fill("Add my gym membership");
+    await page.keyboard.press("Enter");
+    await page.getByRole("button", { name: "Confirm" }).click();
+    await expect(page.getByText("Created the contract successfully.")).toBeVisible();
+
+    await page.goto("/contracts");
+    const href = await page.locator("a", { hasText: "Assistant Gym" }).first().getAttribute("href");
+    contractId = href!.split("/").pop()!;
+
+    await page.goto("/assistant");
+    await page.locator("textarea").last().fill("The gym is now $72.50 a month");
+    await page.keyboard.press("Enter");
+
+    const card = page.locator("div", { has: page.getByText("Update contract: Assistant Gym") }).last();
+    await expect(card.getByText("Update contract: Assistant Gym")).toBeVisible();
+    await expect(card.locator("dt")).toHaveText(["Cost:"]);
+    await expect(card.locator("dd")).toHaveText(["72.5"]);
+
+    await card.getByRole("button", { name: "Confirm" }).click();
+    await expect(page.getByText("Updated the contract successfully.")).toBeVisible();
+
+    await page.goto(`/contracts/${contractId}`);
+    await expect(page.getByText("72.50").first()).toBeVisible();
   } finally {
     await mock.close();
   }

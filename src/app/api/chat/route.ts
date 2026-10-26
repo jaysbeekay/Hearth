@@ -67,6 +67,7 @@ type ChatStreamEvent =
       entity: "contract" | "product";
       operation: "create" | "update";
       entityId?: string;
+      label?: string;
       data: Record<string, unknown>;
     }
   | { type: "error"; message: string }
@@ -204,6 +205,7 @@ export async function POST(request: NextRequest) {
               entity: "contract" | "product";
               operation: "create" | "update";
               entityId?: string;
+              label?: string;
               data: Record<string, unknown>;
             };
             controller.enqueue(
@@ -213,6 +215,7 @@ export async function POST(request: NextRequest) {
                 entity: proposal.entity,
                 operation: proposal.operation,
                 entityId: proposal.entityId,
+                label: proposal.label,
                 data: proposal.data,
               }),
             );

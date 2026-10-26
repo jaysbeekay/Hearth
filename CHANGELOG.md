@@ -345,6 +345,14 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **Assistant updates change only the fields they name (#420).** Updating a
+  Contract or Warranty through the Assistant used to parse the change as a
+  full record, so fields it didn't mention fell back to their defaults: a
+  cost-only change unticked tax-deductible and reactivated a cancelled
+  Contract. Update proposals now carry only the named fields, the
+  confirmation card lists exactly those (under the record's current name),
+  and the write is a partial patch. An end date before the saved start date
+  is still refused. Create proposals are unchanged.
 - **Adding a Holding no longer hangs the app (#432).** Its price-history
   backfill wrote one row at a time from four parallel workers, and the
   database connection serialises every query, so other requests (session

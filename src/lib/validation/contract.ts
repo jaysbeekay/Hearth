@@ -30,7 +30,10 @@ export const CONTRACT_STATUSES = ["ACTIVE", "CANCELLED"] as const;
 const emptyToUndefined = (val: unknown) =>
   val == null || (typeof val === "string" && val.trim() === "") ? undefined : val;
 
-export const contractSchema = z.object({
+// The unrefined object, for callers that need .partial()/.pick(): Zod 4
+// refuses those on a schema with a .refine. Use contractSchema for a full
+// record and contractPatchSchema for a partial update.
+export const contractBaseSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(200),
   category: z.enum(CONTRACT_CATEGORIES),
   provider: z.string().trim().min(1, "Provider/company is required").max(200),
@@ -75,9 +78,19 @@ export const contractSchema = z.object({
   isTaxDeductible: z.boolean().default(false),
   propertyId: z.preprocess(emptyToUndefined, z.string().trim().max(100).optional()),
   vehicleId: z.preprocess(emptyToUndefined, z.string().trim().max(100).optional()),
-}).refine(
-  (data) => !data.startDate || !data.endDate || data.endDate >= data.startDate,
-  { message: "End date can't be before the start date.", path: ["endDate"] },
-);
+});
+
+const contractDatesInOrder = (data: { startDate?: Date; endDate?: Date }) =>
+  !data.startDate || !data.endDate || data.endDate >= data.startDate;
+const contractDateOrderIssue = { message: "End date can't be before the start date.", path: ["endDate"] };
+
+export const contractSchema = contractBaseSchema.refine(contractDatesInOrder, contractDateOrderIssue);
+
+// A partial update (the Assistant's, #420). Note .partial() still fills
+// .default()s for absent keys, so pass the result through namedKeysOnly()
+// before writing it, or a cost-only change resets status and tax-deductible.
+// The date check here only sees a pair sent together; the update command
+// checks a single date against the saved one.
+export const contractPatchSchema = contractBaseSchema.partial().refine(contractDatesInOrder, contractDateOrderIssue);
 
 export type ContractInput = z.infer<typeof contractSchema>;

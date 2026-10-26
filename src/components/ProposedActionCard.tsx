@@ -13,6 +13,10 @@ export interface ProposedAction {
   entity: "contract" | "product";
   operation: "create" | "update";
   entityId?: string;
+  // An update's record name, looked up when the proposal was made: an
+  // update's data holds only the changing fields, so may have no title.
+  label?: string;
+  // A create's full record, or an update's changing fields only (#420).
   data: Record<string, unknown>;
 }
 
@@ -109,8 +113,11 @@ export function ProposedActionCard({
 
   if (resolved) return null;
 
+  // An update lists exactly the fields it changes; nothing else is sent.
   const entries = Object.entries(action.data).filter(([, v]) => v != null && v !== "");
-  const titleValue = (action.data.title ?? action.data.description) as string | undefined;
+  const titleValue = action.operation === "update" && action.label
+    ? action.label
+    : ((action.data.title ?? action.data.description) as string | undefined);
 
   return (
     <div className="mt-2 rounded-xl border border-accent/30 bg-accent/5 p-3 text-sm">

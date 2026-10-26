@@ -18,6 +18,7 @@ type ChatStreamEvent =
       entity: "contract" | "product";
       operation: "create" | "update";
       entityId?: string;
+      label?: string;
       data: Record<string, unknown>;
     }
   | { type: "error"; message: string }
@@ -99,6 +100,7 @@ export function AssistantClient({
             entity: event.entity,
             operation: event.operation,
             entityId: event.entityId,
+            label: event.label,
             data: event.data,
           };
           setMessages((prev) =>

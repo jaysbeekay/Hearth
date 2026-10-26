@@ -2,7 +2,8 @@
 
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { productSchema } from "@/lib/validation/product";
+import { productSchema, productPatchSchema } from "@/lib/validation/product";
+import { parseNamedPatch } from "@/lib/validation/namedPatch";
 import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
 import { ProductDocumentKind } from "@/generated/prisma/enums";
 import { formDataToStringValues } from "@/lib/form-state";
@@ -205,9 +206,10 @@ export type AssistantActionResult =
 
 // Counterparts to createProduct/updateProduct for the AI Assistant's
 // guarded-write flow (see src/lib/chat/tools.ts) — same requireUser() gate
-// and productSchema validation as the real forms, but returns a plain
-// result instead of redirect()ing, since a chat reply shouldn't navigate the
-// user away from their conversation.
+// and product schema as the real forms, but returns a plain result instead
+// of redirect()ing, since a chat reply shouldn't navigate the user away from
+// their conversation. A create takes a full record (productSchema); an
+// update takes only the fields the Assistant named (productPatchSchema).
 export async function createProductFromAssistant(
   data: Record<string, unknown>,
 ): Promise<AssistantActionResult> {
@@ -233,8 +235,10 @@ export async function updateProductFromAssistant(
 ): Promise<AssistantActionResult> {
   const user = await requireUser();
 
-  const parsed = productSchema.safeParse(data);
-  if (!parsed.success) return { success: false, error: firstIssueMessage(parsed.error) };
+  // Only the fields the Assistant named are written (#420); the rest of the
+  // record stays as it is.
+  const parsed = parseNamedPatch(productPatchSchema, data);
+  if (!parsed.success) return parsed;
 
   const linkError = await linkedRecordError(parsed.data);
   if (linkError) return { success: false, error: linkError };
