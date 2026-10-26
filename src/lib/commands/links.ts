@@ -4,8 +4,9 @@ import { isModuleEnabled } from "@/lib/modules/enablement";
 // Checks the Property and Vehicle a Contract or Product is to be linked to
 // before the write, so a made-up or trashed id is refused with a message
 // rather than failing as a foreign-key error (or linking to a record in
-// Trash). A Vehicle link also needs the Vehicles module on, as the forms
-// only offer the Vehicle select while it is. The forms only offer live
+// Trash). A Property link needs the Properties (HOME) module on, and a
+// Vehicle link the Vehicles module, as the forms only offer each select
+// while its module is. The forms only offer live
 // records; this is for callers that take ids from elsewhere, such as the
 // Assistant. Returns the message, or null when every given link is live.
 export async function linkedRecordError(links: {
@@ -13,6 +14,9 @@ export async function linkedRecordError(links: {
   vehicleId?: string | null;
 }): Promise<string | null> {
   if (links.propertyId) {
+    if (!(await isModuleEnabled("HOME"))) {
+      return "The Properties module is off, so this can't be linked to a property.";
+    }
     const property = await prisma.property.findUnique({
       where: { id: links.propertyId },
       select: { deletedAt: true },

@@ -355,7 +355,7 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   is refused when the proposal is made, not only on confirm. Create
   proposals are unchanged. The card also shows dates as calendar dates and a
   linked Property or Vehicle by name, and the Assistant can no longer link a
-  record to a Vehicle while the Vehicles module is off.
+  record to a Property or Vehicle while that module is off.
 - **Adding a Holding no longer hangs the app (#432).** Its price-history
   backfill wrote one row at a time from four parallel workers, and the
   database connection serialises every query, so other requests (session

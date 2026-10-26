@@ -329,6 +329,7 @@ describe("the Assistant's actions", () => {
 
   it("refuse a link to a Property or Vehicle that's missing or in Trash", async () => {
     const contract = await newContract();
+    await setModuleEnabled("HOME", true);
     expect(await updateContractFromAssistant(contract.id, { ...contractData, propertyId: "nope" })).toEqual({
       success: false,
       error: "That property doesn't exist or is in Trash.",
@@ -353,6 +354,7 @@ describe("the Assistant's actions", () => {
   });
 
   it("still link to a live Property", async () => {
+    await setModuleEnabled("HOME", true);
     const property = await db.prisma.property.create({ data: { label: "Home", createdById: actorId } });
     const result = await createContractFromAssistant({ ...contractData, propertyId: property.id });
     expect(result.success).toBe(true);

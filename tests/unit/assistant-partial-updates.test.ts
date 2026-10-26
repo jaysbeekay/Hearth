@@ -46,6 +46,7 @@ const newContract = () =>
     actorId,
   );
 
+const PROPERTIES_OFF = "The Properties module is off, so this can't be linked to a property.";
 const VEHICLES_OFF = "The Vehicles module is off, so this can't be linked to a vehicle.";
 
 const savedContract = (id: string) => db.prisma.contract.findUniqueOrThrow({ where: { id } });
@@ -115,9 +116,13 @@ describe("propose_update_contract", () => {
     );
   });
 
-  it("shows a linked property by name, and refuses a vehicle while Vehicles is off", async () => {
+  it("shows a linked property by name, and refuses a link while its module is off", async () => {
     const contract = await newContract();
     const property = await db.prisma.property.create({ data: { label: "Beach house", createdById: actorId } });
+    expect((await propose("propose_update_contract", { contractId: contract.id, propertyId: property.id })).error).toBe(
+      PROPERTIES_OFF,
+    );
+    await setModuleEnabled("HOME", true);
     const linked = await propose("propose_update_contract", { contractId: contract.id, propertyId: property.id });
     expect(linked.data).toEqual({ propertyId: property.id });
     expect(linked.displayValues).toEqual({ propertyId: "Beach house" });
@@ -237,6 +242,19 @@ describe("updateContractFromAssistant", () => {
     expect(saved.notes).toBe("Joined in January");
     expect(saved.createdById).toBe(actorId);
     expect(saved.status).toBe("ACTIVE");
+  });
+
+  it("refuses a property link while the Properties module is off", async () => {
+    const contract = await newContract();
+    const property = await db.prisma.property.create({ data: { label: "Beach house", createdById: actorId } });
+    expect(await updateContractFromAssistant(contract.id, { propertyId: property.id })).toEqual({
+      success: false,
+      error: PROPERTIES_OFF,
+    });
+    expect((await savedContract(contract.id)).propertyId).toBeNull();
+    await setModuleEnabled("HOME", true);
+    expect((await updateContractFromAssistant(contract.id, { propertyId: property.id })).success).toBe(true);
+    expect((await savedContract(contract.id)).propertyId).toBe(property.id);
   });
 
   it("refuses a vehicle link while the Vehicles module is off", async () => {
