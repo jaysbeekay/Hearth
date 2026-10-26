@@ -37,7 +37,7 @@ export function SignOutButton({
     try {
       await logout();
     } catch (err) {
-      const digest = (err as { digest?: string })?.digest;
+      const digest = (err as { digest?: string } | null)?.digest;
       if (typeof digest === "string" && digest.startsWith("NEXT_REDIRECT")) throw err;
       setBusy(null);
       setPendingCount(0);
@@ -99,7 +99,7 @@ export function SignOutButton({
       <button
         ref={triggerRef}
         type="button"
-        onClick={onSignOut}
+        onClick={() => { void onSignOut(); }}
         disabled={busy === "signout"}
         aria-label={iconOnly ? "Sign out" : undefined}
         className={className ?? "flex items-center gap-2 text-sm text-muted hover:text-foreground"}
@@ -138,7 +138,7 @@ export function SignOutButton({
           <button
             type="button"
             disabled={busy !== null}
-            onClick={onDiscard}
+            onClick={() => { void onDiscard(); }}
             className={`${compactButtonClass("danger")} disabled:opacity-50`}
           >
             {busy === "discard" ? "Signing out…" : "Discard and sign out"}
@@ -146,7 +146,7 @@ export function SignOutButton({
           <button
             type="button"
             disabled={busy !== null}
-            onClick={onSyncNow}
+            onClick={() => { void onSyncNow(); }}
             className={cn(
               "inline-flex min-h-11 items-center justify-center rounded-lg px-3 text-sm font-medium disabled:opacity-50",
               buttonVariants.primary,
