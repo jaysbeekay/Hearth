@@ -1,7 +1,7 @@
 // Extraction review, Confirm details and Contract status go through the
 // Contract and Product commands (#393, ADR 0003).
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { setupTestDb, createTestUser } from "../helpers/testDb";
+import { setupTestDb, createTestUser, setModuleEnabled } from "../helpers/testDb";
 import {
   createContractCommand,
   updateContractCommand,
@@ -333,6 +333,7 @@ describe("the Assistant's actions", () => {
       success: false,
       error: "That property doesn't exist or is in Trash.",
     });
+    await setModuleEnabled("VEHICLES", true);
     const vehicle = await db.prisma.vehicle.create({
       data: { label: "Ute", createdById: actorId, deletedAt: new Date() },
     });

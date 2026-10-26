@@ -69,6 +69,7 @@ type ChatStreamEvent =
       entityId?: string;
       label?: string;
       data: Record<string, unknown>;
+      displayValues?: Record<string, string>;
     }
   | { type: "error"; message: string }
   | { type: "done"; threadId: string };
@@ -207,6 +208,7 @@ export async function POST(request: NextRequest) {
               entityId?: string;
               label?: string;
               data: Record<string, unknown>;
+              displayValues?: Record<string, string>;
             };
             controller.enqueue(
               sseFrame({
@@ -217,6 +219,7 @@ export async function POST(request: NextRequest) {
                 entityId: proposal.entityId,
                 label: proposal.label,
                 data: proposal.data,
+                displayValues: proposal.displayValues,
               }),
             );
           }

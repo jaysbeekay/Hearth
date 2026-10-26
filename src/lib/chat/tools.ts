@@ -10,6 +10,7 @@ import {
 } from "@/lib/validation/contract";
 import { productSchema, productPatchSchema } from "@/lib/validation/product";
 import { parseNamedPatch } from "@/lib/validation/namedPatch";
+import { linkedRecordError } from "@/lib/commands/links";
 import { CATEGORY_LABELS, daysUntil, monthlyEquivalent } from "@/lib/utils";
 import { getNetWorth } from "@/lib/wealth";
 import {
@@ -318,7 +319,8 @@ const netWorthTool = defineTool({
 // fields against the same Zod schemas the real forms use (contractSchema /
 // productSchema for a create; their .partial() patch schemas for an update,
 // keeping only the fields the model named) and echo back the validated data.
-// An update also reads the record's name, for the confirmation card. src/app/api/chat/route.ts
+// An update also reads the record's name and dates, and any linked
+// record's name, for the confirmation card. src/app/api/chat/route.ts
 // detects a successful proposal and emits it to the client as a distinct
 // "proposed_action" SSE event; the actual write only happens once the user
 // reviews and explicitly confirms it in the UI, via createContractFromAssistant
@@ -351,6 +353,32 @@ const CONTRACT_WRITE_PROPERTIES = {
   isTaxDeductible: { type: "boolean" },
 } as const;
 
+// The card shows a linked Property or Vehicle by name, not its id. Checks
+// the link first (missing, in Trash, or Vehicles off), so a proposal the
+// confirm would refuse is refused now instead.
+async function linkDisplay(
+  data: { propertyId?: string; vehicleId?: string },
+): Promise<{ error: string } | { displayValues?: Record<string, string> }> {
+  const linkError = await linkedRecordError(data);
+  if (linkError) return { error: linkError };
+  const displayValues: Record<string, string> = {};
+  if (data.propertyId) {
+    const property = await prisma.property.findUnique({ where: { id: data.propertyId }, select: { label: true } });
+    if (property) displayValues.propertyId = property.label;
+  }
+  if (data.vehicleId) {
+    const vehicle = await prisma.vehicle.findUnique({ where: { id: data.vehicleId }, select: { label: true } });
+    if (vehicle) displayValues.vehicleId = vehicle.label;
+  }
+  return Object.keys(displayValues).length > 0 ? { displayValues } : {};
+}
+
+// A date moved on its own is checked against the saved other date here, so
+// the user isn't shown a card whose confirm the command would refuse.
+function datesOutOfOrder(start: Date | null | undefined, end: Date | null | undefined) {
+  return Boolean(start && end && end < start);
+}
+
 const proposeCreateContractTool = defineTool({
   name: "propose_create_contract",
   description:
@@ -366,7 +394,9 @@ const proposeCreateContractTool = defineTool({
   run: async (input) => {
     const parsed = contractSchema.safeParse(input);
     if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
-    return { proposed: true, entity: "contract", operation: "create", data: parsed.data };
+    const links = await linkDisplay(parsed.data);
+    if ("error" in links) return links;
+    return { proposed: true, entity: "contract", operation: "create", data: parsed.data, ...links };
   },
 });
 
@@ -395,9 +425,13 @@ const proposeUpdateContractTool = defineTool({
     // Read-only lookup, so the card can say which contract it changes.
     const contract = await prisma.contract.findFirst({
       where: { id: contractId, deletedAt: null },
-      select: { title: true },
+      select: { title: true, startDate: true, endDate: true },
     });
     if (!contract) return { error: "No contract with that id." };
+    const { startDate = contract.startDate, endDate = contract.endDate } = parsed.data;
+    if (datesOutOfOrder(startDate, endDate)) return { error: "End date can't be before the start date." };
+    const links = await linkDisplay(parsed.data);
+    if ("error" in links) return links;
     return {
       proposed: true,
       entity: "contract",
@@ -405,6 +439,7 @@ const proposeUpdateContractTool = defineTool({
       entityId: contractId,
       label: contract.title,
       data: parsed.data,
+      ...links,
     };
   },
 });
@@ -439,7 +474,9 @@ const proposeCreateProductTool = defineTool({
   run: async (input) => {
     const parsed = productSchema.safeParse(input);
     if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
-    return { proposed: true, entity: "product", operation: "create", data: parsed.data };
+    const links = await linkDisplay(parsed.data);
+    if ("error" in links) return links;
+    return { proposed: true, entity: "product", operation: "create", data: parsed.data, ...links };
   },
 });
 
@@ -466,9 +503,15 @@ const proposeUpdateProductTool = defineTool({
     if (!parsed.success) return { error: parsed.error };
     const product = await prisma.product.findFirst({
       where: { id: productId, deletedAt: null },
-      select: { description: true },
+      select: { description: true, purchaseDate: true, warrantyEndDate: true },
     });
     if (!product) return { error: "No product with that id." };
+    const { purchaseDate = product.purchaseDate, warrantyEndDate = product.warrantyEndDate } = parsed.data;
+    if (datesOutOfOrder(purchaseDate, warrantyEndDate)) {
+      return { error: "Warranty end date can't be before the purchase date." };
+    }
+    const links = await linkDisplay(parsed.data);
+    if ("error" in links) return links;
     return {
       proposed: true,
       entity: "product",
@@ -476,6 +519,7 @@ const proposeUpdateProductTool = defineTool({
       entityId: productId,
       label: product.description,
       data: parsed.data,
+      ...links,
     };
   },
 });

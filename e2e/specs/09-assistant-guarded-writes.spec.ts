@@ -141,7 +141,9 @@ test("assistant update proposal lists and writes only the named fields", async (
     },
   };
   const mock = await startMockOllama(() =>
-    contractId ? { name: "propose_update_contract", arguments: { contractId, cost: 72.5 } } : createGym,
+    contractId
+      ? { name: "propose_update_contract", arguments: { contractId, cost: 72.5, endDate: "2027-05-15" } }
+      : createGym,
   );
   try {
     await page.goto("/settings/app");
@@ -178,8 +180,9 @@ test("assistant update proposal lists and writes only the named fields", async (
 
     const card = page.locator("div", { has: page.getByText("Update contract: Assistant Gym") }).last();
     await expect(card.getByText("Update contract: Assistant Gym")).toBeVisible();
-    await expect(card.locator("dt")).toHaveText(["Cost:"]);
-    await expect(card.locator("dd")).toHaveText(["72.5"]);
+    // Fields list in the schema's order, not the order the Assistant sent them.
+    await expect(card.locator("dt")).toHaveText(["End date:", "Cost:"]);
+    await expect(card.locator("dd")).toHaveText([/^\d{1,2} May 2027$/, "72.5"]);
 
     await card.getByRole("button", { name: "Confirm" }).click();
     await expect(page.getByText("Updated the contract successfully.")).toBeVisible();

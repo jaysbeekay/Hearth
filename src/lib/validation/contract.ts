@@ -87,8 +87,9 @@ const contractDateOrderIssue = { message: "End date can't be before the start da
 export const contractSchema = contractBaseSchema.refine(contractDatesInOrder, contractDateOrderIssue);
 
 // A partial update (the Assistant's, #420). Note .partial() still fills
-// .default()s for absent keys, so pass the result through namedKeysOnly()
-// before writing it, or a cost-only change resets status and tax-deductible.
+// .default()s for absent keys, so parse with parseNamedPatch()
+// (src/lib/validation/namedPatch.ts) rather than calling this directly, or a
+// cost-only change resets status and tax-deductible.
 // The date check here only sees a pair sent together; the update command
 // checks a single date against the saved one.
 export const contractPatchSchema = contractBaseSchema.partial().refine(contractDatesInOrder, contractDateOrderIssue);

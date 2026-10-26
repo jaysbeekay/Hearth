@@ -228,7 +228,11 @@ export async function updateContractFromAssistant(
   const user = await requireUser();
 
   // Only the fields the Assistant named are written (#420); the rest of the
-  // record stays as it is.
+  // record stays as it is. `data` comes back from the client, so it's
+  // re-parsed here: unknown keys are stripped, but any valid field of the
+  // record is accepted even if the proposal didn't name it, since it's one
+  // the user could set themselves. Binding the write to exactly the fields
+  // the card showed would need a signed or stored proposal.
   const parsed = parseNamedPatch(contractPatchSchema, data);
   if (!parsed.success) return parsed;
 

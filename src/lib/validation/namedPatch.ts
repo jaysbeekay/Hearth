@@ -5,15 +5,14 @@ import type { z } from "zod";
 // what the caller sent: Zod 4's `.partial()` still fills a field's
 // `.default()` when the key is absent, which would quietly write
 // `status: "ACTIVE"` or `isTaxDeductible: false` over a change that never
-// mentioned them. A named key that parses to nothing (a blank string) is
-// dropped too, so it changes nothing rather than clearing the field.
-export function namedKeysOnly<T extends object>(input: Record<string, unknown>, parsed: T): Partial<T> {
-  const named = new Set(Object.keys(input));
-  return Object.fromEntries(
-    Object.entries(parsed).filter(([key, value]) => named.has(key) && value !== undefined),
-  ) as Partial<T>;
-}
-
+// mentioned them.
+//
+// A key whose value is `null` or `undefined` doesn't count as named: it's
+// dropped before parsing, so it neither fails a field with no blank handling
+// (status, isTaxDeductible, currency) nor keeps that field's default. A named
+// key that parses to nothing (a blank string) is dropped too, so it changes
+// nothing rather than clearing the field. A falsy value (`false`, `0`) is a
+// real change and is kept.
 export type NamedPatchResult<T> =
   | { success: true; data: Partial<T> }
   | { success: false; error: string };
@@ -24,9 +23,13 @@ export function parseNamedPatch<T extends object>(
   schema: z.ZodType<T>,
   input: Record<string, unknown>,
 ): NamedPatchResult<T> {
-  const parsed = schema.safeParse(input);
+  const given = Object.fromEntries(Object.entries(input).filter(([, value]) => value != null));
+  const parsed = schema.safeParse(given);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
-  const data = namedKeysOnly(input, parsed.data);
+  const named = new Set(Object.keys(given));
+  const data = Object.fromEntries(
+    Object.entries(parsed.data).filter(([key, value]) => named.has(key) && value !== undefined),
+  ) as Partial<T>;
   if (Object.keys(data).length === 0) return { success: false, error: "Name at least one field to change." };
   return { success: true, data };
 }

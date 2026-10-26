@@ -7,6 +7,7 @@ import {
   updateContractFromAssistant,
 } from "@/lib/actions/contracts";
 import { createProductFromAssistant, updateProductFromAssistant } from "@/lib/actions/products";
+import { formatDate } from "@/lib/utils";
 
 export interface ProposedAction {
   id: string;
@@ -18,6 +19,9 @@ export interface ProposedAction {
   label?: string;
   // A create's full record, or an update's changing fields only (#420).
   data: Record<string, unknown>;
+  // How to show a field whose raw value is an id: a linked Property or
+  // Vehicle's name. Display only; never sent to the action.
+  displayValues?: Record<string, string>;
 }
 
 const FIELD_LABELS: Record<string, string> = {
@@ -48,10 +52,18 @@ const FIELD_LABELS: Record<string, string> = {
   purchaseDate: "Purchase date",
   warrantyEndDate: "Warranty end date",
   price: "Price",
+  propertyId: "Property",
+  vehicleId: "Vehicle",
 };
 
-function formatValue(value: unknown): string {
-  if (value instanceof Date) return value.toISOString().slice(0, 10);
+// The SSE turns Dates into ISO strings; show these as calendar dates.
+const DATE_FIELDS = new Set(["startDate", "endDate", "purchaseDate", "warrantyEndDate"]);
+
+function formatValue(key: string, value: unknown, displayValues: Map<string, string>): string {
+  const display = displayValues.get(key);
+  if (display !== undefined) return display;
+  if (value instanceof Date) return formatDate(value);
+  if (DATE_FIELDS.has(key) && typeof value === "string") return formatDate(value);
   if (typeof value === "boolean") return value ? "Yes" : "No";
   return String(value);
 }
@@ -115,6 +127,7 @@ export function ProposedActionCard({
 
   // An update lists exactly the fields it changes; nothing else is sent.
   const entries = Object.entries(action.data).filter(([, v]) => v != null && v !== "");
+  const displayValues = new Map(Object.entries(action.displayValues ?? {}));
   const titleValue = action.operation === "update" && action.label
     ? action.label
     : ((action.data.title ?? action.data.description) as string | undefined);
@@ -129,7 +142,7 @@ export function ProposedActionCard({
         {entries.map(([key, value]) => (
           <div key={key} className="flex gap-1">
             <dt className="shrink-0 font-medium">{FIELD_LABELS[key] ?? key}:</dt>
-            <dd className="truncate">{formatValue(value)}</dd>
+            <dd className="truncate">{formatValue(key, value, displayValues)}</dd>
           </div>
         ))}
       </dl>
