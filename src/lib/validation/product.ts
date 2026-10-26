@@ -3,7 +3,8 @@ import { z } from "zod";
 const emptyToUndefined = (val: unknown) =>
   val == null || (typeof val === "string" && val.trim() === "") ? undefined : val;
 
-export const productSchema = z.object({
+// The unrefined object: see contractBaseSchema.
+export const productBaseSchema = z.object({
   description: z.string().trim().min(1, "Description is required").max(200),
   manufacturer: z.preprocess(emptyToUndefined, z.string().trim().max(200).optional()),
   model: z.preprocess(emptyToUndefined, z.string().trim().max(200).optional()),
@@ -32,9 +33,18 @@ export const productSchema = z.object({
       .optional(),
   ),
   propertyId: z.preprocess(emptyToUndefined, z.string().trim().max(100).optional()),
-}).refine(
-  (data) => !data.purchaseDate || !data.warrantyEndDate || data.warrantyEndDate >= data.purchaseDate,
-  { message: "Warranty end date can't be before the purchase date.", path: ["warrantyEndDate"] },
-);
+});
+
+const productDatesInOrder = (data: { purchaseDate?: Date; warrantyEndDate?: Date }) =>
+  !data.purchaseDate || !data.warrantyEndDate || data.warrantyEndDate >= data.purchaseDate;
+const productDateOrderIssue = {
+  message: "Warranty end date can't be before the purchase date.",
+  path: ["warrantyEndDate"],
+};
+
+export const productSchema = productBaseSchema.refine(productDatesInOrder, productDateOrderIssue);
+
+// A partial update: see contractPatchSchema.
+export const productPatchSchema = productBaseSchema.partial().refine(productDatesInOrder, productDateOrderIssue);
 
 export type ProductInput = z.infer<typeof productSchema>;

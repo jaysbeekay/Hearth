@@ -2,7 +2,8 @@
 
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { contractSchema, CONTRACT_STATUSES } from "@/lib/validation/contract";
+import { contractSchema, contractPatchSchema, CONTRACT_STATUSES } from "@/lib/validation/contract";
+import { parseNamedPatch } from "@/lib/validation/namedPatch";
 import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
 import { formDataToStringValues } from "@/lib/form-state";
 import { formToContractInput } from "@/lib/formMappers";
@@ -196,9 +197,11 @@ export type AssistantActionResult =
 
 // Counterparts to createContract/updateContract for the AI Assistant's
 // guarded-write flow (see src/lib/chat/tools.ts) — same requireUser() gate
-// and contractSchema validation as the real forms, but returns a plain
-// result instead of redirect()ing, since a chat reply shouldn't navigate the
-// user away from their conversation.
+// and contract schema as the real forms, but returns a plain result instead
+// of redirect()ing, since a chat reply shouldn't navigate the user away from
+// their conversation. A create takes a full record (contractSchema, with its
+// defaults); an update takes only the fields the Assistant named
+// (contractPatchSchema), as a partial patch.
 export async function createContractFromAssistant(
   data: Record<string, unknown>,
 ): Promise<AssistantActionResult> {
@@ -224,8 +227,14 @@ export async function updateContractFromAssistant(
 ): Promise<AssistantActionResult> {
   const user = await requireUser();
 
-  const parsed = contractSchema.safeParse(data);
-  if (!parsed.success) return { success: false, error: firstIssueMessage(parsed.error) };
+  // Only the fields the Assistant named are written (#420); the rest of the
+  // record stays as it is. `data` comes back from the client, so it's
+  // re-parsed here: unknown keys are stripped, but any valid field of the
+  // record is accepted even if the proposal didn't name it, since it's one
+  // the user could set themselves. Binding the write to exactly the fields
+  // the card showed would need a signed or stored proposal.
+  const parsed = parseNamedPatch(contractPatchSchema, data);
+  if (!parsed.success) return parsed;
 
   const linkError = await linkedRecordError(parsed.data);
   if (linkError) return { success: false, error: linkError };
