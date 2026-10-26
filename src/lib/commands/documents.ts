@@ -2,7 +2,12 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { documentStoreFor } from "@/lib/storage";
 import { assertModuleEnabled } from "@/lib/modules/enablement";
-import { RecordNotFoundError } from "@/lib/commands/shared";
+import {
+  requireLive,
+  assertParentRestored,
+  RecordNotFoundError,
+  type Trashable,
+} from "@/lib/commands/shared";
 import { queueDocumentExtraction } from "@/lib/documents/queueExtraction";
 import { getDocumentVersionChain } from "@/lib/documents/documentQueries";
 import { DOCUMENT_KIND_MODULE, OWNED_DOCUMENT_KINDS, type OwnedDocumentKind } from "@/lib/documents/kinds";
@@ -15,6 +20,11 @@ import { ProductDocumentKind } from "@/generated/prisma/enums";
 // knows how to reach each of them. Callers own sign-in, role checks and
 // input parsing; these own the module gate, the write, file cleanup and
 // revalidation.
+//
+// A Document follows the Trash rules in shared.ts (#428): one can't be added
+// (or a new version filed) under a record in Trash, or under one whose
+// parent is in Trash, and one in Trash can't be restored while its record
+// or that record's parent still is.
 
 /** One Document row, whichever table it lives in. */
 /** A permanent delete was asked for a Document that isn't in Trash. */
@@ -56,12 +66,23 @@ export interface AddDocumentInput {
   extractedText?: string | null;
 }
 
+// One record a Document hangs off, and whether it's in Trash.
+interface TrashLink extends Trashable {
+  label: string;
+}
+
 interface OwnerInfo {
   // Pages that show this owner's Documents, revalidated after every write.
   paths: string[];
-  // True when the owner, or the record it belongs to, is in Trash. Its
-  // Documents are then not served even though their own rows are live.
-  inTrash: boolean;
+  // The owner record and the record it belongs to (if it has a Trash),
+  // outermost first. While any of them is in Trash the owner's Documents
+  // aren't served even though their own rows are live, nothing is added
+  // under it, and none of them is restored.
+  chain: TrashLink[];
+}
+
+function ownerInTrash(owner: OwnerInfo) {
+  return owner.chain.some((link) => !!link.deletedAt);
 }
 
 // Each of the 8 Prisma delegates has its own generated arg/return types,
@@ -87,7 +108,7 @@ const KINDS: Record<OwnedDocumentKind, KindConfig> = {
     delegate: () => prisma.document,
     loadOwner: async (id) => {
       const c = await prisma.contract.findUnique({ where: { id }, select: { deletedAt: true } });
-      return c && { paths: [`/contracts/${id}`], inTrash: !!c.deletedAt };
+      return c && { paths: [`/contracts/${id}`], chain: [{ label: "Contract", deletedAt: c.deletedAt }] };
     },
     createData: (input) =>
       input.extractedText != null
@@ -110,7 +131,7 @@ const KINDS: Record<OwnedDocumentKind, KindConfig> = {
     delegate: () => prisma.productDocument,
     loadOwner: async (id) => {
       const p = await prisma.product.findUnique({ where: { id }, select: { deletedAt: true } });
-      return p && { paths: [`/products/${id}`], inTrash: !!p.deletedAt };
+      return p && { paths: [`/products/${id}`], chain: [{ label: "Warranty", deletedAt: p.deletedAt }] };
     },
     // Only invoices carry meaningful text; plain product photos skip OCR.
     createData: (input) => {
@@ -140,7 +161,8 @@ const KINDS: Record<OwnedDocumentKind, KindConfig> = {
         where: { id },
         select: { tripId: true, trip: { select: { deletedAt: true } } },
       });
-      return s && { paths: [`/travel/${s.tripId}`], inTrash: !!s.trip.deletedAt };
+      // Segments have no Trash of their own; their Trip does.
+      return s && { paths: [`/travel/${s.tripId}`], chain: [{ label: "Trip", deletedAt: s.trip.deletedAt }] };
     },
   },
   RENTAL_STATEMENT: {
@@ -152,7 +174,9 @@ const KINDS: Record<OwnedDocumentKind, KindConfig> = {
         where: { id },
         select: { propertyId: true, property: { select: { deletedAt: true } } },
       });
-      return s && { paths: [`/home/${s.propertyId}/rental`], inTrash: !!s.property.deletedAt };
+      return (
+        s && { paths: [`/home/${s.propertyId}/rental`], chain: [{ label: "Property", deletedAt: s.property.deletedAt }] }
+      );
     },
   },
   HOME_ITEM: {
@@ -164,7 +188,15 @@ const KINDS: Record<OwnedDocumentKind, KindConfig> = {
         where: { id },
         select: { propertyId: true, deletedAt: true, property: { select: { deletedAt: true } } },
       });
-      return i && { paths: [`/home/${i.propertyId}`], inTrash: !!(i.deletedAt || i.property.deletedAt) };
+      return (
+        i && {
+          paths: [`/home/${i.propertyId}`],
+          chain: [
+            { label: "Property", deletedAt: i.property.deletedAt },
+            { label: "Maintenance record", deletedAt: i.deletedAt },
+          ],
+        }
+      );
     },
   },
   VEHICLE_ITEM: {
@@ -176,7 +208,15 @@ const KINDS: Record<OwnedDocumentKind, KindConfig> = {
         where: { id },
         select: { vehicleId: true, deletedAt: true, vehicle: { select: { deletedAt: true } } },
       });
-      return i && { paths: [`/vehicles/${i.vehicleId}`], inTrash: !!(i.deletedAt || i.vehicle.deletedAt) };
+      return (
+        i && {
+          paths: [`/vehicles/${i.vehicleId}`],
+          chain: [
+            { label: "Vehicle", deletedAt: i.vehicle.deletedAt },
+            { label: "Service record", deletedAt: i.deletedAt },
+          ],
+        }
+      );
     },
   },
   INVENTORY_ITEM: {
@@ -185,7 +225,7 @@ const KINDS: Record<OwnedDocumentKind, KindConfig> = {
     delegate: () => prisma.inventoryItemDocument,
     loadOwner: async (id) => {
       const i = await prisma.inventoryItem.findUnique({ where: { id }, select: { deletedAt: true } });
-      return i && { paths: [`/inventory/${id}`], inTrash: !!i.deletedAt };
+      return i && { paths: [`/inventory/${id}`], chain: [{ label: "Inventory item", deletedAt: i.deletedAt }] };
     },
   },
   TRADE: {
@@ -198,7 +238,7 @@ const KINDS: Record<OwnedDocumentKind, KindConfig> = {
         where: { id },
         select: { holdingId: true, holding: { select: { portfolioId: true } } },
       });
-      return t && { paths: [`/wealth/portfolios/${t.holding.portfolioId}/holdings/${t.holdingId}`], inTrash: false };
+      return t && { paths: [`/wealth/portfolios/${t.holding.portfolioId}/holdings/${t.holdingId}`], chain: [] };
     },
   },
 };
@@ -279,7 +319,7 @@ export async function findDocumentAnyKind(id: string): Promise<DocumentRecord | 
 /** Whether the record a Document is attached to (or that record's parent) is in Trash. */
 export async function isDocumentOwnerInTrash(doc: DocumentRecord): Promise<boolean> {
   const owner = await KINDS[doc.kind].loadOwner(doc.ownerId);
-  return !owner || owner.inTrash;
+  return !owner || ownerInTrash(owner);
 }
 
 async function requireDocument(kind: OwnedDocumentKind, id: string, scope: DocumentScope = {}) {
@@ -301,6 +341,8 @@ async function insertDocument(
   const config = KINDS[kind];
   const owner = await config.loadOwner(ownerId);
   if (!owner) throw new RecordNotFoundError(config.ownerLabel);
+  // An owner in Trash, or under a parent in Trash, counts as not found.
+  for (const link of owner.chain) requireLive(link, config.ownerLabel);
 
   // Throws UploadRejectedError for an empty, oversized or mislabelled file.
   const store = documentStoreFor(kind);
@@ -390,8 +432,11 @@ export async function deleteDocumentCommand(kind: OwnedDocumentKind, id: string,
 export async function restoreDocumentCommand(kind: OwnedDocumentKind, id: string) {
   await gate(kind);
   const doc = await requireDocument(kind, id);
+  const owner = await KINDS[kind].loadOwner(doc.ownerId);
+  // Outermost first, so the message names what to restore first.
+  for (const link of owner?.chain ?? []) assertParentRestored(link, link.label);
   await KINDS[kind].delegate().update({ where: { id }, data: { deletedAt: null } });
-  revalidate(await ownerPaths(kind, doc.ownerId));
+  revalidate(owner?.paths ?? []);
   revalidatePath("/settings/trash");
 }
 

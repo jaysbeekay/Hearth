@@ -29,7 +29,7 @@ import {
   permanentlyDeleteRentalStatementCommand,
   TenancyContractLinkError,
 } from "@/lib/commands/home";
-import { RecordNotFoundError, StaleEditError } from "@/lib/commands/shared";
+import { RecordNotFoundError, RecordValidationError, StaleEditError } from "@/lib/commands/shared";
 import type { ActionState } from "@/lib/actions/auth";
 import { describeUploadRejection } from "@/lib/uploadValidation";
 import { parseDocumentCategory } from "@/lib/documents/categories";
@@ -100,7 +100,8 @@ function commandError(error: unknown, notFound: string): ActionState {
   if (
     error instanceof StaleEditError ||
     error instanceof ModuleDisabledError ||
-    error instanceof TenancyContractLinkError
+    error instanceof TenancyContractLinkError ||
+    error instanceof RecordValidationError
   ) {
     return { error: error.message };
   }
