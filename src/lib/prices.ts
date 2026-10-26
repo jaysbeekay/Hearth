@@ -148,9 +148,21 @@ export async function fetchCryptoPrices(tickers: string[]): Promise<PriceResult[
   });
 }
 
-// A failed lookup keeps the last good price this long (bumping its cachedAt
-// so it isn't re-requested on every view); after that it's dropped.
+// A failed lookup keeps the last good price until it is this old, counted
+// from cachedAt (when it was actually fetched); after that it's dropped.
 const LAST_GOOD_PRICE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+// Cache key -> when a lookup last failed while the row kept its last good
+// price. This is the retry clock for those rows, kept apart from cachedAt
+// so cachedAt stays the time the price was fetched and the one-day limit
+// holds (#404 review). In-process only: after a restart such a ticker is
+// asked about once more, which costs one request, not a wrong price.
+const failedLookupAt = new Map<string, number>();
+
+/** For tests: forget when lookups last failed. */
+export function clearFailedLookups(): void {
+  failedLookupAt.clear();
+}
 
 /**
  * Refreshes the price cache for these Holdings: crypto from CoinGecko,
@@ -159,8 +171,8 @@ const LAST_GOOD_PRICE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
  * for equities, 5 min for crypto), is stale. A lookup that fails or finds
  * nothing is cached too, for the same TTL, so a no-match or rate-limited
  * ticker isn't re-requested on every page view: the last good price is kept
- * for up to a day, otherwise the row records price 0, which getPriceMap
- * treats as no price.
+ * until it's a day old (by when it was fetched), otherwise the row records
+ * price 0, which getPriceMap treats as no price.
  */
 export async function refreshPricesForTickers(holdings: PricedHolding[]): Promise<void> {
   if (!holdings.length) return;
@@ -177,7 +189,8 @@ export async function refreshPricesForTickers(holdings: PricedHolding[]): Promis
     const entry = cacheMap.get(key);
     const source = priceSourceFor(holding);
     if (!entry || entry.source !== source) return true;
-    return entry.cachedAt < (source === "coingecko" ? cryptoThreshold : equityThreshold);
+    const lastTried = Math.max(entry.cachedAt.getTime(), failedLookupAt.get(key) ?? 0);
+    return lastTried < (source === "coingecko" ? cryptoThreshold : equityThreshold).getTime();
   });
   if (!stale.length) return;
   const staleCryptos = stale.filter(([, h]) => isCryptoHolding(h));
@@ -197,11 +210,14 @@ export async function refreshPricesForTickers(holdings: PricedHolding[]): Promis
     const source = priceSourceFor(holding);
     const entry = cacheMap.get(key);
     if (result) {
+      failedLookupAt.delete(key);
       const data = { price: result.price, currency: result.currency, changePct: result.changePct, source, cachedAt: now };
       await prisma.priceCache.upsert({ where: { ticker: key }, create: { ticker: key, ...data }, update: data });
     } else if (entry && entry.source === source && entry.price > 0 && entry.cachedAt >= lastGoodAfter) {
-      await prisma.priceCache.update({ where: { ticker: key }, data: { cachedAt: now } });
+      // Keep the row (and its fetch time) as it is; retry after the TTL.
+      failedLookupAt.set(key, now.getTime());
     } else {
+      failedLookupAt.delete(key);
       const data = { price: 0, currency: entry?.currency ?? "AUD", changePct: null, source, cachedAt: now };
       await prisma.priceCache.upsert({ where: { ticker: key }, create: { ticker: key, ...data }, update: data });
     }
@@ -209,6 +225,9 @@ export async function refreshPricesForTickers(holdings: PricedHolding[]): Promis
 }
 
 export async function refreshAllPortfolioPrices(): Promise<void> {
+  // CoinGecko rows cached before #404 were keyed by the bare ticker; crypto
+  // now uses "cg:" keys (priceCacheKey), so those rows are never read again.
+  await prisma.priceCache.deleteMany({ where: { source: "coingecko", NOT: { ticker: { startsWith: "cg:" } } } });
   const holdings = await prisma.holding.findMany({
     select: { ticker: true, exchange: true, assetClass: true },
   });
@@ -237,10 +256,14 @@ export async function getPriceMap(holdings: PricedHolding[]): Promise<Map<string
   );
 }
 
-/** The quote currency Yahoo last reported for an equity ticker, if cached. */
+/**
+ * The quote currency Yahoo last reported for an equity ticker, if cached. A
+ * row recording a failed lookup (price 0) has no reported currency, only a
+ * default, so it gives none.
+ */
 export async function getQuoteCurrency(ticker: string): Promise<string | null> {
-  const row = await prisma.priceCache.findUnique({ where: { ticker }, select: { currency: true, source: true } });
-  return row?.source === "yahoo" ? row.currency : null;
+  const row = await prisma.priceCache.findUnique({ where: { ticker }, select: { currency: true, source: true, price: true } });
+  return row?.source === "yahoo" && row.price > 0 ? row.currency : null;
 }
 
 // ── Historical price functions ───────────────────────────────────────────────

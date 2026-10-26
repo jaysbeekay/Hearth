@@ -359,20 +359,27 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   - CoinGecko looks a ticker up as a coin ID and as a symbol and takes the
     coin with the larger market cap (`ids=dot` alone is an obscure "Dot", not
     Polkadot), then remembers which lookup won. Misses and rate limits are
-    cached for the price TTL, keeping the last good price for up to a day.
+    cached for the price TTL, keeping the last good price until it is a day
+    old (counted from when it was fetched, not from the last failed retry).
   - Crypto prices are cached under their own key, so a BTC ETF and BTC the
     coin are priced separately; a price cached from the wrong feed is never
     used, and stored Yahoo history and market closes aren't shown for crypto.
-  - CSV import creates a crypto Holding when the generic format's Asset
-    Class or Exchange column says so, or for a common coin ticker such as
-    BTC when it has neither.
-  - Cost basis converts each Trade from its own currency into the
-    portfolio's (the Trade's FX rate to AUD when entered, else today's
-    rate), and gain/loss converts the price too. A holding with no price
-    shows "No price", one missing a rate "No exchange rate"; neither is
-    counted or given a gain/loss. A portfolio's gain/loss compares counted
-    holdings with their own cost. The Trade form's "Use" market close also
-    sets the Trade's currency to the quote currency.
+    The scheduled price refresh deletes CoinGecko rows cached before this
+    under the bare ticker.
+  - CSV import creates a crypto Holding only when the generic format's Asset
+    Class or Exchange column says so. The ticker alone isn't enough: BTC,
+    ETH, SOL and others are also listed ETFs and shares.
+  - Cost basis converts each BUY from its own currency into the
+    portfolio's (the Trade's AUD rate when entered, else today's rate, which
+    the Holding page then notes), and gain/loss converts the price too.
+    SELL, SPLIT and DIVIDEND Trades don't need a rate. A holding with no
+    price shows "No price", one missing a rate "No exchange rate"; neither
+    is counted or given a gain/loss. A portfolio's cost, value and gain/loss
+    tiles all cover the counted holdings, with the cost of any left out
+    shown under the cost. A holding card priced in another currency also
+    shows its value in the portfolio's. The Trade form's rate field is now
+    labelled "AUD per 1 unit of trade currency", and its "Use" market close
+    also sets the Trade's currency to the quote currency.
 - **Assistant updates change only the fields they name (#420).** Updating a
   Contract or Warranty through the Assistant used to parse the change as a
   full record, so fields it didn't mention fell back to their defaults: a

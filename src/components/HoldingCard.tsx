@@ -14,6 +14,9 @@ export function HoldingCard({ holding, portfolioId, region }: Props) {
   const isPositive = (holding.gainLoss ?? 0) >= 0;
   const { gainLoss } = holding;
   const hasGainLoss = gainLoss != null;
+  // Gain/loss is in the portfolio's currency; when the price is in another,
+  // show the value in the portfolio's currency too, so the two compare.
+  const showPortfolioValue = holding.currency !== holding.costCurrency;
 
   return (
     <Link
@@ -55,6 +58,11 @@ export function HoldingCard({ holding, portfolioId, region }: Props) {
           <dd className="text-sm font-medium">
             {holding.currentValue != null ? formatCurrency(holding.currentValue, holding.currency, undefined, region, { showCode: true }) : "—"}
           </dd>
+          {showPortfolioValue && holding.portfolioValue != null && (
+            <dd className="text-xs text-muted">
+              {formatCurrency(holding.portfolioValue, holding.costCurrency, undefined, region, { showCode: true })}
+            </dd>
+          )}
         </div>
         <div>
           <dt className="text-xs text-muted">Gain / loss</dt>

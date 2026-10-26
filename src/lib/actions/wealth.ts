@@ -372,7 +372,6 @@ export async function parseTradesCsv(
       return [{
         ticker,
         assetClass: inferImportedAssetClass({
-          ticker,
           assetClass: row["Asset Class"] ?? row["AssetClass"] ?? null,
           exchange: row["Exchange"] ?? null,
         }),

@@ -67,7 +67,7 @@ export default async function WealthPage() {
       <section className="space-y-3" aria-label="Net worth">
         <div className="rounded-xl border border-border bg-surface p-4">
           <p className="text-xs text-muted">Total net worth</p>
-          <p className="mt-1 text-3xl font-bold" data-testid="net-worth-total">{formatCurrency(total, data.currency, undefined, region, { showCode: true })}</p>
+          <p className="mt-1 text-3xl font-bold" data-testid="net-worth-total" data-value={total}>{formatCurrency(total, data.currency, undefined, region, { showCode: true })}</p>
         </div>
         <ul className="divide-y divide-border rounded-xl border border-border bg-surface" data-testid="net-worth-components">
           {data.components.map((c) => (
@@ -75,12 +75,12 @@ export default async function WealthPage() {
               <span>{c.label}</span>
               <span className="flex items-center gap-3">
                 <span className="text-muted">{percentOf(c.value)}</span>
-                <span className="font-medium">{formatCurrency(c.value, data.currency, undefined, region, { showCode: true })}</span>
+                <span className="font-medium" data-testid="net-worth-component-value" data-value={c.value}>{formatCurrency(c.value, data.currency, undefined, region, { showCode: true })}</span>
               </span>
             </li>
           ))}
         </ul>
-        {exclusionNote && <p className="text-sm text-muted">{exclusionNote}</p>}
+        {exclusionNote && <p className="text-sm text-muted" data-testid="net-worth-exclusions">{exclusionNote}</p>}
       </section>
 
       {/* Holdings */}

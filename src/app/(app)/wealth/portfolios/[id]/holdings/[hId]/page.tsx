@@ -16,7 +16,7 @@ import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { DocumentLink } from "@/components/DocumentLink";
 import { ASSET_CLASS_LABELS, TRADE_TYPE_LABELS, COST_METHOD_LABELS } from "@/lib/validation/wealth";
 import { getUserPreferences } from "@/lib/userPreferences";
-import { holdingUnitsAndCostIn, valueHolding } from "@/lib/wealth";
+import { costUsesTodaysRate, holdingUnitsAndCostIn, valueHolding } from "@/lib/wealth";
 import { refreshFxRates, getFxRateMap } from "@/lib/fx";
 import { isCryptoHolding, priceCacheKey } from "@/lib/priceSource";
 import { auth } from "@/lib/auth";
@@ -217,10 +217,13 @@ export default async function HoldingPage({
   // gain/loss in the portfolio's, converting each Trade's currency (#404).
   const currency = priceEntry?.currency ?? holding.portfolio.currency;
   const costCurrency = holding.portfolio.currency;
-  const fxPairs = [currency, ...sortedTrades.map((t) => t.currency)].map((from) => ({ from, to: costCurrency }));
+  // Only a BUY's price goes into cost (see holdingUnitsAndCostIn).
+  const buyCurrencies = sortedTrades.filter((t) => t.type === "BUY").map((t) => t.currency);
+  const fxPairs = [currency, ...buyCurrencies].map((from) => ({ from, to: costCurrency }));
   await refreshFxRates(fxPairs).catch(() => {});
   const rateMap = await getFxRateMap(fxPairs);
   const { units, cost } = holdingUnitsAndCostIn(sortedTrades, holding.portfolio.costMethod, costCurrency, rateMap);
+  const todaysRate = cost != null && costUsesTodaysRate(sortedTrades, costCurrency);
   const { currentPrice, currentValue, gainLoss, gainLossPct, unpricedReason } = valueHolding({
     units,
     cost,
@@ -358,6 +361,9 @@ export default async function HoldingPage({
           <dd className="text-sm font-medium">{holding.trades.length}</dd>
         </div>
       </dl>
+      {todaysRate && (
+        <p className="text-xs text-muted">Cost uses today&apos;s exchange rate for trades with no FX rate entered.</p>
+      )}
 
       {/* Performance chart */}
       {chartPoints.length >= 2 && (

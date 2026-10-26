@@ -47,6 +47,9 @@ export default async function PortfolioPage({
   // Gain/loss compares counted holdings' value with their own cost only, so
   // an unpriced holding's cost doesn't show as a loss (#404).
   const pricedGainLoss = portfolioValue ? portfolioValue.totalValue - portfolioValue.pricedCost : 0;
+  // The cost tile shows the same holdings as value and gain/loss, so the
+  // three add up; the cost of holdings left out is shown under it.
+  const excludedCost = portfolioValue ? portfolioValue.totalCost - portfolioValue.pricedCost : 0;
   const unpricedNote = unpricedHoldingsNote(portfolioValue?.unpricedCount ?? 0);
 
   return (
@@ -80,7 +83,12 @@ export default async function PortfolioPage({
             <p className="text-xs text-muted">
               Cost basis <span className="text-muted">({COST_METHOD_LABELS[portfolio.costMethod]})</span>
             </p>
-            <p className="mt-1 text-xl font-semibold">{formatCurrency(portfolioValue.totalCost, portfolio.currency, undefined, region, { showCode: true })}</p>
+            <p className="mt-1 text-xl font-semibold">{formatCurrency(portfolioValue.pricedCost, portfolio.currency, undefined, region, { showCode: true })}</p>
+            {excludedCost > 0.005 && (
+              <p className="text-xs text-muted" data-testid="excluded-cost">
+                Plus {formatCurrency(excludedCost, portfolio.currency, undefined, region, { showCode: true })} not counted
+              </p>
+            )}
           </div>
           <div className="rounded-xl border border-border bg-surface p-4">
             <p className="text-xs text-muted">Total gain / loss</p>

@@ -22,6 +22,9 @@ export interface HoldingValue {
   costBasis: number | null;
   currentPrice: number | null;
   currentValue: number | null;
+  // currentValue in the portfolio's currency (costCurrency); null when not
+  // counted.
+  portfolioValue: number | null;
   // currentValue in NET_WORTH_CURRENCY, for ranking holdings across
   // portfolios; null when not counted.
   netWorthValue: number | null;
@@ -177,6 +180,21 @@ type CostBasisTrade = { type: string; units: number; pricePerUnit: number; fees:
 
 type CurrencyTrade = CostBasisTrade & { currency: string; fxRate: number | null };
 
+// The Trade's own rate into `currency`, when it has one: its "AUD per 1
+// unit of the Trade's currency" applies only to an AUD portfolio.
+function tradeDateRate(trade: CurrencyTrade, currency: string): number | null {
+  return currency === "AUD" && trade.fxRate != null && trade.fxRate > 0 ? trade.fxRate : null;
+}
+
+/**
+ * Whether cost in `currency` uses today's exchange rate for any BUY, because
+ * it's in another currency and has no rate of its own. The Holding page
+ * says so, since cost then moves with the rate.
+ */
+export function costUsesTodaysRate(trades: CurrencyTrade[], currency: string): boolean {
+  return trades.some((t) => t.type === "BUY" && t.currency !== currency && tradeDateRate(t, currency) == null);
+}
+
 /**
  * A Trade's price and fees in the portfolio's currency (#404 review: cost
  * used to sum raw amounts across Trade currencies). Uses the Trade's own
@@ -190,15 +208,17 @@ export function tradeInCurrency<T extends CurrencyTrade>(
   rateMap: Map<string, number>,
 ): T | null {
   if (trade.currency === currency) return trade;
-  const tradeDateRate = currency === "AUD" && trade.fxRate != null && trade.fxRate > 0 ? trade.fxRate : null;
-  const rate = tradeDateRate ?? convertAmount(1, trade.currency, currency, rateMap);
+  const rate = tradeDateRate(trade, currency) ?? convertAmount(1, trade.currency, currency, rateMap);
   if (rate == null) return null;
   return { ...trade, pricePerUnit: trade.pricePerUnit * rate, fees: trade.fees != null ? trade.fees * rate : null };
 }
 
 /**
- * Units and cost basis in `currency`. Units never depend on a rate; cost is
- * null when any Trade can't be converted, rather than a guess.
+ * Units and cost basis in `currency`. Units never depend on a rate. Only a
+ * BUY's price and fees go into cost, so only BUYs are converted: a SELL
+ * reduces cost by its share of units, a SPLIT adds units at no cost, and a
+ * DIVIDEND changes neither, whatever their currency (#404 review). Cost is
+ * null when a BUY can't be converted, rather than a guess.
  */
 export function holdingUnitsAndCostIn(
   trades: CurrencyTrade[],
@@ -206,9 +226,13 @@ export function holdingUnitsAndCostIn(
   currency: string,
   rateMap: Map<string, number>,
 ): { units: number; cost: number | null } {
-  const converted = trades.map((t) => tradeInCurrency(t, currency, rateMap));
-  if (converted.every((t): t is CurrencyTrade => t != null)) return holdingUnitsAndCost(converted, method);
-  return { units: holdingUnitsAndCost(trades, method).units, cost: null };
+  const converted: CurrencyTrade[] = [];
+  for (const trade of trades) {
+    const inCurrency = trade.type === "BUY" ? tradeInCurrency(trade, currency, rateMap) : trade;
+    if (inCurrency == null) return { units: holdingUnitsAndCost(trades, method).units, cost: null };
+    converted.push(inCurrency);
+  }
+  return holdingUnitsAndCost(converted, method);
 }
 
 // Trades must be sorted ascending by date. FIFO tracks individual purchase
@@ -301,7 +325,9 @@ export async function getNetWorth(enabledModules: Set<ModuleKey>): Promise<NetWo
     for (const holding of portfolio.holdings) {
       const priceCurrency = priceMap.get(priceCacheKey(holding))?.currency;
       if (priceCurrency) fxPairs.push({ from: priceCurrency, to: portfolio.currency });
-      for (const trade of holding.trades) fxPairs.push({ from: trade.currency, to: portfolio.currency });
+      for (const trade of holding.trades) {
+        if (trade.type === "BUY") fxPairs.push({ from: trade.currency, to: portfolio.currency });
+      }
     }
   }
   for (const property of properties) {
@@ -347,6 +373,7 @@ export async function getNetWorth(enabledModules: Set<ModuleKey>): Promise<NetWo
         costBasis: cost,
         currentPrice: valued.currentPrice,
         currentValue: valued.currentValue,
+        portfolioValue: valued.portfolioValue,
         netWorthValue:
           valued.portfolioValue != null
             ? convertAmount(valued.portfolioValue, portfolio.currency, NET_WORTH_CURRENCY, rateMap)

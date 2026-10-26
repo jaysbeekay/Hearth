@@ -21,12 +21,16 @@ vi.mock("yahoo-finance2", () => ({
 import { inferImportedAssetClass, isCryptoHolding, priceCacheKey, priceSourceFor } from "@/lib/priceSource";
 import {
   clearCryptoResolution,
+  clearFailedLookups,
   fetchCryptoPrices,
   getPriceMap,
+  getQuoteCurrency,
   pickCoinGeckoHit,
+  refreshAllPortfolioPrices,
   refreshPricesForTickers,
 } from "@/lib/prices";
 import {
+  costUsesTodaysRate,
   getNetWorth,
   holdingUnitsAndCostIn,
   netWorthComponents,
@@ -76,6 +80,7 @@ beforeEach(() => {
   quotes.set("BTC", { regularMarketPrice: 35.89, currency: "USD" });
   quote.mockClear();
   clearCryptoResolution();
+  clearFailedLookups();
   vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("network access in a unit test"))));
 });
 
@@ -200,15 +205,51 @@ describe("misses and rate limits are cached for the TTL", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("keeps the last good price through a failed lookup", async () => {
+  it("keeps the last good price through a failed lookup, and its fetch time", async () => {
+    const fetchedAt = new Date(Date.now() - 10 * 60 * 1000);
     await db.prisma.priceCache.create({
-      data: { ticker: "cg:btc", price: 149_000, currency: "AUD", source: "coingecko", cachedAt: new Date(Date.now() - 10 * 60 * 1000) },
+      data: { ticker: "cg:btc", price: 149_000, currency: "AUD", source: "coingecko", cachedAt: fetchedAt },
     });
-    stubCoinGecko({}, {}, 429);
+    const fetchMock = stubCoinGecko({}, {}, 429);
     await refreshPricesForTickers([BTC_CRYPTO]);
     const row = await db.prisma.priceCache.findUniqueOrThrow({ where: { ticker: "cg:btc" } });
     expect(row.price).toBe(149_000);
-    expect(row.cachedAt.getTime()).toBeGreaterThan(Date.now() - 60 * 1000);
+    expect(row.cachedAt).toEqual(fetchedAt);
+    expect((await getPriceMap([BTC_CRYPTO])).get("cg:btc")?.price).toBe(149_000);
+
+    // The failure is the retry clock: no new request within the TTL.
+    fetchMock.mockClear();
+    await refreshPricesForTickers([BTC_CRYPTO]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("drops a last good price fetched over a day ago when the lookup fails", async () => {
+    await db.prisma.priceCache.create({
+      data: { ticker: "cg:btc", price: 149_000, currency: "AUD", source: "coingecko", cachedAt: new Date(Date.now() - 25 * 60 * 60 * 1000) },
+    });
+    stubCoinGecko({}, {}, 429);
+    await refreshPricesForTickers([BTC_CRYPTO]);
+    expect(await db.prisma.priceCache.findUniqueOrThrow({ where: { ticker: "cg:btc" } })).toMatchObject({ price: 0 });
+    expect(await getPriceMap([BTC_CRYPTO])).toEqual(new Map());
+  });
+
+  it("stops keeping a price a day after it was fetched, however often lookups fail", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const start = new Date("2026-01-01T00:00:00Z");
+    vi.setSystemTime(start);
+    await db.prisma.priceCache.create({
+      data: { ticker: "cg:btc", price: 149_000, currency: "AUD", source: "coingecko", cachedAt: start },
+    });
+    stubCoinGecko({}, {}, 429);
+    // A failed lookup every 6 hours keeps the price, but not past a day.
+    for (const hours of [6, 12, 18]) {
+      vi.setSystemTime(new Date(start.getTime() + hours * 60 * 60 * 1000));
+      await refreshPricesForTickers([BTC_CRYPTO]);
+      expect((await getPriceMap([BTC_CRYPTO])).get("cg:btc")?.price).toBe(149_000);
+    }
+    vi.setSystemTime(new Date(start.getTime() + 25 * 60 * 60 * 1000));
+    await refreshPricesForTickers([BTC_CRYPTO]);
+    expect(await getPriceMap([BTC_CRYPTO])).toEqual(new Map());
   });
 
   it("caches a Yahoo miss too", async () => {
@@ -220,7 +261,36 @@ describe("misses and rate limits are cached for the TTL", () => {
   });
 });
 
+describe("getQuoteCurrency", () => {
+  it("gives the currency of a priced Yahoo row only", async () => {
+    await db.prisma.priceCache.createMany({
+      data: [
+        { ticker: "AAPL", price: 200, currency: "USD", source: "yahoo", cachedAt: new Date() },
+        { ticker: "NOPE", price: 0, currency: "AUD", source: "yahoo", cachedAt: new Date() },
+        { ticker: "cg:btc", price: 150_000, currency: "AUD", source: "coingecko", cachedAt: new Date() },
+      ],
+    });
+    expect(await getQuoteCurrency("AAPL")).toBe("USD");
+    expect(await getQuoteCurrency("NOPE")).toBeNull();
+    expect(await getQuoteCurrency("cg:btc")).toBeNull();
+    expect(await getQuoteCurrency("MISSING")).toBeNull();
+  });
+});
+
 describe("prices cached from the wrong feed before #404", () => {
+  it("deletes pre-#404 CoinGecko rows not under a cg: key on a full refresh", async () => {
+    await db.prisma.priceCache.createMany({
+      data: [
+        { ticker: "BTC-AUD", price: 150_000, currency: "AUD", source: "coingecko", cachedAt: new Date() },
+        { ticker: "cg:eth", price: 5_000, currency: "AUD", source: "coingecko", cachedAt: new Date() },
+        { ticker: "VAS.AX", price: 100, currency: "AUD", source: "yahoo", cachedAt: new Date() },
+      ],
+    });
+    await refreshAllPortfolioPrices();
+    const left = await db.prisma.priceCache.findMany({ orderBy: { ticker: "asc" } });
+    expect(left.map((r) => r.ticker)).toEqual(["VAS.AX", "cg:eth"]);
+  });
+
   it("never uses a Yahoo row for a crypto Holding, and replaces nothing an equity needs", async () => {
     await db.prisma.priceCache.create({
       data: { ticker: "BTC", price: 35.89, currency: "USD", changePct: null, source: "yahoo", cachedAt: new Date() },
@@ -321,6 +391,26 @@ describe("holdingUnitsAndCostIn", () => {
   it("gives no cost, rather than a guess, when a Trade's rate is missing", () => {
     expect(holdingUnitsAndCostIn([trade("GBP", 10, 100)], "FIFO", "AUD", rates)).toEqual({ units: 10, cost: null });
   });
+
+  // A SELL, SPLIT or DIVIDEND's price doesn't go into cost, so its currency
+  // needing a rate that isn't cached mustn't blank out the whole Holding.
+  // 1,000 AUD over 20 units after the split, then 5 sold: FIFO sells from
+  // the 1,000 AUD lot first, average cost sells a quarter of the pool.
+  for (const [method, cost] of [["FIFO", 500], ["AVERAGE", 750]] as const) {
+    it(`converts only BUYs (${method})`, () => {
+      const other = (type: string, units: number) => ({ ...trade("GBP", units, 999), type });
+      const trades = [trade("AUD", 10, 100), other("SPLIT", 10), other("DIVIDEND", 1), other("SELL", 5)];
+      expect(holdingUnitsAndCostIn(trades, method, "AUD", rates)).toEqual({ units: 15, cost });
+    });
+  }
+
+  it("says when cost uses today's rate for a BUY", () => {
+    expect(costUsesTodaysRate([trade("USD", 1, 1)], "AUD")).toBe(true);
+    expect(costUsesTodaysRate([trade("USD", 1, 1, { fxRate: 1.5 })], "AUD")).toBe(false);
+    expect(costUsesTodaysRate([trade("AUD", 1, 1), { ...trade("USD", 1, 1), type: "SELL" }], "AUD")).toBe(false);
+    // A Trade's own rate is to AUD, so it doesn't apply to a USD portfolio.
+    expect(costUsesTodaysRate([trade("AUD", 1, 1, { fxRate: 0.66 })], "USD")).toBe(true);
+  });
 });
 
 describe("netWorthComponents and the notes", () => {
@@ -351,14 +441,14 @@ describe("netWorthComponents and the notes", () => {
 
 describe("inferImportedAssetClass", () => {
   it("reads an Asset Class or Exchange column", () => {
-    expect(inferImportedAssetClass({ ticker: "SOMECOIN", assetClass: "Crypto" })).toBe("CRYPTO");
-    expect(inferImportedAssetClass({ ticker: "SOMECOIN", exchange: "crypto" })).toBe("CRYPTO");
-    expect(inferImportedAssetClass({ ticker: "BTC", assetClass: "ETF", exchange: "NYSE" })).toBe("SHARE");
+    expect(inferImportedAssetClass({ assetClass: "Crypto" })).toBe("CRYPTO");
+    expect(inferImportedAssetClass({ exchange: "crypto" })).toBe("CRYPTO");
+    expect(inferImportedAssetClass({ assetClass: "ETF", exchange: "NYSE" })).toBe("SHARE");
   });
 
-  it("recognises common coin tickers only when the row says nothing", () => {
-    expect(inferImportedAssetClass({ ticker: "btc" })).toBe("CRYPTO");
-    expect(inferImportedAssetClass({ ticker: "VAS.AX" })).toBe("SHARE");
+  it("never guesses crypto from the ticker: BTC is also a listed ETF", () => {
+    expect(inferImportedAssetClass({})).toBe("SHARE");
+    expect(inferImportedAssetClass({ assetClass: null, exchange: null })).toBe("SHARE");
   });
 });
 

@@ -209,7 +209,7 @@ export function TradeForm({
       </div>
 
       <div>
-        <label className="block text-sm font-medium mb-1" htmlFor="fxRate">FX rate to AUD (if non-AUD)</label>
+        <label className="block text-sm font-medium mb-1" htmlFor="fxRate">AUD per 1 unit of trade currency (e.g. 1.53 for USD)</label>
         <input
           id="fxRate"
           name="fxRate"
