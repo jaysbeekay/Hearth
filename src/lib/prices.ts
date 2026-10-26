@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { isCryptoHolding, priceSourceFor, type PricedHolding, type PriceRoutingFields } from "@/lib/priceSource";
 
 const EQUITY_TTL_MS = 15 * 60 * 1000; // 15 minutes
 const CRYPTO_TTL_MS = 5 * 60 * 1000;  // 5 minutes
@@ -47,57 +48,77 @@ export async function fetchEquityPrices(symbols: string[]): Promise<PriceResult[
   }
 }
 
-export async function fetchCryptoPrices(coinIds: string[]): Promise<PriceResult[]> {
-  if (!coinIds.length) return [];
+type CoinGeckoRow = { aud?: number; aud_24h_change?: number };
+
+// One CoinGecko /simple/price request, keyed by "ids" (CoinGecko coin IDs,
+// e.g. bitcoin) or "symbols" (e.g. btc). Returns rows by lowercased key; an
+// error or non-OK response is an empty map, so the ticker stays unpriced.
+async function fetchCoinGecko(param: "ids" | "symbols", keys: string[]): Promise<Map<string, CoinGeckoRow>> {
+  if (!keys.length) return new Map();
   try {
-    const ids = coinIds.map((id) => id.toLowerCase()).join(",");
-    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(ids)}&vs_currencies=aud&include_24hr_change=true`;
+    const url = `https://api.coingecko.com/api/v3/simple/price?${param}=${encodeURIComponent(keys.join(","))}&vs_currencies=aud&include_24hr_change=true`;
     const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-    if (!res.ok) return [];
-    const data = (await res.json()) as Record<string, { aud?: number; aud_24h_change?: number }>;
-    return coinIds.flatMap((id) => {
-      const row = data[id.toLowerCase()];
-      if (!row?.aud) return [];
-      return [
-        {
-          ticker: id,
-          price: row.aud,
-          currency: "AUD",
-          changePct: row.aud_24h_change ?? null,
-          source: "coingecko",
-        },
-      ];
-    });
+    if (!res.ok) return new Map();
+    const data = (await res.json()) as Record<string, CoinGeckoRow> | null;
+    return new Map(Object.entries(data ?? {}).map(([key, row]) => [key.toLowerCase(), row]));
   } catch {
-    return [];
+    return new Map();
   }
 }
 
-export async function refreshPricesForTickers(
-  tickers: { ticker: string; exchange: string | null }[],
-): Promise<void> {
-  if (!tickers.length) return;
+/**
+ * Prices crypto tickers in AUD from CoinGecko. A ticker is tried as a
+ * CoinGecko coin ID first (what the Holding form asks for, e.g. bitcoin),
+ * then as a coin symbol (e.g. BTC, #404). A ticker neither finds is left
+ * out, so it shows as unpriced rather than borrowing another feed's price.
+ */
+export async function fetchCryptoPrices(tickers: string[]): Promise<PriceResult[]> {
+  if (!tickers.length) return [];
+  const keys = [...new Set(tickers.map((t) => t.trim().toLowerCase()))];
+  const byId = await fetchCoinGecko("ids", keys);
+  const missing = keys.filter((k) => !byId.get(k)?.aud);
+  const bySymbol = await fetchCoinGecko("symbols", missing);
+  return tickers.flatMap((ticker) => {
+    const key = ticker.trim().toLowerCase();
+    const row = byId.get(key)?.aud ? byId.get(key) : bySymbol.get(key);
+    if (!row?.aud) return [];
+    return [{ ticker, price: row.aud, currency: "AUD", changePct: row.aud_24h_change ?? null, source: "coingecko" }];
+  });
+}
+
+function uniqueByTicker<T extends { ticker: string }>(holdings: T[]): T[] {
+  return [...new Map(holdings.map((h) => [h.ticker, h])).values()];
+}
+
+/**
+ * Refreshes the price cache for these Holdings: crypto from CoinGecko,
+ * everything else from Yahoo (see isCryptoHolding). A cached row from the
+ * other feed counts as stale whatever its age, so a crypto ticker that was
+ * priced from Yahoo before #404 is re-fetched from CoinGecko on the next
+ * refresh. getPriceMap ignores such a row meanwhile.
+ */
+export async function refreshPricesForTickers(holdings: PricedHolding[]): Promise<void> {
+  if (!holdings.length) return;
+  const unique = uniqueByTicker(holdings);
 
   const now = new Date();
   const equityThreshold = new Date(now.getTime() - EQUITY_TTL_MS);
   const cryptoThreshold = new Date(now.getTime() - CRYPTO_TTL_MS);
 
   const cached = await prisma.priceCache.findMany({
-    where: { ticker: { in: tickers.map((t) => t.ticker) } },
+    where: { ticker: { in: unique.map((t) => t.ticker) } },
   });
   const cacheMap = new Map(cached.map((c) => [c.ticker, c]));
 
-  const staleEquities = tickers.filter(({ ticker, exchange }) => {
-    if (exchange === "CRYPTO") return false;
-    const entry = cacheMap.get(ticker);
-    return !entry || entry.cachedAt < equityThreshold;
-  });
-
-  const staleCryptos = tickers.filter(({ ticker, exchange }) => {
-    if (exchange !== "CRYPTO") return false;
-    const entry = cacheMap.get(ticker);
-    return !entry || entry.cachedAt < cryptoThreshold;
-  });
+  const isStale = (holding: PricedHolding) => {
+    const entry = cacheMap.get(holding.ticker);
+    const source = priceSourceFor(holding);
+    if (!entry || entry.source !== source) return true;
+    return entry.cachedAt < (source === "coingecko" ? cryptoThreshold : equityThreshold);
+  };
+  const stale = unique.filter(isStale);
+  const staleCryptos = stale.filter((h) => isCryptoHolding(h));
+  const staleEquities = stale.filter((h) => !isCryptoHolding(h));
 
   const [equityResults, cryptoResults] = await Promise.all([
     fetchEquityPrices(staleEquities.map((t) => t.ticker)),
@@ -112,7 +133,7 @@ export async function refreshPricesForTickers(
       prisma.priceCache.upsert({
         where: { ticker: r.ticker },
         create: { ...r, cachedAt: now },
-        update: { price: r.price, currency: r.currency, changePct: r.changePct, cachedAt: now },
+        update: { price: r.price, currency: r.currency, changePct: r.changePct, source: r.source, cachedAt: now },
       }),
     ),
   );
@@ -120,16 +141,31 @@ export async function refreshPricesForTickers(
 
 export async function refreshAllPortfolioPrices(): Promise<void> {
   const holdings = await prisma.holding.findMany({
-    distinct: ["ticker"],
-    select: { ticker: true, exchange: true },
+    select: { ticker: true, exchange: true, assetClass: true },
   });
   await refreshPricesForTickers(holdings);
 }
 
-export async function getPriceMap(tickers: string[]): Promise<Map<string, { price: number; currency: string; changePct: number | null }>> {
-  if (!tickers.length) return new Map();
-  const rows = await prisma.priceCache.findMany({ where: { ticker: { in: tickers } } });
-  return new Map(rows.map((r) => [r.ticker, { price: r.price, currency: r.currency, changePct: r.changePct }]));
+export interface CachedPrice {
+  price: number;
+  currency: string;
+  changePct: number | null;
+}
+
+/**
+ * Cached prices for these Holdings, by ticker. Only a row from the Holding's
+ * own feed counts: a Yahoo price cached for a crypto ticker (#404) is left
+ * out, so the Holding shows as unpriced until CoinGecko answers.
+ */
+export async function getPriceMap(holdings: PricedHolding[]): Promise<Map<string, CachedPrice>> {
+  if (!holdings.length) return new Map();
+  const sources = new Map(uniqueByTicker(holdings).map((h) => [h.ticker, priceSourceFor(h)]));
+  const rows = await prisma.priceCache.findMany({ where: { ticker: { in: [...sources.keys()] } } });
+  return new Map(
+    rows
+      .filter((r) => sources.get(r.ticker) === r.source && Number.isFinite(r.price) && r.price > 0)
+      .map((r) => [r.ticker, { price: r.price, currency: r.currency, changePct: r.changePct }]),
+  );
 }
 
 // ── Historical price functions ───────────────────────────────────────────────
@@ -203,18 +239,18 @@ function isUniqueViolation(error: unknown): boolean {
 
 /**
  * Fetch and persist daily closing prices for a ticker from `fromDate` (capped
- * at MAX_HISTORY_DAYS ago) to today. Skips crypto (no Yahoo Finance
- * historical). Fetches only what isn't stored: forwards from two days before
+ * at MAX_HISTORY_DAYS ago) to today. Skips crypto Holdings (isCryptoHolding:
+ * no Yahoo Finance historical). Fetches only what isn't stored: forwards from two days before
  * the latest stored date, and backwards when `fromDate` is earlier than the
  * earliest stored date. Best-effort: a failed or timed-out fetch leaves what
  * is stored and never throws.
  */
 export function fetchAndStorePriceHistory(
   ticker: string,
-  exchange: string | null,
+  holding: PriceRoutingFields,
   fromDate: Date,
 ): Promise<void> {
-  if (exchange === "CRYPTO") return Promise.resolve();
+  if (isCryptoHolding(holding)) return Promise.resolve();
   const key = `${ticker}|${normaliseDate(fromDate).getTime()}`;
   const pending = historyInFlight.get(key);
   if (pending) return pending;

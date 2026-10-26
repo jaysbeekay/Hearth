@@ -345,6 +345,21 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **Wealth: net worth adds up, and crypto is priced from CoinGecko (#404).**
+  The Wealth page now shows the total above a plain list of every part of it
+  (shares/ETFs/crypto, Property, Items), so the figures always sum to the
+  total; Items were counted but had no tile. Crypto routing is keyed on the
+  Holding's asset class (falling back to an exchange of CRYPTO) in one
+  shared `isCryptoHolding` helper used by live prices, price history, the
+  Trade-date market-close backfill, CSV import and the Trade form's close
+  hint. Before, a CRYPTO "BTC" with a blank exchange went to Yahoo, where
+  BTC is an ETF, and showed USD 35.89 at -99.9%. A crypto ticker that isn't a
+  CoinGecko coin ID (e.g. BTC) is now tried as a coin symbol. Prices cached
+  from the wrong feed are ignored and re-fetched on the next refresh, and
+  stored Yahoo history and market closes are no longer shown for crypto. A
+  Holding with no price shows "No price", is left out of the total (with a
+  count shown under it), and gets no gain/loss. Gain/loss and cost basis are
+  shown in the portfolio's currency, converting the price first.
 - **Adding a Holding no longer hangs the app (#432).** Its price-history
   backfill wrote one row at a time from four parallel workers, and the
   database connection serialises every query, so other requests (session

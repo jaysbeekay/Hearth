@@ -25,7 +25,7 @@ export default async function WealthPage() {
   // Warm up prices in background before rendering
   const holdings = await prisma.holding.findMany({
     distinct: ["ticker"],
-    select: { ticker: true, exchange: true },
+    select: { ticker: true, exchange: true, assetClass: true },
   });
   if (holdings.length) {
     await refreshPricesForTickers(holdings).catch(() => {});
@@ -38,13 +38,10 @@ export default async function WealthPage() {
     .sort((a, b) => (b.currentValue ?? 0) - (a.currentValue ?? 0))
     .slice(0, 6);
 
-  // Plain allocation list (#408 replaced the donut chart).
-  const segments = [
-    { label: "Shares / ETFs / Crypto", value: data.sharesValue },
-    { label: "Property", value: data.propertyValue },
-    { label: "Inventory", value: data.inventoryValue },
-  ].filter((s) => s.value > 0);
-  const total = segments.reduce((s, seg) => s + seg.value, 0);
+  // #404 — one plain list of every part of the total, so the figures shown
+  // always add up to it (#408 replaced the donut chart).
+  const total = data.totalNetWorth;
+  const percentOf = (value: number) => (total > 0 ? `${((value / total) * 100).toFixed(0)}%` : "");
 
   let headerAction: ListPageAction | undefined;
   if (hasPortfolios) {
@@ -64,39 +61,29 @@ export default async function WealthPage() {
         </div>
       )}
 
-      {/* Net worth tiles */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <div className="col-span-2 rounded-xl border border-border bg-surface p-4">
+      {/* Net worth: the total, then every part of it */}
+      <section className="space-y-3" aria-label="Net worth">
+        <div className="rounded-xl border border-border bg-surface p-4">
           <p className="text-xs text-muted">Total net worth</p>
-          <p className="mt-1 text-3xl font-bold">{formatCurrency(data.totalNetWorth, "AUD", undefined, region, { showCode: true })}</p>
+          <p className="mt-1 text-3xl font-bold" data-testid="net-worth-total">{formatCurrency(total, data.currency, undefined, region, { showCode: true })}</p>
         </div>
-        <div className="rounded-xl border border-border bg-surface p-4">
-          <p className="text-xs text-muted">Shares / ETFs</p>
-          <p className="mt-1 text-xl font-semibold">{formatCurrency(data.sharesValue, "AUD", undefined, region, { showCode: true })}</p>
-        </div>
-        <div className="rounded-xl border border-border bg-surface p-4">
-          <p className="text-xs text-muted">Property</p>
-          <p className="mt-1 text-xl font-semibold">{formatCurrency(data.propertyValue, "AUD", undefined, region, { showCode: true })}</p>
-        </div>
-      </div>
-
-      {/* Allocation */}
-      {total > 0 && (
-        <section className="space-y-3">
-          <h2 className="font-medium">Allocation</h2>
-          <ul className="divide-y divide-border rounded-xl border border-border bg-surface">
-            {segments.map((seg) => (
-              <li key={seg.label} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
-                <span>{seg.label}</span>
-                <span className="flex items-center gap-3">
-                  <span className="text-muted">{((seg.value / total) * 100).toFixed(0)}%</span>
-                  <span className="font-medium">{formatCurrency(seg.value, "AUD", undefined, region, { showCode: true })}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+        <ul className="divide-y divide-border rounded-xl border border-border bg-surface" data-testid="net-worth-components">
+          {data.components.map((c) => (
+            <li key={c.key} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
+              <span>{c.label}</span>
+              <span className="flex items-center gap-3">
+                <span className="text-muted">{percentOf(c.value)}</span>
+                <span className="font-medium">{formatCurrency(c.value, data.currency, undefined, region, { showCode: true })}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+        {data.unpricedCount > 0 && (
+          <p className="text-sm text-muted">
+            {data.unpricedCount === 1 ? "1 holding has" : `${data.unpricedCount} holdings have`} no price yet and {data.unpricedCount === 1 ? "isn't" : "aren't"} counted.
+          </p>
+        )}
+      </section>
 
       {/* Holdings */}
       {topHoldings.length > 0 ? (

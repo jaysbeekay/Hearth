@@ -91,6 +91,14 @@ test.describe.serial("Wealth module", () => {
     await expect(page.locator("body")).toContainText("2");
   });
 
+  test("the Wealth page lists every part of net worth (#404)", async ({ page }) => {
+    await page.goto("/wealth");
+    await expect(page.getByTestId("net-worth-total")).toBeVisible();
+    const parts = page.getByTestId("net-worth-components");
+    await expect(parts).toContainText("Shares, ETFs and crypto");
+    await expect(page.locator("body")).toContainText("AAPL");
+  });
+
   test("upload a trade document", async ({ page }) => {
     await page.goto(`/wealth/portfolios/${portfolioId}/holdings/${holdingId}`);
 

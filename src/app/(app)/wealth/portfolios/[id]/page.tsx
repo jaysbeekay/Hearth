@@ -33,7 +33,7 @@ export default async function PortfolioPage({
   });
   if (!portfolio) notFound();
 
-  const holdingTickers = portfolio.holdings.map((h) => ({ ticker: h.ticker, exchange: h.exchange }));
+  const holdingTickers = portfolio.holdings.map((h) => ({ ticker: h.ticker, exchange: h.exchange, assetClass: h.assetClass }));
   if (holdingTickers.length) {
     await refreshPricesForTickers(holdingTickers).catch(() => {});
   }

@@ -15,10 +15,14 @@ export interface HoldingValue {
   costBasis: number;
   currentPrice: number | null;
   currentValue: number | null;
+  // In the portfolio's currency, like costBasis (the price can be in another).
   gainLoss: number | null;
   gainLossPct: number | null;
   changePct: number | null;
+  // Currency of currentPrice and currentValue.
   currency: string;
+  // Currency of costBasis and gainLoss: the portfolio's.
+  costCurrency: string;
 }
 
 export interface PortfolioValue {
@@ -26,17 +30,90 @@ export interface PortfolioValue {
   portfolioName: string;
   totalValue: number;
   totalCost: number;
+  // Holdings with units but no usable price (or no FX rate to the
+  // portfolio's currency): left out of totalValue, shown as "No price".
+  unpricedCount: number;
   holdings: HoldingValue[];
+}
+
+export type NetWorthComponentKey = "INVESTMENTS" | "PROPERTY" | "ITEMS";
+
+export interface NetWorthComponent {
+  key: NetWorthComponentKey;
+  label: string;
+  value: number;
 }
 
 export interface NetWorthData {
   sharesValue: number;
   propertyValue: number;
   inventoryValue: number;
+  // Always the sum of `components` (#404): every part of the total is listed.
   totalNetWorth: number;
+  components: NetWorthComponent[];
+  // Holdings across all portfolios not counted in the total for want of a price.
+  unpricedCount: number;
   portfolios: PortfolioValue[];
   propertyStale: boolean; // any property has no valuation in last 12 months
   currency: string;
+}
+
+/**
+ * The parts of net worth, one per source that's switched on: investments
+ * always (this is the Wealth module), Property with HOME, Items with
+ * INVENTORY. The total is computed from this list, so the list shown beside
+ * it always adds up to it (#404: Items were in the total but had no tile).
+ */
+export function netWorthComponents(
+  values: { investments: number; property: number; items: number },
+  enabledModules: Set<ModuleKey>,
+): { components: NetWorthComponent[]; total: number } {
+  const components: NetWorthComponent[] = [
+    { key: "INVESTMENTS", label: "Shares, ETFs and crypto", value: values.investments },
+  ];
+  if (enabledModules.has("HOME")) components.push({ key: "PROPERTY", label: "Property", value: values.property });
+  if (enabledModules.has("INVENTORY")) components.push({ key: "ITEMS", label: "Items", value: values.items });
+  return { components, total: components.reduce((s, c) => s + c.value, 0) };
+}
+
+export interface ValuedHolding {
+  currentPrice: number | null;
+  currentValue: number | null;
+  // currentValue converted to the portfolio's currency; null when unpriced.
+  portfolioValue: number | null;
+  gainLoss: number | null;
+  gainLossPct: number | null;
+  unpriced: boolean;
+}
+
+/**
+ * Values one Holding. A missing, zero or non-finite price leaves it unpriced
+ * (#404): no value, no gain/loss, rather than a wildly wrong figure such as
+ * BTC at Yahoo's ETF price showing -99.9%. Gain/loss compares like with
+ * like: the value is converted to the portfolio's currency (the cost
+ * basis's) first, and stays blank when no FX rate is cached.
+ */
+export function valueHolding(input: {
+  units: number;
+  cost: number;
+  price: number | null | undefined;
+  priceCurrency: string;
+  portfolioCurrency: string;
+  rateMap: Map<string, number>;
+}): ValuedHolding {
+  const { units, cost, priceCurrency, portfolioCurrency, rateMap } = input;
+  const price = input.price != null && Number.isFinite(input.price) && input.price > 0 ? input.price : null;
+  if (price == null) {
+    return { currentPrice: null, currentValue: null, portfolioValue: null, gainLoss: null, gainLossPct: null, unpriced: units > 0 };
+  }
+  if (units <= 0) {
+    return { currentPrice: price, currentValue: null, portfolioValue: null, gainLoss: null, gainLossPct: null, unpriced: false };
+  }
+  const currentValue = units * price;
+  const portfolioValue = convertAmount(currentValue, priceCurrency, portfolioCurrency, rateMap);
+  const gainLoss = portfolioValue != null ? portfolioValue - cost : null;
+  const gainLossPct = gainLoss != null && cost > 0 ? (gainLoss / cost) * 100 : null;
+  return { currentPrice: price, currentValue, portfolioValue, gainLoss, gainLossPct, unpriced: portfolioValue == null };
 }
 
 export type CostMethod = "FIFO" | "AVERAGE";
@@ -122,23 +199,45 @@ export async function getNetWorth(enabledModules: Set<ModuleKey>): Promise<NetWo
       : [],
   ]);
 
-  // Collect all tickers for price lookup
-  const allTickers = portfolios.flatMap((p) =>
-    p.holdings.map((h) => ({ ticker: h.ticker, exchange: h.exchange })),
-  );
-  const uniqueTickers = [...new Map(allTickers.map((t) => [t.ticker, t])).values()];
-  const priceMap = await getPriceMap(uniqueTickers.map((t) => t.ticker));
+  const priceMap = await getPriceMap(portfolios.flatMap((p) => p.holdings));
+
+  // Every currency any amount is in: portfolio, price, property valuation
+  // and item purchase price. Prices convert to their portfolio's currency
+  // (for the portfolio total and gain/loss), everything to NET_WORTH_CURRENCY.
+  const fxPairs: { from: string; to: string }[] = [];
+  for (const portfolio of portfolios) {
+    fxPairs.push({ from: portfolio.currency, to: NET_WORTH_CURRENCY });
+    for (const holding of portfolio.holdings) {
+      const priceCurrency = priceMap.get(holding.ticker)?.currency;
+      if (priceCurrency) fxPairs.push({ from: priceCurrency, to: portfolio.currency });
+    }
+  }
+  for (const property of properties) {
+    const currency = property.valuations[0]?.currency;
+    if (currency) fxPairs.push({ from: currency, to: NET_WORTH_CURRENCY });
+  }
+  for (const item of inventoryItems) fxPairs.push({ from: item.currency, to: NET_WORTH_CURRENCY });
+  await refreshFxRates(fxPairs);
+  const rateMap = await getFxRateMap(fxPairs);
 
   // Build portfolio values
   const portfolioValues: PortfolioValue[] = portfolios.map((portfolio) => {
+    let totalValue = 0;
+    let unpricedCount = 0;
     const holdingValues: HoldingValue[] = portfolio.holdings.map((holding) => {
       const { units, cost } = holdingUnitsAndCost(holding.trades, portfolio.costMethod);
       const priceEntry = priceMap.get(holding.ticker);
-      const currentPrice = priceEntry?.price ?? null;
       const currency = priceEntry?.currency ?? portfolio.currency;
-      const currentValue = currentPrice != null && units > 0 ? units * currentPrice : null;
-      const gainLoss = currentValue != null ? currentValue - cost : null;
-      const gainLossPct = gainLoss != null && cost > 0 ? (gainLoss / cost) * 100 : null;
+      const valued = valueHolding({
+        units,
+        cost,
+        price: priceEntry?.price,
+        priceCurrency: currency,
+        portfolioCurrency: portfolio.currency,
+        rateMap,
+      });
+      totalValue += valued.portfolioValue ?? 0;
+      if (valued.unpriced) unpricedCount++;
       return {
         holdingId: holding.id,
         ticker: holding.ticker,
@@ -147,44 +246,28 @@ export async function getNetWorth(enabledModules: Set<ModuleKey>): Promise<NetWo
         assetClass: holding.assetClass,
         unitsHeld: units,
         costBasis: cost,
-        currentPrice,
-        currentValue,
-        gainLoss,
-        gainLossPct,
-        changePct: priceEntry?.changePct ?? null,
+        currentPrice: valued.currentPrice,
+        currentValue: valued.currentValue,
+        gainLoss: valued.gainLoss,
+        gainLossPct: valued.gainLossPct,
+        changePct: valued.currentPrice != null ? (priceEntry?.changePct ?? null) : null,
         currency,
+        costCurrency: portfolio.currency,
       };
     });
-
-    const totalValue = holdingValues.reduce((s, h) => s + (h.currentValue ?? 0), 0);
-    const totalCost = holdingValues.reduce((s, h) => s + h.costBasis, 0);
 
     return {
       portfolioId: portfolio.id,
       portfolioName: portfolio.name,
       totalValue,
-      totalCost,
+      totalCost: holdingValues.reduce((s, h) => s + h.costBasis, 0),
+      unpricedCount,
       holdings: holdingValues,
     };
   });
 
-  // Convert each portfolio's total value (denominated in its own currency, as
-  // already shown on its own page) to a common currency before summing across
-  // portfolios — summing raw numbers across different portfolio currencies
-  // would produce a meaningless total. Same for property valuations and
-  // inventory purchase prices, which each carry their own currency field.
-  const portfolioCurrencies = portfolios.map((p) => p.currency);
-  const propertyCurrencies = properties
-    .map((p) => p.valuations[0]?.currency)
-    .filter((c): c is string => !!c);
-  const inventoryCurrencies = inventoryItems.map((i) => i.currency);
-  const allCurrencies = [
-    ...new Set([...portfolioCurrencies, ...propertyCurrencies, ...inventoryCurrencies]),
-  ];
-  const fxPairs = allCurrencies.map((from) => ({ from, to: NET_WORTH_CURRENCY }));
-  await refreshFxRates(fxPairs);
-  const rateMap = await getFxRateMap(fxPairs);
-
+  // Each portfolio's total is in its own currency (as shown on its own
+  // page); convert before summing across portfolios.
   const sharesValue = portfolioValues.reduce((s, p, i) => {
     const converted = convertAmount(p.totalValue, portfolios[i].currency, NET_WORTH_CURRENCY, rateMap);
     return s + (converted ?? 0);
@@ -206,18 +289,25 @@ export async function getNetWorth(enabledModules: Set<ModuleKey>): Promise<NetWo
     }
   }
 
-  // Inventory value
+  // Items (the Inventory module), at purchase price
   const inventoryValue = inventoryItems.reduce((s, i) => {
     if (i.purchasePrice == null) return s;
     const converted = convertAmount(i.purchasePrice, i.currency, NET_WORTH_CURRENCY, rateMap);
     return s + (converted ?? 0);
   }, 0);
 
+  const { components, total } = netWorthComponents(
+    { investments: sharesValue, property: propertyValue, items: inventoryValue },
+    enabledModules,
+  );
+
   return {
     sharesValue,
     propertyValue,
     inventoryValue,
-    totalNetWorth: sharesValue + propertyValue + inventoryValue,
+    totalNetWorth: total,
+    components,
+    unpricedCount: portfolioValues.reduce((s, p) => s + p.unpricedCount, 0),
     portfolios: portfolioValues,
     propertyStale,
     currency: NET_WORTH_CURRENCY,

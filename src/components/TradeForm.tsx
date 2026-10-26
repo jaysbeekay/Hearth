@@ -23,12 +23,15 @@ export function TradeForm({
   ticker,
   holdingId,
   defaultCurrency,
+  lookUpMarketPrice = true,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   trade?: TradeModel;
   ticker?: string;
   holdingId?: string;
   defaultCurrency?: string;
+  // Off for crypto Holdings: the market-close lookup is Yahoo-only (#404).
+  lookUpMarketPrice?: boolean;
 }) {
   const offlineAwareAction = makeOfflineAwareAction(
     action,
@@ -48,13 +51,14 @@ export function TradeForm({
   const [selectedDate, setSelectedDate] = useState(
     state?.values?.date ?? toDateInputValue(trade?.date) ?? "",
   );
+  const priceHintTicker = lookUpMarketPrice ? ticker : undefined;
   const [marketPrice, setMarketPrice] = useState<number | null>(null);
   const [priceHintLoading, setPriceHintLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const priceInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!ticker || !selectedDate) {
+    if (!priceHintTicker || !selectedDate) {
       return;
     }
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -62,7 +66,7 @@ export function TradeForm({
       setPriceHintLoading(true);
       try {
         const res = await fetch(
-          `/api/wealth/price?ticker=${encodeURIComponent(ticker)}&date=${encodeURIComponent(selectedDate)}`,
+          `/api/wealth/price?ticker=${encodeURIComponent(priceHintTicker)}&date=${encodeURIComponent(selectedDate)}`,
         );
         const data = (await res.json()) as { price: number | null };
         setMarketPrice(data.price ?? null);
@@ -75,7 +79,7 @@ export function TradeForm({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [ticker, selectedDate]);
+  }, [priceHintTicker, selectedDate]);
 
   function applyMarketPrice() {
     if (marketPrice == null || !priceInputRef.current) return;
@@ -148,7 +152,7 @@ export function TradeForm({
             placeholder="e.g. 98.50"
             className={inputClass}
           />
-          {ticker && selectedDate && (
+          {priceHintTicker && selectedDate && (
             <div className="mt-1 flex items-center gap-2 text-xs text-muted">
               {priceHintLoading ? (
                 <span>Fetching market price…</span>
