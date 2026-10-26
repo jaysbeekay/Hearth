@@ -6,8 +6,11 @@ import {
   RENEWAL_TYPES,
   BILLING_FREQUENCIES,
   contractSchema,
+  contractPatchSchema,
 } from "@/lib/validation/contract";
-import { productSchema } from "@/lib/validation/product";
+import { productSchema, productPatchSchema } from "@/lib/validation/product";
+import { parseNamedPatch } from "@/lib/validation/namedPatch";
+import { linkedRecordError } from "@/lib/commands/links";
 import { CATEGORY_LABELS, daysUntil, monthlyEquivalent } from "@/lib/utils";
 import { getNetWorth } from "@/lib/wealth";
 import {
@@ -37,7 +40,7 @@ interface RegisteredTool {
   moduleKey?: ModuleKey;
   // Guarded write ("propose_*") tools — never offered to or runnable by a
   // READONLY-role user, matching every other write path in the app. These
-  // tools never touch Prisma themselves (see the "Guarded writes" section
+  // tools never write to Prisma themselves (see the "Guarded writes" section
   // below); the actual write happens only after the user confirms the
   // proposal in the UI, via the *FromAssistant server actions.
   isWrite?: boolean;
@@ -312,9 +315,12 @@ const netWorthTool = defineTool({
 });
 
 // ─── Guarded writes (create/update contracts & products) ───────────────────
-// These tools never touch Prisma — they validate the model's proposed
-// fields against the exact same Zod schema the real form uses (contractSchema
-// / productSchema) and echo back the validated data. src/app/api/chat/route.ts
+// These tools never write to Prisma — they validate the model's proposed
+// fields against the same Zod schemas the real forms use (contractSchema /
+// productSchema for a create; their .partial() patch schemas for an update,
+// keeping only the fields the model named) and echo back the validated data.
+// An update also reads the record's name and dates, and any linked
+// record's name, for the confirmation card. src/app/api/chat/route.ts
 // detects a successful proposal and emits it to the client as a distinct
 // "proposed_action" SSE event; the actual write only happens once the user
 // reviews and explicitly confirms it in the UI, via createContractFromAssistant
@@ -347,6 +353,32 @@ const CONTRACT_WRITE_PROPERTIES = {
   isTaxDeductible: { type: "boolean" },
 } as const;
 
+// The card shows a linked Property or Vehicle by name, not its id. Checks
+// the link first (missing, in Trash, or Vehicles off), so a proposal the
+// confirm would refuse is refused now instead.
+async function linkDisplay(
+  data: { propertyId?: string; vehicleId?: string },
+): Promise<{ error: string } | { displayValues?: Record<string, string> }> {
+  const linkError = await linkedRecordError(data);
+  if (linkError) return { error: linkError };
+  const displayValues: Record<string, string> = {};
+  if (data.propertyId) {
+    const property = await prisma.property.findUnique({ where: { id: data.propertyId }, select: { label: true } });
+    if (property) displayValues.propertyId = property.label;
+  }
+  if (data.vehicleId) {
+    const vehicle = await prisma.vehicle.findUnique({ where: { id: data.vehicleId }, select: { label: true } });
+    if (vehicle) displayValues.vehicleId = vehicle.label;
+  }
+  return Object.keys(displayValues).length > 0 ? { displayValues } : {};
+}
+
+// A date moved on its own is checked against the saved other date here, so
+// the user isn't shown a card whose confirm the command would refuse.
+function datesOutOfOrder(start: Date | null | undefined, end: Date | null | undefined) {
+  return Boolean(start && end && end < start);
+}
+
 const proposeCreateContractTool = defineTool({
   name: "propose_create_contract",
   description:
@@ -362,21 +394,23 @@ const proposeCreateContractTool = defineTool({
   run: async (input) => {
     const parsed = contractSchema.safeParse(input);
     if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
-    return { proposed: true, entity: "contract", operation: "create", data: parsed.data };
+    const links = await linkDisplay(parsed.data);
+    if ("error" in links) return links;
+    return { proposed: true, entity: "contract", operation: "create", data: parsed.data, ...links };
   },
 });
 
 const proposeUpdateContractTool = defineTool({
   name: "propose_update_contract",
   description:
-    "Propose changes to an existing contract (id from list_contracts/search_contracts). This " +
-    "replaces the full record, so include every field's current or new value, not just the ones " +
-    "changing. Does not save anything by itself — shows the user a confirmation card first.",
+    "Propose changes to an existing contract (id from list_contracts/search_contracts). Include " +
+    "only the fields that change; every field left out keeps its current value. Does not save " +
+    "anything by itself — shows the user a confirmation card first.",
   isWrite: true,
   inputSchema: {
     type: "object",
     properties: { contractId: { type: "string" }, ...CONTRACT_WRITE_PROPERTIES },
-    required: ["contractId", "title", "category", "provider", "renewalType"],
+    required: ["contractId"],
   },
   schema: z.record(z.string(), z.unknown()),
   run: async (input) => {
@@ -384,14 +418,28 @@ const proposeUpdateContractTool = defineTool({
     if (typeof contractId !== "string" || !contractId) {
       return { error: "contractId is required." };
     }
-    const parsed = contractSchema.safeParse(fields);
-    if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+    // Only the named fields go into the proposal (#420): the full schema
+    // would fill defaults (status, tax-deductible) for the rest.
+    const parsed = parseNamedPatch(contractPatchSchema, fields);
+    if (!parsed.success) return { error: parsed.error };
+    // Read-only lookup, so the card can say which contract it changes.
+    const contract = await prisma.contract.findFirst({
+      where: { id: contractId, deletedAt: null },
+      select: { title: true, startDate: true, endDate: true },
+    });
+    if (!contract) return { error: "No contract with that id." };
+    const { startDate = contract.startDate, endDate = contract.endDate } = parsed.data;
+    if (datesOutOfOrder(startDate, endDate)) return { error: "End date can't be before the start date." };
+    const links = await linkDisplay(parsed.data);
+    if ("error" in links) return links;
     return {
       proposed: true,
       entity: "contract",
       operation: "update",
       entityId: contractId,
+      label: contract.title,
       data: parsed.data,
+      ...links,
     };
   },
 });
@@ -426,21 +474,23 @@ const proposeCreateProductTool = defineTool({
   run: async (input) => {
     const parsed = productSchema.safeParse(input);
     if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
-    return { proposed: true, entity: "product", operation: "create", data: parsed.data };
+    const links = await linkDisplay(parsed.data);
+    if ("error" in links) return links;
+    return { proposed: true, entity: "product", operation: "create", data: parsed.data, ...links };
   },
 });
 
 const proposeUpdateProductTool = defineTool({
   name: "propose_update_product",
   description:
-    "Propose changes to an existing product (id from list_products). This replaces the full " +
-    "record, so include every field's current or new value, not just the ones changing. Does not " +
-    "save anything by itself — shows the user a confirmation card first.",
+    "Propose changes to an existing product (id from list_products). Include only the fields " +
+    "that change; every field left out keeps its current value. Does not save anything by " +
+    "itself — shows the user a confirmation card first.",
   isWrite: true,
   inputSchema: {
     type: "object",
     properties: { productId: { type: "string" }, ...PRODUCT_WRITE_PROPERTIES },
-    required: ["productId", "description"],
+    required: ["productId"],
   },
   schema: z.record(z.string(), z.unknown()),
   run: async (input) => {
@@ -448,14 +498,28 @@ const proposeUpdateProductTool = defineTool({
     if (typeof productId !== "string" || !productId) {
       return { error: "productId is required." };
     }
-    const parsed = productSchema.safeParse(fields);
-    if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+    // Only the named fields go into the proposal: see propose_update_contract.
+    const parsed = parseNamedPatch(productPatchSchema, fields);
+    if (!parsed.success) return { error: parsed.error };
+    const product = await prisma.product.findFirst({
+      where: { id: productId, deletedAt: null },
+      select: { description: true, purchaseDate: true, warrantyEndDate: true },
+    });
+    if (!product) return { error: "No product with that id." };
+    const { purchaseDate = product.purchaseDate, warrantyEndDate = product.warrantyEndDate } = parsed.data;
+    if (datesOutOfOrder(purchaseDate, warrantyEndDate)) {
+      return { error: "Warranty end date can't be before the purchase date." };
+    }
+    const links = await linkDisplay(parsed.data);
+    if ("error" in links) return links;
     return {
       proposed: true,
       entity: "product",
       operation: "update",
       entityId: productId,
+      label: product.description,
       data: parsed.data,
+      ...links,
     };
   },
 });
