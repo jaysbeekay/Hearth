@@ -345,6 +345,19 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **Layout at phone and 1280px widths (#403).** Filenames no longer squeeze
+  to a few characters in the document lists (contract, product, and the
+  item/home/vehicle/rental-statement/trip-segment siblings): below `sm` the
+  filename gets its own line with the size/date metadata under it. Inbox
+  rows no longer slide under the type select, and long sender addresses
+  wrap. The document-type and contract-list filter selects fill their
+  wrappers again, so the chevron sits on the control instead of floating at
+  the card edge. Holding-card and spend-tile amounts wrap inside their boxes
+  instead of overflowing — the currency code joins the amount with a
+  no-break space, making it one unbreakable word — and the financial-year
+  actuals table separates its amount columns. The preferences grid is two
+  columns so the longest date-format label shows whole, and contract cards
+  keep even heights with a two-line category slot and a one-line price.
 - **Assistant updates change only the fields they name (#420).** Updating a
   Contract or Warranty through the Assistant used to parse the change as a
   full record, so fields it didn't mention fell back to their defaults: a
