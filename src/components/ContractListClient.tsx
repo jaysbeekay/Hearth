@@ -151,12 +151,15 @@ export function ContractListClient({
           }}
           className="flex-1 min-h-11 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-accent"
         />
+        {/* #403 — w-full on the selects: in the stacked (phone) form the
+            SelectWrapper stretches to the row, and a content-sized select left
+            the chevron floating outside the box. */}
         <SelectWrapper>
           <select
             name="category"
             defaultValue={category ?? ""}
             onChange={(e) => e.currentTarget.form?.requestSubmit()}
-            className="min-h-11 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-accent appearance-none pr-8"
+            className="min-h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-accent appearance-none pr-8"
           >
             <option value="">All categories</option>
             {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
@@ -171,7 +174,7 @@ export function ContractListClient({
             name="status"
             defaultValue={status ?? ""}
             onChange={(e) => e.currentTarget.form?.requestSubmit()}
-            className="min-h-11 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-accent appearance-none pr-8"
+            className="min-h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-accent appearance-none pr-8"
           >
             <option value="">All statuses</option>
             <option value="ACTIVE">Active</option>
