@@ -1,4 +1,4 @@
-import { formatDate } from "@/lib/utils";
+import { Timestamp } from "@/components/Timestamp";
 
 export function RecordMeta({
   createdByName,
@@ -28,13 +28,19 @@ export function RecordMeta({
 
   return (
     <p className="text-xs text-muted">
-      Added by {createdByName} on {formatDate(createdAt, dateFormat)}
-      {wasUpdated &&
-        (updatedByName
-          ? ` · Last changed by ${updatedByName} on ${formatDate(updatedAt, dateFormat)}`
-          : ` · Last updated ${formatDate(updatedAt, dateFormat)}`)}
-      {extractionConfirmedAt &&
-        ` · Auto-filled details confirmed ${formatDate(extractionConfirmedAt, dateFormat)}`}
+      Added by {createdByName} on <Timestamp value={createdAt} dateFormat={dateFormat} />
+      {wasUpdated && (
+        <>
+          {updatedByName ? ` · Last changed by ${updatedByName} on ` : " · Last updated "}
+          <Timestamp value={updatedAt} dateFormat={dateFormat} />
+        </>
+      )}
+      {extractionConfirmedAt && (
+        <>
+          {" · Auto-filled details confirmed "}
+          <Timestamp value={extractionConfirmedAt} dateFormat={dateFormat} />
+        </>
+      )}
       {memberCount != null &&
         ` · Visible to ${memberCount === 1 ? "you" : `all ${memberCount} household members`}`}
     </p>

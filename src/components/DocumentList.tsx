@@ -1,3 +1,4 @@
+import { Timestamp } from "@/components/Timestamp";
 import { FileText, History } from "lucide-react";
 import type { DocumentModel } from "@/generated/prisma/models";
 import { setDocumentImportantAction } from "@/lib/actions/documents";
@@ -5,7 +6,7 @@ import { DocumentDeleteButton } from "@/components/DocumentDeleteButton";
 import { DocumentLink } from "@/components/DocumentLink";
 import { ImportantToggle } from "@/components/ImportantToggle";
 import { documentFileHref } from "@/lib/documents/kinds";
-import { formatDate, humanFileSize } from "@/lib/utils";
+import { humanFileSize } from "@/lib/utils";
 
 function DeleteButton({ doc }: { doc: DocumentModel }) {
   return <DocumentDeleteButton kind="CONTRACT" documentId={doc.id} ownerId={doc.contractId} filename={doc.filename} />;
@@ -62,7 +63,7 @@ export function DocumentList({
                 <FileText size={18} className="shrink-0 text-muted" />
                 <span className="min-w-0 truncate">{doc.filename}</span>
                 <span className="shrink-0 text-muted">
-                  {humanFileSize(doc.size)} · {formatDate(doc.uploadedAt, dateFormat)}
+                  {humanFileSize(doc.size)} · <Timestamp value={doc.uploadedAt} dateFormat={dateFormat} />
                 </span>
                 {older.length > 0 && (
                   <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-accent/10 px-1.5 py-0.5 text-xs font-medium text-accent">
@@ -94,7 +95,7 @@ export function DocumentList({
                       <History size={14} className="shrink-0" />
                       <span className="min-w-0 truncate">{v.filename}</span>
                       <span className="shrink-0">
-                        {humanFileSize(v.size)} · {formatDate(v.uploadedAt, dateFormat)}
+                        {humanFileSize(v.size)} · <Timestamp value={v.uploadedAt} dateFormat={dateFormat} />
                       </span>
                     </DocumentLink>
                     <DeleteButton doc={v} />

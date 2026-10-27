@@ -12,6 +12,11 @@
 // hand-ported copy, held in step by tests/fixtures/due-policy-cases.json,
 // which both test suites run — any rule change here changes that file.
 //
+// Labels (#422): each entry carries `labelParts`, the label as a key and its
+// parameters, and `label`, those parts in the plain default format the
+// shared cases pin. Screens render `labelParts` in the viewer's date format
+// and region (dueLabel.ts); this module never reads Preferences.
+//
 // Input contract:
 // - Date fields (end dates, rego expiry and so on) are calendar dates
 //   stored at UTC midnight, so a date's calendar day is its UTC date. A
@@ -45,8 +50,40 @@ export interface DueEntry {
   /** Days from today to `date` in the household's day; negative once passed. */
   daysLeft: number;
   state: DueState;
+  /**
+   * The badge text in the plain default format ("Cancel by 3 Nov"), as the
+   * shared cases pin it. Screens show `labelParts` in the viewer's date
+   * format and region instead (#422, src/lib/dueLabel.ts).
+   */
   label: string;
+  /** What the label says, as a key and its parameters, for a renderer to format. */
+  labelParts: DueLabel;
 }
+
+/**
+ * A Due label as a key plus parameters (#422): the policy decides what the
+ * badge says, and a renderer decides how its date and numbers read. The
+ * upcoming-date keys say "today" on the day itself.
+ */
+export type DueLabel =
+  | {
+      key:
+        | "cancelBy"
+        | "renews"
+        | "expires"
+        | "ends"
+        | "regoDue"
+        | "insuranceDue"
+        | "serviceDue"
+        | "leaseEnds"
+        | "ended"
+        | "lapsed";
+      date: CalendarDay;
+      /** The household's today: for "today", and for leaving out the current year. */
+      today: CalendarDay;
+    }
+  | { key: "expiredAgo" | "regoExpiredAgo" | "insuranceExpiredAgo" | "serviceOverdue"; days: number }
+  | { key: "needsNewEndDate" | "leaseEnded" };
 
 export type DueRecord =
   | {
@@ -184,19 +221,85 @@ export function daysBetween(from: CalendarDay, to: CalendarDay): number {
 
 // ─── Labels ───────────────────────────────────────────────────────────────────
 
+/** How a label's dates and day counts read. */
+export interface DueLabelFormat {
+  /** A calendar day, given the household's today (to leave out the current year). */
+  date: (day: CalendarDay, today: CalendarDay) => string;
+  /** A day count. */
+  count: (n: number) => string;
+}
+
+/** The month's short English name, 1-based ("Nov" for 11). */
+export function shortMonthName(month: number): string {
+  return MONTHS[month - 1] ?? "";
+}
+
 /** "3 Nov", or "3 Nov 2027" when it isn't this year. */
 export function formatDueDate(day: CalendarDay, today: CalendarDay): string {
   const [, m, d] = day.split("-").map(Number);
-  const short = `${d} ${MONTHS[m - 1]}`;
+  const short = `${d} ${shortMonthName(m)}`;
   return day.slice(0, 4) === today.slice(0, 4) ? short : `${short} ${day.slice(0, 4)}`;
 }
 
-function onDay(day: CalendarDay, today: CalendarDay): string {
-  return day === today ? "today" : formatDueDate(day, today);
+/** The plain default format, which the shared cases (and the standalone shell) pin. */
+export const PLAIN_DUE_LABEL_FORMAT: DueLabelFormat = { date: formatDueDate, count: String };
+
+type DatedLabelKey = Extract<DueLabel, { date: CalendarDay }>["key"];
+
+function upcomingVerb(key: DatedLabelKey): string {
+  switch (key) {
+    case "cancelBy":
+      return "Cancel by";
+    case "renews":
+      return "Renews";
+    case "expires":
+      return "Expires";
+    case "ends":
+      return "Ends";
+    case "regoDue":
+      return "Rego due";
+    case "insuranceDue":
+      return "Insurance due";
+    case "serviceDue":
+      return "Service due";
+    case "leaseEnds":
+      return "Lease ends";
+    case "ended":
+      return "Ended";
+    case "lapsed":
+      return "Lapsed";
+  }
 }
 
-function ago(daysPast: number): string {
-  return daysPast === 1 ? "yesterday" : `${daysPast} days ago`;
+/**
+ * A Due label's text in `format`: the plain default, unless a renderer
+ * passes the viewer's date format and region (src/lib/dueLabel.ts).
+ */
+export function renderDueLabel(label: DueLabel, format: DueLabelFormat = PLAIN_DUE_LABEL_FORMAT): string {
+  const ago = (days: number) => (days === 1 ? "yesterday" : `${format.count(days)} days ago`);
+  switch (label.key) {
+    case "expiredAgo":
+      return `Expired ${ago(label.days)}`;
+    case "regoExpiredAgo":
+      return `Rego expired ${ago(label.days)}`;
+    case "insuranceExpiredAgo":
+      return `Insurance expired ${ago(label.days)}`;
+    case "serviceOverdue":
+      return `Service overdue by ${format.count(label.days)} ${label.days === 1 ? "day" : "days"}`;
+    case "needsNewEndDate":
+      return "Needs new end date";
+    case "leaseEnded":
+      return "Lease ended — set the new lease end";
+    default: {
+      // A passed date (Ended, Lapsed) is never today, so only upcoming ones say "today".
+      const on = label.date === label.today ? "today" : format.date(label.date, label.today);
+      return `${upcomingVerb(label.key)} ${on}`;
+    }
+  }
+}
+
+function makeEntry(field: DueField, date: CalendarDay, daysLeft: number, state: DueState, labelParts: DueLabel): DueEntry {
+  return { field, date, daysLeft, state, label: renderDueLabel(labelParts), labelParts };
 }
 
 // ─── Rules ────────────────────────────────────────────────────────────────────
@@ -230,8 +333,15 @@ export function isDue(entry: DueEntry): boolean {
 }
 
 // An entry that's today or ahead: due soon inside the window, later outside it.
-function upcoming(field: DueField, date: CalendarDay, daysLeft: number, window: number, label: string): DueEntry {
-  return { field, date, daysLeft, state: daysLeft <= window ? "due-soon" : "later", label };
+function upcoming(
+  field: DueField,
+  date: CalendarDay,
+  daysLeft: number,
+  window: number,
+  key: DatedLabelKey,
+  today: CalendarDay,
+): DueEntry {
+  return makeEntry(field, date, daysLeft, daysLeft <= window ? "due-soon" : "later", { key, date, today });
 }
 
 function contractEntries(record: Extract<DueRecord, { kind: "contract" }>, ctx: DueContext): DueEntry[] {
@@ -246,7 +356,7 @@ function contractEntries(record: Extract<DueRecord, { kind: "contract" }>, ctx: 
   if (noticeApplies(record)) {
     const deadline = addDays(end, -record.noticePeriodDays!);
     const days = daysBetween(today, deadline);
-    if (days >= 0) return [upcoming("noticeDeadline", deadline, days, window, `Cancel by ${onDay(deadline, today)}`)];
+    if (days >= 0) return [upcoming("noticeDeadline", deadline, days, window, "cancelBy", today)];
   }
 
   const daysLeft = daysBetween(today, end);
@@ -254,53 +364,56 @@ function contractEntries(record: Extract<DueRecord, { kind: "contract" }>, ctx: 
     // An auto-renewing Contract simply carries on, so its end date is never
     // Due: only its notice deadline is.
     if (record.renewalType === "AUTO_RENEW") {
-      return [{ field: "endDate", date: end, daysLeft, state: "later", label: `Renews ${onDay(end, today)}` }];
+      return [makeEntry("endDate", end, daysLeft, "later", { key: "renews", date: end, today })];
     }
-    const verb = record.renewalType === "FIXED_TERM" ? "Ends" : "Expires";
-    return [upcoming("endDate", end, daysLeft, window, `${verb} ${onDay(end, today)}`)];
+    return [upcoming("endDate", end, daysLeft, window, record.renewalType === "FIXED_TERM" ? "ends" : "expires", today)];
   }
 
-  const past = -daysLeft;
   switch (record.renewalType) {
     case "FIXED_TERM":
-      return [{ field: "endDate", date: end, daysLeft, state: "ended", label: `Ended ${formatDueDate(end, today)}` }];
+      return [makeEntry("endDate", end, daysLeft, "ended", { key: "ended", date: end, today })];
     case "AUTO_RENEW":
       // It carried on into its next Term: Housekeeping, not Due.
-      return [{ field: "endDate", date: end, daysLeft, state: "needs-new-end-date", label: "Needs new end date" }];
+      return [makeEntry("endDate", end, daysLeft, "needs-new-end-date", { key: "needsNewEndDate" })];
     default:
-      return [{ field: "endDate", date: end, daysLeft, state: "overdue", label: `Expired ${ago(past)}` }];
+      return [makeEntry("endDate", end, daysLeft, "overdue", { key: "expiredAgo", days: -daysLeft })];
   }
 }
 
 function warrantyEntries(record: Extract<DueRecord, { kind: "warranty" }>, ctx: DueContext): DueEntry[] {
   const end = toDay(record.warrantyEndDate);
   if (!end) return [];
-  const daysLeft = daysBetween(ctx.today, end);
+  const { today } = ctx;
+  const daysLeft = daysBetween(today, end);
   if (daysLeft < 0) {
-    return [{ field: "warrantyEndDate", date: end, daysLeft, state: "lapsed", label: `Lapsed ${formatDueDate(end, ctx.today)}` }];
+    return [makeEntry("warrantyEndDate", end, daysLeft, "lapsed", { key: "lapsed", date: end, today })];
   }
   const window = dueSoonWindow(record.reminderDaysBefore, ctx.defaultReminderDays);
-  return [upcoming("warrantyEndDate", end, daysLeft, window, `Ends ${onDay(end, ctx.today)}`)];
+  return [upcoming("warrantyEndDate", end, daysLeft, window, "ends", today)];
 }
 
-const VEHICLE_FIELDS: { field: VehicleDueField; name: string; passed: (days: number) => string }[] = [
-  { field: "regoExpiry", name: "Rego", passed: (days) => `Rego expired ${ago(days)}` },
-  { field: "insuranceExpiry", name: "Insurance", passed: (days) => `Insurance expired ${ago(days)}` },
-  { field: "nextServiceDue", name: "Service", passed: (days) => `Service overdue by ${days} ${days === 1 ? "day" : "days"}` },
+const VEHICLE_FIELDS: {
+  field: VehicleDueField;
+  due: DatedLabelKey;
+  passed: Extract<DueLabel, { days: number }>["key"];
+}[] = [
+  { field: "regoExpiry", due: "regoDue", passed: "regoExpiredAgo" },
+  { field: "insuranceExpiry", due: "insuranceDue", passed: "insuranceExpiredAgo" },
+  { field: "nextServiceDue", due: "serviceDue", passed: "serviceOverdue" },
 ];
 
 function vehicleEntries(record: Extract<DueRecord, { kind: "vehicle" }>, ctx: DueContext): DueEntry[] {
   const window = dueSoonWindow(record.reminderDaysBefore, ctx.defaultReminderDays);
   const entries: DueEntry[] = [];
-  for (const { field, name, passed } of VEHICLE_FIELDS) {
+  for (const { field, due, passed } of VEHICLE_FIELDS) {
     if (record.coveredFields?.includes(field)) continue;
     const date = toDay(record[field]);
     if (!date) continue;
     const daysLeft = daysBetween(ctx.today, date);
     entries.push(
       daysLeft < 0
-        ? { field, date, daysLeft, state: "overdue", label: passed(-daysLeft) }
-        : upcoming(field, date, daysLeft, window, `${name} due ${onDay(date, ctx.today)}`),
+        ? makeEntry(field, date, daysLeft, "overdue", { key: passed, days: -daysLeft })
+        : upcoming(field, date, daysLeft, window, due, ctx.today),
     );
   }
   return entries;
@@ -312,13 +425,11 @@ function tenancyEntries(record: Extract<DueRecord, { kind: "tenancy" }>, ctx: Du
   const daysLeft = daysBetween(ctx.today, end);
   if (daysLeft < 0) {
     // Like an auto-renewing Contract, it needs its new date: Housekeeping, not Due.
-    return [
-      { field: "leaseEnd", date: end, daysLeft, state: "needs-new-end-date", label: "Lease ended — set the new lease end" },
-    ];
+    return [makeEntry("leaseEnd", end, daysLeft, "needs-new-end-date", { key: "leaseEnded" })];
   }
   // A Tenancy has no Reminder thresholds of its own, so the household default sets its window.
   const window = dueSoonWindow(null, ctx.defaultReminderDays);
-  return [upcoming("leaseEnd", end, daysLeft, window, `Lease ends ${onDay(end, ctx.today)}`)];
+  return [upcoming("leaseEnd", end, daysLeft, window, "leaseEnds", ctx.today)];
 }
 
 /** Every Due entry of a record, soonest first. Trips are never Due, so they aren't a record kind here. */

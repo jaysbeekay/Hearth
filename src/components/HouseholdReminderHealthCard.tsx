@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { BellRing, AlertTriangle, CheckCircle2 } from "lucide-react";
-import { formatDate } from "@/lib/utils";
+import { Timestamp } from "@/components/Timestamp";
 import type { HouseholdReminderHealth } from "@/lib/notifications/health";
 
 function channelSummary(channels: HouseholdReminderHealth["channels"]) {
@@ -62,7 +62,7 @@ export function HouseholdReminderHealthCard({
         <div className="min-w-0">
           <dt className="text-xs text-muted">Last activity</dt>
           <dd className="text-sm font-medium">
-            {health.lastActivityAt ? formatDate(health.lastActivityAt, dateFormat) : "Never"}
+            {health.lastActivityAt ? <Timestamp value={health.lastActivityAt} dateFormat={dateFormat} /> : "Never"}
           </dd>
         </div>
         <div className="min-w-0">

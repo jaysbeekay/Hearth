@@ -5,6 +5,7 @@ import {
   dueEntries,
   householdDay,
   isDue,
+  renderDueLabel,
   resolveTimeZone,
   serverTimeZone,
   type DueEntry,
@@ -20,8 +21,18 @@ interface DueCase {
   timezone?: string;
   defaultReminderDays?: string;
   record: DueRecord;
-  expected: DueEntry[];
+  /** The entries without `labelParts`: the shared cases pin the plain label (#422). */
+  expected: Omit<DueEntry, "labelParts">[];
 }
+
+// An entry as the shared cases pin it: everything but `labelParts`.
+const plain = ({ field, date, daysLeft, state, label }: DueEntry): DueCase["expected"][number] => ({
+  field,
+  date,
+  daysLeft,
+  state,
+  label,
+});
 
 const fixture = JSON.parse(
   readFileSync(path.resolve(__dirname, "../fixtures/due-policy-cases.json"), "utf8"),
@@ -31,7 +42,10 @@ describe("Due policy shared cases", () => {
   it.each(fixture.cases.map((c) => [c.name, c] as const))("%s", (_name, c) => {
     const { now, timezone, defaultReminderDays } = { ...fixture.defaults, ...c };
     const today = householdDay(new Date(now), timezone);
-    expect(dueEntries(c.record, { today, defaultReminderDays })).toEqual(c.expected);
+    const entries = dueEntries(c.record, { today, defaultReminderDays });
+    expect(entries.map(plain)).toEqual(c.expected);
+    // The plain label is the default rendering of the label's parts (#422).
+    for (const entry of entries) expect(renderDueLabel(entry.labelParts)).toBe(entry.label);
   });
 
   it("covers every record kind and state", () => {
@@ -65,7 +79,14 @@ describe("household day helpers", () => {
   it("dueEntries takes Date objects as their UTC date", () => {
     const ctx = { today: "2026-10-24", defaultReminderDays: "30,14,7,1" };
     expect(dueEntries({ kind: "tenancy", leaseEnd: new Date("2026-11-03T00:00:00Z") }, ctx)).toEqual([
-      { field: "leaseEnd", date: "2026-11-03", daysLeft: 10, state: "due-soon", label: "Lease ends 3 Nov" },
+      {
+        field: "leaseEnd",
+        date: "2026-11-03",
+        daysLeft: 10,
+        state: "due-soon",
+        label: "Lease ends 3 Nov",
+        labelParts: { key: "leaseEnds", date: "2026-11-03", today: "2026-10-24" },
+      },
     ]);
     expect(dueEntries({ kind: "tenancy", leaseEnd: new Date("invalid") }, ctx)).toEqual([]);
   });
@@ -84,6 +105,7 @@ describe("household day helpers", () => {
       daysLeft: 0,
       state,
       label: "",
+      labelParts: { key: "needsNewEndDate" },
     });
     expect(isDue(entry("due-soon"))).toBe(true);
     expect(isDue(entry("overdue"))).toBe(true);

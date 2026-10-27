@@ -267,7 +267,14 @@ describe("Reminder schedule", () => {
   });
 
   it("does nothing without thresholds", () => {
-    const entry = { field: "warrantyEndDate" as const, date: "2026-10-30", daysLeft: 5, state: "due-soon" as const, label: "" };
+    const entry = {
+      field: "warrantyEndDate" as const,
+      date: "2026-10-30",
+      daysLeft: 5,
+      state: "due-soon" as const,
+      label: "",
+      labelParts: { key: "ends" as const, date: "2026-10-30", today: "2026-10-25" },
+    };
     expect(reminderSchedule(entry, [], [], "2026-10-25").EMAIL).toEqual({ sendNow: null, nextReminderOn: null });
   });
 

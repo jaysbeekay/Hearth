@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { formatDate } from "@/lib/utils";
+import { formatTimestamp } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 import type { SecurityEventType } from "@/generated/prisma/enums";
 import { BackLink } from "@/components/BackLink";
@@ -33,7 +33,7 @@ export default async function SecurityLogPage() {
     redirect("/settings");
   }
 
-  const [events, { dateFormat }] = await Promise.all([
+  const [events, { dateFormat, displayTimeZone }] = await Promise.all([
     prisma.securityEventLog.findMany({ orderBy: { createdAt: "desc" }, take: 100 }),
     getUserPreferences(),
   ]);
@@ -67,7 +67,7 @@ export default async function SecurityLogPage() {
                   </p>
                 </div>
                 <span className="shrink-0 text-xs text-muted">
-                  {formatDate(event.createdAt, dateFormat)}
+                  {formatTimestamp(event.createdAt, dateFormat, displayTimeZone)}
                 </span>
               </li>
             ))}

@@ -50,7 +50,14 @@ function warranty(id: string, endInDays: number) {
 }
 
 function dueItem(id: string, daysLeft: number): AttentionItem {
-  const entry: DueEntry = { field: "endDate", date: addDays(TODAY, daysLeft), daysLeft, state: daysLeft < 0 ? "overdue" : "due-soon", label: id };
+  const entry: DueEntry = {
+    field: "endDate",
+    date: addDays(TODAY, daysLeft),
+    daysLeft,
+    state: daysLeft < 0 ? "overdue" : "due-soon",
+    label: id,
+    labelParts: { key: "needsNewEndDate" },
+  };
   return { id, kind: "contract", group: "due", title: id, entry, href: `/contracts/${id}` };
 }
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { Timestamp } from "@/components/Timestamp";
 import { useState } from "react";
 import { Eye, FileText } from "lucide-react";
 import type { ProductDocumentModel } from "@/generated/prisma/models";
@@ -10,7 +11,7 @@ import { DocumentPreviewModal, isPreviewable } from "@/components/DocumentPrevie
 import { ImportantToggle } from "@/components/ImportantToggle";
 import { ProductDocumentThumbnail } from "@/components/ProductDocumentThumbnail";
 import { documentFileHref } from "@/lib/documents/kinds";
-import { formatDate, humanFileSize } from "@/lib/utils";
+import { humanFileSize } from "@/lib/utils";
 
 const KIND_LABELS: Record<string, string> = {
   INVOICE: "Invoice",
@@ -54,7 +55,7 @@ export function ProductDocumentList({
             <span className="min-w-0 truncate">{doc.filename}</span>
             <span className="shrink-0 text-muted">
               {KIND_LABELS[doc.kind] ?? doc.kind} · {humanFileSize(doc.size)} ·{" "}
-              {formatDate(doc.uploadedAt, dateFormat)}
+              <Timestamp value={doc.uploadedAt} dateFormat={dateFormat} />
             </span>
           </DocumentLink>
           <div className="flex items-center gap-1">

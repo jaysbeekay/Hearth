@@ -368,6 +368,19 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   read-only member can't queue changes offline, and the service worker
   serves no cached signed-in page once nobody is signed in or the session
   has expired.
+- **Due labels and dates follow your date format, and stay on their day
+  (#422).** Badges and banners such as "Cancel by 4 Nov" now read in the
+  Date format chosen in Settings → Preferences ("Cancel by Nov 4" for
+  MM/DD/YYYY, "Cancel by 2026-11-04" for YYYY-MM-DD), with day counts in
+  the Region's number style, on the lists, dashboard, Needs attention,
+  Upcoming and detail pages. The Due policy now returns each label as a key
+  and its parameters, and the screen formats it; its plain labels, and the
+  shared Due cases, are unchanged. Calendar dates (end dates, expiries,
+  purchase dates and so on) are stored at UTC midnight and now always read
+  as that day: on a server or browser west of UTC, a 1 Dec end date could
+  show as 30 Nov. Moments in time, such as when a document was uploaded or
+  a Reminder sent, show in your own timezone, or the household's until you
+  pick one.
 - **Adding a Holding no longer hangs the app (#432).** Its price-history
   backfill wrote one row at a time from four parallel workers, and the
   database connection serialises every query, so other requests (session

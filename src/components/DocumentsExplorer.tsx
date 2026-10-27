@@ -1,5 +1,6 @@
 "use client";
 
+import { Timestamp } from "@/components/Timestamp";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { FileText, Image as ImageIcon, Eye, Upload } from "lucide-react";
@@ -7,7 +8,7 @@ import { SelectWrapper, inputClass } from "@/components/SelectWrapper";
 import { linkButtonClass } from "@/lib/buttonStyles";
 import { DocumentLink } from "@/components/DocumentLink";
 import { DocumentPreviewModal, isPreviewable } from "@/components/DocumentPreviewModal";
-import { formatDate, humanFileSize } from "@/lib/utils";
+import { humanFileSize } from "@/lib/utils";
 import { DOCUMENT_CATEGORIES, DOCUMENT_CATEGORY_LABELS, type DocumentCategory } from "@/lib/documents/categories";
 
 export interface DocRow {
@@ -184,7 +185,7 @@ export function DocumentsExplorer({
                       </Link>
                     </td>
                     <td className="whitespace-nowrap px-4 py-2 text-muted">
-                      {formatDate(doc.uploadedAt, dateFormat)}
+                      <Timestamp value={doc.uploadedAt} dateFormat={dateFormat} />
                     </td>
                     <td className="whitespace-nowrap px-4 py-2 text-right text-muted">
                       {humanFileSize(doc.size)}
@@ -244,7 +245,7 @@ export function DocumentsExplorer({
                   <Link href={doc.parentHref} className="text-accent hover:underline">
                     {doc.parentTitle}
                   </Link>
-                  <span>{formatDate(doc.uploadedAt, dateFormat)}</span>
+                  <span><Timestamp value={doc.uploadedAt} dateFormat={dateFormat} /></span>
                   <span>{humanFileSize(doc.size)}</span>
                 </div>
               </div>
