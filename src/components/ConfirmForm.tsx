@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { showToast } from "@/components/Toast";
-import { deleteOperation, enqueueOperation } from "@/lib/offlineQueue";
+import { deleteOperation, enqueueOperation, OfflineQueueRefusedError } from "@/lib/offlineQueue";
 import { buttonVariants, compactButtonClass } from "@/lib/buttonStyles";
 import { cn } from "@/lib/utils";
 import { Dialog } from "@/components/Dialog";
@@ -171,7 +171,10 @@ export function ConfirmForm({
                   showDoneToast();
                   throw err;
                 }
-                showToast("Something went wrong. Please try again.", "error");
+                showToast(
+                  err instanceof OfflineQueueRefusedError ? err.message : "Something went wrong. Please try again.",
+                  "error",
+                );
               } finally {
                 setPending(false);
               }

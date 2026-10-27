@@ -356,6 +356,18 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   proposals are unchanged. The card also shows dates as calendar dates and a
   linked Property or Vehicle by name, and the Assistant can no longer link a
   record to a Property or Vehicle while that module is off.
+- **Signing out clears this device's offline data (#424).** Sign out now
+  deletes the service worker's cached pages and data, the offline write
+  queue and offline Documents, so the next person to use a shared browser
+  can't see or replay any of it. If changes are still waiting to sync, it
+  first asks: Sync now (signs out only once they've synced), Discard and
+  sign out, or Cancel. Offline data is also tied to the user who stored it:
+  a different user signing in, even after a session that ended without a
+  sign-out, never sees the last user's queued changes or downloads and
+  purges them, `/api/sync` refuses a change queued by another account, a
+  read-only member can't queue changes offline, and the service worker
+  serves no cached signed-in page once nobody is signed in or the session
+  has expired.
 - **Adding a Holding no longer hangs the app (#432).** Its price-history
   backfill wrote one row at a time from four parallel workers, and the
   database connection serialises every query, so other requests (session

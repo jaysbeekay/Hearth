@@ -5,6 +5,7 @@ import { TopBar } from "@/components/TopBar";
 import { BottomNav } from "@/components/BottomNav";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { OfflineSyncManager } from "@/components/OfflineSyncManager";
+import { OfflineSessionGuard } from "@/components/OfflineSessionGuard";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { ToastContainer } from "@/components/Toast";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
@@ -50,6 +51,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       />
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar />
+        <OfflineSessionGuard
+          userId={session.user.id}
+          canWrite={canWrite(session)}
+          expires={session.expires}
+        />
         <OfflineSyncManager />
         <OfflineBanner />
         <main id="main" className="flex-1 px-4 py-6 pb-[calc(6rem+env(safe-area-inset-bottom))] md:px-8 md:py-8 md:pb-8">
