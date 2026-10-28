@@ -508,6 +508,59 @@ model Product {
   @@map("products")
 }
 
+// #380 staging tables. Legacy Product and InventoryItem writers remain in use
+// until the Item routes and Document storage have been migrated together.
+model Item {
+  id              String   @id @default(cuid())
+  description     String
+  manufacturer    String?
+  model           String?
+  vendor          String?
+  serialNumber    String?
+  barcode         String?
+  purchaseDate    DateTime?
+  price           Float?
+  currency        String   @default("AUD")
+  category        String?
+  location        String?
+  propertyId      String?
+  notes           String?
+  createdById     String
+  deletedAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  legacyProductId String?  @unique
+
+  warranty         Warranty?
+  legacyInventories ItemLegacyInventory[]
+
+  @@map("items")
+}
+
+model Warranty {
+  id                 String   @id @default(cuid())
+  itemId             String   @unique
+  item               Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  endDate            DateTime?
+  reminderDaysBefore String?
+  registered         Boolean  @default(false)
+  extended           Boolean  @default(false)
+  legacyProductId    String?  @unique
+
+  @@map("warranties")
+}
+
+// Several InventoryItems may point at one Product. Keep every source id so
+// their Documents can be moved and audited before the old rows are removed.
+model ItemLegacyInventory {
+  inventoryItemId String @id
+  itemId          String
+  item            Item   @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
+  @@map("item_legacy_inventories")
+}
+
 // #314: has FTS5 sync triggers (fts_product_documents_*) — see the comment
 // on the Document model above for what that means for future schema changes.
 model ProductDocument {
