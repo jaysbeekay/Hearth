@@ -87,6 +87,14 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- **Standalone shell wealth parity (#440).** The offline shell's dashboard now
+  lists net worth the way the web Wealth page does (#404): a Net worth total
+  with its parts beneath — Shares, ETFs and crypto, Property and Items, each
+  shown only when its module is on — and the listed parts add up to the
+  total. Its generic CSV trade import reads the optional Asset Class and
+  Exchange columns and creates a CRYPTO holding when either says Crypto
+  (case-insensitive); a row with neither stays SHARE, and the class is never
+  guessed from the ticker.
 - **One navigation on phones (#407, #369).** The bottom bar and its More
   sheet are now the only way around on a phone; the menu button and
   edge-swipe drawer are gone (the desktop sidebar is unchanged). More lists

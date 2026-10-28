@@ -1256,6 +1256,11 @@ function renderDashboard() {
   const inventoryValue = moduleEnabled("inventoryItems") ? cache.inventoryItems.reduce((sum, row) => sum + (Number(row.purchase_price) || 0), 0) : 0;
   const propertyValue = moduleEnabled("properties") ? cache.properties.reduce((sum, row) => sum + (Number(row.estimated_value) || 0), 0) : 0;
   const holdingsValue = moduleEnabled("portfolios") ? cache.holdings.reduce((sum, row) => sum + holdingValue(row), 0) : 0;
+  // #440: the web Wealth page lists net worth as parts — Shares, ETFs and
+  // crypto / Property / Items — each shown only when its module is on, and
+  // the total is their sum. Each value above is already 0 when its module is
+  // off, so adding the three matches exactly the parts the tiles list.
+  const netWorthTotal = holdingsValue + propertyValue + inventoryValue;
   const contractsMissingInfo = activeContracts.filter((row) => missingInfo("contracts", row)).length;
   const productsMissingInfo = cache.products.filter((row) => missingInfo("products", row)).length;
   const vehiclesMissingInfo = moduleEnabled("vehicles") ? cache.vehicles.filter((row) => missingInfo("vehicles", row)).length : 0;
@@ -1283,8 +1288,10 @@ function renderDashboard() {
     <section class="grid-2">
       ${miniCard("Est. monthly cost", money(monthlySpend, defaultCurrency()) ?? `${defaultCurrency()} 0`, "Private local estimate")}
       ${miniCard("Needs review", String(docsNeedingReview.length), "Documents without extracted text")}
-      ${moduleEnabled("properties") || moduleEnabled("inventoryItems") ? miniCard("Home + inventory", money(propertyValue + inventoryValue, defaultCurrency()) ?? `${defaultCurrency()} 0`, "Local asset estimate") : ""}
-      ${moduleEnabled("portfolios") ? miniCard("Portfolio value", money(holdingsValue, defaultCurrency()) ?? `${defaultCurrency()} 0`, "Trade-derived holdings") : ""}
+      ${(moduleEnabled("portfolios") || moduleEnabled("properties") || moduleEnabled("inventoryItems")) ? miniCard("Net worth", money(netWorthTotal, defaultCurrency()) ?? `${defaultCurrency()} 0`, "Sum of the parts below") : ""}
+      ${moduleEnabled("portfolios") ? miniCard("Shares, ETFs and crypto", money(holdingsValue, defaultCurrency()) ?? `${defaultCurrency()} 0`, "Trade-derived holdings") : ""}
+      ${moduleEnabled("properties") ? miniCard("Property", money(propertyValue, defaultCurrency()) ?? `${defaultCurrency()} 0`, "Local estimate") : ""}
+      ${moduleEnabled("inventoryItems") ? miniCard("Items", money(inventoryValue, defaultCurrency()) ?? `${defaultCurrency()} 0`, "Purchase-price estimate") : ""}
     </section>
 
     <section>
@@ -3569,7 +3576,7 @@ async function importTradesFromCsv(portfolioId, file) {
     const holding = await findOrCreateHoldingForTrade(portfolioId, {
       ticker: row.ticker,
       name: null,
-      assetClass: "SHARE",
+      assetClass: row.assetClass || "SHARE",
       exchange: inferredExchange(row.ticker),
       currency: row.currency || portfolio.currency || defaultCurrency(),
     });
@@ -3694,6 +3701,12 @@ function parseTradeCsvRow(row, format) {
   if (!type) return null;
   return cleanImportedTrade({
     ticker: row["Ticker"],
+    // #440: generic format carries optional Asset Class / Exchange columns;
+    // same rule as the web import (CRYPTO in either marks a coin).
+    assetClass: inferImportedAssetClass({
+      assetClass: row["Asset Class"] ?? row["AssetClass"] ?? null,
+      exchange: row["Exchange"] ?? null,
+    }),
     type,
     date: row["Date"],
     units: row["Units"],
@@ -3711,7 +3724,9 @@ function cleanImportedTrade(row) {
   const fees = parseCsvNumber(row.fees) || 0;
   const currency = String(row.currency || defaultCurrency()).trim().toUpperCase();
   if (!ticker || !date || !row.type || !Number.isFinite(units) || units <= 0 || !Number.isFinite(pricePerUnit) || pricePerUnit < 0 || !currency) return null;
-  return { ticker, type: row.type, date, units, pricePerUnit, fees, currency };
+  // assetClass is only set by the generic format's inference (#440); broker
+  // exports leave it null and the import treats that as SHARE.
+  return { ticker, type: row.type, date, units, pricePerUnit, fees, currency, assetClass: row.assetClass ?? null };
 }
 
 function normalizeImportedTradeType(value) {
@@ -3751,6 +3766,18 @@ function isSupportedImportedTrade(row) {
 function inferredExchange(ticker) {
   if (ticker.endsWith(".AX")) return "XASX";
   return null;
+}
+
+// #440: mirrors the web app's inferImportedAssetClass (src/lib/priceSource.ts).
+// A generic-format row is crypto when its Asset Class or Exchange column says
+// so; never guessed from the ticker — BTC, ETH and SOL are also listed
+// ETFs/shares (#404 review).
+function isCryptoLabel(value) {
+  return String(value ?? "").trim().toUpperCase() === "CRYPTO";
+}
+
+function inferImportedAssetClass(row) {
+  return isCryptoLabel(row.assetClass) || isCryptoLabel(row.exchange) ? "CRYPTO" : "SHARE";
 }
 
 function normalizeTicker(value) {
