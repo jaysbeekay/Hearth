@@ -1,6 +1,7 @@
 import type { ZodObject } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { syncLegacyInventory } from "@/lib/items/syncLegacyItem";
 import type { ModuleKey } from "@/lib/modules/registry";
 import { contractSchema } from "@/lib/validation/contract";
 import { productSchema } from "@/lib/validation/product";
@@ -361,16 +362,23 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     input: formToInventoryItemInput,
     requiresModule: "INVENTORY",
     create: async (data, { userId }) => {
-      const item = await prisma.inventoryItem.create({ data: { ...data, createdById: userId } });
+      const item = await prisma.$transaction(async (tx) => {
+        const created = await tx.inventoryItem.create({ data: { ...data, createdById: userId } });
+        await syncLegacyInventory(tx, created.id);
+        return created;
+      });
       revalidatePath("/inventory");
       return { id: item.id };
     },
     update: async (id, data, ctx) => {
       const existing = await prisma.inventoryItem.findUnique({ where: { id } });
       if (!existing) throw new Error("Item not found");
-      await updateUnlessStale(ctx.baseUpdatedAt, (guard) =>
-        prisma.inventoryItem.updateMany({ where: { id, ...guard }, data }),
-      );
+      await prisma.$transaction(async (tx) => {
+        await updateUnlessStale(ctx.baseUpdatedAt, (guard) =>
+          tx.inventoryItem.updateMany({ where: { id, ...guard }, data }),
+        );
+        await syncLegacyInventory(tx, id, existing.warrantyProductId);
+      });
       revalidatePath("/inventory");
       revalidatePath(`/inventory/${id}`);
     },
@@ -378,7 +386,10 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     remove: async (id) => {
       const existing = await prisma.inventoryItem.findUnique({ where: { id } });
       if (!existing) throw new Error("Item not found");
-      await prisma.inventoryItem.update({ where: { id }, data: { deletedAt: new Date() } });
+      await prisma.$transaction(async (tx) => {
+        await tx.inventoryItem.update({ where: { id }, data: { deletedAt: new Date() } });
+        await syncLegacyInventory(tx, id);
+      });
       revalidatePath("/inventory");
       revalidatePath("/settings/trash");
     },
