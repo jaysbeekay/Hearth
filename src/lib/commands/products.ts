@@ -11,6 +11,7 @@ import {
 import type { ClearablePatch } from "@/lib/validation/fullFormUpdate";
 import type { ProductInput } from "@/lib/validation/product";
 import type { Prisma } from "@/generated/prisma/client";
+import { syncLegacyProduct } from "@/lib/items/syncLegacyItem";
 
 // Record commands for Products (Items), as for Contracts in
 // commands/contracts.ts (ADR 0003): every write to `product` goes through
@@ -84,6 +85,7 @@ async function writeProduct(id: string, actorId: string, options: UpdateOptions,
       tx.product.updateMany({ where: { id, ...guard }, data: { ...patch, updatedById: actorId } }),
     );
     if (write.alsoInTransaction) await write.alsoInTransaction(tx);
+    await syncLegacyProduct(tx, id);
   });
   revalidateProduct(id);
 }
@@ -93,8 +95,10 @@ export async function createProductCommand(
   actorId: string,
   extra?: ProductExtractionFields,
 ) {
-  const product = await prisma.product.create({
-    data: { ...input, ...extra, createdById: actorId },
+  const product = await prisma.$transaction(async (tx) => {
+    const created = await tx.product.create({ data: { ...input, ...extra, createdById: actorId } });
+    await syncLegacyProduct(tx, created.id);
+    return created;
   });
   revalidatePath("/products");
   revalidatePath("/dashboard");
@@ -141,7 +145,10 @@ export async function confirmProductExtractionCommand(
 // #287 — soft-delete: see the equivalent comment on deleteContractCommand.
 export async function deleteProductCommand(id: string) {
   await findProduct(id);
-  await prisma.product.update({ where: { id }, data: { deletedAt: new Date() } });
+  await prisma.$transaction(async (tx) => {
+    await tx.product.update({ where: { id }, data: { deletedAt: new Date() } });
+    await syncLegacyProduct(tx, id);
+  });
   revalidatePath("/products");
   revalidatePath("/dashboard");
   revalidatePath("/settings/trash");
@@ -149,7 +156,10 @@ export async function deleteProductCommand(id: string) {
 
 export async function restoreProductCommand(id: string) {
   await findProduct(id);
-  await prisma.product.update({ where: { id }, data: { deletedAt: null } });
+  await prisma.$transaction(async (tx) => {
+    await tx.product.update({ where: { id }, data: { deletedAt: null } });
+    await syncLegacyProduct(tx, id);
+  });
   revalidateProduct(id);
   revalidatePath("/settings/trash");
 }

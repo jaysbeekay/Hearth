@@ -13,6 +13,7 @@ import { isModuleEnabled } from "@/lib/modules/enablement";
 import type { ActionState } from "@/lib/actions/auth";
 import { describeUploadRejection } from "@/lib/uploadValidation";
 import { parseDocumentCategory } from "@/lib/documents/categories";
+import { syncLegacyInventory } from "@/lib/items/syncLegacyItem";
 
 const INVENTORY_ITEM_FORM_FIELDS = [
   "label",
@@ -64,8 +65,10 @@ export async function createInventoryItem(
 
   let item;
   try {
-    item = await prisma.inventoryItem.create({
-      data: { ...parsed.data, createdById: user.id },
+    item = await prisma.$transaction(async (tx) => {
+      const created = await tx.inventoryItem.create({ data: { ...parsed.data, createdById: user.id } });
+      await syncLegacyInventory(tx, created.id);
+      return created;
     });
   } catch {
     return { error: "Linked warranty no longer exists.", values: formDataToStringValues(formData, INVENTORY_ITEM_FORM_FIELDS) };
@@ -101,9 +104,12 @@ export async function updateInventoryItem(
   if (!existing) return { error: "Item not found." };
 
   try {
-    await prisma.inventoryItem.update({
-      where: { id: itemId },
-      data: { ...fullFormUpdate(inventoryItemSchema, parsed.data, formData), updatedById: user.id },
+    await prisma.$transaction(async (tx) => {
+      await tx.inventoryItem.update({
+        where: { id: itemId },
+        data: { ...fullFormUpdate(inventoryItemSchema, parsed.data, formData), updatedById: user.id },
+      });
+      await syncLegacyInventory(tx, itemId, existing.warrantyProductId);
     });
   } catch {
     return { error: "Linked warranty no longer exists.", values: formDataToStringValues(formData, INVENTORY_ITEM_FORM_FIELDS) };
@@ -121,7 +127,10 @@ export async function deleteInventoryItem(itemId: string): Promise<ActionState> 
   const existing = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
   if (!existing) return { error: "Item not found." };
 
-  await prisma.inventoryItem.update({ where: { id: itemId }, data: { deletedAt: new Date() } });
+  await prisma.$transaction(async (tx) => {
+    await tx.inventoryItem.update({ where: { id: itemId }, data: { deletedAt: new Date() } });
+    await syncLegacyInventory(tx, itemId);
+  });
 
   revalidatePath("/inventory");
   revalidatePath("/settings/trash");
@@ -134,7 +143,10 @@ export async function restoreInventoryItem(itemId: string): Promise<ActionState>
   const existing = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
   if (!existing) return { error: "Item not found." };
 
-  await prisma.inventoryItem.update({ where: { id: itemId }, data: { deletedAt: null } });
+  await prisma.$transaction(async (tx) => {
+    await tx.inventoryItem.update({ where: { id: itemId }, data: { deletedAt: null } });
+    await syncLegacyInventory(tx, itemId);
+  });
 
   revalidatePath("/inventory");
   revalidatePath("/settings/trash");
