@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
 import type { Prisma } from "@/generated/prisma/client";
 import { mergeItemSources } from "@/lib/items/mergeSources";
+import { prisma } from "@/lib/prisma";
+import { removeItemDocumentFiles } from "@/lib/storage";
+import { removeStagedLegacyDocument } from "@/lib/items/syncLegacyDocument";
 
 type Tx = Prisma.TransactionClient;
 
@@ -65,4 +68,18 @@ export async function syncLegacyInventory(tx: Tx, inventoryItemId: string, previ
     ? await tx.item.update({ where: { id: mappedItem.id }, data })
     : await tx.item.create({ data: { id: randomUUID(), ...data } });
   await tx.itemLegacyInventory.upsert({ where: { inventoryItemId }, create: { inventoryItemId, itemId: item.id }, update: { itemId: item.id } });
+}
+
+/** Retire the staged source after an InventoryItem has been hard-deleted. */
+export async function purgeLegacyInventoryStage(inventoryItemId: string, documentIds: string[]) {
+  const mapping = await prisma.itemLegacyInventory.findUnique({ where: { inventoryItemId }, include: { item: true } });
+  if (!mapping) return;
+  for (const id of documentIds) await removeStagedLegacyDocument("INVENTORY_ITEM", id);
+  await prisma.itemLegacyInventory.delete({ where: { inventoryItemId } });
+  if (mapping.item.legacyProductId) {
+    await prisma.$transaction((tx) => syncLegacyProduct(tx, mapping.item.legacyProductId!));
+  } else {
+    await prisma.item.delete({ where: { id: mapping.itemId } });
+    await removeItemDocumentFiles(mapping.itemId);
+  }
 }

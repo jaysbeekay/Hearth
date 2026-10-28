@@ -12,6 +12,9 @@ import type { ClearablePatch } from "@/lib/validation/fullFormUpdate";
 import type { ProductInput } from "@/lib/validation/product";
 import type { Prisma } from "@/generated/prisma/client";
 import { syncLegacyProduct } from "@/lib/items/syncLegacyItem";
+import { syncLegacyInventory } from "@/lib/items/syncLegacyItem";
+import { syncLegacyDocument } from "@/lib/items/syncLegacyDocument";
+import { removeItemDocumentFiles } from "@/lib/storage";
 
 // Record commands for Products (Items), as for Contracts in
 // commands/contracts.ts (ADR 0003): every write to `product` goes through
@@ -173,6 +176,8 @@ export async function permanentlyDeleteProductCommand(id: string) {
 // Trash retention (src/lib/trash.ts) can call it from a page render.
 export async function purgeProduct(id: string) {
   await findProduct(id);
+  const staged = await prisma.item.findUnique({ where: { legacyProductId: id }, select: { id: true } });
+  const linked = await prisma.inventoryItem.findMany({ where: { warrantyProductId: id }, select: { id: true } });
   await prisma.product.delete({ where: { id } });
   // Files first, straight after the row: if clearing the log below throws,
   // the files mustn't be left orphaned with no row pointing at them (#413).
@@ -180,4 +185,19 @@ export async function purgeProduct(id: string) {
   // NotificationLog is polymorphic across owners (#201), so it doesn't
   // cascade with the row; clear it explicitly.
   await clearNotificationLogs("PRODUCT", id);
+  // Product purge clears the old link. Rehome surviving Inventory items in
+  // the staging tables; the legacy operation above remains authoritative.
+  try {
+    if (staged) {
+      await prisma.item.delete({ where: { id: staged.id } });
+      await removeItemDocumentFiles(staged.id);
+    }
+    for (const source of linked) {
+      await prisma.$transaction((tx) => syncLegacyInventory(tx, source.id));
+      const docs = await prisma.inventoryItemDocument.findMany({ where: { inventoryItemId: source.id }, select: { id: true } });
+      for (const doc of docs) await syncLegacyDocument("INVENTORY_ITEM", doc.id);
+    }
+  } catch (error) {
+    console.error(`[items] couldn't finish staged Product purge ${id}`, error);
+  }
 }

@@ -13,7 +13,7 @@ import { isModuleEnabled } from "@/lib/modules/enablement";
 import type { ActionState } from "@/lib/actions/auth";
 import { describeUploadRejection } from "@/lib/uploadValidation";
 import { parseDocumentCategory } from "@/lib/documents/categories";
-import { syncLegacyInventory } from "@/lib/items/syncLegacyItem";
+import { syncLegacyInventory, purgeLegacyInventoryStage } from "@/lib/items/syncLegacyItem";
 
 const INVENTORY_ITEM_FORM_FIELDS = [
   "label",
@@ -159,8 +159,11 @@ export async function permanentlyDeleteInventoryItem(itemId: string): Promise<Ac
   const existing = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
   if (!existing) return { error: "Item not found." };
 
+  const documentIds = (await prisma.inventoryItemDocument.findMany({ where: { inventoryItemId: itemId }, select: { id: true } })).map((doc) => doc.id);
   await removeOwnerDocumentFiles("INVENTORY_ITEM", itemId);
   await prisma.inventoryItem.delete({ where: { id: itemId } });
+  try { await purgeLegacyInventoryStage(itemId, documentIds); }
+  catch (error) { console.error(`[items] couldn't retire staged Inventory item ${itemId}`, error); }
 
   revalidatePath("/settings/trash");
   return { success: "Deleted permanently." };

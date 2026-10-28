@@ -169,6 +169,9 @@ export async function readProductDocument(productId: string, storedName: string)
 export async function readItemDocument(itemId: string, storedName: string) {
   return itemStore.read(itemId, storedName);
 }
+export async function removeItemDocumentFiles(itemId: string) {
+  return itemStore.removeAll(itemId);
+}
 export async function saveInboxDocument(file: File) {
   return inboxStore.save("", file);
 }
