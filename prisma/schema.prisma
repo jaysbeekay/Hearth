@@ -534,6 +534,7 @@ model Item {
 
   warranty         Warranty?
   legacyInventories ItemLegacyInventory[]
+  documents        ItemDocument[]
 
   @@map("items")
 }
@@ -560,6 +561,34 @@ model ItemLegacyInventory {
 
   @@index([itemId])
   @@map("item_legacy_inventories")
+}
+
+model ItemDocument {
+  id               String   @id @default(cuid())
+  itemId           String
+  item             Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  sourceKind       String
+  sourceDocumentId String
+  filename         String
+  storedName       String
+  mimeType         String
+  size             Int
+  kind             ProductDocumentKind @default(OTHER)
+  extractedText    String?
+  extractionStatus String   @default("PENDING")
+  sha256           String?
+  category         String?
+  isImportant      Boolean  @default(false)
+  deletedAt        DateTime?
+  supersedesId     String?  @unique
+  supersedes       ItemDocument? @relation("ItemDocumentVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy     ItemDocument? @relation("ItemDocumentVersions")
+  uploadedAt       DateTime @default(now())
+
+  @@unique([sourceKind, sourceDocumentId])
+  @@index([itemId])
+  @@index([deletedAt])
+  @@map("item_documents")
 }
 
 // #314: has FTS5 sync triggers (fts_product_documents_*) — see the comment

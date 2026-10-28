@@ -36,6 +36,10 @@ function inventoryItemDir(inventoryItemId: string) {
   return path.join(path.resolve(env.uploadsDir), "inventory-items", path.basename(inventoryItemId));
 }
 
+function itemDir(itemId: string) {
+  return path.join(path.resolve(env.uploadsDir), "items", path.basename(itemId));
+}
+
 function inboxDir() {
   return path.join(path.resolve(env.uploadsDir), "inbox");
 }
@@ -51,6 +55,7 @@ const homeItemStore = new DocumentStore(homeItemDir);
 const vehicleItemStore = new DocumentStore(vehicleItemDir);
 const rentalStatementStore = new DocumentStore(rentalStatementDir);
 const inventoryItemStore = new DocumentStore(inventoryItemDir);
+const itemStore = new DocumentStore(itemDir);
 const inboxStore = new DocumentStore(inboxDir);
 const tradeStore = new DocumentStore(tradeDir);
 
@@ -160,6 +165,9 @@ export async function readDocument(contractId: string, storedName: string) {
 }
 export async function readProductDocument(productId: string, storedName: string) {
   return productStore.read(productId, storedName);
+}
+export async function readItemDocument(itemId: string, storedName: string) {
+  return itemStore.read(itemId, storedName);
 }
 export async function saveInboxDocument(file: File) {
   return inboxStore.save("", file);
