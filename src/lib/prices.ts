@@ -56,7 +56,14 @@ type CoinGeckoRow = { aud?: number; aud_24h_change?: number; aud_market_cap?: nu
 async function fetchCoinGecko(param: "ids" | "symbols", keys: string[]): Promise<Map<string, CoinGeckoRow>> {
   if (!keys.length) return new Map();
   try {
-    const url = `https://api.coingecko.com/api/v3/simple/price?${param}=${encodeURIComponent(keys.join(","))}&vs_currencies=aud&include_24hr_change=true&include_market_cap=true`;
+    // Build the request from a fixed base: the user-entered tickers flow only
+    // through searchParams, never through a URL string handed to fetch
+    // (Codacy user-controlled-URL rule, #436).
+    const url = new URL("https://api.coingecko.com/api/v3/simple/price");
+    url.searchParams.set(param, keys.join(","));
+    url.searchParams.set("vs_currencies", "aud");
+    url.searchParams.set("include_24hr_change", "true");
+    url.searchParams.set("include_market_cap", "true");
     const res = await fetch(url, { signal: AbortSignal.timeout(COINGECKO_TIMEOUT_MS) });
     if (!res.ok) return new Map();
     const data = (await res.json()) as Record<string, CoinGeckoRow> | null;
