@@ -6,9 +6,10 @@ import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaLibSql } from "@prisma/adapter-libsql";
 import { mergeItemSources } from "../src/lib/items/mergeSources";
 
+async function main() {
 const argument = process.argv[2];
 if (!argument || process.argv.length !== 3 || !argument.startsWith("/")) {
-  throw new Error("Usage: npx tsx scripts/backfill-items.ts /absolute/path/to/copy.db");
+  throw new Error("Usage: node --import tsx scripts/backfill-items.ts /absolute/path/to/copy.db");
 }
 const file = await stat(argument).catch(() => null);
 if (!file?.isFile()) throw new Error("Pass an existing local database copy");
@@ -88,3 +89,9 @@ try {
 } finally {
   await prisma.$disconnect();
 }
+}
+
+main().catch((error: unknown) => {
+  console.error(error);
+  process.exitCode = 1;
+});
