@@ -345,6 +345,41 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **Wealth: net worth adds up, and crypto is priced from CoinGecko (#404).**
+  The Wealth page shows the total above a plain list of every part of it
+  (shares/ETFs/crypto, Property, Items), so the figures always sum to the
+  total; Items were counted but had no tile. Anything left out (a holding
+  with no price or exchange rate, or a portfolio, property or item with no
+  exchange rate) is named in a note under it.
+  - Crypto routing is keyed on the Holding's asset class (falling back to an
+    exchange of CRYPTO) in one `isCryptoHolding` helper, used by live
+    prices, price history, the Trade-date market-close backfill and the
+    Trade form's close hint. Before, a CRYPTO "BTC" with a blank exchange
+    went to Yahoo, where BTC is an ETF, and showed USD 35.89 at -99.9%.
+  - CoinGecko looks a ticker up as a coin ID and as a symbol and takes the
+    coin with the larger market cap (`ids=dot` alone is an obscure "Dot", not
+    Polkadot), then remembers which lookup won. Misses and rate limits are
+    cached for the price TTL, keeping the last good price until it is a day
+    old (counted from when it was fetched, not from the last failed retry).
+  - Crypto prices are cached under their own key, so a BTC ETF and BTC the
+    coin are priced separately; a price cached from the wrong feed is never
+    used, and stored Yahoo history and market closes aren't shown for crypto.
+    The scheduled price refresh deletes CoinGecko rows cached before this
+    under the bare ticker.
+  - CSV import creates a crypto Holding only when the generic format's Asset
+    Class or Exchange column says so. The ticker alone isn't enough: BTC,
+    ETH, SOL and others are also listed ETFs and shares.
+  - Cost basis converts each BUY from its own currency into the
+    portfolio's (the Trade's AUD rate when entered, else today's rate, which
+    the Holding page then notes), and gain/loss converts the price too.
+    SELL, SPLIT and DIVIDEND Trades don't need a rate. A holding with no
+    price shows "No price", one missing a rate "No exchange rate"; neither
+    is counted or given a gain/loss. A portfolio's cost, value and gain/loss
+    tiles all cover the counted holdings, with the cost of any left out
+    shown under the cost. A holding card priced in another currency also
+    shows its value in the portfolio's. The Trade form's rate field is now
+    labelled "AUD per 1 unit of trade currency", and its "Use" market close
+    also sets the Trade's currency to the quote currency.
 - **Layout at phone and 1280px widths (#403).** Filenames no longer squeeze
   to a few characters in the document lists (contract, product, and the
   item/home/vehicle/rental-statement/trip-segment siblings): below `sm` the

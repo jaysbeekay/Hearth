@@ -12,7 +12,11 @@ interface Props {
 
 export function HoldingCard({ holding, portfolioId, region }: Props) {
   const isPositive = (holding.gainLoss ?? 0) >= 0;
-  const hasValue = holding.currentValue != null;
+  const { gainLoss } = holding;
+  const hasGainLoss = gainLoss != null;
+  // Gain/loss is in the portfolio's currency; when the price is in another,
+  // show the value in the portfolio's currency too, so the two compare.
+  const showPortfolioValue = holding.currency !== holding.costCurrency;
 
   return (
     <Link
@@ -44,7 +48,7 @@ export function HoldingCard({ holding, portfolioId, region }: Props) {
           <dd className="flex flex-wrap items-center gap-1 text-sm font-medium wrap-anywhere">
             {holding.currentPrice != null
               ? formatCurrency(holding.currentPrice, holding.currency, undefined, region, { showCode: true })
-              : <span className="text-muted">—</span>}
+              : <span className="text-muted">No price</span>}
             {holding.changePct != null && (
               <span className={`text-xs ${holding.changePct >= 0 ? "text-success" : "text-danger"}`}>
                 {holding.changePct >= 0 ? "+" : ""}{holding.changePct.toFixed(2)}%
@@ -55,23 +59,30 @@ export function HoldingCard({ holding, portfolioId, region }: Props) {
         <div className="min-w-0">
           <dt className="text-xs text-muted">Market value</dt>
           <dd className="text-sm font-medium wrap-anywhere">
-            {hasValue ? formatCurrency(holding.currentValue!, holding.currency, undefined, region, { showCode: true }) : "—"}
+            {holding.currentValue != null ? formatCurrency(holding.currentValue, holding.currency, undefined, region, { showCode: true }) : "—"}
           </dd>
+          {showPortfolioValue && holding.portfolioValue != null && (
+            <dd className="text-xs text-muted">
+              {formatCurrency(holding.portfolioValue, holding.costCurrency, undefined, region, { showCode: true })}
+            </dd>
+          )}
         </div>
         <div className="min-w-0">
           <dt className="text-xs text-muted">Gain / loss</dt>
-          <dd className={`flex flex-wrap items-center gap-0.5 text-sm font-medium wrap-anywhere ${hasValue ? (isPositive ? "text-success" : "text-danger") : "text-muted"}`}>
-            {hasValue ? (
+          <dd className={`flex flex-wrap items-center gap-0.5 text-sm font-medium wrap-anywhere ${hasGainLoss ? (isPositive ? "text-success" : "text-danger") : "text-muted"}`}>
+            {gainLoss != null ? (
               <>
                 {isPositive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
                 {isPositive ? "+" : ""}
-                {formatCurrency(holding.gainLoss!, holding.currency, undefined, region, { showCode: true })}
+                {formatCurrency(gainLoss, holding.costCurrency, undefined, region, { showCode: true })}
                 {holding.gainLossPct != null && (
                   <span className="ml-1 text-xs">
                     ({isPositive ? "+" : ""}{holding.gainLossPct.toFixed(1)}%)
                   </span>
                 )}
               </>
+            ) : holding.unpricedReason === "NO_FX" ? (
+              <span>No exchange rate</span>
             ) : (
               <><Minus size={12} />—</>
             )}

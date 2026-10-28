@@ -91,6 +91,39 @@ test.describe.serial("Wealth module", () => {
     await expect(page.locator("body")).toContainText("2");
   });
 
+  test("the Wealth page lists every part of net worth, and what it leaves out (#404)", async ({ page }) => {
+    // A holding no price feed knows, with units, so it can't be counted.
+    await page.goto(`/wealth/portfolios/${portfolioId}/holdings/new`);
+    await page.locator("#ticker").fill("ZZNOPRICE404");
+    await page.getByRole("button", { name: "Add holding" }).click();
+    await page.waitForURL(/\/wealth\/portfolios\/[^/]+\/holdings\/(?!new$)[^/]+$/);
+    await page.getByRole("link", { name: "Add trade" }).click();
+    await page.waitForURL(/\/trades\/new$/);
+    await page.locator("#type").selectOption("BUY");
+    await page.locator("#date").fill("2026-01-01");
+    await page.locator("#units").fill("1");
+    await page.locator("#pricePerUnit").fill("10");
+    await page.getByRole("button", { name: "Add trade" }).click();
+    await page.waitForURL(/\/wealth\/portfolios\/[^/]+\/holdings\/[^/]+$/);
+    await expect(page.locator("body")).toContainText("No price");
+
+    await page.goto(`/wealth/portfolios/${portfolioId}`);
+    await expect(page.locator("a", { hasText: "ZZNOPRICE404" })).toContainText("No price");
+    await expect(page.locator("body")).toContainText(/no price or exchange rate and (isn't|aren't) counted/);
+
+    await page.goto("/wealth");
+    const total = Number(await page.getByTestId("net-worth-total").getAttribute("data-value"));
+    const parts = page.getByTestId("net-worth-components");
+    await expect(parts).toContainText("Shares, ETFs and crypto");
+    const values = await parts.getByTestId("net-worth-component-value").evaluateAll((els) =>
+      els.map((el) => Number(el.getAttribute("data-value"))),
+    );
+    expect(values.length).toBeGreaterThan(0);
+    expect(values.reduce((sum, v) => sum + v, 0)).toBeCloseTo(total, 2);
+    await expect(page.getByTestId("net-worth-exclusions")).toContainText(/Not counted: \d+ holdings? with no price or exchange rate/);
+    await expect(page.locator("body")).toContainText("AAPL");
+  });
+
   test("upload a trade document", async ({ page }) => {
     await page.goto(`/wealth/portfolios/${portfolioId}/holdings/${holdingId}`);
 

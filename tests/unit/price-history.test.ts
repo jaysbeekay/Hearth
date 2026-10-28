@@ -84,7 +84,7 @@ describe("fetchAndStorePriceHistory", () => {
 
     const started = performance.now();
     let done = false;
-    const backfill = fetchAndStorePriceHistory("VAS.AX", "ASX", new Date(Date.now() - 10 * 365 * DAY)).then(() => {
+    const backfill = fetchAndStorePriceHistory("VAS.AX", { assetClass: "SHARE", exchange: "ASX" }, new Date(Date.now() - 10 * 365 * DAY)).then(() => {
       done = true;
     });
 
@@ -116,7 +116,7 @@ describe("fetchAndStorePriceHistory", () => {
   it("caps the history it asks for at MAX_HISTORY_DAYS", async () => {
     historical.mockResolvedValue([]);
     const now = Date.now();
-    await fetchAndStorePriceHistory("OLD.AX", "ASX", new Date(now - 50 * 365 * DAY));
+    await fetchAndStorePriceHistory("OLD.AX", { assetClass: "SHARE", exchange: "ASX" }, new Date(now - 50 * 365 * DAY));
     expect(MAX_HISTORY_DAYS).toBeGreaterThanOrEqual(30 * 365);
     expect(Math.abs(call(0).period1.getTime() - (now - MAX_HISTORY_DAYS * DAY))).toBeLessThan(60_000);
   });
@@ -127,7 +127,7 @@ describe("fetchAndStorePriceHistory", () => {
     const from = new Date(now.getTime() - 30 * DAY);
 
     historical.mockImplementationOnce(async (_ticker, { period1 }) => dailyRows(period1, fiveDaysAgo, () => 10));
-    await fetchAndStorePriceHistory("CBA.AX", "ASX", from);
+    await fetchAndStorePriceHistory("CBA.AX", { assetClass: "SHARE", exchange: "ASX" }, from);
     const first = await db.prisma.priceHistory.findMany({ where: { ticker: "CBA.AX" }, orderBy: { date: "asc" } });
     expect(first.length).toBe(daysBetween(from, fiveDaysAgo));
     expect(first.every((r) => r.close === 10 && r.adjClose === 9 && r.source === "yahoo")).toBe(true);
@@ -137,7 +137,7 @@ describe("fetchAndStorePriceHistory", () => {
     // Second pass re-fetches from two days before the latest stored date,
     // with revised prices.
     historical.mockImplementationOnce(stubDaily(() => 20));
-    await fetchAndStorePriceHistory("CBA.AX", "ASX", from);
+    await fetchAndStorePriceHistory("CBA.AX", { assetClass: "SHARE", exchange: "ASX" }, from);
     expect(historical).toHaveBeenCalledTimes(2);
     expect(call(1).period1.getTime()).toBe(latest.getTime() - 2 * DAY);
 
@@ -161,12 +161,12 @@ describe("fetchAndStorePriceHistory", () => {
   it("backfills backwards when an earlier fromDate arrives, then stops asking", async () => {
     historical.mockImplementation(stubDaily(() => 7));
     const recent = new Date(Date.now() - 30 * DAY);
-    await fetchAndStorePriceHistory("WOW.AX", "ASX", recent);
+    await fetchAndStorePriceHistory("WOW.AX", { assetClass: "SHARE", exchange: "ASX" }, recent);
     const firstEarliest = (await db.prisma.priceHistory.findFirstOrThrow({ where: { ticker: "WOW.AX" }, orderBy: { date: "asc" } })).date;
 
     // A second Holding of the same ticker (or an older Trade) from 90 days ago.
     const older = new Date(Date.now() - 90 * DAY);
-    await fetchAndStorePriceHistory("WOW.AX", "ASX", older);
+    await fetchAndStorePriceHistory("WOW.AX", { assetClass: "SHARE", exchange: "ASX" }, older);
     expect(historical).toHaveBeenCalledTimes(2);
     expect(call(1).period1.getTime()).toBe(older.getTime());
     expect(call(1).period2.getTime()).toBe(firstEarliest.getTime());
@@ -177,7 +177,7 @@ describe("fetchAndStorePriceHistory", () => {
     expect(rows.length).toBe(daysBetween(older, call(0).period2));
 
     // Everything is stored now: no further fetch either way.
-    await fetchAndStorePriceHistory("WOW.AX", "ASX", older);
+    await fetchAndStorePriceHistory("WOW.AX", { assetClass: "SHARE", exchange: "ASX" }, older);
     expect(historical).toHaveBeenCalledTimes(2);
   });
 
@@ -194,8 +194,8 @@ describe("fetchAndStorePriceHistory", () => {
       data: { ticker: "IPO.AX", date: new Date(utcMidnight(new Date())), close: 3, source: "yahoo" },
     });
     const from = new Date(Date.now() - 60 * DAY);
-    await fetchAndStorePriceHistory("IPO.AX", "ASX", from);
-    await fetchAndStorePriceHistory("IPO.AX", "ASX", from);
+    await fetchAndStorePriceHistory("IPO.AX", { assetClass: "SHARE", exchange: "ASX" }, from);
+    await fetchAndStorePriceHistory("IPO.AX", { assetClass: "SHARE", exchange: "ASX" }, from);
     expect(historical).toHaveBeenCalledTimes(1);
   });
 
@@ -203,8 +203,8 @@ describe("fetchAndStorePriceHistory", () => {
     await db.prisma.priceHistory.create({
       data: { ticker: "BHP.AX", date: new Date(utcMidnight(new Date())), close: 1, source: "yahoo" },
     });
-    await fetchAndStorePriceHistory("BHP.AX", "ASX", new Date(utcMidnight(new Date())));
-    await fetchAndStorePriceHistory("bitcoin", "CRYPTO", new Date(Date.now() - 30 * DAY));
+    await fetchAndStorePriceHistory("BHP.AX", { assetClass: "SHARE", exchange: "ASX" }, new Date(utcMidnight(new Date())));
+    await fetchAndStorePriceHistory("bitcoin", { assetClass: "SHARE", exchange: "CRYPTO" }, new Date(Date.now() - 30 * DAY));
     expect(historical).not.toHaveBeenCalled();
   });
 
@@ -212,8 +212,8 @@ describe("fetchAndStorePriceHistory", () => {
     historical.mockImplementation(stubDaily(() => 5));
     const from = new Date(Date.now() - 60 * DAY);
     await Promise.all([
-      fetchAndStorePriceHistory("WES.AX", "ASX", from),
-      fetchAndStorePriceHistory("WES.AX", "ASX", from),
+      fetchAndStorePriceHistory("WES.AX", { assetClass: "SHARE", exchange: "ASX" }, from),
+      fetchAndStorePriceHistory("WES.AX", { assetClass: "SHARE", exchange: "ASX" }, from),
     ]);
     expect(historical).toHaveBeenCalledTimes(1);
     expect(await db.prisma.priceHistory.count({ where: { ticker: "WES.AX" } })).toBe(daysBetween(from, call(0).period2));
@@ -224,8 +224,8 @@ describe("fetchAndStorePriceHistory", () => {
     const recent = new Date(Date.now() - 20 * DAY);
     const older = new Date(Date.now() - 80 * DAY);
     await Promise.all([
-      fetchAndStorePriceHistory("TLS.AX", "ASX", recent),
-      fetchAndStorePriceHistory("TLS.AX", "ASX", older),
+      fetchAndStorePriceHistory("TLS.AX", { assetClass: "SHARE", exchange: "ASX" }, recent),
+      fetchAndStorePriceHistory("TLS.AX", { assetClass: "SHARE", exchange: "ASX" }, older),
     ]);
     const rows = await db.prisma.priceHistory.findMany({ where: { ticker: "TLS.AX" }, orderBy: { date: "asc" } });
     expect(rows[0].date.getTime()).toBe(utcMidnight(older));
@@ -234,7 +234,7 @@ describe("fetchAndStorePriceHistory", () => {
 
   it("swallows a failed fetch and leaves stored rows alone", async () => {
     historical.mockRejectedValue(new Error("network down"));
-    await expect(fetchAndStorePriceHistory("NAB.AX", "ASX", new Date(Date.now() - 30 * DAY))).resolves.toBeUndefined();
+    await expect(fetchAndStorePriceHistory("NAB.AX", { assetClass: "SHARE", exchange: "ASX" }, new Date(Date.now() - 30 * DAY))).resolves.toBeUndefined();
     expect(await db.prisma.priceHistory.count()).toBe(0);
   });
 
@@ -242,7 +242,7 @@ describe("fetchAndStorePriceHistory", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     historical.mockImplementationOnce(() => new Promise(() => {}));
     const from = new Date(Date.now() - 30 * DAY);
-    const hung = fetchAndStorePriceHistory("ANZ.AX", "ASX", from);
+    const hung = fetchAndStorePriceHistory("ANZ.AX", { assetClass: "SHARE", exchange: "ASX" }, from);
     await vi.waitFor(() => {
       expect(historical).toHaveBeenCalledTimes(1);
     });
@@ -251,7 +251,7 @@ describe("fetchAndStorePriceHistory", () => {
     vi.useRealTimers();
 
     historical.mockImplementationOnce(stubDaily(() => 4));
-    await fetchAndStorePriceHistory("ANZ.AX", "ASX", from);
+    await fetchAndStorePriceHistory("ANZ.AX", { assetClass: "SHARE", exchange: "ASX" }, from);
     expect(historical).toHaveBeenCalledTimes(2);
     expect(await db.prisma.priceHistory.count({ where: { ticker: "ANZ.AX" } })).toBeGreaterThan(0);
   });

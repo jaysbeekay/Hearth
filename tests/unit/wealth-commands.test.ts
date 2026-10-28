@@ -307,6 +307,34 @@ describe("Trade commands", () => {
     expect(fetchHistoricalPrice).not.toHaveBeenCalled();
   });
 
+  it("doesn't look up a price for a CRYPTO Holding with a blank exchange (#404)", async () => {
+    // Yahoo's "BTC" is an ETF: looking it up stored that ETF's close.
+    const crypto = await newHolding(portfolioId, "BTC", { assetClass: "CRYPTO" });
+    expect(crypto.exchange).toBeNull();
+    await createTradeCommand(crypto.id, buy(1, 50_000, "2025-01-02"));
+    await importTradesCommand(portfolioId, [
+      { ticker: "BTC", type: "BUY", date: "2025-02-03", units: 1, pricePerUnit: 60_000, fees: 0, currency: "AUD" },
+    ]);
+    expect(fetchHistoricalPrice).not.toHaveBeenCalled();
+  });
+
+  it("imports a crypto row as a CRYPTO Holding and skips its market-price lookup (#404)", async () => {
+    await importTradesCommand(portfolioId, [
+      { ticker: "ETH", type: "BUY", date: "2025-02-03", units: 1, pricePerUnit: 5_000, fees: 0, currency: "AUD", assetClass: "CRYPTO" },
+      { ticker: "VGS.AX", type: "BUY", date: "2025-02-03", units: 1, pricePerUnit: 100, fees: 0, currency: "AUD" },
+    ]);
+    const created = await db.prisma.holding.findMany({ where: { portfolioId, ticker: { in: ["ETH", "VGS.AX"] } }, orderBy: { ticker: "asc" } });
+    expect(created.map((h) => [h.ticker, h.assetClass])).toEqual([["ETH", "CRYPTO"], ["VGS.AX", "SHARE"]]);
+    expect(fetchHistoricalPrice).toHaveBeenCalledTimes(1);
+    expect(fetchHistoricalPrice).toHaveBeenCalledWith("VGS.AX", new Date("2025-02-03"));
+  });
+
+  it("still looks up a price for an equity whose ticker is BTC (#404)", async () => {
+    const etf = await newHolding(portfolioId, "BTC", { assetClass: "ETF", exchange: "NYSE" });
+    await createTradeCommand(etf.id, buy(1, 30, "2025-01-02"));
+    expect(fetchHistoricalPrice).toHaveBeenCalledWith("BTC", new Date("2025-01-02"));
+  });
+
   it("saveTradeMarketPrice reports a missing Trade instead of throwing", async () => {
     expect(await saveTradeMarketPrice("missing", 1)).toBe(false);
   });

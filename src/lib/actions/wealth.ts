@@ -38,6 +38,7 @@ import { RecordNotFoundError, StaleEditError } from "@/lib/commands/shared";
 import { formDataToStringValues } from "@/lib/form-state";
 import type { ActionState } from "@/lib/actions/auth";
 import { parse } from "csv-parse/sync";
+import { inferImportedAssetClass } from "@/lib/priceSource";
 import { describeUploadRejection } from "@/lib/uploadValidation";
 
 const PORTFOLIO_FIELDS = ["name", "description", "currency", "costMethod"];
@@ -272,6 +273,7 @@ type ParsedTrade = {
   pricePerUnit: number;
   fees: number;
   currency: string;
+  assetClass?: "SHARE" | "CRYPTO";
   error?: string;
 };
 
@@ -362,11 +364,17 @@ export async function parseTradesCsv(
         }];
       }
 
-      // generic — expect: Date, Ticker, Type, Units, Price, Fees, Currency
+      // generic — expect: Date, Ticker, Type, Units, Price, Fees, Currency,
+      // and optionally Asset Class or Exchange (CRYPTO marks a coin).
       const tradeType = (row["Type"] ?? "").toUpperCase();
       if (!["BUY", "SELL", "DIVIDEND"].includes(tradeType)) return [];
+      const ticker = (row["Ticker"] ?? "").trim().toUpperCase();
       return [{
-        ticker: (row["Ticker"] ?? "").trim().toUpperCase(),
+        ticker,
+        assetClass: inferImportedAssetClass({
+          assetClass: row["Asset Class"] ?? row["AssetClass"] ?? null,
+          exchange: row["Exchange"] ?? null,
+        }),
         type: tradeType,
         date: row["Date"] ?? "",
         units: parseFloat(row["Units"] ?? "0"),

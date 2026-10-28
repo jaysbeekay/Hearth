@@ -54,7 +54,9 @@ export const tradeSchema = z.object({
   pricePerUnit: z.coerce.number().min(0, "Price must be 0 or more"),
   fees: z.preprocess(emptyToUndefined, z.coerce.number().min(0).optional()),
   currency: z.string().trim().min(1).max(10).default("AUD"),
-  fxRate: z.preprocess(emptyToUndefined, z.coerce.number().positive().optional()),
+  // AUD per 1 unit of the Trade's currency on the Trade date (e.g. 1.53 for
+  // USD); see tradeInCurrency in src/lib/wealth.ts.
+  fxRate: z.preprocess(emptyToUndefined, z.coerce.number().positive("AUD per 1 unit must be more than 0").optional()),
   notes: z.preprocess(emptyToUndefined, z.string().trim().max(2000).optional()),
 });
 
@@ -92,6 +94,9 @@ export const importedTradeSchema = z.object({
   pricePerUnit: z.number().finite().min(0).max(1e12),
   fees: z.number().finite().min(0).max(1e12),
   currency: z.string().trim().min(1).max(10),
+  // Asset class for a Holding this row creates (#404): CRYPTO when the CSV
+  // says so, see inferImportedAssetClass. Absent means SHARE.
+  assetClass: z.enum(["SHARE", "CRYPTO"]).optional(),
 });
 
 export type ImportedTrade = z.infer<typeof importedTradeSchema>;

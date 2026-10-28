@@ -23,12 +23,15 @@ export function TradeForm({
   ticker,
   holdingId,
   defaultCurrency,
+  lookUpMarketPrice = true,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   trade?: TradeModel;
   ticker?: string;
   holdingId?: string;
   defaultCurrency?: string;
+  // Off for crypto Holdings: the market-close lookup is Yahoo-only (#404).
+  lookUpMarketPrice?: boolean;
 }) {
   const offlineAwareAction = makeOfflineAwareAction(
     action,
@@ -48,13 +51,18 @@ export function TradeForm({
   const [selectedDate, setSelectedDate] = useState(
     state?.values?.date ?? toDateInputValue(trade?.date) ?? "",
   );
+  const priceHintTicker = lookUpMarketPrice ? ticker : undefined;
   const [marketPrice, setMarketPrice] = useState<number | null>(null);
+  // Yahoo's quote currency for the ticker, when known (#404 review): the
+  // close is in it, so "Use" sets the Trade's currency to match.
+  const [marketCurrency, setMarketCurrency] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const [priceHintLoading, setPriceHintLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const priceInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!ticker || !selectedDate) {
+    if (!priceHintTicker || !selectedDate) {
       return;
     }
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -62,12 +70,14 @@ export function TradeForm({
       setPriceHintLoading(true);
       try {
         const res = await fetch(
-          `/api/wealth/price?ticker=${encodeURIComponent(ticker)}&date=${encodeURIComponent(selectedDate)}`,
+          `/api/wealth/price?ticker=${encodeURIComponent(priceHintTicker)}&date=${encodeURIComponent(selectedDate)}`,
         );
-        const data = (await res.json()) as { price: number | null };
+        const data = (await res.json()) as { price: number | null; currency?: string | null };
         setMarketPrice(data.price ?? null);
+        setMarketCurrency(data.currency ?? null);
       } catch {
         setMarketPrice(null);
+        setMarketCurrency(null);
       } finally {
         setPriceHintLoading(false);
       }
@@ -75,15 +85,20 @@ export function TradeForm({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [ticker, selectedDate]);
+  }, [priceHintTicker, selectedDate]);
 
   function applyMarketPrice() {
     if (marketPrice == null || !priceInputRef.current) return;
     priceInputRef.current.value = marketPrice.toFixed(4);
+    const currencySelect = formRef.current?.elements.namedItem("currency");
+    if (marketCurrency && currencySelect instanceof HTMLSelectElement) {
+      const listed = Array.from(currencySelect.options).some((o) => o.value === marketCurrency);
+      if (listed) currencySelect.value = marketCurrency;
+    }
   }
 
   return (
-    <form action={formAction} className="space-y-5">
+    <form ref={formRef} action={formAction} className="space-y-5">
       <FormMessage error={state?.error} success={state?.success} />
 
       <div className="grid grid-cols-2 gap-4">
@@ -148,13 +163,13 @@ export function TradeForm({
             placeholder="e.g. 98.50"
             className={inputClass}
           />
-          {ticker && selectedDate && (
+          {priceHintTicker && selectedDate && (
             <div className="mt-1 flex items-center gap-2 text-xs text-muted">
               {priceHintLoading ? (
                 <span>Fetching market price…</span>
               ) : marketPrice != null ? (
                 <>
-                  <span>Market close {selectedDate}: {marketPrice.toFixed(4)}</span>
+                  <span>Market close {selectedDate}: {marketPrice.toFixed(4)}{marketCurrency ? ` ${marketCurrency}` : ""}</span>
                   <button
                     type="button"
                     onClick={applyMarketPrice}
@@ -194,7 +209,7 @@ export function TradeForm({
       </div>
 
       <div>
-        <label className="block text-sm font-medium mb-1" htmlFor="fxRate">FX rate to AUD (if non-AUD)</label>
+        <label className="block text-sm font-medium mb-1" htmlFor="fxRate">AUD per 1 unit of trade currency (e.g. 1.53 for USD)</label>
         <input
           id="fxRate"
           name="fxRate"

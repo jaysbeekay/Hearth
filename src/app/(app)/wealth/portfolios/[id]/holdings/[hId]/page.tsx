@@ -16,7 +16,9 @@ import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { DocumentLink } from "@/components/DocumentLink";
 import { ASSET_CLASS_LABELS, TRADE_TYPE_LABELS, COST_METHOD_LABELS } from "@/lib/validation/wealth";
 import { getUserPreferences } from "@/lib/userPreferences";
-import { holdingUnitsAndCost } from "@/lib/wealth";
+import { costUsesTodaysRate, holdingUnitsAndCostIn, valueHolding } from "@/lib/wealth";
+import { refreshFxRates, getFxRateMap } from "@/lib/fx";
+import { isCryptoHolding, priceCacheKey } from "@/lib/priceSource";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
@@ -204,31 +206,46 @@ export default async function HoldingPage({
     notFound();
   }
 
-  await refreshPricesForTickers([{ ticker: holding.ticker, exchange: holding.exchange }]).catch(() => {});
-  const priceMap = await getPriceMap([holding.ticker]);
-  const priceEntry = priceMap.get(holding.ticker);
+  await refreshPricesForTickers([holding]).catch(() => {});
+  const priceMap = await getPriceMap([holding]);
+  const priceEntry = priceMap.get(priceCacheKey(holding));
+  const crypto = isCryptoHolding(holding);
 
   const sortedTrades = [...holding.trades].sort((a, b) => a.date.getTime() - b.date.getTime());
 
-  const { units, cost } = holdingUnitsAndCost(sortedTrades, holding.portfolio.costMethod);
-
-  const currentPrice = priceEntry?.price ?? null;
-  const currentValue = currentPrice != null && units > 0 ? units * currentPrice : null;
-  const gainLoss = currentValue != null ? currentValue - cost : null;
-  const gainLossPct = gainLoss != null && cost > 0 ? (gainLoss / cost) * 100 : null;
+  // Price and value are in the price feed's currency; cost basis and
+  // gain/loss in the portfolio's, converting each Trade's currency (#404).
   const currency = priceEntry?.currency ?? holding.portfolio.currency;
+  const costCurrency = holding.portfolio.currency;
+  // Only a BUY's price goes into cost (see holdingUnitsAndCostIn).
+  const buyCurrencies = sortedTrades.filter((t) => t.type === "BUY").map((t) => t.currency);
+  const fxPairs = [currency, ...buyCurrencies].map((from) => ({ from, to: costCurrency }));
+  await refreshFxRates(fxPairs).catch(() => {});
+  const rateMap = await getFxRateMap(fxPairs);
+  const { units, cost } = holdingUnitsAndCostIn(sortedTrades, holding.portfolio.costMethod, costCurrency, rateMap);
+  const todaysRate = cost != null && costUsesTodaysRate(sortedTrades, costCurrency);
+  const { currentPrice, currentValue, gainLoss, gainLossPct, unpricedReason } = valueHolding({
+    units,
+    cost,
+    price: priceEntry?.price,
+    priceCurrency: currency,
+    portfolioCurrency: costCurrency,
+    rateMap,
+  });
 
   // #432 — the chart shows whatever history is stored; missing history is
   // fetched after the response is sent, so a slow or hung Yahoo request
   // never holds up the page.
   const earliestTrade = sortedTrades[0];
-  const tracksHistory = Boolean(earliestTrade) && holding.exchange !== "CRYPTO";
+  // Crypto has no stored history (isCryptoHolding); any rows stored for its
+  // ticker came from Yahoo before #404 and are another asset's prices.
+  const tracksHistory = Boolean(earliestTrade) && !crypto;
   if (earliestTrade && tracksHistory) {
-    const { ticker, exchange } = holding;
-    after(() => fetchAndStorePriceHistory(ticker, exchange, earliestTrade.date));
+    const { ticker, exchange, assetClass } = holding;
+    after(() => fetchAndStorePriceHistory(ticker, { exchange, assetClass }, earliestTrade.date));
   }
 
-  const priceHistory = earliestTrade
+  const priceHistory = earliestTrade && tracksHistory
     ? await getPriceHistory(holding.ticker, earliestTrade.date)
     : [];
 
@@ -295,9 +312,9 @@ export default async function HoldingPage({
         <div className="rounded-xl border border-border bg-surface p-4">
           <p className="text-xs text-muted">Current price</p>
           <p className="mt-1 text-lg font-semibold">
-            {currentPrice != null ? formatCurrency(currentPrice, currency, undefined, region, { showCode: true }) : "—"}
+            {currentPrice != null ? formatCurrency(currentPrice, currency, undefined, region, { showCode: true }) : <span className="text-muted">No price</span>}
           </p>
-          {priceEntry?.changePct != null && (
+          {currentPrice != null && priceEntry?.changePct != null && (
             <p className={`text-xs ${priceEntry.changePct >= 0 ? "text-success" : "text-danger"}`}>
               {priceEntry.changePct >= 0 ? "+" : ""}{priceEntry.changePct.toFixed(2)}% today
             </p>
@@ -313,8 +330,10 @@ export default async function HoldingPage({
           <p className="text-xs text-muted">Unrealised gain/loss</p>
           <p className={`mt-1 text-lg font-semibold ${gainLoss == null ? "" : gainLoss >= 0 ? "text-success" : "text-danger"}`}>
             {gainLoss != null
-              ? `${gainLoss >= 0 ? "+" : ""}${formatCurrency(gainLoss, currency, undefined, region, { showCode: true })}`
-              : "—"}
+              ? `${gainLoss >= 0 ? "+" : ""}${formatCurrency(gainLoss, costCurrency, undefined, region, { showCode: true })}`
+              : unpricedReason === "NO_FX"
+                ? <span className="text-muted">No exchange rate</span>
+                : "—"}
           </p>
           {gainLossPct != null && (
             <p className={`text-xs ${gainLossPct >= 0 ? "text-success" : "text-danger"}`}>
@@ -329,12 +348,12 @@ export default async function HoldingPage({
           <dt className="text-xs text-muted">
             Cost basis <span className="text-muted">({COST_METHOD_LABELS[holding.portfolio.costMethod]})</span>
           </dt>
-          <dd className="text-sm font-medium break-words">{formatCurrency(cost, currency, undefined, region, { showCode: true })}</dd>
+          <dd className="text-sm font-medium break-words">{cost != null ? formatCurrency(cost, costCurrency, undefined, region, { showCode: true }) : <span className="text-muted">No exchange rate</span>}</dd>
         </div>
         <div className="min-w-0">
           <dt className="text-xs text-muted">Avg cost / unit</dt>
           <dd className="text-sm font-medium break-words">
-            {units > 0 && cost > 0 ? formatCurrency(cost / units, currency, undefined, region, { showCode: true }) : "—"}
+            {units > 0 && cost != null && cost > 0 ? formatCurrency(cost / units, costCurrency, undefined, region, { showCode: true }) : "—"}
           </dd>
         </div>
         <div className="min-w-0">
@@ -342,6 +361,9 @@ export default async function HoldingPage({
           <dd className="text-sm font-medium">{holding.trades.length}</dd>
         </div>
       </dl>
+      {todaysRate && (
+        <p className="text-xs text-muted">Cost uses today&apos;s exchange rate for trades with no FX rate entered.</p>
+      )}
 
       {/* Performance chart */}
       {chartPoints.length >= 2 && (
@@ -379,9 +401,12 @@ export default async function HoldingPage({
         ) : (
           <div className="space-y-3">
             {tradesDesc.map((trade) => {
+              // A crypto Trade's stored close came from Yahoo before #404
+              // (another asset's price), so it isn't shown.
+              const marketClose = crypto ? null : trade.marketPriceOnDate;
               const slippage =
-                trade.marketPriceOnDate != null
-                  ? ((trade.pricePerUnit - trade.marketPriceOnDate) / trade.marketPriceOnDate) * 100
+                marketClose != null
+                  ? ((trade.pricePerUnit - marketClose) / marketClose) * 100
                   : null;
 
               return (
@@ -403,9 +428,9 @@ export default async function HoldingPage({
                           {formatDate(trade.date, dateFormat)}
                           {trade.fees != null && ` · fees ${formatCurrency(trade.fees, trade.currency, undefined, region, { showCode: true })}`}
                         </p>
-                        {trade.marketPriceOnDate != null && (
+                        {marketClose != null && (
                           <p className="mt-0.5 text-xs text-muted">
-                            Market close {formatDate(trade.date, dateFormat)}: {formatCurrency(trade.marketPriceOnDate, trade.currency, undefined, region, { showCode: true })}
+                            Market close {formatDate(trade.date, dateFormat)}: {formatCurrency(marketClose, trade.currency, undefined, region, { showCode: true })}
                             {slippage != null && (
                               <span className={`ml-1 ${Math.abs(slippage) < 0.5 ? "text-muted" : slippage > 0 ? "text-danger" : "text-success"}`}>
                                 ({slippage > 0 ? "+" : ""}{slippage.toFixed(2)}% vs close)

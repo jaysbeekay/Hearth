@@ -4,6 +4,7 @@ import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { prisma } from "@/lib/prisma";
 import { createTrade } from "@/lib/actions/wealth";
 import { TradeForm } from "@/components/TradeForm";
+import { isCryptoHolding } from "@/lib/priceSource";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
@@ -40,6 +41,7 @@ export default async function NewTradePage({
           action={action}
           holdingId={holdingId}
           ticker={holding.ticker}
+          lookUpMarketPrice={!isCryptoHolding(holding)}
           defaultCurrency={holding.portfolio.currency}
         />
       </div>

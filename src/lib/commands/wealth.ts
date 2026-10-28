@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { removeOwnerDocumentFiles } from "@/lib/commands/documents";
 import { assertModuleEnabled } from "@/lib/modules/enablement";
 import { fetchHistoricalPrice } from "@/lib/prices";
+import { isCryptoHolding } from "@/lib/priceSource";
 import {
   updateUnlessStale,
   findLiveParent,
@@ -221,11 +222,13 @@ async function findTrade(id: string, scope: TradeScope = {}) {
 }
 
 // Records the market price on the Trade's date, for the Trade list's
-// "market on the day" comparison. Crypto Holdings have no daily price
-// history to look up. Runs in the background after a create: a failed or
-// empty lookup leaves marketPriceOnDate blank and never fails the Trade.
-function backfillMarketPrice(tradeId: string, holding: Pick<Holding, "ticker" | "exchange">, date: Date) {
-  if (holding.exchange === "CRYPTO") return;
+// "market on the day" comparison. Crypto Holdings (isCryptoHolding: asset
+// class CRYPTO, or exchange CRYPTO) have no daily price history to look up;
+// before #404 a blank-exchange CRYPTO "BTC" got Yahoo's BTC ETF close. Runs
+// in the background after a create: a failed or empty lookup leaves
+// marketPriceOnDate blank and never fails the Trade.
+function backfillMarketPrice(tradeId: string, holding: Pick<Holding, "ticker" | "exchange" | "assetClass">, date: Date) {
+  if (isCryptoHolding(holding)) return;
   fetchHistoricalPrice(holding.ticker, date)
     .then((marketPrice) => (marketPrice == null ? false : saveTradeMarketPrice(tradeId, marketPrice)))
     .catch(() => {
@@ -295,8 +298,8 @@ export async function permanentlyDeleteTradeCommand(id: string, scope: TradeScop
 // ── CSV import ──────────────────────────────────────────────────────────────
 
 // Imports rows already validated against importedTradesSchema. Each row's
-// ticker finds or creates its Holding in the Portfolio (a new one as a
-// SHARE); a row with an unreadable date, or one matching an existing Trade
+// ticker finds or creates its Holding in the Portfolio (a new one with the
+// row's inferred asset class, CRYPTO or SHARE, #404); a row with an unreadable date, or one matching an existing Trade
 // on the same Holding (date, type, units and price), is skipped.
 export async function importTradesCommand(portfolioId: string, rows: ImportedTrade[]) {
   await assertModuleEnabled("WEALTH");
@@ -313,7 +316,7 @@ export async function importTradesCommand(portfolioId: string, rows: ImportedTra
 
     const holding = await prisma.holding.upsert({
       where: { portfolioId_ticker: { portfolioId, ticker: row.ticker } },
-      create: { portfolioId, ticker: row.ticker, assetClass: "SHARE" },
+      create: { portfolioId, ticker: row.ticker, assetClass: row.assetClass ?? "SHARE" },
       update: {},
     });
 
