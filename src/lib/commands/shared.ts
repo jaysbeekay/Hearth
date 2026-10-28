@@ -57,3 +57,60 @@ export async function updateUnlessStale(
   const { count } = await write({ updatedAt: base });
   if (count === 0) throw new StaleEditError();
 }
+
+// ── Trash rules for writes (#428) ───────────────────────────────────────────
+//
+// A record in Trash is read-only until it's restored, and so is everything
+// under it: a create or update under a parent in Trash, or an update to a
+// record that's itself in Trash, is refused as not found (the pages already
+// 404 them). Delete, restore and permanent delete still work on it, except
+// that a child can't be restored while its parent is still in Trash.
+// Offline sync reports each of these as a failed operation with the same
+// message.
+
+// A row that may be in Trash.
+export interface Trashable {
+  deletedAt?: Date | null;
+}
+
+// Any row: one from a table with no Trash (no deletedAt column) counts as
+// live, so the helpers below work on it now and check it once it gains one.
+function isInTrash(record: object): boolean {
+  return "deletedAt" in record && record.deletedAt != null;
+}
+
+/** The record if it exists and isn't in Trash; otherwise `what` not found. */
+export function requireLive<T extends object>(record: T | null | undefined, what: string): T {
+  if (!record || isInTrash(record)) throw new RecordNotFoundError(what);
+  return record;
+}
+
+/**
+ * Looks up a parent for a write under it (or a record for a write to it),
+ * refusing one that's missing or in Trash as `what` not found. `what` is the
+ * record the caller is writing, so an update to a Service record under a
+ * trashed Vehicle reads "Service record not found".
+ */
+export async function findLiveParent<T extends object>(
+  lookup: PromiseLike<T | null>,
+  what: string,
+): Promise<T> {
+  return requireLive(await lookup, what);
+}
+
+/** A restore refused because the record's parent is still in Trash. */
+export class ParentInTrashError extends RecordValidationError {
+  constructor(parentLabel: string) {
+    super(`Restore the ${parentLabel.toLowerCase()} first.`);
+    this.name = "ParentInTrashError";
+  }
+}
+
+/**
+ * For restoring a child: refused while its parent is in Trash. A missing
+ * parent can't happen (the child's foreign key cascades), so it's left to
+ * the restore's own not-found.
+ */
+export function assertParentRestored(parent: Trashable | null | undefined, parentLabel: string): void {
+  if (parent?.deletedAt) throw new ParentInTrashError(parentLabel);
+}

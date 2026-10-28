@@ -20,7 +20,7 @@ import {
   restoreServiceRecordCommand,
   permanentlyDeleteServiceRecordCommand,
 } from "@/lib/commands/vehicles";
-import { RecordNotFoundError, StaleEditError } from "@/lib/commands/shared";
+import { RecordNotFoundError, RecordValidationError, StaleEditError } from "@/lib/commands/shared";
 import type { ActionState } from "@/lib/actions/auth";
 import { describeUploadRejection } from "@/lib/uploadValidation";
 import { parseDocumentCategory } from "@/lib/documents/categories";
@@ -66,7 +66,13 @@ async function requireUser() {
 // ActionState the form shows; anything else is unexpected and rethrown.
 function commandError(error: unknown, notFound: string): ActionState {
   if (error instanceof RecordNotFoundError) return { error: notFound };
-  if (error instanceof StaleEditError || error instanceof ModuleDisabledError) return { error: error.message };
+  if (
+    error instanceof StaleEditError ||
+    error instanceof ModuleDisabledError ||
+    error instanceof RecordValidationError
+  ) {
+    return { error: error.message };
+  }
   throw error;
 }
 

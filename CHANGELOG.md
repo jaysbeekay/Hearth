@@ -394,6 +394,20 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   show as 30 Nov. Moments in time, such as when a document was uploaded or
   a Reminder sent, show in your own timezone, or the household's until you
   pick one.
+- **Records in Trash stay read-only, and so does everything under them
+  (#428).** An offline edit replayed after the record was trashed on another
+  device could add a Service record to a Vehicle in Trash, or a segment to a
+  Trip in Trash, and a Service record could be restored while its Vehicle
+  was still in Trash. Now an edit to a Vehicle or Trip in Trash, and an add
+  or edit under one, is refused as not found (offline sync lists it as a
+  failed change), as Properties already were. Restoring a Service record,
+  Maintenance record or Document while what it belongs to is still in Trash
+  says "Restore the vehicle first." (or the trip, or the property), and a
+  Document can't be added under a record in Trash. Flight-status lookups
+  skip segments of a Trip in Trash. Deleting, restoring and permanently
+  deleting from Trash work as before. One shared rule in
+  `src/lib/commands/shared.ts` now backs the Vehicle, Trip, Property, Wealth
+  and Document commands.
 - **Adding a Holding no longer hangs the app (#432).** Its price-history
   backfill wrote one row at a time from four parallel workers, and the
   database connection serialises every query, so other requests (session

@@ -3,7 +3,14 @@ import { prisma } from "@/lib/prisma";
 import { removeOwnerDocumentFiles } from "@/lib/commands/documents";
 import { clearNotificationLogs } from "@/lib/notifications/logs";
 import { assertModuleEnabled } from "@/lib/modules/enablement";
-import { updateUnlessStale, RecordNotFoundError, type UpdateOptions } from "@/lib/commands/shared";
+import {
+  updateUnlessStale,
+  findLiveParent,
+  requireLive,
+  assertParentRestored,
+  RecordNotFoundError,
+  type UpdateOptions,
+} from "@/lib/commands/shared";
 import type { ClearablePatch } from "@/lib/validation/fullFormUpdate";
 import type { VehicleInput, VehicleItemInput } from "@/lib/validation/vehicles";
 
@@ -12,6 +19,11 @@ import type { VehicleInput, VehicleItemInput } from "@/lib/validation/vehicles";
 // offline sync handler and Trash retention. Callers own sign-in, role checks
 // and Zod parsing; these own the module gate, the write, file cleanup and
 // revalidation.
+//
+// A Vehicle in Trash is read-only until it's restored, and so are its
+// Service records (#428, the rules in shared.ts): an update to it, or a
+// create or update under it, is refused as not found, and a Service record
+// can't be restored while its Vehicle is still in Trash.
 //
 // Per ADR 0003, a date change (rego, insurance, next service) does not clear
 // the sent-Reminder log. clearNotificationLogs is only for permanent delete.
@@ -27,6 +39,12 @@ async function findVehicle(id: string) {
   const vehicle = await prisma.vehicle.findUnique({ where: { id } });
   if (!vehicle) throw new RecordNotFoundError("Vehicle");
   return vehicle;
+}
+
+// For a write to a Vehicle or under it, as `what`: one in Trash counts as
+// not found.
+function findLiveVehicle(id: string, what = "Vehicle") {
+  return findLiveParent(prisma.vehicle.findUnique({ where: { id } }), what);
 }
 
 export async function createVehicleCommand(input: VehicleInput, actorId: string) {
@@ -46,7 +64,7 @@ export async function updateVehicleCommand(
   options: UpdateOptions = {},
 ) {
   await assertModuleEnabled("VEHICLES");
-  await findVehicle(id);
+  await findLiveVehicle(id);
   await updateUnlessStale(options.baseUpdatedAt, (guard) =>
     prisma.vehicle.updateMany({ where: { id, ...guard }, data: { ...patch, updatedById: actorId } }),
   );
@@ -121,7 +139,7 @@ async function findServiceRecord(id: string, scope: ServiceRecordScope = {}) {
 
 export async function createServiceRecordCommand(vehicleId: string, input: VehicleItemInput) {
   await assertModuleEnabled("VEHICLES");
-  await findVehicle(vehicleId);
+  await findLiveVehicle(vehicleId);
   const item = await prisma.vehicleItem.create({ data: { ...input, vehicleId } });
   revalidatePath(`/vehicles/${vehicleId}`);
   return item;
@@ -134,7 +152,8 @@ export async function updateServiceRecordCommand(
   options: UpdateOptions & ServiceRecordScope = {},
 ) {
   await assertModuleEnabled("VEHICLES");
-  const existing = await findServiceRecord(id, options);
+  const existing = requireLive(await findServiceRecord(id, options), "Service record");
+  await findLiveVehicle(existing.vehicleId, "Service record");
   await updateUnlessStale(options.baseUpdatedAt, (guard) =>
     prisma.vehicleItem.updateMany({ where: { id, ...guard }, data: patch }),
   );
@@ -153,6 +172,10 @@ export async function deleteServiceRecordCommand(id: string, scope: ServiceRecor
 export async function restoreServiceRecordCommand(id: string) {
   await assertModuleEnabled("VEHICLES");
   const existing = await findServiceRecord(id);
+  assertParentRestored(
+    await prisma.vehicle.findUnique({ where: { id: existing.vehicleId }, select: { deletedAt: true } }),
+    "Vehicle",
+  );
   await prisma.vehicleItem.update({ where: { id }, data: { deletedAt: null } });
   revalidatePath(`/vehicles/${existing.vehicleId}`);
   revalidatePath("/settings/trash");

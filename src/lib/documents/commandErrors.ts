@@ -1,4 +1,4 @@
-import { RecordNotFoundError } from "@/lib/commands/shared";
+import { RecordNotFoundError, RecordValidationError } from "@/lib/commands/shared";
 import { DocumentNotInTrashError } from "@/lib/commands/documents";
 import { ModuleDisabledError } from "@/lib/modules/enablement";
 import { UploadRejectedError } from "@/lib/uploadValidation";
@@ -11,7 +11,8 @@ export function documentCommandError(error: unknown): { error: string } {
   if (
     error instanceof ModuleDisabledError ||
     error instanceof UploadRejectedError ||
-    error instanceof DocumentNotInTrashError
+    error instanceof DocumentNotInTrashError ||
+    error instanceof RecordValidationError
   ) {
     return { error: error.message };
   }
