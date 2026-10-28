@@ -6,7 +6,7 @@ import type { ActionState } from "@/lib/actions/contracts";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { FileDropZone } from "@/components/FileDropZone";
-import { SelectWrapper } from "@/components/SelectWrapper";
+import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 import { DOCUMENT_CATEGORIES, DOCUMENT_CATEGORY_LABELS } from "@/lib/documents/categories";
 import { useCanWrite } from "@/components/CanWriteProvider";
 
@@ -36,11 +36,13 @@ export function DocumentUploadForm({
           Document type
         </label>
         <SelectWrapper>
+          {/* #403 — shared selectClass (w-full) so the select fills the
+              wrapper and the chevron sits on the control, not the card. */}
           <select
             id={selectId}
             name="documentCategory"
             defaultValue="OTHER"
-            className="h-9 rounded-lg border border-border bg-background px-3 pr-8 text-sm outline-none appearance-none focus:border-accent"
+            className={selectClass}
           >
             {DOCUMENT_CATEGORIES.map((category) => (
               <option key={category} value={category}>

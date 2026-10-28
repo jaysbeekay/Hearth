@@ -26,6 +26,7 @@ export function ContractCard({
 }) {
   const entry = headlineEntry(contractDue(contract, due));
   const cancelled = contract.status === "CANCELLED";
+  const categoryLabel = CATEGORY_LABELS[contract.category] ?? contract.category;
 
   return (
     <Link
@@ -34,8 +35,11 @@ export function ContractCard({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-sm text-muted">
-            {CATEGORY_LABELS[contract.category] ?? contract.category}
+          {/* #403 — two clamped lines in a fixed-height slot (min-h-10 = 2 × the
+              text-sm line box) so long categories read in full and every card's
+              header stays the same height. */}
+          <p className="line-clamp-2 min-h-10 text-sm text-muted" title={categoryLabel}>
+            {categoryLabel}
           </p>
           <p className="truncate font-medium">{contract.title}</p>
           <p className="truncate text-sm text-muted">{contract.provider}</p>
@@ -43,12 +47,12 @@ export function ContractCard({
         <ExpiryBadge entry={entry} cancelled={cancelled} />
       </div>
 
-      <div className="mt-3 flex items-center justify-between text-sm text-muted">
-        <span>
+      <div className="mt-3 flex items-center justify-between gap-3 text-sm text-muted">
+        <span className="min-w-0 truncate">
           {contract.endDate ? `Ends ${formatDate(contract.endDate, dateFormat)}` : "No end date"}
         </span>
         {contract.cost != null && (
-          <span>
+          <span className="shrink-0 whitespace-nowrap">
             {formatCurrency(contract.cost, contract.currency, undefined, region)}
             {contract.billingFrequency ? ` / ${BILLING_LABELS[contract.billingFrequency]?.toLowerCase()}` : ""}
           </span>

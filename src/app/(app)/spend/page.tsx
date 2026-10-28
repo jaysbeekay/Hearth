@@ -133,23 +133,25 @@ export default async function SpendPage({
         </p>
       )}
 
-      {/* Summary tiles */}
+      {/* Summary tiles. #403 — formatCurrency joins the code with a no-break
+          space, so the whole amount is one unbreakable word; wrap-anywhere
+          (unlike break-words) reliably breaks it inside the narrow tile. */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <div className="min-w-0 rounded-xl border border-border bg-surface p-4">
           <p className="text-xs text-muted">Monthly recurring</p>
-          <p className="mt-1 break-words text-xl font-semibold sm:text-2xl">
+          <p className="mt-1 wrap-anywhere text-xl font-semibold sm:text-2xl">
             {formatCurrency(monthlyTotal, preferredCurrency, undefined, region, { showCode: true })}
           </p>
         </div>
         <div className="min-w-0 rounded-xl border border-border bg-surface p-4">
           <p className="text-xs text-muted">Annual projection</p>
-          <p className="mt-1 break-words text-xl font-semibold sm:text-2xl">
+          <p className="mt-1 wrap-anywhere text-xl font-semibold sm:text-2xl">
             {formatCurrency(annualTotal, preferredCurrency, undefined, region, { showCode: true })}
           </p>
         </div>
         <div className="min-w-0 rounded-xl border border-border bg-surface p-4">
           <p className="text-xs text-muted">Tax-deductible / mo</p>
-          <p className="mt-1 break-words text-xl font-semibold sm:text-2xl">
+          <p className="mt-1 wrap-anywhere text-xl font-semibold sm:text-2xl">
             {formatCurrency(taxDeductibleMonthly, preferredCurrency, undefined, region, { showCode: true })}
           </p>
         </div>
@@ -246,17 +248,19 @@ export default async function SpendPage({
         <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-3 font-medium">Actuals by financial year</h2>
           <div className="overflow-x-auto">
+            {/* #403 — pl-4 + nowrap keep the amount columns from running into
+                each other at phone widths; overflow-x-auto scrolls the rest. */}
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs text-muted">
                   <th className="pb-2">Year</th>
                   {homeActuals.length > 0 && (
                     <>
-                      <th className="pb-2 text-right">Property</th>
-                      <th className="pb-2 text-right">Property tax deductible</th>
+                      <th className="pb-2 pl-4 text-right">Property</th>
+                      <th className="pb-2 pl-4 text-right">Property tax deductible</th>
                     </>
                   )}
-                  {vehicleActuals.length > 0 && <th className="pb-2 text-right">Vehicle</th>}
+                  {vehicleActuals.length > 0 && <th className="pb-2 pl-4 text-right">Vehicle</th>}
                 </tr>
               </thead>
               <tbody>
@@ -265,10 +269,10 @@ export default async function SpendPage({
                     <td className="py-2">{row.label}</td>
                     {homeActuals.length > 0 && (
                       <>
-                        <td className="py-2 text-right">
+                        <td className="py-2 pl-4 text-right whitespace-nowrap">
                           {row.home ? formatCurrency(row.home.amount, row.currency, undefined, region, { showCode: true }) : "—"}
                         </td>
-                        <td className="py-2 text-right">
+                        <td className="py-2 pl-4 text-right whitespace-nowrap">
                           {row.homeDeductible
                             ? formatCurrency(row.homeDeductible.amount, row.currency, undefined, region, { showCode: true })
                             : "—"}
@@ -276,7 +280,7 @@ export default async function SpendPage({
                       </>
                     )}
                     {vehicleActuals.length > 0 && (
-                      <td className="py-2 text-right">
+                      <td className="py-2 pl-4 text-right whitespace-nowrap">
                         {row.vehicle ? formatCurrency(row.vehicle.amount, row.currency, undefined, region, { showCode: true }) : "—"}
                       </td>
                     )}

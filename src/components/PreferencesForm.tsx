@@ -23,7 +23,10 @@ export function PreferencesForm({
   const [state, formAction] = useActionState<ActionState, FormData>(updateUserPreferences, null);
 
   return (
-    <form action={formAction} className="grid gap-4 sm:grid-cols-4">
+    // #403 — the settings container caps at max-w-4xl, so a 4-column row is too
+    // narrow for the longest date-format label ("DD/MM/YYYY (e.g. 10 Jul 2026)")
+    // at every width; 2 columns keep every select wide enough to show it whole.
+    <form action={formAction} className="grid gap-4 sm:grid-cols-2">
       <div className="space-y-1">
         <label htmlFor="dateFormat" className="text-sm font-medium">
           Date format
@@ -72,7 +75,7 @@ export function PreferencesForm({
           </select>
         </SelectWrapper>
       </div>
-      <div className="sm:col-span-4 space-y-2">
+      <div className="sm:col-span-2 space-y-2">
         <FormMessage error={state?.error} success={state?.success} />
         <button type="submit" className={compactButtonClass()}>
           Save preferences
