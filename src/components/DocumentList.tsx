@@ -1,3 +1,4 @@
+import { Timestamp } from "@/components/Timestamp";
 import { FileText, History } from "lucide-react";
 import type { DocumentModel } from "@/generated/prisma/models";
 import { setDocumentImportantAction } from "@/lib/actions/documents";
@@ -5,7 +6,7 @@ import { DocumentDeleteButton } from "@/components/DocumentDeleteButton";
 import { DocumentLink } from "@/components/DocumentLink";
 import { ImportantToggle } from "@/components/ImportantToggle";
 import { documentFileHref } from "@/lib/documents/kinds";
-import { formatDate, humanFileSize } from "@/lib/utils";
+import { humanFileSize } from "@/lib/utils";
 
 function DeleteButton({ doc }: { doc: DocumentModel }) {
   return <DocumentDeleteButton kind="CONTRACT" documentId={doc.id} ownerId={doc.contractId} filename={doc.filename} />;
@@ -52,23 +53,30 @@ export function DocumentList({
         return (
           <li key={doc.id} className="py-3">
             <div className="flex items-center justify-between gap-3">
+              {/* #403 — below sm the filename and its size/date metadata stack
+                  instead of sharing one flex line, which was squeezing the
+                  filename down to a few characters at 390px. */}
               <DocumentLink
                 href={documentFileHref(doc.id)}
                 filename={doc.filename}
                 mimeType={doc.mimeType}
                 size={doc.size}
-                className="flex min-w-0 items-center gap-2 text-sm hover:text-accent"
+                className="flex min-w-0 flex-col gap-0.5 text-sm hover:text-accent sm:flex-row sm:items-center sm:gap-2"
               >
-                <FileText size={18} className="shrink-0 text-muted" />
-                <span className="min-w-0 truncate">{doc.filename}</span>
-                <span className="shrink-0 text-muted">
-                  {humanFileSize(doc.size)} · {formatDate(doc.uploadedAt, dateFormat)}
+                <span className="flex min-w-0 items-center gap-2">
+                  <FileText size={18} className="shrink-0 text-muted" />
+                  <span className="min-w-0 truncate">{doc.filename}</span>
                 </span>
-                {older.length > 0 && (
-                  <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-accent/10 px-1.5 py-0.5 text-xs font-medium text-accent">
-                    Latest
+                <span className="flex flex-wrap items-center gap-x-2 sm:shrink-0">
+                  <span className="text-muted">
+                    {humanFileSize(doc.size)} · <Timestamp value={doc.uploadedAt} dateFormat={dateFormat} />
                   </span>
-                )}
+                  {older.length > 0 && (
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-accent/10 px-1.5 py-0.5 text-xs font-medium text-accent">
+                      Latest
+                    </span>
+                  )}
+                </span>
               </DocumentLink>
               <div className="flex shrink-0 items-center gap-1">
                 <ImportantToggle
@@ -84,17 +92,20 @@ export function DocumentList({
               <ul className="ml-6 mt-2 space-y-2 border-l border-border pl-4">
                 {older.map((v) => (
                   <li key={v.id} className="flex items-center justify-between gap-3">
+                    {/* #403 — same stacked filename/metadata treatment as the head row. */}
                     <DocumentLink
                       href={documentFileHref(v.id)}
                       filename={v.filename}
                       mimeType={v.mimeType}
                       size={v.size}
-                      className="flex min-w-0 items-center gap-2 text-xs text-muted hover:text-accent"
+                      className="flex min-w-0 flex-col gap-0.5 text-xs text-muted hover:text-accent sm:flex-row sm:items-center sm:gap-2"
                     >
-                      <History size={14} className="shrink-0" />
-                      <span className="min-w-0 truncate">{v.filename}</span>
-                      <span className="shrink-0">
-                        {humanFileSize(v.size)} · {formatDate(v.uploadedAt, dateFormat)}
+                      <span className="flex min-w-0 items-center gap-2">
+                        <History size={14} className="shrink-0" />
+                        <span className="min-w-0 truncate">{v.filename}</span>
+                      </span>
+                      <span className="min-w-0 sm:shrink-0">
+                        {humanFileSize(v.size)} · <Timestamp value={v.uploadedAt} dateFormat={dateFormat} />
                       </span>
                     </DocumentLink>
                     <DeleteButton doc={v} />

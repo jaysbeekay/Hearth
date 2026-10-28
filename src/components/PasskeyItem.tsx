@@ -6,7 +6,7 @@ import { deletePasskeyCredential } from "@/lib/actions/passkeys";
 import type { ActionState } from "@/lib/actions/auth";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { FormMessage } from "@/components/FormMessage";
-import { formatDate } from "@/lib/utils";
+import { Timestamp } from "@/components/Timestamp";
 
 export function PasskeyItem({
   credentialId,
@@ -30,8 +30,13 @@ export function PasskeyItem({
           {nickname ?? "Passkey"}
         </p>
         <p className="text-xs text-muted">
-          Added {formatDate(createdAt, dateFormat)}
-          {lastUsedAt ? ` · Last used ${formatDate(lastUsedAt, dateFormat)}` : ""}
+          Added <Timestamp value={createdAt} dateFormat={dateFormat} />
+          {lastUsedAt ? (
+            <>
+              {" "}
+              · Last used <Timestamp value={lastUsedAt} dateFormat={dateFormat} />
+            </>
+          ) : null}
         </p>
         <FormMessage error={state?.error} success={state?.success} />
       </div>

@@ -4,6 +4,7 @@ import { TestConnectionButton } from "@/components/TestConnectionButton";
 import { WriteOnly } from "@/components/CanWriteProvider";
 import { bannerEntries, dueTone, type DueEntry, type DueTone } from "@/lib/dueRecords";
 import type { ActionState } from "@/lib/actions/auth";
+import { DayCount, DueLabelText } from "@/components/DueLabelText";
 
 const TONE_CLASS = new Map<DueTone, string>([
   ["danger", "border-danger/30 bg-danger/10 text-danger"],
@@ -14,12 +15,23 @@ const TONE_CLASS = new Map<DueTone, string>([
 const actionClass =
   "inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium hover:bg-hover-surface";
 
-// The policy's label, plus how many days are left while there are some. A
-// date that needs replacing says what happened; its button says what to do.
-function message(entry: DueEntry, newEndDateMessage?: string): string {
-  if (entry.state === "needs-new-end-date") return newEndDateMessage ?? `${entry.label}.`;
-  if (entry.daysLeft > 0) return `${entry.label} — ${entry.daysLeft} day${entry.daysLeft === 1 ? "" : "s"} left.`;
-  return `${entry.label}.`;
+// The policy's label (in the viewer's date format, #422), plus how many days
+// are left while there are some. A date that needs replacing says what
+// happened; its button says what to do.
+function Message({ entry, newEndDateMessage }: { entry: DueEntry; newEndDateMessage?: string }) {
+  if (entry.state === "needs-new-end-date" && newEndDateMessage) return <>{newEndDateMessage}</>;
+  if (entry.state !== "needs-new-end-date" && entry.daysLeft > 0) {
+    return (
+      <>
+        <DueLabelText entry={entry} /> — <DayCount days={entry.daysLeft} /> day{entry.daysLeft === 1 ? "" : "s"} left.
+      </>
+    );
+  }
+  return (
+    <>
+      <DueLabelText entry={entry} />.
+    </>
+  );
 }
 
 // A prominent status/action area at the top of a detail page for each of
@@ -72,7 +84,9 @@ export function DetailStatusBanner({
           >
             <p className="flex items-center gap-2 text-sm font-medium">
               <Icon size={16} className="shrink-0" aria-hidden />
-              {message(entry, newEndDateMessage)}
+              <span>
+                <Message entry={entry} newEndDateMessage={newEndDateMessage} />
+              </span>
             </p>
             {/* #400 — read-only members see the status, not the actions. */}
             <WriteOnly>

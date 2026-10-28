@@ -35,14 +35,17 @@ export function HoldingCard({ holding, portfolioId, region }: Props) {
         </span>
       </div>
 
+      {/* #403 — min-w-0 lets the grid cells shrink (they default to min-width:auto);
+          formatted amounts join the code with a no-break space, so the dd's also
+          need flex-wrap/wrap-anywhere to break instead of overflowing the card. */}
       <dl className="mt-3 grid grid-cols-2 gap-3">
-        <div>
+        <div className="min-w-0">
           <dt className="text-xs text-muted">Units</dt>
           <dd className="text-sm font-medium">{formatNumber(holding.unitsHeld, region)}</dd>
         </div>
-        <div>
+        <div className="min-w-0">
           <dt className="text-xs text-muted">Current price</dt>
-          <dd className="flex items-center gap-1 text-sm font-medium">
+          <dd className="flex flex-wrap items-center gap-1 text-sm font-medium wrap-anywhere">
             {holding.currentPrice != null
               ? formatCurrency(holding.currentPrice, holding.currency, undefined, region, { showCode: true })
               : <span className="text-muted">No price</span>}
@@ -53,9 +56,9 @@ export function HoldingCard({ holding, portfolioId, region }: Props) {
             )}
           </dd>
         </div>
-        <div>
+        <div className="min-w-0">
           <dt className="text-xs text-muted">Market value</dt>
-          <dd className="text-sm font-medium">
+          <dd className="text-sm font-medium wrap-anywhere">
             {holding.currentValue != null ? formatCurrency(holding.currentValue, holding.currency, undefined, region, { showCode: true }) : "—"}
           </dd>
           {showPortfolioValue && holding.portfolioValue != null && (
@@ -64,9 +67,9 @@ export function HoldingCard({ holding, portfolioId, region }: Props) {
             </dd>
           )}
         </div>
-        <div>
+        <div className="min-w-0">
           <dt className="text-xs text-muted">Gain / loss</dt>
-          <dd className={`flex items-center gap-0.5 text-sm font-medium ${hasGainLoss ? (isPositive ? "text-success" : "text-danger") : "text-muted"}`}>
+          <dd className={`flex flex-wrap items-center gap-0.5 text-sm font-medium wrap-anywhere ${hasGainLoss ? (isPositive ? "text-success" : "text-danger") : "text-muted"}`}>
             {gainLoss != null ? (
               <>
                 {isPositive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}

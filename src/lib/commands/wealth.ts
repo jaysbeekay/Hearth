@@ -4,7 +4,13 @@ import { removeOwnerDocumentFiles } from "@/lib/commands/documents";
 import { assertModuleEnabled } from "@/lib/modules/enablement";
 import { fetchHistoricalPrice } from "@/lib/prices";
 import { isCryptoHolding } from "@/lib/priceSource";
-import { updateUnlessStale, RecordNotFoundError, type UpdateOptions } from "@/lib/commands/shared";
+import {
+  updateUnlessStale,
+  findLiveParent,
+  requireLive,
+  RecordNotFoundError,
+  type UpdateOptions,
+} from "@/lib/commands/shared";
 import type { ClearablePatch } from "@/lib/validation/fullFormUpdate";
 import type { PortfolioInput, HoldingInput, TradeInput, ImportedTrade } from "@/lib/validation/wealth";
 import { Prisma, type Holding } from "@/generated/prisma/client";
@@ -21,9 +27,10 @@ import { Prisma, type Holding } from "@/generated/prisma/client";
 // None of these three has a Trash (no `deletedAt` column; Trades get one in
 // #427), so every delete is permanent and takes the Trade Documents' files
 // with it. A child write still checks its parent first (#428): a Holding
-// needs its Portfolio and a Trade its Holding. With no Trash, "live" means
-// "still exists"; once a parent can be trashed, its find*Live helper below
-// is where the deletedAt check goes.
+// needs its Portfolio and a Trade its Holding. They go through the shared
+// Trash rules (findLiveParent / requireLive in shared.ts): with no Trash,
+// "live" means "still exists", and once a table gains a deletedAt the same
+// calls refuse a write to or under a record in Trash with no change here.
 
 export class DuplicateHoldingError extends Error {
   constructor(ticker: string) {
@@ -55,10 +62,9 @@ function revalidateHolding(portfolioId: string, holdingId: string) {
 
 // ── Portfolio ───────────────────────────────────────────────────────────────
 
-async function findLivePortfolio(id: string) {
-  const portfolio = await prisma.portfolio.findUnique({ where: { id } });
-  if (!portfolio) throw new RecordNotFoundError("Portfolio");
-  return portfolio;
+// For a write to a Portfolio or under it, as `what`.
+function findLivePortfolio(id: string, what = "Portfolio") {
+  return findLiveParent(prisma.portfolio.findUnique({ where: { id } }), what);
 }
 
 // Portfolios record their creator only (there's no updatedById column), so
@@ -126,10 +132,8 @@ async function findHolding(id: string, scope: HoldingScope = {}) {
 
 // A Holding that's still there under a Portfolio that's still there.
 async function findLiveHolding(id: string, scope: HoldingScope = {}) {
-  const holding = await findHolding(id, scope);
-  await findLivePortfolio(holding.portfolioId).catch((error: unknown) => {
-    throw error instanceof RecordNotFoundError ? new RecordNotFoundError("Holding") : error;
-  });
+  const holding = requireLive(await findHolding(id, scope), "Holding");
+  await findLivePortfolio(holding.portfolioId, "Holding");
   return holding;
 }
 
@@ -269,7 +273,7 @@ export async function updateTradeCommand(
   options: UpdateOptions & TradeScope = {},
 ) {
   await assertModuleEnabled("WEALTH");
-  const existing = await findTrade(id, options);
+  const existing = requireLive(await findTrade(id, options), "Trade");
   const holding = await findLiveHolding(existing.holdingId);
   await updateUnlessStale(options.baseUpdatedAt, (guard) =>
     prisma.trade.updateMany({ where: { id, ...guard }, data: patch }),

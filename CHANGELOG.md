@@ -380,6 +380,19 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
     shows its value in the portfolio's. The Trade form's rate field is now
     labelled "AUD per 1 unit of trade currency", and its "Use" market close
     also sets the Trade's currency to the quote currency.
+- **Layout at phone and 1280px widths (#403).** Filenames no longer squeeze
+  to a few characters in the document lists (contract, product, and the
+  item/home/vehicle/rental-statement/trip-segment siblings): below `sm` the
+  filename gets its own line with the size/date metadata under it. Inbox
+  rows no longer slide under the type select, and long sender addresses
+  wrap. The document-type and contract-list filter selects fill their
+  wrappers again, so the chevron sits on the control instead of floating at
+  the card edge. Holding-card and spend-tile amounts wrap inside their boxes
+  instead of overflowing — the currency code joins the amount with a
+  no-break space, making it one unbreakable word — and the financial-year
+  actuals table separates its amount columns. The preferences grid is two
+  columns so the longest date-format label shows whole, and contract cards
+  keep even heights with a two-line category slot and a one-line price.
 - **Assistant updates change only the fields they name (#420).** Updating a
   Contract or Warranty through the Assistant used to parse the change as a
   full record, so fields it didn't mention fell back to their defaults: a
@@ -391,6 +404,45 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   proposals are unchanged. The card also shows dates as calendar dates and a
   linked Property or Vehicle by name, and the Assistant can no longer link a
   record to a Property or Vehicle while that module is off.
+- **Signing out clears this device's offline data (#424).** Sign out now
+  deletes the service worker's cached pages and data, the offline write
+  queue and offline Documents, so the next person to use a shared browser
+  can't see or replay any of it. If changes are still waiting to sync, it
+  first asks: Sync now (signs out only once they've synced), Discard and
+  sign out, or Cancel. Offline data is also tied to the user who stored it:
+  a different user signing in, even after a session that ended without a
+  sign-out, never sees the last user's queued changes or downloads and
+  purges them, `/api/sync` refuses a change queued by another account, a
+  read-only member can't queue changes offline, and the service worker
+  serves no cached signed-in page once nobody is signed in or the session
+  has expired.
+- **Due labels and dates follow your date format, and stay on their day
+  (#422).** Badges and banners such as "Cancel by 4 Nov" now read in the
+  Date format chosen in Settings → Preferences ("Cancel by Nov 4" for
+  MM/DD/YYYY, "Cancel by 2026-11-04" for YYYY-MM-DD), with day counts in
+  the Region's number style, on the lists, dashboard, Needs attention,
+  Upcoming and detail pages. The Due policy now returns each label as a key
+  and its parameters, and the screen formats it; its plain labels, and the
+  shared Due cases, are unchanged. Calendar dates (end dates, expiries,
+  purchase dates and so on) are stored at UTC midnight and now always read
+  as that day: on a server or browser west of UTC, a 1 Dec end date could
+  show as 30 Nov. Moments in time, such as when a document was uploaded or
+  a Reminder sent, show in your own timezone, or the household's until you
+  pick one.
+- **Records in Trash stay read-only, and so does everything under them
+  (#428).** An offline edit replayed after the record was trashed on another
+  device could add a Service record to a Vehicle in Trash, or a segment to a
+  Trip in Trash, and a Service record could be restored while its Vehicle
+  was still in Trash. Now an edit to a Vehicle or Trip in Trash, and an add
+  or edit under one, is refused as not found (offline sync lists it as a
+  failed change), as Properties already were. Restoring a Service record,
+  Maintenance record or Document while what it belongs to is still in Trash
+  says "Restore the vehicle first." (or the trip, or the property), and a
+  Document can't be added under a record in Trash. Flight-status lookups
+  skip segments of a Trip in Trash. Deleting, restoring and permanently
+  deleting from Trash work as before. One shared rule in
+  `src/lib/commands/shared.ts` now backs the Vehicle, Trip, Property, Wealth
+  and Document commands.
 - **Adding a Holding no longer hangs the app (#432).** Its price-history
   backfill wrote one row at a time from four parallel workers, and the
   database connection serialises every query, so other requests (session

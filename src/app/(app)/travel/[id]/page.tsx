@@ -12,7 +12,7 @@ import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { TripSegmentDocumentList } from "@/components/TripSegmentDocumentList";
 import { RecordMeta } from "@/components/RecordMeta";
-import { TRIP_SEGMENT_TYPE_LABELS, formatCurrency, formatDate, formatDistance } from "@/lib/utils";
+import { TRIP_SEGMENT_TYPE_LABELS, formatCurrency, formatDate, formatTimestamp, formatDistance } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { getHouseholdMemberCount } from "@/lib/household";
 import { shouldAutoRefresh, FLIGHT_STATUS_LABELS, flightStatusColour, refreshFlightStatus } from "@/lib/integrations/flightStatus";
@@ -37,7 +37,7 @@ export default async function TripDetailPage({
 
   const { id } = await params;
   const canWrite = sessionCanWrite(await auth());
-  const [trip, { dateFormat, region }, memberCount] = await Promise.all([
+  const [trip, { dateFormat, displayTimeZone, region }, memberCount] = await Promise.all([
     prisma.trip.findUnique({
       where: { id },
       include: {
@@ -254,7 +254,7 @@ export default async function TripDetailPage({
                           </span>
                           {segment.flightStatusAt && (
                             <span className="text-xs text-muted">
-                              Updated {formatDate(segment.flightStatusAt, dateFormat)}
+                              Updated {formatTimestamp(segment.flightStatusAt, dateFormat, displayTimeZone)}
                             </span>
                           )}
                         </div>

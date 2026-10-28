@@ -1,5 +1,6 @@
 "use client";
 
+import { Timestamp } from "@/components/Timestamp";
 import { useEffect, useRef, useState } from "react";
 import { FileText, X, Loader2, AlertTriangle, Copy } from "lucide-react";
 import Link from "next/link";
@@ -9,7 +10,7 @@ import {
   keepInboxDocumentSeparate,
   attachInboxDocumentAsVersion,
 } from "@/lib/actions/import";
-import { CATEGORY_LABELS, humanFileSize, formatDate } from "@/lib/utils";
+import { CATEGORY_LABELS, humanFileSize } from "@/lib/utils";
 import { INVENTORY_ITEM_CATEGORIES } from "@/lib/validation/inventory";
 import { showToast } from "@/components/Toast";
 import { useCanWrite } from "@/components/CanWriteProvider";
@@ -81,8 +82,10 @@ function ReadOnlyInboxList({ docs, dateFormat }: { docs: InboxDocSummary[]; date
               <FileText size={16} className="shrink-0 text-muted" />
               <span className="min-w-0 truncate text-sm font-medium">{doc.filename}</span>
             </a>
-            <span className="shrink-0 text-xs text-muted">
-              {humanFileSize(doc.size)} · {formatDate(new Date(doc.uploadedAt), dateFormat)}
+            {/* #403 — let long "via email from" addresses wrap instead of
+                overflowing the card. */}
+            <span className="min-w-0 text-xs break-words text-muted">
+              {humanFileSize(doc.size)} · <Timestamp value={doc.uploadedAt} dateFormat={dateFormat} />
               {doc.fromAddress && ` · via email from ${doc.fromAddress}`}
             </span>
           </div>
@@ -562,14 +565,17 @@ export function InboxReviewClient({
         const isAttaching = attaching.has(doc.id);
         return (
           <div key={doc.id} className="rounded-xl border border-border bg-surface p-4">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <div className="flex min-w-0 items-center gap-2">
+            {/* #403 — header and type select shared one flex line; at 390px
+                the shrink-0 "via email from …" metadata slid under the select.
+                Stack them below sm and let the metadata wrap instead. */}
+            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
                 <a href={doc.downloadHref} className="flex min-w-0 items-center gap-2 hover:underline">
                   <FileText size={16} className="shrink-0 text-muted" />
                   <span className="min-w-0 truncate text-sm font-medium">{doc.filename}</span>
                 </a>
-                <span className="shrink-0 text-xs text-muted">
-                  {humanFileSize(doc.size)} · {formatDate(new Date(doc.uploadedAt), dateFormat)}
+                <span className="min-w-0 text-xs break-words text-muted">
+                  {humanFileSize(doc.size)} · <Timestamp value={doc.uploadedAt} dateFormat={dateFormat} />
                   {doc.fromAddress && ` · via email from ${doc.fromAddress}`}
                 </span>
               </div>

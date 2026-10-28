@@ -16,7 +16,7 @@ import { saveBackupDestination } from "@/lib/actions/app-settings";
 import { BackupDestinationForm } from "@/components/AppSettingsForms";
 import { BACKUP_DESTINATION_LABELS } from "@/lib/backupDestination";
 import { BackupNowForm } from "@/components/BackupNowForm";
-import { formatDate, humanFileSize } from "@/lib/utils";
+import { formatTimestamp, humanFileSize } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
@@ -34,7 +34,7 @@ export default async function BackupsPage() {
     destination,
     backupOk,
     backupSchedule,
-    { dateFormat },
+    { dateFormat, displayTimeZone },
     s3,
     sftp,
     local,
@@ -140,7 +140,7 @@ export default async function BackupsPage() {
                     </span>
                   </p>
                   <p className="text-xs text-muted">
-                    {formatDate(log.startedAt, dateFormat)}
+                    {formatTimestamp(log.startedAt, dateFormat, displayTimeZone)}
                     {log.sizeBytes ? ` · ${humanFileSize(log.sizeBytes)}` : ""}
                     {log.message ? ` · ${log.message}` : ""}
                   </p>

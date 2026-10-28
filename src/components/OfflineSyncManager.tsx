@@ -4,13 +4,10 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { RefreshCw, CheckCircle, AlertCircle } from "lucide-react";
 import {
   getPendingOperations,
-  updateOperationStatus,
-  clearDoneOperations,
-  getFilesForOp,
   getPendingFilesTotalSize,
   PENDING_FILES_WARN_BYTES,
-  type QueuedOperation,
 } from "@/lib/offlineQueue";
+import { syncPendingOperations } from "@/lib/offlineSync";
 import { showToast } from "@/components/Toast";
 import { humanFileSize } from "@/lib/utils";
 
@@ -36,47 +33,12 @@ export function OfflineSyncManager() {
     setMessage(null);
 
     try {
-      const pending = await getPendingOperations();
-      if (pending.length === 0) {
+      if ((await getPendingOperations()).length === 0) {
         setSyncState("idle");
         return;
       }
 
-      await Promise.all(
-        pending.map((op) => updateOperationStatus(op.id, "syncing")),
-      );
-
-      const body = new FormData();
-      body.append("operations", JSON.stringify(pending));
-      for (const op of pending) {
-        const files = await getFilesForOp(op.id);
-        for (const f of files) body.append(`file:${op.id}:${f.fieldName}`, f.blob, f.filename);
-      }
-
-      const res = await fetch("/api/sync", { method: "POST", body });
-
-      if (!res.ok) throw new Error("Sync request failed");
-
-      const { results } = (await res.json()) as {
-        results: { id: string; success: boolean; error?: string }[];
-      };
-
-      let successCount = 0;
-      let failCount = 0;
-
-      await Promise.all(
-        results.map(async (r) => {
-          if (r.success) {
-            await updateOperationStatus(r.id, "done");
-            successCount++;
-          } else {
-            await updateOperationStatus(r.id, "failed", r.error);
-            failCount++;
-          }
-        }),
-      );
-
-      await clearDoneOperations();
+      const { successCount, failCount } = await syncPendingOperations();
       await refreshCount();
       window.dispatchEvent(new Event("offline-sync-complete"));
 
@@ -98,12 +60,6 @@ export function OfflineSyncManager() {
     } catch {
       setSyncState("error");
       setMessage("Sync failed — will retry when reconnected.");
-      const pending = await getPendingOperations();
-      await Promise.all(
-        pending
-          .filter((op) => (op as QueuedOperation).status === "syncing")
-          .map((op) => updateOperationStatus(op.id, "pending")),
-      );
     } finally {
       syncingRef.current = false;
       await refreshCount();

@@ -1,10 +1,18 @@
 import { getDb, QUEUE_STORE, FILES_STORE } from "@/lib/offlineCache";
+import { canQueueOffline, getOfflineOwner, isOwnedBy } from "@/lib/offlineOwner";
+
+// Same words as READ_ONLY_MESSAGE in readOnly.ts, which imports server-only
+// Next modules this client file can't pull in.
+const READ_ONLY_MESSAGE = "Your account has read-only access.";
 
 export type QueuedOpStatus = "pending" | "syncing" | "done" | "failed";
 
 // Serialised mutations stored in IndexedDB when the app is offline.
 export interface QueuedOperation {
   id: string;
+  // #424 — the user who queued it. Only that user's session ever lists,
+  // edits or replays it; /api/sync refuses it from anyone else.
+  ownerId?: string;
   timestamp: number;
   label: string;         // user-visible: "Add vehicle", "Edit contract", …
   entity: string;        // "vehicle" | "vehicleItem" | "contract" | "product"
@@ -48,11 +56,18 @@ export function serializeFormData(formData: FormData): {
   return { values, files };
 }
 
+// Thrown when nobody who may write is signed in to queue a change for (#424).
+export class OfflineQueueRefusedError extends Error {}
+
 export async function enqueueOperation(
-  op: Omit<QueuedOperation, "id" | "timestamp" | "status" | "formValues">,
+  op: Omit<QueuedOperation, "id" | "ownerId" | "timestamp" | "status" | "formValues">,
   formData?: FormData,
 ): Promise<string | undefined> {
   if (typeof window === "undefined") return undefined;
+  const owner = getOfflineOwner();
+  if (!owner || !canQueueOffline(owner)) {
+    throw new OfflineQueueRefusedError(owner ? READ_ONLY_MESSAGE : "Sign in to save changes offline.");
+  }
   const { values, files } = formData
     ? serializeFormData(formData)
     : { values: undefined, files: [] };
@@ -63,6 +78,7 @@ export async function enqueueOperation(
   await tx.objectStore(QUEUE_STORE).add({
     ...op,
     id,
+    ownerId: owner.userId,
     timestamp: Date.now(),
     status: "pending",
     formValues: values,
@@ -82,8 +98,26 @@ export async function enqueueOperation(
   return id;
 }
 
+// #424 — every read and write below sees only the signed-in user's entries.
+// OfflineSessionGuard also purges anyone else's, but this holds even before
+// that purge has run, or if it never could.
+async function ownOperations(): Promise<QueuedOperation[]> {
+  const owner = getOfflineOwner();
+  if (!owner) return [];
+  const db = await getDb();
+  const all = (await db.getAllFromIndex(QUEUE_STORE, "by-timestamp")) as QueuedOperation[];
+  return all.filter((op) => isOwnedBy(op.ownerId, owner));
+}
+
+async function ownOperation(id: string): Promise<QueuedOperation | undefined> {
+  const db = await getDb();
+  const op = (await db.get(QUEUE_STORE, id)) as QueuedOperation | undefined;
+  return op && isOwnedBy(op.ownerId, getOfflineOwner()) ? op : undefined;
+}
+
 export async function getFilesForOp(queueOpId: string): Promise<PendingFile[]> {
   if (typeof window === "undefined") return [];
+  if (!(await ownOperation(queueOpId))) return [];
   const db = await getDb();
   return (await db.getAllFromIndex(FILES_STORE, "by-op", queueOpId)) as PendingFile[];
 }
@@ -102,15 +136,16 @@ export const PENDING_FILES_WARN_BYTES = 50 * 1024 * 1024;
 
 export async function getPendingFilesTotalSize(): Promise<{ count: number; bytes: number }> {
   if (typeof window === "undefined") return { count: 0, bytes: 0 };
+  const ownIds = new Set((await ownOperations()).map((op) => op.id));
   const db = await getDb();
   const all = (await db.getAll(FILES_STORE)) as PendingFile[];
-  return { count: all.length, bytes: all.reduce((sum, f) => sum + f.size, 0) };
+  const own = all.filter((f) => ownIds.has(f.queueOpId));
+  return { count: own.length, bytes: own.reduce((sum, f) => sum + f.size, 0) };
 }
 
 export async function getPendingOperations(): Promise<QueuedOperation[]> {
   if (typeof window === "undefined") return [];
-  const db = await getDb();
-  const all = (await db.getAllFromIndex(QUEUE_STORE, "by-timestamp")) as QueuedOperation[];
+  const all = await ownOperations();
   return all.filter((op) => op.status === "pending" || op.status === "failed");
 }
 
@@ -124,8 +159,7 @@ export async function getPendingCreatesForEntity(entity: string): Promise<Queued
 
 export async function getOperationById(id: string): Promise<QueuedOperation | undefined> {
   if (typeof window === "undefined") return undefined;
-  const db = await getDb();
-  return (await db.get(QUEUE_STORE, id)) as QueuedOperation | undefined;
+  return ownOperation(id);
 }
 
 // Edits a still-queued "create" in place instead of enqueueing a second,
@@ -136,9 +170,9 @@ export async function updateOperationFormValues(
   formValues: Record<string, string>,
 ): Promise<void> {
   if (typeof window === "undefined") return;
-  const db = await getDb();
-  const op = (await db.get(QUEUE_STORE, id)) as QueuedOperation | undefined;
+  const op = await ownOperation(id);
   if (!op) return;
+  const db = await getDb();
   await db.put(QUEUE_STORE, { ...op, formValues });
 }
 
@@ -146,6 +180,7 @@ export async function updateOperationFormValues(
 // server request is ever sent, since the record never existed there.
 export async function deleteOperation(id: string): Promise<void> {
   if (typeof window === "undefined") return;
+  if (!(await ownOperation(id))) return;
   const db = await getDb();
   await db.delete(QUEUE_STORE, id);
   await deleteFilesForOp(id);
@@ -153,8 +188,7 @@ export async function deleteOperation(id: string): Promise<void> {
 
 export async function getAllOperations(): Promise<QueuedOperation[]> {
   if (typeof window === "undefined") return [];
-  const db = await getDb();
-  return (await db.getAllFromIndex(QUEUE_STORE, "by-timestamp")) as QueuedOperation[];
+  return ownOperations();
 }
 
 export async function updateOperationStatus(
@@ -163,18 +197,17 @@ export async function updateOperationStatus(
   error?: string,
 ): Promise<void> {
   if (typeof window === "undefined") return;
-  const db = await getDb();
-  const op = (await db.get(QUEUE_STORE, id)) as QueuedOperation | undefined;
+  const op = await ownOperation(id);
   if (!op) return;
+  const db = await getDb();
   await db.put(QUEUE_STORE, { ...op, status, error });
 }
 
 export async function clearDoneOperations(): Promise<void> {
   if (typeof window === "undefined") return;
+  const done = (await ownOperations()).filter((op) => op.status === "done");
   const db = await getDb();
   const tx = db.transaction(QUEUE_STORE, "readwrite");
-  const all = (await tx.store.getAll()) as QueuedOperation[];
-  const done = all.filter((op) => op.status === "done");
   await Promise.all(done.map((op) => tx.store.delete(op.id)));
   await tx.done;
   await Promise.all(done.map((op) => deleteFilesForOp(op.id)));
@@ -197,7 +230,12 @@ export function makeOfflineAwareAction<S extends { error?: string; success?: str
 ): (state: S, formData: FormData) => Promise<S> {
   return async (prevState: S, formData: FormData): Promise<S> => {
     if (typeof navigator !== "undefined" && !navigator.onLine) {
-      await enqueueOperation(describe(formData), formData);
+      try {
+        await enqueueOperation(describe(formData), formData);
+      } catch (err) {
+        if (err instanceof OfflineQueueRefusedError) return { error: err.message } as S;
+        throw err;
+      }
       window.dispatchEvent(new Event("offline-queued"));
       return offlineSuccess;
     }

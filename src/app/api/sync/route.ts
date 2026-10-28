@@ -12,6 +12,7 @@ import {
 
 interface SyncOperation {
   id: string;
+  ownerId?: string; // the user who queued it (#424)
   entity: string;
   operation: "create" | "update" | "delete";
   entityId?: string;
@@ -24,6 +25,8 @@ interface SyncOperation {
 // Matches the client's own queue drain size (OfflineSyncManager); a request
 // carrying more than this isn't something the app produces.
 const MAX_SYNC_OPERATIONS = 200;
+
+const QUEUED_BY_ANOTHER_USER = "This change was queued by a different account and wasn't synced.";
 
 interface SyncResult {
   id: string;
@@ -86,6 +89,12 @@ export async function POST(request: NextRequest) {
   const results: SyncResult[] = [];
 
   for (const op of operations) {
+    // #424 — a change queued by someone else on a shared device is never
+    // replayed under this session. Ops queued before #424 carry no owner.
+    if (op.ownerId !== undefined && op.ownerId !== session.user.id) {
+      results.push({ id: op.id, success: false, error: QUEUED_BY_ANOTHER_USER });
+      continue;
+    }
     const claim = await claimOperation(session.user.id, op.id);
     if (!claim.ok) {
       results.push({ id: op.id, success: claim.success, error: claim.error });

@@ -7,6 +7,7 @@ import { auth } from "@/lib/auth";
 import { isSmtpConfigured } from "@/lib/appSettings";
 import { isAppUrlConfigured, isGithubOAuthConfigured } from "@/lib/env";
 import { LoginForm } from "@/components/LoginForm";
+import { SignedOutCacheCleanup } from "@/components/SignedOutCacheCleanup";
 import { safeCallbackPath } from "@/lib/callbackUrl";
 
 export const metadata: Metadata = { title: "Sign in" };
@@ -58,6 +59,7 @@ export default async function LoginPage({
             new password.
           </p>
         )}
+        <SignedOutCacheCleanup />
         <div className="rounded-xl border border-border bg-surface p-6">
           <LoginForm
             smtpConfigured={smtpConfigured}

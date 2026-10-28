@@ -1,9 +1,10 @@
+import { Timestamp } from "@/components/Timestamp";
 import { FileText } from "lucide-react";
 import type { VehicleItemDocumentModel } from "@/generated/prisma/models";
 import { DocumentDeleteButton } from "@/components/DocumentDeleteButton";
 import { DocumentLink } from "@/components/DocumentLink";
 import { documentFileHref } from "@/lib/documents/kinds";
-import { formatDate, humanFileSize } from "@/lib/utils";
+import { humanFileSize } from "@/lib/utils";
 
 export function VehicleItemDocumentList({
   documents,
@@ -25,12 +26,16 @@ export function VehicleItemDocumentList({
             filename={doc.filename}
             mimeType={doc.mimeType}
             size={doc.size}
-            className="flex min-w-0 items-center gap-2 text-sm hover:text-accent"
+            className="flex min-w-0 flex-col gap-0.5 text-sm hover:text-accent sm:flex-row sm:items-center sm:gap-2"
           >
-            <FileText size={18} className="shrink-0 text-muted" />
-            <span className="min-w-0 truncate">{doc.filename}</span>
-            <span className="shrink-0 text-muted">
-              {humanFileSize(doc.size)} · {formatDate(doc.uploadedAt, dateFormat)}
+            {/* #403 — filename and metadata stack below sm instead of sharing
+                one flex line, which squeezed the filename to a few characters. */}
+            <span className="flex min-w-0 items-center gap-2">
+              <FileText size={18} className="shrink-0 text-muted" />
+              <span className="min-w-0 truncate">{doc.filename}</span>
+            </span>
+            <span className="text-muted sm:shrink-0">
+              {humanFileSize(doc.size)} · <Timestamp value={doc.uploadedAt} dateFormat={dateFormat} />
             </span>
           </DocumentLink>
           <DocumentDeleteButton

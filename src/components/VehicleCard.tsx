@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { VehicleModel } from "@/generated/prisma/models";
 import { formatDate } from "@/lib/utils";
 import { isDue } from "@/lib/duePolicy";
+import { DueLabelText } from "@/components/DueLabelText";
 import { vehicleDue, type DueContext, type DueEntry } from "@/lib/dueRecords";
 
 // #384 — one pill per Due entry (rego, insurance, service), each with its
@@ -14,7 +15,7 @@ function DuePill({ entry }: { entry: DueEntry }) {
         entry.state === "overdue" ? "bg-danger/10 text-danger" : "bg-warning/10 text-warning"
       }`}
     >
-      {entry.label}
+      <DueLabelText entry={entry} />
     </span>
   );
 }

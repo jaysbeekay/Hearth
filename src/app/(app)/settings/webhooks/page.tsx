@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { CreateWebhookForm } from "@/components/CreateWebhookForm";
 import { WebhookActions } from "@/components/WebhookActions";
-import { formatDate } from "@/lib/utils";
+import { formatTimestamp } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
@@ -17,7 +17,7 @@ export default async function WebhooksPage() {
     redirect("/settings");
   }
 
-  const [endpoints, logs, { dateFormat }] = await Promise.all([
+  const [endpoints, logs, { dateFormat, displayTimeZone }] = await Promise.all([
     prisma.webhookEndpoint.findMany({ orderBy: { createdAt: "asc" } }),
     prisma.webhookLog.findMany({
       orderBy: { sentAt: "desc" },
@@ -86,7 +86,7 @@ export default async function WebhooksPage() {
                     </span>
                   </p>
                   <p className="text-xs text-muted">
-                    {formatDate(log.sentAt, dateFormat)}
+                    {formatTimestamp(log.sentAt, dateFormat, displayTimeZone)}
                     {log.statusCode ? ` · HTTP ${log.statusCode}` : ""}
                     {log.message ? ` · ${log.message}` : ""}
                   </p>

@@ -1,11 +1,17 @@
 import { BellOff, BellRing, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
+import { Timestamp } from "@/components/Timestamp";
 import { TestConnectionButton } from "@/components/TestConnectionButton";
 import { WriteOnly } from "@/components/CanWriteProvider";
 import { sendTestReminder, type TestReminderTarget } from "@/lib/actions/reminders";
 import type { ReminderHealth } from "@/lib/notifications/health";
 
-const CHANNEL_LABELS: Record<string, string> = { EMAIL: "email", NTFY: "ntfy", WEBHOOK: "webhook" };
+const CHANNEL_LABELS = new Map([
+  ["EMAIL", "email"],
+  ["NTFY", "ntfy"],
+  ["WEBHOOK", "webhook"],
+]);
+const channelLabel = (channel: string) => CHANNEL_LABELS.get(channel) ?? channel;
 
 function channelSummary(channels: ReminderHealth["channels"]) {
   const active = [
@@ -99,7 +105,12 @@ export function ReminderHealthCard({
           <dt className="text-xs text-muted">Last sent</dt>
           <dd className="text-sm font-medium">
             {health.lastSent
-              ? `${formatDate(health.lastSent.sentAt, dateFormat)} (${CHANNEL_LABELS[health.lastSent.channel] ?? health.lastSent.channel})`
+              ? (
+                  <>
+                    <Timestamp value={health.lastSent.sentAt} dateFormat={dateFormat} /> (
+                    {channelLabel(health.lastSent.channel)})
+                  </>
+                )
               : "Never"}
           </dd>
         </div>
@@ -107,8 +118,8 @@ export function ReminderHealthCard({
           <div className="col-span-2 min-w-0 md:col-span-3">
             <dt className="text-xs text-danger">Last failure</dt>
             <dd className="text-sm font-medium text-danger">
-              {formatDate(health.lastFailure.sentAt, dateFormat)} via{" "}
-              {CHANNEL_LABELS[health.lastFailure.channel] ?? health.lastFailure.channel}
+              <Timestamp value={health.lastFailure.sentAt} dateFormat={dateFormat} /> via{" "}
+              {channelLabel(health.lastFailure.channel)}
               {health.lastFailure.error ? ` — ${health.lastFailure.error}` : ""}
             </dd>
           </div>

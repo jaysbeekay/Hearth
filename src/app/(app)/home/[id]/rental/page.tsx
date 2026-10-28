@@ -15,7 +15,7 @@ import { DetailField as Detail } from "@/components/DetailField";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { RentalStatementDocumentList } from "@/components/RentalStatementDocumentList";
 import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, formatTimestamp } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
@@ -75,7 +75,7 @@ export default async function RentalOverviewPage({
 
   const { id } = await params;
   const canWrite = sessionCanWrite(await auth());
-  const [property, rentalContracts, { dateFormat, region }] = await Promise.all([
+  const [property, rentalContracts, { dateFormat, displayTimeZone, region }] = await Promise.all([
     prisma.property.findUnique({
       where: { id },
       include: {
@@ -219,7 +219,7 @@ export default async function RentalOverviewPage({
                           : "—"
                       }
                     />
-                    <Detail label="Added" value={formatDate(ag.createdAt, dateFormat)} />
+                    <Detail label="Added" value={formatTimestamp(ag.createdAt, dateFormat, displayTimeZone)} />
                   </dl>
                   {ag.notes && (
                     <p className="mt-3 whitespace-pre-wrap text-sm text-foreground">{ag.notes}</p>

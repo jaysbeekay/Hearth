@@ -2,7 +2,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { removeOwnerDocumentFiles } from "@/lib/commands/documents";
 import { assertModuleEnabled } from "@/lib/modules/enablement";
-import { updateUnlessStale, RecordNotFoundError, type UpdateOptions } from "@/lib/commands/shared";
+import { updateUnlessStale, findLiveParent, RecordNotFoundError, type UpdateOptions } from "@/lib/commands/shared";
 import type { ClearablePatch } from "@/lib/validation/fullFormUpdate";
 import type { TripInput, TripSegmentInput } from "@/lib/validation/travel";
 import type { TripSegment } from "@/generated/prisma/client";
@@ -12,6 +12,11 @@ import type { TripSegment } from "@/generated/prisma/client";
 // sync handler, Trash retention and the flight-status / distance lookups.
 // Callers own sign-in, role checks and Zod parsing; these own the module
 // gate, the write, file cleanup and revalidation.
+//
+// A Trip in Trash is read-only until it's restored, and so are its segments
+// (#428, the rules in shared.ts): an update to it, or a segment create or
+// update under it, is refused as not found. Segments have no Trash of their
+// own, so there's no segment restore to refuse.
 //
 // Trips have no Reminders, so there's no sent-Reminder log to clear.
 
@@ -26,6 +31,12 @@ async function findTrip(id: string) {
   const trip = await prisma.trip.findUnique({ where: { id } });
   if (!trip) throw new RecordNotFoundError("Trip");
   return trip;
+}
+
+// For a write to a Trip or under it, as `what`: one in Trash counts as not
+// found.
+function findLiveTrip(id: string, what = "Trip") {
+  return findLiveParent(prisma.trip.findUnique({ where: { id } }), what);
 }
 
 export async function createTripCommand(input: TripInput, actorId: string) {
@@ -45,7 +56,7 @@ export async function updateTripCommand(
   options: UpdateOptions = {},
 ) {
   await assertModuleEnabled("TRAVEL");
-  await findTrip(id);
+  await findLiveTrip(id);
   await updateUnlessStale(options.baseUpdatedAt, (guard) =>
     prisma.trip.updateMany({ where: { id, ...guard }, data: { ...patch, updatedById: actorId } }),
   );
@@ -117,7 +128,7 @@ async function findTripSegment(id: string, scope: TripSegmentScope = {}) {
 
 export async function createTripSegmentCommand(tripId: string, input: TripSegmentInput) {
   await assertModuleEnabled("TRAVEL");
-  await findTrip(tripId);
+  await findLiveTrip(tripId);
   const segment = await prisma.tripSegment.create({ data: { ...input, tripId } });
   revalidatePath(`/travel/${tripId}`);
   return segment;
@@ -131,6 +142,7 @@ export async function updateTripSegmentCommand(
 ) {
   await assertModuleEnabled("TRAVEL");
   const existing = await findTripSegment(id, options);
+  await findLiveTrip(existing.tripId, "Segment");
   await updateUnlessStale(options.baseUpdatedAt, (guard) =>
     prisma.tripSegment.updateMany({ where: { id, ...guard }, data: patch }),
   );
@@ -189,13 +201,15 @@ export type TripSegmentFlightData = Partial<
 // isn't an edit, so it mustn't make a queued edit look stale. The write is
 // guarded on that same updatedAt: if a user edit lands between the read and
 // the write, nothing is written (the next lookup tries again). Returns
-// whether the data was saved.
+// whether the data was saved. Under a Trip in Trash nothing is saved (#428):
+// the Trip is read-only until it's restored.
 export async function saveTripSegmentFlightData(id: string, data: TripSegmentFlightData): Promise<boolean> {
   const current = await prisma.tripSegment.findUnique({
     where: { id },
-    select: { updatedAt: true, departureIata: true, arrivalIata: true },
+    select: { updatedAt: true, departureIata: true, arrivalIata: true, trip: { select: { deletedAt: true } } },
   });
   if (!current) throw new RecordNotFoundError("Segment");
+  if (current.trip.deletedAt) return false;
   const { departureIata, arrivalIata, ...rest } = data;
   const { count } = await prisma.tripSegment.updateMany({
     where: { id, updatedAt: current.updatedAt },
