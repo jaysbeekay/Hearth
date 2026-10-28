@@ -650,6 +650,50 @@ test("standalone wealth portfolio imports generic CSV trades locally", async ({ 
   expect(runs.some((run) => run.statement.includes("INSERT INTO trades") && run.values.includes("BHP.AX") && run.values.includes(5) && run.values.includes(42.5))).toBe(true);
 });
 
+test("standalone dashboard lists net-worth parts separately and they sum to the total (#440)", async ({ page }) => {
+  const cards = page.locator(".mini-card");
+  // Fixture: property 900,000 + items 1,800 + holdings (10 × 100) = 902,800.
+  await expect(cards.filter({ hasText: "Net worth" }).locator("strong")).toHaveText("AUD 902,800");
+  await expect(cards.filter({ hasText: "Shares, ETFs and crypto" }).locator("strong")).toHaveText("AUD 1,000");
+  await expect(cards.filter({ hasText: "Property" }).locator("strong")).toHaveText("AUD 900,000");
+  await expect(cards.filter({ hasText: "Items" }).locator("strong")).toHaveText("AUD 1,800");
+  // The old combined tile is gone, and the listed parts add up to the total.
+  await expect(cards.filter({ hasText: "Home + inventory" })).toHaveCount(0);
+  const parts = await cards.filter({ hasText: /Shares, ETFs and crypto|Property|Items/ }).locator("strong").allTextContents();
+  const total = parts.reduce((sum, text) => sum + Number(text.replace(/[^0-9.]/g, "")), 0);
+  expect(total).toBe(902800);
+});
+
+test("standalone CSV import infers CRYPTO from the Asset Class or Exchange column (#440)", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.getByRole("button", { name: /Wealth/ }).click();
+  await page.getByRole("button", { name: /Family Portfolio/ }).click();
+
+  await page.locator('form[data-import-trades-portfolio-id="portfolio-1"] input[type="file"]').setInputFiles({
+    name: "crypto.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(
+      "Date,Ticker,Type,Units,Price,Fees,Currency,Asset Class,Exchange\n" +
+      "2099-02-01,BTC,BUY,0.5,90000,1,AUD,Crypto,\n" +
+      "2099-02-02,ETH,BUY,4,5000,1,AUD,,CRYPTO\n" +
+      "2099-02-03,XYZ,BUY,10,42.50,1,AUD,,\n",
+    ),
+  });
+  await page.locator('form[data-import-trades-portfolio-id="portfolio-1"]').getByRole("button", { name: "Import CSV trades" }).click();
+
+  await expect(page.locator("#standalone-status")).toContainText("Imported 3 trades");
+  const runs = await page.evaluate(() => {
+    return (window as Window & { __hearthStandaloneTest?: { sqliteRuns: { statement: string; values: unknown[] }[] } }).__hearthStandaloneTest?.sqliteRuns ?? [];
+  });
+  const holdingInsert = (ticker: string) =>
+    runs.find((run) => run.statement.includes("INSERT INTO holdings") && run.values.includes(ticker));
+  // Asset Class says Crypto → CRYPTO; Exchange says CRYPTO → CRYPTO;
+  // neither → SHARE, never guessed from the ticker.
+  expect(holdingInsert("BTC")?.values).toContain("CRYPTO");
+  expect(holdingInsert("ETH")?.values).toContain("CRYPTO");
+  expect(holdingInsert("XYZ")?.values).toContain("SHARE");
+});
+
 test("standalone document import accepts content-sniffed files with blank mobile MIME labels", async ({ page }) => {
   await page.locator(".bottom-nav").getByRole("button", { name: "Documents" }).click();
   await page.locator('form[data-import-inbox-form] input[type="file"]').setInputFiles({
