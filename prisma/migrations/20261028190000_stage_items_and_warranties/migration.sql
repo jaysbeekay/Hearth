@@ -18,7 +18,8 @@ CREATE TABLE "items" (
     "deletedAt" DATETIME,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
-    "legacyProductId" TEXT
+    "legacyProductId" TEXT,
+    "mergeConflictFields" TEXT
 );
 
 CREATE UNIQUE INDEX "items_legacyProductId_key" ON "items"("legacyProductId");

@@ -57,6 +57,7 @@ try {
         notes: result.fields.notes,
         createdById: product.createdById,
         deletedAt: result.deletedAt,
+        mergeConflictFields: result.conflicts.length ? JSON.stringify(result.conflicts) : null,
       };
       const item = await tx.item.upsert({ where: { legacyProductId: product.id }, create: { id: randomUUID(), legacyProductId: product.id, ...data }, update: data });
       await tx.warranty.upsert({
