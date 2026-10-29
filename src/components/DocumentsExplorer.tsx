@@ -35,11 +35,9 @@ const SORT_LABELS: Record<SortKey, string> = {
 
 export function DocumentsExplorer({
   docs,
-  dateFormat,
   emptyMessage,
 }: {
   docs: DocRow[];
-  dateFormat?: string;
   /** Shown when a type filter has no matches; null means no documents exist at all. */
   emptyMessage: string | null;
 }) {
@@ -185,7 +183,7 @@ export function DocumentsExplorer({
                       </Link>
                     </td>
                     <td className="whitespace-nowrap px-4 py-2 text-muted">
-                      <Timestamp value={doc.uploadedAt} dateFormat={dateFormat} />
+                      <Timestamp value={doc.uploadedAt} />
                     </td>
                     <td className="whitespace-nowrap px-4 py-2 text-right text-muted">
                       {humanFileSize(doc.size)}
@@ -245,7 +243,7 @@ export function DocumentsExplorer({
                   <Link href={doc.parentHref} className="text-accent hover:underline">
                     {doc.parentTitle}
                   </Link>
-                  <span><Timestamp value={doc.uploadedAt} dateFormat={dateFormat} /></span>
+                  <span><Timestamp value={doc.uploadedAt} /></span>
                   <span>{humanFileSize(doc.size)}</span>
                 </div>
               </div>

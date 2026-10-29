@@ -18,11 +18,9 @@ function channelSummary(channels: HouseholdReminderHealth["channels"]) {
 // reminder, without opening each one individually.
 export function HouseholdReminderHealthCard({
   health,
-  dateFormat,
   appUrlConfigured = true,
 }: {
   health: HouseholdReminderHealth;
-  dateFormat?: string | null;
   /** #352 — without APP_URL, reminders can't link back to the record. */
   appUrlConfigured?: boolean;
 }) {
@@ -62,7 +60,7 @@ export function HouseholdReminderHealthCard({
         <div className="min-w-0">
           <dt className="text-xs text-muted">Last activity</dt>
           <dd className="text-sm font-medium">
-            {health.lastActivityAt ? <Timestamp value={health.lastActivityAt} dateFormat={dateFormat} /> : "Never"}
+            {health.lastActivityAt ? <Timestamp value={health.lastActivityAt} /> : "Never"}
           </dd>
         </div>
         <div className="min-w-0">
