@@ -10,6 +10,7 @@ import { formatCurrency, formatDate, formatNumber } from "@/lib/utils";
 import { refreshPricesForTickers, getPriceMap, fetchAndStorePriceHistory, getPriceHistory } from "@/lib/prices";
 import { deleteHolding, deleteTrade } from "@/lib/actions/wealth";
 import { DocumentList } from "@/components/DocumentList";
+import { getTrashedVersionLinks } from "@/lib/documents/trashedVersionLinks";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { ASSET_CLASS_LABELS, TRADE_TYPE_LABELS, COST_METHOD_LABELS } from "@/lib/validation/wealth";
@@ -203,6 +204,11 @@ export default async function HoldingPage({
   if (!holding || holding.portfolioId !== portfolioId) {
     notFound();
   }
+
+  const trashedLinks = await getTrashedVersionLinks(
+    "TRADE",
+    holding.trades.map((t) => t.id),
+  );
 
   await refreshPricesForTickers([holding]).catch(() => {});
   const priceMap = await getPriceMap([holding]);
@@ -466,14 +472,13 @@ export default async function HoldingPage({
                   {(canWrite || trade.documents.length > 0) && (
                     <div className="mt-3 border-t border-border pt-3">
                       {trade.documents.length > 0 && (
-                        <div className="mb-2">
-                          <DocumentList
-                            kind="TRADE"
-                            ownerId={trade.id}
-                            documents={trade.documents}
-                            dateFormat={dateFormat}
-                          />
-                        </div>
+                        <DocumentList
+                          kind="TRADE"
+                          ownerId={trade.id}
+                          documents={trade.documents}
+                          trashedLinks={trashedLinks.get(trade.id)}
+                          dateFormat={dateFormat}
+                        />
                       )}
                       <DocumentUploadForm action={addDocumentAction.bind(null, "TRADE", trade.id)} />
                     </div>

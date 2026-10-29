@@ -15,6 +15,12 @@ export interface DocumentListRow {
   supersedesId: string | null;
 }
 
+/** One version link of a Document that isn't listed (it's in Trash). */
+export interface DocumentVersionLink {
+  id: string;
+  supersedesId: string | null;
+}
+
 /** A Document as the list shows it: its latest version, and its older versions newest first. */
 export interface DocumentVersionGroup<T extends DocumentListRow> {
   latest: T;
@@ -22,33 +28,73 @@ export interface DocumentVersionGroup<T extends DocumentListRow> {
 }
 
 /**
- * Groups Documents into version chains through supersedesId (#206). The
- * latest version is any Document that nothing else in the list supersedes;
- * walking back from it gives the older ones. Only the rows passed in count,
- * so an older version in Trash ends the chain there, and a Document whose
- * newer version is in Trash shows as the latest.
+ * Groups Documents into version chains through supersedesId (#206).
+ *
+ * `trashedLinks` are the version links of the same owner's Documents in
+ * Trash. They aren't shown, but the chain is followed through them, so
+ * putting one version in Trash doesn't split a Document in two: with
+ * v1 ← v2 ← v3 and v3 in Trash, v2 is the latest and v1 is under it; file
+ * v4 on top of v3 and v4 is the latest with v2 and v1 under it.
+ *
+ * Every listed row appears exactly once. A row the chains can't place (a
+ * cycle, which the app never writes) is listed on its own.
  */
-export function groupDocumentVersions<T extends DocumentListRow>(documents: T[]): DocumentVersionGroup<T>[] {
-  const byId = new Map(documents.map((d) => [d.id, d]));
-  const superseded = new Set<string>();
-  for (const d of documents) {
-    if (d.supersedesId) superseded.add(d.supersedesId);
+export function groupDocumentVersions<T extends DocumentListRow>(
+  documents: T[],
+  trashedLinks: DocumentVersionLink[] = [],
+): DocumentVersionGroup<T>[] {
+  const live = new Map(documents.map((d) => [d.id, d]));
+  const supersedes = new Map<string, string | null>();
+  for (const link of trashedLinks) supersedes.set(link.id, link.supersedesId);
+  for (const d of documents) supersedes.set(d.id, d.supersedesId);
+  // supersedesId is unique per table, so each version has at most one successor.
+  const successor = new Map<string, string>();
+  for (const [id, older] of supersedes) {
+    if (older) successor.set(older, id);
   }
-  return documents
-    .filter((d) => !superseded.has(d.id))
-    .map((latest) => {
-      const older: T[] = [];
-      const seen = new Set([latest.id]);
-      let cursor = latest.supersedesId;
-      while (cursor && !seen.has(cursor)) {
-        const doc = byId.get(cursor);
-        if (!doc) break;
-        older.push(doc);
-        seen.add(cursor);
-        cursor = doc.supersedesId;
-      }
-      return { latest, older };
-    });
+
+  // The nearest newer version that's listed, walking past ones in Trash.
+  function hasListedSuccessor(id: string): boolean {
+    const seen = new Set([id]);
+    let cursor = successor.get(id);
+    while (cursor && !seen.has(cursor)) {
+      if (live.has(cursor)) return true;
+      seen.add(cursor);
+      cursor = successor.get(cursor);
+    }
+    return cursor !== undefined && live.has(cursor);
+  }
+
+  function olderVersions(latest: T): T[] {
+    const older: T[] = [];
+    const seen = new Set([latest.id]);
+    let cursor = supersedes.get(latest.id) ?? null;
+    while (cursor && !seen.has(cursor)) {
+      const doc = live.get(cursor);
+      if (doc) older.push(doc);
+      seen.add(cursor);
+      cursor = supersedes.get(cursor) ?? null;
+    }
+    return older;
+  }
+
+  const groups = new Map<string, DocumentVersionGroup<T>>();
+  const placed = new Set<string>();
+  for (const d of documents) {
+    if (hasListedSuccessor(d.id)) continue;
+    const older = olderVersions(d);
+    groups.set(d.id, { latest: d, older });
+    placed.add(d.id);
+    for (const o of older) placed.add(o.id);
+  }
+
+  const result: DocumentVersionGroup<T>[] = [];
+  for (const d of documents) {
+    const group = groups.get(d.id);
+    if (group) result.push(group);
+    else if (!placed.has(d.id)) result.push({ latest: d, older: [] });
+  }
+  return result;
 }
 
 // Before #350 a Warranty Document had only its legacy kind and no Document
@@ -67,8 +113,23 @@ export function documentTypeLabel(doc: { category: string | null }, productKind?
   return productKind ? (PRODUCT_KIND_LABELS.get(productKind) ?? null) : null;
 }
 
+/** Image types a browser can't show inline (HEIC photos from iPhones). */
+export function isBrowserViewableImage(mimeType: string): boolean {
+  return mimeType.startsWith("image/") && mimeType !== "image/heic" && mimeType !== "image/heif";
+}
+
 /** Whether the row shows a thumbnail of the image instead of a file icon. */
 export function showsThumbnail(doc: { category: string | null; mimeType: string }, productKind?: string | null): boolean {
-  if (!doc.mimeType.startsWith("image/")) return false;
+  if (!isBrowserViewableImage(doc.mimeType)) return false;
   return doc.category === "PHOTO" || (!doc.category && productKind === "PHOTO");
+}
+
+/**
+ * Whether an older version's row shows the star. Filing a new version
+ * doesn't carry the star over, so a starred older version shows it (and can
+ * be unstarred there); an unstarred one shows none, since the star belongs
+ * on the latest version.
+ */
+export function olderVersionShowsStar(doc: { isImportant: boolean }): boolean {
+  return doc.isImportant;
 }

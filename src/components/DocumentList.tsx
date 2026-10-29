@@ -10,8 +10,10 @@ import { documentFileHref, type OwnedDocumentKind } from "@/lib/documents/kinds"
 import {
   documentTypeLabel,
   groupDocumentVersions,
+  olderVersionShowsStar,
   showsThumbnail,
   type DocumentListRow,
+  type DocumentVersionLink,
 } from "@/lib/documents/documentList";
 import { humanFileSize } from "@/lib/utils";
 
@@ -26,16 +28,27 @@ type Row = DocumentListRow & {
   kind?: string;
 };
 
+function TypePill({ label }: { label: string | null }) {
+  if (!label) return null;
+  return <span className="rounded-md bg-muted/10 px-1.5 py-0.5 text-xs font-medium text-muted">{label}</span>;
+}
+
 export function DocumentList({
   kind,
   ownerId,
   documents,
+  trashedLinks,
   dateFormat,
 }: {
   kind: OwnedDocumentKind;
   /** The record every Document in the list belongs to. */
   ownerId: string;
   documents: Row[];
+  /**
+   * Version links of this record's Documents in Trash (getTrashedVersionLinks),
+   * so a version in Trash doesn't split its Document in two.
+   */
+  trashedLinks?: DocumentVersionLink[];
   dateFormat?: string;
 }) {
   if (documents.length === 0) {
@@ -43,14 +56,20 @@ export function DocumentList({
   }
 
   const productKind = (doc: Row) => (kind === "PRODUCT" ? doc.kind : undefined);
+  const star = (doc: Row) => (
+    <ImportantToggle
+      isImportant={doc.isImportant}
+      action={setDocumentImportantAction.bind(null, kind, doc.id)}
+      label={doc.filename}
+    />
+  );
 
   return (
     <ul className="divide-y divide-border">
-      {groupDocumentVersions(documents).map(({ latest: doc, older }) => {
+      {groupDocumentVersions(documents, trashedLinks).map(({ latest: doc, older }) => {
         const href = documentFileHref(doc.id);
-        const typeLabel = documentTypeLabel(doc, productKind(doc));
         return (
-          <li key={doc.id} className="py-3">
+          <li key={doc.id} className="py-2">
             <div className="flex items-center justify-between gap-3">
               {/* #403 — below sm the filename and its metadata stack instead
                   of sharing one line, which squeezed the filename at 390px. */}
@@ -63,7 +82,7 @@ export function DocumentList({
               >
                 <span className="flex min-w-0 items-center gap-2">
                   {showsThumbnail(doc, productKind(doc)) ? (
-                    <DocumentThumbnail href={href} filename={doc.filename} />
+                    <DocumentThumbnail href={href} />
                   ) : (
                     <FileText size={18} className="shrink-0 text-muted" />
                   )}
@@ -73,11 +92,7 @@ export function DocumentList({
                   <span className="text-muted">
                     {humanFileSize(doc.size)} · <Timestamp value={doc.uploadedAt} dateFormat={dateFormat} />
                   </span>
-                  {typeLabel && (
-                    <span className="rounded-md bg-muted/10 px-1.5 py-0.5 text-xs font-medium text-muted">
-                      {typeLabel}
-                    </span>
-                  )}
+                  <TypePill label={documentTypeLabel(doc, productKind(doc))} />
                   {older.length > 0 && (
                     <span className="rounded-md bg-accent/10 px-1.5 py-0.5 text-xs font-medium text-accent">
                       Latest
@@ -85,19 +100,15 @@ export function DocumentList({
                   )}
                 </span>
               </DocumentLink>
-              <div className="flex shrink-0 items-center gap-1">
+              <div className="flex shrink-0 items-center">
                 <DocumentPreviewButton href={href} filename={doc.filename} mimeType={doc.mimeType} />
-                <ImportantToggle
-                  isImportant={doc.isImportant}
-                  action={setDocumentImportantAction.bind(null, kind, doc.id)}
-                  label={doc.filename}
-                />
+                {star(doc)}
                 <DocumentDeleteButton kind={kind} documentId={doc.id} ownerId={ownerId} filename={doc.filename} />
               </div>
             </div>
 
             {older.length > 0 && (
-              <ul aria-label={`Older versions of ${doc.filename}`} className="ml-6 mt-2 space-y-2 border-l border-border pl-4">
+              <ul aria-label={`Older versions of ${doc.filename}`} className="ml-6 mt-1 border-l border-border pl-4">
                 {older.map((v) => (
                   <li key={v.id} className="flex items-center justify-between gap-3">
                     <DocumentLink
@@ -111,11 +122,22 @@ export function DocumentList({
                         <History size={14} className="shrink-0" />
                         <span className="min-w-0 truncate">{v.filename}</span>
                       </span>
-                      <span className="min-w-0 sm:shrink-0">
-                        {humanFileSize(v.size)} · <Timestamp value={v.uploadedAt} dateFormat={dateFormat} />
+                      <span className="flex flex-wrap items-center gap-x-2 gap-y-1 sm:shrink-0">
+                        <span>
+                          {humanFileSize(v.size)} · <Timestamp value={v.uploadedAt} dateFormat={dateFormat} />
+                        </span>
+                        <TypePill label={documentTypeLabel(v, productKind(v))} />
                       </span>
                     </DocumentLink>
-                    <DocumentDeleteButton kind={kind} documentId={v.id} ownerId={ownerId} filename={v.filename} />
+                    <div className="flex shrink-0 items-center">
+                      <DocumentPreviewButton
+                        href={documentFileHref(v.id)}
+                        filename={v.filename}
+                        mimeType={v.mimeType}
+                      />
+                      {olderVersionShowsStar(v) && star(v)}
+                      <DocumentDeleteButton kind={kind} documentId={v.id} ownerId={ownerId} filename={v.filename} />
+                    </div>
                   </li>
                 ))}
               </ul>

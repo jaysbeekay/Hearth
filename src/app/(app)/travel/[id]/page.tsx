@@ -11,6 +11,7 @@ import { DetailField as Detail } from "@/components/DetailField";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { DocumentList } from "@/components/DocumentList";
+import { getTrashedVersionLinks } from "@/lib/documents/trashedVersionLinks";
 import { RecordMeta } from "@/components/RecordMeta";
 import { TRIP_SEGMENT_TYPE_LABELS, formatCurrency, formatDate, formatTimestamp, formatDistance } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
@@ -51,6 +52,10 @@ export default async function TripDetailPage({
   ]);
   if (!trip || trip.deletedAt) notFound();
 
+  const trashedLinks = await getTrashedVersionLinks(
+    "TRIP_SEGMENT",
+    trip.segments.map((s) => s.id),
+  );
   const segments = [...trip.segments].sort((a, b) => {
     if (!a.startDate && !b.startDate) return 0;
     if (!a.startDate) return 1;
@@ -327,6 +332,7 @@ export default async function TripDetailPage({
                     <DocumentList
                       kind="TRIP_SEGMENT"
                       ownerId={segment.id}
+                      trashedLinks={trashedLinks.get(segment.id)}
                       documents={segment.documents}
                       dateFormat={dateFormat}
                     />

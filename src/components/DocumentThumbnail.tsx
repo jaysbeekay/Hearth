@@ -11,10 +11,8 @@ import { useOnlineStatus } from "@/lib/useOnlineStatus";
 // swaps in the cached blob when offline instead.
 export function DocumentThumbnail({
   href,
-  filename,
 }: {
   href: string;
-  filename: string;
 }) {
   const online = useOnlineStatus();
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
@@ -41,7 +39,9 @@ export function DocumentThumbnail({
     // eslint-disable-next-line @next/next/no-img-element
     <img
       src={online ? href : (blobUrl ?? href)}
-      alt={filename}
+      // Decorative: the filename beside it is the link text.
+      alt=""
+      loading="lazy"
       className="h-10 w-10 shrink-0 rounded-md object-cover"
     />
   );

@@ -26,7 +26,7 @@ export function DocumentPreviewButton({
           setOpen(true);
         }}
         aria-label={`Preview ${filename}`}
-        className="rounded-md p-2 text-muted hover:bg-hover"
+        className="inline-flex h-11 w-11 items-center justify-center rounded-md text-muted hover:bg-hover"
       >
         <Eye size={16} />
       </button>

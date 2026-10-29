@@ -11,6 +11,7 @@ import { DetailField as Detail } from "@/components/DetailField";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { DocumentList } from "@/components/DocumentList";
+import { getTrashedVersionLinks } from "@/lib/documents/trashedVersionLinks";
 import { RecordMeta } from "@/components/RecordMeta";
 import { ContractCard } from "@/components/ContractCard";
 import { ReminderHealthCard } from "@/components/ReminderHealthCard";
@@ -72,6 +73,10 @@ export default async function VehicleDetailPage({
     healthFor("nextServiceDue", vehicle.nextServiceDue),
   ]);
 
+  const trashedLinks = await getTrashedVersionLinks(
+    "VEHICLE_ITEM",
+    vehicle.items.map((i) => i.id),
+  );
   const items = [...vehicle.items].sort((a, b) => {
     if (!a.date && !b.date) return 0;
     if (!a.date) return 1;
@@ -285,7 +290,7 @@ export default async function VehicleDetailPage({
 
                   <div className="mt-4 border-t border-border pt-4">
                     <h3 className="mb-2 text-sm font-medium">Documents</h3>
-                    <DocumentList kind="VEHICLE_ITEM" ownerId={item.id} documents={item.documents} dateFormat={dateFormat} />
+                    <DocumentList kind="VEHICLE_ITEM" ownerId={item.id} documents={item.documents} trashedLinks={trashedLinks.get(item.id)} dateFormat={dateFormat} />
                     {canWrite && (
                       <div className="mt-3">
                         <DocumentUploadForm action={addDocumentAction.bind(null, "VEHICLE_ITEM", item.id)} />

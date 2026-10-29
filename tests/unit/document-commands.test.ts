@@ -34,6 +34,8 @@ import {
   type OwnedDocumentKind,
 } from "@/lib/documents/kinds";
 import { getTrashEntries, purgeExpiredTrash, TRASH_RETENTION_DAYS } from "@/lib/trash";
+import { getTrashedVersionLinks } from "@/lib/documents/trashedVersionLinks";
+import { groupDocumentVersions } from "@/lib/documents/documentList";
 import { ENTITY_SYNC_CONFIGS, normalizeSyncOperation } from "@/app/api/sync/entityHandlers";
 import { GET as getDocumentFile } from "@/app/api/documents/[id]/route";
 import { GET as getLegacyVehicleFile } from "@/app/api/vehicles/documents/[id]/route";
@@ -221,6 +223,32 @@ describe.each(OWNED_DOCUMENT_KINDS)("Document command: %s", (kind) => {
     const v3 = await supersedeDocumentCommand(kind, v1.id, { file: pdf("v3.pdf") }, { ownerId });
     expect(v3.supersedesId).toBe(v2.id);
     expect(await exists(filePath(kind, ownerId, v3.storedName))).toBe(true);
+  });
+
+  it("lists the version links of Documents in Trash, so the list keeps one Document (#397)", async () => {
+    const { ownerId } = await createOwner(kind);
+    const v1 = await addDocumentCommand(kind, ownerId, { file: pdf("v1.pdf") });
+    await setDocumentImportantCommand(kind, v1.id, true);
+    const v2 = await supersedeDocumentCommand(kind, v1.id, { file: pdf("v2.pdf") });
+    const v3 = await supersedeDocumentCommand(kind, v2.id, { file: pdf("v3.pdf") });
+    // A new version doesn't carry the star over.
+    expect(v2.isImportant).toBe(false);
+
+    await deleteDocumentCommand(kind, v3.id);
+    const v4 = await supersedeDocumentCommand(kind, v2.id, { file: pdf("v4.pdf") });
+    expect(v4.supersedesId).toBe(v3.id);
+
+    const links = await getTrashedVersionLinks(kind, [ownerId, "no-such-owner"]);
+    expect(links.get(ownerId)).toEqual([{ id: v3.id, supersedesId: v2.id }]);
+    expect(links.has("no-such-owner")).toBe(false);
+
+    const live = [v4, v2, (await findDocument(kind, v1.id))!];
+    const groups = groupDocumentVersions(live, links.get(ownerId));
+    expect(groups.map((g) => g.latest.id)).toEqual([v4.id]);
+    expect(groups[0].older.map((d) => [d.id, d.isImportant])).toEqual([
+      [v2.id, false],
+      [v1.id, true],
+    ]);
   });
 
   it("serves the file from /api/documents/[id] with the download headers", async () => {

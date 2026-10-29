@@ -96,7 +96,14 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   Inventory and Trade Documents gain the star, type and version history;
   Contract Documents gain the preview. Trade Documents are no longer drawn
   as chips on the holding page. The seven per-record list components are
-  replaced by `src/components/DocumentList.tsx`.
+  replaced by `src/components/DocumentList.tsx`. A version in Trash no
+  longer splits its Document in two: the list follows the chain past it,
+  including when a new version is filed on top of one in Trash. Older
+  versions show their own preview and type, and a star they still have
+  (a new version doesn't inherit it), so it can be removed. The row's
+  buttons are 44px touch targets. HEIC photos are no longer previewed or
+  thumbnailed, since most browsers can't show them, and an unrecognised
+  stored type shows no pill instead of the raw value.
 - **Standalone shell wealth parity (#440).** The offline shell's dashboard now
   lists net worth the way the web Wealth page does (#404): a Net worth total
   with its parts beneath — Shares, ETFs and crypto, Property and Items, each

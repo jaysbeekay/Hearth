@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { getOfflineDocument } from "@/lib/offlineDocuments";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
+import { isBrowserViewableImage } from "@/lib/documents/documentList";
 
 export interface PreviewableDoc {
   filename: string;
@@ -11,8 +12,10 @@ export interface PreviewableDoc {
   downloadHref: string;
 }
 
+// HEIC/HEIF photos (iPhone) can't be shown inline by most browsers, so
+// they're downloaded instead of previewed.
 export function isPreviewable(mimeType: string) {
-  return mimeType.startsWith("image/") || mimeType === "application/pdf";
+  return isBrowserViewableImage(mimeType) || mimeType === "application/pdf";
 }
 
 export function DocumentPreviewModal({
