@@ -10,7 +10,7 @@ import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailField as Detail } from "@/components/DetailField";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
-import { TripSegmentDocumentList } from "@/components/TripSegmentDocumentList";
+import { DocumentList } from "@/components/DocumentList";
 import { RecordMeta } from "@/components/RecordMeta";
 import { TRIP_SEGMENT_TYPE_LABELS, formatCurrency, formatDate, formatTimestamp, formatDistance } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
@@ -324,7 +324,9 @@ export default async function TripDetailPage({
 
                   <div className="mt-4 border-t border-border pt-4">
                     <h3 className="mb-2 text-sm font-medium">Documents</h3>
-                    <TripSegmentDocumentList
+                    <DocumentList
+                      kind="TRIP_SEGMENT"
+                      ownerId={segment.id}
                       documents={segment.documents}
                       dateFormat={dateFormat}
                     />

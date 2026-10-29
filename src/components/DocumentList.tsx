@@ -1,98 +1,105 @@
 import { Timestamp } from "@/components/Timestamp";
 import { FileText, History } from "lucide-react";
-import type { DocumentModel } from "@/generated/prisma/models";
 import { setDocumentImportantAction } from "@/lib/actions/documents";
 import { DocumentDeleteButton } from "@/components/DocumentDeleteButton";
 import { DocumentLink } from "@/components/DocumentLink";
+import { DocumentPreviewButton } from "@/components/DocumentPreviewButton";
+import { DocumentThumbnail } from "@/components/DocumentThumbnail";
 import { ImportantToggle } from "@/components/ImportantToggle";
-import { documentFileHref } from "@/lib/documents/kinds";
+import { documentFileHref, type OwnedDocumentKind } from "@/lib/documents/kinds";
+import {
+  documentTypeLabel,
+  groupDocumentVersions,
+  showsThumbnail,
+  type DocumentListRow,
+} from "@/lib/documents/documentList";
 import { humanFileSize } from "@/lib/utils";
 
-function DeleteButton({ doc }: { doc: DocumentModel }) {
-  return <DocumentDeleteButton kind="CONTRACT" documentId={doc.id} ownerId={doc.contractId} filename={doc.filename} />;
-}
+// #397 — the one Document list, for every kind of record. Each Document
+// shows its type, a star, a preview where the browser can show the file,
+// and a delete to Trash with Undo; re-uploads are grouped under the latest
+// version (#206). A server component, so the page (and its offline copy)
+// renders the list without a client fetch.
+
+type Row = DocumentListRow & {
+  /** A Warranty Document's legacy kind (PRODUCT rows only). */
+  kind?: string;
+};
 
 export function DocumentList({
+  kind,
+  ownerId,
   documents,
   dateFormat,
 }: {
-  documents: DocumentModel[];
+  kind: OwnedDocumentKind;
+  /** The record every Document in the list belongs to. */
+  ownerId: string;
+  documents: Row[];
   dateFormat?: string;
 }) {
   if (documents.length === 0) {
     return <p className="text-sm text-muted">No documents uploaded yet.</p>;
   }
 
-  // #206 — group into version chains via supersedesId rather than listing
-  // every re-upload as an unrelated document. A "head" is any document
-  // nothing else in this list supersedes; walking backward from each head
-  // recovers its full history, oldest last, with no extra query since the
-  // parent page already fetched every document for this contract.
-  const byId = new Map(documents.map((d) => [d.id, d]));
-  const supersededIds = new Set(
-    documents.filter((d) => d.supersedesId).map((d) => d.supersedesId as string),
-  );
-  const heads = documents.filter((d) => !supersededIds.has(d.id));
-
-  function olderVersions(head: DocumentModel): DocumentModel[] {
-    const chain: DocumentModel[] = [];
-    let cursor = head.supersedesId;
-    while (cursor) {
-      const doc = byId.get(cursor);
-      if (!doc) break;
-      chain.push(doc);
-      cursor = doc.supersedesId;
-    }
-    return chain;
-  }
+  const productKind = (doc: Row) => (kind === "PRODUCT" ? doc.kind : undefined);
 
   return (
     <ul className="divide-y divide-border">
-      {heads.map((doc) => {
-        const older = olderVersions(doc);
+      {groupDocumentVersions(documents).map(({ latest: doc, older }) => {
+        const href = documentFileHref(doc.id);
+        const typeLabel = documentTypeLabel(doc, productKind(doc));
         return (
           <li key={doc.id} className="py-3">
             <div className="flex items-center justify-between gap-3">
-              {/* #403 — below sm the filename and its size/date metadata stack
-                  instead of sharing one flex line, which was squeezing the
-                  filename down to a few characters at 390px. */}
+              {/* #403 — below sm the filename and its metadata stack instead
+                  of sharing one line, which squeezed the filename at 390px. */}
               <DocumentLink
-                href={documentFileHref(doc.id)}
+                href={href}
                 filename={doc.filename}
                 mimeType={doc.mimeType}
                 size={doc.size}
                 className="flex min-w-0 flex-col gap-0.5 text-sm hover:text-accent sm:flex-row sm:items-center sm:gap-2"
               >
                 <span className="flex min-w-0 items-center gap-2">
-                  <FileText size={18} className="shrink-0 text-muted" />
+                  {showsThumbnail(doc, productKind(doc)) ? (
+                    <DocumentThumbnail href={href} filename={doc.filename} />
+                  ) : (
+                    <FileText size={18} className="shrink-0 text-muted" />
+                  )}
                   <span className="min-w-0 truncate">{doc.filename}</span>
                 </span>
-                <span className="flex flex-wrap items-center gap-x-2 sm:shrink-0">
+                <span className="flex flex-wrap items-center gap-x-2 gap-y-1 sm:shrink-0">
                   <span className="text-muted">
                     {humanFileSize(doc.size)} · <Timestamp value={doc.uploadedAt} dateFormat={dateFormat} />
                   </span>
+                  {typeLabel && (
+                    <span className="rounded-md bg-muted/10 px-1.5 py-0.5 text-xs font-medium text-muted">
+                      {typeLabel}
+                    </span>
+                  )}
                   {older.length > 0 && (
-                    <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-accent/10 px-1.5 py-0.5 text-xs font-medium text-accent">
+                    <span className="rounded-md bg-accent/10 px-1.5 py-0.5 text-xs font-medium text-accent">
                       Latest
                     </span>
                   )}
                 </span>
               </DocumentLink>
               <div className="flex shrink-0 items-center gap-1">
+                <DocumentPreviewButton href={href} filename={doc.filename} mimeType={doc.mimeType} />
                 <ImportantToggle
                   isImportant={doc.isImportant}
-                  action={setDocumentImportantAction.bind(null, "CONTRACT", doc.id)}
+                  action={setDocumentImportantAction.bind(null, kind, doc.id)}
                   label={doc.filename}
                 />
-                <DeleteButton doc={doc} />
+                <DocumentDeleteButton kind={kind} documentId={doc.id} ownerId={ownerId} filename={doc.filename} />
               </div>
             </div>
 
             {older.length > 0 && (
-              <ul className="ml-6 mt-2 space-y-2 border-l border-border pl-4">
+              <ul aria-label={`Older versions of ${doc.filename}`} className="ml-6 mt-2 space-y-2 border-l border-border pl-4">
                 {older.map((v) => (
                   <li key={v.id} className="flex items-center justify-between gap-3">
-                    {/* #403 — same stacked filename/metadata treatment as the head row. */}
                     <DocumentLink
                       href={documentFileHref(v.id)}
                       filename={v.filename}
@@ -108,7 +115,7 @@ export function DocumentList({
                         {humanFileSize(v.size)} · <Timestamp value={v.uploadedAt} dateFormat={dateFormat} />
                       </span>
                     </DocumentLink>
-                    <DeleteButton doc={v} />
+                    <DocumentDeleteButton kind={kind} documentId={v.id} ownerId={ownerId} filename={v.filename} />
                   </li>
                 ))}
               </ul>

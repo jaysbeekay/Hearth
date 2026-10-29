@@ -11,7 +11,7 @@ import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailField as Detail } from "@/components/DetailField";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
-import { HomeItemDocumentList } from "@/components/HomeItemDocumentList";
+import { DocumentList } from "@/components/DocumentList";
 import { RecordMeta } from "@/components/RecordMeta";
 import { PropertyMap } from "@/components/PropertyMap";
 import { env } from "@/lib/env";
@@ -252,7 +252,7 @@ export default async function PropertyDetailPage({
 
                   <div className="mt-4 border-t border-border pt-4">
                     <h3 className="mb-2 text-sm font-medium">Documents</h3>
-                    <HomeItemDocumentList documents={item.documents} dateFormat={dateFormat} />
+                    <DocumentList kind="HOME_ITEM" ownerId={item.id} documents={item.documents} dateFormat={dateFormat} />
                     {canWrite && (
                       <div className="mt-3">
                         <DocumentUploadForm action={addDocumentAction.bind(null, "HOME_ITEM", item.id)} />

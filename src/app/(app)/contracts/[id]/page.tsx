@@ -320,7 +320,7 @@ export default async function ContractDetailPage({
 
       <div id="documents" className="scroll-mt-20 rounded-xl border border-border bg-surface p-4 md:p-6">
         <h2 className="mb-3 font-medium">Documents</h2>
-        <DocumentList documents={contract.documents} dateFormat={dateFormat} />
+        <DocumentList kind="CONTRACT" ownerId={contract.id} documents={contract.documents} dateFormat={dateFormat} />
         {canWrite && (
           <div className="mt-4 border-t border-border pt-4">
             <DocumentUploadForm action={boundUpload} />

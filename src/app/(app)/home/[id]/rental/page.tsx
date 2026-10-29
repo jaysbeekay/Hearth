@@ -13,7 +13,7 @@ import {
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailField as Detail } from "@/components/DetailField";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
-import { RentalStatementDocumentList } from "@/components/RentalStatementDocumentList";
+import { DocumentList } from "@/components/DocumentList";
 import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 import { formatCurrency, formatDate, formatTimestamp } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
@@ -416,7 +416,9 @@ export default async function RentalOverviewPage({
                         <FileText size={14} className="text-muted" />
                         Documents
                       </div>
-                      <RentalStatementDocumentList
+                      <DocumentList
+                        kind="RENTAL_STATEMENT"
+                        ownerId={stmt.id}
                         documents={stmt.documents}
                         dateFormat={dateFormat}
                       />

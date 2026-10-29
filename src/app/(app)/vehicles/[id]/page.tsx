@@ -10,7 +10,7 @@ import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailField as Detail } from "@/components/DetailField";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
-import { VehicleItemDocumentList } from "@/components/VehicleItemDocumentList";
+import { DocumentList } from "@/components/DocumentList";
 import { RecordMeta } from "@/components/RecordMeta";
 import { ContractCard } from "@/components/ContractCard";
 import { ReminderHealthCard } from "@/components/ReminderHealthCard";
@@ -285,7 +285,7 @@ export default async function VehicleDetailPage({
 
                   <div className="mt-4 border-t border-border pt-4">
                     <h3 className="mb-2 text-sm font-medium">Documents</h3>
-                    <VehicleItemDocumentList documents={item.documents} dateFormat={dateFormat} />
+                    <DocumentList kind="VEHICLE_ITEM" ownerId={item.id} documents={item.documents} dateFormat={dateFormat} />
                     {canWrite && (
                       <div className="mt-3">
                         <DocumentUploadForm action={addDocumentAction.bind(null, "VEHICLE_ITEM", item.id)} />

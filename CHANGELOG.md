@@ -87,6 +87,16 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- **One Document list (#397).** Every record's Documents use the same list:
+  Contracts, Warranties, Maintenance records, Service records, Inventory
+  items, Trip segments, Rental statements and Trades. Each Document shows
+  its Document type, a star, a preview for PDFs and images, and Move to
+  Trash with Undo, and re-uploads are grouped under the latest version.
+  Trip segment, Rental statement, Maintenance record, Service record,
+  Inventory and Trade Documents gain the star, type and version history;
+  Contract Documents gain the preview. Trade Documents are no longer drawn
+  as chips on the holding page. The seven per-record list components are
+  replaced by `src/components/DocumentList.tsx`.
 - **Standalone shell wealth parity (#440).** The offline shell's dashboard now
   lists net worth the way the web Wealth page does (#404): a Net worth total
   with its parts beneath — Shares, ETFs and crypto, Property and Items, each

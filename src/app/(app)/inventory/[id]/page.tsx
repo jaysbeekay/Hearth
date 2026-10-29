@@ -9,7 +9,7 @@ import { deleteInventoryItem, restoreInventoryItem } from "@/lib/actions/invento
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
-import { InventoryItemDocumentList } from "@/components/InventoryItemDocumentList";
+import { DocumentList } from "@/components/DocumentList";
 import { RecordMeta } from "@/components/RecordMeta";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
@@ -140,7 +140,7 @@ export default async function InventoryItemPage({
 
       <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <h2 className="mb-3 font-medium">Documents</h2>
-        <InventoryItemDocumentList documents={item.documents} dateFormat={dateFormat} />
+        <DocumentList kind="INVENTORY_ITEM" ownerId={item.id} documents={item.documents} dateFormat={dateFormat} />
         {canWrite && (
           <div className="mt-4 border-t border-border pt-4">
             <DocumentUploadForm action={addDocumentAction.bind(null, "INVENTORY_ITEM", id)} />

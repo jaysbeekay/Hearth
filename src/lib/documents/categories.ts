@@ -29,3 +29,11 @@ export function parseDocumentCategory(value: FormDataEntryValue | null): Documen
     ? (value as DocumentCategory)
     : null;
 }
+
+const CATEGORY_LABEL_BY_KEY = new Map<string, string>(Object.entries(DOCUMENT_CATEGORY_LABELS));
+
+/** The Document type's label, the stored value for an unknown one, or null for none. */
+export function documentCategoryLabel(category: string | null | undefined): string | null {
+  if (!category) return null;
+  return CATEGORY_LABEL_BY_KEY.get(category) ?? category;
+}
