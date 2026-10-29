@@ -32,10 +32,16 @@ async function callTool(request: APIRequestContext, name: string, args: Record<s
   return JSON.parse(result.content[0].text);
 }
 
+// UTC calendar arithmetic, so the day doesn't shift with the runner's zone.
 function isoInDays(days: number): string {
   const d = new Date();
-  d.setDate(d.getDate() + days);
+  d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
+}
+
+/** The number in a formatted amount such as "A$1,234.56" or "AUD 1,234.56". */
+function amountIn(text: string | null): number {
+  return Number((text ?? "").replace(/[^\d.]/g, ""));
 }
 
 test("MCP is read-only and offers whats_due", async ({ request }) => {
@@ -73,7 +79,7 @@ test("a Contract's notice deadline drives upcoming_renewals and whats_due", asyn
   expect(detail).toMatchObject({ id, title, state: "due-soon", documents: [] });
 });
 
-test("spend_summary gives the dashboard's monthly figure", async ({ page, request }) => {
+test("spend_summary gives the dashboard's and the Spending page's monthly figure", async ({ page, request }) => {
   await page.goto("/contracts/new");
   await page.locator("#title").fill(`MCP Spend Contract ${Date.now()}`);
   await page.locator("#provider").fill("MCP Provider");
@@ -87,6 +93,9 @@ test("spend_summary gives the dashboard's monthly figure", async ({ page, reques
   expect(summary.estimatedMonthlySpendTotal).toBeGreaterThanOrEqual(25);
   await page.goto("/dashboard");
   const text = await page.getByRole("link", { name: /^about .+ a month$/ }).textContent();
-  const amount = Number((text ?? "").replace(/[^\d.]/g, ""));
-  expect(amount).toBeCloseTo(summary.estimatedMonthlySpendTotal, 2);
+  expect(amountIn(text)).toBeCloseTo(summary.estimatedMonthlySpendTotal, 2);
+
+  await page.goto("/spend");
+  const monthly = page.getByText("Monthly recurring", { exact: true }).locator("xpath=following-sibling::p[1]");
+  expect(amountIn(await monthly.textContent())).toBeCloseTo(summary.estimatedMonthlySpendTotal, 2);
 });

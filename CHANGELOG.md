@@ -93,20 +93,29 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   - **Contract shape (breaking for MCP clients).** Every Contract tool
     returns contacts and `isTaxDeductible` alike, plus `due` (the Due
     policy's entries: field, date, daysLeft, state, label) and a top-level
-    `state`. `daysUntilEnd`, `cancelBy`, `daysUntilCancelBy` and
-    `daysUntilDeadline` are gone, with no deprecation period.
-  - **`upcoming_renewals`** lists Contracts with a Due entry within N days
-    (default 30), soonest first, so the Assistant now counts to the notice
-    deadline too (#351). Expired Contracts are included as overdue; Ended,
-    Cancelled and auto-renewing ones waiting on their new end date are not.
+    `state`. `startDate` and `endDate` are now calendar days
+    (`YYYY-MM-DD`) instead of UTC-midnight timestamps; `createdAt` and
+    `updatedAt` stay timestamps. The old day-count fields are gone (see
+    Removed), with no deprecation period.
+  - **`upcoming_renewals`** lists Contracts with a notice deadline or end
+    date within N days (default 30), soonest first, so the Assistant now
+    counts to the notice deadline too (#351). Expired Contracts are
+    included as overdue, and an entry in state `later` is not Due (outside
+    its due-soon window, or an auto-renewing Contract's renewal date).
+    Ended, Cancelled and auto-renewing ones waiting on their new end date
+    are left out.
   - **`spend_summary`** converts to one currency the way the dashboard and
     Spending page do, so its total matches "about $X a month". It takes an
-    optional `currency` (default: your preferred currency in the Assistant,
-    the first admin's over MCP) and lists `unconvertedCurrencies` instead of
-    adding them as-is.
-  - **New read-only `whats_due` tool** on both: every Due entry within N
-    days across Contracts, Warranties and, when enabled, Vehicle dates and
-    Tenancy lease ends, with Needs attention's states.
+    optional ISO 4217 `currency` (default: your preferred currency in the
+    Assistant, the first admin's over MCP; a household currency setting is
+    #453), may fetch current exchange rates, and lists
+    `unconvertedCurrencies` instead of adding them as-is. `byCategory`
+    now leaves out categories with no monthly spend (one-off charges, or
+    a currency with no rate) instead of listing them at 0.
+  - **New read-only `whats_due` tool** on both: every Due entry (due soon
+    or overdue) within N days across Contracts, Warranties and, when
+    enabled, Vehicle dates and Tenancy lease ends, the same entries Needs
+    attention lists as Due.
   - The Assistant also gets `get_contract`, and both share their Contract
     tool descriptions, now in the glossary's terms. `get_contract` no
     longer lists trashed documents.
@@ -364,6 +373,11 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Removed
 
+- **MCP and Assistant Contract day-count fields (#394, breaking for MCP
+  clients).** `daysUntilEnd`, `cancelBy`, `daysUntilCancelBy` and
+  `daysUntilDeadline` are gone from every Contract tool, with no
+  deprecation period; read the `due` entries and `state` instead.
+- `src/lib/contractTiming.ts`: Contracts use the Due policy (#394).
 - The mobile navigation drawer (`MobileNavDrawer`), its menu button and
   its left-edge swipe; the bottom bar's More sheet replaces it (#407).
 - Search's "Missing reminder" and "Missing link" filters. A blank Reminder

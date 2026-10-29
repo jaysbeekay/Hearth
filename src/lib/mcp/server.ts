@@ -4,6 +4,7 @@ import { CONTRACT_CATEGORIES, CONTRACT_STATUSES } from "@/lib/validation/contrac
 import {
   DEFAULT_DUE_HORIZON_DAYS,
   TOOL_DESCRIPTIONS,
+  currencyCodeSchema,
   defaultSpendCurrency,
   getContract,
   queryContracts,
@@ -105,11 +106,9 @@ export async function createMcpServer() {
       title: "Spend summary",
       description: TOOL_DESCRIPTIONS.spendSummary,
       inputSchema: {
-        currency: z
-          .string()
-          .regex(/^[A-Za-z]{3}$/)
+        currency: currencyCodeSchema
           .optional()
-          .describe("3-letter currency code to convert to. Defaults to the household admin's preferred currency."),
+          .describe("ISO 4217 currency code to convert to, such as AUD. Defaults to the first admin's preferred currency."),
       },
     },
     async ({ currency }) => textResult(await spendSummary(currency ?? (await defaultSpendCurrency()))),

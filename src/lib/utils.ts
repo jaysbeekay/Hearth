@@ -165,32 +165,21 @@ export function formatDistance(km: number, region: string = DEFAULT_REGION): str
 }
 
 /**
- * Server-local day count. Only the MCP server and the Assistant still use
- * it, until #394 moves them onto the Due policy; every screen asks the
- * policy (duePolicy.ts, ADR 0002), which counts in the household's day.
- */
-/**
- * Days from `today` (a `YYYY-MM-DD` calendar day, normally the household's
- * from getHouseholdToday) to a stored calendar date; negative once passed.
- * Without `today`, the server's own day is used.
+ * Days from `today` (a `YYYY-MM-DD` calendar day: the household's, from
+ * getHouseholdToday) to a stored calendar date; negative once passed.
  *
  * #394 — a calendar date is stored at UTC midnight, so its day is its UTC
  * date. Reading it in local time made every count a day short on a server
  * west of UTC, where UTC midnight is still the previous evening.
  */
-export function daysUntil(date: Date | string | null | undefined, today?: string): number | null {
+export function daysUntil(date: Date | string | null | undefined, today: string): number | null {
   if (!date) return null;
   const target = typeof date === "string" ? new Date(date) : date;
   if (Number.isNaN(target.getTime())) return null;
   const startOfTarget = Date.UTC(target.getUTCFullYear(), target.getUTCMonth(), target.getUTCDate());
-  const startOfToday = today ? Date.parse(`${today}T00:00:00Z`) : localDayStart(new Date());
+  const startOfToday = Date.parse(`${today}T00:00:00Z`);
   if (Number.isNaN(startOfToday)) return null;
   return Math.round((startOfTarget - startOfToday) / 86_400_000);
-}
-
-// The server's calendar day for `now`, as UTC-midnight milliseconds.
-function localDayStart(now: Date): number {
-  return Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
 }
 
 export const CATEGORY_LABELS: Record<string, string> = {

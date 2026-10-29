@@ -15,6 +15,8 @@ import { getNetWorth } from "@/lib/wealth";
 import {
   DEFAULT_DUE_HORIZON_DAYS,
   TOOL_DESCRIPTIONS,
+  contractProposalBasis,
+  currencyCodeSchema,
   defaultSpendCurrency,
   getContract,
   queryContracts,
@@ -144,11 +146,11 @@ const spendSummaryTool = defineTool({
     properties: {
       currency: {
         type: "string",
-        description: "3-letter currency code to convert to. Defaults to your preferred currency.",
+        description: "ISO 4217 currency code to convert to, such as AUD. Defaults to your preferred currency.",
       },
     },
   },
-  schema: z.object({ currency: z.string().regex(/^[A-Za-z]{3}$/).optional() }),
+  schema: z.object({ currency: currencyCodeSchema.optional() }),
   run: async ({ currency }, ctx) => spendSummary(currency ?? (await defaultSpendCurrency(ctx.userId))),
 });
 
@@ -357,10 +359,7 @@ const proposeUpdateContractTool = defineTool({
     const parsed = parseNamedPatch(contractPatchSchema, fields);
     if (!parsed.success) return { error: parsed.error };
     // Read-only lookup, so the card can say which contract it changes.
-    const contract = await prisma.contract.findFirst({
-      where: { id: contractId, deletedAt: null },
-      select: { title: true, startDate: true, endDate: true },
-    });
+    const contract = await contractProposalBasis(contractId);
     if (!contract) return { error: "No contract with that id." };
     const { startDate = contract.startDate, endDate = contract.endDate } = parsed.data;
     if (datesOutOfOrder(startDate, endDate)) return { error: "End date can't be before the start date." };

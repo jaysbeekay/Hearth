@@ -11,10 +11,11 @@
 // Whether anything is Due comes from the Due policy (duePolicy.ts, ADR
 // 0002), counted in the household's day: the queries below only narrow
 // candidates roughly, then ask the policy.
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { CATEGORY_LABELS, daysUntil, formatPropertyAddress, monthlyEquivalent } from "@/lib/utils";
 import { getDueContext, getHouseholdToday } from "@/lib/appSettings";
-import { isDue, type DueContext, type DueEntry } from "@/lib/duePolicy";
+import { calendarDayOf, isDue, type DueContext, type DueEntry } from "@/lib/duePolicy";
 import { contractDue, currentTenancy, tenancyDue, TENANCY_AGREEMENT_SELECT, vehicleDue, warrantyDue } from "@/lib/dueRecords";
 import { buildCategoryBreakdown, monthlySpend } from "@/lib/spend";
 import { getFxRateMap, refreshFxRates } from "@/lib/fx";
@@ -275,8 +276,10 @@ export function serializeContract<T extends ContractRow>(contract: T, ctx: DueCo
   const entries = contractDue(contract, ctx);
   return {
     ...contract,
-    startDate: iso(contract.startDate),
-    endDate: iso(contract.endDate),
+    // Calendar dates as their day (YYYY-MM-DD), like the Due entries;
+    // createdAt and updatedAt are moments, so they stay full timestamps.
+    startDate: calendarDayOf(contract.startDate),
+    endDate: calendarDayOf(contract.endDate),
     createdAt: contract.createdAt.toISOString(),
     updatedAt: contract.updatedAt.toISOString(),
     state: entries[0]?.state ?? null,
@@ -349,19 +352,40 @@ export async function searchContracts(query: string) {
 }
 
 /**
- * Whether an entry belongs in the Due tools' answer for the next `horizon`
- * days: dated within it and still something to act on. Overdue entries
- * count (an Expired Contract stays Due until renewed or Cancelled). Ended
- * and Lapsed entries are never Due, and a record waiting on its new end
- * date is Housekeeping, so those are left out.
+ * The saved title and dates of a Contract the Assistant proposes to change,
+ * for its confirmation card and date-order check; null when there's none
+ * with that id. Read-only.
+ */
+export async function contractProposalBasis(id: string) {
+  return prisma.contract.findFirst({
+    where: { id, deletedAt: null },
+    select: { title: true, startDate: true, endDate: true },
+  });
+}
+
+/**
+ * Whether an entry is Due (due soon or overdue) and dated within the next
+ * `horizon` days. Overdue entries count: an Expired Contract stays Due
+ * until renewed or Cancelled. This is whats_due's rule.
  */
 function dueWithin(entry: DueEntry, horizon: number): boolean {
+  return entry.daysLeft <= horizon && isDue(entry);
+}
+
+/**
+ * Whether a Contract's entry is dated within the next `horizon` days and
+ * still something to act on or know about: Due, or `later` (outside its
+ * due-soon window, or an auto-renewing Contract's renewal date). Ended
+ * entries are never Due, and one waiting on its new end date is
+ * Housekeeping, so those are left out. This is upcoming_renewals' rule.
+ */
+function datedWithin(entry: DueEntry, horizon: number): boolean {
   return entry.daysLeft <= horizon && (isDue(entry) || entry.state === "later");
 }
 
 /**
- * Contracts with a Due entry within `withinDays` days, soonest first: the
- * notice deadline while it's ahead, then the end date (Due policy).
+ * Contracts with an entry dated within `withinDays` days, soonest first:
+ * the notice deadline while it's ahead, then the end date (Due policy).
  */
 export async function upcomingRenewals(withinDays: number = DEFAULT_DUE_HORIZON_DAYS) {
   const [ctx, contracts] = await Promise.all([
@@ -374,7 +398,7 @@ export async function upcomingRenewals(withinDays: number = DEFAULT_DUE_HORIZON_
   ]);
   const upcoming: { daysLeft: number; contract: ReturnType<typeof serializeContract<(typeof contracts)[number]>> }[] = [];
   for (const row of contracts) {
-    const entry = contractDue(row, ctx).find((e) => dueWithin(e, withinDays));
+    const entry = contractDue(row, ctx).find((e) => datedWithin(e, withinDays));
     if (entry) upcoming.push({ daysLeft: entry.daysLeft, contract: serializeContract(row, ctx) });
   }
   return upcoming
@@ -394,11 +418,23 @@ export async function defaultSpendCurrency(userId?: string): Promise<string> {
     ? await prisma.user.findUnique({ where: { id: userId }, select: { preferredCurrency: true } })
     : await prisma.user.findFirst({
         where: { role: "ADMIN" },
-        orderBy: { createdAt: "asc" },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
         select: { preferredCurrency: true },
       });
   return user?.preferredCurrency || "AUD";
 }
+
+const CURRENCY_CODES: ReadonlySet<string> = new Set(Intl.supportedValuesOf("currency"));
+
+/** Whether `code` is an ISO 4217 currency code this runtime knows, in any case ("aud" counts). */
+export function isCurrencyCode(code: string): boolean {
+  return CURRENCY_CODES.has(code.toUpperCase());
+}
+
+/** spend_summary's `currency` input, on both surfaces. */
+export const currencyCodeSchema = z
+  .string()
+  .refine(isCurrencyCode, { message: "Must be an ISO 4217 currency code, such as AUD or USD." });
 
 /**
  * Monthly spend across active Contracts, converted to `currency` exactly as
@@ -507,7 +543,8 @@ export async function whatsDue(enabledModules: Set<ModuleKey>, withinDays: numbe
 // Shared by MCP and the Assistant, in the glossary's terms (GLOSSARY.md).
 
 const CONTRACT_SHAPE =
-  "Each Contract has its fields (contacts and isTaxDeductible included; never credentials), " +
+  "Each Contract has its fields (contacts and isTaxDeductible included; never credentials; " +
+  "startDate and endDate as calendar days, YYYY-MM-DD), " +
   "`due`: its Due entries from the household's Due policy (field, date, daysLeft, state, label), " +
   "and `state`, its most pressing entry's state. States: later, due-soon, overdue (an Expired " +
   "manual-renewal Contract, still Due until renewed or Cancelled), ended (a fixed-term Contract " +
@@ -523,21 +560,24 @@ export const TOOL_DESCRIPTIONS = {
     "(filename, type, size; never file contents).",
   searchContracts: `Case-insensitive search of Contracts across title, provider, contract number and notes. ${CONTRACT_SHAPE}`,
   upcomingRenewals:
-    "Contracts with a Due entry within N days (default 30), soonest first. A Contract's Due entry is its " +
-    "notice deadline (the last day to tell the provider you won't renew) while that is ahead, then its " +
-    "end date; an auto-renewing Contract's end date is never Due, only its notice deadline. Expired " +
-    "Contracts are included as overdue. Ended and Cancelled Contracts, and auto-renewing ones waiting " +
-    "on their new end date, are left out. Same Contract shape as list_contracts.",
+    "Contracts with a renewal-related date within N days (default 30), soonest first: the notice deadline " +
+    "(the last day to tell the provider you won't renew) while that is ahead, then the end date. Check " +
+    "each entry's state: due-soon and overdue entries are Due (an Expired Contract is overdue); an entry " +
+    "in state later is not Due, either because it is outside its due-soon window or because it is an " +
+    "auto-renewing Contract's renewal date, which needs no action. Ended and Cancelled Contracts, and " +
+    "auto-renewing ones waiting on their new end date, are left out. Same Contract shape as list_contracts.",
   spendSummary:
     "Estimated monthly spend across active Contracts, total and per category, converted to one " +
     "currency the same way as the dashboard and the Spending page (default: the preferred currency). " +
-    "One-off charges are excluded. Currencies with no exchange rate right now are left out of the " +
-    "totals and listed in unconvertedCurrencies.",
+    "One-off charges and categories with no monthly spend are left out. May fetch current exchange " +
+    "rates. Currencies with no exchange rate right now are left out of the totals and listed in " +
+    "unconvertedCurrencies.",
   whatsDue:
     "Everything Due within N days (default 30), soonest first: Contracts' notice deadlines and end dates, " +
     "Warranties' end dates and, when those modules are enabled, Vehicles' rego, insurance and service " +
-    "dates and Tenancies' lease ends. Each entry has kind, id, title, field, date, daysLeft, state and " +
-    "label, with the same states as Needs attention: due-soon, overdue (an Expired Contract, a passed " +
-    "Vehicle date) or later (dated within N days but not yet in its due-soon window). Ended Contracts, " +
-    "Lapsed Warranties and Cancelled Contracts are never Due.",
+    "dates and Tenancies' lease ends, the same entries Needs attention lists as Due. Each entry has kind, " +
+    "id, title, field, date, daysLeft, state and label; state is due-soon (inside its due-soon window) or " +
+    "overdue (an Expired Contract, a passed Vehicle date). Dates not yet in their due-soon window, an " +
+    "auto-renewing Contract's renewal date, Ended Contracts, Lapsed Warranties and Cancelled Contracts " +
+    "are never Due, so they are not listed.",
 } as const;

@@ -23,12 +23,19 @@ const {
   queryProducts,
   defaultSpendCurrency,
 } = await import("@/lib/domainQueries");
-const { monthlySpend } = await import("@/lib/spend");
-const { getFxRateMap } = await import("@/lib/fx");
 const { setAppSetting } = await import("@/lib/appSettings");
 const { createMcpServer } = await import("@/lib/mcp/server");
 const { getAvailableTools, runTool } = await import("@/lib/chat/tools");
 const { daysUntil } = await import("@/lib/utils");
+
+async function connectMcp() {
+  const server = await createMcpServer();
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  await server.connect(serverTransport);
+  const client = new Client({ name: "contract-queries-test", version: "1.0.0" });
+  await client.connect(clientTransport);
+  return client;
+}
 
 // Today is 24 Oct 2026 in the household's day.
 const NOW = new Date("2026-10-24T12:00:00.000Z");
@@ -151,7 +158,8 @@ describe("Contract shape", () => {
       contactPhone: "0400 000 000",
       contactEmail: "sam@acme.test",
       isTaxDeductible: true,
-      endDate: "2026-12-03T00:00:00.000Z",
+      startDate: null,
+      endDate: "2026-12-03",
       estimatedMonthlySpend: 50,
       state: "due-soon",
       due: [{ field: "noticeDeadline", date: "2026-11-03", daysLeft: 10, state: "due-soon", label: "Cancel by 3 Nov" }],
@@ -236,6 +244,37 @@ describe("upcomingRenewals", () => {
   });
 });
 
+describe("an auto-renewing Contract with no notice period inside the horizon", () => {
+  async function seedRenewal() {
+    const user = await createTestUser();
+    return db.prisma.contract.create({
+      data: {
+        title: "Cloud storage",
+        provider: "Acme",
+        category: "SUBSCRIPTION",
+        renewalType: "AUTO_RENEW",
+        endDate: day("2026-11-08"),
+        createdById: user.id,
+      },
+    });
+  }
+
+  it("is listed by upcoming_renewals as a later renewal date, not as Due", async () => {
+    await seedRenewal();
+    const [renewal] = await upcomingRenewals();
+    expect(renewal).toMatchObject({
+      title: "Cloud storage",
+      state: "later",
+      due: [{ field: "endDate", date: "2026-11-08", daysLeft: 15, state: "later", label: "Renews 8 Nov" }],
+    });
+  });
+
+  it("is not in whats_due, since it renews by itself", async () => {
+    await seedRenewal();
+    expect(await whatsDue(new Set(), 30)).toEqual([]);
+  });
+});
+
 describe("spendSummary", () => {
   it("converts to the asked currency like the dashboard, and lists what it couldn't convert", async () => {
     const user = await createTestUser();
@@ -252,19 +291,29 @@ describe("spendSummary", () => {
     });
   });
 
-  it("equals the dashboard's \"about $X a month\" for the same data", async () => {
+  it("has categories that add up to its total, leaving out ones with no monthly spend", async () => {
     const user = await createTestUser();
     await seedContracts(user.id);
     await seedFxRate();
-    // What the dashboard does: active Contracts, converted to the preferred currency.
-    const active = await db.prisma.contract.findMany({ where: { deletedAt: null, status: "ACTIVE" } });
-    const pairs = [...new Set(active.map((c) => c.currency))].map((from) => ({ from, to: "AUD" }));
-    const dashboard = monthlySpend(active, "AUD", await getFxRateMap(pairs));
     const summary = await spendSummary("AUD");
-    expect(summary.estimatedMonthlySpendTotal).toBe(Math.round(dashboard.total * 100) / 100);
-    expect(summary.unconvertedCurrencies).toEqual(dashboard.unconvertedCurrencies);
     const categorySum = Object.values(summary.byCategory).reduce((sum, n) => sum + n, 0);
     expect(categorySum).toBeCloseTo(summary.estimatedMonthlySpendTotal, 2);
+    // The one-off loan, and the JPY storage unit with no rate, add nothing.
+    expect(summary.byCategory).not.toHaveProperty("Loan");
+    expect(summary.byCategory).not.toHaveProperty("Rental");
+  });
+
+  it("rejects a currency that isn't an ISO 4217 code, on both surfaces", async () => {
+    const admin = await createTestUser({ role: "ADMIN" });
+    const ctx = { userId: admin.id, role: "ADMIN" as const, enabledModules: new Set<never>() };
+    expect(JSON.parse(await runTool("spend_summary", { currency: "XYZ" }, ctx))).toEqual({
+      error: "Invalid arguments for this tool.",
+    });
+    expect(JSON.parse(await runTool("spend_summary", { currency: "aud" }, ctx))).toMatchObject({ currency: "AUD" });
+    const client = await connectMcp();
+    const result = await client.callTool({ name: "spend_summary", arguments: { currency: "XYZ" } });
+    expect(result.isError).toBe(true);
+    await client.close();
   });
 
   it("defaults to the member's preferred currency, or the first admin's for MCP", async () => {
@@ -332,7 +381,9 @@ describe("whatsDue", () => {
     for (const never of ["Gym", "Old kettle", "Old broadband", "Streaming", "Trashed plan"]) {
       expect(titles).not.toContain(never);
     }
-    expect(wide.find((e) => e.title === "Car loan")).toMatchObject({ state: "later" });
+    // Only Due entries: the Car loan's end date is months off, outside its window.
+    expect(wide.every((e) => e.state === "due-soon" || e.state === "overdue")).toBe(true);
+    expect(titles).not.toContain("Car loan");
   });
 });
 
@@ -345,9 +396,9 @@ describe("day counts west of UTC (#394)", () => {
 
   it("reads a UTC-midnight date as its own calendar day", () => {
     process.env.TZ = "America/Los_Angeles";
-    // 24 Oct 05:00 in Los Angeles; 3 Nov's UTC midnight is still 2 Nov there.
+    // 3 Nov's UTC midnight is still 2 Nov in Los Angeles; read locally, the
+    // count used to come out a day short.
     vi.setSystemTime(new Date("2026-10-24T12:00:00.000Z"));
-    expect(daysUntil(day("2026-11-03"))).toBe(10);
     expect(daysUntil(day("2026-11-03"), "2026-10-24")).toBe(10);
     expect(daysUntil("2026-11-03T00:00:00.000Z", "2026-10-24")).toBe(10);
     expect(daysUntil(null, "2026-10-24")).toBeNull();
@@ -372,15 +423,6 @@ describe("day counts west of UTC (#394)", () => {
 });
 
 describe("MCP and the Assistant", () => {
-  async function mcpClient() {
-    const server = await createMcpServer();
-    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-    await server.connect(serverTransport);
-    const client = new Client({ name: "parity-test", version: "1.0.0" });
-    await client.connect(clientTransport);
-    return client;
-  }
-
   async function callMcp(client: Client, name: string, args: Record<string, unknown>) {
     const result = await client.callTool({ name, arguments: args });
     const content = result.content as { type: string; text: string }[];
@@ -392,10 +434,13 @@ describe("MCP and the Assistant", () => {
     const { phone } = await seedContracts(admin.id);
     await seedFxRate();
     await db.prisma.product.create({ data: { description: "Fridge", warrantyEndDate: day("2026-11-07"), createdById: admin.id } });
+    // WEALTH stays off on purpose, so net_worth isn't offered: it prices
+    // holdings from live Yahoo/CoinGecko feeds, and it already has a single
+    // shared implementation (getNetWorth) that both surfaces call directly.
     for (const key of ["TRAVEL", "VEHICLES", "HOME", "INVENTORY"] as const) await setModuleEnabled(key, true);
     const enabledModules = new Set(["TRAVEL", "VEHICLES", "HOME", "INVENTORY"] as const);
 
-    const client = await mcpClient();
+    const client = await connectMcp();
     const mcpTools = (await client.listTools()).tools.map((t) => t.name);
     const assistantTools = new Set(getAvailableTools("ADMIN", enabledModules).map((t) => t.name));
     // The Assistant offers every MCP tool; it only adds its guarded propose_* tools.
@@ -429,7 +474,7 @@ describe("MCP and the Assistant", () => {
   });
 
   it("describe Contract tools in the glossary's terms", async () => {
-    const client = await mcpClient();
+    const client = await connectMcp();
     const tools = new Map((await client.listTools()).tools.map((t) => [t.name, t.description ?? ""]));
     const assistant = new Map(getAvailableTools("MEMBER", new Set()).map((t) => [t.name, t.description]));
     for (const name of ["list_contracts", "get_contract", "search_contracts", "upcoming_renewals", "spend_summary", "whats_due"]) {
@@ -443,18 +488,56 @@ describe("MCP and the Assistant", () => {
     await client.close();
   });
 
-  it("MCP stays read-only: no write tools, and no Contract row changes after every call", async () => {
+  it("MCP stays read-only: only the allowlisted read tools, and no record changes after every call", async () => {
     const admin = await createTestUser({ role: "ADMIN" });
-    await seedContracts(admin.id);
+    const { phone } = await seedContracts(admin.id);
     await seedFxRate();
-    const client = await mcpClient();
+    await db.prisma.product.create({ data: { description: "Fridge", warrantyEndDate: day("2026-11-07"), createdById: admin.id } });
+    await db.prisma.vehicle.create({ data: { label: "Hatchback", regoExpiry: day("2026-11-01"), createdById: admin.id } });
+    const property = await db.prisma.property.create({
+      data: { label: "Unit 4", isRented: true, occupancyStatus: "RENTED", createdById: admin.id },
+    });
+    await db.prisma.rentalAgreement.create({ data: { propertyId: property.id, weeklyRent: 500, leaseEnd: day("2026-11-14") } });
+    for (const key of ["TRAVEL", "VEHICLES", "HOME", "INVENTORY", "WEALTH"] as const) await setModuleEnabled(key, true);
+
+    const client = await connectMcp();
     const names = (await client.listTools()).tools.map((t) => t.name);
-    expect(names.filter((n) => /propose|create|update|delete|set_|add_/.test(n))).toEqual([]);
-    const before = await db.prisma.contract.findMany({ orderBy: { id: "asc" } });
-    for (const name of ["list_contracts", "search_contracts", "upcoming_renewals", "spend_summary", "whats_due"]) {
-      await client.callTool({ name, arguments: name === "search_contracts" ? { query: "a" } : {} });
+    // Every tool with every module on. A new tool must be added here
+    // deliberately, after checking it's read-only.
+    expect([...names].sort()).toEqual(
+      [
+        "get_contract",
+        "list_contracts",
+        "list_inventory_items",
+        "list_products",
+        "list_properties",
+        "list_trips",
+        "list_vehicles",
+        "net_worth",
+        "search_contracts",
+        "spend_summary",
+        "upcoming_renewals",
+        "whats_due",
+      ].sort(),
+    );
+
+    const snapshot = async () => ({
+      contracts: await db.prisma.contract.findMany({ orderBy: { id: "asc" } }),
+      products: await db.prisma.product.findMany({ orderBy: { id: "asc" } }),
+      vehicles: await db.prisma.vehicle.findMany({ orderBy: { id: "asc" } }),
+      properties: await db.prisma.property.findMany({ orderBy: { id: "asc" }, include: { rentalAgreements: true } }),
+    });
+    const before = await snapshot();
+    const args = new Map<string, Record<string, unknown>>([
+      ["search_contracts", { query: "a" }],
+      ["get_contract", { id: phone.id }],
+    ]);
+    // net_worth is left out: it prices holdings from live feeds.
+    for (const name of names.filter((n) => n !== "net_worth")) {
+      const result = await client.callTool({ name, arguments: args.get(name) ?? {} });
+      expect(result.isError, name).toBeFalsy();
     }
-    expect(await db.prisma.contract.findMany({ orderBy: { id: "asc" } })).toEqual(before);
+    expect(await snapshot()).toEqual(before);
     await client.close();
   });
 });
