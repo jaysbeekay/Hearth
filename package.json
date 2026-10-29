@@ -106,6 +106,7 @@
     "@types/ssh2-sftp-client": "^9.0.6",
     "eslint": "^9",
     "eslint-config-next": "^16.4.2",
+    "fake-indexeddb": "^6.2.5",
     "prettier": "^3.8.4",
     "tailwindcss": "^4",
     "tsx": "^4.22.4",

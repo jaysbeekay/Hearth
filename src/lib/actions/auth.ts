@@ -672,6 +672,8 @@ export async function acceptInvitation(
   return { success: "Password set. You can now sign in." };
 }
 
+// The caller (SignOutButton) does a full page load to /login afterwards, so
+// no client-side router cache of the signed-out user's pages survives.
 export async function logout() {
-  await signOut({ redirectTo: "/login" });
+  await signOut({ redirect: false });
 }

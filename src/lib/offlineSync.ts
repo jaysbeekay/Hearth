@@ -4,6 +4,7 @@ import {
   updateOperationStatus,
   clearDoneOperations,
   getFilesForOp,
+  requeueStuckOperations,
 } from "@/lib/offlineQueue";
 
 export interface SyncOutcome {
@@ -29,7 +30,22 @@ export function syncPendingOperations(): Promise<SyncOutcome> {
   return inFlight;
 }
 
+/**
+ * Resolves once no sync is running in this tab (immediately if none is),
+ * whether it succeeded or not. Sign-out waits on this before counting or
+ * clearing the queue, so it never counts an op mid-send as gone or sends one
+ * without its files (#424 review).
+ */
+export async function awaitSyncIdle(): Promise<void> {
+  while (inFlight) {
+    await inFlight.catch(() => undefined);
+  }
+}
+
 async function drainQueue(): Promise<SyncOutcome> {
+  // Nothing else in this tab is syncing, so any "syncing" op is left over
+  // from a sync that never finished; send it again with the rest.
+  await requeueStuckOperations();
   const pending = await getPendingOperations();
   if (pending.length === 0) return { successCount: 0, failCount: 0 };
 
