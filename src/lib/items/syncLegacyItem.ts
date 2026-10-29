@@ -1,11 +1,41 @@
 import { randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
+import { constants } from "node:fs";
+import { copyFile, mkdir, readFile } from "node:fs/promises";
+import path from "node:path";
 import type { Prisma } from "@/generated/prisma/client";
 import { mergeItemSources } from "@/lib/items/mergeSources";
 import { prisma } from "@/lib/prisma";
 import { removeItemDocumentFiles } from "@/lib/storage";
 import { removeStagedLegacyDocument } from "@/lib/items/syncLegacyDocument";
+import { env } from "@/lib/env";
 
 type Tx = Prisma.TransactionClient;
+
+/** Rehome copied Documents when an InventoryItem is linked or unlinked. */
+async function rehomeInventoryDocuments(tx: Tx, sourceId: string, previousItemId: string | undefined, nextItemId: string) {
+  if (!previousItemId || previousItemId === nextItemId) return;
+  const sourceDocs = await tx.inventoryItemDocument.findMany({ where: { inventoryItemId: sourceId }, select: { id: true } });
+  const staged = await tx.itemDocument.findMany({ where: { sourceKind: "INVENTORY_ITEM", sourceDocumentId: { in: sourceDocs.map((doc) => doc.id) }, itemId: previousItemId } });
+  const root = path.resolve(env.uploadsDir);
+  const destination = path.join(root, "items", path.basename(nextItemId));
+  if (staged.length) await mkdir(destination, { recursive: true });
+  for (const doc of staged) {
+    const from = path.join(root, "items", path.basename(previousItemId), path.basename(doc.storedName));
+    const to = path.join(destination, path.basename(doc.storedName));
+    try { await copyFile(from, to, constants.COPYFILE_EXCL); }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      const digest = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
+      if (digest(await readFile(from)) !== digest(await readFile(to))) throw new Error(`Item Document copy differs: ${doc.id}`);
+    }
+    await tx.itemDocument.update({ where: { id: doc.id }, data: { itemId: nextItemId } });
+  }
+  const old = await tx.item.findUnique({ where: { id: previousItemId } });
+  if (old && !old.legacyProductId && !(await tx.itemLegacyInventory.count({ where: { itemId: old.id } })) && !(await tx.itemDocument.count({ where: { itemId: old.id } }))) {
+    await tx.item.delete({ where: { id: old.id } });
+  }
+}
 
 /** Keep the additive Item stage current while legacy Product writers remain active. */
 export async function syncLegacyProduct(tx: Tx, productId: string) {
@@ -49,10 +79,13 @@ export async function syncLegacyProduct(tx: Tx, productId: string) {
 /** Update the Item stage after an InventoryItem changes, including relinking. */
 export async function syncLegacyInventory(tx: Tx, inventoryItemId: string, previousProductId?: string | null) {
   const source = await tx.inventoryItem.findUnique({ where: { id: inventoryItemId } });
+  const previousMapping = await tx.itemLegacyInventory.findUnique({ where: { inventoryItemId } });
   if (previousProductId && previousProductId !== source?.warrantyProductId) await syncLegacyProduct(tx, previousProductId);
   if (!source) return;
   if (source.warrantyProductId) {
     await syncLegacyProduct(tx, source.warrantyProductId);
+    const nextMapping = await tx.itemLegacyInventory.findUnique({ where: { inventoryItemId } });
+    if (nextMapping) await rehomeInventoryDocuments(tx, inventoryItemId, previousMapping?.itemId, nextMapping.itemId);
     return;
   }
   const data = {
@@ -68,6 +101,7 @@ export async function syncLegacyInventory(tx: Tx, inventoryItemId: string, previ
     ? await tx.item.update({ where: { id: mappedItem.id }, data })
     : await tx.item.create({ data: { id: randomUUID(), ...data } });
   await tx.itemLegacyInventory.upsert({ where: { inventoryItemId }, create: { inventoryItemId, itemId: item.id }, update: { itemId: item.id } });
+  await rehomeInventoryDocuments(tx, inventoryItemId, previousMapping?.itemId, item.id);
 }
 
 /** Retire the staged source after an InventoryItem has been hard-deleted. */

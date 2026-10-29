@@ -1,7 +1,9 @@
 # Item migration stage (#380)
 
 The Product and InventoryItem routes remain canonical while the Item tables are
-staged. The preview is read-only and does not replace the existing routes.
+staged. The hidden Item preview reads staged rows and sends Item form edits
+through the existing InventoryItem transaction, which mirrors them back to the
+stage. It does not replace the existing routes.
 
 On a stopped installation, copy both the SQLite database and uploads tree to
 scratch paths. Run these commands against the copies, substituting absolute
