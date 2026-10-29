@@ -140,14 +140,14 @@ export function OfflineSyncManager() {
         </span>
         <button
           type="button"
-          onClick={() => setConfirmDiscard(true)}
+          onClick={() => { setConfirmDiscard(true); }}
           className="shrink-0 rounded px-2 py-0.5 text-xs font-medium underline hover:no-underline"
         >
           Discard
         </button>
         <Dialog
           open={confirmDiscard}
-          onClose={() => setConfirmDiscard(false)}
+          onClose={() => { setConfirmDiscard(false); }}
           role="alertdialog"
           describedBy="discard-readonly-text"
         >
@@ -155,7 +155,7 @@ export function OfflineSyncManager() {
             Discard {changes}? They were never saved and can&apos;t be recovered.
           </p>
           <div className="mt-4 flex justify-end gap-2">
-            <button type="button" onClick={() => setConfirmDiscard(false)} className={compactButtonClass()}>
+            <button type="button" onClick={() => { setConfirmDiscard(false); }} className={compactButtonClass()}>
               Cancel
             </button>
             <button
