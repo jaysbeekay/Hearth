@@ -21,6 +21,16 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Reminders for a tenancy's lease end.** The current tenancy of a rented
+  property now gets Reminders before its lease ends, by email, ntfy and
+  webhook ("Lease for Beach Flat ends in 30 days"), linking to the
+  property. It uses the household default thresholds unless the tenancy
+  sets its own: the tenancy form has a new "Reminder thresholds" field,
+  which also sets how early the lease end shows as Due. The property page
+  has a "Lease reminders" health card, a failed lease Reminder shows on the
+  dashboard and in Settings' reminder roll-up, and webhooks get a new
+  `tenancy.expiring` event (see README → Webhooks). The standalone app
+  schedules a local notification for the lease end too (#388).
 - **Household timezone.** Admins pick any timezone in Settings → Household
   & System; until then it follows the server's `TZ`, else the server's own
   zone, else UTC. Reminders and due dates will count days in it, so every

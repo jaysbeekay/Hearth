@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { reminderDaysBeforeField } from "@/lib/validation/reminderThresholds";
 
 export const HOME_ITEM_TYPES = ["MAINTENANCE", "IMPROVEMENT", "REPAIR", "OTHER"] as const;
 
@@ -54,6 +55,8 @@ export const rentalAgreementSchema = z.object({
   bondAmount: z.preprocess(emptyToUndefined, z.coerce.number().min(0).optional()),
   currency: z.string().trim().min(1).max(10).default("AUD"),
   notes: z.preprocess(emptyToUndefined, z.string().trim().max(5000).optional()),
+  // #388 — blank means the household default.
+  reminderDaysBefore: reminderDaysBeforeField,
 });
 
 export type RentalAgreementInput = z.infer<typeof rentalAgreementSchema>;

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { reminderDaysBeforeField } from "@/lib/validation/reminderThresholds";
 
 const emptyToUndefined = (val: unknown) =>
   val == null || (typeof val === "string" && val.trim() === "") ? undefined : val;
@@ -16,22 +17,7 @@ export const productBaseSchema = z.object({
   price: z.preprocess(emptyToUndefined, z.coerce.number().min(0).optional()),
   currency: z.string().trim().min(1).max(10).default("AUD"),
   notes: z.preprocess(emptyToUndefined, z.string().trim().max(5000).optional()),
-  reminderDaysBefore: z.preprocess(
-    emptyToUndefined,
-    z
-      .string()
-      .trim()
-      .max(100)
-      .refine(
-        (val) =>
-          val.split(",").every((part) => {
-            const n = Number(part.trim());
-            return part.trim() !== "" && Number.isFinite(n) && n >= 0;
-          }),
-        "Use a comma-separated list of non-negative numbers, e.g. 30,14,7,1",
-      )
-      .optional(),
-  ),
+  reminderDaysBefore: reminderDaysBeforeField,
   propertyId: z.preprocess(emptyToUndefined, z.string().trim().max(100).optional()),
 });
 

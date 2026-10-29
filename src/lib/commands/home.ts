@@ -1,6 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { removeOwnerDocumentFiles } from "@/lib/commands/documents";
+import { clearNotificationLogs } from "@/lib/notifications/logs";
 import { assertModuleEnabled } from "@/lib/modules/enablement";
 import {
   updateUnlessStale,
@@ -127,7 +128,11 @@ export async function permanentlyDeletePropertyCommand(id: string) {
 export async function purgeProperty(id: string) {
   const existing = await prisma.property.findUnique({
     where: { id },
-    include: { items: { select: { id: true } }, rentalStatements: { select: { id: true } } },
+    include: {
+      items: { select: { id: true } },
+      rentalAgreements: { select: { id: true } },
+      rentalStatements: { select: { id: true } },
+    },
   });
   if (!existing) throw new RecordNotFoundError("Property");
   // The row delete cascades to Maintenance records, Tenancies, Rental
@@ -135,6 +140,10 @@ export async function purgeProperty(id: string) {
   // Products are unlinked, not deleted). The files on disk aren't FK-linked,
   // so they're removed straight after.
   await prisma.property.delete({ where: { id } });
+  // The sent-Reminder log isn't FK-linked either (#388).
+  for (const agreement of existing.rentalAgreements) {
+    await clearNotificationLogs("TENANCY", agreement.id);
+  }
   for (const item of existing.items) {
     await removeOwnerDocumentFiles("HOME_ITEM", item.id);
   }
@@ -327,12 +336,14 @@ export async function linkTenancyContractCommand(
   if (contractId) revalidatePath(`/contracts/${contractId}`);
 }
 
-// A Tenancy has no Trash: this deletes it for good. A linked Contract is
-// left alone (the link is on the Tenancy's side).
+// A Tenancy has no Trash: this deletes it for good, with its sent-Reminder
+// log (#388). A linked Contract is left alone (the link is on the Tenancy's
+// side).
 export async function permanentlyDeleteTenancyCommand(id: string, scope: PropertyScope = {}) {
   await assertModuleEnabled("HOME");
   const existing = await findTenancy(id, scope);
   await prisma.rentalAgreement.delete({ where: { id } });
+  await clearNotificationLogs("TENANCY", id);
   revalidateRental(existing.propertyId);
   if (existing.contractId) revalidatePath(`/contracts/${existing.contractId}`);
 }

@@ -613,7 +613,8 @@ the restored file. (Restoring a whole-directory copy is different: put back
 ## Webhooks
 
 The app can notify other platforms — e.g. [Home Assistant](https://www.home-assistant.io)
-or an MCP agent — when a contract or product warranty is approaching expiry,
+or an MCP agent — when a contract, product warranty, vehicle date or
+tenancy's lease end is approaching,
 on the same schedule and thresholds as email/push reminders. Manage
 endpoints from **Settings → Webhooks** (admin only): add a URL, optionally
 set a signing secret, enable/disable, send a test delivery, and review the
@@ -627,7 +628,7 @@ Each delivery is a `POST` with a JSON body and these headers:
 | `X-Webhook-Signature` | `sha256=<hex>`, an HMAC-SHA256 of the raw request body using the endpoint's signing secret. Only sent if a secret is configured. |
 
 Verify it by recomputing the HMAC over the exact request body with your
-secret and comparing to the header. Four events exist:
+secret and comparing to the header. Five events exist:
 
 - **`contract.expiring`** / **`warranty.expiring`** / **`vehicle.expiring`** —
   sent once per record per threshold crossed (same dedup behavior as
@@ -654,6 +655,26 @@ secret and comparing to the header. Four events exist:
     "cancelBy": "2026-06-03",
     "noticePeriodDays": 30,
     "url": "https://<your APP_URL>/contracts/..."
+  }
+  ```
+
+- **`tenancy.expiring`** — the same Reminder for the lease end of a rented
+  property's current tenancy. `kind` is `tenancy`, `id` is the tenancy,
+  `propertyId` its property, `title` the property's label, `detail` the
+  tenant's name (or `""`), and `endDate` the lease end. A tenancy has no page
+  of its own, so `url` points at the property (`/home/...`). Body:
+
+  ```json
+  {
+    "event": "tenancy.expiring",
+    "kind": "tenancy",
+    "id": "...",
+    "title": "Beach Flat",
+    "detail": "Sam Lee",
+    "propertyId": "...",
+    "daysRemaining": 30,
+    "endDate": "2026-11-24",
+    "url": "https://<your APP_URL>/home/..."
   }
   ```
 

@@ -142,6 +142,7 @@ export function formToRentalAgreementInput(formData: FormData) {
     bondAmount: formData.get("bondAmount"),
     currency: formData.get("currency") || "AUD",
     notes: formData.get("notes"),
+    reminderDaysBefore: formData.get("reminderDaysBefore"),
   };
 }
 
