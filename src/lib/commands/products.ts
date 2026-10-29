@@ -198,6 +198,6 @@ export async function purgeProduct(id: string) {
       for (const doc of docs) await syncLegacyDocument("INVENTORY_ITEM", doc.id);
     }
   } catch (error) {
-    console.error(`[items] couldn't finish staged Product purge ${id}`, error);
+    console.error("[items] couldn't finish staged Product purge %s", id, error);
   }
 }

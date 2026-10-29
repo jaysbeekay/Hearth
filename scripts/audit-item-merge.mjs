@@ -53,14 +53,17 @@ try {
     currency: ["currency", "currency"],
     notes: ["notes", "notes"],
   };
-  for (const [name, [inventory, product]] of Object.entries(pairs)) {
-    result.conflictingLinkedFields[name] = await count(`
+  result.conflictingLinkedFields = Object.fromEntries(
+    await Promise.all(Object.entries(pairs).map(async ([name, [inventory, product]]) => [
+      name,
+      await count(`
       SELECT COUNT(*) AS count FROM inventory_items i
       JOIN products p ON p.id = i.warrantyProductId
       WHERE i."${inventory}" IS NOT NULL AND i."${inventory}" != ''
         AND p."${product}" IS NOT NULL AND p."${product}" != ''
-        AND i."${inventory}" != p."${product}"`);
-  }
+        AND i."${inventory}" != p."${product}"`),
+    ])),
+  );
 
   console.log(JSON.stringify(result, null, 2));
 } finally {

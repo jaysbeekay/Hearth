@@ -96,7 +96,7 @@ export async function purgeExpiredTrash(): Promise<void> {
     await removeOwnerDocumentFiles("INVENTORY_ITEM", i.id);
     await prisma.inventoryItem.delete({ where: { id: i.id } });
     try { await purgeLegacyInventoryStage(i.id, documentIds); }
-    catch (error) { console.error(`[items] couldn't retire staged Inventory item ${i.id}`, error); }
+    catch (error) { console.error("[items] couldn't retire staged Inventory item %s", i.id, error); }
   }
 }
 

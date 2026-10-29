@@ -17,7 +17,7 @@ import { syncLegacyDocument, removeStagedLegacyDocument } from "@/lib/items/sync
 async function mirrorStagedDocument(kind: OwnedDocumentKind, id: string) {
   if (kind !== "PRODUCT" && kind !== "INVENTORY_ITEM") return;
   try { await syncLegacyDocument(kind, id); }
-  catch (error) { console.error(`[items] couldn't mirror ${kind} Document ${id}`, error); }
+  catch (error) { console.error("[items] couldn't mirror %s Document %s", kind, id, error); }
 }
 
 // The Document command (#396, ADR 0003). Every write to a Document of any
@@ -485,7 +485,7 @@ export async function purgeDocument(kind: OwnedDocumentKind, id: string) {
   await documentStoreFor(kind).remove(doc.ownerId, doc.storedName);
   if (kind === "PRODUCT" || kind === "INVENTORY_ITEM") {
     try { await removeStagedLegacyDocument(kind, id); }
-    catch (error) { console.error(`[items] couldn't remove staged ${kind} Document ${id}`, error); }
+    catch (error) { console.error("[items] couldn't remove staged %s Document %s", kind, id, error); }
   }
   return { ownerId: doc.ownerId };
 }

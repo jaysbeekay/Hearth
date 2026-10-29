@@ -7,8 +7,21 @@ import { env } from "@/lib/env";
 
 type LegacyKind = "PRODUCT" | "INVENTORY_ITEM";
 
+// Every staged path is assembled from basename'd segments and then proved to
+// stay inside its root before it reaches the filesystem: the segments come
+// from database rows and the root from the environment, and neither should
+// ever steer a write outside the uploads directory (#445, CodeQL
+// path-injection).
+function stagedPath(root: string, ...segments: string[]): string {
+  const target = path.join(root, ...segments.map((segment) => path.basename(segment)));
+  if (!target.startsWith(root + path.sep)) {
+    throw new Error("Staged Item path escapes the uploads root");
+  }
+  return target;
+}
+
 function stagedName(kind: LegacyKind, id: string, storedName: string) {
-  return `${kind.toLowerCase()}-${id}-${path.basename(storedName)}`;
+  return `${kind.toLowerCase()}-${path.basename(id)}-${path.basename(storedName)}`;
 }
 
 /** Mirror one legacy Document without changing its live row or file. */
@@ -24,10 +37,10 @@ export async function syncLegacyDocument(kind: LegacyKind, id: string) {
   if (!item) return;
 
   const root = path.resolve(env.uploadsDir);
-  const from = path.join(root, kind === "PRODUCT" ? "products" : "inventory-items", path.basename(ownerId), path.basename(source.storedName));
-  const toDir = path.join(root, "items", path.basename(item.id));
+  const from = stagedPath(root, kind === "PRODUCT" ? "products" : "inventory-items", ownerId, source.storedName);
+  const toDir = stagedPath(root, "items", item.id);
   const storedName = stagedName(kind, id, source.storedName);
-  const to = path.join(toDir, storedName);
+  const to = stagedPath(toDir, storedName);
   await mkdir(toDir, { recursive: true });
   try {
     await copyFile(from, to, constants.COPYFILE_EXCL);
@@ -59,5 +72,5 @@ export async function removeStagedLegacyDocument(kind: LegacyKind, id: string) {
   const row = await prisma.itemDocument.findUnique({ where: { sourceKind_sourceDocumentId: { sourceKind: kind, sourceDocumentId: id } } });
   if (!row) return;
   await prisma.itemDocument.delete({ where: { id: row.id } });
-  await rm(path.join(path.resolve(env.uploadsDir), "items", path.basename(row.itemId), path.basename(row.storedName)), { force: true });
+  await rm(stagedPath(path.resolve(env.uploadsDir), "items", row.itemId, row.storedName), { force: true });
 }

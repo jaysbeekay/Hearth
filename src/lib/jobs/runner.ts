@@ -146,7 +146,7 @@ async function processOcr(payload: { kind: "contract" | "product" | "inbox"; id:
   else if (payload.kind === "product") {
     await prisma.productDocument.update({ where: { id: payload.id }, data: { extractedText: text, extractionStatus: text ? "COMPLETED" : "FAILED" } });
     try { await syncLegacyDocument("PRODUCT", payload.id); }
-    catch (error) { console.error(`[items] couldn't mirror extracted Document ${payload.id}`, error); }
+    catch (error) { console.error("[items] couldn't mirror extracted Document %s", payload.id, error); }
   }
   else await prisma.inboxDocument.update({ where: { id: payload.id }, data: { extractedText: text, extractionStatus: text ? "COMPLETED" : "FAILED" } });
 }

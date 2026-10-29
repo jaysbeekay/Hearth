@@ -2,8 +2,12 @@
 # Codacy analyses application code only. Test code (e2e specs, unit tests)
 # trips security rules meant for production paths (fixture reads, dynamic
 # lookups, RegExp from known strings), and the SQL linters target SQL Server
-# rather than SQLite migrations. tsc, eslint and the test suites cover these.
+# rather than SQLite migrations. Operator-run maintenance scripts take
+# explicit local file arguments from a shell and never execute inside a
+# request, so their argv-driven fs calls trip the same production rules.
+# tsc, eslint and the test suites cover these.
 exclude_paths:
   - "e2e/**"
   - "tests/**"
   - "prisma/migrations/**"
+  - "scripts/**"

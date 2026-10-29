@@ -196,7 +196,7 @@ export async function permanentlyDeleteInventoryItem(itemId: string): Promise<Ac
   await removeOwnerDocumentFiles("INVENTORY_ITEM", itemId);
   await prisma.inventoryItem.delete({ where: { id: itemId } });
   try { await purgeLegacyInventoryStage(itemId, documentIds); }
-  catch (error) { console.error(`[items] couldn't retire staged Inventory item ${itemId}`, error); }
+  catch (error) { console.error("[items] couldn't retire staged Inventory item %s", itemId, error); }
 
   revalidatePath("/settings/trash");
   return { success: "Deleted permanently." };
