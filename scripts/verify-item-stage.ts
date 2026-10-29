@@ -41,6 +41,17 @@ async function main() {
     if (warranties.length !== products.length) problems.push(`Warranty count ${warranties.length} differs from Product count ${products.length}`);
     if (links.length !== inventory.length) problems.push(`Inventory link count ${links.length} differs from InventoryItem count ${inventory.length}`);
     if (stagedDocs.length !== productDocs.length + inventoryDocs.length) problems.push("Item Document count differs from legacy Document count");
+    const ftsRows = await prisma.$queryRaw<Array<{ itemId: string; docId: string; filename: string; extractedText: string | null }>>`
+      SELECT itemId, docId, filename, extractedText FROM item_document_search_fts
+    `;
+    const ftsById = new Map(ftsRows.map((row) => [row.docId, row]));
+    if (ftsRows.length !== stagedDocs.length) problems.push("Item Document search index count differs from staged Documents");
+    for (const doc of stagedDocs) {
+      const row = ftsById.get(doc.id);
+      if (!row || row.itemId !== doc.itemId || row.filename !== doc.filename || !same(row.extractedText, doc.extractedText)) {
+        problems.push(`Item Document ${doc.id} search index differs`);
+      }
+    }
 
     for (const product of products) {
       const item = productItems.get(product.id);
