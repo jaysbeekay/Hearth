@@ -87,6 +87,29 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- **One set of Contract queries for MCP and the Assistant, plus `whats_due`
+  (#394).** Both now call the same queries in `src/lib/domainQueries.ts`,
+  so they return the same answer:
+  - **Contract shape (breaking for MCP clients).** Every Contract tool
+    returns contacts and `isTaxDeductible` alike, plus `due` (the Due
+    policy's entries: field, date, daysLeft, state, label) and a top-level
+    `state`. `daysUntilEnd`, `cancelBy`, `daysUntilCancelBy` and
+    `daysUntilDeadline` are gone, with no deprecation period.
+  - **`upcoming_renewals`** lists Contracts with a Due entry within N days
+    (default 30), soonest first, so the Assistant now counts to the notice
+    deadline too (#351). Expired Contracts are included as overdue; Ended,
+    Cancelled and auto-renewing ones waiting on their new end date are not.
+  - **`spend_summary`** converts to one currency the way the dashboard and
+    Spending page do, so its total matches "about $X a month". It takes an
+    optional `currency` (default: your preferred currency in the Assistant,
+    the first admin's over MCP) and lists `unconvertedCurrencies` instead of
+    adding them as-is.
+  - **New read-only `whats_due` tool** on both: every Due entry within N
+    days across Contracts, Warranties and, when enabled, Vehicle dates and
+    Tenancy lease ends, with Needs attention's states.
+  - The Assistant also gets `get_contract`, and both share their Contract
+    tool descriptions, now in the glossary's terms. `get_contract` no
+    longer lists trashed documents.
 - **Standalone shell wealth parity (#440).** The offline shell's dashboard now
   lists net worth the way the web Wealth page does (#404): a Net worth total
   with its parts beneath — Shares, ETFs and crypto, Property and Items, each
@@ -353,6 +376,12 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **Day counts a day short on servers west of UTC (#394).** `daysUntil`
+  read stored dates (UTC midnight) in the server's local time, so MCP and
+  the Assistant's warranty and vehicle day counts came out a day short west
+  of UTC. It now reads the date's UTC day and counts from the household's
+  day. `contractTiming`, which had the same bug, is removed: Contracts use
+  the Due policy.
 - **Wealth: net worth adds up, and crypto is priced from CoinGecko (#404).**
   The Wealth page shows the total above a plain list of every part of it
   (shares/ETFs/crypto, Property, Items), so the figures always sum to the

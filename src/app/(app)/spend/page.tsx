@@ -9,7 +9,7 @@ import {
   financialYearLabel,
   CATEGORY_LABELS,
 } from "@/lib/utils";
-import { buildMonthlyTimeline, buildYearlyTimeline, buildCategoryBreakdown } from "@/lib/spend";
+import { buildMonthlyTimeline, buildYearlyTimeline, buildCategoryBreakdown, monthlySpend } from "@/lib/spend";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { refreshFxRates, getFxRateMap, convertAmount } from "@/lib/fx";
 
@@ -65,13 +65,9 @@ export default async function SpendPage({
     convertedCost:
       c.cost != null ? convertAmount(c.cost, c.currency, preferredCurrency, rateMap) : null,
   }));
-  const hasUnconverted = convertedContracts.some((c) => c.cost != null && c.convertedCost == null);
-
-  const monthlyTotal = convertedContracts.reduce(
-    (sum, c) =>
-      c.convertedCost == null ? sum : sum + monthlyEquivalent(c.convertedCost, c.billingFrequency ?? null),
-    0,
-  );
+  // The same figure as the dashboard and spend_summary (#394).
+  const { total: monthlyTotal, unconvertedCurrencies } = monthlySpend(contracts, preferredCurrency, rateMap);
+  const hasUnconverted = unconvertedCurrencies.length > 0;
   const annualTotal = monthlyTotal * 12;
 
   const taxDeductibleMonthly = convertedContracts
