@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { isModuleEnabled } from "@/lib/modules/enablement";
+import { isLive } from "@/lib/commands/shared";
 
 // Checks the Property and Vehicle a Contract or Product is to be linked to
 // before the write, so a made-up or trashed id is refused with a message
@@ -8,7 +9,8 @@ import { isModuleEnabled } from "@/lib/modules/enablement";
 // Vehicle link the Vehicles module, as the forms only offer each select
 // while its module is. The forms only offer live
 // records; this is for callers that take ids from elsewhere, such as the
-// Assistant. Returns the message, or null when every given link is live.
+// Assistant. Returns the message, or null when every given link is live
+// ("live" as in shared.ts's Trash rules, #428).
 export async function linkedRecordError(links: {
   propertyId?: string | null;
   vehicleId?: string | null;
@@ -21,7 +23,7 @@ export async function linkedRecordError(links: {
       where: { id: links.propertyId },
       select: { deletedAt: true },
     });
-    if (!property || property.deletedAt) return "That property doesn't exist or is in Trash.";
+    if (!isLive(property)) return "That property doesn't exist or is in Trash.";
   }
   if (links.vehicleId) {
     if (!(await isModuleEnabled("VEHICLES"))) {
@@ -31,7 +33,7 @@ export async function linkedRecordError(links: {
       where: { id: links.vehicleId },
       select: { deletedAt: true },
     });
-    if (!vehicle || vehicle.deletedAt) return "That vehicle doesn't exist or is in Trash.";
+    if (!isLive(vehicle)) return "That vehicle doesn't exist or is in Trash.";
   }
   return null;
 }
