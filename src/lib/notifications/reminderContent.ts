@@ -11,7 +11,11 @@ export interface ReminderInput {
   id: string;
   /** Contract title, warranty description, vehicle label, or a Tenancy's Property label. */
   title: string;
-  /** Provider / manufacturer, or a Tenancy's tenant; omitted for vehicles. */
+  /**
+   * Provider / manufacturer, or a Tenancy's tenant; omitted for vehicles. A
+   * tenant's name is someone outside the household, so it goes in email
+   * only, never to ntfy or a webhook (#388).
+   */
   detail?: string;
   /**
    * Tenancy only (#388): the Property the Reminder links to. A Tenancy has
@@ -199,18 +203,27 @@ export function buildReminderEmail(input: ReminderInput): { subject: string; tex
   return { subject, text, html };
 }
 
+/** What may leave the household: a Tenancy's tenant stays out of ntfy and webhooks (#388). */
+function shareable(input: ReminderInput): ReminderInput {
+  return input.kind === "tenancy" ? { ...input, detail: undefined } : input;
+}
+
 /** ntfy publish headers + body. Click/Actions make the notification open the record. */
-export function buildNtfyReminder(input: ReminderInput): { headers: Record<string, string>; body: string } {
+export function buildNtfyReminder(fullInput: ReminderInput): { headers: Record<string, string>; body: string } {
+  const input = shareable(fullInput);
   const { noun, verb } = subjectParts(input);
   const endDate = formatReminderDate(input.endDate, input.dateFormat);
   const when = inDays(input.daysRemaining);
   const url = inputUrl(input);
+  const test = input.test ? "[Test] " : "";
 
   const headers: Record<string, string> = {
     Title: oneLine(
       input.notice
-        ? `${input.test ? "[Test] " : ""}${input.title}: notice deadline ${when}`
-        : `${input.test ? "[Test] " : ""}${input.title}: ${noun} ${verb} ${when}`,
+        ? `${test}${input.title}: notice deadline ${when}`
+        : input.kind === "tenancy"
+          ? `${test}Lease for ${input.title} ${verb} ${when}`
+          : `${test}${input.title}: ${noun} ${verb} ${when}`,
     ),
     Priority: input.daysRemaining <= 7 ? "high" : "default",
     Tags: "warning,calendar",
@@ -233,7 +246,8 @@ export function buildReminderWebhookBody(input: ReminderInput): Record<string, u
     kind: input.kind,
     id: input.id,
     title: input.title,
-    detail: input.detail ?? "",
+    // A Tenancy's payload carries no tenant name (shareable).
+    ...(input.kind === "tenancy" ? {} : { detail: input.detail ?? "" }),
     ...(input.kind === "vehicle" ? { field: input.vehicleField } : {}),
     ...(input.kind === "tenancy" ? { propertyId: input.propertyId ?? null } : {}),
     daysRemaining: input.daysRemaining,

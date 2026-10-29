@@ -296,6 +296,21 @@ test.beforeEach(async ({ page }) => {
           execute: async () => ({ changes: { changes: 0 } }),
           run: async ({ statement, values = [] }: { statement: string; values?: unknown[] }) => {
             sqliteRuns.push({ statement, values });
+            // Tenancy edits and deletes land in the rows, so a resync of local
+            // Reminders sees them (#388).
+            const tenancyUpdate = /^UPDATE rental_agreements SET (.+) WHERE id = \?$/i.exec(statement.trim());
+            if (tenancyUpdate) {
+              const id = values[values.length - 1];
+              const columns = [...tenancyUpdate[1].matchAll(/(\w+) = \?/g)].map((m) => m[1]);
+              const rows = (rowsByTable.rental_agreements ?? []) as Record<string, unknown>[];
+              const row = rows.find((candidate) => candidate.id === id);
+              if (row) {
+                columns.forEach((column, index) => {
+                  row[column] = values[index];
+                });
+                if (row.deleted_at) rowsByTable.rental_agreements = rows.filter((candidate) => candidate !== row);
+              }
+            }
             if (/INSERT OR REPLACE INTO local_profile/i.test(statement)) {
               rowsByTable.local_profile = [
                 {
@@ -341,7 +356,12 @@ test.beforeEach(async ({ page }) => {
             scheduledNotifications.push(...notifications);
             return {};
           },
-          cancel: async () => ({}),
+          cancel: async ({ notifications = [] }: { notifications?: { id: unknown }[] }) => {
+            const cancelled = new Set(notifications.map((notification) => notification.id));
+            const kept = scheduledNotifications.filter((notification) => !cancelled.has((notification as { id?: unknown }).id));
+            scheduledNotifications.splice(0, scheduledNotifications.length, ...kept);
+            return {};
+          },
           getPending: async () => ({ notifications: [] }),
         },
         ServerConfig: {
@@ -800,6 +820,33 @@ test("standalone schedules a local Reminder for a tenancy's lease end (#388)", a
   // A Tenancy has no page of its own: the card opens its Property.
   await card.click();
   await expect(page.getByRole("heading", { name: "Tenancies" })).toBeVisible();
+
+  const leaseBodies = () =>
+    page.evaluate(() => {
+      const scheduled = (window as Window & {
+        __hearthStandaloneTest?: { scheduledNotifications: { body?: string; extra?: { recordId?: string } }[] };
+      }).__hearthStandaloneTest?.scheduledNotifications ?? [];
+      return scheduled.filter((n) => n.extra?.recordId === "rental-agreement-1").map((n) => n.body ?? "");
+    });
+
+  // Moving the lease end reschedules its Reminders.
+  await page.getByRole("button", { name: /Tenancy · Alex Tenant/ }).click();
+  await page.locator('button[data-form-type="rentalAgreements"][data-id="rental-agreement-1"]').click();
+  await page.locator('input[name="reminderDaysBefore"]').fill("soon");
+  await page.locator('form[data-save-type="rentalAgreements"]').getByRole("button", { name: "Save" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Reminder thresholds must be whole days");
+  await page.locator('input[name="reminderDaysBefore"]').fill("");
+  await page.locator('input[name="leaseEnd"]').fill("2099-11-30");
+  await page.locator('form[data-save-type="rentalAgreements"]').getByRole("button", { name: "Save" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Saved");
+  await expect.poll(leaseBodies).toHaveLength(4);
+  expect((await leaseBodies()).every((body) => body.includes("ends 2099-11-30"))).toBe(true);
+
+  // Deleting the Tenancy cancels them.
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: /Tenancy · Alex Tenant/ }).click();
+  await page.locator('button[data-delete-record="rentalAgreements"][data-id="rental-agreement-1"]').click();
+  await expect.poll(leaseBodies).toEqual([]);
 });
 
 test("standalone dashboard's missing-info stat card deep-links into a pre-filtered warranty list", async ({ page }) => {

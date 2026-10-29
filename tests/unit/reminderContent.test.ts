@@ -233,20 +233,21 @@ describe("Tenancy lease-end Reminders (#388)", () => {
     expect(buildReminderEmail({ ...lease, detail: "" }).text).toContain('The lease for "Beach Flat" ends on');
   });
 
-  it("pushes the same wording by ntfy, opening the Property", () => {
+  it("pushes by ntfy without the tenant's name, opening the Property", () => {
     const ntfy = buildNtfyReminder(lease);
-    expect(ntfy.headers.Title).toBe("Beach Flat: lease ends in 30 days");
+    expect(ntfy.headers.Title).toBe("Lease for Beach Flat ends in 30 days");
     expect(ntfy.headers.Click).toBe("https://hearth.example/home/p1");
-    expect(ntfy.body).toBe('The lease for "Beach Flat" (Sam Lee) ends on 20 October 2026.');
+    expect(ntfy.body).toBe('The lease for "Beach Flat" ends on 20 October 2026.');
+    expect(JSON.stringify(ntfy)).not.toContain("Sam Lee");
+    expect(buildNtfyReminder({ ...lease, test: true }).headers.Title).toBe("[Test] Lease for Beach Flat ends in 30 days");
   });
 
-  it("sends a tenancy.expiring webhook with the Tenancy and its Property", () => {
+  it("sends a tenancy.expiring webhook with the Tenancy and its Property, and no tenant name", () => {
     expect(buildReminderWebhookBody(lease)).toEqual({
       event: "tenancy.expiring",
       kind: "tenancy",
       id: "t1",
       title: "Beach Flat",
-      detail: "Sam Lee",
       propertyId: "p1",
       daysRemaining: 30,
       endDate: "2026-10-20",

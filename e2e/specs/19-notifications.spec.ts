@@ -32,16 +32,18 @@ test("crossing a reminder threshold delivers a webhook notification", async ({ p
     await page.getByRole("button", { name: "Add webhook" }).click();
     await expect(page.locator("body")).toContainText("E2E Test Webhook was added.");
 
-    // Expiring today crosses every configured threshold (default
-    // 30/14/7/1 days) at once, which the dedup logic in thresholds.ts
-    // collapses into a single catch-up notification per channel. An
-    // already-*past* endDate wouldn't fire at all — the scheduler only
-    // reminds ahead of expiry (remaining >= 0), not after it.
-    const today = new Date().toISOString().slice(0, 10);
+    // Expiring tomorrow (UTC) crosses every configured threshold (default
+    // 30/14/7/1 days) at once, which the Reminder schedule collapses into a
+    // single catch-up notification per channel. An already-*past* endDate
+    // wouldn't fire at all — the scheduler only reminds ahead of expiry
+    // (remaining >= 0), not after it. Tomorrow rather than today: the
+    // household day follows the server's zone, which east of UTC can
+    // already be tomorrow, making "today in UTC" yesterday.
+    const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
     await page.goto("/contracts/new");
     await page.locator("#title").fill("Webhook Notification Test Contract");
     await page.locator("#provider").fill("Test Provider");
-    await page.locator("#endDate").fill(today);
+    await page.locator("#endDate").fill(tomorrow);
     await page.locator("main button[type=submit]").click();
     await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
     const contractPageUrl = page.url();
@@ -150,10 +152,11 @@ test("a tenancy's lease end delivers a tenancy.expiring webhook and shows on the
     expect(payload).toMatchObject({
       kind: "tenancy",
       title: "Lease Reminder Flat",
-      detail: "Sam Lee",
       endDate: leaseEnd,
       url: propertyUrl,
     });
+    // The tenant's name never leaves the household by webhook.
+    expect(payload).not.toHaveProperty("detail");
     expect(payload.daysRemaining).toBeGreaterThanOrEqual(9);
     expect(payload.daysRemaining).toBeLessThanOrEqual(11);
 

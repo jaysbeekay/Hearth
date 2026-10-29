@@ -41,6 +41,8 @@ const FILE_ROOT = "standalone-documents";
 const BACKUP_ROOT = "hearth-backups";
 const REMINDER_CHANNEL_ID = "hearth-standalone-reminders";
 const REMINDER_HOUR = 9;
+// Bump with every ensureStandaloneSchema change; backups record it too.
+const STANDALONE_SCHEMA_VERSION = 9;
 const MAX_IMPORTED_TRADES = 5000;
 const ALLOWED_MIME_TYPES = new Set([
   "application/pdf",
@@ -385,7 +387,7 @@ CREATE TABLE IF NOT EXISTS schema_metadata (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
-INSERT OR REPLACE INTO schema_metadata (key, value) VALUES ('standalone_schema_version', '8');
+INSERT OR REPLACE INTO schema_metadata (key, value) VALUES ('standalone_schema_version', '${STANDALONE_SCHEMA_VERSION}');
 `;
 
 const $ = (id) => document.getElementById(id);
@@ -588,7 +590,7 @@ async function ensureStandaloneSchema() {
   await ensureColumn("inventory_items", "warranty_extended", "INTEGER NOT NULL DEFAULT 0");
   // #388 — a Tenancy's own Reminder thresholds for its lease end; null means the default.
   await ensureColumn("rental_agreements", "reminder_days_before", "TEXT");
-  await run("INSERT OR REPLACE INTO schema_metadata (key, value) VALUES ('standalone_schema_version', '9')");
+  await run("INSERT OR REPLACE INTO schema_metadata (key, value) VALUES ('standalone_schema_version', ?)", [String(STANDALONE_SCHEMA_VERSION)]);
 }
 
 async function ensureColumn(table, column, definition) {
@@ -713,6 +715,10 @@ async function loadStandaloneModuleSettings() {
 
 async function saveStandaloneModuleSettings() {
   await prefSet(STANDALONE_MODULES_KEY, JSON.stringify(state.enabledStandaloneModules));
+  // Turning a module off (or on) changes which records get Reminders.
+  if (state.localRemindersEnabled) {
+    await syncLocalReminders(false).catch((error) => showStandaloneStatus(error.message || "Saved, but reminders could not be rescheduled."));
+  }
 }
 
 function moduleEnabled(moduleKey) {
@@ -754,10 +760,15 @@ function reminderDaysOrDefault(value) {
   return days.join(",");
 }
 
-// A Tenancy's thresholds (#388): blank keeps the default, stored as null.
+// A Tenancy's thresholds (#388), normalised, or null when blank (the
+// default applies) or when they don't parse: every part must be a whole
+// number of days. saveRentalAgreement refuses the unparseable case.
 function reminderDaysOrNull(value) {
-  if (!String(value ?? "").trim()) return null;
-  return reminderDaysOrDefault(value);
+  const text = String(value ?? "").trim();
+  if (!text) return null;
+  const parts = text.split(",").map((part) => part.trim());
+  const valid = parts.every((part) => /^\d+$/.test(part) && Number(part) <= 3650);
+  return valid ? parseReminderDays(text).join(",") : null;
 }
 
 function dateInputValue(value) {
@@ -1545,6 +1556,10 @@ function reminderTargets() {
   });
 }
 
+// Record types whose save or delete changes the scheduled local Reminders.
+// A Property's rental tracking and its Tenancies decide the lease-end ones (#388).
+const REMINDER_RECORD_TYPES = ["contracts", "products", "vehicles", "properties", "rentalAgreements"];
+
 // #388 — a rented Property's current Tenancy gets Reminders for its lease
 // end, as on the web: the latest lease start, then the latest lease end, then
 // the latest entered. Older leases are history.
@@ -2061,7 +2076,7 @@ async function buildStandaloneBackup() {
   return {
     kind: "hearth-standalone-backup",
     version: 1,
-    schemaVersion: 7,
+    schemaVersion: STANDALONE_SCHEMA_VERSION,
     exportedAt: nowIso(),
     tables,
   };
@@ -3205,7 +3220,7 @@ async function saveForm(form) {
   if (type === "portfolios") await savePortfolio(form);
   if (type === "holdings") await saveHolding(form);
   if (type === "trades") await saveTrade(form);
-  if (state.localRemindersEnabled && ["contracts", "products", "vehicles"].includes(type)) {
+  if (state.localRemindersEnabled && REMINDER_RECORD_TYPES.includes(type)) {
     await syncLocalReminders(false).catch((error) => showStandaloneStatus(error.message || "Saved, but reminders could not be rescheduled."));
   }
   state.route = state.backTo ?? (["vehicleItems", "homeItems", "rentalAgreements", "rentalStatements", "tripSegments", "holdings", "trades"].includes(type) ? "detail" : "records");
@@ -3403,6 +3418,10 @@ async function saveRentalAgreement(form) {
   const exists = Boolean(form.dataset.id);
   const parentId = form.dataset.parentId || fieldValue(form, "propertyId") || getRecord("rentalAgreements", id)?.property_id;
   if (!parentId) throw new Error("Property is missing.");
+  const reminderDays = reminderDaysOrNull(fieldValue(form, "reminderDaysBefore"));
+  if (reminderDays == null && String(fieldValue(form, "reminderDaysBefore") ?? "").trim()) {
+    throw new Error("Reminder thresholds must be whole days, comma-separated, e.g. 30,14,7,1.");
+  }
   const values = [
     parentId,
     valueOrNull(fieldValue(form, "contractId")),
@@ -3414,7 +3433,7 @@ async function saveRentalAgreement(form) {
     numberOrNull(fieldValue(form, "bondAmount")),
     currencyOrDefault(fieldValue(form, "currency")),
     valueOrNull(fieldValue(form, "notes")),
-    reminderDaysOrNull(fieldValue(form, "reminderDaysBefore")),
+    reminderDays,
     nowIso(),
   ];
   if (exists) {
@@ -3913,7 +3932,7 @@ async function deleteRecord(type, id) {
   const confirmed = window.confirm(`Delete "${recordTitle(type, row)}" and its local documents?`);
   if (!confirmed) return;
   await softDeleteRecord(type, id);
-  if (state.localRemindersEnabled && ["contracts", "products", "vehicles"].includes(type)) {
+  if (state.localRemindersEnabled && REMINDER_RECORD_TYPES.includes(type)) {
     await syncLocalReminders(false).catch((error) => showStandaloneStatus(error.message || "Deleted, but reminders could not be rescheduled."));
   }
   state.route = "records";

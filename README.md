@@ -660,9 +660,10 @@ secret and comparing to the header. Five events exist:
 
 - **`tenancy.expiring`** — the same Reminder for the lease end of a rented
   property's current tenancy. `kind` is `tenancy`, `id` is the tenancy,
-  `propertyId` its property, `title` the property's label, `detail` the
-  tenant's name (or `""`), and `endDate` the lease end. A tenancy has no page
-  of its own, so `url` points at the property (`/home/...`). Body:
+  `propertyId` its property, `title` the property's label, and `endDate` the
+  lease end. There is no `detail`: the tenant's name never leaves the
+  household by webhook or ntfy (email reminders include it). A tenancy has
+  no page of its own, so `url` points at the property (`/home/...`). Body:
 
   ```json
   {
@@ -670,7 +671,6 @@ secret and comparing to the header. Five events exist:
     "kind": "tenancy",
     "id": "...",
     "title": "Beach Flat",
-    "detail": "Sam Lee",
     "propertyId": "...",
     "daysRemaining": 30,
     "endDate": "2026-11-24",

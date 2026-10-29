@@ -22,9 +22,11 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 ### Added
 
 - **Reminders for a tenancy's lease end.** The current tenancy of a rented
-  property now gets Reminders before its lease ends, by email, ntfy and
-  webhook ("Lease for Beach Flat ends in 30 days"), linking to the
-  property. It uses the household default thresholds unless the tenancy
+  property now gets Reminders before its lease ends, linking to the
+  property: an email headed `Reminder: lease for "Beach Flat" ends in 30
+  days`, an ntfy push titled `Lease for Beach Flat ends in 30 days`, and a
+  webhook. The tenant's name is only in the email; ntfy and webhooks leave
+  it out. It uses the household default thresholds unless the tenancy
   sets its own: the tenancy form has a new "Reminder thresholds" field,
   which also sets how early the lease end shows as Due. The property page
   has a "Lease reminders" health card, a failed lease Reminder shows on the

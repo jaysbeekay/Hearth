@@ -448,8 +448,9 @@ model NotificationLog {
   ownerId       String
   // Which Due entry of the record, by the Due policy's field name:
   // "noticeDeadline" / "endDate", "warrantyEndDate", "regoExpiry" /
-  // "insuranceExpiry" / "nextServiceDue", "leaseEnd". Never null. Rows from before #387
-  // used "" for contracts and products; the backfill renames them.
+  // "insuranceExpiry" / "nextServiceDue", "leaseEnd". Never null. Rows
+  // from before #387 used "" for contracts and products; the backfill
+  // renames them.
   field         String                @default("")
   channel       NotificationChannel
   thresholdDays Int

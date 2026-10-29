@@ -7,6 +7,8 @@ import {
   permanentlyDeleteTenancyCommand,
   permanentlyDeletePropertyCommand,
   deletePropertyCommand,
+  restorePropertyCommand,
+  setPropertyRentedCommand,
 } from "@/lib/commands/home";
 import { propertySchema, rentalAgreementSchema } from "@/lib/validation/home";
 import { runExpirationCheck } from "@/lib/notifications/scheduler";
@@ -15,6 +17,7 @@ import { sendReminderEmail } from "@/lib/notifications/email";
 import { sendNtfyReminder } from "@/lib/notifications/ntfy";
 import { sendExpiryWebhooks } from "@/lib/notifications/webhook";
 import { addDays, householdDay } from "@/lib/duePolicy";
+import { getCurrentTenancy } from "@/lib/tenancies";
 
 // #388 — Reminders for a Tenancy's lease end, against a real migrated
 // database: the scheduler, the per-record health card on the Property and
@@ -166,6 +169,81 @@ describe("the scheduler", () => {
     await rentedProperty({ leaseEnd: "2026-10-20" });
     await runExpirationCheck(at("2026-10-25"));
     expect(sends()).toEqual({ email: 0, ntfy: 0, webhook: 0 });
+  });
+});
+
+describe("the current Tenancy changing", () => {
+  it("un-renting stops Reminders; re-renting doesn't re-send thresholds already sent", async () => {
+    const { property } = await rentedProperty({ leaseEnd: "2026-11-24" });
+    await runExpirationCheck(at("2026-10-25"));
+    expect(sends().webhook).toBe(1);
+
+    await setPropertyRentedCommand(property.id, false, actorId);
+    await runExpirationCheck(at("2026-11-10"));
+    expect(sends().webhook).toBe(1);
+
+    await setPropertyRentedCommand(property.id, true, actorId);
+    await runExpirationCheck(at("2026-11-10"));
+    // Only the 14-day Reminder: the 30-day one already went for this lease end.
+    expect(sends().webhook).toBe(2);
+    expect(vi.mocked(sendExpiryWebhooks).mock.calls[1][0]).toMatchObject({ daysRemaining: 14 });
+    await runExpirationCheck(at("2026-11-11"));
+    expect(sends().webhook).toBe(2);
+  });
+
+  it("a newer Tenancy replacing the current one starts its own schedule", async () => {
+    const { property, tenancy: old } = await rentedProperty({ leaseStart: "2026-01-01", leaseEnd: "2026-11-24" });
+    await runExpirationCheck(at("2026-10-25"));
+    expect(sends().webhook).toBe(1);
+
+    const renewed = await createTenancyCommand(
+      property.id,
+      rentalAgreementSchema.parse({ weeklyRent: 650, leaseStart: "2026-11-01", leaseEnd: "2026-11-25" }),
+      actorId,
+    );
+    await runExpirationCheck(at("2026-10-26"));
+    // The new lease's own 30-day catch-up, not anything for the old one.
+    expect(sends().webhook).toBe(2);
+    expect(vi.mocked(sendExpiryWebhooks).mock.calls[1][0]).toMatchObject({ id: renewed.id, daysRemaining: 30 });
+
+    // The old lease's 14-day day passes with nothing sent for it.
+    await runExpirationCheck(at("2026-11-10"));
+    expect(sends().webhook).toBe(2);
+    // The old lease keeps only its 30-day Reminder, one row per channel.
+    expect(await db.prisma.notificationLog.count({ where: { ownerId: old.id } })).toBe(3);
+
+    // Send test reminder looks up the same current Tenancy.
+    expect((await getCurrentTenancy(renewed.id))?.propertyId).toBe(property.id);
+    expect(await getCurrentTenancy(old.id)).toBeNull();
+    expect(await getCurrentTenancy("missing")).toBeNull();
+  });
+
+  it("restoring a trashed Property doesn't re-send", async () => {
+    const { property } = await rentedProperty({ leaseEnd: "2026-11-24" });
+    await runExpirationCheck(at("2026-10-25"));
+    await deletePropertyCommand(property.id);
+    await runExpirationCheck(at("2026-10-26"));
+    expect(sends().webhook).toBe(1);
+
+    await restorePropertyCommand(property.id);
+    await runExpirationCheck(at("2026-10-27"));
+    expect(sends().webhook).toBe(1);
+  });
+});
+
+describe("the household's timezone", () => {
+  it("counts days to the lease end in the household's day, not UTC", async () => {
+    await db.prisma.appSetting.update({ where: { key: "household.timezone" }, data: { value: "Australia/Sydney" } });
+    await rentedProperty({ leaseEnd: "2026-11-24" });
+
+    // 23:00 on 24 Oct in Sydney: 31 days out, before the 30-day threshold.
+    await runExpirationCheck(new Date("2026-10-24T12:00:00Z"));
+    expect(sends().webhook).toBe(0);
+
+    // 00:30 on 25 Oct in Sydney, still 24 Oct in UTC: 30 days out.
+    await runExpirationCheck(new Date("2026-10-24T13:30:00Z"));
+    expect(sends().webhook).toBe(1);
+    expect(vi.mocked(sendExpiryWebhooks).mock.calls[0][0]).toMatchObject({ daysRemaining: 30 });
   });
 });
 
