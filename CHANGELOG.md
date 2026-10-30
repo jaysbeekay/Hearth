@@ -18,6 +18,32 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   GHSA-xhq7-xmqj-769h, GHSA-333x-w4r6-6crp). The remaining low-severity
   `npm audit` entries all trace to `@simplewebauthn/server` 9.x and are
   tracked in #376.
+- **Signing out clears this device's offline data (#424).** Sign out now
+  deletes the service worker's cached pages and data (and serwist's record
+  of their URLs), the offline write queue and offline Documents, then does
+  a full page load to the sign-in page, so Back can't show the previous
+  user's pages and the next person to use a shared browser can't see or
+  replay any of it. If changes are still waiting to sync, including ones a
+  sync is sending right now or left mid-sync by a closed tab, it first
+  waits for that sync and asks: Sync now (signs out only once they've
+  synced), Discard and sign out, or Cancel. Signing out while offline is
+  refused, and if the server can't be reached anyway, the tab stays signed
+  in with offline use working, rather than half signed out. Other open
+  tabs reload, and Escape on a phone closes just the prompt, not the More
+  sheet behind it. When a session ends without Sign out (a password change, an
+  expiry), the sign-in page drops offline Documents and cached lists too,
+  keeping only the write queue for that user's return. Offline data is
+  also tied to the user who stored it: a different user signing in never
+  sees the last user's queued changes or downloads and purges them,
+  `/api/sync` refuses a change queued by another account, a read-only
+  member can't queue changes offline (one made read-only is told their
+  queued changes can't be saved, and can discard them), and the service worker serves no
+  cached signed-in page once nobody is signed in or the session has
+  expired. Changes queued before this release carry no owner: the first
+  member who can write to sign in takes them on (a read-only member's
+  sign-in purges them instead), and offline Documents and cached lists
+  from before it are purged. If someone other than the person who queued
+  them is that first writer, they'll sync under that member's account.
 
 ### Added
 
@@ -428,18 +454,6 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   proposals are unchanged. The card also shows dates as calendar dates and a
   linked Property or Vehicle by name, and the Assistant can no longer link a
   record to a Property or Vehicle while that module is off.
-- **Signing out clears this device's offline data (#424).** Sign out now
-  deletes the service worker's cached pages and data, the offline write
-  queue and offline Documents, so the next person to use a shared browser
-  can't see or replay any of it. If changes are still waiting to sync, it
-  first asks: Sync now (signs out only once they've synced), Discard and
-  sign out, or Cancel. Offline data is also tied to the user who stored it:
-  a different user signing in, even after a session that ended without a
-  sign-out, never sees the last user's queued changes or downloads and
-  purges them, `/api/sync` refuses a change queued by another account, a
-  read-only member can't queue changes offline, and the service worker
-  serves no cached signed-in page once nobody is signed in or the session
-  has expired.
 - **Due labels and dates follow your date format, and stay on their day
   (#422).** Badges and banners such as "Cancel by 4 Nov" now read in the
   Date format chosen in Settings → Preferences ("Cancel by Nov 4" for
