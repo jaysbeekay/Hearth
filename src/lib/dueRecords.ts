@@ -92,30 +92,6 @@ export function bannerEntries(entries: DueEntry[]): DueEntry[] {
   return entries.filter((entry) => isDue(entry) || entry.state === "needs-new-end-date");
 }
 
-export type DueTone = "danger" | "warning" | "neutral" | "success";
-
-/**
- * The colour a state's pill or banner takes, with the existing tokens.
- * Overdue is danger and due soon is warning; the states that need no
- * action by a date (Ended, Lapsed, waiting on a new end date) are neutral.
- * A date outside its due-soon window keeps today's success tint until #412
- * replaces this with the full state-to-tone mapping.
- */
-export function dueTone(state: DueState): DueTone {
-  switch (state) {
-    case "overdue":
-      return "danger";
-    case "due-soon":
-      return "warning";
-    case "later":
-      return "success";
-    case "ended":
-    case "lapsed":
-    case "needs-new-end-date":
-      return "neutral";
-  }
-}
-
 type TenancyAgreement = { leaseStart: Date | null; leaseEnd: Date | null; createdAt: Date };
 
 // Missing dates sort before any real one.

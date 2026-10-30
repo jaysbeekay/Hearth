@@ -70,7 +70,7 @@ export function DocumentList({
                     {humanFileSize(doc.size)} · <Timestamp value={doc.uploadedAt} />
                   </span>
                   {older.length > 0 && (
-                    <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-accent/10 px-1.5 py-0.5 text-xs font-medium text-accent">
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-muted/10 px-1.5 py-0.5 text-xs font-medium text-muted">
                       Latest
                     </span>
                   )}

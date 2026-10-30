@@ -13,8 +13,9 @@
   --warning: #a16000;
   --warning-soft: #fff4d8;
   --success: #0b7a36;
-  --danger: #d91552;
-  --danger-soft: rgba(217, 21, 82, 0.1);
+  --danger: #a8103f;
+  --danger-soft: rgba(168, 16, 63, 0.1);
+  --muted-soft: rgba(110, 100, 85, 0.1);
   --shadow: 0 16px 42px rgba(6, 27, 49, 0.08);
 }
 
@@ -32,8 +33,9 @@
     --warning: #ffd36b;
     --warning-soft: rgba(255, 211, 107, 0.12);
     --success: #15be53;
-    --danger: #ff5d8e;
-    --danger-soft: rgba(255, 93, 142, 0.14);
+    --danger: #ffa6c0;
+    --danger-soft: rgba(255, 166, 192, 0.14);
+    --muted-soft: rgba(179, 172, 159, 0.1);
     --shadow: 0 16px 42px rgba(0, 0, 0, 0.24);
   }
 }
@@ -436,13 +438,16 @@ button {
   gap: 6px;
 }
 
+/* #412 — a badge is neutral unless it marks something Overdue (danger) or
+   Due soon (warning); tests/unit/shell-badge-contrast.test.ts keeps each
+   tone's text >= 4.5:1 on its tint in both themes. */
 .badge {
   display: inline-flex;
   align-items: center;
   min-height: 24px;
   border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--muted-soft);
+  color: var(--muted);
   padding: 3px 8px;
   font-weight: 700;
 }

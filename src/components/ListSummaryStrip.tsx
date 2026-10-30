@@ -7,13 +7,26 @@
 // chips shown just above, but did nothing on click — a false affordance.
 // An item with `onClick` (its count has a matching filter) renders as a real
 // button; one without renders as plain text so it doesn't look clickable.
+import { statusTone, type RecordStatus, type StatusTone } from "@/lib/statusTone";
+
+// #412 — a count takes its status's tone: only Overdue and Due soon are coloured.
+const BUTTON_CLASS = new Map<StatusTone, string>([
+  ["danger", "border-danger/30 bg-danger/10 text-danger"],
+  ["warning", "border-warning/30 bg-warning/10 text-warning"],
+]);
+const TEXT_CLASS = new Map<StatusTone, string>([
+  ["danger", "text-danger"],
+  ["warning", "text-warning"],
+]);
+
 export function ListSummaryStrip({
   items,
 }: {
   items: {
     label: string;
     value: number;
-    tone?: "warning" | "danger";
+    /** The status the count is of, which sets its tone; plain when absent. */
+    status?: RecordStatus;
     onClick?: () => void;
   }[];
 }) {
@@ -22,18 +35,15 @@ export function ListSummaryStrip({
 
   return (
     <div className="flex flex-wrap gap-2 text-sm">
-      {visible.map((item) =>
-        item.onClick ? (
+      {visible.map((item) => {
+        const tone = item.status ? statusTone(item.status) : "plain";
+        return item.onClick ? (
           <button
             key={item.label}
             type="button"
             onClick={item.onClick}
             className={`rounded-full border px-3 py-1 hover:bg-hover ${
-              item.tone === "danger"
-                ? "border-danger/30 bg-danger/10 text-danger"
-                : item.tone === "warning"
-                  ? "border-warning/30 bg-warning/10 text-warning"
-                  : "border-border bg-surface text-muted"
+              BUTTON_CLASS.get(tone) ?? "border-border bg-surface text-muted"
             }`}
           >
             {item.value} {item.label}
@@ -41,18 +51,12 @@ export function ListSummaryStrip({
         ) : (
           <span
             key={item.label}
-            className={`px-1 py-1 ${
-              item.tone === "danger"
-                ? "text-danger"
-                : item.tone === "warning"
-                  ? "text-warning"
-                  : "text-muted"
-            }`}
+            className={`px-1 py-1 ${TEXT_CLASS.get(tone) ?? "text-muted"}`}
           >
             {item.value} {item.label}
           </span>
-        ),
-      )}
+        );
+      })}
     </div>
   );
 }

@@ -918,7 +918,8 @@ function hasDocument(type, id) {
 
 function attentionForRecord(type, row) {
   if (["contracts", "products"].includes(type) && Number(row.extraction_pending ?? 0) === 1) {
-    return { tone: "warning", label: "Needs review", meta: "Confirm details before reminders run" };
+    // #412 — Needs review is Housekeeping: a neutral badge, as in the web app.
+    return { tone: "neutral", label: "Needs review", meta: "Confirm details before reminders run" };
   }
   if (type === "contracts") {
     const days = daysUntil(row.end_date);
@@ -1480,7 +1481,7 @@ function renderReminders() {
     <section class="card form-card">
       <div class="section-title">
         <h2>Device reminders</h2>
-        <span class="badge ${state.localRemindersEnabled ? "" : "warning"}">${state.localRemindersEnabled ? "On" : "Off"}</span>
+        <span class="badge">${state.localRemindersEnabled ? "On" : "Off"}</span>
       </div>
       <div class="detail-grid">
         ${detailLine("Pending notifications", state.pendingNotificationCount == null ? "—" : String(state.pendingNotificationCount))}
@@ -1965,7 +1966,7 @@ function renderModuleSetting(module) {
   return `
     <article class="record-card module-setting-card">
       <div class="badge-row">
-        <span class="badge ${enabled ? "" : "warning"}">${enabled ? "Shown" : "Hidden"}</span>
+        <span class="badge">${enabled ? "Shown" : "Hidden"}</span>
         <span class="badge">${count} record${count === 1 ? "" : "s"}</span>
       </div>
       <h3>${escapeHtml(module.title)}</h3>
@@ -2091,8 +2092,8 @@ function miniCard(title, value, meta) {
 
 function renderAttentionCard(item) {
   return `
-    <button class="record-card ${item.attention.tone === "danger" ? "danger-card" : "warning-card"}" data-open-record="${escapeAttr(item.type)}" data-id="${escapeAttr(item.row.id)}">
-      <span class="badge ${escapeAttr(item.attention.tone)}">${escapeHtml(item.attention.label)}</span>
+    <button class="record-card ${item.attention.tone === "danger" ? "danger-card" : item.attention.tone === "warning" ? "warning-card" : ""}" data-open-record="${escapeAttr(item.type)}" data-id="${escapeAttr(item.row.id)}">
+      <span class="badge ${escapeAttr(item.attention.tone === "neutral" ? "" : item.attention.tone)}">${escapeHtml(item.attention.label)}</span>
       <h3>${escapeHtml(recordTitle(item.type, item.row))}</h3>
       <p class="card-meta">${escapeHtml(item.attention.meta)}</p>
     </button>
@@ -2185,7 +2186,7 @@ function renderRecordCard(type, row) {
   return `
     <button class="record-card" data-open-record="${escapeAttr(type)}" data-id="${escapeAttr(row.id)}">
       <div class="badge-row">
-        ${attention ? `<span class="badge ${escapeAttr(attention.tone)}">${escapeHtml(attention.label)}</span>` : ""}
+        ${attention ? `<span class="badge ${escapeAttr(attention.tone === "neutral" ? "" : attention.tone)}">${escapeHtml(attention.label)}</span>` : ""}
         <span class="badge">${docCount} doc${docCount === 1 ? "" : "s"}</span>
       </div>
       <h3>${escapeHtml(recordTitle(type, row))}</h3>
@@ -2329,9 +2330,9 @@ function renderPropertyRentalSummary(propertyId) {
 function renderNeedsReviewBanner(type, row) {
   if (!["contracts", "products"].includes(type) || Number(row.extraction_pending ?? 0) !== 1) return "";
   return `
-    <section class="record-card warning-card">
+    <section class="record-card">
       <div class="badge-row">
-        <span class="badge warning">Needs review</span>
+        <span class="badge">Needs review</span>
         <span class="badge">Reminders held</span>
       </div>
       <h3>Confirm details before reminders run</h3>
@@ -2668,7 +2669,7 @@ function renderDocumentCard(doc) {
       <div class="badge-row">
         <span class="badge">${escapeHtml(typeLabel(doc.owner_type))}</span>
         <span class="badge">${escapeHtml(bytesLabel(doc.size))}</span>
-        ${important ? '<span class="badge warning">Important</span>' : ""}
+        ${important ? '<span class="badge">Important</span>' : ""}
         ${versionCount > 1 ? `<span class="badge">${versionCount} versions</span>` : ""}
       </div>
       <h3>${escapeHtml(doc.filename)}</h3>

@@ -177,7 +177,7 @@ export default async function RentalOverviewPage({
                           </span>
                         )}
                         {i === 0 && (
-                          <span className="ml-2 rounded-full bg-success/10 px-2 py-0.5 text-xs font-normal text-success">
+                          <span className="ml-2 rounded-full bg-muted/10 px-2 py-0.5 text-xs font-normal text-muted">
                             Current
                           </span>
                         )}

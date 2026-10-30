@@ -51,7 +51,7 @@ export function ProductCard({
       </div>
 
       {missing && missing.length > 0 && (
-        <p className="mt-1 text-xs font-medium text-warning">{missing.join(" · ")}</p>
+        <p className="mt-1 text-xs font-medium text-muted">{missing.join(" · ")}</p>
       )}
 
       {product._count != null && product._count.documents > 0 && (

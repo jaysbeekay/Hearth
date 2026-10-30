@@ -413,11 +413,7 @@ export default async function HoldingPage({
                 <div key={trade.id} className="rounded-xl border border-border bg-surface p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3">
-                      <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                        trade.type === "BUY" ? "bg-success/10 text-success" :
-                        trade.type === "SELL" ? "bg-danger/10 text-danger" :
-                        "bg-muted/10 text-muted"
-                      }`}>
+                      <span className="shrink-0 rounded-full bg-muted/10 px-2.5 py-0.5 text-xs font-semibold text-muted">
                         {TRADE_TYPE_LABELS[trade.type] ?? trade.type}
                       </span>
                       <div>

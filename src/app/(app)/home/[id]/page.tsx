@@ -202,7 +202,7 @@ export default async function PropertyDetailPage({
                         <p className="flex flex-wrap items-center gap-2 font-medium">
                           {item.title}
                           {item.isTaxDeductible && (
-                            <span className="rounded-full bg-success/10 px-2 py-0.5 text-xs font-normal text-success">
+                            <span className="rounded-full bg-muted/10 px-2 py-0.5 text-xs font-normal text-muted">
                               Tax deductible
                             </span>
                           )}

@@ -87,6 +87,20 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- **Colour only for Overdue and Due soon.** One mapping,
+  `statusTone` in `src/lib/statusTone.ts`, now sets the colour of every
+  status pill and banner: Overdue is red, Due soon is amber, and Ended,
+  Lapsed, Cancelled, Needs review, needs a new end date and other
+  Housekeeping are a grey pill. A date outside its due-soon window is plain
+  grey text with no pill, so a far-off "Expires 31 Dec" is no longer green.
+  Needs review is grey everywhere (it was amber on the dashboard and the
+  list counts). Missing key details, Pending sync, Tax deductible, the
+  current Tenancy, Trade types, document types and asset classes are grey
+  too, and a flight is coloured only when it's cancelled or diverted. The
+  standalone shell matches: its plain badge is grey rather than purple,
+  Needs review, Important, Hidden and Off badges are grey, and its red is
+  darker in light mode and lighter in dark mode so badge text is at least
+  4.5:1 on its tint (#412).
 - **CI split into separate required checks.** `.github/workflows/ci.yml` replaces
   `e2e.yml` with one job per check: `typecheck`, `lint`, `unit`, `build`, `e2e`
   and `standalone`. A failing lint step no longer shows up as an "e2e" failure.
