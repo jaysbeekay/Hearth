@@ -24,7 +24,7 @@ export function PasskeyRegisterButton() {
 
       let attestation;
       try {
-        attestation = await startRegistration(options);
+        attestation = await startRegistration({ optionsJSON: options });
       } catch (err) {
         if (err instanceof Error && err.name === "NotAllowedError") {
           setError("Registration was cancelled.");
