@@ -11,20 +11,28 @@ import {
 import { productSchema, productPatchSchema } from "@/lib/validation/product";
 import { parseNamedPatch } from "@/lib/validation/namedPatch";
 import { linkedRecordError } from "@/lib/commands/links";
-import { CATEGORY_LABELS, daysUntil, monthlyEquivalent } from "@/lib/utils";
 import { getNetWorth } from "@/lib/wealth";
 import {
-  iso,
+  DEFAULT_DUE_HORIZON_DAYS,
+  TOOL_DESCRIPTIONS,
+  contractProposalBasis,
+  currencyCodeSchema,
+  defaultSpendCurrency,
+  getContract,
+  queryContracts,
   queryInventoryItems,
   queryProducts,
   queryProperties,
   queryTrips,
   queryVehicles,
+  searchContracts,
+  spendSummary,
+  upcomingRenewals,
+  whatsDue,
 } from "@/lib/domainQueries";
 import type { ModuleKey } from "@/lib/modules/registry";
 import type { ToolDefinition } from "@/lib/ai/chat/types";
 import type { Role } from "@/generated/prisma/enums";
-import { contractTiming } from "@/lib/contractTiming";
 
 export interface ToolContext {
   userId: string;
@@ -68,62 +76,22 @@ function defineTool<T>(spec: {
   };
 }
 
-// ─── Contracts (always-on) ─────────────────────────────────────────────────
-// Same field allowlist and household-wide (no createdById filter) approach
-// as src/lib/mcp/server.ts's tools — everyone in the household sees the
-// same contracts, matching CLAUDE.md's stated data model.
+// ─── Contracts and what's Due (always-on) ──────────────────────────────────
+// Thin wrappers over src/lib/domainQueries.ts, which the MCP server's tools
+// share (#394): the same queries, the same Contract shape and the same
+// descriptions, so chat and MCP give the same answer.
 
-const CONTRACT_SELECT = {
-  id: true,
-  title: true,
-  category: true,
-  provider: true,
-  contractNumber: true,
-  startDate: true,
-  endDate: true,
-  renewalType: true,
-  noticePeriodDays: true,
-  cost: true,
-  currency: true,
-  billingFrequency: true,
-  status: true,
-  notes: true,
-  isTaxDeductible: true,
-} as const;
-
-interface ContractRow {
-  startDate: Date | null;
-  endDate: Date | null;
-  cost: number | null;
-  billingFrequency: string | null;
-  [key: string]: unknown;
-}
-
-function serializeContract<T extends ContractRow>(contract: T) {
-  const timing = contractTiming({
-    endDate: contract.endDate,
-    noticePeriodDays: (contract.noticePeriodDays as number | null | undefined) ?? null,
-    renewalType: String(contract.renewalType ?? ""),
-  });
-  return {
-    ...contract,
-    startDate: iso(contract.startDate),
-    endDate: iso(contract.endDate),
-    daysUntilEnd: daysUntil(contract.endDate),
-    // #351 — the last day to give notice (null when none applies) and the
-    // count that actually matters: to that deadline while it's ahead.
-    cancelBy: timing.cancelBy?.toISOString() ?? null,
-    daysUntilCancelBy: timing.cancelByDays,
-    daysUntilDeadline: timing.days,
-    estimatedMonthlySpend:
-      Math.round(monthlyEquivalent(contract.cost, contract.billingFrequency) * 100) / 100,
-  };
-}
+const withinDaysProperty = {
+  withinDays: {
+    type: "number",
+    description: `Horizon in days. Defaults to ${DEFAULT_DUE_HORIZON_DAYS}.`,
+  },
+};
+const withinDaysSchema = z.object({ withinDays: z.number().int().positive().max(3650).optional() });
 
 const listContractsTool = defineTool({
   name: "list_contracts",
-  description:
-    "List household contracts (rentals, insurance, subscriptions, loans, utilities, warranties, etc), optionally filtered by status and/or category.",
+  description: TOOL_DESCRIPTIONS.listContracts,
   inputSchema: {
     type: "object",
     properties: {
@@ -135,95 +103,63 @@ const listContractsTool = defineTool({
     status: z.enum(CONTRACT_STATUSES).optional(),
     category: z.enum(CONTRACT_CATEGORIES).optional(),
   }),
-  run: async ({ status, category }) => {
-    const contracts = await prisma.contract.findMany({
-      where: { deletedAt: null, ...(status && { status }), ...(category && { category }) },
-      select: CONTRACT_SELECT,
-      orderBy: { endDate: "asc" },
-    });
-    return contracts.map(serializeContract);
+  run: async ({ status, category }) => queryContracts({ status, category }),
+});
+
+const getContractTool = defineTool({
+  name: "get_contract",
+  description: TOOL_DESCRIPTIONS.getContract,
+  inputSchema: {
+    type: "object",
+    properties: { id: { type: "string", description: "Contract id." } },
+    required: ["id"],
   },
+  schema: z.object({ id: z.string().min(1) }),
+  run: async ({ id }) => (await getContract(id)) ?? { error: `No contract with id "${id}"` },
 });
 
 const searchContractsTool = defineTool({
   name: "search_contracts",
-  description: "Search contracts by title, provider, contract number, or notes.",
+  description: TOOL_DESCRIPTIONS.searchContracts,
   inputSchema: {
     type: "object",
     properties: { query: { type: "string", description: "Search text." } },
     required: ["query"],
   },
   schema: z.object({ query: z.string().min(1) }),
-  run: async ({ query }) => {
-    const contracts = await prisma.contract.findMany({
-      where: {
-        deletedAt: null,
-        OR: [
-          { title: { contains: query } },
-          { provider: { contains: query } },
-          { contractNumber: { contains: query } },
-          { notes: { contains: query } },
-        ],
-      },
-      select: CONTRACT_SELECT,
-      orderBy: { endDate: "asc" },
-    });
-    return contracts.map(serializeContract);
-  },
+  run: async ({ query }) => searchContracts(query),
 });
 
 const upcomingRenewalsTool = defineTool({
   name: "upcoming_renewals",
-  description: "Active contracts ending within N days (default 30), soonest first.",
-  inputSchema: {
-    type: "object",
-    properties: {
-      withinDays: { type: "number", description: "Horizon in days. Defaults to 30." },
-    },
-  },
-  schema: z.object({ withinDays: z.number().int().positive().max(3650).optional() }),
-  run: async ({ withinDays }) => {
-    const horizon = withinDays ?? 30;
-    const contracts = await prisma.contract.findMany({
-      where: { status: "ACTIVE", endDate: { not: null }, deletedAt: null },
-      select: CONTRACT_SELECT,
-    });
-    return contracts
-      .map(serializeContract)
-      .filter((c) => c.daysUntilEnd != null && c.daysUntilEnd >= 0 && c.daysUntilEnd <= horizon)
-      .sort((a, b) => (a.daysUntilEnd as number) - (b.daysUntilEnd as number));
-  },
+  description: TOOL_DESCRIPTIONS.upcomingRenewals,
+  inputSchema: { type: "object", properties: withinDaysProperty },
+  schema: withinDaysSchema,
+  run: async ({ withinDays }) => upcomingRenewals(withinDays),
 });
 
 const spendSummaryTool = defineTool({
   name: "spend_summary",
-  description:
-    "Estimated total and per-category monthly spend across active contracts (one-off charges excluded, figures summed as-is regardless of currency).",
-  inputSchema: { type: "object", properties: {} },
-  schema: z.object({}),
-  run: async () => {
-    const active = await prisma.contract.findMany({
-      where: { status: "ACTIVE", deletedAt: null },
-      select: { category: true, cost: true, billingFrequency: true },
-    });
-    let total = 0;
-    const byCategory: Record<string, number> = {};
-    for (const contract of active) {
-      const monthly = monthlyEquivalent(contract.cost, contract.billingFrequency);
-      total += monthly;
-      const label = CATEGORY_LABELS[contract.category] ?? contract.category;
-      byCategory[label] = (byCategory[label] ?? 0) + monthly;
-    }
-    return {
-      estimatedMonthlySpendTotal: Math.round(total * 100) / 100,
-      byCategory: Object.fromEntries(
-        Object.entries(byCategory).map(([label, amount]) => [
-          label,
-          Math.round(amount * 100) / 100,
-        ]),
-      ),
-    };
+  description: TOOL_DESCRIPTIONS.spendSummary,
+  inputSchema: {
+    type: "object",
+    properties: {
+      currency: {
+        type: "string",
+        description: "ISO 4217 currency code to convert to, such as AUD. Defaults to your preferred currency.",
+      },
+    },
   },
+  schema: z.object({ currency: currencyCodeSchema.optional() }),
+  run: async ({ currency }, ctx) => spendSummary(currency ?? (await defaultSpendCurrency(ctx.userId))),
+});
+
+const whatsDueTool = defineTool({
+  name: "whats_due",
+  description: TOOL_DESCRIPTIONS.whatsDue,
+  inputSchema: { type: "object", properties: withinDaysProperty },
+  schema: withinDaysSchema,
+  run: async ({ withinDays }, ctx) => whatsDue(ctx.enabledModules, withinDays),
 });
 
 // ─── Products / warranties (always-on) ─────────────────────────────────────
@@ -423,10 +359,7 @@ const proposeUpdateContractTool = defineTool({
     const parsed = parseNamedPatch(contractPatchSchema, fields);
     if (!parsed.success) return { error: parsed.error };
     // Read-only lookup, so the card can say which contract it changes.
-    const contract = await prisma.contract.findFirst({
-      where: { id: contractId, deletedAt: null },
-      select: { title: true, startDate: true, endDate: true },
-    });
+    const contract = await contractProposalBasis(contractId);
     if (!contract) return { error: "No contract with that id." };
     const { startDate = contract.startDate, endDate = contract.endDate } = parsed.data;
     if (datesOutOfOrder(startDate, endDate)) return { error: "End date can't be before the start date." };
@@ -526,9 +459,11 @@ const proposeUpdateProductTool = defineTool({
 
 const ALL_TOOLS: RegisteredTool[] = [
   listContractsTool,
+  getContractTool,
   searchContractsTool,
   upcomingRenewalsTool,
   spendSummaryTool,
+  whatsDueTool,
   listProductsTool,
   listTripsTool,
   listVehiclesTool,

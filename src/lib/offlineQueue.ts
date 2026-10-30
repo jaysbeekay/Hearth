@@ -213,9 +213,33 @@ export async function clearDoneOperations(): Promise<void> {
   await Promise.all(done.map((op) => deleteFilesForOp(op.id)));
 }
 
+/**
+ * The signed-in user's changes not yet confirmed by the server: waiting,
+ * failed, or mid-sync. Mid-sync ones count too, since a sync that never
+ * finished leaves them that way until the next load resets them (#424).
+ */
 export async function getPendingCount(): Promise<number> {
-  const ops = await getPendingOperations();
-  return ops.length;
+  const ops = await ownOperations();
+  return ops.filter((op) => op.status !== "done").length;
+}
+
+/**
+ * Puts the signed-in user's changes left "syncing" by a sync that never
+ * finished (a crashed tab, or a request cut off) back to "pending", so the
+ * next sync sends them. Call only when this tab has no sync in flight; a
+ * resend of one that did reach the server is a no-op there (#249 receipts).
+ */
+export async function requeueStuckOperations(): Promise<void> {
+  if (typeof window === "undefined") return;
+  const stuck = (await ownOperations()).filter((op) => op.status === "syncing");
+  await Promise.all(stuck.map((op) => updateOperationStatus(op.id, "pending")));
+}
+
+/** Drops all of the signed-in user's queued changes and their staged files. */
+export async function discardOwnOperations(): Promise<void> {
+  if (typeof window === "undefined") return;
+  const ops = await ownOperations();
+  await Promise.all(ops.map((op) => deleteOperation(op.id)));
 }
 
 // Wraps a server action so that, when offline, the submission is queued
