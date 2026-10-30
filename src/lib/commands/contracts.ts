@@ -12,11 +12,12 @@ import {
 import { assertLinksLive, newLinks } from "@/lib/commands/links";
 import type { ClearablePatch } from "@/lib/validation/fullFormUpdate";
 import type { ContractInput } from "@/lib/validation/contract";
-import type { Prisma } from "@/generated/prisma/client";
+import type { Contract, Prisma } from "@/generated/prisma/client";
+import { pickTermDocument } from "@/lib/contractTerms";
 
 // Record commands for Contracts (ADR 0003). Every write to `contract` goes
-// through here: server actions (the edit form, Cancel / Reactivate, Confirm
-// details, the Assistant), extraction review, the offline sync handler,
+// through here: server actions (the edit form, Renew, Cancel / Reactivate,
+// Confirm details, the Assistant), extraction review, the offline sync handler,
 // import and Trash retention. Callers own sign-in, role checks and Zod
 // parsing; these own the write, file cleanup and revalidation.
 //
@@ -76,7 +77,8 @@ function assertDateOrder(existing: { startDate: Date | null; endDate: Date | nul
 
 interface ContractWrite {
   // The patch, or a function that works it out inside the transaction.
-  patch: ContractPatch | ((tx: Prisma.TransactionClient) => Promise<ContractPatch>);
+  // It's given the Contract as this transaction read it.
+  patch: ContractPatch | ((tx: Prisma.TransactionClient, existing: Contract) => Promise<ContractPatch>);
   // More writes that must land with the patch or not at all.
   alsoInTransaction?: (tx: Prisma.TransactionClient) => Promise<unknown>;
 }
@@ -93,10 +95,11 @@ interface ContractWrite {
 async function writeContract(id: string, actorId: string, options: UpdateOptions, write: ContractWrite) {
   await prisma.$transaction(async (tx) => {
     const existing = await findLiveContract(id, tx);
-    const patch = typeof write.patch === "function" ? await write.patch(tx) : write.patch;
     // Stale first, so a stale offline replay is reported as stale rather
-    // than as a link it no longer means to set.
+    // than as a link it no longer means to set, and before a `patch`
+    // function writes anything (Renew's Term row).
     assertNotStale(existing, options.baseUpdatedAt);
+    const patch = typeof write.patch === "function" ? await write.patch(tx, existing) : write.patch;
     assertDateOrder(existing, patch);
     // In the transaction, so a move to Trash can't land between check and write (#447).
     await assertLinksLive(newLinks(patch, existing), tx);
@@ -165,6 +168,103 @@ export async function confirmContractExtractionCommand(
       tx.extractionReviewField.updateMany({ where: pendingWhere, data: { reviewedAt, reviewedById: actorId } }),
   });
   return { id };
+}
+
+/** The next Term's values, from the Renew form (contractRenewalSchema). */
+export interface ContractRenewal {
+  startDate?: Date | null;
+  endDate: Date;
+  cost?: number | null;
+  /**
+   * The Document that was the paperwork for the Term being kept: an id from
+   * termDocumentCandidates, null for none, or left out to let
+   * pickTermDocument choose (policies first, then the newest).
+   */
+  termDocumentId?: string | null;
+}
+
+/**
+ * The live Documents on a Contract that no earlier Term has: the ones that
+ * could be the paperwork for the Term being kept when it's renewed.
+ */
+export async function termDocumentCandidates(id: string, client: Pick<Prisma.TransactionClient, "document"> = prisma) {
+  return client.document.findMany({
+    where: { contractId: id, deletedAt: null, contractTerms: { none: {} } },
+    select: { id: true, filename: true, category: true, uploadedAt: true },
+    orderBy: { uploadedAt: "desc" },
+  });
+}
+
+/** Why a Contract can't be renewed, or null when it can. The Renew page and the command both ask. */
+export function renewalRefusal(contract: Pick<Contract, "status" | "renewalType" | "endDate">): string | null {
+  if (contract.status === "CANCELLED") return "A cancelled contract can't be renewed. Mark it as active first.";
+  if (contract.renewalType === "FIXED_TERM") return "A fixed-term contract ends rather than renews.";
+  if (!contract.endDate) return "Set the contract's end date before renewing it.";
+  return null;
+}
+
+// #353 — Renew: keeps the current Term as history and makes the given one
+// current. In one transaction it copies the Contract's current dates, cost,
+// currency and billing frequency into a ContractTerm row, then writes the
+// new dates and cost onto the Contract, so a failed or stale renewal leaves
+// neither. Every Term is added by a person through here; nothing renews a
+// Contract automatically. Moving the end date restarts its Reminders on its
+// own, since the Reminder log is keyed by date (ADR 0003).
+//
+// The Term row's Document is the one the Renew form names (it defaults to
+// pickTermDocument's choice). Renewing comes before the new Term's own
+// Document is attached, so that one is never a candidate.
+//
+// Only an active, renewable Contract with an end date can be renewed (see
+// renewalRefusal), and the new end date must be after the current one: a
+// renewal that moves the end date back is an edit, not a new Term.
+export async function renewContractCommand(
+  id: string,
+  renewal: ContractRenewal,
+  actorId: string,
+  options: UpdateOptions = {},
+) {
+  let termId = "";
+  await writeContract(id, actorId, options, {
+    patch: async (tx, current) => {
+      const refusal = renewalRefusal(current);
+      if (refusal) throw new RecordValidationError(refusal);
+      if (current.endDate && renewal.endDate.getTime() <= current.endDate.getTime()) {
+        throw new RecordValidationError("The new end date must be after the current one.");
+      }
+      const candidates = await termDocumentCandidates(id, tx);
+      let documentId: string | null;
+      if (renewal.termDocumentId === undefined) {
+        documentId = pickTermDocument(candidates);
+      } else if (renewal.termDocumentId === null) {
+        documentId = null;
+      } else {
+        const chosen = renewal.termDocumentId;
+        if (!candidates.some((doc) => doc.id === chosen)) {
+          throw new RecordValidationError("That document can't be linked to the term being kept.");
+        }
+        documentId = chosen;
+      }
+      const term = await tx.contractTerm.create({
+        data: {
+          contractId: id,
+          startDate: current.startDate,
+          endDate: current.endDate,
+          cost: current.cost,
+          currency: current.currency,
+          billingFrequency: current.billingFrequency,
+          documentId,
+        },
+      });
+      termId = term.id;
+      return {
+        startDate: renewal.startDate ?? null,
+        endDate: renewal.endDate,
+        cost: renewal.cost ?? null,
+      };
+    },
+  });
+  return { id, termId };
 }
 
 // #287 — soft-delete: moves the contract to Trash instead of removing it.

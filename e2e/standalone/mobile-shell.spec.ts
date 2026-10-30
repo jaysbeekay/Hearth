@@ -12,7 +12,7 @@ test.beforeEach(async ({ page }) => {
 
   await page.addInitScript(() => {
     const preferences = new Map<string, string>();
-    const sqliteRuns: { statement: string; values: unknown[] }[] = [];
+    const sqliteRuns: { statement: string; values: unknown[]; transaction?: boolean }[] = [];
     const scheduledNotifications: unknown[] = [];
     const fileWrites: { directory?: string; path?: string; data?: string }[] = [];
     const rowsByTable: Record<string, unknown[]> = {
@@ -41,6 +41,20 @@ test.beforeEach(async ({ page }) => {
           reminder_days_before: "30,14,7,1",
           extraction_pending: 1,
           updated_at: "2099-01-01T00:00:00.000Z",
+        },
+      ],
+      // #353 — Broadband Plan's previous Term.
+      contract_terms: [
+        {
+          id: "term-1",
+          contract_id: "contract-1",
+          start_date: "2097-07-01",
+          end_date: "2098-06-30",
+          cost: 80,
+          currency: "AUD",
+          billing_frequency: "MONTHLY",
+          document_id: "document-contract-2097",
+          created_at: "2098-06-20T00:00:00.000Z",
         },
       ],
       products: [
@@ -237,6 +251,27 @@ test.beforeEach(async ({ page }) => {
           is_head: 1,
           uploaded_at: "2099-01-01T00:00:00.000Z",
         },
+        // #353 — Broadband Plan's paperwork: the prior Term's (linked to
+        // term-1), the current policy, and a newer receipt. Only for the
+        // tests that ask (withContractDocuments), since the document tests
+        // count what's listed.
+        ...(localStorage.getItem("hearth-test-contract-documents") !== "1" ? [] : [
+          ["document-contract-2097", "broadband-2097.pdf", "POLICY", "2097-07-01T00:00:00.000Z"],
+          ["document-contract-2098", "broadband-2098.pdf", "POLICY", "2098-07-01T00:00:00.000Z"],
+          ["document-contract-receipt", "broadband-receipt.pdf", "RECEIPT", "2099-01-02T00:00:00.000Z"],
+        ].map(([id, filename, kind, uploadedAt]) => ({
+          id,
+          owner_type: "contract",
+          owner_id: "contract-1",
+          filename,
+          storage_key: filename,
+          mime_type: "application/pdf",
+          size: 1024,
+          kind,
+          important: 0,
+          is_head: 1,
+          uploaded_at: uploadedAt,
+        }))),
       ],
       inbox_documents: [
         {
@@ -326,6 +361,12 @@ test.beforeEach(async ({ page }) => {
             return { changes: { changes: 1 } };
           },
           query: async ({ statement, values = [] }: { statement: string; values?: unknown[] }) => ({ values: rowsFor(statement, values) }),
+          // Recorded like run(), one entry per statement, tagged so a test
+          // can tell the statements went in together.
+          executeSet: async ({ set, transaction }: { set: { statement: string; values?: unknown[] }[]; transaction?: boolean }) => {
+            for (const item of set) sqliteRuns.push({ statement: item.statement, values: item.values ?? [], transaction });
+            return { changes: { changes: set.length } };
+          },
           isSecretStored: async () => ({ result: true }),
           setEncryptionSecret: async () => ({}),
           isDatabase: async () => ({ result: true }),
@@ -881,4 +922,113 @@ test("standalone dashboard's missing-info stat card deep-links into a pre-filter
   await expect(page.locator(".tabs").getByRole("button", { name: "Warranties" })).toHaveClass(/active/);
   await expect(page.locator(".chip.active")).toHaveText("Missing key details");
   await expect(page.locator(".list").getByRole("button", { name: /Laptop/ })).toBeVisible();
+});
+
+type SqliteRun = { statement: string; values: unknown[]; transaction?: boolean };
+
+async function sqliteRuns(page: import("@playwright/test").Page): Promise<SqliteRun[]> {
+  return page.evaluate(() => {
+    return (window as Window & { __hearthStandaloneTest?: { sqliteRuns: SqliteRun[] } }).__hearthStandaloneTest?.sqliteRuns ?? [];
+  });
+}
+
+// Reloads the shell with Broadband Plan's documents seeded (see the mock).
+async function withContractDocuments(page: import("@playwright/test").Page) {
+  await page.evaluate(() => localStorage.setItem("hearth-test-contract-documents", "1"));
+  await page.reload();
+  await page.getByRole("button", { name: "Use on this device" }).click();
+  await expect(page.locator("#standalone-screen")).toBeVisible();
+}
+
+async function openBroadbandRenewal(page: import("@playwright/test").Page) {
+  await page.locator(".bottom-nav").getByRole("button", { name: "Contracts" }).click();
+  await page.getByRole("button", { name: /Broadband Plan/ }).click();
+  await page.getByRole("button", { name: "Renew" }).click();
+  await expect(page.locator("#view-title")).toHaveText("Renew contract");
+}
+
+test("standalone Renew keeps the current Term as history and pre-fills the next one (#353)", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "Contracts" }).click();
+  await page.getByRole("button", { name: /Broadband Plan/ }).click();
+  await expect(page.getByRole("heading", { name: "Previous terms" })).toBeVisible();
+  await expect(page.getByText("2097-07-01 – 2098-06-30")).toBeVisible();
+  // $89 a month now against $80 the Term before.
+  await expect(page.getByText(/AUD 89 · \+11% vs prior term/)).toBeVisible();
+
+  await page.getByRole("button", { name: "Renew" }).click();
+  await expect(page.locator("#view-title")).toHaveText("Renew contract");
+  // No start date to measure from, so a year from the day after the end date.
+  await expect(page.locator('input[name="startDate"]')).toHaveValue("2099-07-01");
+  await expect(page.locator('input[name="endDate"]')).toHaveValue("2100-06-30");
+  await expect(page.locator('input[name="cost"]')).toHaveValue("89");
+  await page.locator('input[name="cost"]').fill("95");
+  await page.locator('form[data-save-type="contractRenewal"]').getByRole("button", { name: "Renew" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Saved");
+
+  const runs = await sqliteRuns(page);
+  const term = runs.find((run) => run.statement.includes("INSERT INTO contract_terms"));
+  expect(term?.values.slice(1, 7)).toEqual(["contract-1", null, "2099-06-30", 89, "AUD", "MONTHLY"]);
+  const update = runs.find((run) => run.statement.startsWith("UPDATE contracts SET start_date = ?, end_date = ?, cost = ?"));
+  expect(update?.values.slice(0, 3)).toEqual(["2099-07-01", "2100-06-30", 95]);
+  expect(update?.values.at(-1)).toBe("contract-1");
+  // Both statements went in as one transaction.
+  expect(term?.transaction).toBe(true);
+  expect(update?.transaction).toBe(true);
+});
+
+test("standalone Renew refuses a new end date that isn't after the current one (#353)", async ({ page }) => {
+  await openBroadbandRenewal(page);
+  await page.locator('input[name="startDate"]').fill("");
+  await page.locator('input[name="endDate"]').fill("2099-06-30");
+  await page.locator('form[data-save-type="contractRenewal"]').getByRole("button", { name: "Renew" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("The new end date must be after the current one.");
+  const runs = await sqliteRuns(page);
+  expect(runs.some((run) => run.statement.includes("INSERT INTO contract_terms"))).toBe(false);
+});
+
+test("standalone Renew asks which paperwork goes with the Term being kept, preferring the policy (#353)", async ({ page }) => {
+  await withContractDocuments(page);
+  await openBroadbandRenewal(page);
+  // The 2097 policy is already the prior Term's, so the choice is between
+  // the current policy and a newer receipt; the policy is picked.
+  const paperwork = page.locator('select[name="termDocumentId"]');
+  await expect(paperwork.locator("option")).toHaveText(["broadband-receipt.pdf", "broadband-2098.pdf", "None"]);
+  await expect(paperwork).toHaveValue("document-contract-2098");
+  await page.locator('form[data-save-type="contractRenewal"]').getByRole("button", { name: "Renew" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Saved");
+  const term = (await sqliteRuns(page)).find((run) => run.statement.includes("INSERT INTO contract_terms"));
+  expect(term?.values[7]).toBe("document-contract-2098");
+});
+
+test("standalone Renew warns about an end date that has already passed (#353)", async ({ page }) => {
+  await openBroadbandRenewal(page);
+  const warning = page.getByText("This date has already passed");
+  await expect(warning).toBeHidden();
+  await page.locator('input[name="endDate"]').fill("2001-01-01");
+  await expect(warning).toBeVisible();
+  await page.locator('input[name="endDate"]').fill("2100-06-30");
+  await expect(warning).toBeHidden();
+});
+
+test("standalone Renew adds one Term however many times it's tapped (#353)", async ({ page }) => {
+  await openBroadbandRenewal(page);
+  const submit = page.locator('form[data-save-type="contractRenewal"]').getByRole("button", { name: "Renew" });
+  await page.evaluate(() => {
+    const button = document.querySelector<HTMLButtonElement>('form[data-save-type="contractRenewal"] button[type="submit"]');
+    button?.click();
+    button?.click();
+  });
+  await expect(page.locator("#standalone-status")).toContainText("Saved");
+  await expect(submit).toHaveCount(0);
+  const inserts = (await sqliteRuns(page)).filter((run) => run.statement.includes("INSERT INTO contract_terms"));
+  expect(inserts).toHaveLength(1);
+});
+
+test("standalone Previous terms opens the prior Term's document (#353)", async ({ page }) => {
+  await withContractDocuments(page);
+  await page.locator(".bottom-nav").getByRole("button", { name: "Contracts" }).click();
+  await page.getByRole("button", { name: /Broadband Plan/ }).click();
+  const popup = page.waitForEvent("popup");
+  await page.getByRole("button", { name: "Open broadband-2097.pdf" }).click();
+  await popup;
 });

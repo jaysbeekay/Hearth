@@ -42,7 +42,7 @@ const BACKUP_ROOT = "hearth-backups";
 const REMINDER_CHANNEL_ID = "hearth-standalone-reminders";
 const REMINDER_HOUR = 9;
 // Bump with every ensureStandaloneSchema change; backups record it too.
-const STANDALONE_SCHEMA_VERSION = 9;
+const STANDALONE_SCHEMA_VERSION = 10;
 const MAX_IMPORTED_TRADES = 5000;
 const ALLOWED_MIME_TYPES = new Set([
   "application/pdf",
@@ -372,6 +372,17 @@ CREATE TABLE IF NOT EXISTS documents (
   deleted_at TEXT,
   version INTEGER NOT NULL DEFAULT 1
 );
+CREATE TABLE IF NOT EXISTS contract_terms (
+  id TEXT PRIMARY KEY,
+  contract_id TEXT NOT NULL,
+  start_date TEXT,
+  end_date TEXT,
+  cost REAL,
+  currency TEXT NOT NULL DEFAULT 'AUD',
+  billing_frequency TEXT,
+  document_id TEXT,
+  created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS reminder_delivery_logs (
   id TEXT PRIMARY KEY,
   owner_type TEXT NOT NULL,
@@ -426,6 +437,7 @@ let cache = emptyCache();
 const BACKUP_TABLES = [
   { key: "profile", table: "local_profile", columns: ["id", "display_name", "default_currency", "created_at", "updated_at", "version"] },
   { key: "contracts", table: "contracts", columns: ["id", "title", "category", "provider", "contract_number", "start_date", "end_date", "renewal_type", "notice_period_days", "cost", "currency", "billing_frequency", "status", "contact_name", "contact_phone", "contact_email", "notes", "reminder_days_before", "is_tax_deductible", "extraction_pending", "extraction_confirmed_at", "property_id", "vehicle_id", "created_at", "updated_at", "deleted_at", "version"] },
+  { key: "contractTerms", table: "contract_terms", columns: ["id", "contract_id", "start_date", "end_date", "cost", "currency", "billing_frequency", "document_id", "created_at"] },
   { key: "products", table: "products", columns: ["id", "description", "manufacturer", "model", "vendor", "serial_number", "barcode", "purchase_date", "warranty_end_date", "price", "currency", "notes", "reminder_days_before", "extraction_pending", "extraction_confirmed_at", "property_id", "created_at", "updated_at", "deleted_at", "version"] },
   { key: "vehicles", table: "vehicles", columns: ["id", "label", "make", "model", "year", "colour", "license_plate", "vin", "rego_expiry", "insurance_expiry", "next_service_due", "reminder_days_before", "notes", "created_at", "updated_at", "deleted_at", "version"] },
   { key: "vehicleItems", table: "vehicle_items", columns: ["id", "vehicle_id", "type", "title", "provider", "date", "cost", "currency", "notes", "deleted_at", "created_at", "updated_at", "version"] },
@@ -452,6 +464,7 @@ function emptyCache() {
   return {
     profile: null,
     contracts: [],
+    contractTerms: [],
     products: [],
     vehicles: [],
     vehicleItems: [],
@@ -632,6 +645,7 @@ async function loadData() {
   const [
     profileRows,
     contracts,
+    contractTerms,
     products,
     vehicles,
     vehicleItems,
@@ -651,6 +665,7 @@ async function loadData() {
   ] = await Promise.all([
     query("SELECT * FROM local_profile WHERE id = 'local' LIMIT 1"),
     query("SELECT * FROM contracts WHERE deleted_at IS NULL ORDER BY updated_at DESC"),
+    query("SELECT * FROM contract_terms ORDER BY created_at DESC"),
     query("SELECT * FROM products WHERE deleted_at IS NULL ORDER BY updated_at DESC"),
     query("SELECT * FROM vehicles WHERE deleted_at IS NULL ORDER BY updated_at DESC"),
     query("SELECT * FROM vehicle_items WHERE deleted_at IS NULL ORDER BY updated_at DESC"),
@@ -671,6 +686,7 @@ async function loadData() {
   cache = {
     profile: profileRows[0] ?? { id: "local", display_name: "Hearth standalone", default_currency: "AUD" },
     contracts,
+    contractTerms,
     products,
     vehicles,
     vehicleItems,
@@ -1230,7 +1246,7 @@ async function render() {
     settings: "Settings",
     help: "Help",
     detail: "Details",
-    form: state.form?.id ? "Edit record" : "Add record",
+    form: state.form?.type === "contractRenewal" ? "Renew contract" : state.form?.id ? "Edit record" : "Add record",
   };
   viewTitle.textContent = titleMap[route] ?? "Hearth";
   viewKicker.textContent = route === "dashboard" ? "Standalone" : "Private local records";
@@ -2344,11 +2360,13 @@ function renderDetail() {
     <section class="card form-card">
       <div class="actions">
         <button data-form-type="${escapeAttr(type)}" data-id="${escapeAttr(id)}">Edit</button>
+        ${type === "contracts" && canRenewContract(row) ? `<button data-form-type="contractRenewal" data-id="${escapeAttr(id)}">Renew</button>` : ""}
         <button class="danger" data-delete-record="${escapeAttr(type)}" data-id="${escapeAttr(id)}">Delete</button>
       </div>
       <div class="detail-grid">${renderDetailRows(type, row)}</div>
       ${renderRecordReminderHealth(type, row)}
     </section>
+    ${type === "contracts" ? renderPreviousTerms(row.id) : ""}
     ${type === "vehicles" ? renderChildRecords("Service records", "vehicleItems", cache.vehicleItems.filter((item) => item.vehicle_id === row.id), row.id, "No service records", "Track services, repairs and roadworthies here.") : ""}
     ${type === "properties" ? renderPropertyRentalSummary(row.id) : ""}
     ${type === "properties" ? renderChildRecords("Warranties", "products", cache.products.filter((item) => item.property_id === row.id), row.id, "No warranties linked", "Register a warranty to this home so it shows up here.") : ""}
@@ -2444,7 +2462,7 @@ function renderDetailRows(type, row) {
       ["Start", readableDate(row.start_date)],
       ["End", readableDate(row.end_date)],
       ["Reminder thresholds", row.reminder_days_before || "30,14,7,1"],
-      ["Cost", money(row.cost, row.currency)],
+      ["Cost", [money(row.cost, row.currency), contractCostChangeText(row)].filter(Boolean).join(" · ") || null],
       ["Billing", row.billing_frequency],
       ["Contact", [row.contact_name, row.contact_email, row.contact_phone].filter(Boolean).join(" · ")],
       ["Notes", row.notes],
@@ -2904,6 +2922,7 @@ function renderSearchResult(result) {
 function renderForm() {
   if (!state.form) return empty("No form selected", "Choose something to add.");
   const type = state.form.type;
+  if (type === "contractRenewal") return renderContractRenewalForm(getRecord("contracts", state.form.id));
   const row = state.form.id ? getRecord(type, state.form.id) : null;
   const title = state.form.id ? `Edit ${typeLabel(type).toLowerCase()}` : `Add ${typeLabel(type).toLowerCase()}`;
   const recordTypesWithoutInlineFiles = new Set(["vehicleItems", "homeItems", "tripSegments", "holdings", "trades"]);
@@ -3209,6 +3228,7 @@ function formFile(form) {
 
 async function saveForm(form) {
   const type = form.dataset.saveType;
+  if (type === "contractRenewal") await renewContract(form);
   if (type === "contracts") await saveContract(form);
   if (type === "products") await saveProduct(form);
   if (type === "vehicles") await saveVehicle(form);
@@ -3223,7 +3243,7 @@ async function saveForm(form) {
   if (type === "portfolios") await savePortfolio(form);
   if (type === "holdings") await saveHolding(form);
   if (type === "trades") await saveTrade(form);
-  if (state.localRemindersEnabled && REMINDER_RECORD_TYPES.includes(type)) {
+  if (state.localRemindersEnabled && (REMINDER_RECORD_TYPES.includes(type) || type === "contractRenewal")) {
     await syncLocalReminders(false).catch((error) => showStandaloneStatus(error.message || "Saved, but reminders could not be rescheduled."));
   }
   state.route = state.backTo ?? (["vehicleItems", "homeItems", "rentalAgreements", "rentalStatements", "tripSegments", "holdings", "trades"].includes(type) ? "detail" : "records");
@@ -4089,6 +4109,242 @@ async function saveLocalProfile(form) {
   await render();
 }
 
+// #353 — Renew, hand-ported from src/lib/contractTerms.ts and
+// renewContractCommand (src/lib/commands/contracts.ts): the current Term's
+// dates and cost are kept as a contract_terms row and the new Term's are
+// written onto the contract, in one transaction. A fixed-term Contract is
+// meant to end, a Cancelled one is reactivated first, and one with no end
+// date has no Term to continue from, so none of them offers Renew.
+function renewalRefusal(row) {
+  if (!row) return "Contract not found.";
+  if (row.status !== "ACTIVE") return "A cancelled contract can't be renewed. Mark it as active first.";
+  if (row.renewal_type === "FIXED_TERM") return "A fixed-term contract ends rather than renews.";
+  if (!validTermDay(row.end_date)) return "Set the contract's end date before renewing it.";
+  return null;
+}
+
+function canRenewContract(row) {
+  return renewalRefusal(row) === null;
+}
+
+function termDayParts(day) {
+  const [year, month, date] = String(day).slice(0, 10).split("-").map(Number);
+  return { year, month, date };
+}
+
+function termDayString(year, month, date) {
+  return `${year}-${String(month).padStart(2, "0")}-${String(date).padStart(2, "0")}`;
+}
+
+function termAddDays(day, days) {
+  const { year, month, date } = termDayParts(day);
+  const moved = new Date(Date.UTC(year, month - 1, date + days));
+  return termDayString(moved.getUTCFullYear(), moved.getUTCMonth() + 1, moved.getUTCDate());
+}
+
+function termAddMonths(day, months) {
+  const { year, month, date } = termDayParts(day);
+  const index = year * 12 + (month - 1) + months;
+  const newYear = Math.floor(index / 12);
+  const newMonth = (index % 12) + 1;
+  const lastDay = new Date(Date.UTC(newYear, newMonth, 0)).getUTCDate();
+  return termDayString(newYear, newMonth, Math.min(date, lastDay));
+}
+
+function validTermDay(value) {
+  const text = String(value ?? "").slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) && !Number.isNaN(Date.parse(`${text}T00:00:00Z`)) ? text : null;
+}
+
+// Today on this phone, as YYYY-MM-DD (daysUntil counts in the same day).
+function localTermToday() {
+  const now = new Date();
+  return termDayString(now.getFullYear(), now.getMonth() + 1, now.getDate());
+}
+
+// The next Term starts the day after the current end date and lasts as long
+// as the current one: whole months stay whole months, anything else is kept
+// in days, and with no start date a year is assumed. `rollForwardTo` (today,
+// for an auto-renewing Contract) skips whole Terms until the end date is on
+// or after that day.
+function nextTermDates(row, rollForwardTo = null) {
+  const end = validTermDay(row?.end_date);
+  if (!end) return { startDate: "", endDate: "" };
+  const nextStart = termAddDays(end, 1);
+  const start = validTermDay(row?.start_date);
+  let months = null;
+  if (!start || start > end) {
+    months = 12;
+  } else {
+    const from = termDayParts(start);
+    const to = termDayParts(nextStart);
+    const between = (to.year - from.year) * 12 + (to.month - from.month);
+    if (from.date === to.date && between > 0) months = between;
+  }
+  const lengthDays = start ? Math.round((Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86400000) : 0;
+  const term = (k) => {
+    if (months) {
+      return { startDate: termAddMonths(nextStart, months * k), endDate: termAddDays(termAddMonths(nextStart, months * (k + 1)), -1) };
+    }
+    const termStart = termAddDays(nextStart, (lengthDays + 1) * k);
+    return { startDate: termStart, endDate: termAddDays(termStart, lengthDays) };
+  };
+  let k = 0;
+  while (rollForwardTo && k < 10000 && term(k).endDate < rollForwardTo) k += 1;
+  return term(k);
+}
+
+// How much `current` costs against `previous`, as a fraction, or null when
+// they can't be compared (a missing or zero cost, another currency, or
+// another billing frequency).
+function termCostChange(current, previous) {
+  if (!current || !previous) return null;
+  if (current.cost == null || previous.cost == null || current.cost === "" || previous.cost === "") return null;
+  const now = Number(current.cost);
+  const before = Number(previous.cost);
+  if (!Number.isFinite(now) || !Number.isFinite(before) || before <= 0) return null;
+  if ((current.currency || "AUD") !== (previous.currency || "AUD")) return null;
+  if ((current.billing_frequency || null) !== (previous.billing_frequency || null)) return null;
+  return (now - before) / before;
+}
+
+function formatTermCostChange(change) {
+  const percent = Math.round(change * 100);
+  if (percent === 0) return "Same as prior term";
+  return `${percent > 0 ? "+" : "−"}${Math.abs(percent)}% vs prior term`;
+}
+
+// Newest first.
+function contractTerms(contractId) {
+  return cache.contractTerms.filter((term) => term.contract_id === contractId);
+}
+
+function contractCostChangeText(row) {
+  const change = termCostChange(row, contractTerms(row.id)[0]);
+  return change == null ? null : formatTermCostChange(change);
+}
+
+// The contract's documents no earlier Term has: what could be the paperwork
+// for the Term being kept.
+function termDocumentCandidates(contractId) {
+  const linked = new Set(contractTerms(contractId).map((term) => term.document_id).filter(Boolean));
+  return docsFor("contract", contractId)
+    .filter((doc) => !linked.has(doc.id))
+    .sort((a, b) => String(b.uploaded_at).localeCompare(String(a.uploaded_at)));
+}
+
+// Policies and agreements first, then uncategorised, then the rest; newest
+// first within each.
+function pickTermDocument(candidates) {
+  const rank = (doc) => (["POLICY", "RENTAL_AGREEMENT"].includes(doc.kind) ? 0 : !doc.kind || doc.kind === "OTHER" ? 1 : 2);
+  const [best] = [...candidates].sort((a, b) => rank(a) - rank(b) || String(b.uploaded_at).localeCompare(String(a.uploaded_at)));
+  return best?.id ?? null;
+}
+
+function renderPreviousTerms(contractId) {
+  const terms = contractTerms(contractId);
+  if (terms.length === 0) return "";
+  return `
+    <section class="card form-card">
+      <div class="section-title">
+        <h2>Previous terms</h2>
+      </div>
+      <div class="list">
+        ${terms.map((term, index) => {
+          const change = termCostChange(term, terms[index + 1]);
+          const doc = term.document_id ? cache.documents.find((item) => item.id === term.document_id) : null;
+          const meta = [
+            money(term.cost, term.currency) ?? "No cost",
+            term.billing_frequency,
+            change == null ? null : formatTermCostChange(change),
+          ].filter(Boolean).join(" · ");
+          return `
+            <article class="record-card">
+              <h3>${escapeHtml(`${readableDate(term.start_date) ?? "—"} – ${readableDate(term.end_date) ?? "—"}`)}</h3>
+              <p class="card-meta">${escapeHtml(meta)}</p>
+              ${doc ? `<div class="actions"><button data-open-document="${escapeAttr(doc.id)}">Open ${escapeHtml(doc.filename)}</button></div>` : ""}
+            </article>
+          `;
+        }).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderContractRenewalForm(row) {
+  if (!row) return empty("Record not found", "It may have been removed.");
+  const today = localTermToday();
+  const next = nextTermDates(row, row.renewal_type === "AUTO_RENEW" ? today : null);
+  const candidates = termDocumentCandidates(row.id);
+  const picked = pickTermDocument(candidates);
+  return `
+    <form class="form-card" data-save-type="contractRenewal" data-id="${escapeAttr(row.id)}">
+      <h2>Renew ${escapeHtml(recordTitle("contracts", row))}</h2>
+      <p class="muted">Current term: ${escapeHtml(readableDate(row.start_date) ?? "—")} – ${escapeHtml(readableDate(row.end_date) ?? "—")}, ${escapeHtml(money(row.cost, row.currency) ?? "no cost")}. It's kept under Previous terms once you renew.</p>
+      <div class="field-grid">
+        <label>New start date<input name="startDate" type="date" value="${escapeAttr(next.startDate)}" /></label>
+        <label>New end date<input name="endDate" type="date" value="${escapeAttr(next.endDate)}" data-today="${escapeAttr(today)}" required /></label>
+        <p class="muted" data-end-date-passed ${next.endDate && next.endDate < today ? "" : "hidden"}>This date has already passed, so the contract will still need attention after renewing.</p>
+        <label>New cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(row.cost ?? "")}" /></label>
+        ${candidates.length >= 2 ? `<label>Paperwork for the term being kept<select name="termDocumentId">
+          ${candidates.map((doc) => `<option value="${escapeAttr(doc.id)}" ${doc.id === picked ? "selected" : ""}>${escapeHtml(doc.filename)}</option>`).join("")}
+          <option value="">None</option>
+        </select></label>` : ""}
+      </div>
+      <input name="file" type="file" accept=".pdf,.doc,.docx,image/jpeg,image/png,image/webp,image/heic" />
+      <div class="actions">
+        <button type="submit">Renew</button>
+        <button type="button" class="secondary" data-cancel-form>Cancel</button>
+      </div>
+    </form>
+  `;
+}
+
+async function renewContract(form) {
+  const submit = form.querySelector('button[type="submit"]');
+  // A double tap mustn't add two Terms.
+  if (submit?.disabled) return;
+  if (submit) submit.disabled = true;
+  try {
+    const id = form.dataset.id;
+    // Re-read what's saved now, not the copy the form was drawn from.
+    const [row] = await query("SELECT id, status, renewal_type, start_date, end_date, cost, currency, billing_frequency FROM contracts WHERE id = ? AND deleted_at IS NULL", [id]);
+    const refusal = renewalRefusal(row);
+    if (refusal) throw new Error(refusal);
+    const startDate = valueOrNull(fieldValue(form, "startDate"));
+    const endDate = valueOrNull(fieldValue(form, "endDate"));
+    if (!endDate) throw new Error("Enter the new end date.");
+    if (startDate && endDate < startDate) throw new Error("End date can't be before the start date.");
+    if (endDate <= validTermDay(row.end_date)) throw new Error("The new end date must be after the current one.");
+    const candidates = termDocumentCandidates(id);
+    const chosen = form.elements.namedItem("termDocumentId");
+    let documentId = pickTermDocument(candidates);
+    if (chosen && "value" in chosen) {
+      documentId = chosen.value || null;
+      if (documentId && !candidates.some((doc) => doc.id === documentId)) throw new Error("That document can't be linked to the term being kept.");
+    }
+    const now = nowIso();
+    await SQLite.executeSet({
+      database: DB,
+      transaction: true,
+      set: [
+        {
+          statement: "INSERT INTO contract_terms (id, contract_id, start_date, end_date, cost, currency, billing_frequency, document_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          values: [localId("term"), id, row.start_date ?? null, row.end_date ?? null, row.cost ?? null, row.currency || defaultCurrency(), row.billing_frequency ?? null, documentId, now],
+        },
+        {
+          statement: "UPDATE contracts SET start_date = ?, end_date = ?, cost = ?, updated_at = ?, version = version + 1 WHERE id = ?",
+          values: [startDate, endDate, numberOrNull(fieldValue(form, "cost")), now, id],
+        },
+      ],
+    });
+    await maybeStoreFormFile(form, "contract", id);
+  } catch (error) {
+    if (submit) submit.disabled = false;
+    throw error;
+  }
+}
+
 async function confirmDetails(type, id) {
   const table = type === "contracts" ? "contracts" : type === "products" ? "products" : null;
   if (!table) return;
@@ -4407,6 +4663,11 @@ mobileView.addEventListener("click", async (event) => {
 });
 
 mobileView.addEventListener("input", (event) => {
+  // #353 — the Renew form warns when the new end date has already passed.
+  if (event.target.dataset?.today !== undefined) {
+    const warning = event.target.closest("form")?.querySelector("[data-end-date-passed]");
+    if (warning) warning.hidden = !(event.target.value && event.target.value < event.target.dataset.today);
+  }
   if (event.target.id === "record-search") {
     state.recordQuery = event.target.value;
     const target = $("record-results");
