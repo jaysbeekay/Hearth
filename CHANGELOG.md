@@ -61,6 +61,18 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Reminders for a tenancy's lease end.** The current tenancy of a rented
+  property now gets Reminders before its lease ends, linking to the
+  property: an email headed `Reminder: lease for "Beach Flat" ends in 30
+  days`, an ntfy push titled `Lease for Beach Flat ends in 30 days`, and a
+  webhook. The tenant's name is only in the email; ntfy and webhooks leave
+  it out. It uses the household default thresholds unless the tenancy
+  sets its own: the tenancy form has a new "Reminder thresholds" field,
+  which also sets how early the lease end shows as Due. The property page
+  has a "Lease reminders" health card, a failed lease Reminder shows on the
+  dashboard and in Settings' reminder roll-up, and webhooks get a new
+  `tenancy.expiring` event (see README → Webhooks). The standalone app
+  schedules a local notification for the lease end too (#388).
 - **Household timezone.** Admins pick any timezone in Settings → Household
   & System; until then it follows the server's `TZ`, else the server's own
   zone, else UTC. Reminders and due dates will count days in it, so every
@@ -127,6 +139,23 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- **One Document list (#397).** Every record's Documents use the same list:
+  Contracts, Warranties, Maintenance records, Service records, Inventory
+  items, Trip segments, Rental statements and Trades. Each Document shows
+  its Document type, a star, a preview for PDFs and images, and Move to
+  Trash with Undo, and re-uploads are grouped under the latest version.
+  Trip segment, Rental statement, Maintenance record, Service record,
+  Inventory and Trade Documents gain the star, type and version history;
+  Contract Documents gain the preview. Trade Documents are no longer drawn
+  as chips on the holding page. The seven per-record list components are
+  replaced by `src/components/DocumentList.tsx`. A version in Trash no
+  longer splits its Document in two: the list follows the chain past it,
+  including when a new version is filed on top of one in Trash. Older
+  versions show their own preview and type, and a star they still have
+  (a new version doesn't inherit it), so it can be removed. The row's
+  buttons are 44px touch targets. HEIC photos are no longer previewed or
+  thumbnailed, since most browsers can't show them, and an unrecognised
+  stored type shows no pill instead of the raw value.
 - **One set of Contract queries for MCP and the Assistant, plus `whats_due`
   (#394).** Both now call the same queries in `src/lib/domainQueries.ts`,
   so they return the same answer:
@@ -449,6 +478,22 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 - **A refused passkey says so.** Signing in with a passkey Hearth doesn't
   know (for example one removed in Settings) used to drop silently back to
   the sign-in page; it now shows "Passkey sign-in failed" (#376).
+- **An Inventory item in Trash can't be edited (#446).** Saving an edit form
+  left open while the item was moved to Trash, or replaying an offline edit
+  to it, now fails with "Item not found." instead of changing the trashed
+  item. Updates go through a new Inventory record command
+  (`src/lib/commands/inventory.ts`) with the same Trash rule and stale-edit
+  check as the other modules. A new warranty link must be to a Warranty that
+  isn't in Trash; a link the item already has is kept.
+- **Contracts and Warranties can't be linked to a Property or Vehicle in
+  Trash (#447).** The link check now runs inside the Contract and Product
+  commands, in the write's transaction, so every caller gets it: the forms,
+  import, the Assistant and offline sync replays, which skipped it before.
+  A link the record already has is kept when the rest of it is edited, even
+  if that Property or Vehicle has since gone to Trash, and the Assistant's
+  update proposals follow the same rule. A refused link on an edit form
+  keeps what was entered. An offline edit that's both stale and links a
+  trashed record is reported as stale.
 - **Day counts a day short on servers west of UTC (#394).** `daysUntil`
   read stored dates (UTC midnight) in the server's local time, so MCP and
   the Assistant's warranty and vehicle day counts came out a day short west

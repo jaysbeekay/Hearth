@@ -301,6 +301,7 @@ describe("a failure a later threshold's send replaced", () => {
     const records = {
       CONTRACT: new Map(),
       PRODUCT: new Map(),
+      TENANCY: new Map(),
       VEHICLE: new Map([[vehicle.id, { kind: "vehicle" as const, ...vehicle }]]),
     };
     const ctx = (today: string) => ({ today, defaultReminderDays: "30,14,7,1" });
@@ -331,7 +332,7 @@ describe("a failure a later threshold's send replaced", () => {
         { ...base, channel: "WEBHOOK", thresholdDays: 1, status: "SENT", sentAt: new Date("2026-11-29T09:00:00Z") },
       ],
     });
-    const records = { CONTRACT: new Map(), PRODUCT: new Map(), VEHICLE: new Map([[vehicle.id, { kind: "vehicle" as const, ...vehicle }]]) };
+    const records = { CONTRACT: new Map(), PRODUCT: new Map(), TENANCY: new Map(), VEHICLE: new Map([[vehicle.id, { kind: "vehicle" as const, ...vehicle }]]) };
     const failing = await getCurrentReminderFailures(records, { today: "2026-11-29", defaultReminderDays: "30,14,7,1" });
     expect(failing.map((f) => f.channel)).toEqual(["EMAIL"]);
   });

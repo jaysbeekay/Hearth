@@ -5,6 +5,7 @@ import { isSmtpConfigured, isNtfyConfigured, getReminderConfig, getHouseholdToda
 import { sendReminderEmail, sendTestEmail } from "@/lib/notifications/email";
 import { sendNtfyReminder, sendTestNtfy } from "@/lib/notifications/ntfy";
 import { prisma } from "@/lib/prisma";
+import { getCurrentTenancy } from "@/lib/tenancies";
 import { env, isAppUrlConfigured } from "@/lib/env";
 import type { ReminderInput, TestPreview, VehicleReminderField } from "@/lib/notifications/reminderContent";
 import { getNotificationLogsByOwner, toSentLogRow } from "@/lib/notifications/logs";
@@ -17,7 +18,7 @@ import {
 import type { NotificationOwnerType } from "@/generated/prisma/enums";
 
 export type TestReminderTarget =
-  | { kind: "contract" | "warranty"; id: string }
+  | { kind: "contract" | "warranty" | "tenancy"; id: string }
   | { kind: "vehicle"; id: string; field: VehicleReminderField };
 
 // The reminder this record would actually send, so a test proves the
@@ -78,6 +79,22 @@ async function reminderForTarget(
       title: product.description,
       detail: product.manufacturer ?? product.vendor ?? "",
       endDate: product.warrantyEndDate,
+      ...testFields(p),
+    };
+  }
+  if (target.kind === "tenancy") {
+    // #388 — only a rented Property's current Tenancy gets Reminders.
+    const t = await getCurrentTenancy(target.id);
+    if (!t) return null;
+    const p = await preview("TENANCY", t.tenancy.id, { kind: "tenancy", ...t.tenancy });
+    if (!p) return null;
+    return {
+      kind: "tenancy",
+      id: t.tenancy.id,
+      propertyId: t.propertyId,
+      title: t.propertyLabel,
+      detail: t.tenancy.tenantName ?? "",
+      endDate: dayToDate(p.entry.date),
       ...testFields(p),
     };
   }
