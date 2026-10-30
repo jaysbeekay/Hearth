@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { BackLink } from "@/components/BackLink";
 import { notFound } from "next/navigation";
-import { Pencil, Trash2, Ban, RotateCcw, Home, Car } from "lucide-react";
+import { Pencil, Trash2, Ban, RotateCcw, RotateCw, Home, Car } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { addDocumentAction } from "@/lib/actions/documents";
 import {
@@ -24,13 +24,9 @@ import { RecordMeta } from "@/components/RecordMeta";
 import { ReminderHealthCard } from "@/components/ReminderHealthCard";
 import { getReminderHealth } from "@/lib/notifications/health";
 import { DocFallbackBanner } from "@/components/DocFallbackBanner";
-import {
-  CATEGORY_LABELS,
-  BILLING_LABELS,
-  RENEWAL_LABELS,
-  formatCurrency,
-  formatDate,
-} from "@/lib/utils";
+import { ContractTermHistory } from "@/components/ContractTermHistory";
+import { formatTermCost, formatTermCostChange, termCostChange } from "@/lib/contractTerms";
+import { CATEGORY_LABELS, RENEWAL_LABELS, formatCurrency, formatDate } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { getDueContext } from "@/lib/appSettings";
 import { addDays, calendarDayOf, noticeApplies } from "@/lib/duePolicy";
@@ -59,6 +55,13 @@ export default async function ContractDetailPage({
         property: true,
         vehicle: true,
         rentalAgreement: { include: { property: true } },
+        // #353 — earlier Terms, newest first.
+        terms: {
+          orderBy: { createdAt: "desc" },
+          include: {
+            document: { select: { id: true, filename: true, mimeType: true, size: true, deletedAt: true } },
+          },
+        },
       },
     }),
     getUserPreferences(),
@@ -80,6 +83,11 @@ export default async function ContractDetailPage({
   const noticeDeadline = endDay && noticeApplies(contract) ? addDays(endDay, -(contract.noticePeriodDays ?? 0)) : null;
   const cancelled = contract.status === "CANCELLED";
   const fixedTerm = contract.renewalType === "FIXED_TERM";
+  // #353 — a fixed-term Contract is meant to end, and a Cancelled one is
+  // marked active first, so neither offers Renew.
+  const canRenew = !fixedTerm && !cancelled;
+  const renewHref = `/contracts/${contract.id}/renew`;
+  const costChange = termCostChange(contract, contract.terms.at(0));
   const boundUpload = addDocumentAction.bind(null, "CONTRACT", contract.id);
   const statusAction = setContractStatus.bind(null, contract.id, cancelled ? "ACTIVE" : "CANCELLED");
   const statusLabel = cancelled ? "Mark as active" : "Mark as cancelled";
@@ -117,10 +125,30 @@ export default async function ContractDetailPage({
                 <Pencil size={16} />
                 Edit
               </Link>
+              {/* #353 — on a phone Renew moves into the ⋮ menu (and stays
+                  in the Due banner), so the header keeps to one row. */}
+              {canRenew && (
+                <Link
+                  href={renewHref}
+                  className="hidden items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover sm:inline-flex"
+                >
+                  <RotateCw size={16} />
+                  Renew
+                </Link>
+              )}
               {/* #370 — status changes are rare, so they sit in the overflow
                   menu next to Delete (and in the expiry banner when it's
                   relevant), keeping the header to one row on mobile. */}
               <DetailOverflowMenu>
+                {canRenew && (
+                  <Link
+                    href={renewHref}
+                    className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-hover sm:hidden"
+                  >
+                    <RotateCw size={16} />
+                    Renew
+                  </Link>
+                )}
                 <ConfirmForm
                   action={statusAction}
                   confirmText={statusConfirmText}
@@ -152,9 +180,13 @@ export default async function ContractDetailPage({
       {!cancelled && (
         <DetailStatusBanner
           entries={dueEntries}
-          hasDocuments={contract.documents.length > 0}
+          // The Renew form takes the new Term's Document itself, so Renew is
+          // the action whether or not one is attached yet (#353).
+          hasDocuments
           documentsHref="#documents"
           editHref={`/contracts/${contract.id}/edit`}
+          renewHref={renewHref}
+          newEndDateHref={renewHref}
           // A fixed-term Contract is meant to end: nothing to renew, and
           // nothing to give notice of.
           renewLabel={fixedTerm ? undefined : "Renew"}
@@ -209,17 +241,15 @@ export default async function ContractDetailPage({
           <Detail
             label="Cost"
             value={
-              contract.cost != null
-                ? `${formatCurrency(contract.cost, contract.currency, undefined, region)}${
-                    contract.billingFrequency
-                      ? ` / ${BILLING_LABELS[contract.billingFrequency]?.toLowerCase()}`
-                      : ""
-                  }`
-                : "—"
+              costChange != null
+                ? `${formatTermCost(contract, region)} · ${formatTermCostChange(costChange)}`
+                : formatTermCost(contract, region)
             }
           />
         </dl>
       </div>
+
+      <ContractTermHistory terms={contract.terms} dateFormat={dateFormat} region={region} />
 
       {!cancelled && contract.endDate && (
         <ReminderHealthCard

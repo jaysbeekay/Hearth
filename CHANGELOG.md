@@ -21,6 +21,18 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Renew a Contract.** Renew on a Contract's page, its Due banner and
+  Needs attention opens a short form for the next Term: new start and end
+  dates and cost, pre-filled from the current Term (it starts the day after
+  the current end date and lasts as long), plus an optional Document that's
+  scanned to fill in the dates. Saving keeps the current Term's dates, cost
+  and Document under a new **Previous terms** section instead of
+  overwriting them, and the cost shows how it compares with the last Term
+  ("+12% vs last term"). Reminders restart for the new end date and the
+  Contract leaves Needs attention. An auto-renewing Contract past its end
+  date gets its new end date the same way. Renewing goes through the
+  Contract command, and the MCP `get_contract` tool lists previous terms.
+  The standalone app has the same Renew form and history (#353).
 - **Household timezone.** Admins pick any timezone in Settings → Household
   & System; until then it follows the server's `TZ`, else the server's own
   zone, else UTC. Reminders and due dates will count days in it, so every

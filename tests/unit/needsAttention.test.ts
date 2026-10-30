@@ -124,8 +124,17 @@ describe("Due rows follow the Due policy (#384)", () => {
     const [item] = buildContractAttentionItems([contract("auto", -3, { renewalType: "AUTO_RENEW" })], ctx);
     expect(item.group).toBe("housekeeping");
     expect(item.entry?.state).toBe("needs-new-end-date");
-    expect(item.action?.label).toBe("Set the new end date");
+    expect(item.action).toEqual({ label: "Set the new end date", href: "/contracts/auto/renew" });
     expect(item.canMarkCancelled).toBeUndefined();
+  });
+
+  it("an end date opens the Renew form, a notice deadline the detail page (#353)", () => {
+    const [ending] = buildContractAttentionItems([contract("c", 5)], ctx);
+    expect(ending.entry?.field).toBe("endDate");
+    expect(ending.action).toEqual({ label: "Renew", href: "/contracts/c/renew" });
+    const [notice] = buildContractAttentionItems([contract("n", 10, { noticePeriodDays: 7 })], ctx);
+    expect(notice.entry?.field).toBe("noticeDeadline");
+    expect(notice.action).toEqual({ label: "Renew or cancel", href: "/contracts/n" });
   });
 
   it("a fixed-term Contract ending soon is Due but offers nothing to renew", () => {

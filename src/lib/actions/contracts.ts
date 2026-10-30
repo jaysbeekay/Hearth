@@ -2,7 +2,12 @@
 
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { contractSchema, contractPatchSchema, CONTRACT_STATUSES } from "@/lib/validation/contract";
+import {
+  contractSchema,
+  contractPatchSchema,
+  contractRenewalSchema,
+  CONTRACT_STATUSES,
+} from "@/lib/validation/contract";
 import { parseNamedPatch } from "@/lib/validation/namedPatch";
 import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
 import { formDataToStringValues } from "@/lib/form-state";
@@ -19,6 +24,7 @@ import { parseDocumentCategory } from "@/lib/documents/categories";
 import {
   createContractCommand,
   updateContractCommand,
+  renewContractCommand,
   confirmContractExtractionCommand,
   deleteContractCommand,
   restoreContractCommand,
@@ -153,6 +159,64 @@ export async function updateContract(
     return commandError(error);
   }
   redirect(`/contracts/${contractId}`);
+}
+
+const RENEWAL_FORM_FIELDS = ["startDate", "endDate", "cost"];
+
+/**
+ * #353 — the Renew form: adds the Contract's next Term, keeping the current
+ * one as history, then attaches the new Term's Document if one was chosen.
+ * The form carries the updatedAt it was loaded with, so a second submit (or
+ * a renewal someone else saved meanwhile) is refused rather than adding a
+ * second Term.
+ */
+export async function renewContract(
+  contractId: string,
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await requireUser();
+
+  const parsed = contractRenewalSchema.safeParse({
+    startDate: formData.get("startDate"),
+    endDate: formData.get("endDate"),
+    cost: formData.get("cost"),
+  });
+  if (!parsed.success) {
+    return { error: firstIssueMessage(parsed.error), values: formDataToStringValues(formData, RENEWAL_FORM_FIELDS) };
+  }
+
+  const file = formData.get("file");
+  const hasFile = file instanceof File && file.size > 0;
+  if (hasFile) {
+    const rejection = await describeUploadRejection(file);
+    if (rejection) return { error: rejection, values: formDataToStringValues(formData, RENEWAL_FORM_FIELDS) };
+  }
+
+  const baseUpdatedAt = formData.get("baseUpdatedAt");
+  try {
+    await renewContractCommand(contractId, parsed.data, user.id, {
+      baseUpdatedAt: typeof baseUpdatedAt === "string" && baseUpdatedAt ? baseUpdatedAt : undefined,
+    });
+  } catch (error) {
+    return { ...commandError(error), values: formDataToStringValues(formData, RENEWAL_FORM_FIELDS) };
+  }
+
+  let docFallback: "inbox" | "failed" | null = null;
+  if (hasFile) {
+    try {
+      await addDocumentCommand("CONTRACT", contractId, {
+        file,
+        category: parseDocumentCategory(formData.get("documentCategory")),
+      });
+    } catch (error) {
+      if (!(error instanceof UploadRejectedError)) throw error;
+      const fallback = await saveFileToInboxFallback(file, user.id);
+      docFallback = fallback ? "inbox" : "failed";
+    }
+  }
+
+  redirect(`/contracts/${contractId}${docFallback ? `?docFallback=${docFallback}` : ""}`);
 }
 
 /**

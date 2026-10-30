@@ -151,9 +151,9 @@ Everything else is optional. Set `SMTP_*` to enable email reminders, `NTFY_*` fo
 | --- | --- |
 | ![Settings — security log](docs/screenshots/settings-security.png) | ![Upcoming](docs/screenshots/upcoming.png) |
 
-| Warranties |  |
+| Warranties | Contract — renew |
 | --- | --- |
-| ![Warranties](docs/screenshots/products-list.png) |  |
+| ![Warranties](docs/screenshots/products-list.png) | ![Contract — renew](docs/screenshots/contract-renew.png) |
 
 ## Tech stack
 

@@ -43,6 +43,20 @@ test.beforeEach(async ({ page }) => {
           updated_at: "2099-01-01T00:00:00.000Z",
         },
       ],
+      // #353 — Broadband Plan's previous Term.
+      contract_terms: [
+        {
+          id: "term-1",
+          contract_id: "contract-1",
+          start_date: "2097-07-01",
+          end_date: "2098-06-30",
+          cost: 80,
+          currency: "AUD",
+          billing_frequency: "MONTHLY",
+          document_id: null,
+          created_at: "2098-06-20T00:00:00.000Z",
+        },
+      ],
       products: [
         {
           id: "product-1",
@@ -781,4 +795,46 @@ test("standalone dashboard's missing-info stat card deep-links into a pre-filter
   await expect(page.locator(".tabs").getByRole("button", { name: "Warranties" })).toHaveClass(/active/);
   await expect(page.locator(".chip.active")).toHaveText("Missing key details");
   await expect(page.locator(".list").getByRole("button", { name: /Laptop/ })).toBeVisible();
+});
+
+test("standalone Renew keeps the current Term as history and pre-fills the next one (#353)", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "Contracts" }).click();
+  await page.getByRole("button", { name: /Broadband Plan/ }).click();
+  await expect(page.getByRole("heading", { name: "Previous terms" })).toBeVisible();
+  await expect(page.getByText("2097-07-01 – 2098-06-30")).toBeVisible();
+  // $89 a month now against $80 last Term.
+  await expect(page.getByText(/AUD 89 · \+11% vs last term/)).toBeVisible();
+
+  await page.getByRole("button", { name: "Renew" }).click();
+  await expect(page.locator("#view-title")).toHaveText("Renew contract");
+  // No start date to measure from, so a year from the day after the end date.
+  await expect(page.locator('input[name="startDate"]')).toHaveValue("2099-07-01");
+  await expect(page.locator('input[name="endDate"]')).toHaveValue("2100-06-30");
+  await expect(page.locator('input[name="cost"]')).toHaveValue("89");
+  await page.locator('input[name="cost"]').fill("95");
+  await page.locator('form[data-save-type="contractRenewal"]').getByRole("button", { name: "Renew" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Saved");
+
+  const runs = await page.evaluate(() => {
+    return (window as Window & { __hearthStandaloneTest?: { sqliteRuns: { statement: string; values: unknown[] }[] } }).__hearthStandaloneTest?.sqliteRuns ?? [];
+  });
+  const term = runs.find((run) => run.statement.includes("INSERT INTO contract_terms"));
+  expect(term?.values.slice(1, 7)).toEqual(["contract-1", null, "2099-06-30", 89, "AUD", "MONTHLY"]);
+  const update = runs.find((run) => run.statement.startsWith("UPDATE contracts SET start_date = ?, end_date = ?, cost = ?"));
+  expect(update?.values.slice(0, 3)).toEqual(["2099-07-01", "2100-06-30", 95]);
+  expect(update?.values.at(-1)).toBe("contract-1");
+});
+
+test("standalone Renew refuses a new end date that isn't after the current one (#353)", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "Contracts" }).click();
+  await page.getByRole("button", { name: /Broadband Plan/ }).click();
+  await page.getByRole("button", { name: "Renew" }).click();
+  await page.locator('input[name="startDate"]').fill("");
+  await page.locator('input[name="endDate"]').fill("2099-06-30");
+  await page.locator('form[data-save-type="contractRenewal"]').getByRole("button", { name: "Renew" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("The new end date must be after the current one.");
+  const runs = await page.evaluate(() => {
+    return (window as Window & { __hearthStandaloneTest?: { sqliteRuns: { statement: string; values: unknown[] }[] } }).__hearthStandaloneTest?.sqliteRuns ?? [];
+  });
+  expect(runs.some((run) => run.statement.includes("INSERT INTO contract_terms"))).toBe(false);
 });

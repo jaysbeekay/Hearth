@@ -369,6 +369,17 @@ CREATE TABLE IF NOT EXISTS documents (
   deleted_at TEXT,
   version INTEGER NOT NULL DEFAULT 1
 );
+CREATE TABLE IF NOT EXISTS contract_terms (
+  id TEXT PRIMARY KEY,
+  contract_id TEXT NOT NULL,
+  start_date TEXT,
+  end_date TEXT,
+  cost REAL,
+  currency TEXT NOT NULL DEFAULT 'AUD',
+  billing_frequency TEXT,
+  document_id TEXT,
+  created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS reminder_delivery_logs (
   id TEXT PRIMARY KEY,
   owner_type TEXT NOT NULL,
@@ -384,7 +395,7 @@ CREATE TABLE IF NOT EXISTS schema_metadata (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
-INSERT OR REPLACE INTO schema_metadata (key, value) VALUES ('standalone_schema_version', '8');
+INSERT OR REPLACE INTO schema_metadata (key, value) VALUES ('standalone_schema_version', '9');
 `;
 
 const $ = (id) => document.getElementById(id);
@@ -423,6 +434,7 @@ let cache = emptyCache();
 const BACKUP_TABLES = [
   { key: "profile", table: "local_profile", columns: ["id", "display_name", "default_currency", "created_at", "updated_at", "version"] },
   { key: "contracts", table: "contracts", columns: ["id", "title", "category", "provider", "contract_number", "start_date", "end_date", "renewal_type", "notice_period_days", "cost", "currency", "billing_frequency", "status", "contact_name", "contact_phone", "contact_email", "notes", "reminder_days_before", "is_tax_deductible", "extraction_pending", "extraction_confirmed_at", "property_id", "vehicle_id", "created_at", "updated_at", "deleted_at", "version"] },
+  { key: "contractTerms", table: "contract_terms", columns: ["id", "contract_id", "start_date", "end_date", "cost", "currency", "billing_frequency", "document_id", "created_at"] },
   { key: "products", table: "products", columns: ["id", "description", "manufacturer", "model", "vendor", "serial_number", "barcode", "purchase_date", "warranty_end_date", "price", "currency", "notes", "reminder_days_before", "extraction_pending", "extraction_confirmed_at", "property_id", "created_at", "updated_at", "deleted_at", "version"] },
   { key: "vehicles", table: "vehicles", columns: ["id", "label", "make", "model", "year", "colour", "license_plate", "vin", "rego_expiry", "insurance_expiry", "next_service_due", "reminder_days_before", "notes", "created_at", "updated_at", "deleted_at", "version"] },
   { key: "vehicleItems", table: "vehicle_items", columns: ["id", "vehicle_id", "type", "title", "provider", "date", "cost", "currency", "notes", "deleted_at", "created_at", "updated_at", "version"] },
@@ -449,6 +461,7 @@ function emptyCache() {
   return {
     profile: null,
     contracts: [],
+    contractTerms: [],
     products: [],
     vehicles: [],
     vehicleItems: [],
@@ -585,7 +598,7 @@ async function ensureStandaloneSchema() {
   await ensureColumn("inventory_items", "warranty_product_id", "TEXT");
   await ensureColumn("inventory_items", "warranty_registered", "INTEGER NOT NULL DEFAULT 0");
   await ensureColumn("inventory_items", "warranty_extended", "INTEGER NOT NULL DEFAULT 0");
-  await run("INSERT OR REPLACE INTO schema_metadata (key, value) VALUES ('standalone_schema_version', '8')");
+  await run("INSERT OR REPLACE INTO schema_metadata (key, value) VALUES ('standalone_schema_version', '9')");
 }
 
 async function ensureColumn(table, column, definition) {
@@ -627,6 +640,7 @@ async function loadData() {
   const [
     profileRows,
     contracts,
+    contractTerms,
     products,
     vehicles,
     vehicleItems,
@@ -646,6 +660,7 @@ async function loadData() {
   ] = await Promise.all([
     query("SELECT * FROM local_profile WHERE id = 'local' LIMIT 1"),
     query("SELECT * FROM contracts WHERE deleted_at IS NULL ORDER BY updated_at DESC"),
+    query("SELECT * FROM contract_terms ORDER BY created_at DESC"),
     query("SELECT * FROM products WHERE deleted_at IS NULL ORDER BY updated_at DESC"),
     query("SELECT * FROM vehicles WHERE deleted_at IS NULL ORDER BY updated_at DESC"),
     query("SELECT * FROM vehicle_items WHERE deleted_at IS NULL ORDER BY updated_at DESC"),
@@ -666,6 +681,7 @@ async function loadData() {
   cache = {
     profile: profileRows[0] ?? { id: "local", display_name: "Hearth standalone", default_currency: "AUD" },
     contracts,
+    contractTerms,
     products,
     vehicles,
     vehicleItems,
@@ -1209,7 +1225,7 @@ async function render() {
     settings: "Settings",
     help: "Help",
     detail: "Details",
-    form: state.form?.id ? "Edit record" : "Add record",
+    form: state.form?.type === "contractRenewal" ? "Renew contract" : state.form?.id ? "Edit record" : "Add record",
   };
   viewTitle.textContent = titleMap[route] ?? "Hearth";
   viewKicker.textContent = route === "dashboard" ? "Standalone" : "Private local records";
@@ -2270,11 +2286,13 @@ function renderDetail() {
     <section class="card form-card">
       <div class="actions">
         <button data-form-type="${escapeAttr(type)}" data-id="${escapeAttr(id)}">Edit</button>
+        ${type === "contracts" && canRenewContract(row) ? `<button data-form-type="contractRenewal" data-id="${escapeAttr(id)}">Renew</button>` : ""}
         <button class="danger" data-delete-record="${escapeAttr(type)}" data-id="${escapeAttr(id)}">Delete</button>
       </div>
       <div class="detail-grid">${renderDetailRows(type, row)}</div>
       ${renderRecordReminderHealth(type, row)}
     </section>
+    ${type === "contracts" ? renderPreviousTerms(row.id) : ""}
     ${type === "vehicles" ? renderChildRecords("Service records", "vehicleItems", cache.vehicleItems.filter((item) => item.vehicle_id === row.id), row.id, "No service records", "Track services, repairs and roadworthies here.") : ""}
     ${type === "properties" ? renderPropertyRentalSummary(row.id) : ""}
     ${type === "properties" ? renderChildRecords("Warranties", "products", cache.products.filter((item) => item.property_id === row.id), row.id, "No warranties linked", "Register a warranty to this home so it shows up here.") : ""}
@@ -2370,7 +2388,7 @@ function renderDetailRows(type, row) {
       ["Start", readableDate(row.start_date)],
       ["End", readableDate(row.end_date)],
       ["Reminder thresholds", row.reminder_days_before || "30,14,7,1"],
-      ["Cost", money(row.cost, row.currency)],
+      ["Cost", [money(row.cost, row.currency), contractCostChangeText(row)].filter(Boolean).join(" · ") || null],
       ["Billing", row.billing_frequency],
       ["Contact", [row.contact_name, row.contact_email, row.contact_phone].filter(Boolean).join(" · ")],
       ["Notes", row.notes],
@@ -2830,6 +2848,7 @@ function renderSearchResult(result) {
 function renderForm() {
   if (!state.form) return empty("No form selected", "Choose something to add.");
   const type = state.form.type;
+  if (type === "contractRenewal") return renderContractRenewalForm(getRecord("contracts", state.form.id));
   const row = state.form.id ? getRecord(type, state.form.id) : null;
   const title = state.form.id ? `Edit ${typeLabel(type).toLowerCase()}` : `Add ${typeLabel(type).toLowerCase()}`;
   const recordTypesWithoutInlineFiles = new Set(["vehicleItems", "homeItems", "tripSegments", "holdings", "trades"]);
@@ -3134,6 +3153,7 @@ function formFile(form) {
 
 async function saveForm(form) {
   const type = form.dataset.saveType;
+  if (type === "contractRenewal") await renewContract(form);
   if (type === "contracts") await saveContract(form);
   if (type === "products") await saveProduct(form);
   if (type === "vehicles") await saveVehicle(form);
@@ -3148,7 +3168,7 @@ async function saveForm(form) {
   if (type === "portfolios") await savePortfolio(form);
   if (type === "holdings") await saveHolding(form);
   if (type === "trades") await saveTrade(form);
-  if (state.localRemindersEnabled && ["contracts", "products", "vehicles"].includes(type)) {
+  if (state.localRemindersEnabled && ["contracts", "contractRenewal", "products", "vehicles"].includes(type)) {
     await syncLocalReminders(false).catch((error) => showStandaloneStatus(error.message || "Saved, but reminders could not be rescheduled."));
   }
   state.route = state.backTo ?? (["vehicleItems", "homeItems", "rentalAgreements", "rentalStatements", "tripSegments", "holdings", "trades"].includes(type) ? "detail" : "records");
@@ -4007,6 +4027,166 @@ async function saveLocalProfile(form) {
   );
   showStandaloneStatus("Local profile saved.", true);
   await render();
+}
+
+// #353 — Renew, hand-ported from src/lib/contractTerms.ts and
+// renewContractCommand (src/lib/commands/contracts.ts): the current Term's
+// dates and cost are kept as a contract_terms row and the new Term's are
+// written onto the contract. A fixed-term Contract is meant to end and a
+// Cancelled one is reactivated first, so neither offers Renew.
+function canRenewContract(row) {
+  return Boolean(row) && row.status === "ACTIVE" && row.renewal_type !== "FIXED_TERM";
+}
+
+function termDayParts(day) {
+  const [year, month, date] = String(day).slice(0, 10).split("-").map(Number);
+  return { year, month, date };
+}
+
+function termDayString(year, month, date) {
+  return `${year}-${String(month).padStart(2, "0")}-${String(date).padStart(2, "0")}`;
+}
+
+function termAddDays(day, days) {
+  const { year, month, date } = termDayParts(day);
+  const moved = new Date(Date.UTC(year, month - 1, date + days));
+  return termDayString(moved.getUTCFullYear(), moved.getUTCMonth() + 1, moved.getUTCDate());
+}
+
+function termAddMonths(day, months) {
+  const { year, month, date } = termDayParts(day);
+  const index = year * 12 + (month - 1) + months;
+  const newYear = Math.floor(index / 12);
+  const newMonth = (index % 12) + 1;
+  const lastDay = new Date(Date.UTC(newYear, newMonth, 0)).getUTCDate();
+  return termDayString(newYear, newMonth, Math.min(date, lastDay));
+}
+
+function validTermDay(value) {
+  const text = String(value ?? "").slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) && !Number.isNaN(Date.parse(`${text}T00:00:00Z`)) ? text : null;
+}
+
+// The next Term starts the day after the current end date and lasts as long
+// as the current one: whole months stay whole months, anything else is kept
+// in days, and with no start date a year is assumed.
+function nextTermDates(row) {
+  const end = validTermDay(row?.end_date);
+  if (!end) return { startDate: "", endDate: "" };
+  const nextStart = termAddDays(end, 1);
+  const start = validTermDay(row?.start_date);
+  if (!start || start > end) return { startDate: nextStart, endDate: termAddDays(termAddMonths(nextStart, 12), -1) };
+  const from = termDayParts(start);
+  const to = termDayParts(nextStart);
+  const months = (to.year - from.year) * 12 + (to.month - from.month);
+  if (from.date === to.date && months > 0) return { startDate: nextStart, endDate: termAddDays(termAddMonths(nextStart, months), -1) };
+  const lengthDays = Math.round((Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86400000);
+  return { startDate: nextStart, endDate: termAddDays(nextStart, lengthDays) };
+}
+
+// How much `current` costs against `previous`, as a fraction, or null when
+// they can't be compared (a missing or zero cost, another currency, or
+// another billing frequency).
+function termCostChange(current, previous) {
+  if (!current || !previous) return null;
+  if (current.cost == null || previous.cost == null || current.cost === "" || previous.cost === "") return null;
+  const now = Number(current.cost);
+  const before = Number(previous.cost);
+  if (!Number.isFinite(now) || !Number.isFinite(before) || before <= 0) return null;
+  if ((current.currency || "AUD") !== (previous.currency || "AUD")) return null;
+  if ((current.billing_frequency || null) !== (previous.billing_frequency || null)) return null;
+  return (now - before) / before;
+}
+
+function formatTermCostChange(change, versus = "last term") {
+  const percent = Math.round(change * 100);
+  if (percent === 0) return `Same as ${versus}`;
+  return `${percent > 0 ? "+" : "−"}${Math.abs(percent)}% vs ${versus}`;
+}
+
+// Newest first.
+function contractTerms(contractId) {
+  return cache.contractTerms.filter((term) => term.contract_id === contractId);
+}
+
+function contractCostChangeText(row) {
+  const change = termCostChange(row, contractTerms(row.id)[0]);
+  return change == null ? null : formatTermCostChange(change);
+}
+
+function renderPreviousTerms(contractId) {
+  const terms = contractTerms(contractId);
+  if (terms.length === 0) return "";
+  return `
+    <section class="card form-card">
+      <div class="section-title">
+        <h2>Previous terms</h2>
+      </div>
+      <div class="detail-grid">
+        ${terms.map((term, index) => {
+          const change = termCostChange(term, terms[index + 1]);
+          const doc = term.document_id ? cache.documents.find((item) => item.id === term.document_id) : null;
+          const value = [
+            money(term.cost, term.currency) ?? "No cost",
+            term.billing_frequency,
+            change == null ? null : formatTermCostChange(change, "previous"),
+            doc ? doc.filename : null,
+          ].filter(Boolean).join(" · ");
+          return detailLine(`${readableDate(term.start_date) ?? "—"} – ${readableDate(term.end_date) ?? "—"}`, value);
+        }).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderContractRenewalForm(row) {
+  if (!row) return empty("Record not found", "It may have been removed.");
+  const next = nextTermDates(row);
+  return `
+    <form class="form-card" data-save-type="contractRenewal" data-id="${escapeAttr(row.id)}">
+      <h2>Renew ${escapeHtml(recordTitle("contracts", row))}</h2>
+      <p class="muted">Current term: ${escapeHtml(readableDate(row.start_date) ?? "—")} – ${escapeHtml(readableDate(row.end_date) ?? "—")}, ${escapeHtml(money(row.cost, row.currency) ?? "no cost")}. It's kept under Previous terms once you renew.</p>
+      <div class="field-grid">
+        <label>New start date<input name="startDate" type="date" value="${escapeAttr(next.startDate)}" /></label>
+        <label>New end date<input name="endDate" type="date" value="${escapeAttr(next.endDate)}" required /></label>
+        <label>New cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(row.cost ?? "")}" /></label>
+      </div>
+      <input name="file" type="file" accept=".pdf,.doc,.docx,image/jpeg,image/png,image/webp,image/heic" />
+      <div class="actions">
+        <button type="submit">Renew</button>
+        <button type="button" class="secondary" data-cancel-form>Cancel</button>
+      </div>
+    </form>
+  `;
+}
+
+async function renewContract(form) {
+  const id = form.dataset.id;
+  const row = getRecord("contracts", id);
+  if (!row) throw new Error("Contract not found.");
+  if (!canRenewContract(row)) throw new Error("This contract can't be renewed. Mark it as active first.");
+  const startDate = valueOrNull(fieldValue(form, "startDate"));
+  const endDate = valueOrNull(fieldValue(form, "endDate"));
+  if (!endDate) throw new Error("Enter the new end date.");
+  if (startDate && endDate < startDate) throw new Error("End date can't be before the start date.");
+  const currentEnd = validTermDay(row.end_date);
+  if (currentEnd && endDate <= currentEnd) throw new Error("The new end date must be after the current one.");
+  // The newest of the contract's documents that no earlier Term has: the
+  // paperwork for the Term being kept, since the new one is attached after.
+  const linked = new Set(contractTerms(id).map((term) => term.document_id).filter(Boolean));
+  const doc = docsFor("contract", id)
+    .filter((item) => !linked.has(item.id))
+    .sort((a, b) => String(b.uploaded_at).localeCompare(String(a.uploaded_at)))[0];
+  const now = nowIso();
+  await run(
+    "INSERT INTO contract_terms (id, contract_id, start_date, end_date, cost, currency, billing_frequency, document_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    [localId("term"), id, row.start_date ?? null, row.end_date ?? null, row.cost ?? null, row.currency || defaultCurrency(), row.billing_frequency ?? null, doc?.id ?? null, now],
+  );
+  await run(
+    "UPDATE contracts SET start_date = ?, end_date = ?, cost = ?, updated_at = ?, version = version + 1 WHERE id = ?",
+    [startDate, endDate, numberOrNull(fieldValue(form, "cost")), now, id],
+  );
+  await maybeStoreFormFile(form, "contract", id);
 }
 
 async function confirmDetails(type, id) {

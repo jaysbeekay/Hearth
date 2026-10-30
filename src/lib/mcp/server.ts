@@ -117,7 +117,7 @@ export async function createMcpServer() {
       title: "Get contract",
       description:
         "Get full details for one contract by id, including attached document metadata " +
-        "(filenames only, not file contents).",
+        "(filenames only, not file contents) and its previous terms (dates and cost before each renewal).",
       inputSchema: { id: z.string().min(1) },
     },
     async ({ id }) => {
@@ -128,14 +128,26 @@ export async function createMcpServer() {
           documents: {
             select: { id: true, filename: true, mimeType: true, size: true, uploadedAt: true },
           },
+          // #353: earlier Terms, newest first. The current Term is the
+          // contract's own dates and cost.
+          terms: {
+            select: { startDate: true, endDate: true, cost: true, currency: true, billingFrequency: true, documentId: true },
+            orderBy: { createdAt: "desc" },
+          },
         },
       });
       if (!contract) return textResult({ error: `No contract with id "${id}"` });
+      const { terms, ...rest } = contract;
       return textResult({
-        ...serializeContract(contract),
+        ...serializeContract(rest),
         documents: contract.documents.map((doc) => ({
           ...doc,
           uploadedAt: doc.uploadedAt.toISOString(),
+        })),
+        previousTerms: terms.map((term) => ({
+          ...term,
+          startDate: term.startDate?.toISOString() ?? null,
+          endDate: term.endDate?.toISOString() ?? null,
         })),
       });
     },

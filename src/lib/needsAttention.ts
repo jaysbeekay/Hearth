@@ -59,11 +59,13 @@ type AttentionContract = Pick<Contract, "id" | "title" | "provider"> &
 export function buildContractAttentionItems(contracts: AttentionContract[], ctx: DueContext): AttentionItem[] {
   const items: AttentionItem[] = [];
   for (const contract of contracts) {
+    // #353 — renewing adds the next Term and keeps this one as history; the
+    // edit form would overwrite it.
+    const renewHref = `/contracts/${contract.id}/renew`;
     for (const entry of contractDue(contract, ctx)) {
       if (entry.state === "needs-new-end-date") {
         // An auto-renewing Contract past its end date carried on into its
-        // next Term: tidying, not a deadline.
-        const href = `/contracts/${contract.id}/edit`;
+        // next Term: tidying, not a deadline. Adding that Term is a renewal.
         items.push({
           id: `new-end-date-${contract.id}`,
           kind: "contract",
@@ -71,8 +73,8 @@ export function buildContractAttentionItems(contracts: AttentionContract[], ctx:
           title: contract.title,
           subtitle: "Renewed automatically, so its end date has passed.",
           entry,
-        href: `/contracts/${contract.id}`,
-          action: { label: "Set the new end date", href },
+          href: `/contracts/${contract.id}`,
+          action: { label: "Set the new end date", href: renewHref },
         });
         continue;
       }
@@ -85,14 +87,18 @@ export function buildContractAttentionItems(contracts: AttentionContract[], ctx:
         subtitle: contract.provider,
         entry,
         href: `/contracts/${contract.id}`,
-        // The detail page's expiry banner is where renewing or cancelling
-        // actually happens; the edit form isn't a renewal (#353). A
-        // fixed-term Contract is meant to end, so there's nothing to renew:
-        // like an expiring Warranty, its row is to know about.
+        // An end date opens the Renew form (#353), and an Expired Contract
+        // also offers Cancel beside it (canMarkCancelled). A notice deadline
+        // is a choice between letting it renew and cancelling, so it opens
+        // the detail page, whose banner has both. A fixed-term Contract is
+        // meant to end, so there's nothing to renew: like an expiring
+        // Warranty, its row is to know about.
         action:
           contract.renewalType === "FIXED_TERM"
             ? undefined
-            : { label: "Renew or cancel", href: `/contracts/${contract.id}` },
+            : entry.field === "endDate"
+              ? { label: "Renew", href: renewHref }
+              : { label: "Renew or cancel", href: `/contracts/${contract.id}` },
         noDocument: contract._count.documents === 0,
         canMarkCancelled: entry.state === "overdue",
       });

@@ -47,6 +47,8 @@ export function DetailStatusBanner({
   hasDocuments,
   documentsHref,
   editHref,
+  renewHref = editHref,
+  newEndDateHref = editHref,
   renewLabel,
   secondaryAction,
   newEndDateLabel = "Set the new end date",
@@ -58,6 +60,10 @@ export function DetailStatusBanner({
   hasDocuments: boolean;
   documentsHref: string;
   editHref: string;
+  /** Where Renew goes, when it isn't the edit form — a Contract's Renew form (#353). */
+  renewHref?: string;
+  /** Where the new-end-date action goes, when it isn't the edit form. */
+  newEndDateHref?: string;
   /** The renew action on a Due row; absent when there's nothing to renew, such as a fixed-term Contract. */
   renewLabel?: string;
   /** Shown beside Renew/Upload on a Due row — e.g. contract "Mark as cancelled" (#370). */
@@ -92,7 +98,7 @@ export function DetailStatusBanner({
             <WriteOnly>
               <div className="flex flex-wrap items-center gap-2">
                 {housekeeping ? (
-                  <Link href={editHref} className={actionClass}>
+                  <Link href={newEndDateHref} className={actionClass}>
                     <CalendarClock size={14} />
                     {newEndDateLabel}
                   </Link>
@@ -100,7 +106,7 @@ export function DetailStatusBanner({
                   <>
                     {secondaryAction}
                     {!renewLabel ? null : hasDocuments ? (
-                      <Link href={editHref} className={actionClass}>
+                      <Link href={renewHref} className={actionClass}>
                         <RotateCw size={14} />
                         {renewLabel}
                       </Link>

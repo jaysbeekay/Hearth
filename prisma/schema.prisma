@@ -321,11 +321,39 @@ model Contract {
   documents              Document[]
   extractionReviewFields ExtractionReviewField[]
   rentalAgreement        RentalAgreement?
+  // #353 — earlier Terms, kept as history when the Contract is renewed. The
+  // current Term's dates and cost stay on the Contract itself.
+  terms                  ContractTerm[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("contracts")
+}
+
+// #353 — one earlier Term of a Contract (GLOSSARY.md). Renewing a Contract
+// copies its current dates and cost into a row here before writing the new
+// Term's values onto the Contract. Every row is added by a person, through
+// renewContractCommand (src/lib/commands/contracts.ts); nothing rolls a
+// Contract forward automatically. `documentId` is the Document that was that
+// Term's paperwork, if any, and is cleared if that Document is permanently
+// deleted.
+model ContractTerm {
+  id               String            @id @default(cuid())
+  contractId       String
+  contract         Contract          @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  startDate        DateTime?
+  endDate          DateTime?
+  cost             Float?
+  currency         String            @default("AUD")
+  billingFrequency BillingFrequency?
+  documentId       String?
+  document         Document?         @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  createdAt        DateTime          @default(now())
+
+  @@index([contractId])
+  @@index([documentId])
+  @@map("contract_terms")
 }
 
 // #314: has FTS5 sync triggers (fts_documents_ai/au/ad) defined in migration
@@ -336,27 +364,29 @@ model Contract {
 // migration must re-create all three verbatim, or e2e/prepare-db.ts's
 // document_search_fts integrity check fails CI.
 model Document {
-  id               String    @id @default(cuid())
+  id               String         @id @default(cuid())
   contractId       String
-  contract         Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  contract         Contract       @relation(fields: [contractId], references: [id], onDelete: Cascade)
   filename         String
   storedName       String
   mimeType         String
   size             Int
   extractedText    String?
-  extractionStatus String    @default("PENDING")
+  extractionStatus String         @default("PENDING")
   // File-hash and version-chain fields (#206/#207/#208 foundation) — sha256
   // enables exact-duplicate detection, supersedesId links a re-upload to the
   // document it replaces (linear chain, enforced @unique so a document has
   // at most one successor), isImportant is the user-starred flag.
   sha256           String?
   category         String?
-  isImportant      Boolean   @default(false)
+  isImportant      Boolean        @default(false)
   deletedAt        DateTime?
-  supersedesId     String?   @unique
-  supersedes       Document? @relation("DocumentVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
-  supersededBy     Document? @relation("DocumentVersions")
-  uploadedAt       DateTime  @default(now())
+  supersedesId     String?        @unique
+  supersedes       Document?      @relation("DocumentVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy     Document?      @relation("DocumentVersions")
+  uploadedAt       DateTime       @default(now())
+  // #353 — the earlier Terms this Document was the paperwork for.
+  contractTerms    ContractTerm[]
 
   // #252 — contractId backs every "this contract's documents" lookup;
   // uploadedAt backs the Documents page's date-sorted, now-paginated feed.
@@ -500,7 +530,7 @@ model Product {
   // #241 — Inventory items can register their warranty against this Product;
   // SetNull on delete so a purged Product just clears the item's link
   // instead of blocking or cascading deletion of unrelated inventory.
-  warrantyForItems       InventoryItem[]          @relation("InventoryItemWarrantyProduct")
+  warrantyForItems       InventoryItem[]         @relation("InventoryItemWarrantyProduct")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

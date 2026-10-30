@@ -13,8 +13,8 @@ import type { ContractInput } from "@/lib/validation/contract";
 import type { Prisma } from "@/generated/prisma/client";
 
 // Record commands for Contracts (ADR 0003). Every write to `contract` goes
-// through here: server actions (the edit form, Cancel / Reactivate, Confirm
-// details, the Assistant), extraction review, the offline sync handler,
+// through here: server actions (the edit form, Renew, Cancel / Reactivate,
+// Confirm details, the Assistant), extraction review, the offline sync handler,
 // import and Trash retention. Callers own sign-in, role checks and Zod
 // parsing; these own the write, file cleanup and revalidation.
 //
@@ -153,6 +153,72 @@ export async function confirmContractExtractionCommand(
       tx.extractionReviewField.updateMany({ where: pendingWhere, data: { reviewedAt, reviewedById: actorId } }),
   });
   return { id };
+}
+
+/** The next Term's values, from the Renew form (contractRenewalSchema). */
+export interface ContractRenewal {
+  startDate?: Date | null;
+  endDate: Date;
+  cost?: number | null;
+}
+
+// #353 — Renew: keeps the current Term as history and makes the given one
+// current. In one transaction it copies the Contract's current dates, cost,
+// currency and billing frequency into a ContractTerm row, then writes the
+// new dates and cost onto the Contract, so a failed or stale renewal leaves
+// neither. Every Term is added by a person through here; nothing renews a
+// Contract automatically. Moving the end date restarts its Reminders on its
+// own, since the Reminder log is keyed by date (ADR 0003).
+//
+// The Term row's Document is the newest one on the Contract that isn't
+// already an earlier Term's: renewing comes before the new Term's own
+// Document is attached, so in the usual flow (upload the new policy while
+// renewing) that's the paperwork for the Term being archived.
+//
+// A Cancelled Contract has to be marked active first, and the new end date
+// must be after the current one: a renewal that moves the end date back is
+// an edit, not a new Term.
+export async function renewContractCommand(
+  id: string,
+  renewal: ContractRenewal,
+  actorId: string,
+  options: UpdateOptions = {},
+) {
+  let termId = "";
+  await writeContract(id, actorId, options, {
+    patch: async (tx) => {
+      const current = await findLiveContract(id, tx);
+      if (current.status === "CANCELLED") {
+        throw new RecordValidationError("A cancelled contract can't be renewed. Mark it as active first.");
+      }
+      if (current.endDate && renewal.endDate.getTime() <= current.endDate.getTime()) {
+        throw new RecordValidationError("The new end date must be after the current one.");
+      }
+      const document = await tx.document.findFirst({
+        where: { contractId: id, deletedAt: null, contractTerms: { none: {} } },
+        orderBy: { uploadedAt: "desc" },
+        select: { id: true },
+      });
+      const term = await tx.contractTerm.create({
+        data: {
+          contractId: id,
+          startDate: current.startDate,
+          endDate: current.endDate,
+          cost: current.cost,
+          currency: current.currency,
+          billingFrequency: current.billingFrequency,
+          documentId: document?.id ?? null,
+        },
+      });
+      termId = term.id;
+      return {
+        startDate: renewal.startDate ?? null,
+        endDate: renewal.endDate,
+        cost: renewal.cost ?? null,
+      };
+    },
+  });
+  return { id, termId };
 }
 
 // #287 — soft-delete: moves the contract to Trash instead of removing it.
