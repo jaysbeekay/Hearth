@@ -361,7 +361,8 @@ export async function searchContracts(query: string) {
 export async function contractProposalBasis(id: string) {
   return prisma.contract.findFirst({
     where: { id, deletedAt: null },
-    select: { title: true, startDate: true, endDate: true },
+    // The current links too: the proposal only checks links it newly sets (#447).
+    select: { title: true, startDate: true, endDate: true, propertyId: true, vehicleId: true },
   });
 }
 
