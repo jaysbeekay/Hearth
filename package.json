@@ -98,7 +98,7 @@
     "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
-    "@types/node": "^22",
+    "@types/node": "^26",
     "@types/node-cron": "^3.0.11",
     "@types/pdfkit": "^0.17.6",
     "@types/qrcode": "^1.5.6",
