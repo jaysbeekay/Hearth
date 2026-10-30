@@ -23,6 +23,8 @@ ALTER TABLE "property_valuations" ADD COLUMN "deletedAt" DATETIME;
 -- RedefineTables: SQLite can't ADD COLUMN a NOT NULL column without a
 -- constant default, so rental_agreements is rebuilt. It has no Documents and
 -- no FTS5 triggers. Existing Tenancies take their createdAt as updatedAt.
+-- Every column the table has at this point is carried over, including
+-- reminderDaysBefore from 20261029090000_tenancy_reminders (#388).
 PRAGMA defer_foreign_keys=ON;
 PRAGMA foreign_keys=OFF;
 CREATE TABLE "new_rental_agreements" (
@@ -37,13 +39,14 @@ CREATE TABLE "new_rental_agreements" (
     "bondAmount" REAL,
     "currency" TEXT NOT NULL DEFAULT 'AUD',
     "notes" TEXT,
+    "reminderDaysBefore" TEXT,
     "deletedAt" DATETIME,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     CONSTRAINT "rental_agreements_propertyId_fkey" FOREIGN KEY ("propertyId") REFERENCES "properties" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT "rental_agreements_contractId_fkey" FOREIGN KEY ("contractId") REFERENCES "contracts" ("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
-INSERT INTO "new_rental_agreements" ("bondAmount", "contractId", "createdAt", "currency", "id", "leaseEnd", "leaseStart", "managementFeePercent", "notes", "propertyId", "tenantName", "weeklyRent", "updatedAt") SELECT "bondAmount", "contractId", "createdAt", "currency", "id", "leaseEnd", "leaseStart", "managementFeePercent", "notes", "propertyId", "tenantName", "weeklyRent", "createdAt" FROM "rental_agreements";
+INSERT INTO "new_rental_agreements" ("bondAmount", "contractId", "createdAt", "currency", "id", "leaseEnd", "leaseStart", "managementFeePercent", "notes", "propertyId", "reminderDaysBefore", "tenantName", "weeklyRent", "updatedAt") SELECT "bondAmount", "contractId", "createdAt", "currency", "id", "leaseEnd", "leaseStart", "managementFeePercent", "notes", "propertyId", "reminderDaysBefore", "tenantName", "weeklyRent", "createdAt" FROM "rental_agreements";
 DROP TABLE "rental_agreements";
 ALTER TABLE "new_rental_agreements" RENAME TO "rental_agreements";
 CREATE UNIQUE INDEX "rental_agreements_contractId_key" ON "rental_agreements"("contractId");

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { dueEntries, renderDueLabel, type DueLabel } from "@/lib/duePolicy";
 import { formatDueLabel } from "@/lib/dueLabel";
-import { REGION_OPTIONS, displayTimeZone, formatDate, formatTimestamp } from "@/lib/utils";
+import { displayTimeZone, formatDate, formatTimestamp } from "@/lib/utils";
 
 // #422 — Due labels and calendar dates follow the viewer's Preferences, and a
 // calendar date stored at UTC midnight stays that calendar day whatever the
@@ -23,8 +23,7 @@ const DATED: { key: Extract<DueLabel, { date: string }>["key"]; text: string }[]
   { key: "lapsed", text: "Lapsed" },
 ];
 
-const label = (labelParts: DueLabel, dateFormat?: string, region?: string) =>
-  formatDueLabel({ labelParts }, { dateFormat, region });
+const label = (labelParts: DueLabel, dateFormat?: string) => formatDueLabel({ labelParts }, { dateFormat });
 
 describe("Due labels in the viewer's date format", () => {
   it.each(DATED)("$key reads in each date format", ({ key, text }) => {
@@ -71,10 +70,10 @@ describe("Due labels in the viewer's date format", () => {
       { today: TODAY, defaultReminderDays: "30" },
     );
     for (const entry of entries) {
-      expect(formatDueLabel(entry, { dateFormat: "DD/MM/YYYY", region: "en-AU" })).toBe(entry.label);
+      expect(formatDueLabel(entry, { dateFormat: "DD/MM/YYYY" })).toBe(entry.label);
       expect(renderDueLabel(entry.labelParts)).toBe(entry.label);
     }
-    expect(entries.map((e) => formatDueLabel(e, { dateFormat: "MM/DD/YYYY", region: "en-US" }))).toEqual([
+    expect(entries.map((e) => formatDueLabel(e, { dateFormat: "MM/DD/YYYY" }))).toEqual([
       "Insurance expired 4 days ago",
       "Rego due Nov 3",
       "Service due Jan 5, 2027",
@@ -82,26 +81,19 @@ describe("Due labels in the viewer's date format", () => {
   });
 });
 
-describe("Due labels in the viewer's region", () => {
-  it.each(REGION_OPTIONS.map((region) => [region]))("%s keeps the date format's English month names", (region) => {
-    const parts: DueLabel = { key: "expires", date: "2026-11-03", today: TODAY };
-    expect(label(parts, "DD/MM/YYYY", region)).toBe("Expires 3 Nov");
-    expect(label(parts, "MM/DD/YYYY", region)).toBe("Expires Nov 3");
-    expect(label(parts, "YYYY-MM-DD", region)).toBe("Expires 2026-11-03");
+describe("Due labels never depend on the runtime's locale data", () => {
+  it("writes day counts as plain digits, whatever the Region", () => {
+    // Region only styles money; a label reads the same on server and browser.
+    expect(label({ key: "expiredAgo", days: 1234 }, "DD/MM/YYYY")).toBe("Expired 1234 days ago");
+    expect(label({ key: "serviceOverdue", days: 1234 }, "MM/DD/YYYY")).toBe("Service overdue by 1234 days");
   });
 
-  it.each(REGION_OPTIONS.map((region) => [region]))("%s writes day counts in its number style", (region) => {
-    const days = 1234;
-    const count = days.toLocaleString(region);
-    expect(label({ key: "expiredAgo", days }, "DD/MM/YYYY", region)).toBe(`Expired ${count} days ago`);
-    expect(label({ key: "serviceOverdue", days }, "MM/DD/YYYY", region)).toBe(`Service overdue by ${count} days`);
-  });
-
-  it("separates thousands by region", () => {
-    expect(label({ key: "expiredAgo", days: 1234 }, "DD/MM/YYYY", "en-AU")).toBe("Expired 1,234 days ago");
-    expect(label({ key: "expiredAgo", days: 1234 }, "DD/MM/YYYY", "de-DE")).toBe("Expired 1.234 days ago");
-    // An unknown region falls back to the default, en-AU.
-    expect(label({ key: "expiredAgo", days: 1234 }, "DD/MM/YYYY", "xx-XX")).toBe("Expired 1,234 days ago");
+  it("uses the same English month as the date fields (Sep, never ICU's Sept)", () => {
+    const parts: DueLabel = { key: "expires", date: "2026-09-03", today: TODAY };
+    expect(label(parts, "DD/MM/YYYY")).toBe("Expires 3 Sep");
+    expect(formatDate("2026-09-03T00:00:00.000Z", "DD/MM/YYYY")).toBe("3 Sep 2026");
+    expect(label(parts, "MM/DD/YYYY")).toBe("Expires Sep 3");
+    expect(formatDate("2026-09-03T00:00:00.000Z", "MM/DD/YYYY")).toBe("Sep 3, 2026");
   });
 });
 
@@ -150,17 +142,43 @@ describe("calendar dates and timestamps across timezones", () => {
     expect(formatTimestamp(uploadedAt, "YYYY-MM-DD", "UTC")).toBe("2026-11-03");
   });
 
-  it("a timestamp with no valid viewer zone falls back to the process zone", () => {
+  it("a timestamp with no valid viewer zone reads in UTC, whatever the process zone", () => {
+    // The server and the browser run in different zones; both must agree.
     const uploadedAt = new Date("2026-11-03T20:00:00.000Z");
-    process.env.TZ = "Pacific/Auckland";
-    expect(formatTimestamp(uploadedAt, "DD/MM/YYYY", null)).toBe("4 Nov 2026");
-    process.env.TZ = "America/New_York";
-    expect(formatTimestamp(uploadedAt, "DD/MM/YYYY", "Not/AZone")).toBe("3 Nov 2026");
+    for (const tz of ["Pacific/Auckland", "America/New_York"]) {
+      process.env.TZ = tz;
+      expect(formatTimestamp(uploadedAt, "DD/MM/YYYY", null)).toBe("3 Nov 2026");
+      expect(formatTimestamp(uploadedAt, "DD/MM/YYYY", "Not/AZone")).toBe("3 Nov 2026");
+    }
   });
 
-  it("the viewer's chosen timezone wins, and the UTC default defers to the household's", () => {
+  it("formats every month from the shared table, in every date format", () => {
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    months.forEach((month, i) => {
+      const mm = String(i + 1).padStart(2, "0");
+      const stored = new Date(`2026-${mm}-15T00:00:00.000Z`);
+      expect(formatDate(stored, "DD/MM/YYYY")).toBe(`15 ${month} 2026`);
+      expect(formatDate(stored, "MM/DD/YYYY")).toBe(`${month} 15, 2026`);
+      expect(formatDate(stored, "YYYY-MM-DD")).toBe(`2026-${mm}-15`);
+      expect(formatTimestamp(stored, "DD/MM/YYYY", "Australia/Sydney")).toBe(`15 ${month} 2026`);
+      expect(formatTimestamp(stored, "MM/DD/YYYY", "Australia/Sydney")).toBe(`${month} 15, 2026`);
+      expect(formatTimestamp(stored, "YYYY-MM-DD", "Australia/Sydney")).toBe(`2026-${mm}-15`);
+    });
+  });
+
+  it("pads ISO dates and timestamps", () => {
+    expect(formatDate(new Date("2026-03-05T00:00:00.000Z"), "YYYY-MM-DD")).toBe("2026-03-05");
+    expect(formatTimestamp(new Date("2026-03-05T12:00:00.000Z"), "YYYY-MM-DD", "Europe/London")).toBe("2026-03-05");
+  });
+
+  it("the viewer's chosen timezone wins; Household default and the legacy UTC default defer", () => {
     expect(displayTimeZone("Europe/Paris", "Australia/Sydney")).toBe("Europe/Paris");
+    // "" is the explicit Household default choice.
+    expect(displayTimeZone("", "Australia/Sydney")).toBe("Australia/Sydney");
+    // "UTC" is the column default every member who never chose still has.
     expect(displayTimeZone("UTC", "Australia/Sydney")).toBe("Australia/Sydney");
+    // A deliberate UTC choice is stored as Etc/UTC, and honoured.
+    expect(displayTimeZone("Etc/UTC", "Australia/Sydney")).toBe("Etc/UTC");
     expect(displayTimeZone(null, "Australia/Sydney")).toBe("Australia/Sydney");
     expect(displayTimeZone("Not/AZone", "Australia/Sydney")).toBe("Australia/Sydney");
   });

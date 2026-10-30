@@ -5,7 +5,7 @@ import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { env } from "@/lib/env";
 import { addDays, calendarDayOf, noticeApplies } from "@/lib/duePolicy";
 import { dayStart } from "@/lib/listDue";
-import { currentTenancy, TENANCY_AGREEMENT_SELECT } from "@/lib/dueRecords";
+import { currentTenancy, LIVE_TENANCY_AGREEMENTS } from "@/lib/dueRecords";
 import { hashToken } from "@/lib/crypto";
 
 export async function GET(request: NextRequest) {
@@ -168,7 +168,7 @@ export async function GET(request: NextRequest) {
     // so moving the lease end updates the event instead of adding one.
     const rentedProperties = await prisma.property.findMany({
       where: { deletedAt: null, isRented: true },
-      select: { id: true, label: true, isRented: true, rentalAgreements: { where: { deletedAt: null }, select: TENANCY_AGREEMENT_SELECT } },
+      select: { id: true, label: true, isRented: true, rentalAgreements: LIVE_TENANCY_AGREEMENTS },
     });
     for (const property of rentedProperties) {
       const tenancy = currentTenancy(property);

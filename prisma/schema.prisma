@@ -61,6 +61,8 @@ enum NotificationOwnerType {
   CONTRACT
   PRODUCT
   VEHICLE
+  // #388 — a Tenancy (RentalAgreement), for its lease end.
+  TENANCY
 }
 
 enum NotificationStatus {
@@ -446,8 +448,9 @@ model NotificationLog {
   ownerId       String
   // Which Due entry of the record, by the Due policy's field name:
   // "noticeDeadline" / "endDate", "warrantyEndDate", "regoExpiry" /
-  // "insuranceExpiry" / "nextServiceDue". Never null. Rows from before #387
-  // used "" for contracts and products; the backfill renames them.
+  // "insuranceExpiry" / "nextServiceDue", "leaseEnd". Never null. Rows
+  // from before #387 used "" for contracts and products; the backfill
+  // renames them.
   field         String                @default("")
   channel       NotificationChannel
   thresholdDays Int
@@ -818,6 +821,10 @@ model RentalAgreement {
   bondAmount           Float?
   currency             String    @default("AUD")
   notes                String?
+  // #388 — Reminder thresholds for the lease end ("30,14,7,1"). Null means
+  // the household default, which is what every Tenancy used before it had
+  // its own.
+  reminderDaysBefore   String?
   // #427 — soft-delete, as for Trip segments.
   deletedAt            DateTime?
   createdAt            DateTime  @default(now())

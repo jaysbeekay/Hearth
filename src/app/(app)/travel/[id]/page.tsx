@@ -341,7 +341,6 @@ export default async function TripDetailPage({
                     <h3 className="mb-2 text-sm font-medium">Documents</h3>
                     <TripSegmentDocumentList
                       documents={segment.documents}
-                      dateFormat={dateFormat}
                     />
                     {canWrite && (
                       <div className="mt-3">
@@ -361,7 +360,6 @@ export default async function TripDetailPage({
         updatedByName={trip.updatedBy?.name}
         createdAt={trip.createdAt}
         updatedAt={trip.updatedAt}
-        dateFormat={dateFormat}
         memberCount={memberCount}
       />
     </div>

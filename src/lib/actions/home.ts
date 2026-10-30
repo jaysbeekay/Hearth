@@ -60,6 +60,7 @@ const RENTAL_AGREEMENT_FORM_FIELDS = [
   "bondAmount",
   "currency",
   "notes",
+  "reminderDaysBefore",
 ];
 
 const RENTAL_STATEMENT_FORM_FIELDS = [

@@ -5,7 +5,10 @@ import { createTripCommand, createTripSegmentCommand, deleteTripSegmentCommand, 
 import { getDueContext } from "@/lib/appSettings";
 import { addDays } from "@/lib/duePolicy";
 import { getCalendarEvents } from "@/lib/calendarEvents";
-import { queryTrips } from "@/lib/domainQueries";
+import { queryTrips, queryProperties, whatsDue } from "@/lib/domainQueries";
+import { currentTenancy } from "@/lib/dueRecords";
+import { createPropertyCommand, createTenancyCommand, deleteTenancyCommand, restoreTenancyCommand } from "@/lib/commands/home";
+import { propertySchema, rentalAgreementSchema } from "@/lib/validation/home";
 import { getTravelDistanceSummary } from "@/lib/integrations/flightDistance";
 import { hashToken } from "@/lib/crypto";
 
@@ -31,6 +34,50 @@ async function feed() {
   const res = await GET(new NextRequest(`http://localhost/api/ical?token=feed-${actorId}`));
   return res.text();
 }
+
+describe("a Tenancy in Trash", () => {
+  it("is never the current Tenancy, even when it's the most recent lease", () => {
+    const lease = (id: string, start: string, deletedAt: Date | null) => ({
+      id,
+      leaseStart: d(start),
+      leaseEnd: null,
+      createdAt: d(start),
+      deletedAt,
+    });
+    const older = lease("older", "2025-01-01", null);
+    const trashed = lease("trashed", "2026-01-01", new Date());
+    expect(currentTenancy({ isRented: true, rentalAgreements: [older, trashed] })?.id).toBe("older");
+    expect(currentTenancy({ isRented: true, rentalAgreements: [trashed] })).toBeNull();
+  });
+
+  it("is left out of What's due, Upcoming, the iCal feed and queryProperties", async () => {
+    const ctx = await getDueContext();
+    const property = await createPropertyCommand(
+      propertySchema.parse({ label: "Unit 9", occupancyStatus: "RENTED" }),
+      actorId,
+    );
+    const tenancy = await createTenancyCommand(
+      property.id,
+      rentalAgreementSchema.parse({ weeklyRent: 500, tenantName: "Sam", leaseEnd: addDays(ctx.today, 20) }),
+      actorId,
+    );
+
+    const seen = async () => ({
+      due: (await whatsDue(new Set(["HOME"]))).some((item) => item.kind === "tenancy" && item.id === property.id),
+      upcoming: (await getCalendarEvents(new Set(["HOME"]), ctx, addDays(ctx.today, 30))).some(
+        (e) => e.id === `lease-${tenancy.id}`,
+      ),
+      ical: (await feed()).includes(`lease-${tenancy.id}`),
+      tenant: (await queryProperties()).find((p) => p.id === property.id)?.currentTenant?.tenantName ?? null,
+    });
+
+    expect(await seen()).toEqual({ due: true, upcoming: true, ical: true, tenant: "Sam" });
+    await deleteTenancyCommand(tenancy.id);
+    expect(await seen()).toEqual({ due: false, upcoming: false, ical: false, tenant: null });
+    await restoreTenancyCommand(tenancy.id);
+    expect(await seen()).toEqual({ due: true, upcoming: true, ical: true, tenant: "Sam" });
+  });
+});
 
 describe("a Trip segment in Trash", () => {
   it("is left out of Upcoming, the iCal feed, queryTrips and the distance totals", async () => {

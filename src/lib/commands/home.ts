@@ -1,6 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { removeOwnerDocumentFiles } from "@/lib/commands/documents";
+import { clearNotificationLogs } from "@/lib/notifications/logs";
 import { assertModuleEnabled } from "@/lib/modules/enablement";
 import {
   updateLiveUnlessStale,
@@ -147,7 +148,11 @@ export async function permanentlyDeletePropertyCommand(id: string) {
 export async function purgeProperty(id: string) {
   const existing = await prisma.property.findUnique({
     where: { id },
-    include: { items: { select: { id: true } }, rentalStatements: { select: { id: true } } },
+    include: {
+      items: { select: { id: true } },
+      rentalAgreements: { select: { id: true } },
+      rentalStatements: { select: { id: true } },
+    },
   });
   if (!existing) throw new RecordNotFoundError("Property");
   // The row delete cascades to Maintenance records, Tenancies, Rental
@@ -155,6 +160,11 @@ export async function purgeProperty(id: string) {
   // Products are unlinked, not deleted). The files on disk aren't FK-linked,
   // so they're removed straight after.
   await prisma.property.delete({ where: { id } });
+  // The sent-Reminder log isn't FK-linked either (#388).
+  const tenancyIds = existing.rentalAgreements.map((agreement) => agreement.id);
+  if (tenancyIds.length > 0) {
+    await prisma.notificationLog.deleteMany({ where: { ownerType: "TENANCY", ownerId: { in: tenancyIds } } });
+  }
   for (const item of existing.items) {
     await removeOwnerDocumentFiles("HOME_ITEM", item.id);
   }
@@ -307,6 +317,14 @@ async function findTenancy(id: string, scope: PropertyScope = {}, db: Db = prism
 }
 
 // Adding a Tenancy also turns rental tracking on for its Property.
+//
+// A new Tenancy usually replaces the current one (currentTenancy in
+// dueRecords.ts). The old one's sent-Reminder rows (ownerType TENANCY, its
+// id) stay until it's permanently deleted. That's harmless: only the
+// current Tenancy gets Reminders, the rows are keyed by the old Tenancy's id
+// so they never count for the new one, and should the old one become
+// current again its rows only match a lease end they were really sent for
+// (ADR 0003).
 export async function createTenancyCommand(propertyId: string, input: RentalAgreementInput, actorId: string) {
   await assertModuleEnabled("HOME");
   const agreement = await prisma.$transaction(async (tx) => {
@@ -432,11 +450,13 @@ export async function permanentlyDeleteTenancyCommand(id: string) {
 }
 
 // See purgeProperty: for Trash retention only. A Tenancy has no Documents,
-// so there are no files to remove. A linked Contract is left alone (the
-// link is on the Tenancy's side).
+// so there are no files to remove, but its sent-Reminder log goes with it
+// (#388; NotificationLog is polymorphic, so no cascade). A linked Contract
+// is left alone (the link is on the Tenancy's side).
 export async function purgeTenancy(id: string) {
   const existing = await findTenancy(id);
   await prisma.rentalAgreement.delete({ where: { id } });
+  await clearNotificationLogs("TENANCY", id);
   return existing;
 }
 
