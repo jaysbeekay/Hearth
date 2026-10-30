@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
-import { verifyRegistrationResponse } from "@simplewebauthn/server";
-import type { RegistrationResponseJSON } from "@simplewebauthn/types";
+import {
+  verifyRegistrationResponse,
+  type RegistrationResponseJSON,
+} from "@simplewebauthn/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
+import { toStoredPasskey } from "@/lib/passkeyCredential";
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -52,13 +55,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Verification failed." }, { status: 400 });
   }
 
-  const { credentialID, credentialPublicKey, counter } = verification.registrationInfo;
-
-  // credentialID is Uint8Array; convert to base64url for storage
-  const credentialIdBase64 = Buffer.from(credentialID).toString("base64url");
+  const stored = toStoredPasskey(
+    verification.registrationInfo.credential,
+    body.response.response.transports,
+  );
 
   const existing = await prisma.passkeyCredential.findUnique({
-    where: { credentialId: credentialIdBase64 },
+    where: { credentialId: stored.credentialId },
   });
   if (existing) {
     return NextResponse.json({ error: "Credential already registered." }, { status: 409 });
@@ -67,12 +70,7 @@ export async function POST(request: Request) {
   await prisma.passkeyCredential.create({
     data: {
       userId: session.user.id,
-      credentialId: credentialIdBase64,
-      publicKey: Buffer.from(credentialPublicKey),
-      counter,
-      transports: body.response.response.transports
-        ? JSON.stringify(body.response.response.transports)
-        : null,
+      ...stored,
       nickname: body.nickname?.trim() || null,
     },
   });

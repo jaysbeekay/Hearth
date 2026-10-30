@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { generateAuthenticationOptions } from "@simplewebauthn/server";
-import type { AuthenticatorTransportFuture } from "@simplewebauthn/types";
 import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
 import { clientAddress, consumeRateLimit } from "@/lib/rateLimit";
