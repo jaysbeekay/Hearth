@@ -16,7 +16,7 @@ import { prisma } from "@/lib/prisma";
 import { CATEGORY_LABELS, daysUntil, formatPropertyAddress, monthlyEquivalent } from "@/lib/utils";
 import { getDueContext, getHouseholdToday } from "@/lib/appSettings";
 import { calendarDayOf, isDue, type DueContext, type DueEntry } from "@/lib/duePolicy";
-import { contractDue, currentTenancy, tenancyDue, TENANCY_AGREEMENT_SELECT, vehicleDue, warrantyDue } from "@/lib/dueRecords";
+import { contractDue, currentTenancy, tenancyDue, LIVE_TENANCY_AGREEMENTS, vehicleDue, warrantyDue } from "@/lib/dueRecords";
 import { buildCategoryBreakdown, monthlySpend } from "@/lib/spend";
 import { getFxRateMap, refreshFxRates } from "@/lib/fx";
 import type { ModuleKey } from "@/lib/modules/registry";
@@ -77,7 +77,7 @@ export async function queryTrips(upcomingOnly?: boolean) {
       startDate: true,
       endDate: true,
       notes: true,
-      _count: { select: { segments: true } },
+      _count: { select: { segments: { where: { deletedAt: null } } } },
     },
     orderBy: { startDate: "asc" },
   });
@@ -140,11 +140,13 @@ export async function queryProperties() {
       occupancyStatus: true,
       notes: true,
       rentalAgreements: {
+        where: { deletedAt: null },
         select: { tenantName: true, weeklyRent: true, leaseEnd: true },
         orderBy: { createdAt: "desc" },
         take: 1,
       },
       valuations: {
+        where: { deletedAt: null },
         select: { value: true, currency: true, valuedAt: true },
         orderBy: { valuedAt: "desc" },
         take: 1,
@@ -517,7 +519,7 @@ export async function whatsDue(enabledModules: Set<ModuleKey>, withinDays: numbe
     enabledModules.has("HOME")
       ? prisma.property.findMany({
           where: { deletedAt: null, isRented: true },
-          select: { id: true, label: true, isRented: true, rentalAgreements: { select: TENANCY_AGREEMENT_SELECT } },
+          select: { id: true, label: true, isRented: true, rentalAgreements: LIVE_TENANCY_AGREEMENTS },
         })
       : [],
   ]);

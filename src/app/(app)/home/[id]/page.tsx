@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { addDocumentAction } from "@/lib/actions/documents";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { deleteProperty, deleteHomeItem, restoreProperty, restoreHomeItem } from "@/lib/actions/home";
-import { createPropertyValuation, deletePropertyValuation } from "@/lib/actions/wealth";
+import { createPropertyValuation, deletePropertyValuation, restorePropertyValuation } from "@/lib/actions/wealth";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailField as Detail } from "@/components/DetailField";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
@@ -30,7 +30,7 @@ import {
 import { getUserPreferences } from "@/lib/userPreferences";
 import { getHouseholdMemberCount } from "@/lib/household";
 import { getDueContext } from "@/lib/appSettings";
-import { currentTenancy, tenancyDue, TENANCY_AGREEMENT_SELECT } from "@/lib/dueRecords";
+import { currentTenancy, tenancyDue, LIVE_TENANCY_AGREEMENTS } from "@/lib/dueRecords";
 import { DetailStatusBanner } from "@/components/DetailStatusBanner";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
@@ -71,8 +71,8 @@ export default async function PropertyDetailPage({
             where: { deletedAt: null },
             include: { documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" } } },
           },
-          valuations: { orderBy: { valuedAt: "desc" } },
-          rentalAgreements: { select: TENANCY_AGREEMENT_SELECT },
+          valuations: { where: { deletedAt: null }, orderBy: { valuedAt: "desc" } },
+          rentalAgreements: LIVE_TENANCY_AGREEMENTS,
         },
       }),
       getUserPreferences(),
@@ -340,9 +340,15 @@ export default async function PropertyDetailPage({
                 {canWrite && (
                   <ConfirmForm
                     action={deletePropertyValuation.bind(null, property.id, v.id)}
-                    confirmText="Remove this valuation? This can't be undone."
-                    actionLabel="Remove valuation"
-                    ariaLabel={`Remove valuation from ${formatDate(v.valuedAt, dateFormat)}`}
+                    undo={{ action: restorePropertyValuation.bind(null, v.id) }}
+                    offline={{
+                      entity: "propertyValuation",
+                      entityId: v.id,
+                      parentId: property.id,
+                      label: `Delete valuation: ${formatDate(v.valuedAt, dateFormat)}`,
+                    }}
+                    confirmText="Move this valuation to Trash? You can restore it within 30 days from Settings → Trash."
+                    ariaLabel={`Move valuation from ${formatDate(v.valuedAt, dateFormat)} to Trash`}
                     className="rounded-lg border border-border p-2 text-danger hover:bg-danger/10"
                   >
                     <Trash2 size={14} />

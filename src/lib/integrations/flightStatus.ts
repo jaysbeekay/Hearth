@@ -96,9 +96,9 @@ export async function refreshFlightStatus(segmentId: string): Promise<void> {
     include: { trip: { select: { deletedAt: true } } },
   });
   if (!segment || segment.type !== "FLIGHT" || !segment.flightNumber) return;
-  // A Trip in Trash is read-only (#428): don't spend an API call on a
+  // A segment or Trip in Trash is read-only (#428, #427): don't spend an API call on a
   // result saveTripSegmentFlightData would refuse to store.
-  if (segment.trip.deletedAt) return;
+  if (segment.deletedAt || segment.trip.deletedAt) return;
 
   const { apiKey } = await getAviationStackConfig();
   if (!apiKey) return;

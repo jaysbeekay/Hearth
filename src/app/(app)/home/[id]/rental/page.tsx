@@ -6,8 +6,10 @@ import { addDocumentAction } from "@/lib/actions/documents";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import {
   deleteRentalAgreement,
+  restoreRentalAgreement,
   setPropertyRented,
   deleteRentalStatement,
+  restoreRentalStatement,
   linkRentalAgreementContract,
 } from "@/lib/actions/home";
 import { ConfirmForm } from "@/components/ConfirmForm";
@@ -80,8 +82,9 @@ export default async function RentalOverviewPage({
     prisma.property.findUnique({
       where: { id },
       include: {
-        rentalAgreements: { include: { contract: true }, orderBy: { createdAt: "desc" } },
+        rentalAgreements: { where: { deletedAt: null }, include: { contract: true }, orderBy: { createdAt: "desc" } },
         rentalStatements: {
+          where: { deletedAt: null },
           include: { documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" } } },
           orderBy: { periodStart: "desc" },
         },
@@ -89,9 +92,15 @@ export default async function RentalOverviewPage({
     }),
     prisma.contract.findMany({
       // A Contract links to one Tenancy at most, and one in Trash can't be
-      // linked (linkTenancyContractCommand refuses both).
-      where: { category: "RENTAL", deletedAt: null, rentalAgreement: null },
-      select: { id: true, title: true, provider: true },
+      // linked (linkTenancyContractCommand refuses both). One still held by
+      // a Tenancy in Trash is listed but disabled, so it's clear why it
+      // can't be picked (#427).
+      where: {
+        category: "RENTAL",
+        deletedAt: null,
+        OR: [{ rentalAgreement: null }, { rentalAgreement: { deletedAt: { not: null } } }],
+      },
+      select: { id: true, title: true, provider: true, rentalAgreement: { select: { id: true } } },
       orderBy: { title: "asc" },
     }),
     getUserPreferences(),
@@ -203,8 +212,14 @@ export default async function RentalOverviewPage({
                           </Link>
                           <ConfirmForm
                             action={deleteRentalAgreement.bind(null, property.id, ag.id)}
-                            confirmText="Delete this tenancy? Statements are not affected."
-                            actionLabel="Delete tenancy"
+                            undo={{ action: restoreRentalAgreement.bind(null, ag.id) }}
+                            offline={{
+                              entity: "rentalAgreement",
+                              entityId: ag.id,
+                              parentId: property.id,
+                              label: `Delete tenancy: ${ag.tenantName ?? property.label}`,
+                            }}
+                            confirmText="Move this tenancy to Trash? Statements are not affected, and you can restore it within 30 days from Settings → Trash."
                             className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
                           >
                             <Trash2 size={16} />
@@ -277,8 +292,8 @@ export default async function RentalOverviewPage({
                           <select name="contractId" defaultValue="" className={selectClass}>
                             <option value="">Not linked</option>
                             {rentalContracts.map((c) => (
-                              <option key={c.id} value={c.id}>
-                                {c.title} ({c.provider})
+                              <option key={c.id} value={c.id} disabled={c.rentalAgreement !== null}>
+                                {`${c.title} (${c.provider})${c.rentalAgreement !== null ? " (linked to a tenancy in Trash)" : ""}`}
                               </option>
                             ))}
                           </select>
@@ -367,8 +382,14 @@ export default async function RentalOverviewPage({
                             </Link>
                             <ConfirmForm
                               action={deleteRentalStatement.bind(null, property.id, stmt.id)}
-                              confirmText="Delete this statement and its documents?"
-                              actionLabel="Delete statement"
+                              undo={{ action: restoreRentalStatement.bind(null, stmt.id) }}
+                              offline={{
+                                entity: "rentalStatement",
+                                entityId: stmt.id,
+                                parentId: property.id,
+                                label: `Delete statement: ${formatDate(stmt.statementDate ?? stmt.periodEnd, dateFormat)}`,
+                              }}
+                              confirmText="Move this statement to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash."
                               className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
                             >
                               <Trash2 size={16} />

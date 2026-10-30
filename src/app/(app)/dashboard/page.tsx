@@ -13,7 +13,7 @@ import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { auth } from "@/lib/auth";
 import { isSmtpConfigured, isNtfyConfigured, getDueContext } from "@/lib/appSettings";
 import { addDays, calendarDayOf } from "@/lib/duePolicy";
-import { currentTenancy, TENANCY_AGREEMENT_SELECT } from "@/lib/dueRecords";
+import { currentTenancy, LIVE_TENANCY_AGREEMENTS } from "@/lib/dueRecords";
 import { getCurrentReminderFailures } from "@/lib/notifications/logs";
 import { getDocumentStats } from "@/lib/documents/stats";
 import {
@@ -65,7 +65,7 @@ export default async function DashboardPage() {
         ? prisma.trip.findMany({
             where: { deletedAt: null },
             orderBy: { startDate: "asc" },
-            include: { _count: { select: { segments: true } } },
+            include: { _count: { select: { segments: { where: { deletedAt: null } } } } },
           })
         : [],
       enabledModules.has("HOME")
@@ -75,7 +75,7 @@ export default async function DashboardPage() {
               id: true,
               label: true,
               isRented: true,
-              rentalAgreements: { select: TENANCY_AGREEMENT_SELECT },
+              rentalAgreements: LIVE_TENANCY_AGREEMENTS,
             },
           })
         : [],

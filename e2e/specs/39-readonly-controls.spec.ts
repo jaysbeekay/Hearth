@@ -209,7 +209,7 @@ test.describe("read-only member (#400)", () => {
     await uploadFirst(page, `ro-repair-${stamp}.pdf`);
     await page.locator('input[name="value"]').fill("750000");
     await page.getByRole("button", { name: "Save valuation" }).click();
-    await expect(page.getByRole("button", { name: /^Remove valuation/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Move valuation from .* to Trash$/ })).toBeVisible();
     await page.goto(`/home/${ids.property}/rental/agreements/new`);
     await page.locator("#weeklyRent").fill("500");
     await page.locator("#tenantName").fill("RO Tenant");
