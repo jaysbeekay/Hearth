@@ -461,6 +461,22 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **An Inventory item in Trash can't be edited (#446).** Saving an edit form
+  left open while the item was moved to Trash, or replaying an offline edit
+  to it, now fails with "Item not found." instead of changing the trashed
+  item. Updates go through a new Inventory record command
+  (`src/lib/commands/inventory.ts`) with the same Trash rule and stale-edit
+  check as the other modules. A new warranty link must be to a Warranty that
+  isn't in Trash; a link the item already has is kept.
+- **Contracts and Warranties can't be linked to a Property or Vehicle in
+  Trash (#447).** The link check now runs inside the Contract and Product
+  commands, in the write's transaction, so every caller gets it: the forms,
+  import, the Assistant and offline sync replays, which skipped it before.
+  A link the record already has is kept when the rest of it is edited, even
+  if that Property or Vehicle has since gone to Trash, and the Assistant's
+  update proposals follow the same rule. A refused link on an edit form
+  keeps what was entered. An offline edit that's both stale and links a
+  trashed record is reported as stale.
 - **Day counts a day short on servers west of UTC (#394).** `daysUntil`
   read stored dates (UTC midnight) in the server's local time, so MCP and
   the Assistant's warranty and vehicle day counts came out a day short west
