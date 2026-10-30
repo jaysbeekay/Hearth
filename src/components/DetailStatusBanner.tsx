@@ -4,7 +4,7 @@ import { TestConnectionButton } from "@/components/TestConnectionButton";
 import { WriteOnly } from "@/components/CanWriteProvider";
 import { bannerEntries, dueTone, type DueEntry, type DueTone } from "@/lib/dueRecords";
 import type { ActionState } from "@/lib/actions/auth";
-import { DayCount, DueLabelText } from "@/components/DueLabelText";
+import { DueLabelText } from "@/components/DueLabelText";
 
 const TONE_CLASS = new Map<DueTone, string>([
   ["danger", "border-danger/30 bg-danger/10 text-danger"],
@@ -23,7 +23,7 @@ function Message({ entry, newEndDateMessage }: { entry: DueEntry; newEndDateMess
   if (entry.state !== "needs-new-end-date" && entry.daysLeft > 0) {
     return (
       <>
-        <DueLabelText entry={entry} /> — <DayCount days={entry.daysLeft} /> day{entry.daysLeft === 1 ? "" : "s"} left.
+        <DueLabelText entry={entry} /> — {entry.daysLeft} day{entry.daysLeft === 1 ? "" : "s"} left.
       </>
     );
   }
