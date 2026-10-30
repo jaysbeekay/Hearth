@@ -106,7 +106,7 @@ export function ContractListClient({
     {
       label: "due soon",
       value: counts.dueSoon ?? 0,
-      tone: "warning" as const,
+      status: "due-soon" as const,
       onClick: () => {
         toggleFilter("dueSoon");
       },
@@ -114,7 +114,7 @@ export function ContractListClient({
     {
       label: "expired",
       value: counts.overdue ?? 0,
-      tone: "danger" as const,
+      status: "overdue" as const,
       onClick: () => {
         toggleFilter("overdue");
       },
@@ -122,7 +122,7 @@ export function ContractListClient({
     {
       label: "needs review",
       value: counts.review ?? 0,
-      tone: "warning" as const,
+      status: "needs-review" as const,
       onClick: () => {
         toggleFilter("review");
       },

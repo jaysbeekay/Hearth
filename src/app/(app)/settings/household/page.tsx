@@ -78,7 +78,7 @@ export default async function HouseholdSettingsPage() {
             <DatabaseBackup size={18} />
             {SETTINGS_ROUTES.backups.label}
           </span>
-          <span className={`text-xs font-normal ${backupConfigured ? "text-muted" : "text-warning"}`}>
+          <span className="text-xs font-normal text-muted">
             {backupConfigured ? BACKUP_DESTINATION_LABELS[backupDestination] : "Not configured"}
           </span>
         </Link>
@@ -105,7 +105,7 @@ export default async function HouseholdSettingsPage() {
             <Settings2 size={18} />
             {SETTINGS_ROUTES.app.label}
           </span>
-          <span className={`text-xs font-normal ${notificationsConfigured ? "text-muted" : "text-warning"}`}>
+          <span className="text-xs font-normal text-muted">
             {notificationsConfigured ? "Notifications configured" : "Notifications not configured"}
           </span>
         </Link>

@@ -92,7 +92,7 @@ export function DocumentList({
                   </span>
                   <TypePill label={documentTypeLabel(doc, productKind(doc))} />
                   {older.length > 0 && (
-                    <span className="rounded-md bg-accent/10 px-1.5 py-0.5 text-xs font-medium text-accent">
+                    <span className="rounded-md bg-muted/10 px-1.5 py-0.5 text-xs font-medium text-muted">
                       Latest
                     </span>
                   )}

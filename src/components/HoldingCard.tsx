@@ -30,7 +30,7 @@ export function HoldingCard({ holding, portfolioId, region }: Props) {
             <p className="text-xs text-muted truncate">{holding.name}</p>
           )}
         </div>
-        <span className="shrink-0 rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
+        <span className="shrink-0 rounded-full bg-muted/10 px-2 py-0.5 text-xs font-medium text-muted">
           {ASSET_CLASS_LABELS[holding.assetClass] ?? holding.assetClass}
         </span>
       </div>

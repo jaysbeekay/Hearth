@@ -189,7 +189,7 @@ export function OfflineSyncManager() {
           ? "bg-danger/10 text-danger"
           : syncState === "done"
             ? "bg-success/10 text-success"
-            : "bg-warning/10 text-warning"
+            : "bg-muted/10 text-foreground"
       }`}
     >
       {syncState === "syncing" && (
