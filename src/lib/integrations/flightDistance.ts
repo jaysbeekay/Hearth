@@ -144,8 +144,8 @@ export async function computeSegmentDistance(segmentId: string): Promise<void> {
     include: { trip: { select: { deletedAt: true } } },
   });
   if (!segment || segment.type !== "FLIGHT") return;
-  // A Trip in Trash is read-only (#428): skip the airport lookups too.
-  if (segment.trip.deletedAt) return;
+  // A segment or Trip in Trash is read-only (#428, #427): skip the lookups too.
+  if (segment.deletedAt || segment.trip.deletedAt) return;
   if (segment.distanceKm != null) return;
   if (!segment.departureIata || !segment.arrivalIata) return;
 

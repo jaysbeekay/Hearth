@@ -61,7 +61,7 @@ export async function queryTrips(upcomingOnly?: boolean) {
       startDate: true,
       endDate: true,
       notes: true,
-      _count: { select: { segments: true } },
+      _count: { select: { segments: { where: { deletedAt: null } } } },
     },
     orderBy: { startDate: "asc" },
   });
@@ -123,11 +123,13 @@ export async function queryProperties() {
       occupancyStatus: true,
       notes: true,
       rentalAgreements: {
+        where: { deletedAt: null },
         select: { tenantName: true, weeklyRent: true, leaseEnd: true },
         orderBy: { createdAt: "desc" },
         take: 1,
       },
       valuations: {
+        where: { deletedAt: null },
         select: { value: true, currency: true, valuedAt: true },
         orderBy: { valuedAt: "desc" },
         take: 1,

@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { addDocumentAction } from "@/lib/actions/documents";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { deleteProperty, deleteHomeItem, restoreProperty, restoreHomeItem } from "@/lib/actions/home";
-import { createPropertyValuation, deletePropertyValuation } from "@/lib/actions/wealth";
+import { createPropertyValuation, deletePropertyValuation, restorePropertyValuation } from "@/lib/actions/wealth";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailField as Detail } from "@/components/DetailField";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
@@ -68,8 +68,8 @@ export default async function PropertyDetailPage({
             where: { deletedAt: null },
             include: { documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" } } },
           },
-          valuations: { orderBy: { valuedAt: "desc" } },
-          rentalAgreements: { select: TENANCY_AGREEMENT_SELECT },
+          valuations: { where: { deletedAt: null }, orderBy: { valuedAt: "desc" } },
+          rentalAgreements: { where: { deletedAt: null }, select: TENANCY_AGREEMENT_SELECT },
         },
       }),
       getUserPreferences(),
@@ -327,8 +327,14 @@ export default async function PropertyDetailPage({
                 {canWrite && (
                   <ConfirmForm
                     action={deletePropertyValuation.bind(null, property.id, v.id)}
-                    confirmText="Remove this valuation? This can't be undone."
-                    actionLabel="Remove valuation"
+                    undo={{ action: restorePropertyValuation.bind(null, v.id) }}
+                    offline={{
+                      entity: "propertyValuation",
+                      entityId: v.id,
+                      parentId: property.id,
+                      label: `Delete valuation: ${formatDate(v.valuedAt, dateFormat)}`,
+                    }}
+                    confirmText="Move this valuation to Trash? You can restore it within 30 days from Settings → Trash."
                     ariaLabel={`Remove valuation from ${formatDate(v.valuedAt, dateFormat)}`}
                     className="rounded-lg border border-border p-2 text-danger hover:bg-danger/10"
                   >

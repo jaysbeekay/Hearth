@@ -2,7 +2,14 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { removeOwnerDocumentFiles } from "@/lib/commands/documents";
 import { assertModuleEnabled } from "@/lib/modules/enablement";
-import { updateLiveUnlessStale, findLiveParent, RecordNotFoundError, type UpdateOptions } from "@/lib/commands/shared";
+import {
+  updateLiveUnlessStale,
+  findLiveParent,
+  requireLive,
+  assertParentRestored,
+  RecordNotFoundError,
+  type UpdateOptions,
+} from "@/lib/commands/shared";
 import type { ClearablePatch } from "@/lib/validation/fullFormUpdate";
 import type { TripInput, TripSegmentInput } from "@/lib/validation/travel";
 import type { Prisma, TripSegment } from "@/generated/prisma/client";
@@ -13,12 +20,14 @@ import type { Prisma, TripSegment } from "@/generated/prisma/client";
 // Callers own sign-in, role checks and Zod parsing; these own the module
 // gate, the write, file cleanup and revalidation.
 //
-// A Trip in Trash is read-only until it's restored, and so are its segments
-// (#428, the rules in shared.ts): an update to it, or a segment create or
-// update under it, is refused as not found. Segments have no Trash of their
-// own, so there's no segment restore to refuse. Updates carry that rule in
-// their guarded write; a segment create checks and writes in one
-// transaction, so a move to Trash can't land in between.
+// Trips and Trip segments each have a Trash (#287, #427). A record in Trash
+// is read-only until it's restored, and so is everything under it (#428,
+// the rules in shared.ts): an update to a Trip or segment in Trash, or a
+// segment create or update under a Trip in Trash, is refused as not found,
+// and a segment can't be restored while its Trip is still in Trash. Updates
+// carry that rule in their guarded write; a segment create or restore
+// checks and writes in one transaction, so a move to Trash can't land in
+// between.
 //
 // Trips have no Reminders, so there's no sent-Reminder log to clear.
 
@@ -134,8 +143,9 @@ export interface TripSegmentScope {
   tripId?: string;
 }
 
-async function findTripSegment(id: string, scope: TripSegmentScope = {}) {
-  const segment = await prisma.tripSegment.findUnique({ where: { id } });
+// For delete, restore and the row an update returns: Trash or not.
+async function findTripSegment(id: string, scope: TripSegmentScope = {}, db: Db = prisma) {
+  const segment = await db.tripSegment.findUnique({ where: { id } });
   if (!segment || (scope.tripId !== undefined && segment.tripId !== scope.tripId)) {
     throw new RecordNotFoundError("Segment");
   }
@@ -163,11 +173,11 @@ export async function updateTripSegmentCommand(
     options.baseUpdatedAt,
     (guard) =>
       prisma.tripSegment.updateMany({
-        where: { id, tripId: options.tripId, trip: { deletedAt: null }, ...guard },
+        where: { id, tripId: options.tripId, deletedAt: null, trip: { deletedAt: null }, ...guard },
         data: patch,
       }),
     async () => {
-      const existing = await findTripSegment(id, options);
+      const existing = requireLive(await findTripSegment(id, options), "Segment");
       await findLiveTrip(existing.tripId, "Segment");
     },
   );
@@ -176,16 +186,56 @@ export async function updateTripSegmentCommand(
   return segment;
 }
 
-// Segments have no Trash of their own (no deletedAt column): deleting one is
-// permanent and takes its Documents and their files with it. A whole Trip
-// is what goes to Trash.
-export async function permanentlyDeleteTripSegmentCommand(id: string, scope: TripSegmentScope = {}) {
+// #427 — soft delete: moves the segment to Trash. Its Documents and their
+// files stay as they are (each keeps its own Trash state), so
+// restoreTripSegmentCommand brings it back as it was. Already in Trash is a
+// no-op, so a replayed offline delete doesn't restart its 30 days.
+export async function deleteTripSegmentCommand(id: string, scope: TripSegmentScope = {}) {
   await assertModuleEnabled("TRAVEL");
   const existing = await findTripSegment(id, scope);
-  // Cascades to the segment's Document rows; then the files go.
+  if (!existing.deletedAt) {
+    await prisma.tripSegment.update({ where: { id }, data: { deletedAt: new Date() } });
+  }
+  revalidateSegment(existing.tripId);
+}
+
+// Refused while the segment's Trip is still in Trash.
+export async function restoreTripSegmentCommand(id: string) {
+  await assertModuleEnabled("TRAVEL");
+  const existing = await prisma.$transaction(async (tx) => {
+    const segment = await findTripSegment(id, {}, tx);
+    assertParentRestored(
+      await tx.trip.findUnique({ where: { id: segment.tripId }, select: { deletedAt: true } }),
+      "Trip",
+    );
+    await tx.tripSegment.update({ where: { id }, data: { deletedAt: null } });
+    return segment;
+  });
+  revalidateSegment(existing.tripId);
+}
+
+export async function permanentlyDeleteTripSegmentCommand(id: string) {
+  await assertModuleEnabled("TRAVEL");
+  const { tripId } = await purgeTripSegment(id);
+  revalidateSegment(tripId);
+}
+
+// See purgeTrip: for Trash retention only.
+export async function purgeTripSegment(id: string) {
+  const existing = await findTripSegment(id);
+  // Cascades to the segment's Document rows (Trash ones included); then the
+  // files go.
   await prisma.tripSegment.delete({ where: { id } });
   await removeOwnerDocumentFiles("TRIP_SEGMENT", id);
-  revalidatePath(`/travel/${existing.tripId}`);
+  return { tripId: existing.tripId };
+}
+
+// The Trip page, the Travel list (segment counts and distance totals) and
+// Trash.
+function revalidateSegment(tripId: string) {
+  revalidatePath(`/travel/${tripId}`);
+  revalidateTripLists();
+  revalidatePath("/settings/trash");
 }
 
 // ── Flight lookups ──────────────────────────────────────────────────────────
@@ -227,18 +277,24 @@ export type TripSegmentFlightData = Partial<
 // isn't an edit, so it mustn't make a queued edit look stale. The write is
 // guarded on that same updatedAt: if a user edit lands between the read and
 // the write, nothing is written (the next lookup tries again). Returns
-// whether the data was saved. Under a Trip in Trash nothing is saved (#428):
-// the Trip is read-only until it's restored.
+// whether the data was saved. For a segment in Trash, or one under a Trip in
+// Trash, nothing is saved (#428, #427): it's read-only until it's restored.
 export async function saveTripSegmentFlightData(id: string, data: TripSegmentFlightData): Promise<boolean> {
   const current = await prisma.tripSegment.findUnique({
     where: { id },
-    select: { updatedAt: true, departureIata: true, arrivalIata: true, trip: { select: { deletedAt: true } } },
+    select: {
+      updatedAt: true,
+      deletedAt: true,
+      departureIata: true,
+      arrivalIata: true,
+      trip: { select: { deletedAt: true } },
+    },
   });
   if (!current) throw new RecordNotFoundError("Segment");
-  if (current.trip.deletedAt) return false;
+  if (current.deletedAt || current.trip.deletedAt) return false;
   const { departureIata, arrivalIata, ...rest } = data;
   const { count } = await prisma.tripSegment.updateMany({
-    where: { id, updatedAt: current.updatedAt, trip: { deletedAt: null } },
+    where: { id, updatedAt: current.updatedAt, deletedAt: null, trip: { deletedAt: null } },
     data: {
       ...rest,
       ...(current.departureIata == null && departureIata ? { departureIata } : {}),

@@ -20,7 +20,12 @@ import {
 } from "@/lib/validation/wealth";
 import { addDocumentCommand } from "@/lib/commands/documents";
 import { isModuleEnabled, ModuleDisabledError } from "@/lib/modules/enablement";
-import { createPropertyValuationCommand, deletePropertyValuationCommand } from "@/lib/commands/home";
+import {
+  createPropertyValuationCommand,
+  deletePropertyValuationCommand,
+  restorePropertyValuationCommand,
+  permanentlyDeletePropertyValuationCommand,
+} from "@/lib/commands/home";
 import {
   createPortfolioCommand,
   updatePortfolioCommand,
@@ -30,11 +35,13 @@ import {
   permanentlyDeleteHoldingCommand,
   createTradeCommand,
   updateTradeCommand,
+  deleteTradeCommand,
+  restoreTradeCommand,
   permanentlyDeleteTradeCommand,
   importTradesCommand,
   DuplicateHoldingError,
 } from "@/lib/commands/wealth";
-import { RecordNotFoundError, StaleEditError } from "@/lib/commands/shared";
+import { RecordNotFoundError, RecordValidationError, StaleEditError } from "@/lib/commands/shared";
 import { formDataToStringValues } from "@/lib/form-state";
 import type { ActionState } from "@/lib/actions/auth";
 import { parse } from "csv-parse/sync";
@@ -252,15 +259,36 @@ export async function updateTrade(
   redirect(holdingPage(portfolioId, holdingId));
 }
 
-// Permanent: Trades have no Trash yet (#427).
+// #427 — moves the Trade to Trash; the Holding's units and cost basis leave
+// it out until it's restored.
 export async function deleteTrade(holdingId: string, tradeId: string): Promise<ActionState> {
   await requireUser();
   try {
-    await permanentlyDeleteTradeCommand(tradeId, { holdingId });
+    await deleteTradeCommand(tradeId, { holdingId });
   } catch (error) {
     return commandError(error, "Trade not found.");
   }
-  return { success: "Trade deleted." };
+  return { success: "Trade moved to Trash." };
+}
+
+export async function restoreTrade(tradeId: string): Promise<ActionState> {
+  await requireUser();
+  try {
+    await restoreTradeCommand(tradeId);
+  } catch (error) {
+    return commandError(error, "Trade not found.");
+  }
+  return { success: "Restored." };
+}
+
+export async function permanentlyDeleteTrade(tradeId: string): Promise<ActionState> {
+  await requireUser();
+  try {
+    await permanentlyDeleteTradeCommand(tradeId);
+  } catch (error) {
+    return commandError(error, "Trade not found.");
+  }
+  return { success: "Deleted permanently." };
 }
 
 // ── CSV Import ───────────────────────────────────────────────────────────────
@@ -420,7 +448,9 @@ export async function importTrades(
 // ActionState the form shows; anything else is rethrown.
 function valuationCommandError(error: unknown, notFound: string): ActionState {
   if (error instanceof RecordNotFoundError) return { error: notFound };
-  if (error instanceof ModuleDisabledError) return { error: error.message };
+  if (error instanceof ModuleDisabledError || error instanceof RecordValidationError) {
+    return { error: error.message };
+  }
   throw error;
 }
 
@@ -463,7 +493,27 @@ export async function deletePropertyValuation(
   } catch (error) {
     return valuationCommandError(error, "Valuation not found.");
   }
-  return { success: "Valuation removed." };
+  return { success: "Valuation moved to Trash." };
+}
+
+export async function restorePropertyValuation(valuationId: string): Promise<ActionState> {
+  await requireWriter();
+  try {
+    await restorePropertyValuationCommand(valuationId);
+  } catch (error) {
+    return valuationCommandError(error, "Valuation not found.");
+  }
+  return { success: "Restored." };
+}
+
+export async function permanentlyDeletePropertyValuation(valuationId: string): Promise<ActionState> {
+  await requireWriter();
+  try {
+    await permanentlyDeletePropertyValuationCommand(valuationId);
+  } catch (error) {
+    return valuationCommandError(error, "Valuation not found.");
+  }
+  return { success: "Deleted permanently." };
 }
 
 export async function addPropertyValuation(

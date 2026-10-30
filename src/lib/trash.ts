@@ -2,8 +2,16 @@ import { prisma } from "@/lib/prisma";
 import { purgeVehicle, purgeServiceRecord } from "@/lib/commands/vehicles";
 import { purgeContract } from "@/lib/commands/contracts";
 import { purgeProduct } from "@/lib/commands/products";
-import { purgeTrip } from "@/lib/commands/trips";
-import { purgeProperty, purgeMaintenanceRecord } from "@/lib/commands/home";
+import { purgeTrip, purgeTripSegment } from "@/lib/commands/trips";
+import {
+  purgeProperty,
+  purgeMaintenanceRecord,
+  purgeTenancy,
+  purgeRentalStatement,
+  purgePropertyValuation,
+} from "@/lib/commands/home";
+import { purgeTrade } from "@/lib/commands/wealth";
+import { formatCurrency, formatDate } from "@/lib/utils";
 import { purgeDocument, removeOwnerDocumentFiles } from "@/lib/commands/documents";
 import { DOCUMENT_KIND_MODULE, type OwnedDocumentKind } from "@/lib/documents/kinds";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
@@ -68,12 +76,36 @@ export async function purgeExpiredTrash(): Promise<void> {
       prisma.homeItem.findMany(expired(cutoff)),
       prisma.vehicleItem.findMany(expired(cutoff)),
     ]);
+  const [tripSegments, rentalStatements, tenancies, valuations, trades] = await Promise.all([
+    prisma.tripSegment.findMany(expired(cutoff)),
+    prisma.rentalStatement.findMany(expired(cutoff)),
+    prisma.rentalAgreement.findMany(expired(cutoff)),
+    prisma.propertyValuation.findMany(expired(cutoff)),
+    prisma.trade.findMany(expired(cutoff)),
+  ]);
 
+  // Records under a parent before the parents, for the same reason as
+  // Documents first: a parent's cascade would take the child's row first.
   for (const i of homeItems) {
     await purgeMaintenanceRecord(i.id);
   }
   for (const i of vehicleItems) {
     await purgeServiceRecord(i.id);
+  }
+  for (const s of tripSegments) {
+    await purgeTripSegment(s.id);
+  }
+  for (const s of rentalStatements) {
+    await purgeRentalStatement(s.id);
+  }
+  for (const t of tenancies) {
+    await purgeTenancy(t.id);
+  }
+  for (const v of valuations) {
+    await purgePropertyValuation(v.id);
+  }
+  for (const t of trades) {
+    await purgeTrade(t.id);
   }
   for (const c of contracts) {
     await purgeContract(c.id);
@@ -107,6 +139,11 @@ export interface TrashEntry {
     | "inventoryItem"
     | "homeItem"
     | "vehicleItem"
+    | "tripSegment"
+    | "rentalStatement"
+    | "tenancy"
+    | "propertyValuation"
+    | "trade"
     | "document";
   /** Set when domain is "document": which kind of Document it is. */
   documentKind?: OwnedDocumentKind;
@@ -172,10 +209,100 @@ async function trashedDocuments(): Promise<TrashEntry[]> {
   return lists.flat().filter((entry) => visible(entry.documentKind!));
 }
 
+function tradeTypeLabel(type: string): string {
+  switch (type) {
+    case "SELL":
+      return "Sell";
+    case "DIVIDEND":
+      return "Dividend";
+    case "SPLIT":
+      return "Split";
+    default:
+      return "Buy";
+  }
+}
+
+// The entries of a record that go to Trash on their own (#427): Trip
+// segments, Rental statements, Tenancies, Property valuations and Trades.
+// Each is labelled by what it is and subtitled with the record it's under.
+async function trashedEntries(dateFormat?: string | null): Promise<TrashEntry[]> {
+  const [segments, statements, tenancies, valuations, trades] = await Promise.all([
+    prisma.tripSegment.findMany({
+      ...inTrash,
+      select: { id: true, title: true, trip: { select: { title: true } }, deletedAt: true },
+    }),
+    prisma.rentalStatement.findMany({
+      ...inTrash,
+      select: {
+        id: true,
+        statementDate: true,
+        periodStart: true,
+        periodEnd: true,
+        property: { select: { label: true } },
+        deletedAt: true,
+      },
+    }),
+    prisma.rentalAgreement.findMany({
+      ...inTrash,
+      select: { id: true, tenantName: true, property: { select: { label: true } }, deletedAt: true },
+    }),
+    prisma.propertyValuation.findMany({
+      ...inTrash,
+      select: { id: true, value: true, currency: true, valuedAt: true, property: { select: { label: true } }, deletedAt: true },
+    }),
+    prisma.trade.findMany({
+      ...inTrash,
+      select: { id: true, type: true, units: true, date: true, holding: { select: { ticker: true } }, deletedAt: true },
+    }),
+  ]);
+
+  return [
+    ...segments.map((s) => ({
+      id: s.id,
+      domain: "tripSegment" as const,
+      label: s.title,
+      subtitle: s.trip.title,
+      deletedAt: s.deletedAt!,
+    })),
+    ...statements.map((s) => {
+      const date = s.statementDate ?? s.periodEnd ?? s.periodStart;
+      return {
+        id: s.id,
+        domain: "rentalStatement" as const,
+        label: date ? `Statement ${formatDate(date, dateFormat)}` : "Statement",
+        subtitle: s.property.label,
+        deletedAt: s.deletedAt!,
+      };
+    }),
+    ...tenancies.map((t) => ({
+      id: t.id,
+      domain: "tenancy" as const,
+      label: t.tenantName ?? "Tenancy",
+      subtitle: t.property.label,
+      deletedAt: t.deletedAt!,
+    })),
+    ...valuations.map((v) => ({
+      id: v.id,
+      domain: "propertyValuation" as const,
+      label: `${formatCurrency(v.value, v.currency)} on ${formatDate(v.valuedAt, dateFormat)}`,
+      subtitle: v.property.label,
+      deletedAt: v.deletedAt!,
+    })),
+    ...trades.map((t) => ({
+      id: t.id,
+      domain: "trade" as const,
+      label: `${tradeTypeLabel(t.type)} ${t.units} ${t.holding.ticker}`,
+      subtitle: formatDate(t.date, dateFormat),
+      deletedAt: t.deletedAt!,
+    })),
+  ];
+}
+
 // Everything currently in Trash, for the Settings > Trash page — run after
 // purgeExpiredTrash() so nothing already past its window shows as "restorable".
-export async function getTrashEntries(): Promise<TrashEntry[]> {
-  const [contracts, products, vehicles, properties, trips, inventoryItems, homeItems, vehicleItems, documents] =
+// `dateFormat` is the viewer's, for the dates some labels carry.
+export async function getTrashEntries(dateFormat?: string | null): Promise<TrashEntry[]> {
+  const [contracts, products, vehicles, properties, trips, inventoryItems, homeItems, vehicleItems, documents, recordEntries] =
     await Promise.all([
       prisma.contract.findMany({
         ...inTrash,
@@ -210,6 +337,7 @@ export async function getTrashEntries(): Promise<TrashEntry[]> {
         select: { id: true, title: true, vehicle: { select: { label: true } }, deletedAt: true },
       }),
       trashedDocuments(),
+      trashedEntries(dateFormat),
     ]);
 
   const entries: TrashEntry[] = [
@@ -269,6 +397,7 @@ export async function getTrashEntries(): Promise<TrashEntry[]> {
       subtitle: i.vehicle.label,
       deletedAt: i.deletedAt!,
     })),
+    ...recordEntries,
     ...documents,
   ];
 

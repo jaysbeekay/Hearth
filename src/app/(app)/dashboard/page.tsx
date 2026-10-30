@@ -64,7 +64,7 @@ export default async function DashboardPage() {
         ? prisma.trip.findMany({
             where: { deletedAt: null },
             orderBy: { startDate: "asc" },
-            include: { _count: { select: { segments: true } } },
+            include: { _count: { select: { segments: { where: { deletedAt: null } } } } },
           })
         : [],
       enabledModules.has("HOME")
@@ -74,7 +74,7 @@ export default async function DashboardPage() {
               id: true,
               label: true,
               isRented: true,
-              rentalAgreements: { select: TENANCY_AGREEMENT_SELECT },
+              rentalAgreements: { where: { deletedAt: null }, select: TENANCY_AGREEMENT_SELECT },
             },
           })
         : [],

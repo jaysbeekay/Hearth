@@ -11,6 +11,8 @@ import {
   permanentlyDeleteHoldingCommand,
   createTradeCommand,
   updateTradeCommand,
+  deleteTradeCommand,
+  restoreTradeCommand,
   permanentlyDeleteTradeCommand,
   saveTradeMarketPrice,
   importTradesCommand,
@@ -28,6 +30,7 @@ import {
 } from "@/lib/validation/wealth";
 import { formToPortfolioInput, formToHoldingInput, formToTradeInput } from "@/lib/formMappers";
 import { holdingUnitsAndCost } from "@/lib/wealth";
+import { purgeExpiredTrash, TRASH_RETENTION_DAYS } from "@/lib/trash";
 import {
   createPortfolio,
   updatePortfolio,
@@ -389,16 +392,59 @@ describe("Trade commands", () => {
     expect((await db.prisma.trade.findUniqueOrThrow({ where: { id: trade.id } })).units).toBe(11);
   });
 
-  it("permanently deletes a Trade with its files, in scope only", async () => {
+  // #427 — delete moves the Trade to Trash; its Documents and files stay.
+  it("moves a Trade to Trash, in scope only, and restores it", async () => {
+    const trade = await createTradeCommand(holdingId, buy(10, 100, "2025-01-02"));
+    const dir = await attachFile(trade.id);
+
+    await expect(deleteTradeCommand(trade.id, { holdingId: "other" })).rejects.toBeInstanceOf(RecordNotFoundError);
+    expect(await deleteTradeCommand(trade.id, { holdingId })).toEqual({ holdingId, portfolioId });
+    const trashed = await db.prisma.trade.findUniqueOrThrow({ where: { id: trade.id } });
+    expect(trashed.deletedAt).toBeInstanceOf(Date);
+    expect(await exists(dir)).toBe(true);
+    expect(revalidatePath).toHaveBeenCalledWith("/settings/trash");
+
+    // Read-only while in Trash, the background price lookup included.
+    await expect(updateTradeCommand(trade.id, { units: 1 })).rejects.toBeInstanceOf(RecordNotFoundError);
+    expect(await saveTradeMarketPrice(trade.id, 99)).toBe(false);
+
+    expect(await restoreTradeCommand(trade.id)).toEqual({ holdingId, portfolioId });
+    expect((await db.prisma.trade.findUniqueOrThrow({ where: { id: trade.id } })).deletedAt).toBeNull();
+    await updateTradeCommand(trade.id, { units: 11 });
+    expect((await db.prisma.trade.findUniqueOrThrow({ where: { id: trade.id } })).units).toBe(11);
+  });
+
+  it("purges a Trade 30 days after it went to Trash, files and all", async () => {
+    const trade = await createTradeCommand(holdingId, buy(10, 100, "2025-01-02"));
+    const dir = await attachFile(trade.id);
+    await db.prisma.trade.update({
+      where: { id: trade.id },
+      data: { deletedAt: new Date(Date.now() - (TRASH_RETENTION_DAYS + 1) * 24 * 60 * 60 * 1000) },
+    });
+
+    await purgeExpiredTrash();
+
+    expect(await db.prisma.trade.findUnique({ where: { id: trade.id } })).toBeNull();
+    expect(await exists(dir)).toBe(false);
+    expect(await db.prisma.holding.findUnique({ where: { id: holdingId } })).not.toBeNull();
+  });
+
+  it("doesn't count a Trade in Trash as a duplicate on import", async () => {
+    const trade = await createTradeCommand(holdingId, buy(10, 100, "2025-01-02"));
+    await deleteTradeCommand(trade.id);
+    const holding = await db.prisma.holding.findUniqueOrThrow({ where: { id: holdingId } });
+    const row = { ticker: holding.ticker, type: "BUY" as const, date: "2025-01-02", units: 10, pricePerUnit: 100, fees: 0, currency: "AUD" };
+    expect(await importTradesCommand(portfolioId, importedTradesSchema.parse([row]))).toEqual({ imported: 1, skipped: 0 });
+  });
+
+  it("permanently deletes a Trade with its files", async () => {
     const trade = await createTradeCommand(holdingId, buy(10, 100, "2025-01-02"));
     const sibling = await createTradeCommand(holdingId, buy(1, 100, "2025-01-03"));
     const dir = await attachFile(trade.id);
     const siblingDir = await attachFile(sibling.id);
 
-    await expect(permanentlyDeleteTradeCommand(trade.id, { holdingId: "other" })).rejects.toBeInstanceOf(
-      RecordNotFoundError,
-    );
-    expect(await permanentlyDeleteTradeCommand(trade.id, { holdingId })).toEqual({ holdingId, portfolioId });
+    await deleteTradeCommand(trade.id);
+    expect(await permanentlyDeleteTradeCommand(trade.id)).toEqual({ holdingId, portfolioId });
     expect(await db.prisma.trade.findUnique({ where: { id: trade.id } })).toBeNull();
     expect(await db.prisma.tradeDocument.count({ where: { tradeId: trade.id } })).toBe(0);
     expect(await exists(dir)).toBe(false);
@@ -431,7 +477,8 @@ describe("Trade commands", () => {
     );
     expect(t1.portfolioId).toBe(portfolioId);
 
-    const trades = () => db.prisma.trade.findMany({ where: { holdingId }, orderBy: { date: "asc" } });
+    // The Trades the app works cost basis out from: none in Trash (#427).
+    const trades = () => db.prisma.trade.findMany({ where: { holdingId, deletedAt: null }, orderBy: { date: "asc" } });
     const position = async (method: "FIFO" | "AVERAGE") => holdingUnitsAndCost(await trades(), method);
     // Realised gain on the 12-unit sale (index 2 once sorted).
     const realisedOnSale = async (method: "FIFO" | "AVERAGE") => {
@@ -469,7 +516,7 @@ describe("Trade commands", () => {
     expect(await realisedOnSale("AVERAGE")).toBeCloseTo(210, 9);
 
     // Delete the later buy: its 450 goes; the sale's realised gain doesn't move.
-    await permanentlyDeleteTradeCommand(t4.id, { holdingId });
+    await deleteTradeCommand(t4.id, { holdingId });
     expect(await position("FIFO")).toEqual({ units: 6, cost: 750 });
     const averageAfterDelete = await position("AVERAGE");
     expect(averageAfterDelete.units).toBe(6);
@@ -542,6 +589,8 @@ describe("the WEALTH module gate", () => {
       () => permanentlyDeleteHoldingCommand(holding.id),
       () => createTradeCommand(holding.id, buy(1, 1, "2025-01-02")),
       () => updateTradeCommand(trade.id, { units: 2 }),
+      () => deleteTradeCommand(trade.id),
+      () => restoreTradeCommand(trade.id),
       () => permanentlyDeleteTradeCommand(trade.id),
       () => importTradesCommand(portfolio.id, []),
     ];
@@ -632,7 +681,7 @@ describe("Wealth server actions", () => {
       `REDIRECT /wealth/portfolios/${portfolio.id}/holdings/${holding.id}`,
     );
     const trade = await db.prisma.trade.findFirstOrThrow({ where: { holdingId: holding.id } });
-    expect(await deleteTrade(holding.id, trade.id)).toEqual({ success: "Trade deleted." });
+    expect(await deleteTrade(holding.id, trade.id)).toEqual({ success: "Trade moved to Trash." });
     expect(
       await importTrades(portfolio.id, [{ ticker: "IVV", type: "BUY", date: "2025-01-02", units: 3, pricePerUnit: 1, fees: 0, currency: "AUD" }]),
     ).toEqual({ success: "Imported 1 trade." });

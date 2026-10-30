@@ -42,6 +42,7 @@ export function RentalAgreementForm({
       operation: agreement ? "update" : "create",
       entityId: agreement?.id,
       parentId: agreement?.propertyId ?? propertyId,
+      baseUpdatedAt: agreement?.updatedAt?.toISOString(),
     }),
     { success: "Saved offline — will sync when you reconnect." },
   );

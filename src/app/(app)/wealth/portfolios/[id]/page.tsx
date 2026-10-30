@@ -29,7 +29,7 @@ export default async function PortfolioPage({
 
   const portfolio = await prisma.portfolio.findUnique({
     where: { id },
-    include: { holdings: { include: { _count: { select: { trades: true } } } } },
+    include: { holdings: { include: { _count: { select: { trades: { where: { deletedAt: null } } } } } } },
   });
   if (!portfolio) notFound();
 

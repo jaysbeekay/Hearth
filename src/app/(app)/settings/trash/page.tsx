@@ -1,5 +1,18 @@
 import type { Metadata } from "next";
-import { FileText, Package, Car, Home, Plane, Box, Trash2, Wrench } from "lucide-react";
+import {
+  FileText,
+  Package,
+  Car,
+  Home,
+  Plane,
+  Box,
+  Trash2,
+  Wrench,
+  Receipt,
+  KeyRound,
+  TrendingUp,
+  ArrowLeftRight,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { getTrashEntries, purgeExpiredTrash, TRASH_RETENTION_DAYS, type TrashEntry } from "@/lib/trash";
@@ -20,8 +33,23 @@ import {
   permanentlyDeleteProperty,
   restoreHomeItem,
   permanentlyDeleteHomeItem,
+  restoreRentalAgreement,
+  permanentlyDeleteRentalAgreement,
+  restoreRentalStatement,
+  permanentlyDeleteRentalStatement,
 } from "@/lib/actions/home";
-import { restoreTrip, permanentlyDeleteTrip } from "@/lib/actions/trips";
+import {
+  restoreTrip,
+  permanentlyDeleteTrip,
+  restoreTripSegment,
+  permanentlyDeleteTripSegment,
+} from "@/lib/actions/trips";
+import {
+  restoreTrade,
+  permanentlyDeleteTrade,
+  restorePropertyValuation,
+  permanentlyDeletePropertyValuation,
+} from "@/lib/actions/wealth";
 import { restoreInventoryItem, permanentlyDeleteInventoryItem } from "@/lib/actions/inventory";
 import { restoreDocumentAction, permanentlyDeleteDocumentAction } from "@/lib/actions/documents";
 import { DOCUMENT_KIND_LABEL, type OwnedDocumentKind } from "@/lib/documents/kinds";
@@ -45,6 +73,21 @@ const DOMAIN_META: Record<
   inventoryItem: { label: "Inventory item", icon: Box, restore: restoreInventoryItem, permanentlyDelete: permanentlyDeleteInventoryItem },
   homeItem: { label: "Maintenance record", icon: Wrench, restore: restoreHomeItem, permanentlyDelete: permanentlyDeleteHomeItem },
   vehicleItem: { label: "Service record", icon: Wrench, restore: restoreVehicleItem, permanentlyDelete: permanentlyDeleteVehicleItem },
+  tripSegment: { label: "Trip segment", icon: Plane, restore: restoreTripSegment, permanentlyDelete: permanentlyDeleteTripSegment },
+  rentalStatement: {
+    label: "Rental statement",
+    icon: Receipt,
+    restore: restoreRentalStatement,
+    permanentlyDelete: permanentlyDeleteRentalStatement,
+  },
+  tenancy: { label: "Tenancy", icon: KeyRound, restore: restoreRentalAgreement, permanentlyDelete: permanentlyDeleteRentalAgreement },
+  propertyValuation: {
+    label: "Property valuation",
+    icon: TrendingUp,
+    restore: restorePropertyValuation,
+    permanentlyDelete: permanentlyDeletePropertyValuation,
+  },
+  trade: { label: "Trade", icon: ArrowLeftRight, restore: restoreTrade, permanentlyDelete: permanentlyDeleteTrade },
 };
 
 // Looks a domain up without indexing by a caller-supplied key: restoreAction
@@ -98,11 +141,8 @@ export default async function TrashPage() {
   // other, lower-latency-independent trigger for the same purge.
   await purgeExpiredTrash().catch(() => {});
 
-  const [session, { dateFormat, displayTimeZone }, entries] = await Promise.all([
-    auth(),
-    getUserPreferences(),
-    getTrashEntries(),
-  ]);
+  const [session, { dateFormat, displayTimeZone }] = await Promise.all([auth(), getUserPreferences()]);
+  const entries = await getTrashEntries(dateFormat);
   const canWrite = sessionCanWrite(session);
 
   return (

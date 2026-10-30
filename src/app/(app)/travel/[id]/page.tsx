@@ -5,7 +5,13 @@ import type { LucideIcon } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { addDocumentAction } from "@/lib/actions/documents";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
-import { deleteTrip, deleteTripSegment, refreshFlightStatusAction, restoreTrip } from "@/lib/actions/trips";
+import {
+  deleteTrip,
+  deleteTripSegment,
+  refreshFlightStatusAction,
+  restoreTrip,
+  restoreTripSegment,
+} from "@/lib/actions/trips";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailField as Detail } from "@/components/DetailField";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
@@ -43,7 +49,10 @@ export default async function TripDetailPage({
       include: {
         createdBy: true,
         updatedBy: true,
-        segments: { include: { documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" } } } },
+        segments: {
+          where: { deletedAt: null },
+          include: { documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" } } },
+        },
       },
     }),
     getUserPreferences(),
@@ -204,8 +213,14 @@ export default async function TripDetailPage({
                           </Link>
                           <ConfirmForm
                             action={deleteTripSegment.bind(null, trip.id, segment.id)}
-                            confirmText={`Delete "${segment.title}" and its documents?`}
-                            actionLabel={`Delete "${segment.title}"`}
+                            undo={{ action: restoreTripSegment.bind(null, segment.id) }}
+                            offline={{
+                              entity: "tripSegment",
+                              entityId: segment.id,
+                              parentId: trip.id,
+                              label: `Delete segment: ${segment.title}`,
+                            }}
+                            confirmText={`Move "${segment.title}" to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash.`}
                             className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
                           >
                             <Trash2 size={16} />

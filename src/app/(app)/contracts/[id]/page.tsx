@@ -279,7 +279,7 @@ export default async function ContractDetailPage({
         </div>
       )}
 
-      {contract.category === "RENTAL" && contract.rentalAgreement && (
+      {contract.category === "RENTAL" && contract.rentalAgreement && !contract.rentalAgreement.deletedAt && (
         <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
           <div className="mb-3 flex items-center gap-2">
             <Home size={18} className="text-muted" />

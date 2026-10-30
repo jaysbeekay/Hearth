@@ -17,7 +17,7 @@ export default async function EditRentalAgreementPage({
   const { id, agreementId } = await params;
   redirectIfReadOnly(await auth(), `/home/${id}/rental`);
   const agreement = await prisma.rentalAgreement.findUnique({ where: { id: agreementId } });
-  if (!agreement || agreement.propertyId !== id) notFound();
+  if (!agreement || agreement.deletedAt || agreement.propertyId !== id) notFound();
 
   const property = await prisma.property.findUnique({ where: { id } });
   if (!property || property.deletedAt) notFound();
