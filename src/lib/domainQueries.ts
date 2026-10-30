@@ -322,14 +322,34 @@ export async function getContract(id: string) {
           select: { id: true, filename: true, mimeType: true, size: true, uploadedAt: true },
           orderBy: { uploadedAt: "asc" },
         },
+        // #353 — earlier Terms, newest first; the current Term is the
+        // Contract's own dates and cost.
+        terms: {
+          select: {
+            startDate: true,
+            endDate: true,
+            cost: true,
+            currency: true,
+            billingFrequency: true,
+            document: { select: { id: true, deletedAt: true } },
+          },
+          orderBy: { createdAt: "desc" },
+        },
       },
     }),
   ]);
   if (!contract) return null;
-  const { documents, ...fields } = contract;
+  const { documents, terms, ...fields } = contract;
   return {
     ...serializeContract(fields, ctx),
     documents: documents.map((doc) => ({ ...doc, uploadedAt: doc.uploadedAt.toISOString() })),
+    previousTerms: terms.map(({ document, ...term }) => ({
+      ...term,
+      startDate: calendarDayOf(term.startDate),
+      endDate: calendarDayOf(term.endDate),
+      // A Document in Trash isn't listed under documents either.
+      documentId: document && !document.deletedAt ? document.id : null,
+    })),
   };
 }
 
@@ -560,7 +580,9 @@ export const TOOL_DESCRIPTIONS = {
     `and so on), optionally filtered by status and/or category. ${CONTRACT_SHAPE}`,
   getContract:
     "Get one Contract by id, with the same shape as list_contracts plus its documents' metadata " +
-    "(filename, type, size; never file contents).",
+    "(filename, type, size; never file contents) and previousTerms: its earlier Terms, newest first, " +
+    "each with startDate, endDate, cost, currency, billingFrequency and documentId. The Contract's own " +
+    "dates and cost are its current Term.",
   searchContracts: `Case-insensitive search of Contracts across title, provider, contract number and notes. ${CONTRACT_SHAPE}`,
   upcomingRenewals:
     "Contracts with a renewal-related date within N days (default 30), soonest first: the notice deadline " +
