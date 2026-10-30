@@ -11,7 +11,8 @@ import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailField as Detail } from "@/components/DetailField";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
-import { HomeItemDocumentList } from "@/components/HomeItemDocumentList";
+import { DocumentList } from "@/components/DocumentList";
+import { getTrashedVersionLinks } from "@/lib/documents/trashedVersionLinks";
 import { RecordMeta } from "@/components/RecordMeta";
 import { PropertyMap } from "@/components/PropertyMap";
 import { env } from "@/lib/env";
@@ -93,6 +94,11 @@ export default async function PropertyDetailPage({
 
   const latestValuation = property.valuations[0] ?? null;
   const valuationStale = !latestValuation || isValuationStale(latestValuation.valuedAt);
+
+  const trashedLinks = await getTrashedVersionLinks(
+    "HOME_ITEM",
+    property.items.map((i) => i.id),
+  );
 
   const items = [...property.items].sort((a, b) => {
     if (!a.date && !b.date) return 0;
@@ -259,7 +265,7 @@ export default async function PropertyDetailPage({
 
                   <div className="mt-4 border-t border-border pt-4">
                     <h3 className="mb-2 text-sm font-medium">Documents</h3>
-                    <HomeItemDocumentList documents={item.documents} />
+                    <DocumentList kind="HOME_ITEM" ownerId={item.id} documents={item.documents} trashedLinks={trashedLinks.get(item.id)} />
                     {canWrite && (
                       <div className="mt-3">
                         <DocumentUploadForm action={addDocumentAction.bind(null, "HOME_ITEM", item.id)} />
