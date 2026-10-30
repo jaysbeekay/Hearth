@@ -416,11 +416,12 @@ module and its tool disappears on the next connection.
 
 | Tool | Purpose |
 | --- | --- |
-| `list_contracts` | List contracts, optionally filtered by status and/or category. |
+| `list_contracts` | List contracts, optionally filtered by status and/or category. Each carries its Due entries (`due`) and `state`. |
 | `get_contract` | Full details for one contract by id, including document metadata. |
 | `search_contracts` | Case-insensitive search across title, provider, contract number, and notes. |
-| `upcoming_renewals` | Active contracts ending within N days (default 30), soonest first. |
-| `spend_summary` | Estimated total and per-category monthly spend across active contracts. |
+| `upcoming_renewals` | Contracts with a Due entry (notice deadline, then end date) within N days (default 30), soonest first. |
+| `spend_summary` | Estimated monthly spend across active contracts, total and per category, converted to one currency like the dashboard. Takes an optional ISO 4217 `currency`; over MCP it defaults to the first admin's preferred currency. May fetch current exchange rates (Yahoo Finance) to convert. |
+| `whats_due` | Everything Due within N days (default 30): contracts, warranties and, when enabled, vehicle dates and tenancy lease ends. |
 | `list_products` | List tracked products/purchases and warranty status, optionally filtered by search text. |
 | `list_trips` *(Travel)* | List trips with segment count, optionally only ones that haven't ended yet. |
 | `list_vehicles` *(Vehicles)* | List vehicles with rego/insurance expiry, optionally only ones needing attention. |
