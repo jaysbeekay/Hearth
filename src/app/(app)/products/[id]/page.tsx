@@ -211,7 +211,7 @@ export default async function ProductDetailPage({
 
       <div id="documents" className="scroll-mt-20 rounded-xl border border-border bg-surface p-4 md:p-6">
         <h2 className="mb-3 font-medium">Documents</h2>
-        <ProductDocumentList documents={product.documents} dateFormat={dateFormat} />
+        <ProductDocumentList documents={product.documents} />
         {canWrite && (
           <div className="mt-4 border-t border-border pt-4">
             <ProductDocumentUploadForm action={boundUpload} />
@@ -224,7 +224,6 @@ export default async function ProductDetailPage({
         updatedByName={product.updatedBy?.name}
         createdAt={product.createdAt}
         updatedAt={product.updatedAt}
-        dateFormat={dateFormat}
         extractionConfirmedAt={product.extractionConfirmedAt}
         memberCount={memberCount}
       />

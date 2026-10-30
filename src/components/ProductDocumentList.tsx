@@ -22,10 +22,8 @@ const KIND_LABELS: Record<string, string> = {
 
 export function ProductDocumentList({
   documents,
-  dateFormat,
 }: {
   documents: ProductDocumentModel[];
-  dateFormat?: string;
 }) {
   const [preview, setPreview] = useState<ProductDocumentModel | null>(null);
 
@@ -61,7 +59,7 @@ export function ProductDocumentList({
             </span>
             <span className="min-w-0 text-muted sm:shrink-0">
               {KIND_LABELS[doc.kind] ?? doc.kind} · {humanFileSize(doc.size)} ·{" "}
-              <Timestamp value={doc.uploadedAt} dateFormat={dateFormat} />
+              <Timestamp value={doc.uploadedAt} />
             </span>
           </DocumentLink>
           <div className="flex shrink-0 items-center gap-1">

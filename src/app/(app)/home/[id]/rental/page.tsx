@@ -418,7 +418,6 @@ export default async function RentalOverviewPage({
                       </div>
                       <RentalStatementDocumentList
                         documents={stmt.documents}
-                        dateFormat={dateFormat}
                       />
                       {canWrite && (
                         <div className="mt-3">
