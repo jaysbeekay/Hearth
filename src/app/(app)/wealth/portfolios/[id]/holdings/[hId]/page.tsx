@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { addDocumentAction } from "@/lib/actions/documents";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/utils";
 import { refreshPricesForTickers, getPriceMap, fetchAndStorePriceHistory, getPriceHistory } from "@/lib/prices";
-import { deleteHolding, deleteTrade } from "@/lib/actions/wealth";
+import { deleteHolding, deleteTrade, restoreTrade } from "@/lib/actions/wealth";
 import { DocumentList } from "@/components/DocumentList";
 import { getTrashedVersionLinks } from "@/lib/documents/trashedVersionLinks";
 import { ConfirmForm } from "@/components/ConfirmForm";
@@ -194,6 +194,7 @@ export default async function HoldingPage({
       include: {
         portfolio: true,
         trades: {
+          where: { deletedAt: null },
           include: { documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" } } },
           orderBy: { date: "asc" },
         },
@@ -457,8 +458,14 @@ export default async function HoldingPage({
                           </Link>
                           <ConfirmForm
                             action={deleteTrade.bind(null, holdingId, trade.id)}
-                            confirmText="Delete this trade? This can't be undone."
-                            actionLabel="Delete trade"
+                            undo={{ action: restoreTrade.bind(null, trade.id) }}
+                            offline={{
+                              entity: "trade",
+                              entityId: trade.id,
+                              parentId: holdingId,
+                              label: `Delete trade: ${holding.ticker} ${formatDate(trade.date, dateFormat)}`,
+                            }}
+                            confirmText="Move this trade to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash."
                             ariaLabel={`Delete trade from ${formatDate(trade.date, dateFormat)}`}
                             className="rounded-lg border border-border p-2 text-danger hover:bg-danger/10"
                           >

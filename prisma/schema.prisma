@@ -745,6 +745,10 @@ model TripSegment {
 
   documents TripSegmentDocument[]
 
+  // #427 — soft-delete: set instead of removing the row so the segment
+  // (and its files) can be restored within the trash window.
+  deletedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -851,7 +855,10 @@ model RentalAgreement {
   // the household default, which is what every Tenancy used before it had
   // its own.
   reminderDaysBefore   String?
+  // #427 — soft-delete, as for Trip segments.
+  deletedAt            DateTime?
   createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   @@map("rental_agreements")
 }
@@ -870,6 +877,8 @@ model RentalStatement {
   currency        String                    @default("AUD")
   notes           String?
   documents       RentalStatementDocument[]
+  // #427 — soft-delete, as for Trip segments.
+  deletedAt       DateTime?
   createdAt       DateTime                  @default(now())
   updatedAt       DateTime                  @updatedAt
 
@@ -1143,6 +1152,9 @@ model Trade {
   fxRate            Float?
   notes             String?
   documents         TradeDocument[]
+  // #427 — soft-delete, as for Trip segments. Cost basis and every Wealth
+  // total are worked out from the Trades not in Trash.
+  deletedAt         DateTime?
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
 
@@ -1267,6 +1279,8 @@ model PropertyValuation {
   currency   String   @default("AUD")
   source     String?
   notes      String?
+  // #427 — soft-delete, as for Trip segments.
+  deletedAt  DateTime?
   createdAt  DateTime @default(now())
 
   @@map("property_valuations")

@@ -334,6 +334,23 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   Documents of every kind, and those three kinds now keep the Document
   type chosen on upload. An offline Document delete also goes to Trash
   when it syncs (it used to delete the file outright) (#396).
+- **Trip segments, Rental statements, Trades, Tenancies and Property
+  valuations go to Trash.** Deleting one now says "Moved to Trash" with
+  Undo instead of deleting it for good; its Documents stay with it, and it
+  can be restored from Settings → Trash (once the Trip or Property it's
+  under is restored) or deleted permanently there, which removes its files
+  too. The 30-day Trash purge covers them. While one is in Trash it's
+  read-only and left out of the Trip, Rental and Holding pages, Upcoming,
+  the calendar feed, exports, search and the Documents page, and a Trade or
+  valuation in Trash no longer counts towards holdings, cost basis or net
+  worth. A Tenancy in Trash gets no lease-end Reminders, and the 30-day
+  purge clears its sent-Reminder log. A CSV import row that matches a
+  Trade in Trash restores that Trade rather than adding a second one. A
+  Contract still linked to a Tenancy in Trash shows as unavailable in the
+  link list, and linking it says why. Offline deletes of all five sync to
+  Trash, and a Tenancy edit made offline is now refused if someone else
+  changed it first. Maintenance records in Trash no longer show in search
+  either (#427).
 - Search, the Documents page and the dashboard's Document counts leave out
   Documents in Trash, and Documents whose record is in Trash. A Document
   can only be deleted permanently from Trash, and a Restore or Delete in

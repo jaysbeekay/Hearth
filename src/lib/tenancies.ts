@@ -6,7 +6,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { isModuleEnabled } from "@/lib/modules/enablement";
-import { currentTenancy, TENANCY_AGREEMENT_SELECT } from "@/lib/dueRecords";
+import { currentTenancy, LIVE_TENANCY_AGREEMENTS, TENANCY_AGREEMENT_SELECT } from "@/lib/dueRecords";
 import type { Prisma } from "@/generated/prisma/client";
 
 export interface CurrentTenancy {
@@ -19,7 +19,7 @@ const RENTED_PROPERTY_SELECT = {
   id: true,
   label: true,
   isRented: true,
-  rentalAgreements: { select: TENANCY_AGREEMENT_SELECT },
+  rentalAgreements: LIVE_TENANCY_AGREEMENTS,
 } as const;
 
 async function currentTenanciesWhere(where: Prisma.PropertyWhereInput): Promise<CurrentTenancy[]> {

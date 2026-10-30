@@ -165,11 +165,17 @@ const KINDS: Record<OwnedDocumentKind, KindConfig> = {
     loadOwner: async (id, db) => {
       const s = await db.tripSegment.findUnique({
         where: { id },
-        select: { tripId: true, trip: { select: { deletedAt: true } } },
+        select: { tripId: true, deletedAt: true, trip: { select: { deletedAt: true } } },
       });
-      // Segments have no Trash of their own; their Trip does. When #427
-      // gives segments a deletedAt, add the segment's own link here.
-      return s && { paths: [`/travel/${s.tripId}`], chain: [{ label: "Trip", deletedAt: s.trip.deletedAt }] };
+      return (
+        s && {
+          paths: [`/travel/${s.tripId}`],
+          chain: [
+            { label: "Trip", deletedAt: s.trip.deletedAt },
+            { label: "Segment", deletedAt: s.deletedAt },
+          ],
+        }
+      );
     },
   },
   RENTAL_STATEMENT: {
@@ -179,12 +185,16 @@ const KINDS: Record<OwnedDocumentKind, KindConfig> = {
     loadOwner: async (id, db) => {
       const s = await db.rentalStatement.findUnique({
         where: { id },
-        select: { propertyId: true, property: { select: { deletedAt: true } } },
+        select: { propertyId: true, deletedAt: true, property: { select: { deletedAt: true } } },
       });
-      // Property link only: when #427 gives statements a deletedAt, add the
-      // statement's own link here.
       return (
-        s && { paths: [`/home/${s.propertyId}/rental`], chain: [{ label: "Property", deletedAt: s.property.deletedAt }] }
+        s && {
+          paths: [`/home/${s.propertyId}/rental`],
+          chain: [
+            { label: "Property", deletedAt: s.property.deletedAt },
+            { label: "Rental statement", deletedAt: s.deletedAt },
+          ],
+        }
       );
     },
   },
@@ -241,14 +251,18 @@ const KINDS: Record<OwnedDocumentKind, KindConfig> = {
     ownerField: "tradeId",
     ownerLabel: "Trade",
     delegate: (db) => db.tradeDocument,
-    // Portfolios, Holdings and Trades have no Trash. When #427 gives Trades
-    // a deletedAt, add the Trade's own link to `chain` here.
+    // Only the Trade has a Trash (#427); Portfolios and Holdings don't.
     loadOwner: async (id, db) => {
       const t = await db.trade.findUnique({
         where: { id },
-        select: { holdingId: true, holding: { select: { portfolioId: true } } },
+        select: { holdingId: true, deletedAt: true, holding: { select: { portfolioId: true } } },
       });
-      return t && { paths: [`/wealth/portfolios/${t.holding.portfolioId}/holdings/${t.holdingId}`], chain: [] };
+      return (
+        t && {
+          paths: [`/wealth/portfolios/${t.holding.portfolioId}/holdings/${t.holdingId}`],
+          chain: [{ label: "Trade", deletedAt: t.deletedAt }],
+        }
+      );
     },
   },
 };
