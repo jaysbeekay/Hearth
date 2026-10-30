@@ -119,3 +119,36 @@ export function buildCategoryBreakdown(
     .map(([category, monthlyTotal]) => ({ category, monthlyTotal }))
     .sort((a, b) => b.monthlyTotal - a.monthlyTotal);
 }
+
+export interface MonthlySpend {
+  /** The estimated monthly total, in the target currency. */
+  total: number;
+  /** Currencies with no exchange rate to the target right now, left out of `total`. */
+  unconvertedCurrencies: string[];
+}
+
+/**
+ * #394 — the "about $X a month" figure: every contract's cost converted to
+ * the target currency and brought to a monthly amount. The dashboard, the
+ * Spending page, MCP and the Assistant all use this, so they agree. A
+ * contract whose currency can't be converted is left out and named, never
+ * added unconverted.
+ */
+export function monthlySpend(
+  contracts: { cost: number | null; currency: string; billingFrequency: string | null }[],
+  targetCurrency: string,
+  rateMap: Map<string, number>,
+): MonthlySpend {
+  const unconverted = new Set<string>();
+  let total = 0;
+  for (const c of contracts) {
+    if (c.cost == null) continue;
+    const converted = convertAmount(c.cost, c.currency, targetCurrency, rateMap);
+    if (converted == null) {
+      unconverted.add(c.currency);
+      continue;
+    }
+    total += monthlyEquivalent(converted, c.billingFrequency);
+  }
+  return { total, unconvertedCurrencies: [...unconverted].sort() };
+}

@@ -416,11 +416,12 @@ module and its tool disappears on the next connection.
 
 | Tool | Purpose |
 | --- | --- |
-| `list_contracts` | List contracts, optionally filtered by status and/or category. |
+| `list_contracts` | List contracts, optionally filtered by status and/or category. Each carries its Due entries (`due`) and `state`. |
 | `get_contract` | Full details for one contract by id, including document metadata. |
 | `search_contracts` | Case-insensitive search across title, provider, contract number, and notes. |
-| `upcoming_renewals` | Active contracts ending within N days (default 30), soonest first. |
-| `spend_summary` | Estimated total and per-category monthly spend across active contracts. |
+| `upcoming_renewals` | Contracts with a Due entry (notice deadline, then end date) within N days (default 30), soonest first. |
+| `spend_summary` | Estimated monthly spend across active contracts, total and per category, converted to one currency like the dashboard. Takes an optional ISO 4217 `currency`; over MCP it defaults to the first admin's preferred currency. May fetch current exchange rates (Yahoo Finance) to convert. |
+| `whats_due` | Everything Due within N days (default 30): contracts, warranties and, when enabled, vehicle dates and tenancy lease ends. |
 | `list_products` | List tracked products/purchases and warranty status, optionally filtered by search text. |
 | `list_trips` *(Travel)* | List trips with segment count, optionally only ones that haven't ended yet. |
 | `list_vehicles` *(Vehicles)* | List vehicles with rego/insurance expiry, optionally only ones needing attention. |
@@ -613,7 +614,8 @@ the restored file. (Restoring a whole-directory copy is different: put back
 ## Webhooks
 
 The app can notify other platforms — e.g. [Home Assistant](https://www.home-assistant.io)
-or an MCP agent — when a contract or product warranty is approaching expiry,
+or an MCP agent — when a contract, product warranty, vehicle date or
+tenancy's lease end is approaching,
 on the same schedule and thresholds as email/push reminders. Manage
 endpoints from **Settings → Webhooks** (admin only): add a URL, optionally
 set a signing secret, enable/disable, send a test delivery, and review the
@@ -627,7 +629,7 @@ Each delivery is a `POST` with a JSON body and these headers:
 | `X-Webhook-Signature` | `sha256=<hex>`, an HMAC-SHA256 of the raw request body using the endpoint's signing secret. Only sent if a secret is configured. |
 
 Verify it by recomputing the HMAC over the exact request body with your
-secret and comparing to the header. Four events exist:
+secret and comparing to the header. Five events exist:
 
 - **`contract.expiring`** / **`warranty.expiring`** / **`vehicle.expiring`** —
   sent once per record per threshold crossed (same dedup behavior as
@@ -654,6 +656,26 @@ secret and comparing to the header. Four events exist:
     "cancelBy": "2026-06-03",
     "noticePeriodDays": 30,
     "url": "https://<your APP_URL>/contracts/..."
+  }
+  ```
+
+- **`tenancy.expiring`** — the same Reminder for the lease end of a rented
+  property's current tenancy. `kind` is `tenancy`, `id` is the tenancy,
+  `propertyId` its property, `title` the property's label, and `endDate` the
+  lease end. There is no `detail`: the tenant's name never leaves the
+  household by webhook or ntfy (email reminders include it). A tenancy has
+  no page of its own, so `url` points at the property (`/home/...`). Body:
+
+  ```json
+  {
+    "event": "tenancy.expiring",
+    "kind": "tenancy",
+    "id": "...",
+    "title": "Beach Flat",
+    "propertyId": "...",
+    "daysRemaining": 30,
+    "endDate": "2026-11-24",
+    "url": "https://<your APP_URL>/home/..."
   }
   ```
 

@@ -35,6 +35,8 @@ import { DetailStatusBanner } from "@/components/DetailStatusBanner";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { ReminderHealthCard } from "@/components/ReminderHealthCard";
+import { getReminderHealth } from "@/lib/notifications/health";
 
 const ITEM_ICONS: Record<string, LucideIcon> = {
   MAINTENANCE: Wrench,
@@ -84,6 +86,11 @@ export default async function PropertyDetailPage({
   // #384 — the current Tenancy's lease end, from the Due policy: Due
   // before it passes, then Housekeeping until the new lease end is set.
   const tenancy = currentTenancy(property);
+  // #388 — the lease end gets Reminders like any other Due entry; the card
+  // reads the same Reminder schedule the scheduler sends from.
+  const leaseReminderHealth = tenancy?.leaseEnd
+    ? await getReminderHealth({ ownerType: "TENANCY", ownerId: tenancy.id, record: { kind: "tenancy", ...tenancy } })
+    : null;
 
   const latestValuation = property.valuations[0] ?? null;
   const valuationStale = !latestValuation || isValuationStale(latestValuation.valuedAt);
@@ -393,6 +400,15 @@ export default async function PropertyDetailPage({
             </p>
           )}
         </div>
+      )}
+
+      {tenancy && leaseReminderHealth && (
+        <ReminderHealthCard
+          title="Lease reminders"
+          health={leaseReminderHealth}
+          dateFormat={dateFormat}
+          testTarget={{ kind: "tenancy", id: tenancy.id }}
+        />
       )}
 
       <RecordMeta
