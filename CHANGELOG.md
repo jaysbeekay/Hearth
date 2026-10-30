@@ -47,6 +47,18 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Health check endpoint and hosting notes (#477).** `GET /api/health`
+  answers `200 {"status":"ok"}` when the app and its database respond, and
+  `503 {"status":"unavailable"}` when they don't. It needs no login and
+  returns nothing else, so managed hosts such as PikaPods, Docker health
+  checks and uptime monitors can use it. README gains a "Deploy" section
+  listing what any Docker host needs (image, port `3000`, volume at
+  `/app/data`, health check, env vars), and fixes the container's database
+  path in Quick start (`/app/data/app.db`, not `/data/app.db`).
+  `docs/deployment/one-click.md` assesses PikaPods (go once Hearth has a
+  licence and the owner applies) and Vercel (still no-go; `vercel.json` keeps deploys off), with
+  costs, data custody and security notes. Follow-ups: #478–#482.
+
 - **Renew a Contract.** Renew on a Contract's page, its Due banner and
   Needs attention opens a short form for the next Term: new start and end
   dates and cost, pre-filled from the current Term (it starts the day after

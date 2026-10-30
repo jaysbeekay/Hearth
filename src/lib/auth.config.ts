@@ -28,6 +28,9 @@ const PUBLIC_PATHS = [
   "/accept-invitation",
   "/api/cron",
   "/api/mcp",
+  // Health check for managed hosts and uptime monitors (#477). Returns only
+  // {"status":"ok"|"unavailable"}, nothing about the household.
+  "/api/health",
   // Authenticated by its own query-string token, not a session — a calendar
   // client has no cookies. Without this the feed 307s to /login, which also
   // copied the token into the login URL.
