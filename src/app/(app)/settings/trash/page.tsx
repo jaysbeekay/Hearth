@@ -141,8 +141,14 @@ export default async function TrashPage() {
   // other, lower-latency-independent trigger for the same purge.
   await purgeExpiredTrash().catch(() => {});
 
-  const [session, { dateFormat, displayTimeZone }] = await Promise.all([auth(), getUserPreferences()]);
-  const entries = await getTrashEntries(dateFormat);
+  // getUserPreferences is cached per request, so the entries (which date
+  // some labels in the viewer's format) reuse the same lookup rather than
+  // waiting for the whole Promise.all.
+  const [session, { dateFormat, displayTimeZone }, entries] = await Promise.all([
+    auth(),
+    getUserPreferences(),
+    getUserPreferences().then((prefs) => getTrashEntries(prefs.dateFormat)),
+  ]);
   const canWrite = sessionCanWrite(session);
 
   return (

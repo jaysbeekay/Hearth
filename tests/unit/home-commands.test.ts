@@ -498,6 +498,23 @@ describe("Tenancy commands", () => {
     });
   });
 
+  it("says why a Contract held by a Tenancy in Trash can't be linked elsewhere", async () => {
+    const trashed = await createTenancyCommand(propertyId, tenancyInput(), actorId);
+    const other = await createTenancyCommand(propertyId, tenancyInput(600), actorId);
+    const lease = await db.prisma.contract.create({
+      data: { title: "Head lease", category: "RENTAL", provider: "Agent", createdById: actorId },
+    });
+    await linkTenancyContractCommand(trashed.id, lease.id);
+    await deleteTenancyCommand(trashed.id);
+
+    await expect(linkTenancyContractCommand(other.id, lease.id)).rejects.toThrow(
+      "That contract is linked to a tenancy in Trash. Restore it or delete it permanently.",
+    );
+    await permanentlyDeleteTenancyCommand(trashed.id);
+    await linkTenancyContractCommand(other.id, lease.id);
+    expect((await db.prisma.rentalAgreement.findUniqueOrThrow({ where: { id: other.id } })).contractId).toBe(lease.id);
+  });
+
   it("won't restore a Tenancy while its Property is in Trash", async () => {
     const tenancy = await createTenancyCommand(propertyId, tenancyInput(), actorId);
     await deleteTenancyCommand(tenancy.id);

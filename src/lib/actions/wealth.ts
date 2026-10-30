@@ -74,7 +74,8 @@ function commandError(error: unknown, notFound: string): ActionState {
   if (
     error instanceof StaleEditError ||
     error instanceof ModuleDisabledError ||
-    error instanceof DuplicateHoldingError
+    error instanceof DuplicateHoldingError ||
+    error instanceof RecordValidationError
   ) {
     return { error: error.message };
   }

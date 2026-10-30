@@ -230,11 +230,12 @@ export async function purgeTripSegment(id: string) {
   return { tripId: existing.tripId };
 }
 
-// The Trip page, the Travel list (segment counts and distance totals) and
-// Trash.
+// The Trip page, the Travel list (segment counts and distance totals),
+// Upcoming (segments are on it) and Trash.
 function revalidateSegment(tripId: string) {
   revalidatePath(`/travel/${tripId}`);
   revalidateTripLists();
+  revalidatePath("/calendar");
   revalidatePath("/settings/trash");
 }
 

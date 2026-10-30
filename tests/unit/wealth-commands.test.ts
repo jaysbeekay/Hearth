@@ -429,12 +429,24 @@ describe("Trade commands", () => {
     expect(await db.prisma.holding.findUnique({ where: { id: holdingId } })).not.toBeNull();
   });
 
-  it("doesn't count a Trade in Trash as a duplicate on import", async () => {
+  it("restores a Trade in Trash that an import matches, so a later restore can't double it", async () => {
     const trade = await createTradeCommand(holdingId, buy(10, 100, "2025-01-02"));
     await deleteTradeCommand(trade.id);
     const holding = await db.prisma.holding.findUniqueOrThrow({ where: { id: holdingId } });
     const row = { ticker: holding.ticker, type: "BUY" as const, date: "2025-01-02", units: 10, pricePerUnit: 100, fees: 0, currency: "AUD" };
+
+    // Trash, re-import: the Trade in Trash comes back, no new one is made.
     expect(await importTradesCommand(portfolioId, importedTradesSchema.parse([row]))).toEqual({ imported: 1, skipped: 0 });
+    expect(await db.prisma.trade.findMany({ where: { holdingId }, select: { id: true, deletedAt: true } })).toEqual([
+      { id: trade.id, deletedAt: null },
+    ]);
+
+    // Restore (from a stale Trash page or Undo): still one Trade.
+    await restoreTradeCommand(trade.id);
+    expect(await db.prisma.trade.count({ where: { holdingId, deletedAt: null } })).toBe(1);
+
+    // And importing it again now it's live is a duplicate.
+    expect(await importTradesCommand(portfolioId, importedTradesSchema.parse([row]))).toEqual({ imported: 0, skipped: 1 });
   });
 
   it("permanently deletes a Trade with its files", async () => {

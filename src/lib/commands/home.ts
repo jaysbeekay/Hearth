@@ -266,7 +266,7 @@ export async function purgeMaintenanceRecord(id: string) {
 // Why a Contract can't be linked to a Tenancy. Its own error, not a
 // RecordNotFoundError, so a caller can tell "that Contract" apart from
 // "this Tenancy" not being found.
-export type TenancyContractProblem = "not-found" | "wrong-category" | "already-linked";
+export type TenancyContractProblem = "not-found" | "wrong-category" | "already-linked" | "linked-in-trash";
 
 function tenancyContractMessage(problem: TenancyContractProblem) {
   switch (problem) {
@@ -276,6 +276,8 @@ function tenancyContractMessage(problem: TenancyContractProblem) {
       return "Only Rental-category contracts can be linked.";
     case "already-linked":
       return "That contract is already linked to another tenancy.";
+    case "linked-in-trash":
+      return "That contract is linked to a tenancy in Trash. Restore it or delete it permanently.";
   }
 }
 
@@ -368,9 +370,9 @@ export async function linkTenancyContractCommand(
     if (contract.category !== "RENTAL") throw new TenancyContractLinkError("wrong-category");
     const other = await prisma.rentalAgreement.findFirst({
       where: { contractId, id: { not: id } },
-      select: { id: true },
+      select: { id: true, deletedAt: true },
     });
-    if (other) throw new TenancyContractLinkError("already-linked");
+    if (other) throw new TenancyContractLinkError(other.deletedAt ? "linked-in-trash" : "already-linked");
   }
   try {
     await updateLiveUnlessStale(
@@ -395,6 +397,8 @@ export async function linkTenancyContractCommand(
 function revalidateTenancy(tenancy: { propertyId: string; contractId: string | null }) {
   revalidateRental(tenancy.propertyId);
   revalidatePath("/dashboard");
+  // Upcoming shows the current Tenancy's lease end.
+  revalidatePath("/calendar");
   if (tenancy.contractId) revalidatePath(`/contracts/${tenancy.contractId}`);
   revalidatePath("/settings/trash");
 }

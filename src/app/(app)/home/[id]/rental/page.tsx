@@ -91,9 +91,15 @@ export default async function RentalOverviewPage({
     }),
     prisma.contract.findMany({
       // A Contract links to one Tenancy at most, and one in Trash can't be
-      // linked (linkTenancyContractCommand refuses both).
-      where: { category: "RENTAL", deletedAt: null, rentalAgreement: null },
-      select: { id: true, title: true, provider: true },
+      // linked (linkTenancyContractCommand refuses both). One still held by
+      // a Tenancy in Trash is listed but disabled, so it's clear why it
+      // can't be picked (#427).
+      where: {
+        category: "RENTAL",
+        deletedAt: null,
+        OR: [{ rentalAgreement: null }, { rentalAgreement: { deletedAt: { not: null } } }],
+      },
+      select: { id: true, title: true, provider: true, rentalAgreement: { select: { id: true } } },
       orderBy: { title: "asc" },
     }),
     getUserPreferences(),
@@ -281,8 +287,8 @@ export default async function RentalOverviewPage({
                           <select name="contractId" defaultValue="" className={selectClass}>
                             <option value="">Not linked</option>
                             {rentalContracts.map((c) => (
-                              <option key={c.id} value={c.id}>
-                                {c.title} ({c.provider})
+                              <option key={c.id} value={c.id} disabled={c.rentalAgreement !== null}>
+                                {`${c.title} (${c.provider})${c.rentalAgreement !== null ? " (linked to a tenancy in Trash)" : ""}`}
                               </option>
                             ))}
                           </select>

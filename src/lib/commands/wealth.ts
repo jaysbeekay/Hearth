@@ -353,7 +353,8 @@ function revalidateTrade(holding: { id: string; portfolioId: string }) {
 // Imports rows already validated against importedTradesSchema. Each row's
 // ticker finds or creates its Holding in the Portfolio (a new one with the
 // row's inferred asset class, CRYPTO or SHARE, #404); a row with an unreadable date, or one matching an existing Trade
-// on the same Holding (date, type, units and price), is skipped.
+// on the same Holding (date, type, units and price), is skipped. A row
+// matching only a Trade in Trash restores that Trade.
 export async function importTradesCommand(portfolioId: string, rows: ImportedTrade[]) {
   await assertModuleEnabled("WEALTH");
   await findLivePortfolio(portfolioId);
@@ -373,21 +374,20 @@ export async function importTradesCommand(portfolioId: string, rows: ImportedTra
       update: {},
     });
 
-    const duplicate = await prisma.trade.findFirst({
-      // A Trade in Trash doesn't count: it's out of the Holding until it's
-      // restored, so importing it again brings it back as a new Trade.
-      where: {
-        holdingId: holding.id,
-        date,
-        type: row.type,
-        units: row.units,
-        pricePerUnit: row.pricePerUnit,
-        deletedAt: null,
-      },
-      select: { id: true },
+    // A live match is a duplicate. A match in Trash is restored rather than
+    // imported again, so restoring it from Trash later can't double it
+    // (#427).
+    const matches = await prisma.trade.findMany({
+      where: { holdingId: holding.id, date, type: row.type, units: row.units, pricePerUnit: row.pricePerUnit },
+      select: { id: true, deletedAt: true },
     });
-    if (duplicate) {
+    if (matches.some((match) => match.deletedAt === null)) {
       skipped++;
+      continue;
+    }
+    if (matches.length > 0) {
+      await prisma.trade.update({ where: { id: matches[0].id }, data: { deletedAt: null } });
+      imported++;
       continue;
     }
 

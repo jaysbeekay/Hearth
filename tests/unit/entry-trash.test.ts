@@ -225,6 +225,22 @@ describe("Trash", () => {
     expect(await db.prisma.trade.count()).toBe(1);
   });
 
+  it("leaves out entries of a module that's turned off", async () => {
+    const segment = await newSegment();
+    const { holding } = await newHolding();
+    const trade = await newTrade(holding.id);
+    await deleteTripSegmentCommand(segment.id);
+    await deleteTradeCommand(trade.id);
+
+    await setModuleEnabled("TRAVEL", false);
+    const ids = (await getTrashEntries()).map((entry) => entry.id);
+    expect(ids).toContain(trade.id);
+    expect(ids).not.toContain(segment.id);
+
+    await setModuleEnabled("TRAVEL", true);
+    expect((await getTrashEntries()).map((entry) => entry.id)).toContain(segment.id);
+  });
+
   it("reports an offline delete scoped to the wrong parent as failed", async () => {
     const statement = await newStatement();
     const { POST } = await import("@/app/api/sync/route");

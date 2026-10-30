@@ -335,7 +335,7 @@ export default async function PropertyDetailPage({
                       label: `Delete valuation: ${formatDate(v.valuedAt, dateFormat)}`,
                     }}
                     confirmText="Move this valuation to Trash? You can restore it within 30 days from Settings → Trash."
-                    ariaLabel={`Remove valuation from ${formatDate(v.valuedAt, dateFormat)}`}
+                    ariaLabel={`Move valuation from ${formatDate(v.valuedAt, dateFormat)} to Trash`}
                     className="rounded-lg border border-border p-2 text-danger hover:bg-danger/10"
                   >
                     <Trash2 size={14} />
