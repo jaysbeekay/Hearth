@@ -139,8 +139,13 @@ export function buildDistanceSummary(
  * cached — never re-fetches or re-computes once distanceKm is set.
  */
 export async function computeSegmentDistance(segmentId: string): Promise<void> {
-  const segment = await prisma.tripSegment.findUnique({ where: { id: segmentId } });
+  const segment = await prisma.tripSegment.findUnique({
+    where: { id: segmentId },
+    include: { trip: { select: { deletedAt: true } } },
+  });
   if (!segment || segment.type !== "FLIGHT") return;
+  // A Trip in Trash is read-only (#428): skip the airport lookups too.
+  if (segment.trip.deletedAt) return;
   if (segment.distanceKm != null) return;
   if (!segment.departureIata || !segment.arrivalIata) return;
 

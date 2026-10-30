@@ -2,10 +2,10 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { removeOwnerDocumentFiles } from "@/lib/commands/documents";
 import { assertModuleEnabled } from "@/lib/modules/enablement";
-import { updateUnlessStale, findLiveParent, RecordNotFoundError, type UpdateOptions } from "@/lib/commands/shared";
+import { updateLiveUnlessStale, findLiveParent, RecordNotFoundError, type UpdateOptions } from "@/lib/commands/shared";
 import type { ClearablePatch } from "@/lib/validation/fullFormUpdate";
 import type { TripInput, TripSegmentInput } from "@/lib/validation/travel";
-import type { TripSegment } from "@/generated/prisma/client";
+import type { Prisma, TripSegment } from "@/generated/prisma/client";
 
 // Record commands for Trips and Trip segments (#391, ADR 0003). Every write
 // to `trip` / `tripSegment` goes through here: server actions, the offline
@@ -16,7 +16,9 @@ import type { TripSegment } from "@/generated/prisma/client";
 // A Trip in Trash is read-only until it's restored, and so are its segments
 // (#428, the rules in shared.ts): an update to it, or a segment create or
 // update under it, is refused as not found. Segments have no Trash of their
-// own, so there's no segment restore to refuse.
+// own, so there's no segment restore to refuse. Updates carry that rule in
+// their guarded write; a segment create checks and writes in one
+// transaction, so a move to Trash can't land in between.
 //
 // Trips have no Reminders, so there's no sent-Reminder log to clear.
 
@@ -27,16 +29,25 @@ function revalidateTripLists() {
   revalidatePath("/dashboard");
 }
 
+// The global client, or a transaction's `tx` (which must then be used for
+// every query inside it).
+type Db = Prisma.TransactionClient;
+
+function loadTrip(id: string, db: Db = prisma) {
+  return db.trip.findUnique({ where: { id } });
+}
+
+// For delete, restore and the row an update returns: Trash or not.
 async function findTrip(id: string) {
-  const trip = await prisma.trip.findUnique({ where: { id } });
+  const trip = await loadTrip(id);
   if (!trip) throw new RecordNotFoundError("Trip");
   return trip;
 }
 
 // For a write to a Trip or under it, as `what`: one in Trash counts as not
 // found.
-function findLiveTrip(id: string, what = "Trip") {
-  return findLiveParent(prisma.trip.findUnique({ where: { id } }), what);
+function findLiveTrip(id: string, what = "Trip", db: Db = prisma) {
+  return findLiveParent(loadTrip(id, db), what);
 }
 
 export async function createTripCommand(input: TripInput, actorId: string) {
@@ -56,9 +67,14 @@ export async function updateTripCommand(
   options: UpdateOptions = {},
 ) {
   await assertModuleEnabled("TRAVEL");
-  await findLiveTrip(id);
-  await updateUnlessStale(options.baseUpdatedAt, (guard) =>
-    prisma.trip.updateMany({ where: { id, ...guard }, data: { ...patch, updatedById: actorId } }),
+  await updateLiveUnlessStale(
+    options.baseUpdatedAt,
+    (guard) =>
+      prisma.trip.updateMany({
+        where: { id, deletedAt: null, ...guard },
+        data: { ...patch, updatedById: actorId },
+      }),
+    () => findLiveTrip(id),
   );
   revalidateTripLists();
   revalidatePath(`/travel/${id}`);
@@ -128,8 +144,10 @@ async function findTripSegment(id: string, scope: TripSegmentScope = {}) {
 
 export async function createTripSegmentCommand(tripId: string, input: TripSegmentInput) {
   await assertModuleEnabled("TRAVEL");
-  await findLiveTrip(tripId);
-  const segment = await prisma.tripSegment.create({ data: { ...input, tripId } });
+  const segment = await prisma.$transaction(async (tx) => {
+    await findLiveTrip(tripId, "Trip", tx);
+    return tx.tripSegment.create({ data: { ...input, tripId } });
+  });
   revalidatePath(`/travel/${tripId}`);
   return segment;
 }
@@ -141,13 +159,21 @@ export async function updateTripSegmentCommand(
   options: UpdateOptions & TripSegmentScope = {},
 ) {
   await assertModuleEnabled("TRAVEL");
-  const existing = await findTripSegment(id, options);
-  await findLiveTrip(existing.tripId, "Segment");
-  await updateUnlessStale(options.baseUpdatedAt, (guard) =>
-    prisma.tripSegment.updateMany({ where: { id, ...guard }, data: patch }),
+  await updateLiveUnlessStale(
+    options.baseUpdatedAt,
+    (guard) =>
+      prisma.tripSegment.updateMany({
+        where: { id, tripId: options.tripId, trip: { deletedAt: null }, ...guard },
+        data: patch,
+      }),
+    async () => {
+      const existing = await findTripSegment(id, options);
+      await findLiveTrip(existing.tripId, "Segment");
+    },
   );
-  revalidatePath(`/travel/${existing.tripId}`);
-  return findTripSegment(id);
+  const segment = await findTripSegment(id);
+  revalidatePath(`/travel/${segment.tripId}`);
+  return segment;
 }
 
 // Segments have no Trash of their own (no deletedAt column): deleting one is
@@ -212,7 +238,7 @@ export async function saveTripSegmentFlightData(id: string, data: TripSegmentFli
   if (current.trip.deletedAt) return false;
   const { departureIata, arrivalIata, ...rest } = data;
   const { count } = await prisma.tripSegment.updateMany({
-    where: { id, updatedAt: current.updatedAt },
+    where: { id, updatedAt: current.updatedAt, trip: { deletedAt: null } },
     data: {
       ...rest,
       ...(current.departureIata == null && departureIata ? { departureIata } : {}),
