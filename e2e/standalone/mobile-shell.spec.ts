@@ -531,6 +531,32 @@ test("standalone reminders hold unconfirmed records and record local schedule hi
   expect(snapshot?.sqliteRuns.some((run) => run.statement.includes("INSERT INTO reminder_delivery_logs") && run.values.includes("SCHEDULED"))).toBe(true);
 });
 
+test("standalone reminder setup states are neutral and counted once (#412)", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="reminders"]').click();
+
+  // The Broadband Plan is held for review: it can't run, so it is Missing
+  // setup only, not also Due soon, and its badge is neutral.
+  const miniCard = (title: string) => page.locator(".mini-card").filter({ hasText: title }).locator("strong");
+  await expect(miniCard("Due soon / overdue")).toHaveText("0");
+  await expect(miniCard("Missing setup")).toHaveText("1");
+
+  const held = page.locator(".record-card").filter({ hasText: "Broadband Plan" });
+  await expect(held).not.toHaveClass(/warning-card|danger-card/);
+  const badge = held.locator(".badge").filter({ hasText: "Held" });
+  await expect(badge).not.toHaveClass(/warning|danger/);
+  const colours = await badge.evaluate((el) => {
+    const muted = getComputedStyle(document.documentElement).getPropertyValue("--muted").trim();
+    const probe = document.createElement("span");
+    probe.style.color = muted;
+    document.body.append(probe);
+    const expected = getComputedStyle(probe).color;
+    probe.remove();
+    return { actual: getComputedStyle(el).color, expected };
+  });
+  expect(colours.actual).toBe(colours.expected);
+});
+
 test("standalone settings exports and imports local backups", async ({ page }) => {
   await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
   await page.locator('#mobile-view button[data-nav="settings"]').click();

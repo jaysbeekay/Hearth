@@ -1,7 +1,7 @@
 // #412 — the one mapping from a record's status to the colour its pill or
 // banner takes. Colour signals that something needs acting on by a date:
 // danger once Overdue, warning while Due soon. Every other status (Ended,
-// Lapsed, Cancelled, Archived, Needs review, a date that needs replacing,
+// Lapsed, Cancelled, Needs review, a date that needs replacing, and
 // other Housekeeping) is a neutral grey pill, and a date outside its
 // due-soon window is plain muted text with no pill at all. Success is kept
 // for confirmations, "Connected" and gains, never for a date.
@@ -23,7 +23,6 @@ export type StatusTone = "danger" | "warning" | "neutral" | "plain";
 export type RecordStatus =
   | DueState
   | "cancelled"
-  | "archived"
   | "needs-review"
   /** Any other Housekeeping, such as missing details or a failed Reminder. */
   | "housekeeping"
@@ -43,7 +42,6 @@ export function statusTone(status: RecordStatus): StatusTone {
     case "lapsed":
     case "needs-new-end-date":
     case "cancelled":
-    case "archived":
     case "needs-review":
     case "housekeeping":
     case "no-date":
@@ -67,6 +65,16 @@ const BANNER_CLASS = new Map<StatusTone, string>([
   ["neutral", "border-border bg-muted/10 text-foreground"],
   ["plain", "border-border bg-surface text-foreground"],
 ]);
+
+const TEXT_CLASS = new Map<StatusTone, string>([
+  ["danger", "text-danger"],
+  ["warning", "text-warning"],
+]);
+
+/** The text colour for a status in running text: muted unless danger or warning. */
+export function statusTextClass(tone: StatusTone): string {
+  return TEXT_CLASS.get(tone) ?? "text-muted";
+}
 
 /** The classes for a status pill (or, for `plain`, its unpilled text) in a tone. */
 export function statusPillClass(tone: StatusTone): string {

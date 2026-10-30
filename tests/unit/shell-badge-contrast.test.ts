@@ -56,11 +56,22 @@ for (const [theme, tokens] of [
       const base = rgb(tokens, ground);
       rows.push({ name: `${theme}: ${tone} badge over ${ground}`, ratio: contrast(text, over(tint, base)) });
     }
-    if (tone !== "muted") {
-      // A badge inside a .warning-card / .danger-card, whose tint replaces the
-      // card's own background over the page.
-      const card = over(tint, rgb(tokens, "background"));
-      rows.push({ name: `${theme}: ${tone} badge in a ${tone} card`, ratio: contrast(text, over(tint, card)) });
+  }
+  // A .warning-card / .danger-card's tint replaces the card's own background,
+  // so it sits over whatever is behind the card: the page, or a raised section.
+  // Its badges (its own tone, or a neutral one beside it) and its muted
+  // .card-meta text sit on that tint.
+  const muted = rgb(tokens, "muted");
+  const mutedSoft = tokens.get("muted-soft")!;
+  for (const cardTone of ["warning", "danger"]) {
+    const cardText = rgb(tokens, cardTone);
+    const cardTint = tokens.get(`${cardTone}-soft`)!;
+    for (const ground of ["background", "surface-raised"]) {
+      const card = over(cardTint, rgb(tokens, ground));
+      const where = `in a ${cardTone} card over ${ground}`;
+      rows.push({ name: `${theme}: ${cardTone} badge ${where}`, ratio: contrast(cardText, over(cardTint, card)) });
+      rows.push({ name: `${theme}: muted badge ${where}`, ratio: contrast(muted, over(mutedSoft, card)) });
+      rows.push({ name: `${theme}: muted text ${where}`, ratio: contrast(muted, card) });
     }
   }
 }

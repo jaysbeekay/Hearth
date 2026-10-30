@@ -7,17 +7,13 @@
 // chips shown just above, but did nothing on click — a false affordance.
 // An item with `onClick` (its count has a matching filter) renders as a real
 // button; one without renders as plain text so it doesn't look clickable.
-import { statusTone, type RecordStatus, type StatusTone } from "@/lib/statusTone";
+import { statusBannerClass, statusTextClass, statusTone, type RecordStatus, type StatusTone } from "@/lib/statusTone";
 
-// #412 — a count takes its status's tone: only Overdue and Due soon are coloured.
-const BUTTON_CLASS = new Map<StatusTone, string>([
-  ["danger", "border-danger/30 bg-danger/10 text-danger"],
-  ["warning", "border-warning/30 bg-warning/10 text-warning"],
-]);
-const TEXT_CLASS = new Map<StatusTone, string>([
-  ["danger", "text-danger"],
-  ["warning", "text-warning"],
-]);
+// #412 — a count takes its status's tone: only Overdue and Due soon are
+// coloured, with the same tint and border as a status banner.
+function buttonClass(tone: StatusTone): string {
+  return tone === "danger" || tone === "warning" ? statusBannerClass(tone) : "border-border bg-surface text-muted";
+}
 
 export function ListSummaryStrip({
   items,
@@ -43,7 +39,7 @@ export function ListSummaryStrip({
             type="button"
             onClick={item.onClick}
             className={`rounded-full border px-3 py-1 hover:bg-hover ${
-              BUTTON_CLASS.get(tone) ?? "border-border bg-surface text-muted"
+              buttonClass(tone)
             }`}
           >
             {item.value} {item.label}
@@ -51,7 +47,7 @@ export function ListSummaryStrip({
         ) : (
           <span
             key={item.label}
-            className={`px-1 py-1 ${TEXT_CLASS.get(tone) ?? "text-muted"}`}
+            className={`px-1 py-1 ${statusTextClass(tone)}`}
           >
             {item.value} {item.label}
           </span>

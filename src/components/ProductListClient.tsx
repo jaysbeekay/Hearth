@@ -105,7 +105,7 @@ export function ProductListClient({
       label: "lapsed",
       value: counts.lapsed ?? 0,
       status: "lapsed" as const,
-onClick: () => {
+      onClick: () => {
         toggleFilter("lapsed");
       },
     },

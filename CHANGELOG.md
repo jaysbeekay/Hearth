@@ -94,13 +94,17 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   Housekeeping are a grey pill. A date outside its due-soon window is plain
   grey text with no pill, so a far-off "Expires 31 Dec" is no longer green.
   Needs review is grey everywhere (it was amber on the dashboard and the
-  list counts). Missing key details, Pending sync, Tax deductible, the
-  current Tenancy, Trade types, document types and asset classes are grey
-  too, and a flight is coloured only when it's cancelled or diverted. The
-  standalone shell matches: its plain badge is grey rather than purple,
-  Needs review, Important, Hidden and Off badges are grey, and its red is
-  darker in light mode and lighter in dark mode so badge text is at least
-  4.5:1 on its tint (#412).
+  list counts). Other Housekeeping is grey too: Missing key details,
+  "Not configured" reminders and backups, stale property valuations, and
+  changes waiting to sync. So are Tax deductible, the current Tenancy and
+  Trade types. A flight is coloured only when it's cancelled, has an
+  incident or is diverted. Document types, asset classes and the "Latest"
+  version tag are grey rather than blue. The standalone shell matches:
+  its plain badge is grey rather than purple, Needs review, Held, setup
+  states (No date, No thresholds, Invalid date), Important, Hidden and Off
+  are grey, and a record whose reminders can't run counts only as Missing
+  setup, not also as Due soon. Its red, grey and tints are adjusted so
+  badge and card text is at least 4.5:1 in both themes (#412).
 - **CI split into separate required checks.** `.github/workflows/ci.yml` replaces
   `e2e.yml` with one job per check: `typecheck`, `lint`, `unit`, `build`, `e2e`
   and `standalone`. A failing lint step no longer shows up as an "e2e" failure.

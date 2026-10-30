@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { dueEntries, type DueState } from "@/lib/duePolicy";
-import { statusBannerClass, statusPillClass, statusTone, type RecordStatus, type StatusTone } from "@/lib/statusTone";
+import { statusBannerClass, statusPillClass, statusTextClass, statusTone, type RecordStatus, type StatusTone } from "@/lib/statusTone";
 
 // #412 — one state-to-tone mapping for every status pill and banner: colour
 // only for Overdue and Due soon.
@@ -15,7 +15,6 @@ const ALL_STATUSES: RecordStatus[] = [
   "lapsed",
   "needs-new-end-date",
   "cancelled",
-  "archived",
   "needs-review",
   "housekeeping",
   "no-date",
@@ -31,7 +30,6 @@ describe("statusTone", () => {
     ["lapsed", "neutral"],
     ["needs-new-end-date", "neutral"],
     ["cancelled", "neutral"],
-    ["archived", "neutral"],
     ["needs-review", "neutral"],
     ["housekeeping", "neutral"],
     ["no-date", "neutral"],
@@ -69,6 +67,13 @@ describe("status pill and banner classes", () => {
       expect(statusPillClass(tone)).not.toMatch(/success/);
       expect(statusBannerClass(tone)).not.toMatch(/success/);
     }
+  });
+
+  it("colours running text only for danger and warning", () => {
+    expect(statusTextClass("danger")).toBe("text-danger");
+    expect(statusTextClass("warning")).toBe("text-warning");
+    expect(statusTextClass("neutral")).toBe("text-muted");
+    expect(statusTextClass("plain")).toBe("text-muted");
   });
 
   it("draws no pill for a later date: plain muted text", () => {

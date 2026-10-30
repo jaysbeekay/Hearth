@@ -94,7 +94,7 @@ function AttentionList({ items, canWrite }: { items: AttentionItem[]; canWrite: 
               // #412 — Housekeeping (Needs review, Not configured, Reminder
               // failed) is neutral, as on the detail banner: colour is kept
               // for Overdue and Due soon.
-              <StatusPill status="housekeeping">
+              <StatusPill status={item.badge === "Needs review" ? "needs-review" : "housekeeping"}>
                 <AlertCircle size={12} aria-hidden />
                 {item.badge}
               </StatusPill>

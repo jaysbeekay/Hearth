@@ -95,7 +95,7 @@ export function ReminderHealthCard({
               </>
             ) : (
               <>
-                <AlertTriangle size={14} className="text-warning" aria-hidden />
+                <AlertTriangle size={14} className="text-muted" aria-hidden />
                 Not configured
               </>
             )}

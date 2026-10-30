@@ -1469,7 +1469,9 @@ function renderCalendarEvent(event) {
 function renderReminders() {
   const targets = reminderTargets();
   const ready = targets.filter((target) => target.health.enabled && target.health.nextReminderDate);
-  const dueSoon = targets.filter((target) => ["danger", "warning"].includes(target.health.tone));
+  // #412 — only a record whose reminders can run counts as due soon or
+  // overdue; one missing its date or thresholds is "Missing setup" instead.
+  const dueSoon = targets.filter((target) => target.health.enabled && ["danger", "warning"].includes(target.health.tone));
   const missing = targets.filter((target) => !target.health.enabled);
   const scheduleable = reminderNotifications().length;
   return `
@@ -1542,7 +1544,7 @@ function reminderTarget(type, row, kind, dueDate, thresholds) {
   const health = heldForReview
     ? {
         enabled: false,
-        tone: "warning",
+        tone: "neutral",
         label: "Held",
         summary: "Details need review; reminders are held until confirmed.",
         nextReminderDate: null,
@@ -1599,10 +1601,10 @@ function reminderDeliverySummary(health) {
 
 function reminderHealth(dueDate, thresholdsText) {
   const thresholds = parseReminderDays(thresholdsText);
-  if (!dueDate) return { enabled: false, tone: "warning", label: "No date", summary: "Add a target date before reminders can be planned.", nextReminderDate: null, sortDate: null };
-  if (thresholds.length === 0) return { enabled: false, tone: "warning", label: "No thresholds", summary: "Add comma-separated reminder days, for example 30,14,7,1.", nextReminderDate: null, sortDate: String(dueDate).slice(0, 10) };
+  if (!dueDate) return { enabled: false, tone: "neutral", label: "No date", summary: "Add a target date before reminders can be planned.", nextReminderDate: null, sortDate: null };
+  if (thresholds.length === 0) return { enabled: false, tone: "neutral", label: "No thresholds", summary: "Add comma-separated reminder days, for example 30,14,7,1.", nextReminderDate: null, sortDate: String(dueDate).slice(0, 10) };
   const days = daysUntil(dueDate);
-  if (days == null) return { enabled: false, tone: "warning", label: "Invalid date", summary: "The saved date could not be read.", nextReminderDate: null, sortDate: null };
+  if (days == null) return { enabled: false, tone: "neutral", label: "Invalid date", summary: "The saved date could not be read.", nextReminderDate: null, sortDate: null };
   const dueLabel = readableDate(dueDate);
   if (days < 0) return { enabled: true, tone: "danger", label: "Overdue", summary: `Due ${dueLabel}; thresholds ${thresholds.join(", ")} days.`, nextReminderDate: null, sortDate: dueLabel };
   const nextThreshold = thresholds.find((threshold) => threshold <= days);
