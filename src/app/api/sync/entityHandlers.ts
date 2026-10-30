@@ -56,7 +56,7 @@ import {
   createTradeCommand,
   updateTradeCommand,
 } from "@/lib/commands/wealth";
-import { updateUnlessStale } from "@/lib/commands/shared";
+import { updateInventoryItemCommand } from "@/lib/commands/inventory";
 import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
 import {
   formToContractInput,
@@ -366,13 +366,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       return { id: item.id };
     },
     update: async (id, data, ctx) => {
-      const existing = await prisma.inventoryItem.findUnique({ where: { id } });
-      if (!existing) throw new Error("Item not found");
-      await updateUnlessStale(ctx.baseUpdatedAt, (guard) =>
-        prisma.inventoryItem.updateMany({ where: { id, ...guard }, data }),
-      );
-      revalidatePath("/inventory");
-      revalidatePath(`/inventory/${id}`);
+      await updateInventoryItemCommand(id, data, ctx.userId, { baseUpdatedAt: ctx.baseUpdatedAt });
     },
     // #287 — soft-delete, matching deleteInventoryItem in actions/inventory.ts.
     remove: async (id) => {

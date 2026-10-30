@@ -25,7 +25,6 @@ import {
   permanentlyDeleteContractCommand,
 } from "@/lib/commands/contracts";
 import { RecordNotFoundError, RecordValidationError, StaleEditError } from "@/lib/commands/shared";
-import { linkedRecordError } from "@/lib/commands/links";
 
 export type ActionState = {
   error?: string;
@@ -107,7 +106,14 @@ export async function createContract(
     if (rejection) return { error: rejection };
   }
 
-  const contract = await createContractCommand({ ...parsed.data, ...extractionFieldsFromForm(formData) }, user.id);
+  // The command refuses a link to a Property or Vehicle that's missing, in
+  // Trash or whose module is off (#447).
+  let contract;
+  try {
+    contract = await createContractCommand({ ...parsed.data, ...extractionFieldsFromForm(formData) }, user.id);
+  } catch (error) {
+    return { ...commandError(error), values: formDataToStringValues(formData, CONTRACT_FORM_FIELDS) };
+  }
   await saveExtractionReviewFieldsFromForm("CONTRACT", contract.id, formData);
 
   let docFallback: "inbox" | "failed" | null = null;
@@ -210,9 +216,6 @@ export async function createContractFromAssistant(
   const parsed = contractSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: firstIssueMessage(parsed.error) };
 
-  const linkError = await linkedRecordError(parsed.data);
-  if (linkError) return { success: false, error: linkError };
-
   try {
     const contract = await createContractCommand(parsed.data, user.id);
     return { success: true, contractId: contract.id };
@@ -235,9 +238,6 @@ export async function updateContractFromAssistant(
   // the card showed would need a signed or stored proposal.
   const parsed = parseNamedPatch(contractPatchSchema, data);
   if (!parsed.success) return parsed;
-
-  const linkError = await linkedRecordError(parsed.data);
-  if (linkError) return { success: false, error: linkError };
 
   try {
     await updateContractCommand(contractId, parsed.data, user.id);

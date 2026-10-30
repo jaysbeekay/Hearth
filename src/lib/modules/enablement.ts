@@ -10,8 +10,13 @@ export async function getEnabledModuleKeys(): Promise<Set<ModuleKey>> {
   return new Set(rows.map((row) => row.key as ModuleKey));
 }
 
-export async function isModuleEnabled(key: ModuleKey): Promise<boolean> {
-  const row = await prisma.moduleEnablement.findUnique({ where: { key } });
+// `db` is the global client, or a transaction's `tx` for a check that must
+// run inside one (commands/links.ts).
+export async function isModuleEnabled(
+  key: ModuleKey,
+  db: Pick<typeof prisma, "moduleEnablement"> = prisma,
+): Promise<boolean> {
+  const row = await db.moduleEnablement.findUnique({ where: { key } });
   return row?.enabled ?? false;
 }
 
