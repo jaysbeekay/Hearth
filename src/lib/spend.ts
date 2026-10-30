@@ -1,6 +1,12 @@
 import { monthlyEquivalent } from "@/lib/utils";
 import { convertAmount } from "@/lib/fx";
-import { format } from "date-fns";
+import { shortMonthName } from "@/lib/dateParts";
+
+// Start and end dates are calendar dates stored at UTC midnight, so the
+// month buckets are UTC month starts too: a local-midnight bucket on a server
+// east of UTC falls on the previous UTC day, and would miss a contract that
+// starts on the 1st (#422).
+const FAR_FUTURE = new Date(Date.UTC(9999, 0, 1));
 
 export interface MonthBucket {
   month: string; // "Jan 2026"
@@ -18,18 +24,18 @@ export function buildMonthlyTimeline(
   months: number,
   targetCurrency: string,
   rateMap: Map<string, number>,
+  now: Date = new Date(),
 ): MonthBucket[] {
   const buckets: MonthBucket[] = [];
-  const now = new Date();
 
   for (let i = months - 1; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const label = format(d, "MMM yyyy");
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+    const label = `${shortMonthName(d.getUTCMonth() + 1)} ${d.getUTCFullYear()}`;
     let total = 0;
 
     for (const c of contracts) {
       const start = c.startDate ?? new Date(0);
-      const end = c.endDate ?? new Date(9999, 0);
+      const end = c.endDate ?? FAR_FUTURE;
       if (d >= start && d <= end) {
         const converted = c.cost != null ? convertAmount(c.cost, c.currency, targetCurrency, rateMap) : null;
         if (converted != null) total += monthlyEquivalent(converted, c.billingFrequency);
@@ -61,19 +67,20 @@ export function buildYearlyTimeline(
   years: number,
   targetCurrency: string,
   rateMap: Map<string, number>,
+  now: Date = new Date(),
 ): YearBucket[] {
   const buckets: YearBucket[] = [];
-  const currentYear = new Date().getFullYear();
+  const currentYear = now.getUTCFullYear();
 
   for (let i = years - 1; i >= 0; i--) {
     const year = currentYear - i;
     let total = 0;
 
     for (let month = 0; month < 12; month++) {
-      const d = new Date(year, month, 1);
+      const d = new Date(Date.UTC(year, month, 1));
       for (const c of contracts) {
         const start = c.startDate ?? new Date(0);
-        const end = c.endDate ?? new Date(9999, 0);
+        const end = c.endDate ?? FAR_FUTURE;
         if (d >= start && d <= end) {
           const converted = c.cost != null ? convertAmount(c.cost, c.currency, targetCurrency, rateMap) : null;
           if (converted != null) total += monthlyEquivalent(converted, c.billingFrequency);

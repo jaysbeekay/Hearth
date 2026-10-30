@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
-import { isValidTimeZone } from "@/lib/duePolicy";
+import { isValidTimeZone, isoDay, shortMonthName, zonedDayParts, type DayParts } from "@/lib/dateParts";
+import { followsHouseholdTimeZone } from "@/lib/timezones";
 
 export function cn(...inputs: ClassValue[]) {
   return clsx(...inputs);
@@ -61,16 +62,19 @@ function toValidDate(date: Date | string): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-// A date in the user's format, read in `timeZone` ("UTC" for a calendar date).
-function formatInZone(d: Date, dateFormat: string | null | undefined, timeZone: string): string {
+// A day in the user's format. Built from its numeric parts and English
+// month names rather than toLocaleDateString, so the output never depends on
+// the runtime's locale data ("Sep", never ICU's "Sept"), and matches the Due
+// labels' dates exactly.
+function formatDayParts(parts: DayParts, dateFormat: string | null | undefined): string {
+  const month = shortMonthName(parts.month);
   switch (dateFormat) {
     case "MM/DD/YYYY":
-      return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric", timeZone });
+      return `${month} ${parts.day}, ${parts.year}`;
     case "YYYY-MM-DD":
-      // en-CA writes dates as YYYY-MM-DD.
-      return d.toLocaleDateString("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone });
+      return isoDay(parts);
     default:
-      return d.toLocaleDateString("en-AU", { year: "numeric", month: "short", day: "numeric", timeZone });
+      return `${parts.day} ${month} ${parts.year}`;
   }
 }
 
@@ -87,13 +91,16 @@ export function formatDate(
 ) {
   if (!date) return "—";
   const d = toValidDate(date);
-  return d ? formatInZone(d, dateFormat, "UTC") : "—";
+  if (!d) return "—";
+  if (dateFormat === "YYYY-MM-DD") return d.toISOString().slice(0, 10);
+  return formatDayParts({ year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() }, dateFormat);
 }
 
 /**
  * The day a moment in time (uploadedAt, sentAt, createdAt...) fell on in
  * `timeZone`, the viewer's display timezone, in the user's date format. An
- * invalid or missing zone falls back to the runtime's own.
+ * invalid or missing zone counts as UTC, so the server and the browser
+ * always agree.
  */
 export function formatTimestamp(
   date: Date | string | null | undefined,
@@ -103,17 +110,18 @@ export function formatTimestamp(
   if (!date) return "—";
   const d = toValidDate(date);
   if (!d) return "—";
-  return formatInZone(d, dateFormat, isValidTimeZone(timeZone) ? timeZone : Intl.DateTimeFormat().resolvedOptions().timeZone);
+  return formatDayParts(zonedDayParts(d, isValidTimeZone(timeZone) ? timeZone : "UTC"), dateFormat);
 }
 
 /**
  * The timezone a viewer's timestamps display in: their own Preferences
- * timezone once they've picked one, else the household's. "UTC" is the
- * stored default for someone who has never chosen, so it defers to the
- * household's zone, which in turn defaults to the server's.
+ * timezone once they've picked one, else the household's (which in turn
+ * defaults to the server's). An empty or legacy "UTC" stored value means
+ * they haven't picked one; a deliberate UTC choice is "Etc/UTC"
+ * (timezones.ts).
  */
 export function displayTimeZone(userTimeZone: string | null | undefined, householdTimeZone: string): string {
-  return isValidTimeZone(userTimeZone) && userTimeZone !== "UTC" ? userTimeZone : householdTimeZone;
+  return isValidTimeZone(userTimeZone) && !followsHouseholdTimeZone(userTimeZone) ? userTimeZone : householdTimeZone;
 }
 
 export interface CurrencyFormatOptions {
@@ -299,7 +307,9 @@ export function formatPropertyAddress(property: PropertyAddressParts): string {
 
 // AU financial year runs 1 Jul–30 Jun; e.g. 15 Mar 2026 and 1 Aug 2025 are both "FY2025–26".
 export function financialYearLabel(date: Date) {
-  const startYear = date.getMonth() >= 6 ? date.getFullYear() : date.getFullYear() - 1;
+  // A calendar date stored at UTC midnight, so read in UTC: locally, 1 Jul
+  // on a server west of UTC is still 30 Jun, the previous financial year (#422).
+  const startYear = date.getUTCMonth() >= 6 ? date.getUTCFullYear() : date.getUTCFullYear() - 1;
   return `FY${startYear}–${String(startYear + 1).slice(-2)}`;
 }
 

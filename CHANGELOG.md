@@ -486,16 +486,23 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 - **Due labels and dates follow your date format, and stay on their day
   (#422).** Badges and banners such as "Cancel by 4 Nov" now read in the
   Date format chosen in Settings → Preferences ("Cancel by Nov 4" for
-  MM/DD/YYYY, "Cancel by 2026-11-04" for YYYY-MM-DD), with day counts in
-  the Region's number style, on the lists, dashboard, Needs attention,
-  Upcoming and detail pages. The Due policy now returns each label as a key
-  and its parameters, and the screen formats it; its plain labels, and the
-  shared Due cases, are unchanged. Calendar dates (end dates, expiries,
-  purchase dates and so on) are stored at UTC midnight and now always read
-  as that day: on a server or browser west of UTC, a 1 Dec end date could
-  show as 30 Nov. Moments in time, such as when a document was uploaded or
-  a Reminder sent, show in your own timezone, or the household's until you
-  pick one.
+  MM/DD/YYYY, "Cancel by 2026-11-04" for YYYY-MM-DD) on the lists,
+  dashboard, Needs attention, Upcoming, detail pages and the Assistant's
+  confirmation card. The Due policy now returns each label as a key and its
+  parameters, and the screen formats it; its plain labels, and the shared
+  Due cases, are unchanged. Calendar dates (end dates, expiries, purchase
+  dates and so on) are stored at UTC midnight and now always read as that
+  day: on a server or browser west of UTC, a 1 Dec end date could show as
+  30 Nov. The same goes for the financial-year totals and the Spend
+  timeline's month and year bars. Dates are built from one English month
+  table rather than the runtime's locale data, so the server and the
+  browser always render the same text, badges and date fields agree
+  ("Sep", never "Sept"), month names stay English on Upcoming whatever the
+  Region, and day counts are plain digits. Moments in time, such as when a
+  document was uploaded or a Reminder sent, show in your own timezone.
+  Preferences' timezone now starts with "Household default"; a member who
+  never picked one (stored as "UTC", the old default) follows the
+  household's timezone, and choosing UTC itself is now honoured.
 - **Records in Trash stay read-only, and so does everything under them
   (#428).** An offline edit replayed after the record was trashed on another
   device could add a Service record to a Vehicle in Trash, or a segment to a

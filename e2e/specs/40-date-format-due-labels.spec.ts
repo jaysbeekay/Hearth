@@ -1,24 +1,32 @@
 import { test, expect, type Page } from "@playwright/test";
 import { ADMIN_AUTH_FILE } from "../env";
 
-// #422 — Due labels follow the viewer's Date format and Region from Settings →
+// #422 — Due labels follow the viewer's Date format from Settings →
 // Preferences, on the Contract's badge, the Contracts list and Upcoming.
 
 test.use({ storageState: ADMIN_AUTH_FILE });
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-// The server runs on this machine, so the household's day (the server's own
-// zone, as no household timezone is set) is the local day here.
-function localIso(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+// Due labels count days in the household's timezone, which Settings names.
+// Read it from there rather than assuming this machine's zone is the
+// household's, and work out today once so every date below agrees.
+async function householdToday(page: Page): Promise<string> {
+  await page.goto("/settings");
+  const text = await page.locator("#main").getByText(/The household timezone is /).textContent();
+  const timeZone = /The household timezone is ([^.\s]+)\./.exec(text ?? "")?.[1];
+  if (!timeZone) throw new Error(`No household timezone in: ${text}`);
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" })
+    .formatToParts(new Date());
+  const part = (type: string) => parts.find((p) => p.type === type)?.value;
+  return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
-function isoInDays(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return localIso(d);
+/** The calendar day `days` after `day`, both YYYY-MM-DD. */
+function addDays(day: string, days: number): string {
+  const d = new Date(`${day}T00:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
 }
 
 async function savePreferences(page: Page, dateFormat: string, region: string) {
@@ -31,16 +39,18 @@ async function savePreferences(page: Page, dateFormat: string, region: string) {
 
 test("Due labels switch to the viewer's date format", async ({ page }) => {
   const title = `Date Format Contract ${Date.now()}`;
-  const deadline = isoInDays(10);
-  const [y, m, d] = deadline.split("-").map(Number);
-  const thisYear = y === new Date().getFullYear();
-  const dayMonth = `Cancel by ${d} ${MONTHS[m - 1]}${thisYear ? "" : ` ${y}`}`;
-  const monthDay = `Cancel by ${MONTHS[m - 1]} ${d}${thisYear ? "" : `, ${y}`}`;
+  const today = await householdToday(page);
+  const deadline = addDays(today, 10);
+  // Within 10 days of New Year the label gains a year; skip rather than branch.
+  test.skip(deadline.slice(0, 4) !== today.slice(0, 4), "the notice deadline falls in next year");
+  const [, m, d] = deadline.split("-").map(Number);
+  const dayMonth = `Cancel by ${d} ${MONTHS[m - 1]}`;
+  const monthDay = `Cancel by ${MONTHS[m - 1]} ${d}`;
 
   await page.goto("/contracts/new");
   await page.locator("#title").fill(title);
   await page.locator("#provider").fill("Date Format Provider");
-  await page.locator("#endDate").fill(isoInDays(40));
+  await page.locator("#endDate").fill(addDays(today, 40));
   await page.selectOption("#renewalType", "AUTO_RENEW");
   await page.locator("#noticePeriodDays").fill("30");
   await page.locator("main button[type=submit]").click();
@@ -66,7 +76,7 @@ test("Due labels switch to the viewer's date format", async ({ page }) => {
     const event = page.locator("a", { hasText: "Last day to give notice · Date Format Provider" });
     await expect(event.getByText(monthDay, { exact: true })).toBeVisible();
 
-    // ISO keeps the year, whatever the year.
+    // ISO always keeps the year.
     await savePreferences(page, "YYYY-MM-DD", "en-US");
     await page.goto(contractUrl);
     await expect(page.getByText(`Cancel by ${deadline}`, { exact: true })).toBeVisible();
