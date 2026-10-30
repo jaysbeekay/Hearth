@@ -215,7 +215,7 @@ export default async function PropertyDetailPage({
                         <p className="flex flex-wrap items-center gap-2 font-medium">
                           {item.title}
                           {item.isTaxDeductible && (
-                            <span className="rounded-full bg-success/10 px-2 py-0.5 text-xs font-normal text-success">
+                            <span className="rounded-full bg-muted/10 px-2 py-0.5 text-xs font-normal text-muted">
                               Tax deductible
                             </span>
                           )}
@@ -318,7 +318,7 @@ export default async function PropertyDetailPage({
         </div>
 
         {valuationStale && (
-          <div className="flex items-center gap-2 rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
+          <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/10 p-3 text-sm text-foreground">
             <AlertTriangle size={16} className="shrink-0" />
             {latestValuation
               ? "Valuation is over 12 months old — consider updating."

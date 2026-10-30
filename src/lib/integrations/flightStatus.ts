@@ -14,12 +14,14 @@ export const FLIGHT_STATUS_LABELS: Record<string, string> = {
   unknown: "Unknown",
 };
 
+// #412 — colour only where the household may need to act: a cancelled
+// flight or an incident (danger), or a diverted one (warning). Scheduled, in
+// the air, landed and unknown are neutral. Flights keep this mapping of
+// their own rather than going through statusTone, because a flight status is
+// live data from the flight-status provider, not a Due state or a record's
+// Housekeeping, and a Trip is never Due.
 export function flightStatusColour(status: string | null | undefined): string {
   switch (status) {
-    case "active":
-      return "text-accent bg-accent/10 border-accent/20";
-    case "landed":
-      return "text-success bg-success/10 border-success/20";
     case "cancelled":
     case "incident":
       return "text-danger bg-danger/10 border-danger/20";

@@ -177,6 +177,25 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   the same letters. A future route such as `/api/health-admin` or `/setupx`
   can't become public by accident.
 
+- **Colour only for Overdue and Due soon.** One mapping,
+  `statusTone` in `src/lib/statusTone.ts`, now sets the colour of every
+  status pill and banner: Overdue is red, Due soon is amber, and Ended,
+  Lapsed, Cancelled, Needs review, needs a new end date and other
+  Housekeeping are a grey pill. A date outside its due-soon window is plain
+  grey text with no pill, so a far-off "Expires 31 Dec" is no longer green.
+  Needs review is grey everywhere (it was amber on the dashboard and the
+  list counts). Other Housekeeping is grey too: Missing key details,
+  "Not configured" reminders and backups, stale property valuations, and
+  changes waiting to sync. So are Tax deductible, the current Tenancy and
+  Trade types. A flight is coloured only when it's cancelled, has an
+  incident or is diverted. Document types, asset classes and the "Latest"
+  version tag are grey rather than blue. The standalone shell matches:
+  its plain badge is grey rather than purple, Needs review, Held, setup
+  states (No date, No thresholds, Invalid date), Important, Hidden and Off
+  are grey, and a record whose reminders can't run counts only as Missing
+  setup, not also as Due soon. Its red, grey and tints are adjusted so
+  badge and card text is at least 4.5:1 in both themes (#412).
+
 - **One Document list (#397).** Every record's Documents use the same list:
   Contracts, Warranties, Maintenance records, Service records, Inventory
   items, Trip segments, Rental statements and Trades. Each Document shows
