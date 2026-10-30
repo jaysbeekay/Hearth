@@ -285,6 +285,52 @@ describe("Reminder schedule", () => {
   });
 });
 
+// #388 — a Tenancy's lease end gets Reminders like any other Due entry.
+describe("Tenancy lease-end Reminders", () => {
+  const tenancy = (leaseEnd: string, reminderDaysBefore?: string | null): ReminderRecord => ({
+    kind: "tenancy",
+    leaseEnd,
+    reminderDaysBefore,
+  });
+
+  it("a lease end 30 days out sends one Reminder per channel at the default thresholds", () => {
+    const result = plan(tenancy("2026-11-24"), "2026-10-25");
+    expect(result.thresholds).toEqual([1, 7, 14, 30]);
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0].entry.field).toBe("leaseEnd");
+    for (const channel of REMINDER_CHANNELS) {
+      expect(result.entries[0].schedule[channel]).toEqual({ sendNow: 30, nextReminderOn: "2026-10-25" });
+    }
+  });
+
+  it("once sent for that lease end, waits for the next threshold; a new lease end re-arms it", () => {
+    const log = REMINDER_CHANNELS.map((channel) => sent("leaseEnd", "2026-11-24", 30, { channel }));
+    expect(plan(tenancy("2026-11-24"), "2026-10-26", log).entries[0].schedule.EMAIL).toEqual({
+      sendNow: null,
+      nextReminderOn: "2026-11-10",
+    });
+    // The lease was extended: last date's rows stop counting.
+    expect(plan(tenancy("2026-11-25"), "2026-10-26", log).entries[0].schedule.EMAIL.sendNow).toBe(30);
+  });
+
+  it("uses the Tenancy's own thresholds when it has them", () => {
+    const result = plan(tenancy("2026-12-24", "60,30"), "2026-10-25");
+    expect(result.thresholds).toEqual([30, 60]);
+    expect(result.entries[0].schedule.EMAIL).toEqual({ sendNow: 60, nextReminderOn: "2026-10-25" });
+  });
+
+  it("sends nothing once the lease end has passed (it needs a new lease end instead)", () => {
+    expect(plan(tenancy("2026-10-20"), "2026-10-25").entries).toEqual([]);
+  });
+
+  it("previews the lease end for Send test reminder", () => {
+    const p = nextReminderPreview(tenancy("2026-12-24"), { today: "2026-10-25", defaultReminderDays: DEFAULT_DAYS }, [], {
+      channels: ["EMAIL"],
+    });
+    expect(p).toMatchObject({ entry: { field: "leaseEnd" }, daysRemaining: 30, when: { kind: "on", day: "2026-11-24" } });
+  });
+});
+
 // "Send test reminder" previews what the schedule would really send (#387 review).
 describe("nextReminderPreview", () => {
   const ctx = (today: CalendarDay) => ({ today, defaultReminderDays: DEFAULT_DAYS });

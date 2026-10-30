@@ -94,6 +94,12 @@ export default async function DashboardPage() {
       CONTRACT: new Map(contracts.map((c) => [c.id, { kind: "contract" as const, ...c }])),
       PRODUCT: new Map(products.map((p) => [p.id, { kind: "warranty" as const, ...p }])),
       VEHICLE: new Map(vehicles.map((v) => [v.id, { kind: "vehicle" as const, ...v }])),
+      TENANCY: new Map(
+        properties.flatMap((property) => {
+          const tenancy = currentTenancy(property);
+          return tenancy ? [[tenancy.id, { kind: "tenancy" as const, ...tenancy }] as const] : [];
+        }),
+      ),
     },
     due,
   );
@@ -129,7 +135,16 @@ export default async function DashboardPage() {
   const tenancies = properties.flatMap((property) => {
     const tenancy = currentTenancy(property);
     return tenancy
-      ? [{ propertyId: property.id, propertyLabel: property.label, agreementId: tenancy.id, tenantName: tenancy.tenantName, leaseEnd: tenancy.leaseEnd }]
+      ? [
+          {
+            propertyId: property.id,
+            propertyLabel: property.label,
+            agreementId: tenancy.id,
+            tenantName: tenancy.tenantName,
+            leaseEnd: tenancy.leaseEnd,
+            reminderDaysBefore: tenancy.reminderDaysBefore,
+          },
+        ]
       : [];
   });
   const attention = groupAttentionItems([
@@ -137,7 +152,7 @@ export default async function DashboardPage() {
     ...buildWarrantyAttentionItems(products, due),
     ...(enabledModules.has("VEHICLES") ? buildVehicleAttentionItems(vehicles, due) : []),
     ...buildTenancyAttentionItems(tenancies, due),
-    ...buildReminderFailureItems(currentFailedReminderLogs, contracts, products, vehicles),
+    ...buildReminderFailureItems(currentFailedReminderLogs, contracts, products, vehicles, tenancies),
     ...buildExtractionReviewItems(contracts, products),
     ...buildInboxItem(documentStats.inboxCount),
     ...buildMissingDetailsItems(missingDetails),
