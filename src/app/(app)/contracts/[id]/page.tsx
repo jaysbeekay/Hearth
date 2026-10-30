@@ -21,6 +21,7 @@ import { ExtractionReviewPanel } from "@/components/ExtractionReviewPanel";
 import { DetailField as Detail } from "@/components/DetailField";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { DocumentList } from "@/components/DocumentList";
+import { getTrashedVersionLinks } from "@/lib/documents/trashedVersionLinks";
 import { RecordMeta } from "@/components/RecordMeta";
 import { ReminderHealthCard } from "@/components/ReminderHealthCard";
 import { getReminderHealth } from "@/lib/notifications/health";
@@ -70,6 +71,7 @@ export default async function ContractDetailPage({
     getDueContext(),
   ]);
   if (!contract || contract.deletedAt) notFound();
+  const trashedLinks = await getTrashedVersionLinks("CONTRACT", [contract.id]);
 
   const pendingReview = contract.extractionPending
     ? await getPendingExtractionReview("CONTRACT", contract.id)
@@ -349,7 +351,7 @@ export default async function ContractDetailPage({
 
       <div id="documents" className="scroll-mt-20 rounded-xl border border-border bg-surface p-4 md:p-6">
         <h2 className="mb-3 font-medium">Documents</h2>
-        <DocumentList documents={contract.documents} />
+        <DocumentList kind="CONTRACT" ownerId={contract.id} documents={contract.documents} trashedLinks={trashedLinks.get(contract.id)} />
         {canWrite && (
           <div className="mt-4 border-t border-border pt-4">
             <DocumentUploadForm action={boundUpload} />

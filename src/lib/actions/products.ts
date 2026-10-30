@@ -26,7 +26,6 @@ import {
   permanentlyDeleteProductCommand,
 } from "@/lib/commands/products";
 import { RecordNotFoundError, RecordValidationError, StaleEditError } from "@/lib/commands/shared";
-import { linkedRecordError } from "@/lib/commands/links";
 
 export type ActionState = {
   error?: string;
@@ -104,7 +103,14 @@ export async function createProduct(
     }
   }
 
-  const product = await createProductCommand({ ...parsed.data, ...extractionFieldsFromForm(formData) }, user.id);
+  // The command refuses a link to a Property or Vehicle that's missing, in
+  // Trash or whose module is off (#447).
+  let product;
+  try {
+    product = await createProductCommand({ ...parsed.data, ...extractionFieldsFromForm(formData) }, user.id);
+  } catch (error) {
+    return { ...commandError(error), values: formDataToStringValues(formData, PRODUCT_FORM_FIELDS) };
+  }
   await saveExtractionReviewFieldsFromForm("PRODUCT", product.id, formData);
 
   let docFallback: "inbox" | "failed" | null = null;
@@ -161,7 +167,8 @@ export async function updateProduct(
     );
     await saveExtractionReviewFieldsFromForm("PRODUCT", productId, formData);
   } catch (error) {
-    return commandError(error);
+    // Keep what was entered, e.g. when a newly linked Property is in Trash (#447).
+    return { ...commandError(error), values: formDataToStringValues(formData, PRODUCT_FORM_FIELDS) };
   }
   redirect(`/products/${productId}`);
 }
@@ -218,9 +225,6 @@ export async function createProductFromAssistant(
   const parsed = productSchema.safeParse(data);
   if (!parsed.success) return { success: false, error: firstIssueMessage(parsed.error) };
 
-  const linkError = await linkedRecordError(parsed.data);
-  if (linkError) return { success: false, error: linkError };
-
   try {
     const product = await createProductCommand(parsed.data, user.id);
     return { success: true, productId: product.id };
@@ -243,9 +247,6 @@ export async function updateProductFromAssistant(
   // the card showed would need a signed or stored proposal.
   const parsed = parseNamedPatch(productPatchSchema, data);
   if (!parsed.success) return parsed;
-
-  const linkError = await linkedRecordError(parsed.data);
-  if (linkError) return { success: false, error: linkError };
 
   try {
     await updateProductCommand(productId, parsed.data, user.id);
