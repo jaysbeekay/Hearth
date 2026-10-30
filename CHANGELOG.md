@@ -113,6 +113,38 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- **One set of Contract queries for MCP and the Assistant, plus `whats_due`
+  (#394).** Both now call the same queries in `src/lib/domainQueries.ts`,
+  so they return the same answer:
+  - **Contract shape (breaking for MCP clients).** Every Contract tool
+    returns contacts and `isTaxDeductible` alike, plus `due` (the Due
+    policy's entries: field, date, daysLeft, state, label) and a top-level
+    `state`. `startDate` and `endDate` are now calendar days
+    (`YYYY-MM-DD`) instead of UTC-midnight timestamps; `createdAt` and
+    `updatedAt` stay timestamps. The old day-count fields are gone (see
+    Removed), with no deprecation period.
+  - **`upcoming_renewals`** lists Contracts with a notice deadline or end
+    date within N days (default 30), soonest first, so the Assistant now
+    counts to the notice deadline too (#351). Expired Contracts are
+    included as overdue, and an entry in state `later` is not Due (outside
+    its due-soon window, or an auto-renewing Contract's renewal date).
+    Ended, Cancelled and auto-renewing ones waiting on their new end date
+    are left out.
+  - **`spend_summary`** converts to one currency the way the dashboard and
+    Spending page do, so its total matches "about $X a month". It takes an
+    optional ISO 4217 `currency` (default: your preferred currency in the
+    Assistant, the first admin's over MCP; a household currency setting is
+    #453), may fetch current exchange rates, and lists
+    `unconvertedCurrencies` instead of adding them as-is. `byCategory`
+    now leaves out categories with no monthly spend (one-off charges, or
+    a currency with no rate) instead of listing them at 0.
+  - **New read-only `whats_due` tool** on both: every Due entry (due soon
+    or overdue) within N days across Contracts, Warranties and, when
+    enabled, Vehicle dates and Tenancy lease ends, the same entries Needs
+    attention lists as Due.
+  - The Assistant also gets `get_contract`, and both share their Contract
+    tool descriptions, now in the glossary's terms. `get_contract` no
+    longer lists trashed documents.
 - **CI split into separate required checks.** `.github/workflows/ci.yml` replaces
   `e2e.yml` with one job per check: `typecheck`, `lint`, `unit`, `build`, `e2e`
   and `standalone`. A failing lint step no longer shows up as an "e2e" failure.
@@ -383,6 +415,11 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Removed
 
+- **MCP and Assistant Contract day-count fields (#394, breaking for MCP
+  clients).** `daysUntilEnd`, `cancelBy`, `daysUntilCancelBy` and
+  `daysUntilDeadline` are gone from every Contract tool, with no
+  deprecation period; read the `due` entries and `state` instead.
+- `src/lib/contractTiming.ts`: Contracts use the Due policy (#394).
 - The mobile navigation drawer (`MobileNavDrawer`), its menu button and
   its left-edge swipe; the bottom bar's More sheet replaces it (#407).
 - Search's "Missing reminder" and "Missing link" filters. A blank Reminder
@@ -395,6 +432,12 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **Day counts a day short on servers west of UTC (#394).** `daysUntil`
+  read stored dates (UTC midnight) in the server's local time, so MCP and
+  the Assistant's warranty and vehicle day counts came out a day short west
+  of UTC. It now reads the date's UTC day and counts from the household's
+  day. `contractTiming`, which had the same bug, is removed: Contracts use
+  the Due policy.
 - **Wealth: net worth adds up, and crypto is priced from CoinGecko (#404).**
   The Wealth page shows the total above a plain list of every part of it
   (shares/ETFs/crypto, Property, Items), so the figures always sum to the
