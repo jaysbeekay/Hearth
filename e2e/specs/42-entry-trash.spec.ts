@@ -34,6 +34,50 @@ async function deleteSegment(page: Page, title: string) {
   await dialog.getByRole("button", { name: "Move to Trash" }).click();
 }
 
+test.describe.serial("Trades go to Trash", () => {
+  test("deleting one leaves the holding's units until Undo brings it back", async ({ page }) => {
+    await page.goto("/settings/modules");
+    const wealthRow = page.locator("li", { hasText: "Wealth" });
+    if (await wealthRow.getByRole("button", { name: "Enable" }).count()) {
+      await wealthRow.getByRole("button", { name: "Enable" }).click();
+      await expect(page.locator("body")).toContainText("Module enabled.");
+    }
+
+    await page.goto("/wealth/portfolios/new");
+    await page.locator("#name").fill(`Trash portfolio ${Date.now()}`);
+    await page.getByRole("button", { name: "Create portfolio" }).click();
+    await page.waitForURL(/\/wealth\/portfolios\/(?!new$)[^/]+$/);
+    await page.getByRole("link", { name: "Add holding" }).click();
+    await page.waitForURL(/\/holdings\/new$/);
+    await page.locator("#ticker").fill("TRSH");
+    await page.getByRole("button", { name: "Add holding" }).click();
+    await page.waitForURL(/\/holdings\/(?!new$)[^/]+$/);
+    const holdingUrl = new URL(page.url()).pathname;
+
+    await page.getByRole("link", { name: "Add trade" }).click();
+    await page.waitForURL(/\/trades\/new$/);
+    await page.locator("#type").selectOption("BUY");
+    await page.locator("#date").fill("2026-01-01");
+    await page.locator("#units").fill("7");
+    await page.locator("#pricePerUnit").fill("10");
+    await page.getByRole("button", { name: "Add trade" }).click();
+    await page.waitForURL(`**${holdingUrl}`);
+    const trades = page.getByTitle("Edit trade");
+    await expect(trades).toHaveCount(1);
+
+    await page.getByRole("button", { name: /^Delete trade from / }).click();
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog).toContainText("Settings → Trash");
+    await dialog.getByRole("button", { name: "Move to Trash" }).click();
+    const toast = page.getByRole("status");
+    await expect(toast).toContainText("Moved to Trash.");
+    await expect(trades).toHaveCount(0);
+
+    await toast.getByRole("button", { name: "Undo" }).click();
+    await expect(trades).toHaveCount(1);
+  });
+});
+
 test.describe.serial("Trip segments go to Trash", () => {
   const title = `Trash stay ${Date.now()}`;
 

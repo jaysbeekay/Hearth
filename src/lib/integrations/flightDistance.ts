@@ -108,6 +108,18 @@ export interface DistanceSummary {
   byYear: { year: number; km: number }[];
 }
 
+/**
+ * The Travel list's distance totals: every flight segment that isn't in
+ * Trash, under a Trip that isn't either (#427).
+ */
+export async function getTravelDistanceSummary(): Promise<DistanceSummary> {
+  const segments = await prisma.tripSegment.findMany({
+    where: { type: "FLIGHT", deletedAt: null, trip: { deletedAt: null } },
+    select: { startDate: true, distanceKm: true },
+  });
+  return buildDistanceSummary(segments);
+}
+
 // #13 — grouped by the flight's own startDate (not the trip's), so a trip
 // spanning New Year's Eve splits its segments into the years they actually
 // happened in.

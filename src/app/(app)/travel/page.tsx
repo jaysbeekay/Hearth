@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { TravelListClient } from "@/components/TravelListClient";
-import { buildDistanceSummary } from "@/lib/integrations/flightDistance";
+import { getTravelDistanceSummary } from "@/lib/integrations/flightDistance";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
 
@@ -13,16 +13,13 @@ export const metadata: Metadata = { title: MODULE_REGISTRY.TRAVEL.label };
 export default async function TravelPage() {
   await requireModuleEnabled("TRAVEL");
 
-  const [trips, flightSegments, { dateFormat }, session] = await Promise.all([
+  const [trips, distanceSummary, { dateFormat }, session] = await Promise.all([
     prisma.trip.findMany({
       where: { deletedAt: null },
       include: { _count: { select: { segments: { where: { deletedAt: null } } } } },
       orderBy: { startDate: "desc" },
     }),
-    prisma.tripSegment.findMany({
-      where: { type: "FLIGHT", deletedAt: null, trip: { deletedAt: null } },
-      select: { startDate: true, distanceKm: true },
-    }),
+    getTravelDistanceSummary(),
     getUserPreferences(),
     auth(),
   ]);
@@ -32,7 +29,7 @@ export default async function TravelPage() {
       trips={trips}
       dateFormat={dateFormat}
       canWrite={sessionCanWrite(session)}
-      distanceSummary={buildDistanceSummary(flightSegments)}
+      distanceSummary={distanceSummary}
     />
   );
 }
