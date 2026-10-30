@@ -26,6 +26,7 @@ Everything else is optional. Set `SMTP_*` to enable email reminders, `NTFY_*` fo
 | Where | How |
 |---|---|
 | Your own server, NAS or VPS | Docker, below: [Self-hosting with Docker](#self-hosting-with-docker) |
+| Your own Render account | [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/jaysbeekay/Hearth) — sets up the Docker image with a persistent disk from [`render.yaml`](render.yaml). It needs a paid instance (about $7.25/month as of October 2026), because Render's free tier can't keep data. It also needs a Hearth release newer than v0.19.2. Render asks for `APP_URL`, and generates `AUTH_SECRET`, `ENCRYPTION_KEY` and `SETUP_TOKEN`; copy `SETUP_TOKEN` from the service's Environment page to finish setup. To update, use *Manual Deploy → Deploy latest reference*. |
 | Managed hosting, no server to run | [PikaPods](https://www.pikapods.com/) runs open-source apps from their Docker images. Hearth isn't listed there yet; the details a host needs are below. |
 | Vercel and other serverless hosts | Not supported. See [Why not serverless](#why-not-serverless-vercel-netlify-workers). |
 
@@ -43,8 +44,8 @@ Any host that runs a Docker image with a persistent volume can run Hearth:
   optional; see `.env.example`.
 
 [`docs/deployment/one-click.md`](docs/deployment/one-click.md) has the full
-assessment of PikaPods and Vercel: costs, where your data lives, and security
-notes.
+assessment of PikaPods, Render and Vercel: costs, where your data lives, and
+security notes.
 
 ## Features
 

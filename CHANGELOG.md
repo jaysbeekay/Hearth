@@ -56,8 +56,17 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   `/app/data`, health check, env vars), and fixes the container's database
   path in Quick start (`/app/data/app.db`, not `/data/app.db`).
   `docs/deployment/one-click.md` assesses PikaPods (go once Hearth has a
-  licence and the owner applies) and Vercel (still no-go; `vercel.json` keeps deploys off), with
-  costs, data custody and security notes. Follow-ups: #478–#482.
+  licence and the owner applies), Render (go) and Vercel (still no-go;
+  `vercel.json` keeps deploys off), with costs, data custody and security
+  notes. Follow-ups: #478–#482.
+
+- **Deploy to Render (#477).** A `render.yaml` Blueprint and a README button
+  set up Hearth on the household's own Render account. It runs the published
+  Docker image on a paid instance with a 1 GB persistent disk at
+  `/app/data`, and health-checks `/api/health`. Render generates
+  `AUTH_SECRET`, `ENCRYPTION_KEY` and `SETUP_TOKEN`, and prompts for
+  `APP_URL`. It costs about $7.25/month at Render's October 2026 prices; the
+  free tier can't keep data.
 
 - **Renew a Contract.** Renew on a Contract's page, its Due banner and
   Needs attention opens a short form for the next Term: new start and end

@@ -1,0 +1,54 @@
+# Render Blueprint for the "Deploy to Render" button in README.md (#477).
+# Reference: https://render.com/docs/blueprint-spec
+# Assessment, costs and caveats: docs/deployment/one-click.md
+#
+# One web service running the published Docker image, with a persistent disk
+# at /app/data: the same path docker-compose.yml mounts, holding the SQLite
+# database, uploaded documents and local backups. A disk needs a paid
+# instance; Render's free web services can't attach one and spin down when
+# idle, which would also stop Hearth's in-process reminder scheduler.
+#
+# Region isn't set, so Render's default applies (Oregon, USA). Render can't
+# move a service to another region after creation. To host elsewhere (e.g.
+# frankfurt or singapore), fork the repo, add `region:` below, and deploy
+# from the fork.
+services:
+  - type: web
+    name: hearth
+    runtime: image
+    image:
+      # Published on each release tag. Image-backed services don't redeploy
+      # by themselves: use Manual Deploy > "Deploy latest reference" in the
+      # Render Dashboard to pick up a new release.
+      url: docker.io/jaysbeekay/hearth:latest
+    # 0.5 CPU / 512 MB, the smallest paid instance (a disk needs one). Move
+    # to 1c-2g if the service restarts for lack of memory, e.g. during OCR.
+    plan: 0.5c-512mb
+    numInstances: 1
+    healthCheckPath: /api/health
+    disk:
+      name: hearth-data
+      mountPath: /app/data
+      sizeGB: 1
+    envVars:
+      - key: PORT
+        value: "3000"
+      - key: DATABASE_URL
+        value: file:./data/app.db
+      - key: UPLOADS_DIR
+        value: ./data/uploads
+      # The public https:// URL, e.g. https://hearth-xxxx.onrender.com or your
+      # own domain. Passkeys are tied to it, so set the final domain before
+      # anyone registers one.
+      - key: APP_URL
+        sync: false
+      # Render generates each of these once: a random base64-encoded 256-bit
+      # value, which is the format Hearth expects.
+      - key: AUTH_SECRET
+        generateValue: true
+      - key: ENCRYPTION_KEY
+        generateValue: true
+      # First-run setup asks for this, so nobody else can claim the new
+      # instance. Copy it from the service's Environment page.
+      - key: SETUP_TOKEN
+        generateValue: true
