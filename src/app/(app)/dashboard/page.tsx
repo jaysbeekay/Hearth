@@ -5,9 +5,10 @@ import { prisma } from "@/lib/prisma";
 import { TripCard } from "@/components/TripCard";
 import { AddEntryPicker } from "@/components/AddEntryPicker";
 import { OnboardingChecklist } from "@/components/OnboardingChecklist";
-import { monthlyEquivalent, formatCurrency } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
+import { monthlySpend } from "@/lib/spend";
 import { getUserPreferences } from "@/lib/userPreferences";
-import { refreshFxRates, getFxRateMap, convertAmount } from "@/lib/fx";
+import { refreshFxRates, getFxRateMap } from "@/lib/fx";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { auth } from "@/lib/auth";
 import { isSmtpConfigured, isNtfyConfigured, getDueContext } from "@/lib/appSettings";
@@ -104,19 +105,11 @@ export default async function DashboardPage() {
   await refreshFxRates(fxPairs);
   const rateMap = await getFxRateMap(fxPairs);
 
-  const unconvertedCurrencies = new Set<string>();
-  const monthlySpend = active.reduce((sum, c) => {
-    if (c.cost == null) return sum;
-    const converted = convertAmount(c.cost, c.currency, preferredCurrency, rateMap);
-    if (converted == null) {
-      unconvertedCurrencies.add(c.currency);
-      return sum;
-    }
-    return sum + monthlyEquivalent(converted, c.billingFrequency);
-  }, 0);
-  if (unconvertedCurrencies.size > 0) {
+  // The same figure spend_summary gives MCP and the Assistant (#394).
+  const { total: monthlySpendTotal, unconvertedCurrencies } = monthlySpend(active, preferredCurrency, rateMap);
+  if (unconvertedCurrencies.length > 0) {
     console.warn(
-      `[dashboard] Monthly spend excludes contracts billed in ${[...unconvertedCurrencies].join(", ")} — FX rate(s) to ${preferredCurrency} unavailable.`,
+      `[dashboard] Monthly spend excludes contracts billed in ${unconvertedCurrencies.join(", ")} — FX rate(s) to ${preferredCurrency} unavailable.`,
     );
   }
 
@@ -209,10 +202,10 @@ export default async function DashboardPage() {
           </Link>
           {" · "}
           <Link href="/spend" className="text-foreground hover:underline">
-            about {formatCurrency(monthlySpend, preferredCurrency, undefined, region)} a month
+            about {formatCurrency(monthlySpendTotal, preferredCurrency, undefined, region)} a month
           </Link>
-          {unconvertedCurrencies.size > 0 && (
-            <> (excludes {[...unconvertedCurrencies].join(", ")}: no exchange rate right now)</>
+          {unconvertedCurrencies.length > 0 && (
+            <> (excludes {unconvertedCurrencies.join(", ")}: no exchange rate right now)</>
           )}
         </p>
       )}

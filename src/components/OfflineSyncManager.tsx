@@ -3,13 +3,19 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { RefreshCw, CheckCircle, AlertCircle } from "lucide-react";
 import {
+  discardOwnOperations,
+  getPendingCount,
   getPendingOperations,
   getPendingFilesTotalSize,
   PENDING_FILES_WARN_BYTES,
 } from "@/lib/offlineQueue";
 import { syncPendingOperations } from "@/lib/offlineSync";
+import { whenOfflineDataClaimed } from "@/lib/offlineSession";
 import { showToast } from "@/components/Toast";
-import { humanFileSize } from "@/lib/utils";
+import { Dialog } from "@/components/Dialog";
+import { useCanWrite } from "@/components/CanWriteProvider";
+import { buttonVariants, compactButtonClass } from "@/lib/buttonStyles";
+import { cn, humanFileSize } from "@/lib/utils";
 
 type SyncState = "idle" | "syncing" | "done" | "error";
 
@@ -20,9 +26,14 @@ export function OfflineSyncManager() {
   const [message, setMessage] = useState<string | null>(null);
   const syncingRef = useRef(false);
 
+  const canWrite = useCanWrite();
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+
+  // Counts changes still mid-sync too: a sync that never finished leaves
+  // them "syncing" until the next load resets them (#424).
   const refreshCount = useCallback(async () => {
-    const [ops, files] = await Promise.all([getPendingOperations(), getPendingFilesTotalSize()]);
-    setPendingCount(ops.length);
+    const [count, files] = await Promise.all([getPendingCount(), getPendingFilesTotalSize()]);
+    setPendingCount(count);
     setFilesInfo(files);
   }, []);
 
@@ -66,15 +77,13 @@ export function OfflineSyncManager() {
     }
   }, [refreshCount]);
 
-  // Poll count on mount and after operations
+  // Count on mount, once this load's claim has run, so writes it adopts or
+  // resets are included instead of the banner briefly reading 0.
   useEffect(() => {
-    Promise.all([getPendingOperations(), getPendingFilesTotalSize()])
-      .then(([ops, files]) => {
-        setPendingCount(ops.length);
-        setFilesInfo(files);
-      })
+    whenOfflineDataClaimed()
+      .then(() => refreshCount())
       .catch(() => {});
-  }, []);
+  }, [refreshCount]);
 
   // Ask the browser not to evict this origin's storage under pressure —
   // losing queued-but-unsynced operations or staged files would be silent
@@ -87,13 +96,15 @@ export function OfflineSyncManager() {
   // Auto-sync on network restore
   useEffect(() => {
     const onOnline = () => {
+      // A read-only member's queued changes can only be refused.
+      if (!canWrite) return;
       refreshCount()
         .then(() => runSync())
         .catch(() => {});
     };
     window.addEventListener("online", onOnline);
     return () => window.removeEventListener("online", onOnline);
-  }, [refreshCount, runSync]);
+  }, [canWrite, refreshCount, runSync]);
 
   // Listen for queue additions from forms (custom event)
   useEffect(() => {
@@ -116,6 +127,60 @@ export function OfflineSyncManager() {
   }, [refreshCount]);
 
   if (pendingCount === 0 && syncState === "idle") return null;
+
+  // #424 review — changes queued before this member was made read-only can
+  // never be saved; say so and offer to discard them, rather than retrying.
+  if (!canWrite) {
+    const changes = pendingCount === 1 ? "1 change" : `${pendingCount} changes`;
+    return (
+      <div className="flex items-center gap-3 border-b border-border bg-danger/10 px-4 py-2 text-sm text-danger">
+        <AlertCircle size={14} className="shrink-0" />
+        <span className="flex-1">
+          {changes} on this device can&apos;t be saved because your account is now read-only.
+        </span>
+        <button
+          type="button"
+          onClick={() => { setConfirmDiscard(true); }}
+          className="shrink-0 rounded px-2 py-0.5 text-xs font-medium underline hover:no-underline"
+        >
+          Discard
+        </button>
+        <Dialog
+          open={confirmDiscard}
+          onClose={() => { setConfirmDiscard(false); }}
+          role="alertdialog"
+          describedBy="discard-readonly-text"
+        >
+          <p id="discard-readonly-text" className="text-sm text-foreground">
+            Discard {changes}? They were never saved and can&apos;t be recovered.
+          </p>
+          <div className="mt-4 flex justify-end gap-2">
+            <button type="button" onClick={() => { setConfirmDiscard(false); }} className={compactButtonClass()}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setConfirmDiscard(false);
+                discardOwnOperations()
+                  .then(() => refreshCount())
+                  .then(() => {
+                    window.dispatchEvent(new Event("offline-sync-complete"));
+                  })
+                  .catch(() => {});
+              }}
+              className={cn(
+                "inline-flex min-h-11 items-center justify-center rounded-lg px-3 text-sm font-medium",
+                buttonVariants.danger,
+              )}
+            >
+              Discard
+            </button>
+          </div>
+        </Dialog>
+      </div>
+    );
+  }
 
   return (
     <div

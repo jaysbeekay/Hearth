@@ -5,6 +5,9 @@ import { createPortal } from "react-dom";
 import { useHasMounted } from "@/lib/useHasMounted";
 import { useFocusTrap } from "@/lib/useFocusTrap";
 
+// Every open Dialog, oldest first; the last one is on top.
+const openDialogs: object[] = [];
+
 // Shared modal/sheet primitive (#297) — every hand-rolled overlay in the app
 // (ConfirmForm, BottomNav's "More" sheet,
 // DetailOverflowMenu's mobile sheet) used to reimplement its own portal,
@@ -40,10 +43,28 @@ export function Dialog({
   const panelRef = useRef<HTMLDivElement>(null);
   useFocusTrap(panelRef, open);
 
+  // Registered while open, in opening order, so Escape closes only the
+  // topmost dialog — e.g. the sign-out confirmation, not the More sheet it
+  // was opened from (#424 review).
+  const stackEntryRef = useRef<object | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const entry = {};
+    stackEntryRef.current = entry;
+    openDialogs.push(entry);
+    return () => {
+      const index = openDialogs.indexOf(entry);
+      if (index !== -1) openDialogs.splice(index, 1);
+      stackEntryRef.current = null;
+    };
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !disableClose) onClose();
+      if (e.key !== "Escape" || disableClose) return;
+      if (openDialogs.at(-1) !== stackEntryRef.current) return;
+      onClose();
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
