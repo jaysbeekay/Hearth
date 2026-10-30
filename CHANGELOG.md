@@ -462,11 +462,16 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   failed change), as Properties already were. Restoring a Service record,
   Maintenance record or Document while what it belongs to is still in Trash
   says "Restore the vehicle first." (or the trip, or the property), and a
-  Document can't be added under a record in Trash. Flight-status lookups
-  skip segments of a Trip in Trash. Deleting, restoring and permanently
-  deleting from Trash work as before. One shared rule in
-  `src/lib/commands/shared.ts` now backs the Vehicle, Trip, Property, Wealth
-  and Document commands.
+  Document can't be added, or starred, under a record in Trash. Flight-status
+  and flight-distance lookups skip segments of a Trip in Trash without
+  calling AviationStack. The Trash check and the write can no longer be
+  split by a move to Trash from another request: updates carry the rule in
+  their guarded write, and creates, restores and Document writes check and
+  write in one transaction (a refused Document's saved file is removed).
+  Deleting, restoring and permanently deleting from Trash work as before.
+  One shared rule in `src/lib/commands/shared.ts` now backs the Vehicle,
+  Trip, Property, Wealth and Document commands and the Property/Vehicle
+  link check.
 - **Adding a Holding no longer hangs the app (#432).** Its price-history
   backfill wrote one row at a time from four parallel workers, and the
   database connection serialises every query, so other requests (session
