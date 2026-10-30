@@ -11,6 +11,7 @@ import {
   reviewContractExtraction,
   restoreContract,
 } from "@/lib/actions/contracts";
+import { renewalRefusal } from "@/lib/commands/contracts";
 import { getPendingExtractionReview } from "@/lib/documents/extractionReview";
 import { ExpiryBadge } from "@/components/ExpiryBadge";
 import { ConfirmForm } from "@/components/ConfirmForm";
@@ -83,9 +84,10 @@ export default async function ContractDetailPage({
   const noticeDeadline = endDay && noticeApplies(contract) ? addDays(endDay, -(contract.noticePeriodDays ?? 0)) : null;
   const cancelled = contract.status === "CANCELLED";
   const fixedTerm = contract.renewalType === "FIXED_TERM";
-  // #353 — a fixed-term Contract is meant to end, and a Cancelled one is
-  // marked active first, so neither offers Renew.
-  const canRenew = !fixedTerm && !cancelled;
+  // #353 — a fixed-term Contract is meant to end, a Cancelled one is marked
+  // active first, and one with no end date has no Term to continue from, so
+  // none of them offers Renew (the same rule the command applies).
+  const canRenew = renewalRefusal(contract) === null;
   const renewHref = `/contracts/${contract.id}/renew`;
   const costChange = termCostChange(contract, contract.terms.at(0));
   const boundUpload = addDocumentAction.bind(null, "CONTRACT", contract.id);
@@ -240,11 +242,8 @@ export default async function ContractDetailPage({
           />
           <Detail
             label="Cost"
-            value={
-              costChange != null
-                ? `${formatTermCost(contract, region)} · ${formatTermCostChange(costChange)}`
-                : formatTermCost(contract, region)
-            }
+            value={formatTermCost(contract, region)}
+            note={costChange != null ? formatTermCostChange(costChange) : undefined}
           />
         </dl>
       </div>

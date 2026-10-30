@@ -41,6 +41,8 @@ const FILE_ROOT = "standalone-documents";
 const BACKUP_ROOT = "hearth-backups";
 const REMINDER_CHANNEL_ID = "hearth-standalone-reminders";
 const REMINDER_HOUR = 9;
+// Bump with every ensureStandaloneSchema change; backups record it too.
+const STANDALONE_SCHEMA_VERSION = 10;
 const MAX_IMPORTED_TRADES = 5000;
 const ALLOWED_MIME_TYPES = new Set([
   "application/pdf",
@@ -221,6 +223,7 @@ CREATE TABLE IF NOT EXISTS rental_agreements (
   bond_amount REAL,
   currency TEXT NOT NULL DEFAULT 'AUD',
   notes TEXT,
+  reminder_days_before TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   deleted_at TEXT,
@@ -395,7 +398,7 @@ CREATE TABLE IF NOT EXISTS schema_metadata (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
-INSERT OR REPLACE INTO schema_metadata (key, value) VALUES ('standalone_schema_version', '9');
+INSERT OR REPLACE INTO schema_metadata (key, value) VALUES ('standalone_schema_version', '${STANDALONE_SCHEMA_VERSION}');
 `;
 
 const $ = (id) => document.getElementById(id);
@@ -440,7 +443,7 @@ const BACKUP_TABLES = [
   { key: "vehicleItems", table: "vehicle_items", columns: ["id", "vehicle_id", "type", "title", "provider", "date", "cost", "currency", "notes", "deleted_at", "created_at", "updated_at", "version"] },
   { key: "properties", table: "properties", columns: ["id", "label", "street", "suburb", "state", "postcode", "country", "notes", "is_rented", "occupancy_status", "estimated_value", "currency", "created_at", "updated_at", "deleted_at", "version"] },
   { key: "homeItems", table: "home_items", columns: ["id", "property_id", "type", "title", "provider", "date", "cost", "currency", "is_tax_deductible", "notes", "created_at", "updated_at", "deleted_at", "version"] },
-  { key: "rentalAgreements", table: "rental_agreements", columns: ["id", "property_id", "contract_id", "tenant_name", "weekly_rent", "management_fee_percent", "lease_start", "lease_end", "bond_amount", "currency", "notes", "created_at", "updated_at", "deleted_at", "version"] },
+  { key: "rentalAgreements", table: "rental_agreements", columns: ["id", "property_id", "contract_id", "tenant_name", "weekly_rent", "management_fee_percent", "lease_start", "lease_end", "bond_amount", "currency", "notes", "reminder_days_before", "created_at", "updated_at", "deleted_at", "version"] },
   { key: "rentalStatements", table: "rental_statements", columns: ["id", "property_id", "period_start", "period_end", "statement_date", "gross_rent", "management_fee", "other_deductions", "net_amount", "currency", "notes", "created_at", "updated_at", "deleted_at", "version"] },
   { key: "inventoryItems", table: "inventory_items", columns: ["id", "label", "category", "brand", "model", "serial_number", "purchase_date", "purchase_price", "currency", "location", "warranty_product_id", "warranty_registered", "warranty_extended", "notes", "created_at", "updated_at", "deleted_at", "version"] },
   { key: "trips", table: "trips", columns: ["id", "title", "destination", "start_date", "end_date", "notes", "created_at", "updated_at", "deleted_at", "version"] },
@@ -598,7 +601,9 @@ async function ensureStandaloneSchema() {
   await ensureColumn("inventory_items", "warranty_product_id", "TEXT");
   await ensureColumn("inventory_items", "warranty_registered", "INTEGER NOT NULL DEFAULT 0");
   await ensureColumn("inventory_items", "warranty_extended", "INTEGER NOT NULL DEFAULT 0");
-  await run("INSERT OR REPLACE INTO schema_metadata (key, value) VALUES ('standalone_schema_version', '9')");
+  // #388 — a Tenancy's own Reminder thresholds for its lease end; null means the default.
+  await ensureColumn("rental_agreements", "reminder_days_before", "TEXT");
+  await run("INSERT OR REPLACE INTO schema_metadata (key, value) VALUES ('standalone_schema_version', ?)", [String(STANDALONE_SCHEMA_VERSION)]);
 }
 
 async function ensureColumn(table, column, definition) {
@@ -726,6 +731,10 @@ async function loadStandaloneModuleSettings() {
 
 async function saveStandaloneModuleSettings() {
   await prefSet(STANDALONE_MODULES_KEY, JSON.stringify(state.enabledStandaloneModules));
+  // Turning a module off (or on) changes which records get Reminders.
+  if (state.localRemindersEnabled) {
+    await syncLocalReminders(false).catch((error) => showStandaloneStatus(error.message || "Saved, but reminders could not be rescheduled."));
+  }
 }
 
 function moduleEnabled(moduleKey) {
@@ -765,6 +774,17 @@ function reminderDaysOrDefault(value) {
   const days = parseReminderDays(value);
   if (days.length === 0) return "30,14,7,1";
   return days.join(",");
+}
+
+// A Tenancy's thresholds (#388), normalised, or null when blank (the
+// default applies) or when they don't parse: every part must be a whole
+// number of days. saveRentalAgreement refuses the unparseable case.
+function reminderDaysOrNull(value) {
+  const text = String(value ?? "").trim();
+  if (!text) return null;
+  const parts = text.split(",").map((part) => part.trim());
+  const valid = parts.every((part) => /^\d+$/.test(part) && Number(part) <= 3650);
+  return valid ? parseReminderDays(text).join(",") : null;
 }
 
 function dateInputValue(value) {
@@ -1515,7 +1535,7 @@ function renderReminders() {
       ${miniCard("Delivery", "Local view only", "No server sharing")}
     </section>
     <section class="list">
-      ${targets.length === 0 ? empty("No reminder-capable records", "Add contracts, products, or vehicles with expiry dates to build this view.") : targets.map(renderReminderCard).join("")}
+      ${targets.length === 0 ? empty("No reminder-capable records", "Add contracts, products, vehicles or tenancies with expiry dates to build this view.") : targets.map(renderReminderCard).join("")}
     </section>
   `;
 }
@@ -1523,12 +1543,12 @@ function renderReminders() {
 function renderReminderCard(target) {
   const { health } = target;
   return `
-    <button class="record-card ${health.tone === "danger" ? "danger-card" : health.tone === "warning" ? "warning-card" : ""}" data-open-record="${escapeAttr(target.type)}" data-id="${escapeAttr(target.row.id)}">
+    <button class="record-card ${health.tone === "danger" ? "danger-card" : health.tone === "warning" ? "warning-card" : ""}" data-open-record="${escapeAttr(target.open?.type ?? target.type)}" data-id="${escapeAttr(target.open?.id ?? target.row.id)}">
       <div class="badge-row">
         <span class="badge ${escapeAttr(health.tone === "neutral" ? "" : health.tone)}">${escapeHtml(health.label)}</span>
         <span class="badge">${escapeHtml(target.kind)}</span>
       </div>
-      <h3>${escapeHtml(recordTitle(target.type, target.row))}</h3>
+      <h3>${escapeHtml(target.title ?? recordTitle(target.type, target.row))}</h3>
       <p class="card-meta">${escapeHtml(health.summary)}</p>
       <p class="card-meta">${escapeHtml(reminderDeliverySummary(health))}</p>
     </button>
@@ -1544,11 +1564,56 @@ function reminderTargets() {
       reminderTarget("vehicles", row, "Insurance", row.insurance_expiry, row.reminder_days_before),
       reminderTarget("vehicles", row, "Service", row.next_service_due, row.reminder_days_before),
     ]),
+    ...leaseReminderTargets(),
   ].sort((a, b) => {
     const aDate = a.health.sortDate ?? "9999-12-31";
     const bDate = b.health.sortDate ?? "9999-12-31";
     return aDate.localeCompare(bDate);
   });
+}
+
+// Record types whose save or delete changes the scheduled local Reminders.
+// A Property's rental tracking and its Tenancies decide the lease-end ones (#388).
+const REMINDER_RECORD_TYPES = ["contracts", "products", "vehicles", "properties", "rentalAgreements"];
+
+// #388 — a rented Property's current Tenancy gets Reminders for its lease
+// end, as on the web: the latest lease start, then the latest lease end, then
+// the latest entered. Older leases are history.
+function currentTenancyFor(propertyId) {
+  const stamp = (value) => (value ? String(value).slice(0, 10) : "");
+  return cache.rentalAgreements
+    .filter((row) => row.property_id === propertyId)
+    .reduce((current, row) => {
+      if (!current) return row;
+      const order =
+        stamp(row.lease_start).localeCompare(stamp(current.lease_start)) ||
+        stamp(row.lease_end).localeCompare(stamp(current.lease_end)) ||
+        String(row.created_at ?? "").localeCompare(String(current.created_at ?? ""));
+      return order > 0 ? row : current;
+    }, null);
+}
+
+function leaseReminderTargets() {
+  if (!moduleEnabled("properties")) return [];
+  return cache.properties
+    .filter((property) => Number(property.is_rented ?? 0) === 1)
+    .flatMap((property) => {
+      const tenancy = currentTenancyFor(property.id);
+      if (!tenancy?.lease_end) return [];
+      const target = reminderTarget("rentalAgreements", tenancy, "Lease", tenancy.lease_end, tenancy.reminder_days_before);
+      // A Tenancy opens on its Property, and past its lease end it needs a new one rather than a Reminder.
+      const ended = (daysUntil(tenancy.lease_end) ?? 0) < 0;
+      return [
+        {
+          ...target,
+          title: recordTitle("properties", property),
+          open: { type: "properties", id: property.id },
+          health: ended
+            ? { ...target.health, enabled: false, tone: "neutral", label: "Lease ended", summary: "Set the new lease end.", nextReminderDate: null }
+            : target.health,
+        },
+      ];
+    });
 }
 
 function reminderTarget(type, row, kind, dueDate, thresholds) {
@@ -1583,6 +1648,7 @@ function reminderFieldForKind(kind) {
   if (kind === "Rego") return "regoExpiry";
   if (kind === "Insurance") return "insuranceExpiry";
   if (kind === "Service") return "nextServiceDue";
+  if (kind === "Lease") return "leaseEnd";
   return "";
 }
 
@@ -1594,6 +1660,7 @@ function ownerTypeForReminderType(type) {
   if (type === "contracts") return "CONTRACT";
   if (type === "products") return "PRODUCT";
   if (type === "vehicles") return "VEHICLE";
+  if (type === "rentalAgreements") return "TENANCY";
   return type.toUpperCase();
 }
 
@@ -1657,6 +1724,7 @@ function reminderNotifications() {
 
 function reminderNotificationPlans(target) {
   if (!target.health.enabled || !target.dueDate) return [];
+  const title = target.title ?? recordTitle(target.type, target.row);
   return parseReminderDays(target.row.reminder_days_before)
     .map((threshold) => {
       const reminderDate = addDaysIso(target.dueDate, -threshold);
@@ -1664,8 +1732,11 @@ function reminderNotificationPlans(target) {
       if (!at) return null;
       return {
         id: notificationId(`${target.type}:${target.row.id}:${target.kind}:${reminderDate}:${threshold}`),
-        title: `Hearth reminder: ${recordTitle(target.type, target.row)}`,
-        body: `${target.kind} is due ${readableDate(target.dueDate)} (${threshold} days to go).`,
+        title: `Hearth reminder: ${title}`,
+        body:
+          target.kind === "Lease"
+            ? `Lease for ${title} ends ${readableDate(target.dueDate)} (${threshold} days to go).`
+            : `${target.kind} is due ${readableDate(target.dueDate)} (${threshold} days to go).`,
         schedule: { at },
         channelId: REMINDER_CHANNEL_ID,
         extra: {
@@ -1711,7 +1782,7 @@ async function ensureReminderChannel() {
   await LocalNotifications.createChannel({
     id: REMINDER_CHANNEL_ID,
     name: "Hearth reminders",
-    description: "Standalone reminders for contracts, warranties, registration and insurance.",
+    description: "Standalone reminders for contracts, warranties, registration, insurance and lease ends.",
     importance: 4,
     visibility: 1,
   }).catch(() => undefined);
@@ -2021,7 +2092,7 @@ async function buildStandaloneBackup() {
   return {
     kind: "hearth-standalone-backup",
     version: 1,
-    schemaVersion: 7,
+    schemaVersion: STANDALONE_SCHEMA_VERSION,
     exportedAt: nowIso(),
     tables,
   };
@@ -2976,6 +3047,7 @@ function formFields(type, row) {
         <label>Bond amount<input name="bondAmount" type="number" min="0" step="0.01" value="${escapeAttr(row?.bond_amount ?? "")}" /></label>
         <label>Currency<input name="currency" value="${escapeAttr(row?.currency ?? defaultCurrency())}" /></label>
         <label>Linked contract<select name="contractId">${contractOptions(row?.contract_id)}</select></label>
+        <label>Reminder thresholds (days before lease end)<input name="reminderDaysBefore" inputmode="numeric" value="${escapeAttr(row?.reminder_days_before ?? "")}" placeholder="30,14,7,1 (default)" /></label>
         <label>Notes<textarea name="notes">${escapeHtml(row?.notes)}</textarea></label>
       </div>
     `;
@@ -3168,7 +3240,7 @@ async function saveForm(form) {
   if (type === "portfolios") await savePortfolio(form);
   if (type === "holdings") await saveHolding(form);
   if (type === "trades") await saveTrade(form);
-  if (state.localRemindersEnabled && ["contracts", "contractRenewal", "products", "vehicles"].includes(type)) {
+  if (state.localRemindersEnabled && (REMINDER_RECORD_TYPES.includes(type) || type === "contractRenewal")) {
     await syncLocalReminders(false).catch((error) => showStandaloneStatus(error.message || "Saved, but reminders could not be rescheduled."));
   }
   state.route = state.backTo ?? (["vehicleItems", "homeItems", "rentalAgreements", "rentalStatements", "tripSegments", "holdings", "trades"].includes(type) ? "detail" : "records");
@@ -3366,6 +3438,10 @@ async function saveRentalAgreement(form) {
   const exists = Boolean(form.dataset.id);
   const parentId = form.dataset.parentId || fieldValue(form, "propertyId") || getRecord("rentalAgreements", id)?.property_id;
   if (!parentId) throw new Error("Property is missing.");
+  const reminderDays = reminderDaysOrNull(fieldValue(form, "reminderDaysBefore"));
+  if (reminderDays == null && String(fieldValue(form, "reminderDaysBefore") ?? "").trim()) {
+    throw new Error("Reminder thresholds must be whole days, comma-separated, e.g. 30,14,7,1.");
+  }
   const values = [
     parentId,
     valueOrNull(fieldValue(form, "contractId")),
@@ -3377,12 +3453,13 @@ async function saveRentalAgreement(form) {
     numberOrNull(fieldValue(form, "bondAmount")),
     currencyOrDefault(fieldValue(form, "currency")),
     valueOrNull(fieldValue(form, "notes")),
+    reminderDays,
     nowIso(),
   ];
   if (exists) {
-    await run("UPDATE rental_agreements SET property_id = ?, contract_id = ?, tenant_name = ?, weekly_rent = ?, management_fee_percent = ?, lease_start = ?, lease_end = ?, bond_amount = ?, currency = ?, notes = ?, updated_at = ?, version = version + 1 WHERE id = ?", [...values, id]);
+    await run("UPDATE rental_agreements SET property_id = ?, contract_id = ?, tenant_name = ?, weekly_rent = ?, management_fee_percent = ?, lease_start = ?, lease_end = ?, bond_amount = ?, currency = ?, notes = ?, reminder_days_before = ?, updated_at = ?, version = version + 1 WHERE id = ?", [...values, id]);
   } else {
-    await run("INSERT INTO rental_agreements (id, property_id, contract_id, tenant_name, weekly_rent, management_fee_percent, lease_start, lease_end, bond_amount, currency, notes, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)", [id, ...values.slice(0, 10), values[10], values[10]]);
+    await run("INSERT INTO rental_agreements (id, property_id, contract_id, tenant_name, weekly_rent, management_fee_percent, lease_start, lease_end, bond_amount, currency, notes, reminder_days_before, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)", [id, ...values.slice(0, 11), values[11], values[11]]);
   }
   await maybeStoreFormFile(form, "rental_agreement", id);
   state.detail = { type: "properties", id: parentId };
@@ -3875,7 +3952,7 @@ async function deleteRecord(type, id) {
   const confirmed = window.confirm(`Delete "${recordTitle(type, row)}" and its local documents?`);
   if (!confirmed) return;
   await softDeleteRecord(type, id);
-  if (state.localRemindersEnabled && ["contracts", "products", "vehicles"].includes(type)) {
+  if (state.localRemindersEnabled && REMINDER_RECORD_TYPES.includes(type)) {
     await syncLocalReminders(false).catch((error) => showStandaloneStatus(error.message || "Deleted, but reminders could not be rescheduled."));
   }
   state.route = "records";

@@ -167,6 +167,8 @@ export interface AttentionTenancy {
   agreementId: string;
   tenantName: string | null;
   leaseEnd: Date | null;
+  /** Its own Reminder thresholds, which set its due-soon window (#388). */
+  reminderDaysBefore?: string | null;
 }
 
 /**
@@ -258,7 +260,7 @@ export function buildExtractionReviewItems(
 }
 
 export interface FailedReminderLog {
-  ownerType: "CONTRACT" | "PRODUCT" | "VEHICLE";
+  ownerType: "CONTRACT" | "PRODUCT" | "VEHICLE" | "TENANCY";
   ownerId: string;
   error: string | null;
 }
@@ -274,10 +276,12 @@ export function buildReminderFailureItems(
   contracts: Contract[],
   products: Product[],
   vehicles: Vehicle[],
+  tenancies: AttentionTenancy[] = [],
 ): AttentionItem[] {
   const contractMap = new Map(contracts.map((c) => [c.id, c]));
   const productMap = new Map(products.map((p) => [p.id, p]));
   const vehicleMap = new Map(vehicles.map((v) => [v.id, v]));
+  const tenancyMap = new Map(tenancies.map((t) => [t.agreementId, t]));
   const seenOwners = new Set<string>();
   const items: AttentionItem[] = [];
 
@@ -311,6 +315,20 @@ export function buildReminderFailureItems(
         subtitle: `Reminder delivery failed${suffix}`,
         href: `/products/${product.id}`,
         action: { label: "View", href: `/products/${product.id}` },
+        badge: "Reminder failed",
+      });
+    } else if (log.ownerType === "TENANCY") {
+      // #388 — a lease-end Reminder; a Tenancy shows on its Property's page.
+      const tenancy = tenancyMap.get(log.ownerId);
+      if (!tenancy) continue;
+      items.push({
+        id: `failed-tenancy-${tenancy.agreementId}`,
+        kind: "property",
+        group: "housekeeping",
+        title: tenancy.propertyLabel,
+        subtitle: `Lease reminder delivery failed${suffix}`,
+        href: `/home/${tenancy.propertyId}`,
+        action: { label: "View", href: `/home/${tenancy.propertyId}` },
         badge: "Reminder failed",
       });
     } else {

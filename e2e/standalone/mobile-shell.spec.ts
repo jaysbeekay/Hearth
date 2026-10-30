@@ -107,6 +107,8 @@ test.beforeEach(async ({ page }) => {
           state: "VIC",
           country: "Australia",
           occupancy_status: "OWNER_OCCUPIED",
+          // Rental tracking on, so its current Tenancy's lease end gets Reminders (#388).
+          is_rented: 1,
           estimated_value: 900000,
           currency: "AUD",
           updated_at: "2099-01-01T00:00:00.000Z",
@@ -308,6 +310,21 @@ test.beforeEach(async ({ page }) => {
           execute: async () => ({ changes: { changes: 0 } }),
           run: async ({ statement, values = [] }: { statement: string; values?: unknown[] }) => {
             sqliteRuns.push({ statement, values });
+            // Tenancy edits and deletes land in the rows, so a resync of local
+            // Reminders sees them (#388).
+            const tenancyUpdate = /^UPDATE rental_agreements SET (.+) WHERE id = \?$/i.exec(statement.trim());
+            if (tenancyUpdate) {
+              const id = values[values.length - 1];
+              const columns = [...tenancyUpdate[1].matchAll(/(\w+) = \?/g)].map((m) => m[1]);
+              const rows = (rowsByTable.rental_agreements ?? []) as Record<string, unknown>[];
+              const row = rows.find((candidate) => candidate.id === id);
+              if (row) {
+                columns.forEach((column, index) => {
+                  row[column] = values[index];
+                });
+                if (row.deleted_at) rowsByTable.rental_agreements = rows.filter((candidate) => candidate !== row);
+              }
+            }
             if (/INSERT OR REPLACE INTO local_profile/i.test(statement)) {
               rowsByTable.local_profile = [
                 {
@@ -353,7 +370,12 @@ test.beforeEach(async ({ page }) => {
             scheduledNotifications.push(...notifications);
             return {};
           },
-          cancel: async () => ({}),
+          cancel: async ({ notifications = [] }: { notifications?: { id: unknown }[] }) => {
+            const cancelled = new Set(notifications.map((notification) => notification.id));
+            const kept = scheduledNotifications.filter((notification) => !cancelled.has((notification as { id?: unknown }).id));
+            scheduledNotifications.splice(0, scheduledNotifications.length, ...kept);
+            return {};
+          },
           getPending: async () => ({ notifications: [] }),
         },
         ServerConfig: {
@@ -787,6 +809,58 @@ test("standalone vehicle service-due date feeds the detail page, calendar and re
   await expect(
     page.locator(".record-card").filter({ hasText: "Family Car" }).filter({ hasText: "Service" }),
   ).toHaveCount(1);
+});
+
+test("standalone schedules a local Reminder for a tenancy's lease end (#388)", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="reminders"]').click();
+  const card = page.locator(".record-card").filter({ hasText: "Lease" }).filter({ hasText: "Home" });
+  await expect(card).toHaveCount(1);
+  await expect(card).toContainText("2099-12-31");
+
+  await page.getByRole("button", { name: "Enable reminders" }).click();
+  const scheduled = await page.evaluate(() => {
+    return (window as Window & {
+      __hearthStandaloneTest?: {
+        scheduledNotifications: { body?: string; extra?: { recordId?: string; ownerType?: string; field?: string; threshold?: number } }[];
+      };
+    }).__hearthStandaloneTest?.scheduledNotifications ?? [];
+  });
+  const lease = scheduled.filter((notification) => notification.extra?.recordId === "rental-agreement-1");
+  expect(lease.map((notification) => notification.extra?.threshold).sort((a, b) => (a ?? 0) - (b ?? 0))).toEqual([1, 7, 14, 30]);
+  expect(lease.every((notification) => notification.extra?.ownerType === "TENANCY" && notification.extra?.field === "leaseEnd")).toBe(true);
+  expect(lease[0].body).toContain("Lease for Home ends 2099-12-31");
+
+  // A Tenancy has no page of its own: the card opens its Property.
+  await card.click();
+  await expect(page.getByRole("heading", { name: "Tenancies" })).toBeVisible();
+
+  const leaseBodies = () =>
+    page.evaluate(() => {
+      const scheduled = (window as Window & {
+        __hearthStandaloneTest?: { scheduledNotifications: { body?: string; extra?: { recordId?: string } }[] };
+      }).__hearthStandaloneTest?.scheduledNotifications ?? [];
+      return scheduled.filter((n) => n.extra?.recordId === "rental-agreement-1").map((n) => n.body ?? "");
+    });
+
+  // Moving the lease end reschedules its Reminders.
+  await page.getByRole("button", { name: /Tenancy · Alex Tenant/ }).click();
+  await page.locator('button[data-form-type="rentalAgreements"][data-id="rental-agreement-1"]').click();
+  await page.locator('input[name="reminderDaysBefore"]').fill("soon");
+  await page.locator('form[data-save-type="rentalAgreements"]').getByRole("button", { name: "Save" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Reminder thresholds must be whole days");
+  await page.locator('input[name="reminderDaysBefore"]').fill("");
+  await page.locator('input[name="leaseEnd"]').fill("2099-11-30");
+  await page.locator('form[data-save-type="rentalAgreements"]').getByRole("button", { name: "Save" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Saved");
+  await expect.poll(leaseBodies).toHaveLength(4);
+  expect((await leaseBodies()).every((body) => body.includes("ends 2099-11-30"))).toBe(true);
+
+  // Deleting the Tenancy cancels them.
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: /Tenancy · Alex Tenant/ }).click();
+  await page.locator('button[data-delete-record="rentalAgreements"][data-id="rental-agreement-1"]').click();
+  await expect.poll(leaseBodies).toEqual([]);
 });
 
 test("standalone dashboard's missing-info stat card deep-links into a pre-filtered warranty list", async ({ page }) => {

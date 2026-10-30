@@ -5,14 +5,19 @@ import { setupTestDb, createTestUser } from "../helpers/testDb";
 import {
   createContractCommand,
   renewContractCommand,
+  termDocumentCandidates,
   deleteContractCommand,
   permanentlyDeleteContractCommand,
 } from "@/lib/commands/contracts";
-import { deleteDocumentCommand, permanentlyDeleteDocumentCommand } from "@/lib/commands/documents";
+import { addDocumentCommand, deleteDocumentCommand, permanentlyDeleteDocumentCommand } from "@/lib/commands/documents";
 import { RecordNotFoundError, RecordValidationError, StaleEditError } from "@/lib/commands/shared";
 import { renewContract } from "@/lib/actions/contracts";
 import { contractSchema, contractRenewalSchema } from "@/lib/validation/contract";
 import { contractDue } from "@/lib/dueRecords";
+import { setAppSetting } from "@/lib/appSettings";
+import { getReminderHealth } from "@/lib/notifications/health";
+import { reminderPlan } from "@/lib/notifications/reminderSchedule";
+import { toSentLogRow } from "@/lib/notifications/logs";
 import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 
@@ -27,6 +32,12 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/lib/documents/queueExtraction", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/documents/queueExtraction")>();
   return { ...actual, queueDocumentExtraction: vi.fn() };
+});
+
+// Real Document commands, but addDocumentCommand can be made to fail once.
+vi.mock("@/lib/commands/documents", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/commands/documents")>();
+  return { ...actual, addDocumentCommand: vi.fn(actual.addDocumentCommand) };
 });
 
 const db = setupTestDb();
@@ -63,9 +74,9 @@ const newContract = (extra: Record<string, unknown> = {}) =>
     actorId,
   );
 
-async function addDocument(contractId: string, filename: string, uploadedAt: Date) {
+async function addDocument(contractId: string, filename: string, uploadedAt: Date, category: string | null = null) {
   return db.prisma.document.create({
-    data: { contractId, filename, storedName: `${filename}.bin`, mimeType: "application/pdf", size: 10, uploadedAt },
+    data: { contractId, filename, storedName: `${filename}.bin`, mimeType: "application/pdf", size: 10, uploadedAt, category },
   });
 }
 
@@ -151,11 +162,103 @@ describe("renewContractCommand", () => {
     expect(await db.prisma.contractTerm.count()).toBe(0);
   });
 
-  it("renews a Contract that had no end date", async () => {
+  it("refuses a Contract with no end date, which has no Term to continue from", async () => {
     const contract = await newContract({ endDate: undefined, startDate: undefined });
+    await expect(renewContractCommand(contract.id, { endDate: day("2027-06-30") }, actorId)).rejects.toThrow(
+      "Set the contract's end date before renewing it.",
+    );
+    expect(await db.prisma.contractTerm.count()).toBe(0);
+  });
+
+  it("refuses a fixed-term Contract, which ends rather than renews", async () => {
+    const contract = await newContract({ renewalType: "FIXED_TERM" });
+    await expect(renewContractCommand(contract.id, { endDate: day("2027-06-30") }, actorId)).rejects.toThrow(
+      "A fixed-term contract ends rather than renews.",
+    );
+    expect(await db.prisma.contractTerm.count()).toBe(0);
+  });
+
+  it("links the Document the Renew form names, even when a newer policy was uploaded before renewing", async () => {
+    const contract = await newContract();
+    const oldPolicy = await addDocument(contract.id, "policy-2025.pdf", new Date("2025-07-01T10:00:00Z"), "POLICY");
+    // The new policy arrived first and was attached before Renew was pressed.
+    const newPolicy = await addDocument(contract.id, "policy-2026.pdf", new Date("2026-06-20T10:00:00Z"), "POLICY");
+
+    const candidates = await termDocumentCandidates(contract.id);
+    expect(candidates.map((d) => d.id)).toEqual([newPolicy.id, oldPolicy.id]);
+
+    await renewContractCommand(contract.id, { endDate: day("2027-06-30"), termDocumentId: oldPolicy.id }, actorId);
+    const term = await db.prisma.contractTerm.findFirstOrThrow({ where: { contractId: contract.id } });
+    expect(term.documentId).toBe(oldPolicy.id);
+    // The new policy is still free for the Term it belongs to.
+    expect((await termDocumentCandidates(contract.id)).map((d) => d.id)).toEqual([newPolicy.id]);
+  });
+
+  it("links no Document when the form says None, and refuses one that isn't a candidate", async () => {
+    const contract = await newContract();
+    await addDocument(contract.id, "policy.pdf", new Date("2025-07-01T10:00:00Z"), "POLICY");
+    const other = await newContract({ title: "Other" });
+    const foreign = await addDocument(other.id, "foreign.pdf", new Date("2025-07-01T10:00:00Z"), "POLICY");
+
+    await expect(
+      renewContractCommand(contract.id, { endDate: day("2027-06-30"), termDocumentId: foreign.id }, actorId),
+    ).rejects.toThrow("That document can't be linked to the term being kept.");
+    await renewContractCommand(contract.id, { endDate: day("2027-06-30"), termDocumentId: null }, actorId);
+    const term = await db.prisma.contractTerm.findFirstOrThrow({ where: { contractId: contract.id } });
+    expect(term.documentId).toBeNull();
+  });
+
+  it("by default links a policy rather than a newer receipt", async () => {
+    const contract = await newContract();
+    const policy = await addDocument(contract.id, "policy.pdf", new Date("2025-07-01T10:00:00Z"), "POLICY");
+    await addDocument(contract.id, "receipt.pdf", new Date("2026-01-10T10:00:00Z"), "RECEIPT");
     await renewContractCommand(contract.id, { endDate: day("2027-06-30") }, actorId);
     const term = await db.prisma.contractTerm.findFirstOrThrow({ where: { contractId: contract.id } });
-    expect(term.endDate).toBeNull();
+    expect(term.documentId).toBe(policy.id);
+  });
+
+  it("restarts Reminders: one already sent for the old end date doesn't count for the new one", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-06-20T12:00:00.000Z"));
+    try {
+      await setAppSetting("household.timezone", "UTC");
+      const contract = await newContract({ reminderDaysBefore: "14" });
+      // The 14-day Reminder for the old end date (30 Jun) went out on every channel.
+      for (const channel of ["EMAIL", "NTFY", "WEBHOOK"] as const) {
+        await db.prisma.notificationLog.create({
+          data: {
+            ownerType: "CONTRACT",
+            ownerId: contract.id,
+            field: "endDate",
+            channel,
+            thresholdDays: 14,
+            status: "SENT",
+            dueDate: day("2026-06-30"),
+          },
+        });
+      }
+      const health = async () => {
+        const row = await db.prisma.contract.findUniqueOrThrow({ where: { id: contract.id } });
+        return getReminderHealth({ ownerType: "CONTRACT", ownerId: contract.id, record: { kind: "contract", ...row } });
+      };
+      expect((await health()).nextReminder).toBeNull();
+
+      // Renewed to 2 Jul: 12 days out, so the 14-day threshold is crossed
+      // again, for a date it hasn't been sent for.
+      await renewContractCommand(contract.id, { endDate: day("2026-07-02") }, actorId);
+      expect((await health()).nextReminder).toEqual({ kind: "next-check" });
+      const row = await db.prisma.contract.findUniqueOrThrow({ where: { id: contract.id } });
+      const logs = await db.prisma.notificationLog.findMany({ where: { ownerId: contract.id } });
+      const plan = reminderPlan(
+        { kind: "contract", ...row },
+        { today: "2026-06-20", defaultReminderDays: "30,14,7,1" },
+        logs.map(toSentLogRow),
+      );
+      expect(plan.entries[0].entry.date).toBe("2026-07-02");
+      expect(plan.entries[0].schedule.EMAIL.sendNow).toBe(14);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("refuses a Cancelled Contract", async () => {
@@ -252,8 +355,37 @@ describe("renewContract action", () => {
     expect(term).toMatchObject({ cost: 1200, documentId: old.id });
     const docs = await db.prisma.document.findMany({ where: { contractId: contract.id }, orderBy: { uploadedAt: "asc" } });
     expect(docs.map((d) => d.filename)).toEqual(["policy-2025.pdf", "policy-2026.pdf"]);
+    // The new Term's paperwork is filed as a policy.
+    expect(docs[1].category).toBe("POLICY");
     const renewed = await db.prisma.contract.findUniqueOrThrow({ where: { id: contract.id } });
     expect(renewed.cost).toBe(1344);
+  });
+
+  it("passes the form's choice of paperwork for the Term being kept", async () => {
+    const contract = await newContract();
+    await addDocument(contract.id, "a.pdf", new Date("2025-07-01T10:00:00Z"), "POLICY");
+    const chosen = await addDocument(contract.id, "b.pdf", new Date("2025-08-01T10:00:00Z"), "RECEIPT");
+    await expect(
+      renewContract(contract.id, null, formData({ endDate: "2027-06-30", termDocumentId: chosen.id })),
+    ).rejects.toThrow("REDIRECT");
+    const term = await db.prisma.contractTerm.findFirstOrThrow({ where: { contractId: contract.id } });
+    expect(term.documentId).toBe(chosen.id);
+  });
+
+  it("keeps the renewal and sends the Document to the Inbox when attaching it fails", async () => {
+    const contract = await newContract();
+    vi.mocked(addDocumentCommand).mockRejectedValueOnce(new Error("disk full"));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const file = new File(["%PDF-1.4\n% renewal\n"], "policy-2026.pdf", { type: "application/pdf" });
+    try {
+      await expect(renewContract(contract.id, null, formData({ endDate: "2027-06-30", file }))).rejects.toThrow(
+        `REDIRECT /contracts/${contract.id}?docFallback=inbox`,
+      );
+    } finally {
+      consoleError.mockRestore();
+    }
+    expect(await db.prisma.contractTerm.count({ where: { contractId: contract.id } })).toBe(1);
+    expect(await db.prisma.inboxDocument.count()).toBe(1);
   });
 
   it("hands back the form's values with a validation error", async () => {

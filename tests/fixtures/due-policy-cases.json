@@ -180,6 +180,16 @@
       "expected": [{ "field": "leaseEnd", "date": "2026-11-24", "daysLeft": 31, "state": "due-soon", "label": "Lease ends 24 Nov" }]
     },
     {
+      "name": "tenancy: its own Reminder thresholds set its window, over the household default",
+      "record": { "kind": "tenancy", "leaseEnd": "2026-12-23", "reminderDaysBefore": "60,30" },
+      "expected": [{ "field": "leaseEnd", "date": "2026-12-23", "daysLeft": 60, "state": "due-soon", "label": "Lease ends 23 Dec" }]
+    },
+    {
+      "name": "tenancy: blank Reminder thresholds fall back to the household default",
+      "record": { "kind": "tenancy", "leaseEnd": "2026-12-23", "reminderDaysBefore": "" },
+      "expected": [{ "field": "leaseEnd", "date": "2026-12-23", "daysLeft": 60, "state": "later", "label": "Lease ends 23 Dec" }]
+    },
+    {
       "name": "tenancy: past its lease end needs its new lease end (Housekeeping, not Due)",
       "record": { "kind": "tenancy", "leaseEnd": "2026-10-14" },
       "expected": [{ "field": "leaseEnd", "date": "2026-10-14", "daysLeft": -10, "state": "needs-new-end-date", "label": "Lease ended — set the new lease end" }]

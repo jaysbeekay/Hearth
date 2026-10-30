@@ -1,12 +1,14 @@
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { renewContract } from "@/lib/actions/contracts";
+import { renewalRefusal, termDocumentCandidates } from "@/lib/commands/contracts";
 import { ContractRenewForm } from "@/components/ContractRenewForm";
 import { BackLink } from "@/components/BackLink";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { getUserPreferences } from "@/lib/userPreferences";
-import { billingFrequencyText, formatTermCost, nextTermDates } from "@/lib/contractTerms";
+import { getDueContext } from "@/lib/appSettings";
+import { billingFrequencyText, formatTermCost, nextTermDates, pickTermDocument } from "@/lib/contractTerms";
 import { formatDate } from "@/lib/utils";
 
 // #353 — Renew: adds the Contract's next Term and keeps the current one as
@@ -16,21 +18,23 @@ import { formatDate } from "@/lib/utils";
 export default async function RenewContractPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   redirectIfReadOnly(await auth(), `/contracts/${id}`);
-  const [contract, { dateFormat, region }] = await Promise.all([
+  const [contract, { dateFormat, region }, { today }, candidates] = await Promise.all([
     prisma.contract.findUnique({ where: { id } }),
     getUserPreferences(),
+    getDueContext(),
+    termDocumentCandidates(id),
   ]);
   if (!contract || contract.deletedAt) notFound();
-  // A Cancelled Contract is marked active first (from its detail page).
-  if (contract.status === "CANCELLED") redirect(`/contracts/${id}`);
+  // Cancelled, fixed-term or no end date: nothing to renew from here (the
+  // command refuses these too).
+  if (renewalRefusal(contract)) redirect(`/contracts/${id}`);
 
-  const next = nextTermDates(contract);
+  // An auto-renewing Contract carried on by itself, so its next Term is the
+  // one running now, not one that has already ended.
+  const next = nextTermDates(contract, contract.renewalType === "AUTO_RENEW" ? { rollForwardTo: today } : {});
   const frequency = billingFrequencyText(contract.billingFrequency);
   const currentCost = contract.cost != null ? formatTermCost(contract, region) : "no cost";
-  const currentTerm =
-    contract.startDate || contract.endDate
-      ? `${formatDate(contract.startDate, dateFormat)} – ${formatDate(contract.endDate, dateFormat)}`
-      : "no dates";
+  const currentTerm = `${formatDate(contract.startDate, dateFormat)} – ${formatDate(contract.endDate, dateFormat)}`;
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -39,7 +43,7 @@ export default async function RenewContractPage({ params }: { params: Promise<{ 
         <h1 className="text-2xl font-semibold">Renew contract</h1>
         <p className="text-sm text-muted">{contract.title}</p>
       </div>
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
+      <div className="space-y-4 rounded-xl border border-border bg-surface p-4 md:p-6">
         <p className="text-sm text-muted">
           Current term: {currentTerm}, {currentCost}. It&apos;s kept under Previous terms once you renew.
         </p>
@@ -50,9 +54,19 @@ export default async function RenewContractPage({ params }: { params: Promise<{ 
             endDate: next.endDate ?? "",
             cost: contract.cost != null ? String(contract.cost) : "",
           }}
+          today={today}
           baseUpdatedAt={contract.updatedAt.toISOString()}
           costHint={frequency ? `${contract.currency}, billed ${frequency}` : contract.currency}
           cancelHref={`/contracts/${contract.id}`}
+          // Only worth asking when there's a choice to make.
+          termDocuments={
+            candidates.length >= 2
+              ? {
+                  options: candidates.map((doc) => ({ id: doc.id, filename: doc.filename })),
+                  defaultId: pickTermDocument(candidates) ?? "",
+                }
+              : undefined
+          }
         />
       </div>
     </div>

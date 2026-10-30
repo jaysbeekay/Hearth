@@ -3,6 +3,7 @@ import {
   buildContractAttentionItems,
   buildInboxItem,
   buildMissingDetailsItems,
+  buildReminderFailureItems,
   buildReminderNudgeItem,
   buildTenancyAttentionItems,
   buildVehicleAttentionItems,
@@ -200,6 +201,36 @@ describe("Due rows follow the Due policy (#384)", () => {
       ["lease-ended-ended", "housekeeping"],
     ]);
     expect(items[1].entry?.label).toBe("Lease ended — set the new lease end");
+  });
+
+  it("a Tenancy's own Reminder thresholds set its due-soon window (#388)", () => {
+    const lease = { propertyId: "p", propertyLabel: "Flat", agreementId: "a", tenantName: null, leaseEnd: inDays(50) };
+    expect(buildTenancyAttentionItems([lease], ctx)).toEqual([]);
+    expect(buildTenancyAttentionItems([{ ...lease, reminderDaysBefore: "60,30" }], ctx).map((i) => i.group)).toEqual([
+      "due",
+    ]);
+  });
+});
+
+describe("Reminder failure rows", () => {
+  it("a failed lease Reminder links to its Property (#388)", () => {
+    const lease = { propertyId: "p1", propertyLabel: "Flat", agreementId: "t1", tenantName: null, leaseEnd: inDays(10) };
+    const items = buildReminderFailureItems(
+      [{ ownerType: "TENANCY", ownerId: "t1", error: "HTTP 500" }],
+      [],
+      [],
+      [],
+      [lease],
+    );
+    expect(items).toEqual([
+      expect.objectContaining({
+        id: "failed-tenancy-t1",
+        title: "Flat",
+        subtitle: "Lease reminder delivery failed: HTTP 500",
+        href: "/home/p1",
+        badge: "Reminder failed",
+      }),
+    ]);
   });
 });
 

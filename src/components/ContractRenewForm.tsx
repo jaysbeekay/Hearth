@@ -8,7 +8,7 @@ import { FormMessage } from "@/components/FormMessage";
 import { Field } from "@/components/FormField";
 import { FileDropZone } from "@/components/FileDropZone";
 import { DateInput } from "@/components/DateInput";
-import { inputClass } from "@/components/SelectWrapper";
+import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 import { extractionMessage, isAiExtractionSource, markAutoFilled, type ExtractionSource } from "@/lib/autoFillHighlight";
 
 type RenewField = "startDate" | "endDate" | "cost";
@@ -29,9 +29,15 @@ export function ContractRenewForm({
   baseUpdatedAt,
   costHint,
   cancelHref,
+  today,
+  termDocuments,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   defaults: { startDate: string; endDate: string; cost: string };
+  /** The household's today (YYYY-MM-DD), to warn about an end date that has already passed. */
+  today: string;
+  /** The choice of paperwork for the Term being kept, when there's more than one candidate. */
+  termDocuments?: { options: { id: string; filename: string }[]; defaultId: string };
   baseUpdatedAt: string;
   /** What the cost is in, which carries over unchanged (e.g. "AUD, billed annually"). */
   costHint: string;
@@ -62,6 +68,12 @@ export function ContractRenewForm({
     const field = asRenewField(key);
     if (field) shown.set(field, value);
   }
+  // The end date as typed, for the "already passed" warning. Null until the
+  // person edits it, so the shown value (pre-fill, scan or failed submit) applies.
+  const [typedEndDate, setTypedEndDate] = useState<string | null>(null);
+  const endDate = typedEndDate ?? shown.get("endDate") ?? "";
+  const endDatePassed = endDate !== "" && endDate < today;
+  const termDocumentDefault = state?.values?.termDocumentId ?? termDocuments?.defaultId ?? "";
 
   // Marks what a scan filled in, once the fields have remounted with it.
   useEffect(() => {
@@ -114,6 +126,7 @@ export function ContractRenewForm({
       }
       if (replaced.length > 0) {
         highlight.current = { fields: replaced, source: isAiExtractionSource(source) ? "ai" : "heuristic" };
+        setTypedEndDate(null);
         setValues(next);
         setVersion((v) => v + 1);
       }
@@ -146,8 +159,17 @@ export function ContractRenewForm({
             name="endDate"
             required
             defaultValue={shown.get("endDate") ?? ""}
+            onChange={(event) => {
+              setTypedEndDate(event.target.value);
+            }}
+            aria-describedby={endDatePassed ? "endDatePassed" : undefined}
             className={inputClass}
           />
+          {endDatePassed && (
+            <p id="endDatePassed" className="text-xs text-warning">
+              This date has already passed, so the contract will still need attention after renewing.
+            </p>
+          )}
         </Field>
         <Field label="New cost" htmlFor="cost" hint={costHint}>
           <input
@@ -161,6 +183,29 @@ export function ContractRenewForm({
             className={inputClass}
           />
         </Field>
+        {termDocuments && (
+          <Field
+            label="Paperwork for the term being kept"
+            htmlFor="termDocumentId"
+            hint="Linked to the current term under Previous terms."
+          >
+            <SelectWrapper>
+              <select
+                id="termDocumentId"
+                name="termDocumentId"
+                defaultValue={termDocumentDefault}
+                className={selectClass}
+              >
+                {termDocuments.options.map((doc) => (
+                  <option key={doc.id} value={doc.id}>
+                    {doc.filename}
+                  </option>
+                ))}
+                <option value="">None</option>
+              </select>
+            </SelectWrapper>
+          </Field>
+        )}
       </div>
 
       <div className="space-y-2">

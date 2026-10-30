@@ -1,7 +1,7 @@
 // Terms of a Contract (#353, GLOSSARY.md): one period with its own start
 // date, end date and cost. The current Term lives on the Contract; earlier
 // ones are ContractTerm rows. Pure helpers for the Renew form's pre-fill and
-// the "vs last term" cost change, shared by the server pages and tests.
+// the "vs prior term" cost change, shared by the server pages and tests.
 // The standalone shell (ios-shell/www/app.js) keeps a hand-ported copy.
 
 import { addDays, calendarDayOf, daysBetween, type CalendarDay, type DateInput } from "@/lib/duePolicy";
@@ -50,18 +50,69 @@ export interface TermDates {
  * shift it by a day; any other length is kept in days. With no start date
  * to measure from, a year is assumed. With no end date there's nothing to
  * continue from, so nothing is guessed.
+ *
+ * `rollForwardTo` (the household's today, for an auto-renewing Contract,
+ * which carried on by itself) skips whole Terms until the guessed end date
+ * is on or after that day, so a Contract several Terms late isn't renewed
+ * into a Term that has already ended.
  */
-export function nextTermDates(current: { startDate: DateInput; endDate: DateInput }): TermDates {
+export function nextTermDates(
+  current: { startDate: DateInput; endDate: DateInput },
+  options: { rollForwardTo?: CalendarDay } = {},
+): TermDates {
   const end = calendarDayOf(current.endDate);
   if (!end) return { startDate: null, endDate: null };
   const nextStart = addDays(end, 1);
   const start = calendarDayOf(current.startDate);
-  if (!start || start > end) {
-    return { startDate: nextStart, endDate: addDays(addMonths(nextStart, DEFAULT_TERM_MONTHS), -1) };
-  }
-  const months = wholeMonthsBetween(start, nextStart);
-  if (months) return { startDate: nextStart, endDate: addDays(addMonths(nextStart, months), -1) };
-  return { startDate: nextStart, endDate: addDays(nextStart, daysBetween(start, end)) };
+  const months = !start || start > end ? DEFAULT_TERM_MONTHS : wholeMonthsBetween(start, nextStart);
+  // The k-th Term after the current one (0 is the next), measured from the
+  // same anchor so month-end clamping can't drift across Terms.
+  const term = (k: number): TermDates =>
+    months
+      ? {
+          startDate: addMonths(nextStart, months * k),
+          endDate: addDays(addMonths(nextStart, months * (k + 1)), -1),
+        }
+      : (() => {
+          const length = daysBetween(start ?? end, end);
+          const termStart = addDays(nextStart, (length + 1) * k);
+          return { startDate: termStart, endDate: addDays(termStart, length) };
+        })();
+  let k = 0;
+  const target = options.rollForwardTo;
+  // Bounded, in case of a nonsensical date far in the past.
+  while (target && k < 10_000 && (term(k).endDate ?? target) < target) k += 1;
+  return term(k);
+}
+
+/** A Document that could be the paperwork for the Term being kept. */
+export interface TermDocumentCandidate {
+  id: string;
+  category: string | null;
+  uploadedAt: Date;
+}
+
+// Policies and agreements are a Term's paperwork; receipts, invoices and
+// photos usually aren't. Uncategorised Documents sit in between.
+const PAPERWORK_CATEGORIES = new Set(["POLICY", "RENTAL_AGREEMENT"]);
+
+function paperworkRank(category: string | null): number {
+  if (category && PAPERWORK_CATEGORIES.has(category)) return 0;
+  if (!category || category === "OTHER") return 1;
+  return 2;
+}
+
+/**
+ * The Renew form's default for "Paperwork for the term being kept": the
+ * newest policy or agreement among `candidates` (live Documents no earlier
+ * Term has), else the newest uncategorised one, else the newest of the rest.
+ */
+export function pickTermDocument(candidates: TermDocumentCandidate[]): string | null {
+  const [best] = [...candidates].sort(
+    (a, b) =>
+      paperworkRank(a.category) - paperworkRank(b.category) || b.uploadedAt.getTime() - a.uploadedAt.getTime(),
+  );
+  return best?.id ?? null;
 }
 
 export interface TermCost {
@@ -99,10 +150,10 @@ export function formatTermCost(term: TermCost, region?: string): string {
   return `${formatCurrency(term.cost, term.currency, undefined, region)}${frequency ? ` / ${frequency}` : ""}`;
 }
 
-/** "+12% vs last term", "−5% vs last term" or "Same as last term", to the nearest whole percent. */
-export function formatTermCostChange(change: number, versus = "last term"): string {
+/** "+12% vs prior term", "−5% vs prior term" or "Same as prior term", to the nearest whole percent. */
+export function formatTermCostChange(change: number): string {
   const percent = Math.round(change * 100);
-  if (percent === 0) return `Same as ${versus}`;
+  if (percent === 0) return "Same as prior term";
   // A real minus sign, so a drop reads as clearly as a rise.
-  return `${percent > 0 ? "+" : "−"}${Math.abs(percent)}% vs ${versus}`;
+  return `${percent > 0 ? "+" : "−"}${Math.abs(percent)}% vs prior term`;
 }

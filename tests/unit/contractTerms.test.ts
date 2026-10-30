@@ -5,6 +5,7 @@ import {
   formatTermCost,
   formatTermCostChange,
   nextTermDates,
+  pickTermDocument,
   termCostChange,
 } from "@/lib/contractTerms";
 
@@ -39,6 +40,24 @@ describe("nextTermDates (#353)", () => {
     });
     // A start after the end can't be measured either.
     expect(nextTermDates({ startDate: "2026-08-01", endDate: "2026-06-30" }).endDate).toBe("2027-06-30");
+  });
+
+  it("rolls a Contract several Terms late forward to the Term running today", () => {
+    // Yearly, last renewed to 30 Jun 2023; today is 15 Mar 2026.
+    const late = { startDate: "2022-07-01", endDate: "2023-06-30" };
+    expect(nextTermDates(late, { rollForwardTo: "2026-03-15" })).toEqual({
+      startDate: "2025-07-01",
+      endDate: "2026-06-30",
+    });
+    // Without rolling forward, it's just the next Term.
+    expect(nextTermDates(late).endDate).toBe("2024-06-30");
+    // A Term in days rolls by whole Terms too: 28-day Terms from 1 Jan.
+    expect(nextTermDates({ startDate: "2026-01-01", endDate: "2026-01-28" }, { rollForwardTo: "2026-03-01" })).toEqual({
+      startDate: "2026-02-26",
+      endDate: "2026-03-25",
+    });
+    // An end date already on or after today needs no rolling.
+    expect(nextTermDates(late, { rollForwardTo: "2024-06-30" }).endDate).toBe("2024-06-30");
   });
 
   it("guesses nothing with no end date", () => {
@@ -77,9 +96,9 @@ describe("termCostChange", () => {
 
 describe("formatting", () => {
   it("formats a change to the nearest whole percent", () => {
-    expect(formatTermCostChange(0.12)).toBe("+12% vs last term");
-    expect(formatTermCostChange(-0.05, "previous")).toBe("−5% vs previous");
-    expect(formatTermCostChange(0.001)).toBe("Same as last term");
+    expect(formatTermCostChange(0.12)).toBe("+12% vs prior term");
+    expect(formatTermCostChange(-0.05)).toBe("−5% vs prior term");
+    expect(formatTermCostChange(0.001)).toBe("Same as prior term");
   });
 
   it("formats a Term's cost with its billing frequency", () => {
@@ -89,5 +108,32 @@ describe("formatting", () => {
     expect(formatTermCost({ cost: 10, currency: "AUD", billingFrequency: null }, "en-AU")).toBe("$10.00");
     expect(formatTermCost({ cost: null, currency: "AUD", billingFrequency: null })).toBe("—");
     expect(billingFrequencyText("NOT_A_FREQUENCY")).toBeNull();
+  });
+});
+
+describe("pickTermDocument", () => {
+  const doc = (id: string, category: string | null, uploadedAt: string) => ({
+    id,
+    category,
+    uploadedAt: new Date(uploadedAt),
+  });
+
+  it("prefers a policy or agreement over a newer receipt or claim photo", () => {
+    expect(
+      pickTermDocument([
+        doc("receipt", "RECEIPT", "2026-06-01"),
+        doc("policy", "POLICY", "2025-07-01"),
+        doc("photo", "PHOTO", "2026-07-01"),
+      ]),
+    ).toBe("policy");
+    expect(
+      pickTermDocument([doc("lease", "RENTAL_AGREEMENT", "2025-01-01"), doc("invoice", "INVOICE", "2026-01-01")]),
+    ).toBe("lease");
+  });
+
+  it("takes the newest within the same kind, and uncategorised before receipts", () => {
+    expect(pickTermDocument([doc("old", "POLICY", "2024-07-01"), doc("new", "POLICY", "2025-07-01")])).toBe("new");
+    expect(pickTermDocument([doc("receipt", "RECEIPT", "2026-01-01"), doc("plain", null, "2025-01-01")])).toBe("plain");
+    expect(pickTermDocument([])).toBeNull();
   });
 });

@@ -39,7 +39,7 @@ export function ContractTermHistory({
               </span>
               <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <span>{formatTermCost(term, region)}</span>
-                {change != null && <span className="text-muted">{formatTermCostChange(change, "previous")}</span>}
+                {change != null && <span className="text-muted">{formatTermCostChange(change)}</span>}
                 {document && (
                   <DocumentLink
                     href={documentFileHref(document.id)}
