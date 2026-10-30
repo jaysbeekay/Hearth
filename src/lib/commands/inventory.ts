@@ -3,9 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { assertModuleEnabled } from "@/lib/modules/enablement";
 import {
   updateLiveUnlessStale,
+  assertNotStale,
   findLiveParent,
   isLive,
-  RecordNotFoundError,
   RecordValidationError,
   type UpdateOptions,
 } from "@/lib/commands/shared";
@@ -25,10 +25,11 @@ import type { InventoryItemInput } from "@/lib/validation/inventory";
 // clears the field. The edit form sends fullFormUpdate()'s patch, where
 // every field it submitted blank is `null` (#413).
 //
-// A warranty link the item doesn't already have must be to a live Product;
-// one it already has is kept even if that Product has since gone to Trash,
-// so the rest of the item can still be edited. The check and the write run
-// in one transaction, using only `tx` (see shared.ts).
+// A stale edit is refused first. Then a warranty link the item doesn't
+// already have must be to a live Product; one it already has is kept even
+// if that Product has since gone to Trash, so the rest of the item can
+// still be edited. The checks, the write and the read of the updated row
+// run in one transaction, using only `tx` (see shared.ts).
 export async function updateInventoryItemCommand(
   id: string,
   patch: ClearablePatch<InventoryItemInput>,
@@ -36,9 +37,10 @@ export async function updateInventoryItemCommand(
   options: UpdateOptions = {},
 ) {
   await assertModuleEnabled("INVENTORY");
-  await prisma.$transaction(async (tx) => {
+  const { item, previousWarrantyId } = await prisma.$transaction(async (tx) => {
     const loadItem = () => tx.inventoryItem.findUnique({ where: { id } });
     const existing = await findLiveParent(loadItem(), "Inventory item");
+    assertNotStale(existing, options.baseUpdatedAt);
     if (patch.warrantyProductId && patch.warrantyProductId !== existing.warrantyProductId) {
       const warranty = await tx.product.findUnique({
         where: { id: patch.warrantyProductId },
@@ -55,10 +57,18 @@ export async function updateInventoryItemCommand(
         }),
       () => findLiveParent(loadItem(), "Inventory item"),
     );
+    return {
+      item: await findLiveParent(loadItem(), "Inventory item"),
+      previousWarrantyId: existing.warrantyProductId,
+    };
   });
   revalidatePath("/inventory");
   revalidatePath(`/inventory/${id}`);
-  const item = await prisma.inventoryItem.findUnique({ where: { id } });
-  if (!item) throw new RecordNotFoundError("Inventory item");
+  // A Warranty's page lists the items linked to it. (/wealth, which values
+  // Items, renders per request, so it needs no revalidation.)
+  revalidatePath("/products");
+  for (const warrantyId of new Set([previousWarrantyId, item.warrantyProductId])) {
+    if (warrantyId) revalidatePath(`/products/${warrantyId}`);
+  }
   return item;
 }

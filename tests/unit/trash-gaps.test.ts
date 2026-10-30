@@ -13,7 +13,11 @@ import { createVehicleCommand, deleteVehicleCommand } from "@/lib/commands/vehic
 import { RecordNotFoundError, RecordValidationError, StaleEditError } from "@/lib/commands/shared";
 import { ModuleDisabledError } from "@/lib/modules/enablement";
 import { updateInventoryItem } from "@/lib/actions/inventory";
-import { createContract } from "@/lib/actions/contracts";
+import { createContract, updateContract } from "@/lib/actions/contracts";
+import { createProduct, updateProduct } from "@/lib/actions/products";
+import { importContract, importProduct } from "@/lib/actions/import";
+import { runTool } from "@/lib/chat/tools";
+import { revalidatePath } from "next/cache";
 import { contractSchema } from "@/lib/validation/contract";
 import { productSchema } from "@/lib/validation/product";
 import { propertySchema } from "@/lib/validation/home";
@@ -244,5 +248,181 @@ describe("Contract and Product links to records in Trash (#447)", () => {
     expect(await db.prisma.product.count()).toBe(1);
     expect((await db.prisma.contract.findUniqueOrThrow({ where: { id: contract.id } })).propertyId).toBeNull();
     expect((await db.prisma.product.findUniqueOrThrow({ where: { id: product.id } })).propertyId).toBeNull();
+  });
+});
+
+describe("review fixes for #446 / #447", () => {
+  const contractForm = { title: "Insurance", category: "HOME_INSURANCE", provider: "InsureCo", renewalType: "MANUAL_RENEWAL" };
+  const PROPERTY_TRASHED = "That property doesn't exist or is in Trash.";
+
+  it("refuses switching a live link to a Property in Trash", async () => {
+    const a = await newProperty("A");
+    const b = await newProperty("B");
+    const contract = await createContractCommand(contractInput({ propertyId: a.id }), actorId);
+    await deletePropertyCommand(b.id);
+    await expect(updateContractCommand(contract.id, { propertyId: b.id }, actorId)).rejects.toThrow(PROPERTY_TRASHED);
+    expect((await db.prisma.contract.findUniqueOrThrow({ where: { id: contract.id } })).propertyId).toBe(a.id);
+  });
+
+  it("clears an existing link to a Property in Trash", async () => {
+    const property = await newProperty();
+    const contract = await createContractCommand(contractInput({ propertyId: property.id }), actorId);
+    const product = await createProductCommand(productInput({ propertyId: property.id }), actorId);
+    await deletePropertyCommand(property.id);
+    await updateContractCommand(contract.id, { propertyId: null }, actorId);
+    await updateProductCommand(product.id, { propertyId: null }, actorId);
+    expect((await db.prisma.contract.findUniqueOrThrow({ where: { id: contract.id } })).propertyId).toBeNull();
+    expect((await db.prisma.product.findUniqueOrThrow({ where: { id: product.id } })).propertyId).toBeNull();
+  });
+
+  it("the edit forms keep what was entered when the new link is refused", async () => {
+    const property = await newProperty();
+    await deletePropertyCommand(property.id);
+    const contract = await createContractCommand(contractInput(), actorId);
+    const product = await createProductCommand(productInput(), actorId);
+
+    const contractResult = await updateContract(
+      contract.id,
+      null,
+      formData({ ...contractForm, title: "Edited insurance", propertyId: property.id }),
+    );
+    expect(contractResult).toMatchObject({
+      error: PROPERTY_TRASHED,
+      values: { title: "Edited insurance", propertyId: property.id },
+    });
+    const productResult = await updateProduct(
+      product.id,
+      null,
+      formData({ description: "Edited dishwasher", propertyId: property.id }),
+    );
+    expect(productResult).toMatchObject({
+      error: PROPERTY_TRASHED,
+      values: { description: "Edited dishwasher", propertyId: property.id },
+    });
+    expect((await db.prisma.contract.findUniqueOrThrow({ where: { id: contract.id } })).title).toBe("Insurance");
+    expect((await db.prisma.product.findUniqueOrThrow({ where: { id: product.id } })).description).toBe("Dishwasher");
+  });
+
+  it("the Warranty create form reports the refused link with the values entered", async () => {
+    const property = await newProperty();
+    await deletePropertyCommand(property.id);
+    const result = await createProduct(null, formData({ description: "Oven", propertyId: property.id }));
+    expect(result).toMatchObject({ error: PROPERTY_TRASHED, values: { description: "Oven", propertyId: property.id } });
+    expect(await db.prisma.product.count()).toBe(0);
+  });
+
+  it("import reports the refused link as an error", async () => {
+    const property = await newProperty();
+    await deletePropertyCommand(property.id);
+    expect(await importContract(formData({ ...contractForm, propertyId: property.id }))).toEqual({ error: PROPERTY_TRASHED });
+    expect(await importProduct(formData({ description: "Oven", propertyId: property.id }))).toEqual({ error: PROPERTY_TRASHED });
+    expect(await db.prisma.contract.count()).toBe(0);
+    expect(await db.prisma.product.count()).toBe(0);
+  });
+
+  it("refuses a Warranty's new Property link while the Properties module is off", async () => {
+    const property = await newProperty();
+    const product = await createProductCommand(productInput(), actorId);
+    await setModuleEnabled("HOME", false);
+    const off = "The Properties module is off, so this can't be linked to a property.";
+    await expect(createProductCommand(productInput({ propertyId: property.id }), actorId)).rejects.toThrow(off);
+    await expect(updateProductCommand(product.id, { propertyId: property.id }, actorId)).rejects.toThrow(off);
+  });
+
+  it("keeps an existing Vehicle link while the Vehicles module is off", async () => {
+    const vehicle = await createVehicleCommand({ label: "Car" }, actorId);
+    const contract = await createContractCommand(contractInput({ vehicleId: vehicle.id }), actorId);
+    await setModuleEnabled("VEHICLES", false);
+    await updateContractCommand(contract.id, { title: "Car insurance", vehicleId: vehicle.id }, actorId);
+    expect(await db.prisma.contract.findUniqueOrThrow({ where: { id: contract.id } })).toMatchObject({
+      title: "Car insurance",
+      vehicleId: vehicle.id,
+    });
+  });
+
+  it("reports a stale edit as stale before checking its links", async () => {
+    const property = await newProperty();
+    await deletePropertyCommand(property.id);
+    const contract = await createContractCommand(contractInput(), actorId);
+    const product = await createProductCommand(productInput(), actorId);
+    const warranty = await createProductCommand(productInput({ description: "Old TV" }), actorId);
+    await deleteProductCommand(warranty.id);
+    const item = await newItem();
+    const stale = new Date(Date.now() - 60_000);
+
+    await expect(
+      updateContractCommand(contract.id, { propertyId: property.id }, actorId, { baseUpdatedAt: stale }),
+    ).rejects.toBeInstanceOf(StaleEditError);
+    await expect(
+      updateProductCommand(product.id, { propertyId: property.id }, actorId, { baseUpdatedAt: stale }),
+    ).rejects.toBeInstanceOf(StaleEditError);
+    await expect(
+      updateInventoryItemCommand(item.id, { warrantyProductId: warranty.id }, actorId, { baseUpdatedAt: stale }),
+    ).rejects.toBeInstanceOf(StaleEditError);
+    await expect(
+      updateInventoryItemCommand(item.id, { label: "x" }, actorId, { baseUpdatedAt: "not a date" }),
+    ).rejects.toBeInstanceOf(StaleEditError);
+
+    // The same through a sync replay.
+    const { results } = await replay([
+      {
+        id: "op-stale",
+        entity: "contract",
+        operation: "update",
+        entityId: contract.id,
+        baseUpdatedAt: stale.toISOString(),
+        formValues: { ...contractForm, propertyId: property.id },
+      },
+    ]);
+    expect(results[0]).toMatchObject({ success: false, error: new StaleEditError().message });
+  });
+
+  it("the inventory edit form keeps what was entered when a new warranty link is refused", async () => {
+    const warranty = await createProductCommand(productInput({ description: "Old TV" }), actorId);
+    await deleteProductCommand(warranty.id);
+    const item = await newItem();
+    const result = await updateInventoryItem(
+      item.id,
+      null,
+      formData({ label: "Edited drill", category: "TOOL", warrantyProductId: warranty.id }),
+    );
+    expect(result).toMatchObject({
+      error: "That warranty doesn't exist or is in Trash.",
+      values: { label: "Edited drill", warrantyProductId: warranty.id },
+    });
+  });
+
+  it("an inventory update revalidates the Warranty pages it links to and from", async () => {
+    const first = await createProductCommand(productInput(), actorId);
+    const second = await createProductCommand(productInput({ description: "Fridge" }), actorId);
+    const item = await newItem({ warrantyProductId: first.id });
+    vi.mocked(revalidatePath).mockClear();
+    const updated = await updateInventoryItemCommand(item.id, { warrantyProductId: second.id }, actorId);
+    expect(updated.warrantyProductId).toBe(second.id);
+    const paths = vi.mocked(revalidatePath).mock.calls.map(([path]) => path);
+    expect(paths).toEqual(
+      expect.arrayContaining(["/inventory", `/inventory/${item.id}`, "/products", `/products/${first.id}`, `/products/${second.id}`]),
+    );
+  });
+
+  it("a sync delete of a missing item reports the same message as an update", async () => {
+    const { results } = await replay([{ id: "op-del", entity: "inventoryItem", operation: "delete", entityId: "missing" }]);
+    expect(results).toEqual([{ id: "op-del", success: false, error: "Inventory item not found" }]);
+  });
+
+  it("an Assistant update proposal only checks the links it newly sets", async () => {
+    const ctx = { userId: actorId, role: "MEMBER" as const, enabledModules: new Set<never>() };
+    const kept = await newProperty("Kept");
+    const trashed = await newProperty("Trashed");
+    const contract = await createContractCommand(contractInput({ propertyId: kept.id }), actorId);
+    await deletePropertyCommand(kept.id);
+    await deletePropertyCommand(trashed.id);
+    const propose = async (input: Record<string, unknown>) =>
+      JSON.parse(await runTool("propose_update_contract", { contractId: contract.id, ...input }, ctx)) as {
+        proposed?: boolean;
+        error?: string;
+      };
+    expect(await propose({ title: "Renamed", propertyId: kept.id })).toMatchObject({ proposed: true });
+    expect(await propose({ propertyId: trashed.id })).toEqual({ error: PROPERTY_TRASHED });
   });
 });

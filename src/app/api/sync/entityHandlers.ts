@@ -57,6 +57,7 @@ import {
   updateTradeCommand,
 } from "@/lib/commands/wealth";
 import { updateInventoryItemCommand } from "@/lib/commands/inventory";
+import { RecordNotFoundError } from "@/lib/commands/shared";
 import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
 import {
   formToContractInput,
@@ -355,7 +356,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     },
   }),
 
-  // ── Inventory (per-user ownership) ─────────────────────────────────────────
+  // ── Inventory (household-shared) ───────────────────────────────────────────
   inventoryItem: defineEntity({
     schema: inventoryItemSchema,
     input: formToInventoryItemInput,
@@ -371,7 +372,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     // #287 — soft-delete, matching deleteInventoryItem in actions/inventory.ts.
     remove: async (id) => {
       const existing = await prisma.inventoryItem.findUnique({ where: { id } });
-      if (!existing) throw new Error("Item not found");
+      if (!existing) throw new RecordNotFoundError("Inventory item");
       await prisma.inventoryItem.update({ where: { id }, data: { deletedAt: new Date() } });
       revalidatePath("/inventory");
       revalidatePath("/settings/trash");

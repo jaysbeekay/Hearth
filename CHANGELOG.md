@@ -381,7 +381,10 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   commands, in the write's transaction, so every caller gets it: the forms,
   import, the Assistant and offline sync replays, which skipped it before.
   A link the record already has is kept when the rest of it is edited, even
-  if that Property or Vehicle has since gone to Trash.
+  if that Property or Vehicle has since gone to Trash, and the Assistant's
+  update proposals follow the same rule. A refused link on an edit form
+  keeps what was entered. An offline edit that's both stale and links a
+  trashed record is reported as stale.
 - **Wealth: net worth adds up, and crypto is priced from CoinGecko (#404).**
   The Wealth page shows the total above a plain list of every part of it
   (shares/ETFs/crypto, Property, Items), so the figures always sum to the

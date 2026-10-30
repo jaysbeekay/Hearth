@@ -4,6 +4,7 @@ import { removeOwnerDocumentFiles } from "@/lib/commands/documents";
 import { clearNotificationLogs } from "@/lib/notifications/logs";
 import {
   updateUnlessStale,
+  assertNotStale,
   RecordNotFoundError,
   RecordValidationError,
   type UpdateOptions,
@@ -93,6 +94,9 @@ async function writeContract(id: string, actorId: string, options: UpdateOptions
   await prisma.$transaction(async (tx) => {
     const existing = await findLiveContract(id, tx);
     const patch = typeof write.patch === "function" ? await write.patch(tx) : write.patch;
+    // Stale first, so a stale offline replay is reported as stale rather
+    // than as a link it no longer means to set.
+    assertNotStale(existing, options.baseUpdatedAt);
     assertDateOrder(existing, patch);
     // In the transaction, so a move to Trash can't land between check and write (#447).
     await assertLinksLive(newLinks(patch, existing), tx);

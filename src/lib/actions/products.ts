@@ -167,7 +167,8 @@ export async function updateProduct(
     );
     await saveExtractionReviewFieldsFromForm("PRODUCT", productId, formData);
   } catch (error) {
-    return commandError(error);
+    // Keep what was entered, e.g. when a newly linked Property is in Trash (#447).
+    return { ...commandError(error), values: formDataToStringValues(formData, PRODUCT_FORM_FIELDS) };
   }
   redirect(`/products/${productId}`);
 }

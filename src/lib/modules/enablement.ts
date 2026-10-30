@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { MODULE_KEYS, MODULE_REGISTRY, type ModuleKey } from "@/lib/modules/registry";
+import type { Prisma } from "@/generated/prisma/client";
 
 export async function getEnabledModuleKeys(): Promise<Set<ModuleKey>> {
   const rows = await prisma.moduleEnablement.findMany({
@@ -14,7 +15,7 @@ export async function getEnabledModuleKeys(): Promise<Set<ModuleKey>> {
 // run inside one (commands/links.ts).
 export async function isModuleEnabled(
   key: ModuleKey,
-  db: Pick<typeof prisma, "moduleEnablement"> = prisma,
+  db: Pick<Prisma.TransactionClient, "moduleEnablement"> = prisma,
 ): Promise<boolean> {
   const row = await db.moduleEnablement.findUnique({ where: { key } });
   return row?.enabled ?? false;

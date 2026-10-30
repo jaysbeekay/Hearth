@@ -10,7 +10,7 @@ import {
 } from "@/lib/validation/contract";
 import { productSchema, productPatchSchema } from "@/lib/validation/product";
 import { parseNamedPatch } from "@/lib/validation/namedPatch";
-import { linkedRecordError } from "@/lib/commands/links";
+import { linkedRecordError, newLinks, type RecordLinks } from "@/lib/commands/links";
 import { CATEGORY_LABELS, daysUntil, monthlyEquivalent } from "@/lib/utils";
 import { getNetWorth } from "@/lib/wealth";
 import {
@@ -354,12 +354,15 @@ const CONTRACT_WRITE_PROPERTIES = {
 } as const;
 
 // The card shows a linked Property or Vehicle by name, not its id. Checks
-// the link first (missing, in Trash, or Vehicles off), so a proposal the
-// confirm would refuse is refused now instead.
+// the link first (missing, in Trash, or its module off), so a proposal the
+// confirm would refuse is refused now instead. For an update, `existing` is
+// the record's current links: as in the commands, only a link the update
+// newly sets is checked, and one the record already has is kept (#447).
 async function linkDisplay(
   data: { propertyId?: string; vehicleId?: string },
+  existing?: RecordLinks,
 ): Promise<{ error: string } | { displayValues?: Record<string, string> }> {
-  const linkError = await linkedRecordError(data);
+  const linkError = await linkedRecordError(newLinks(data, existing));
   if (linkError) return { error: linkError };
   const displayValues: Record<string, string> = {};
   if (data.propertyId) {
@@ -425,12 +428,12 @@ const proposeUpdateContractTool = defineTool({
     // Read-only lookup, so the card can say which contract it changes.
     const contract = await prisma.contract.findFirst({
       where: { id: contractId, deletedAt: null },
-      select: { title: true, startDate: true, endDate: true },
+      select: { title: true, startDate: true, endDate: true, propertyId: true, vehicleId: true },
     });
     if (!contract) return { error: "No contract with that id." };
     const { startDate = contract.startDate, endDate = contract.endDate } = parsed.data;
     if (datesOutOfOrder(startDate, endDate)) return { error: "End date can't be before the start date." };
-    const links = await linkDisplay(parsed.data);
+    const links = await linkDisplay(parsed.data, contract);
     if ("error" in links) return links;
     return {
       proposed: true,
@@ -503,14 +506,14 @@ const proposeUpdateProductTool = defineTool({
     if (!parsed.success) return { error: parsed.error };
     const product = await prisma.product.findFirst({
       where: { id: productId, deletedAt: null },
-      select: { description: true, purchaseDate: true, warrantyEndDate: true },
+      select: { description: true, purchaseDate: true, warrantyEndDate: true, propertyId: true },
     });
     if (!product) return { error: "No product with that id." };
     const { purchaseDate = product.purchaseDate, warrantyEndDate = product.warrantyEndDate } = parsed.data;
     if (datesOutOfOrder(purchaseDate, warrantyEndDate)) {
       return { error: "Warranty end date can't be before the purchase date." };
     }
-    const links = await linkDisplay(parsed.data);
+    const links = await linkDisplay(parsed.data, product);
     if ("error" in links) return links;
     return {
       proposed: true,
