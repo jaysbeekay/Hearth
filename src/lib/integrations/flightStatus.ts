@@ -89,8 +89,14 @@ function parseDate(s: string | null | undefined): Date | null {
 }
 
 export async function refreshFlightStatus(segmentId: string): Promise<void> {
-  const segment = await prisma.tripSegment.findUnique({ where: { id: segmentId } });
+  const segment = await prisma.tripSegment.findUnique({
+    where: { id: segmentId },
+    include: { trip: { select: { deletedAt: true } } },
+  });
   if (!segment || segment.type !== "FLIGHT" || !segment.flightNumber) return;
+  // A Trip in Trash is read-only (#428): don't spend an API call on a
+  // result saveTripSegmentFlightData would refuse to store.
+  if (segment.trip.deletedAt) return;
 
   const { apiKey } = await getAviationStackConfig();
   if (!apiKey) return;
