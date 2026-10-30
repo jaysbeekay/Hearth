@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { removeOwnerDocumentFiles } from "@/lib/commands/documents";
 import { assertModuleEnabled } from "@/lib/modules/enablement";
 import {
-  updateUnlessStale,
+  updateLiveUnlessStale,
   findLiveParent,
   requireLive,
   assertParentRestored,
@@ -18,6 +18,7 @@ import type {
   RentalStatementInput,
 } from "@/lib/validation/home";
 import type { PropertyValuationInput } from "@/lib/validation/wealth";
+import type { Prisma } from "@/generated/prisma/client";
 
 // Record commands for the Property module (#390, ADR 0003): Properties,
 // Maintenance records (`homeItem`), Tenancies (`rentalAgreement`), Rental
@@ -36,7 +37,9 @@ import type { PropertyValuationInput } from "@/lib/validation/wealth";
 // refused as not found, as the pages already 404 them. Delete, restore and
 // permanent delete still work on it, but a Maintenance record can't be
 // restored while its Property is still in Trash (#428, the rules in
-// shared.ts).
+// shared.ts). Updates carry that rule in their guarded write; creates and
+// restores check and write in one transaction, so a move to Trash can't
+// land in between.
 //
 // No Property-module record has Reminders yet, so nothing here touches the
 // sent-Reminder log (Tenancy Reminders are #388).
@@ -47,16 +50,25 @@ function revalidatePropertyLists() {
   revalidatePath("/home");
 }
 
+// The global client, or a transaction's `tx` (which must then be used for
+// every query inside it).
+type Db = Prisma.TransactionClient;
+
+function loadProperty(id: string, db: Db = prisma) {
+  return db.property.findUnique({ where: { id } });
+}
+
+// For delete, restore and the row an update returns: Trash or not.
 async function findProperty(id: string) {
-  const property = await prisma.property.findUnique({ where: { id } });
+  const property = await loadProperty(id);
   if (!property) throw new RecordNotFoundError("Property");
   return property;
 }
 
 // For writes to a Property or under it, as `what`: one in Trash counts as
 // not found.
-function findLiveProperty(id: string, what = "Property") {
-  return findLiveParent(prisma.property.findUnique({ where: { id } }), what);
+function findLiveProperty(id: string, what = "Property", db: Db = prisma) {
+  return findLiveParent(loadProperty(id, db), what);
 }
 
 export async function createPropertyCommand(input: PropertyInput, actorId: string) {
@@ -76,9 +88,14 @@ export async function updatePropertyCommand(
   options: UpdateOptions = {},
 ) {
   await assertModuleEnabled("HOME");
-  await findLiveProperty(id);
-  await updateUnlessStale(options.baseUpdatedAt, (guard) =>
-    prisma.property.updateMany({ where: { id, ...guard }, data: { ...patch, updatedById: actorId } }),
+  await updateLiveUnlessStale(
+    options.baseUpdatedAt,
+    (guard) =>
+      prisma.property.updateMany({
+        where: { id, deletedAt: null, ...guard },
+        data: { ...patch, updatedById: actorId },
+      }),
+    () => findLiveProperty(id),
   );
   revalidatePropertyLists();
   revalidatePath(`/home/${id}`);
@@ -88,8 +105,11 @@ export async function updatePropertyCommand(
 // Turns rental tracking (the Rental tab) on or off for a Property.
 export async function setPropertyRentedCommand(id: string, isRented: boolean, actorId: string) {
   await assertModuleEnabled("HOME");
-  await findLiveProperty(id);
-  await prisma.property.update({ where: { id }, data: { isRented, updatedById: actorId } });
+  await updateLiveUnlessStale(
+    undefined,
+    () => prisma.property.updateMany({ where: { id, deletedAt: null }, data: { isRented, updatedById: actorId } }),
+    () => findLiveProperty(id),
+  );
   revalidatePath(`/home/${id}`);
   revalidatePath(`/home/${id}/rental`);
 }
@@ -156,16 +176,18 @@ function inScope(record: { propertyId: string } | null, scope: PropertyScope) {
 
 // ── Maintenance record (HomeItem) ───────────────────────────────────────────
 
-async function findMaintenanceRecord(id: string, scope: PropertyScope = {}) {
-  const item = await prisma.homeItem.findUnique({ where: { id } });
+async function findMaintenanceRecord(id: string, scope: PropertyScope = {}, db: Db = prisma) {
+  const item = await db.homeItem.findUnique({ where: { id } });
   if (!item || !inScope(item, scope)) throw new RecordNotFoundError("Maintenance record");
   return item;
 }
 
 export async function createMaintenanceRecordCommand(propertyId: string, input: HomeItemInput) {
   await assertModuleEnabled("HOME");
-  await findLiveProperty(propertyId);
-  const item = await prisma.homeItem.create({ data: { ...input, propertyId } });
+  const item = await prisma.$transaction(async (tx) => {
+    await findLiveProperty(propertyId, "Property", tx);
+    return tx.homeItem.create({ data: { ...input, propertyId } });
+  });
   revalidatePath(`/home/${propertyId}`);
   return item;
 }
@@ -177,13 +199,21 @@ export async function updateMaintenanceRecordCommand(
   options: UpdateOptions & PropertyScope = {},
 ) {
   await assertModuleEnabled("HOME");
-  const existing = requireLive(await findMaintenanceRecord(id, options), "Maintenance record");
-  await findLiveProperty(existing.propertyId, "Maintenance record");
-  await updateUnlessStale(options.baseUpdatedAt, (guard) =>
-    prisma.homeItem.updateMany({ where: { id, ...guard }, data: patch }),
+  await updateLiveUnlessStale(
+    options.baseUpdatedAt,
+    (guard) =>
+      prisma.homeItem.updateMany({
+        where: { id, propertyId: options.propertyId, deletedAt: null, property: { deletedAt: null }, ...guard },
+        data: patch,
+      }),
+    async () => {
+      const existing = requireLive(await findMaintenanceRecord(id, options), "Maintenance record");
+      await findLiveProperty(existing.propertyId, "Maintenance record");
+    },
   );
-  revalidatePath(`/home/${existing.propertyId}`);
-  return findMaintenanceRecord(id);
+  const item = await findMaintenanceRecord(id);
+  revalidatePath(`/home/${item.propertyId}`);
+  return item;
 }
 
 export async function deleteMaintenanceRecordCommand(id: string, scope: PropertyScope = {}) {
@@ -196,12 +226,15 @@ export async function deleteMaintenanceRecordCommand(id: string, scope: Property
 
 export async function restoreMaintenanceRecordCommand(id: string) {
   await assertModuleEnabled("HOME");
-  const existing = await findMaintenanceRecord(id);
-  assertParentRestored(
-    await prisma.property.findUnique({ where: { id: existing.propertyId }, select: { deletedAt: true } }),
-    "Property",
-  );
-  await prisma.homeItem.update({ where: { id }, data: { deletedAt: null } });
+  const existing = await prisma.$transaction(async (tx) => {
+    const item = await findMaintenanceRecord(id, {}, tx);
+    assertParentRestored(
+      await tx.property.findUnique({ where: { id: item.propertyId }, select: { deletedAt: true } }),
+      "Property",
+    );
+    await tx.homeItem.update({ where: { id }, data: { deletedAt: null } });
+    return item;
+  });
   revalidatePath(`/home/${existing.propertyId}`);
   revalidatePath("/settings/trash");
 }
@@ -267,11 +300,12 @@ async function findTenancy(id: string, scope: PropertyScope = {}) {
 // Adding a Tenancy also turns rental tracking on for its Property.
 export async function createTenancyCommand(propertyId: string, input: RentalAgreementInput, actorId: string) {
   await assertModuleEnabled("HOME");
-  await findLiveProperty(propertyId);
-  const [agreement] = await prisma.$transaction([
-    prisma.rentalAgreement.create({ data: { ...input, propertyId } }),
-    prisma.property.update({ where: { id: propertyId }, data: { isRented: true, updatedById: actorId } }),
-  ]);
+  const agreement = await prisma.$transaction(async (tx) => {
+    await findLiveProperty(propertyId, "Property", tx);
+    const created = await tx.rentalAgreement.create({ data: { ...input, propertyId } });
+    await tx.property.update({ where: { id: propertyId }, data: { isRented: true, updatedById: actorId } });
+    return created;
+  });
   revalidateRental(propertyId);
   return agreement;
 }
@@ -284,10 +318,20 @@ export async function updateTenancyCommand(
   scope: PropertyScope = {},
 ) {
   await assertModuleEnabled("HOME");
-  const existing = await findTenancy(id, scope);
-  await findLiveProperty(existing.propertyId, "Tenancy");
-  const agreement = await prisma.rentalAgreement.update({ where: { id }, data: patch });
-  revalidateRental(existing.propertyId);
+  await updateLiveUnlessStale(
+    undefined,
+    () =>
+      prisma.rentalAgreement.updateMany({
+        where: { id, propertyId: scope.propertyId, property: { deletedAt: null } },
+        data: patch,
+      }),
+    async () => {
+      const existing = await findTenancy(id, scope);
+      await findLiveProperty(existing.propertyId, "Tenancy");
+    },
+  );
+  const agreement = await findTenancy(id);
+  revalidateRental(agreement.propertyId);
   return agreement;
 }
 
@@ -316,7 +360,11 @@ export async function linkTenancyContractCommand(
     if (other) throw new TenancyContractLinkError("already-linked");
   }
   try {
-    await prisma.rentalAgreement.update({ where: { id }, data: { contractId } });
+    await updateLiveUnlessStale(
+      undefined,
+      () => prisma.rentalAgreement.updateMany({ where: { id, property: { deletedAt: null } }, data: { contractId } }),
+      () => findLiveProperty(existing.propertyId, "Tenancy"),
+    );
   } catch (error) {
     if (isUniqueViolation(error)) throw new TenancyContractLinkError("already-linked");
     throw error;
@@ -347,8 +395,10 @@ async function findRentalStatement(id: string, scope: PropertyScope = {}) {
 
 export async function createRentalStatementCommand(propertyId: string, input: RentalStatementInput) {
   await assertModuleEnabled("HOME");
-  await findLiveProperty(propertyId);
-  const statement = await prisma.rentalStatement.create({ data: { ...input, propertyId } });
+  const statement = await prisma.$transaction(async (tx) => {
+    await findLiveProperty(propertyId, "Property", tx);
+    return tx.rentalStatement.create({ data: { ...input, propertyId } });
+  });
   revalidatePath(`/home/${propertyId}/rental`);
   return statement;
 }
@@ -360,13 +410,21 @@ export async function updateRentalStatementCommand(
   options: UpdateOptions & PropertyScope = {},
 ) {
   await assertModuleEnabled("HOME");
-  const existing = await findRentalStatement(id, options);
-  await findLiveProperty(existing.propertyId, "Rental statement");
-  await updateUnlessStale(options.baseUpdatedAt, (guard) =>
-    prisma.rentalStatement.updateMany({ where: { id, ...guard }, data: patch }),
+  await updateLiveUnlessStale(
+    options.baseUpdatedAt,
+    (guard) =>
+      prisma.rentalStatement.updateMany({
+        where: { id, propertyId: options.propertyId, property: { deletedAt: null }, ...guard },
+        data: patch,
+      }),
+    async () => {
+      const existing = await findRentalStatement(id, options);
+      await findLiveProperty(existing.propertyId, "Rental statement");
+    },
   );
-  revalidatePath(`/home/${existing.propertyId}/rental`);
-  return findRentalStatement(id);
+  const statement = await findRentalStatement(id);
+  revalidatePath(`/home/${statement.propertyId}/rental`);
+  return statement;
 }
 
 // A Rental statement has no Trash: this deletes it and its files for good.
@@ -385,8 +443,10 @@ export async function permanentlyDeleteRentalStatementCommand(id: string, scope:
 
 export async function createPropertyValuationCommand(propertyId: string, input: PropertyValuationInput) {
   await assertModuleEnabled("HOME");
-  await findLiveProperty(propertyId);
-  const valuation = await prisma.propertyValuation.create({ data: { ...input, propertyId } });
+  const valuation = await prisma.$transaction(async (tx) => {
+    await findLiveProperty(propertyId, "Property", tx);
+    return tx.propertyValuation.create({ data: { ...input, propertyId } });
+  });
   revalidatePath(`/home/${propertyId}`);
   revalidatePath("/wealth");
   return valuation;
