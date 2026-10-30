@@ -140,7 +140,7 @@ export default async function InventoryItemPage({
 
       <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
         <h2 className="mb-3 font-medium">Documents</h2>
-        <InventoryItemDocumentList documents={item.documents} dateFormat={dateFormat} />
+        <InventoryItemDocumentList documents={item.documents} />
         {canWrite && (
           <div className="mt-4 border-t border-border pt-4">
             <DocumentUploadForm action={addDocumentAction.bind(null, "INVENTORY_ITEM", id)} />
@@ -153,7 +153,6 @@ export default async function InventoryItemPage({
         createdAt={item.createdAt}
         updatedAt={item.updatedAt}
         updatedByName={item.updatedBy?.name}
-        dateFormat={dateFormat}
         memberCount={memberCount}
       />
     </div>

@@ -30,13 +30,14 @@ const DEFAULT_PREFERENCES: Omit<UserPreferences, "displayTimeZone"> = {
 // immediately instead of waiting for the session token to refresh.
 export const getUserPreferences = cache(async (): Promise<UserPreferences> => {
   const session = await auth();
+  // No session (a page rendering mid sign-out): nothing personal to show, so
+  // skip both reads.
+  if (!session?.user?.id) return { ...DEFAULT_PREFERENCES, displayTimeZone: "UTC" };
   const [user, householdTimeZone] = await Promise.all([
-    session?.user?.id
-      ? prisma.user.findUnique({
-          where: { id: session.user.id },
-          select: { dateFormat: true, preferredCurrency: true, timezone: true, region: true },
-        })
-      : null,
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { dateFormat: true, preferredCurrency: true, timezone: true, region: true },
+    }),
     getHouseholdTimeZone(),
   ]);
   if (!user) return { ...DEFAULT_PREFERENCES, displayTimeZone: householdTimeZone };

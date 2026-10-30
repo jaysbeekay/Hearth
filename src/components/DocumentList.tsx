@@ -14,10 +14,8 @@ function DeleteButton({ doc }: { doc: DocumentModel }) {
 
 export function DocumentList({
   documents,
-  dateFormat,
 }: {
   documents: DocumentModel[];
-  dateFormat?: string;
 }) {
   if (documents.length === 0) {
     return <p className="text-sm text-muted">No documents uploaded yet.</p>;
@@ -69,7 +67,7 @@ export function DocumentList({
                 </span>
                 <span className="flex flex-wrap items-center gap-x-2 sm:shrink-0">
                   <span className="text-muted">
-                    {humanFileSize(doc.size)} · <Timestamp value={doc.uploadedAt} dateFormat={dateFormat} />
+                    {humanFileSize(doc.size)} · <Timestamp value={doc.uploadedAt} />
                   </span>
                   {older.length > 0 && (
                     <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-accent/10 px-1.5 py-0.5 text-xs font-medium text-accent">
@@ -105,7 +103,7 @@ export function DocumentList({
                         <span className="min-w-0 truncate">{v.filename}</span>
                       </span>
                       <span className="min-w-0 sm:shrink-0">
-                        {humanFileSize(v.size)} · <Timestamp value={v.uploadedAt} dateFormat={dateFormat} />
+                        {humanFileSize(v.size)} · <Timestamp value={v.uploadedAt} />
                       </span>
                     </DocumentLink>
                     <DeleteButton doc={v} />
