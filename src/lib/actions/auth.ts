@@ -21,7 +21,7 @@ import { formDataToStringValues } from "@/lib/form-state";
 import { isKnownModuleKey } from "@/lib/modules/enablement";
 import type { ModuleKey } from "@/lib/modules/registry";
 import { DATE_FORMAT_OPTIONS, REGION_OPTIONS } from "@/lib/utils";
-import { TIMEZONE_OPTIONS } from "@/lib/timezones";
+import { isUserTimeZoneOption } from "@/lib/timezones";
 import { POPULAR_CURRENCIES } from "@/components/CurrencySelect";
 import { env, isAppUrlConfigured, isSetupTokenRequired } from "@/lib/env";
 import { generateToken, hashToken } from "@/lib/crypto";
@@ -459,10 +459,7 @@ export async function updateUserPreferences(
   ) {
     return { error: "Invalid currency." };
   }
-  if (
-    typeof timezone !== "string" ||
-    !TIMEZONE_OPTIONS.includes(timezone as (typeof TIMEZONE_OPTIONS)[number])
-  ) {
+  if (!isUserTimeZoneOption(timezone)) {
     return { error: "Invalid timezone." };
   }
   if (
@@ -672,6 +669,8 @@ export async function acceptInvitation(
   return { success: "Password set. You can now sign in." };
 }
 
+// The caller (SignOutButton) does a full page load to /login afterwards, so
+// no client-side router cache of the signed-out user's pages survives.
 export async function logout() {
-  await signOut({ redirectTo: "/login" });
+  await signOut({ redirect: false });
 }

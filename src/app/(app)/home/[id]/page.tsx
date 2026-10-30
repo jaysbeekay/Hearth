@@ -34,6 +34,8 @@ import { DetailStatusBanner } from "@/components/DetailStatusBanner";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { ReminderHealthCard } from "@/components/ReminderHealthCard";
+import { getReminderHealth } from "@/lib/notifications/health";
 
 const ITEM_ICONS: Record<string, LucideIcon> = {
   MAINTENANCE: Wrench,
@@ -83,6 +85,11 @@ export default async function PropertyDetailPage({
   // #384 — the current Tenancy's lease end, from the Due policy: Due
   // before it passes, then Housekeeping until the new lease end is set.
   const tenancy = currentTenancy(property);
+  // #388 — the lease end gets Reminders like any other Due entry; the card
+  // reads the same Reminder schedule the scheduler sends from.
+  const leaseReminderHealth = tenancy?.leaseEnd
+    ? await getReminderHealth({ ownerType: "TENANCY", ownerId: tenancy.id, record: { kind: "tenancy", ...tenancy } })
+    : null;
 
   const latestValuation = property.valuations[0] ?? null;
   const valuationStale = !latestValuation || isValuationStale(latestValuation.valuedAt);
@@ -252,7 +259,7 @@ export default async function PropertyDetailPage({
 
                   <div className="mt-4 border-t border-border pt-4">
                     <h3 className="mb-2 text-sm font-medium">Documents</h3>
-                    <HomeItemDocumentList documents={item.documents} dateFormat={dateFormat} />
+                    <HomeItemDocumentList documents={item.documents} />
                     {canWrite && (
                       <div className="mt-3">
                         <DocumentUploadForm action={addDocumentAction.bind(null, "HOME_ITEM", item.id)} />
@@ -389,12 +396,20 @@ export default async function PropertyDetailPage({
         </div>
       )}
 
+      {tenancy && leaseReminderHealth && (
+        <ReminderHealthCard
+          title="Lease reminders"
+          health={leaseReminderHealth}
+          dateFormat={dateFormat}
+          testTarget={{ kind: "tenancy", id: tenancy.id }}
+        />
+      )}
+
       <RecordMeta
         createdByName={property.createdBy.name}
         updatedByName={property.updatedBy?.name}
         createdAt={property.createdAt}
         updatedAt={property.updatedAt}
-        dateFormat={dateFormat}
         memberCount={memberCount}
       />
     </div>

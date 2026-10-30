@@ -18,9 +18,47 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   GHSA-xhq7-xmqj-769h, GHSA-333x-w4r6-6crp). The remaining low-severity
   `npm audit` entries all trace to `@simplewebauthn/server` 9.x and are
   tracked in #376.
+- **Signing out clears this device's offline data (#424).** Sign out now
+  deletes the service worker's cached pages and data (and serwist's record
+  of their URLs), the offline write queue and offline Documents, then does
+  a full page load to the sign-in page, so Back can't show the previous
+  user's pages and the next person to use a shared browser can't see or
+  replay any of it. If changes are still waiting to sync, including ones a
+  sync is sending right now or left mid-sync by a closed tab, it first
+  waits for that sync and asks: Sync now (signs out only once they've
+  synced), Discard and sign out, or Cancel. Signing out while offline is
+  refused, and if the server can't be reached anyway, the tab stays signed
+  in with offline use working, rather than half signed out. Other open
+  tabs reload, and Escape on a phone closes just the prompt, not the More
+  sheet behind it. When a session ends without Sign out (a password change, an
+  expiry), the sign-in page drops offline Documents and cached lists too,
+  keeping only the write queue for that user's return. Offline data is
+  also tied to the user who stored it: a different user signing in never
+  sees the last user's queued changes or downloads and purges them,
+  `/api/sync` refuses a change queued by another account, a read-only
+  member can't queue changes offline (one made read-only is told their
+  queued changes can't be saved, and can discard them), and the service worker serves no
+  cached signed-in page once nobody is signed in or the session has
+  expired. Changes queued before this release carry no owner: the first
+  member who can write to sign in takes them on (a read-only member's
+  sign-in purges them instead), and offline Documents and cached lists
+  from before it are purged. If someone other than the person who queued
+  them is that first writer, they'll sync under that member's account.
 
 ### Added
 
+- **Reminders for a tenancy's lease end.** The current tenancy of a rented
+  property now gets Reminders before its lease ends, linking to the
+  property: an email headed `Reminder: lease for "Beach Flat" ends in 30
+  days`, an ntfy push titled `Lease for Beach Flat ends in 30 days`, and a
+  webhook. The tenant's name is only in the email; ntfy and webhooks leave
+  it out. It uses the household default thresholds unless the tenancy
+  sets its own: the tenancy form has a new "Reminder thresholds" field,
+  which also sets how early the lease end shows as Due. The property page
+  has a "Lease reminders" health card, a failed lease Reminder shows on the
+  dashboard and in Settings' reminder roll-up, and webhooks get a new
+  `tenancy.expiring` event (see README → Webhooks). The standalone app
+  schedules a local notification for the lease end too (#388).
 - **Household timezone.** Admins pick any timezone in Settings → Household
   & System; until then it follows the server's `TZ`, else the server's own
   zone, else UTC. Reminders and due dates will count days in it, so every
@@ -87,6 +125,38 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- **One set of Contract queries for MCP and the Assistant, plus `whats_due`
+  (#394).** Both now call the same queries in `src/lib/domainQueries.ts`,
+  so they return the same answer:
+  - **Contract shape (breaking for MCP clients).** Every Contract tool
+    returns contacts and `isTaxDeductible` alike, plus `due` (the Due
+    policy's entries: field, date, daysLeft, state, label) and a top-level
+    `state`. `startDate` and `endDate` are now calendar days
+    (`YYYY-MM-DD`) instead of UTC-midnight timestamps; `createdAt` and
+    `updatedAt` stay timestamps. The old day-count fields are gone (see
+    Removed), with no deprecation period.
+  - **`upcoming_renewals`** lists Contracts with a notice deadline or end
+    date within N days (default 30), soonest first, so the Assistant now
+    counts to the notice deadline too (#351). Expired Contracts are
+    included as overdue, and an entry in state `later` is not Due (outside
+    its due-soon window, or an auto-renewing Contract's renewal date).
+    Ended, Cancelled and auto-renewing ones waiting on their new end date
+    are left out.
+  - **`spend_summary`** converts to one currency the way the dashboard and
+    Spending page do, so its total matches "about $X a month". It takes an
+    optional ISO 4217 `currency` (default: your preferred currency in the
+    Assistant, the first admin's over MCP; a household currency setting is
+    #453), may fetch current exchange rates, and lists
+    `unconvertedCurrencies` instead of adding them as-is. `byCategory`
+    now leaves out categories with no monthly spend (one-off charges, or
+    a currency with no rate) instead of listing them at 0.
+  - **New read-only `whats_due` tool** on both: every Due entry (due soon
+    or overdue) within N days across Contracts, Warranties and, when
+    enabled, Vehicle dates and Tenancy lease ends, the same entries Needs
+    attention lists as Due.
+  - The Assistant also gets `get_contract`, and both share their Contract
+    tool descriptions, now in the glossary's terms. `get_contract` no
+    longer lists trashed documents.
 - **CI split into separate required checks.** `.github/workflows/ci.yml` replaces
   `e2e.yml` with one job per check: `typecheck`, `lint`, `unit`, `build`, `e2e`
   and `standalone`. A failing lint step no longer shows up as an "e2e" failure.
@@ -357,6 +427,11 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Removed
 
+- **MCP and Assistant Contract day-count fields (#394, breaking for MCP
+  clients).** `daysUntilEnd`, `cancelBy`, `daysUntilCancelBy` and
+  `daysUntilDeadline` are gone from every Contract tool, with no
+  deprecation period; read the `due` entries and `state` instead.
+- `src/lib/contractTiming.ts`: Contracts use the Due policy (#394).
 - The mobile navigation drawer (`MobileNavDrawer`), its menu button and
   its left-edge swipe; the bottom bar's More sheet replaces it (#407).
 - Search's "Missing reminder" and "Missing link" filters. A blank Reminder
@@ -385,6 +460,12 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   update proposals follow the same rule. A refused link on an edit form
   keeps what was entered. An offline edit that's both stale and links a
   trashed record is reported as stale.
+- **Day counts a day short on servers west of UTC (#394).** `daysUntil`
+  read stored dates (UTC midnight) in the server's local time, so MCP and
+  the Assistant's warranty and vehicle day counts came out a day short west
+  of UTC. It now reads the date's UTC day and counts from the household's
+  day. `contractTiming`, which had the same bug, is removed: Contracts use
+  the Due policy.
 - **Wealth: net worth adds up, and crypto is priced from CoinGecko (#404).**
   The Wealth page shows the total above a plain list of every part of it
   (shares/ETFs/crypto, Property, Items), so the figures always sum to the
@@ -444,31 +525,26 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   proposals are unchanged. The card also shows dates as calendar dates and a
   linked Property or Vehicle by name, and the Assistant can no longer link a
   record to a Property or Vehicle while that module is off.
-- **Signing out clears this device's offline data (#424).** Sign out now
-  deletes the service worker's cached pages and data, the offline write
-  queue and offline Documents, so the next person to use a shared browser
-  can't see or replay any of it. If changes are still waiting to sync, it
-  first asks: Sync now (signs out only once they've synced), Discard and
-  sign out, or Cancel. Offline data is also tied to the user who stored it:
-  a different user signing in, even after a session that ended without a
-  sign-out, never sees the last user's queued changes or downloads and
-  purges them, `/api/sync` refuses a change queued by another account, a
-  read-only member can't queue changes offline, and the service worker
-  serves no cached signed-in page once nobody is signed in or the session
-  has expired.
 - **Due labels and dates follow your date format, and stay on their day
   (#422).** Badges and banners such as "Cancel by 4 Nov" now read in the
   Date format chosen in Settings → Preferences ("Cancel by Nov 4" for
-  MM/DD/YYYY, "Cancel by 2026-11-04" for YYYY-MM-DD), with day counts in
-  the Region's number style, on the lists, dashboard, Needs attention,
-  Upcoming and detail pages. The Due policy now returns each label as a key
-  and its parameters, and the screen formats it; its plain labels, and the
-  shared Due cases, are unchanged. Calendar dates (end dates, expiries,
-  purchase dates and so on) are stored at UTC midnight and now always read
-  as that day: on a server or browser west of UTC, a 1 Dec end date could
-  show as 30 Nov. Moments in time, such as when a document was uploaded or
-  a Reminder sent, show in your own timezone, or the household's until you
-  pick one.
+  MM/DD/YYYY, "Cancel by 2026-11-04" for YYYY-MM-DD) on the lists,
+  dashboard, Needs attention, Upcoming, detail pages and the Assistant's
+  confirmation card. The Due policy now returns each label as a key and its
+  parameters, and the screen formats it; its plain labels, and the shared
+  Due cases, are unchanged. Calendar dates (end dates, expiries, purchase
+  dates and so on) are stored at UTC midnight and now always read as that
+  day: on a server or browser west of UTC, a 1 Dec end date could show as
+  30 Nov. The same goes for the financial-year totals and the Spend
+  timeline's month and year bars. Dates are built from one English month
+  table rather than the runtime's locale data, so the server and the
+  browser always render the same text, badges and date fields agree
+  ("Sep", never "Sept"), month names stay English on Upcoming whatever the
+  Region, and day counts are plain digits. Moments in time, such as when a
+  document was uploaded or a Reminder sent, show in your own timezone.
+  Preferences' timezone now starts with "Household default"; a member who
+  never picked one (stored as "UTC", the old default) follows the
+  household's timezone, and choosing UTC itself is now honoured.
 - **Records in Trash stay read-only, and so does everything under them
   (#428).** An offline edit replayed after the record was trashed on another
   device could add a Service record to a Vehicle in Trash, or a segment to a

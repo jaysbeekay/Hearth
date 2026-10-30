@@ -72,7 +72,7 @@ const GUESSED_TYPE_LABELS = new Map<string, string>([
   ["INVENTORY", "inventory item"],
 ]);
 
-function ReadOnlyInboxList({ docs, dateFormat }: { docs: InboxDocSummary[]; dateFormat?: string }) {
+function ReadOnlyInboxList({ docs }: { docs: InboxDocSummary[] }) {
   return (
     <ul className="space-y-3">
       {docs.map((doc) => (
@@ -85,7 +85,7 @@ function ReadOnlyInboxList({ docs, dateFormat }: { docs: InboxDocSummary[]; date
             {/* #403 — let long "via email from" addresses wrap instead of
                 overflowing the card. */}
             <span className="min-w-0 text-xs break-words text-muted">
-              {humanFileSize(doc.size)} · <Timestamp value={doc.uploadedAt} dateFormat={dateFormat} />
+              {humanFileSize(doc.size)} · <Timestamp value={doc.uploadedAt} />
               {doc.fromAddress && ` · via email from ${doc.fromAddress}`}
             </span>
           </div>
@@ -301,7 +301,6 @@ async function previewFields(docId: string, type: EntityType, filename: string) 
 
 export function InboxReviewClient({
   docs,
-  dateFormat,
   inventoryEnabled,
   properties = [],
   vehicles = [],
@@ -309,7 +308,6 @@ export function InboxReviewClient({
   vehiclesEnabled = false,
 }: {
   docs: InboxDocSummary[];
-  dateFormat?: string;
   inventoryEnabled: boolean;
   properties?: { id: string; label: string }[];
   vehicles?: { id: string; label: string }[];
@@ -549,7 +547,7 @@ export function InboxReviewClient({
 
       {/* #400 — read-only members see what's waiting, and can filter it, as
           plain text: no classify fields, Save or Discard. */}
-      {!canWrite && visibleDocs.length > 0 && <ReadOnlyInboxList docs={visibleDocs} dateFormat={dateFormat} />}
+      {!canWrite && visibleDocs.length > 0 && <ReadOnlyInboxList docs={visibleDocs} />}
 
       {canWrite && visibleDocs.map((doc) => {
         const row = rows[doc.id];
@@ -575,7 +573,7 @@ export function InboxReviewClient({
                   <span className="min-w-0 truncate text-sm font-medium">{doc.filename}</span>
                 </a>
                 <span className="min-w-0 text-xs break-words text-muted">
-                  {humanFileSize(doc.size)} · <Timestamp value={doc.uploadedAt} dateFormat={dateFormat} />
+                  {humanFileSize(doc.size)} · <Timestamp value={doc.uploadedAt} />
                   {doc.fromAddress && ` · via email from ${doc.fromAddress}`}
                 </span>
               </div>
