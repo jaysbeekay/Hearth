@@ -18,7 +18,8 @@ import { DetailStatusBanner } from "@/components/DetailStatusBanner";
 import { ExtractionReviewPanel } from "@/components/ExtractionReviewPanel";
 import { DetailField as Detail } from "@/components/DetailField";
 import { ProductDocumentUploadForm } from "@/components/ProductDocumentUploadForm";
-import { ProductDocumentList } from "@/components/ProductDocumentList";
+import { DocumentList } from "@/components/DocumentList";
+import { getTrashedVersionLinks } from "@/lib/documents/trashedVersionLinks";
 import { RecordMeta } from "@/components/RecordMeta";
 import { ReminderHealthCard } from "@/components/ReminderHealthCard";
 import { getReminderHealth } from "@/lib/notifications/health";
@@ -58,6 +59,7 @@ export default async function ProductDetailPage({
     getDueContext(),
   ]);
   if (!product || product.deletedAt) notFound();
+  const trashedLinks = await getTrashedVersionLinks("PRODUCT", [product.id]);
 
   const pendingReview = product.extractionPending
     ? await getPendingExtractionReview("PRODUCT", product.id)
@@ -211,7 +213,7 @@ export default async function ProductDetailPage({
 
       <div id="documents" className="scroll-mt-20 rounded-xl border border-border bg-surface p-4 md:p-6">
         <h2 className="mb-3 font-medium">Documents</h2>
-        <ProductDocumentList documents={product.documents} />
+        <DocumentList kind="PRODUCT" ownerId={product.id} documents={product.documents} trashedLinks={trashedLinks.get(product.id)} />
         {canWrite && (
           <div className="mt-4 border-t border-border pt-4">
             <ProductDocumentUploadForm action={boundUpload} />

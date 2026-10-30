@@ -35,6 +35,7 @@ export interface VehicleDueRow {
 
 export interface TenancyDueRow {
   leaseEnd: DateInput;
+  reminderDaysBefore?: string | null;
 }
 
 export function contractDue(row: ContractDueRow, ctx: DueContext): DueEntry[] {
@@ -72,7 +73,7 @@ export function vehicleDue(row: VehicleDueRow, ctx: DueContext): DueEntry[] {
 }
 
 export function tenancyDue(row: TenancyDueRow, ctx: DueContext): DueEntry[] {
-  return dueEntries({ kind: "tenancy", leaseEnd: row.leaseEnd }, ctx);
+  return dueEntries({ kind: "tenancy", leaseEnd: row.leaseEnd, reminderDaysBefore: row.reminderDaysBefore }, ctx);
 }
 
 /**
@@ -151,5 +152,6 @@ export const TENANCY_AGREEMENT_SELECT = {
   tenantName: true,
   leaseStart: true,
   leaseEnd: true,
+  reminderDaysBefore: true,
   createdAt: true,
 } as const;

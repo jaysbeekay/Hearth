@@ -4,6 +4,7 @@ import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { createRentalAgreement } from "@/lib/actions/home";
 import { RentalAgreementForm } from "@/components/RentalAgreementForm";
 import { getUserPreferences } from "@/lib/userPreferences";
+import { getReminderConfig } from "@/lib/appSettings";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
@@ -17,9 +18,10 @@ export default async function NewRentalAgreementPage({
 
   const { id } = await params;
   redirectIfReadOnly(await auth(), `/home/${id}/rental`);
-  const [property, { preferredCurrency }] = await Promise.all([
+  const [property, { preferredCurrency }, { defaultDays }] = await Promise.all([
     prisma.property.findUnique({ where: { id } }),
     getUserPreferences(),
+    getReminderConfig(),
   ]);
   if (!property || property.deletedAt) notFound();
 
@@ -45,6 +47,7 @@ export default async function NewRentalAgreementPage({
           action={boundAction}
           propertyId={property.id}
           defaultCurrency={preferredCurrency}
+          defaultReminderDays={defaultDays}
         />
       </div>
     </div>

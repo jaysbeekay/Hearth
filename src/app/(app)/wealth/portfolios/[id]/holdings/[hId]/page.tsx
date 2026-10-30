@@ -9,11 +9,10 @@ import { addDocumentAction } from "@/lib/actions/documents";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/utils";
 import { refreshPricesForTickers, getPriceMap, fetchAndStorePriceHistory, getPriceHistory } from "@/lib/prices";
 import { deleteHolding, deleteTrade } from "@/lib/actions/wealth";
-import { DocumentDeleteButton } from "@/components/DocumentDeleteButton";
-import { documentFileHref } from "@/lib/documents/kinds";
+import { DocumentList } from "@/components/DocumentList";
+import { getTrashedVersionLinks } from "@/lib/documents/trashedVersionLinks";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
-import { DocumentLink } from "@/components/DocumentLink";
 import { ASSET_CLASS_LABELS, TRADE_TYPE_LABELS, COST_METHOD_LABELS } from "@/lib/validation/wealth";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { costUsesTodaysRate, holdingUnitsAndCostIn, valueHolding } from "@/lib/wealth";
@@ -205,6 +204,11 @@ export default async function HoldingPage({
   if (!holding || holding.portfolioId !== portfolioId) {
     notFound();
   }
+
+  const trashedLinks = await getTrashedVersionLinks(
+    "TRADE",
+    holding.trades.map((t) => t.id),
+  );
 
   await refreshPricesForTickers([holding]).catch(() => {});
   const priceMap = await getPriceMap([holding]);
@@ -468,29 +472,12 @@ export default async function HoldingPage({
                   {(canWrite || trade.documents.length > 0) && (
                     <div className="mt-3 border-t border-border pt-3">
                       {trade.documents.length > 0 && (
-                        <div className="mb-2 flex flex-wrap gap-2">
-                          {trade.documents.map((doc) => (
-                            <div key={doc.id} className="flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-xs">
-                              <DocumentLink
-                                href={documentFileHref(doc.id)}
-                                filename={doc.filename}
-                                mimeType={doc.mimeType}
-                                size={doc.size}
-                                className="text-accent hover:underline truncate max-w-40"
-                              >
-                                {doc.filename}
-                              </DocumentLink>
-                              <DocumentDeleteButton
-                                kind="TRADE"
-                                documentId={doc.id}
-                                ownerId={trade.id}
-                                filename={doc.filename}
-                                className="rounded p-1 text-danger hover:text-danger/70"
-                                iconSize={12}
-                              />
-                            </div>
-                          ))}
-                        </div>
+                        <DocumentList
+                          kind="TRADE"
+                          ownerId={trade.id}
+                          documents={trade.documents}
+                          trashedLinks={trashedLinks.get(trade.id)}
+                        />
                       )}
                       <DocumentUploadForm action={addDocumentAction.bind(null, "TRADE", trade.id)} />
                     </div>

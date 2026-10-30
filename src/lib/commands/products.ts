@@ -4,17 +4,20 @@ import { removeOwnerDocumentFiles } from "@/lib/commands/documents";
 import { clearNotificationLogs } from "@/lib/notifications/logs";
 import {
   updateUnlessStale,
+  assertNotStale,
   RecordNotFoundError,
   RecordValidationError,
   type UpdateOptions,
 } from "@/lib/commands/shared";
+import { assertLinksLive, newLinks } from "@/lib/commands/links";
 import type { ClearablePatch } from "@/lib/validation/fullFormUpdate";
 import type { ProductInput } from "@/lib/validation/product";
 import type { Prisma } from "@/generated/prisma/client";
 
 // Record commands for Products (Items), as for Contracts in
 // commands/contracts.ts (ADR 0003): every write to `product` goes through
-// here, and a Product in Trash is read-only until it's restored.
+// here, and a Product in Trash is read-only until it's restored. Its
+// Property link is checked as a Contract's is (links.ts).
 
 /** Extraction bookkeeping a create or update can set alongside the input. */
 export interface ProductExtractionFields {
@@ -78,7 +81,12 @@ async function writeProduct(id: string, actorId: string, options: UpdateOptions,
   await prisma.$transaction(async (tx) => {
     const existing = await findLiveProduct(id, tx);
     const patch = typeof write.patch === "function" ? await write.patch(tx) : write.patch;
+    // Stale first, so a stale offline replay is reported as stale rather
+    // than as a link it no longer means to set.
+    assertNotStale(existing, options.baseUpdatedAt);
     assertDateOrder(existing, patch);
+    // In the transaction, so a move to Trash can't land between check and write (#447).
+    await assertLinksLive(newLinks(patch, existing), tx);
     // A date change needs no Reminder-log reset: the log is keyed by date (ADR 0003).
     await updateUnlessStale(options.baseUpdatedAt, (guard) =>
       tx.product.updateMany({ where: { id, ...guard }, data: { ...patch, updatedById: actorId } }),
@@ -93,8 +101,9 @@ export async function createProductCommand(
   actorId: string,
   extra?: ProductExtractionFields,
 ) {
-  const product = await prisma.product.create({
-    data: { ...input, ...extra, createdById: actorId },
+  const product = await prisma.$transaction(async (tx) => {
+    await assertLinksLive(input, tx);
+    return tx.product.create({ data: { ...input, ...extra, createdById: actorId } });
   });
   revalidatePath("/products");
   revalidatePath("/dashboard");

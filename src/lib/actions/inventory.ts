@@ -8,6 +8,8 @@ import { prisma } from "@/lib/prisma";
 import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
 import { inventoryItemSchema } from "@/lib/validation/inventory";
 import { addDocumentCommand, removeOwnerDocumentFiles } from "@/lib/commands/documents";
+import { updateInventoryItemCommand } from "@/lib/commands/inventory";
+import { RecordNotFoundError, RecordValidationError, StaleEditError } from "@/lib/commands/shared";
 import { formDataToStringValues } from "@/lib/form-state";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import type { ActionState } from "@/lib/actions/auth";
@@ -97,20 +99,17 @@ export async function updateInventoryItem(
     };
   }
 
-  const existing = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
-  if (!existing) return { error: "Item not found." };
-
+  // The command refuses an item in Trash as not found (#446).
   try {
-    await prisma.inventoryItem.update({
-      where: { id: itemId },
-      data: { ...fullFormUpdate(inventoryItemSchema, parsed.data, formData), updatedById: user.id },
-    });
-  } catch {
-    return { error: "Linked warranty no longer exists.", values: formDataToStringValues(formData, INVENTORY_ITEM_FORM_FIELDS) };
+    await updateInventoryItemCommand(itemId, fullFormUpdate(inventoryItemSchema, parsed.data, formData), user.id);
+  } catch (error) {
+    if (error instanceof RecordNotFoundError) return { error: "Item not found." };
+    if (error instanceof StaleEditError || error instanceof RecordValidationError) {
+      return { error: error.message, values: formDataToStringValues(formData, INVENTORY_ITEM_FORM_FIELDS) };
+    }
+    throw error;
   }
 
-  revalidatePath("/inventory");
-  revalidatePath(`/inventory/${itemId}`);
   redirect(`/inventory/${itemId}`);
 }
 

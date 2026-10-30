@@ -58,7 +58,24 @@ export async function updateUnlessStale(
   if (count === 0) throw new StaleEditError();
 }
 
-// ── Trash rules for writes (#428) ───────────────────────────────────────────
+/**
+ * The stale check up front, for a command that loads the record and then
+ * checks other things (its links) before the write: a stale edit is
+ * reported as stale rather than as whatever those checks refuse. Run it in
+ * the same transaction as the write; the guarded write still re-checks.
+ */
+export function assertNotStale(
+  record: { updatedAt: Date },
+  baseUpdatedAt: string | Date | null | undefined,
+): void {
+  if (!baseUpdatedAt) return;
+  const base = baseUpdatedAt instanceof Date ? baseUpdatedAt : new Date(baseUpdatedAt);
+  if (Number.isNaN(base.getTime()) || base.getTime() !== record.updatedAt.getTime()) {
+    throw new StaleEditError();
+  }
+}
+
+// ── Trash rules for writes (#428)───────────────────────────────────────────
 //
 // A record in Trash is read-only until it's restored, and so is everything
 // under it: a create or update under a parent in Trash, or an update to a

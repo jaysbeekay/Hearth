@@ -4,10 +4,12 @@ import { removeOwnerDocumentFiles } from "@/lib/commands/documents";
 import { clearNotificationLogs } from "@/lib/notifications/logs";
 import {
   updateUnlessStale,
+  assertNotStale,
   RecordNotFoundError,
   RecordValidationError,
   type UpdateOptions,
 } from "@/lib/commands/shared";
+import { assertLinksLive, newLinks } from "@/lib/commands/links";
 import type { ClearablePatch } from "@/lib/validation/fullFormUpdate";
 import type { ContractInput } from "@/lib/validation/contract";
 import type { Prisma } from "@/generated/prisma/client";
@@ -21,6 +23,10 @@ import type { Prisma } from "@/generated/prisma/client";
 // A Contract in Trash is read-only until it's restored: an update, a status
 // change or a Confirm details on one is refused as not found, as its page
 // already 404s. Delete, restore and permanent delete still work on it.
+//
+// A create or update that links a Property or Vehicle is refused unless
+// that record is live and its module is on (links.ts), checked in the
+// write's transaction. A link the Contract already has is kept as it is.
 
 /** Extraction bookkeeping a create or update can set alongside the input. */
 export interface ContractExtractionFields {
@@ -88,7 +94,12 @@ async function writeContract(id: string, actorId: string, options: UpdateOptions
   await prisma.$transaction(async (tx) => {
     const existing = await findLiveContract(id, tx);
     const patch = typeof write.patch === "function" ? await write.patch(tx) : write.patch;
+    // Stale first, so a stale offline replay is reported as stale rather
+    // than as a link it no longer means to set.
+    assertNotStale(existing, options.baseUpdatedAt);
     assertDateOrder(existing, patch);
+    // In the transaction, so a move to Trash can't land between check and write (#447).
+    await assertLinksLive(newLinks(patch, existing), tx);
     // A date change needs no Reminder-log reset: the log is keyed by date (ADR 0003).
     await updateUnlessStale(options.baseUpdatedAt, (guard) =>
       tx.contract.updateMany({ where: { id, ...guard }, data: { ...patch, updatedById: actorId } }),
@@ -103,8 +114,9 @@ export async function createContractCommand(
   actorId: string,
   extra?: ContractExtractionFields,
 ) {
-  const contract = await prisma.contract.create({
-    data: { ...input, ...extra, createdById: actorId },
+  const contract = await prisma.$transaction(async (tx) => {
+    await assertLinksLive(input, tx);
+    return tx.contract.create({ data: { ...input, ...extra, createdById: actorId } });
   });
   revalidatePath("/contracts");
   revalidatePath("/dashboard");

@@ -113,7 +113,7 @@ export type DueRecord =
        */
       coveredFields?: VehicleDueField[];
     }
-  | { kind: "tenancy"; leaseEnd: DateInput };
+  | { kind: "tenancy"; leaseEnd: DateInput; reminderDaysBefore?: string | null };
 
 export interface DueContext {
   today: CalendarDay;
@@ -407,8 +407,8 @@ function tenancyEntries(record: Extract<DueRecord, { kind: "tenancy" }>, ctx: Du
     // Like an auto-renewing Contract, it needs its new date: Housekeeping, not Due.
     return [makeEntry("leaseEnd", end, daysLeft, "needs-new-end-date", { key: "leaseEnded" })];
   }
-  // A Tenancy has no Reminder thresholds of its own, so the household default sets its window.
-  const window = dueSoonWindow(null, ctx.defaultReminderDays);
+  // Its own Reminder thresholds set its window, else the household default's (#388).
+  const window = dueSoonWindow(record.reminderDaysBefore, ctx.defaultReminderDays);
   return [upcoming("leaseEnd", end, daysLeft, window, "leaseEnds", ctx.today)];
 }
 

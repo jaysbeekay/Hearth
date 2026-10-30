@@ -13,7 +13,8 @@ import {
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailField as Detail } from "@/components/DetailField";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
-import { RentalStatementDocumentList } from "@/components/RentalStatementDocumentList";
+import { DocumentList } from "@/components/DocumentList";
+import { getTrashedVersionLinks } from "@/lib/documents/trashedVersionLinks";
 import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 import { formatCurrency, formatDate, formatTimestamp } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
@@ -99,6 +100,10 @@ export default async function RentalOverviewPage({
 
   const agreements = property.rentalAgreements;
   const statements = property.rentalStatements;
+  const trashedLinks = await getTrashedVersionLinks(
+    "RENTAL_STATEMENT",
+    statements.map((s) => s.id),
+  );
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -416,7 +421,10 @@ export default async function RentalOverviewPage({
                         <FileText size={14} className="text-muted" />
                         Documents
                       </div>
-                      <RentalStatementDocumentList
+                      <DocumentList
+                        kind="RENTAL_STATEMENT"
+                        ownerId={stmt.id}
+                        trashedLinks={trashedLinks.get(stmt.id)}
                         documents={stmt.documents}
                       />
                       {canWrite && (

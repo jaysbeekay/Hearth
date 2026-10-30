@@ -6,6 +6,7 @@ import { sendExpiryWebhooks } from "@/lib/notifications/webhook";
 import { activeChannels, channelList } from "@/lib/notifications/channels";
 import { getNotificationLogsByOwner, recordNotificationOutcome, toSentLogRow } from "@/lib/notifications/logs";
 import { dayToDate, reminderPlan, type ReminderChannel, type ReminderPlan } from "@/lib/notifications/reminderSchedule";
+import { getCurrentTenancies } from "@/lib/tenancies";
 import { purgeExpiredTrash } from "@/lib/trash";
 import { purgeExpiredSyncReceipts } from "@/lib/syncReceipts";
 import { reconcileDocumentStore } from "@/lib/documentStore";
@@ -184,5 +185,29 @@ export async function runExpirationCheck(now: Date = new Date()) {
     });
   }
 
-  return { checked: contracts.length + products.length + vehicles.length, sent: sentCount };
+  // #388 — a rented Property's current Tenancy, for its lease end. Its
+  // Reminder links to the Property, since a Tenancy has no page of its own.
+  const tenancies = await getCurrentTenancies();
+  const tenancyLogs = await getNotificationLogsByOwner(
+    "TENANCY",
+    tenancies.map((t) => t.tenancy.id),
+  );
+  for (const { propertyId, propertyLabel, tenancy } of tenancies) {
+    const sentLog = (tenancyLogs.get(tenancy.id) ?? []).map(toSentLogRow);
+    const plan = reminderPlan({ kind: "tenancy", ...tenancy }, ctx, sentLog);
+    await remind("TENANCY", tenancy.id, plan, (entry) => ({
+      kind: "tenancy",
+      id: tenancy.id,
+      propertyId,
+      title: propertyLabel,
+      detail: tenancy.tenantName ?? "",
+      daysRemaining: entry.daysLeft,
+      endDate: dayToDate(entry.date),
+    }));
+  }
+
+  return {
+    checked: contracts.length + products.length + vehicles.length + tenancies.length,
+    sent: sentCount,
+  };
 }
