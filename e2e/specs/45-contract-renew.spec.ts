@@ -91,7 +91,8 @@ test("renewing from Needs attention keeps the old Term and restarts Reminders", 
   await expect(history.getByText(shownDate(oldStart))).toBeVisible();
   await expect(history.getByText(shownDate(oldEnd))).toBeVisible();
   await expect(history.getByText(/1,000\.00 \/ annually/)).toBeVisible();
-  await expect(page.getByText(/1,120\.00 \/ annually · \+12% vs last term/)).toBeVisible();
+  await expect(page.getByText(/1,120\.00 \/ annually$/)).toBeVisible();
+  await expect(page.getByText("+12% vs prior term", { exact: true })).toBeVisible();
 
   // Reminders restart for the new Term: the next one is 30 days before its end.
   const nextReminder = page.locator("dt", { hasText: "Next reminder" }).locator("xpath=following-sibling::dd");
@@ -119,6 +120,8 @@ test("an auto-renewing Contract past its end date sets its new end date through 
   // A new end date that isn't after the current one is refused.
   await page.locator("#startDate").fill("");
   await page.locator("#endDate").fill(addDays(today, -3));
+  // An end date that has already passed is warned about before saving.
+  await expect(page.getByText(/This date has already passed/)).toBeVisible();
   await page.locator("main button[type=submit]").click();
   await expect(page.locator("#main").getByText("The new end date must be after the current one.")).toBeVisible();
 
@@ -129,12 +132,26 @@ test("an auto-renewing Contract past its end date sets its new end date through 
   await expect(page.getByRole("link", { name: "Set the new end date" })).toHaveCount(0);
 });
 
-test("a fixed-term Contract offers no Renew", async ({ page }) => {
+test("a fixed-term Contract offers no Renew, and its Renew page sends you back", async ({ page }) => {
   const today = await householdToday(page);
-  await createContract(page, {
+  const contractUrl = await createContract(page, {
     title: `Fixed Term Renew ${Date.now()}`,
     endDate: addDays(today, 5),
     renewalType: "FIXED_TERM",
   });
   await expect(page.getByRole("link", { name: "Renew", exact: true })).toHaveCount(0);
+  await page.goto(`${contractUrl}/renew`);
+  await page.waitForURL(contractUrl);
+});
+
+test("a Contract with no end date offers no Renew", async ({ page }) => {
+  await page.goto("/contracts/new");
+  await page.locator("#title").fill(`No End Date Renew ${Date.now()}`);
+  await page.locator("#provider").fill("Renew Provider");
+  await page.locator("main button[type=submit]").click();
+  await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
+  const contractUrl = page.url();
+  await expect(page.getByRole("link", { name: "Renew", exact: true })).toHaveCount(0);
+  await page.goto(`${contractUrl}/renew`);
+  await page.waitForURL(contractUrl);
 });

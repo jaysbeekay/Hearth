@@ -4109,10 +4109,19 @@ async function saveLocalProfile(form) {
 // #353 — Renew, hand-ported from src/lib/contractTerms.ts and
 // renewContractCommand (src/lib/commands/contracts.ts): the current Term's
 // dates and cost are kept as a contract_terms row and the new Term's are
-// written onto the contract. A fixed-term Contract is meant to end and a
-// Cancelled one is reactivated first, so neither offers Renew.
+// written onto the contract, in one transaction. A fixed-term Contract is
+// meant to end, a Cancelled one is reactivated first, and one with no end
+// date has no Term to continue from, so none of them offers Renew.
+function renewalRefusal(row) {
+  if (!row) return "Contract not found.";
+  if (row.status !== "ACTIVE") return "A cancelled contract can't be renewed. Mark it as active first.";
+  if (row.renewal_type === "FIXED_TERM") return "A fixed-term contract ends rather than renews.";
+  if (!validTermDay(row.end_date)) return "Set the contract's end date before renewing it.";
+  return null;
+}
+
 function canRenewContract(row) {
-  return Boolean(row) && row.status === "ACTIVE" && row.renewal_type !== "FIXED_TERM";
+  return renewalRefusal(row) === null;
 }
 
 function termDayParts(day) {
@@ -4144,21 +4153,42 @@ function validTermDay(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(text) && !Number.isNaN(Date.parse(`${text}T00:00:00Z`)) ? text : null;
 }
 
+// Today on this phone, as YYYY-MM-DD (daysUntil counts in the same day).
+function localTermToday() {
+  const now = new Date();
+  return termDayString(now.getFullYear(), now.getMonth() + 1, now.getDate());
+}
+
 // The next Term starts the day after the current end date and lasts as long
 // as the current one: whole months stay whole months, anything else is kept
-// in days, and with no start date a year is assumed.
-function nextTermDates(row) {
+// in days, and with no start date a year is assumed. `rollForwardTo` (today,
+// for an auto-renewing Contract) skips whole Terms until the end date is on
+// or after that day.
+function nextTermDates(row, rollForwardTo = null) {
   const end = validTermDay(row?.end_date);
   if (!end) return { startDate: "", endDate: "" };
   const nextStart = termAddDays(end, 1);
   const start = validTermDay(row?.start_date);
-  if (!start || start > end) return { startDate: nextStart, endDate: termAddDays(termAddMonths(nextStart, 12), -1) };
-  const from = termDayParts(start);
-  const to = termDayParts(nextStart);
-  const months = (to.year - from.year) * 12 + (to.month - from.month);
-  if (from.date === to.date && months > 0) return { startDate: nextStart, endDate: termAddDays(termAddMonths(nextStart, months), -1) };
-  const lengthDays = Math.round((Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86400000);
-  return { startDate: nextStart, endDate: termAddDays(nextStart, lengthDays) };
+  let months = null;
+  if (!start || start > end) {
+    months = 12;
+  } else {
+    const from = termDayParts(start);
+    const to = termDayParts(nextStart);
+    const between = (to.year - from.year) * 12 + (to.month - from.month);
+    if (from.date === to.date && between > 0) months = between;
+  }
+  const lengthDays = start ? Math.round((Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86400000) : 0;
+  const term = (k) => {
+    if (months) {
+      return { startDate: termAddMonths(nextStart, months * k), endDate: termAddDays(termAddMonths(nextStart, months * (k + 1)), -1) };
+    }
+    const termStart = termAddDays(nextStart, (lengthDays + 1) * k);
+    return { startDate: termStart, endDate: termAddDays(termStart, lengthDays) };
+  };
+  let k = 0;
+  while (rollForwardTo && k < 10000 && term(k).endDate < rollForwardTo) k += 1;
+  return term(k);
 }
 
 // How much `current` costs against `previous`, as a fraction, or null when
@@ -4175,10 +4205,10 @@ function termCostChange(current, previous) {
   return (now - before) / before;
 }
 
-function formatTermCostChange(change, versus = "last term") {
+function formatTermCostChange(change) {
   const percent = Math.round(change * 100);
-  if (percent === 0) return `Same as ${versus}`;
-  return `${percent > 0 ? "+" : "−"}${Math.abs(percent)}% vs ${versus}`;
+  if (percent === 0) return "Same as prior term";
+  return `${percent > 0 ? "+" : "−"}${Math.abs(percent)}% vs prior term`;
 }
 
 // Newest first.
@@ -4191,6 +4221,23 @@ function contractCostChangeText(row) {
   return change == null ? null : formatTermCostChange(change);
 }
 
+// The contract's documents no earlier Term has: what could be the paperwork
+// for the Term being kept.
+function termDocumentCandidates(contractId) {
+  const linked = new Set(contractTerms(contractId).map((term) => term.document_id).filter(Boolean));
+  return docsFor("contract", contractId)
+    .filter((doc) => !linked.has(doc.id))
+    .sort((a, b) => String(b.uploaded_at).localeCompare(String(a.uploaded_at)));
+}
+
+// Policies and agreements first, then uncategorised, then the rest; newest
+// first within each.
+function pickTermDocument(candidates) {
+  const rank = (doc) => (["POLICY", "RENTAL_AGREEMENT"].includes(doc.kind) ? 0 : !doc.kind || doc.kind === "OTHER" ? 1 : 2);
+  const [best] = [...candidates].sort((a, b) => rank(a) - rank(b) || String(b.uploaded_at).localeCompare(String(a.uploaded_at)));
+  return best?.id ?? null;
+}
+
 function renderPreviousTerms(contractId) {
   const terms = contractTerms(contractId);
   if (terms.length === 0) return "";
@@ -4199,17 +4246,22 @@ function renderPreviousTerms(contractId) {
       <div class="section-title">
         <h2>Previous terms</h2>
       </div>
-      <div class="detail-grid">
+      <div class="list">
         ${terms.map((term, index) => {
           const change = termCostChange(term, terms[index + 1]);
           const doc = term.document_id ? cache.documents.find((item) => item.id === term.document_id) : null;
-          const value = [
+          const meta = [
             money(term.cost, term.currency) ?? "No cost",
             term.billing_frequency,
-            change == null ? null : formatTermCostChange(change, "previous"),
-            doc ? doc.filename : null,
+            change == null ? null : formatTermCostChange(change),
           ].filter(Boolean).join(" · ");
-          return detailLine(`${readableDate(term.start_date) ?? "—"} – ${readableDate(term.end_date) ?? "—"}`, value);
+          return `
+            <article class="record-card">
+              <h3>${escapeHtml(`${readableDate(term.start_date) ?? "—"} – ${readableDate(term.end_date) ?? "—"}`)}</h3>
+              <p class="card-meta">${escapeHtml(meta)}</p>
+              ${doc ? `<div class="actions"><button data-open-document="${escapeAttr(doc.id)}">Open ${escapeHtml(doc.filename)}</button></div>` : ""}
+            </article>
+          `;
         }).join("")}
       </div>
     </section>
@@ -4218,15 +4270,23 @@ function renderPreviousTerms(contractId) {
 
 function renderContractRenewalForm(row) {
   if (!row) return empty("Record not found", "It may have been removed.");
-  const next = nextTermDates(row);
+  const today = localTermToday();
+  const next = nextTermDates(row, row.renewal_type === "AUTO_RENEW" ? today : null);
+  const candidates = termDocumentCandidates(row.id);
+  const picked = pickTermDocument(candidates);
   return `
     <form class="form-card" data-save-type="contractRenewal" data-id="${escapeAttr(row.id)}">
       <h2>Renew ${escapeHtml(recordTitle("contracts", row))}</h2>
       <p class="muted">Current term: ${escapeHtml(readableDate(row.start_date) ?? "—")} – ${escapeHtml(readableDate(row.end_date) ?? "—")}, ${escapeHtml(money(row.cost, row.currency) ?? "no cost")}. It's kept under Previous terms once you renew.</p>
       <div class="field-grid">
         <label>New start date<input name="startDate" type="date" value="${escapeAttr(next.startDate)}" /></label>
-        <label>New end date<input name="endDate" type="date" value="${escapeAttr(next.endDate)}" required /></label>
+        <label>New end date<input name="endDate" type="date" value="${escapeAttr(next.endDate)}" data-today="${escapeAttr(today)}" required /></label>
+        <p class="muted" data-end-date-passed ${next.endDate && next.endDate < today ? "" : "hidden"}>This date has already passed, so the contract will still need attention after renewing.</p>
         <label>New cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(row.cost ?? "")}" /></label>
+        ${candidates.length >= 2 ? `<label>Paperwork for the term being kept<select name="termDocumentId">
+          ${candidates.map((doc) => `<option value="${escapeAttr(doc.id)}" ${doc.id === picked ? "selected" : ""}>${escapeHtml(doc.filename)}</option>`).join("")}
+          <option value="">None</option>
+        </select></label>` : ""}
       </div>
       <input name="file" type="file" accept=".pdf,.doc,.docx,image/jpeg,image/png,image/webp,image/heic" />
       <div class="actions">
@@ -4238,32 +4298,48 @@ function renderContractRenewalForm(row) {
 }
 
 async function renewContract(form) {
-  const id = form.dataset.id;
-  const row = getRecord("contracts", id);
-  if (!row) throw new Error("Contract not found.");
-  if (!canRenewContract(row)) throw new Error("This contract can't be renewed. Mark it as active first.");
-  const startDate = valueOrNull(fieldValue(form, "startDate"));
-  const endDate = valueOrNull(fieldValue(form, "endDate"));
-  if (!endDate) throw new Error("Enter the new end date.");
-  if (startDate && endDate < startDate) throw new Error("End date can't be before the start date.");
-  const currentEnd = validTermDay(row.end_date);
-  if (currentEnd && endDate <= currentEnd) throw new Error("The new end date must be after the current one.");
-  // The newest of the contract's documents that no earlier Term has: the
-  // paperwork for the Term being kept, since the new one is attached after.
-  const linked = new Set(contractTerms(id).map((term) => term.document_id).filter(Boolean));
-  const doc = docsFor("contract", id)
-    .filter((item) => !linked.has(item.id))
-    .sort((a, b) => String(b.uploaded_at).localeCompare(String(a.uploaded_at)))[0];
-  const now = nowIso();
-  await run(
-    "INSERT INTO contract_terms (id, contract_id, start_date, end_date, cost, currency, billing_frequency, document_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    [localId("term"), id, row.start_date ?? null, row.end_date ?? null, row.cost ?? null, row.currency || defaultCurrency(), row.billing_frequency ?? null, doc?.id ?? null, now],
-  );
-  await run(
-    "UPDATE contracts SET start_date = ?, end_date = ?, cost = ?, updated_at = ?, version = version + 1 WHERE id = ?",
-    [startDate, endDate, numberOrNull(fieldValue(form, "cost")), now, id],
-  );
-  await maybeStoreFormFile(form, "contract", id);
+  const submit = form.querySelector('button[type="submit"]');
+  // A double tap mustn't add two Terms.
+  if (submit?.disabled) return;
+  if (submit) submit.disabled = true;
+  try {
+    const id = form.dataset.id;
+    // Re-read what's saved now, not the copy the form was drawn from.
+    const [row] = await query("SELECT id, status, renewal_type, start_date, end_date, cost, currency, billing_frequency FROM contracts WHERE id = ? AND deleted_at IS NULL", [id]);
+    const refusal = renewalRefusal(row);
+    if (refusal) throw new Error(refusal);
+    const startDate = valueOrNull(fieldValue(form, "startDate"));
+    const endDate = valueOrNull(fieldValue(form, "endDate"));
+    if (!endDate) throw new Error("Enter the new end date.");
+    if (startDate && endDate < startDate) throw new Error("End date can't be before the start date.");
+    if (endDate <= validTermDay(row.end_date)) throw new Error("The new end date must be after the current one.");
+    const candidates = termDocumentCandidates(id);
+    const chosen = form.elements.namedItem("termDocumentId");
+    let documentId = pickTermDocument(candidates);
+    if (chosen && "value" in chosen) {
+      documentId = chosen.value || null;
+      if (documentId && !candidates.some((doc) => doc.id === documentId)) throw new Error("That document can't be linked to the term being kept.");
+    }
+    const now = nowIso();
+    await SQLite.executeSet({
+      database: DB,
+      transaction: true,
+      set: [
+        {
+          statement: "INSERT INTO contract_terms (id, contract_id, start_date, end_date, cost, currency, billing_frequency, document_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          values: [localId("term"), id, row.start_date ?? null, row.end_date ?? null, row.cost ?? null, row.currency || defaultCurrency(), row.billing_frequency ?? null, documentId, now],
+        },
+        {
+          statement: "UPDATE contracts SET start_date = ?, end_date = ?, cost = ?, updated_at = ?, version = version + 1 WHERE id = ?",
+          values: [startDate, endDate, numberOrNull(fieldValue(form, "cost")), now, id],
+        },
+      ],
+    });
+    await maybeStoreFormFile(form, "contract", id);
+  } catch (error) {
+    if (submit) submit.disabled = false;
+    throw error;
+  }
 }
 
 async function confirmDetails(type, id) {
@@ -4584,6 +4660,11 @@ mobileView.addEventListener("click", async (event) => {
 });
 
 mobileView.addEventListener("input", (event) => {
+  // #353 — the Renew form warns when the new end date has already passed.
+  if (event.target.dataset?.today !== undefined) {
+    const warning = event.target.closest("form")?.querySelector("[data-end-date-passed]");
+    if (warning) warning.hidden = !(event.target.value && event.target.value < event.target.dataset.today);
+  }
   if (event.target.id === "record-search") {
     state.recordQuery = event.target.value;
     const target = $("record-results");
