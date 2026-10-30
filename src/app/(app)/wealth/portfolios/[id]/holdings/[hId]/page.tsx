@@ -477,7 +477,6 @@ export default async function HoldingPage({
                           ownerId={trade.id}
                           documents={trade.documents}
                           trashedLinks={trashedLinks.get(trade.id)}
-                          dateFormat={dateFormat}
                         />
                       )}
                       <DocumentUploadForm action={addDocumentAction.bind(null, "TRADE", trade.id)} />

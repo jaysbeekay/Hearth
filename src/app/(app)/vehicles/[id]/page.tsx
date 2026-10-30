@@ -290,7 +290,7 @@ export default async function VehicleDetailPage({
 
                   <div className="mt-4 border-t border-border pt-4">
                     <h3 className="mb-2 text-sm font-medium">Documents</h3>
-                    <DocumentList kind="VEHICLE_ITEM" ownerId={item.id} documents={item.documents} trashedLinks={trashedLinks.get(item.id)} dateFormat={dateFormat} />
+                    <DocumentList kind="VEHICLE_ITEM" ownerId={item.id} documents={item.documents} trashedLinks={trashedLinks.get(item.id)} />
                     {canWrite && (
                       <div className="mt-3">
                         <DocumentUploadForm action={addDocumentAction.bind(null, "VEHICLE_ITEM", item.id)} />
@@ -309,7 +309,6 @@ export default async function VehicleDetailPage({
         updatedByName={vehicle.updatedBy?.name}
         createdAt={vehicle.createdAt}
         updatedAt={vehicle.updatedAt}
-        dateFormat={dateFormat}
         memberCount={memberCount}
       />
     </div>

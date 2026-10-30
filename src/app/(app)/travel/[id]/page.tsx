@@ -334,7 +334,6 @@ export default async function TripDetailPage({
                       ownerId={segment.id}
                       trashedLinks={trashedLinks.get(segment.id)}
                       documents={segment.documents}
-                      dateFormat={dateFormat}
                     />
                     {canWrite && (
                       <div className="mt-3">
@@ -354,7 +353,6 @@ export default async function TripDetailPage({
         updatedByName={trip.updatedBy?.name}
         createdAt={trip.createdAt}
         updatedAt={trip.updatedAt}
-        dateFormat={dateFormat}
         memberCount={memberCount}
       />
     </div>

@@ -426,7 +426,6 @@ export default async function RentalOverviewPage({
                         ownerId={stmt.id}
                         trashedLinks={trashedLinks.get(stmt.id)}
                         documents={stmt.documents}
-                        dateFormat={dateFormat}
                       />
                       {canWrite && (
                         <div className="mt-3">

@@ -258,7 +258,7 @@ export default async function PropertyDetailPage({
 
                   <div className="mt-4 border-t border-border pt-4">
                     <h3 className="mb-2 text-sm font-medium">Documents</h3>
-                    <DocumentList kind="HOME_ITEM" ownerId={item.id} documents={item.documents} trashedLinks={trashedLinks.get(item.id)} dateFormat={dateFormat} />
+                    <DocumentList kind="HOME_ITEM" ownerId={item.id} documents={item.documents} trashedLinks={trashedLinks.get(item.id)} />
                     {canWrite && (
                       <div className="mt-3">
                         <DocumentUploadForm action={addDocumentAction.bind(null, "HOME_ITEM", item.id)} />
@@ -400,7 +400,6 @@ export default async function PropertyDetailPage({
         updatedByName={property.updatedBy?.name}
         createdAt={property.createdAt}
         updatedAt={property.updatedAt}
-        dateFormat={dateFormat}
         memberCount={memberCount}
       />
     </div>

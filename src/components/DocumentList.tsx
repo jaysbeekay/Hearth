@@ -38,7 +38,6 @@ export function DocumentList({
   ownerId,
   documents,
   trashedLinks,
-  dateFormat,
 }: {
   kind: OwnedDocumentKind;
   /** The record every Document in the list belongs to. */
@@ -49,7 +48,6 @@ export function DocumentList({
    * so a version in Trash doesn't split its Document in two.
    */
   trashedLinks?: DocumentVersionLink[];
-  dateFormat?: string;
 }) {
   if (documents.length === 0) {
     return <p className="text-sm text-muted">No documents uploaded yet.</p>;
@@ -90,7 +88,7 @@ export function DocumentList({
                 </span>
                 <span className="flex flex-wrap items-center gap-x-2 gap-y-1 sm:shrink-0">
                   <span className="text-muted">
-                    {humanFileSize(doc.size)} · <Timestamp value={doc.uploadedAt} dateFormat={dateFormat} />
+                    {humanFileSize(doc.size)} · <Timestamp value={doc.uploadedAt} />
                   </span>
                   <TypePill label={documentTypeLabel(doc, productKind(doc))} />
                   {older.length > 0 && (
@@ -124,7 +122,7 @@ export function DocumentList({
                       </span>
                       <span className="flex flex-wrap items-center gap-x-2 gap-y-1 sm:shrink-0">
                         <span>
-                          {humanFileSize(v.size)} · <Timestamp value={v.uploadedAt} dateFormat={dateFormat} />
+                          {humanFileSize(v.size)} · <Timestamp value={v.uploadedAt} />
                         </span>
                         <TypePill label={documentTypeLabel(v, productKind(v))} />
                       </span>
