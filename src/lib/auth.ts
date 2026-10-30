@@ -3,17 +3,13 @@ import NextAuth, { CredentialsSignin, type Session } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import GitHub from "next-auth/providers/github";
 import bcrypt from "bcryptjs";
-import {
-  verifyAuthenticationResponse,
-  type AuthenticationResponseJSON,
-} from "@simplewebauthn/server";
 import { prisma } from "@/lib/prisma";
 import { env, isGithubOAuthConfigured } from "@/lib/env";
 import { authConfig } from "@/lib/auth.config";
 import type { Role } from "@/generated/prisma/enums";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import { verifyTotpCode, consumeRecoveryCode } from "@/lib/totp";
-import { toWebAuthnCredential } from "@/lib/passkeyCredential";
+import { authorizePasskey } from "@/lib/passkeyAuth";
 
 export class TotpRequiredSignin extends CredentialsSignin {
   code = "totp_required";
@@ -86,74 +82,7 @@ const nextAuth = NextAuth({
         assertionJSON: {},
         challenge: {},
       },
-      authorize: async (credentials) => {
-        if (
-          typeof credentials?.credentialId !== "string" ||
-          typeof credentials?.assertionJSON !== "string" ||
-          typeof credentials?.challenge !== "string"
-        ) {
-          return null;
-        }
-
-        const storedChallenge = await prisma.passkeyChallenge.findUnique({
-          where: { challenge: credentials.challenge },
-        });
-        if (
-          !storedChallenge ||
-          storedChallenge.type !== "authentication" ||
-          storedChallenge.expiresAt < new Date()
-        ) {
-          return null;
-        }
-
-        const passkeyCredential = await prisma.passkeyCredential.findUnique({
-          where: { credentialId: credentials.credentialId },
-          include: { user: true },
-        });
-        if (!passkeyCredential) return null;
-
-        let assertion: AuthenticationResponseJSON;
-        try {
-          assertion = JSON.parse(credentials.assertionJSON);
-        } catch {
-          return null;
-        }
-
-        const rpId = new URL(env.appUrl).hostname;
-
-        let verification;
-        try {
-          verification = await verifyAuthenticationResponse({
-            response: assertion,
-            expectedChallenge: storedChallenge.challenge,
-            expectedOrigin: env.appUrl,
-            expectedRPID: rpId,
-            credential: toWebAuthnCredential(passkeyCredential),
-          });
-        } catch {
-          return null;
-        }
-
-        if (!verification.verified) return null;
-
-        await Promise.all([
-          prisma.passkeyCredential.update({
-            where: { id: passkeyCredential.id },
-            data: {
-              counter: verification.authenticationInfo.newCounter,
-              lastUsedAt: new Date(),
-            },
-          }),
-          prisma.passkeyChallenge.delete({ where: { id: storedChallenge.id } }),
-        ]);
-
-        return {
-          id: passkeyCredential.user.id,
-          name: passkeyCredential.user.name,
-          email: passkeyCredential.user.email,
-          role: passkeyCredential.user.role,
-        };
-      },
+      authorize: (credentials) => authorizePasskey(credentials),
     }),
 
     ...(isGithubOAuthConfigured()

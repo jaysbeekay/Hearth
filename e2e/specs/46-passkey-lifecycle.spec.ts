@@ -1,7 +1,7 @@
 import { generateKeyPairSync, randomBytes, randomUUID } from "crypto";
 import { test, expect, type BrowserContext, type CDPSession, type Page } from "@playwright/test";
 import { createClient, type Client } from "@libsql/client";
-import { ADMIN_AUTH_FILE, ADMIN_EMAIL, DATABASE_URL } from "../env";
+import { ADMIN_AUTH_FILE, ADMIN_EMAIL, BASE_URL, DATABASE_URL } from "../env";
 
 // #376 — @simplewebauthn 9 → 14. A Chromium virtual authenticator drives the
 // whole passkey lifecycle through the real UI (register, sign in, remove), and
@@ -15,7 +15,8 @@ test.use({ storageState: ADMIN_AUTH_FILE });
 
 const stamp = Date.now();
 const NICKNAME_PREFIX = "E2E 46 passkey";
-const RP_ID = "localhost";
+// The app's RP ID is APP_URL's hostname, and the suite sets APP_URL to BASE_URL.
+const RP_ID = new URL(BASE_URL).hostname;
 
 let db: Client;
 
@@ -57,6 +58,38 @@ async function credentialRow(nickname: string) {
   return rows[0];
 }
 
+async function adminUserId(): Promise<string> {
+  const { rows } = await db.execute({
+    sql: "SELECT id FROM users WHERE email = ?",
+    args: [ADMIN_EMAIL],
+  });
+  return String(rows[0].id);
+}
+
+/** Insert a passkey row directly, in the 9.x row format. */
+async function insertPasskeyRow(row: {
+  userId: string;
+  credentialId: string;
+  publicKey: Buffer;
+  counter: number;
+  nickname: string;
+}) {
+  await db.execute({
+    sql: `INSERT INTO passkey_credentials (id, userId, credentialId, publicKey, counter, transports, nickname, createdAt)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      randomUUID(),
+      row.userId,
+      row.credentialId,
+      row.publicKey,
+      row.counter,
+      JSON.stringify(["internal"]),
+      row.nickname,
+      new Date("2026-07-03T00:00:00.000Z").toISOString(),
+    ],
+  });
+}
+
 async function signInWithPasskey(page: Page, context: BrowserContext) {
   await context.clearCookies();
   await page.goto("/login");
@@ -96,6 +129,17 @@ test("a passkey can be registered, used to sign in, and removed", async ({ page,
   expect(used.lastUsedAt).not.toBeNull();
   expect(Number(used.counter)).toBeGreaterThan(Number(registered.counter));
 
+  // A decoy passkey that stays registered, so the login page keeps offering
+  // passkey sign-in after the removal below (#344 hides it when there are
+  // none) and the refusal is always exercised, even when this spec runs alone.
+  await insertPasskeyRow({
+    userId: await adminUserId(),
+    credentialId: randomBytes(16).toString("base64url"),
+    publicKey: randomBytes(77),
+    counter: 0,
+    nickname: `${NICKNAME_PREFIX} decoy ${stamp}`,
+  });
+
   // Remove it from Settings → Passkeys.
   await page.goto("/settings/passkeys");
   await page.getByRole("button", { name: `Remove passkey ${nickname}` }).click();
@@ -104,30 +148,17 @@ test("a passkey can be registered, used to sign in, and removed", async ({ page,
   expect(await credentialRow(nickname)).toBeUndefined();
 
   // The authenticator still holds the credential, but the server no longer
-  // knows it, so it can't sign in. (With no passkeys left in the household
-  // the login page doesn't offer passkey sign-in at all, #344.)
-  const { rows } = await db.execute("SELECT count(*) AS n FROM passkey_credentials");
-  await context.clearCookies();
-  await page.goto("/login");
-  const passkeyButton = page.getByRole("button", { name: "Sign in with passkey" });
-  if (Number(rows[0].n) === 0) {
-    await expect(passkeyButton).toHaveCount(0);
-  } else {
-    await passkeyButton.click();
-    await expect(page.getByText(/Passkey sign-in failed/)).toBeVisible();
-    await expect(page).toHaveURL(/\/login/);
-  }
+  // knows it, so sign-in is refused.
+  await signInWithPasskey(page, context);
+  await expect(page.getByText(/Passkey sign-in failed/)).toBeVisible();
+  await expect(page).toHaveURL(/\/login/);
 });
 
 test("a passkey stored in the 9.x row format still signs in", async ({ page, context }) => {
   const nickname = `${NICKNAME_PREFIX} pre-upgrade ${stamp}`;
   const { cdp, authenticatorId } = await addVirtualAuthenticator(page, context);
 
-  const { rows: users } = await db.execute({
-    sql: "SELECT id FROM users WHERE email = ?",
-    args: [ADMIN_EMAIL],
-  });
-  const userId = String(users[0].id);
+  const userId = await adminUserId();
 
   // A credential as an authenticator would hold it from a 9.x registration:
   // the user handle 9.x produced was the UTF-8 bytes of the user id.
@@ -155,19 +186,12 @@ test("a passkey stored in the 9.x row format still signs in", async ({ page, con
     Buffer.from([0x22, 0x58, 0x20]),
     Buffer.from(jwk.y!, "base64url"),
   ]);
-  await db.execute({
-    sql: `INSERT INTO passkey_credentials (id, userId, credentialId, publicKey, counter, transports, nickname, createdAt)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    args: [
-      randomUUID(),
-      userId,
-      rawId.toString("base64url"),
-      cosePublicKey,
-      startCount,
-      JSON.stringify(["internal"]),
-      nickname,
-      new Date("2026-07-03T00:00:00.000Z").toISOString(),
-    ],
+  await insertPasskeyRow({
+    userId,
+    credentialId: rawId.toString("base64url"),
+    publicKey: cosePublicKey,
+    counter: startCount,
+    nickname,
   });
 
   await signInWithPasskey(page, context);

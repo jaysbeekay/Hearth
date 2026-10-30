@@ -1,12 +1,8 @@
 import { NextResponse } from "next/server";
-import {
-  verifyRegistrationResponse,
-  type RegistrationResponseJSON,
-} from "@simplewebauthn/server";
+import type { RegistrationResponseJSON } from "@simplewebauthn/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { env } from "@/lib/env";
-import { toStoredPasskey } from "@/lib/passkeyCredential";
+import { verifyPasskeyRegistration } from "@/lib/passkeyAuth";
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -21,44 +17,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const rpId = new URL(env.appUrl).hostname;
-
-  const storedChallenge = await prisma.passkeyChallenge.findFirst({
-    where: {
-      userId: session.user.id,
-      type: "registration",
-      expiresAt: { gt: new Date() },
-    },
-    orderBy: { createdAt: "desc" },
-  });
-
-  if (!storedChallenge) {
-    return NextResponse.json({ error: "Challenge not found or expired." }, { status: 400 });
+  const result = await verifyPasskeyRegistration(session.user.id, body.response);
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error }, { status: result.status });
   }
-
-  let verification;
-  try {
-    verification = await verifyRegistrationResponse({
-      response: body.response,
-      expectedChallenge: storedChallenge.challenge,
-      expectedOrigin: env.appUrl,
-      expectedRPID: rpId,
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Verification failed";
-    return NextResponse.json({ error: message }, { status: 400 });
-  }
-
-  await prisma.passkeyChallenge.delete({ where: { id: storedChallenge.id } });
-
-  if (!verification.verified || !verification.registrationInfo) {
-    return NextResponse.json({ error: "Verification failed." }, { status: 400 });
-  }
-
-  const stored = toStoredPasskey(
-    verification.registrationInfo.credential,
-    body.response.response.transports,
-  );
+  const { stored } = result;
 
   const existing = await prisma.passkeyCredential.findUnique({
     where: { credentialId: stored.credentialId },

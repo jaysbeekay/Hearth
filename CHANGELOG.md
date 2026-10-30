@@ -18,20 +18,19 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   GHSA-xhq7-xmqj-769h, GHSA-333x-w4r6-6crp). The remaining low-severity
   `npm audit` entries all trace to `@simplewebauthn/server` 9.x and are
   tracked in #376.
-- `@simplewebauthn/server` 9.0.3 → 14.0.3 and `@simplewebauthn/browser`
-  9.0.1 → 14.0.0, clearing the last `npm audit` entries
-  (GHSA-6hxq-p678-4hr2, attestation certificate chains not checked against a
-  trust anchor; Hearth wasn't exposed, since it registers passkeys with
-  `attestationType: "none"`). `next-auth` 5.0.0-beta.32 is still the newest
-  release and still declares an optional peer on 9.x for its WebAuthn
-  provider, which Hearth doesn't use (passkeys are a plain credentials
-  provider calling `@simplewebauthn/server` directly), so an npm `overrides`
-  entry points that peer at Hearth's own version. Stored passkeys keep the
-  same format (base64url credential id, COSE public key, counter) and keep
-  signing in with no migration; new passkeys keep the same user handle. A
-  new e2e spec drives register, sign in and remove with a Chromium virtual
-  authenticator and signs in with a passkey stored in the 9.x row format
-  (#376).
+- **Passkeys: `@simplewebauthn` 9 → 14 (#376).** Server 14.0.3 and browser
+  14.0.0 clear the last `npm audit` entries (GHSA-6hxq-p678-4hr2, which
+  didn't affect Hearth: it registers passkeys with `attestationType:
+  "none"`). Existing passkeys keep signing in with no migration; the stored
+  format is unchanged. New passkeys are offered the same algorithms as
+  before (EdDSA, ES256, RS256), now listed explicitly so every Node version
+  advertises the same set. An npm `overrides` entry satisfies next-auth's
+  optional peer on 9.x, which only its unused WebAuthn provider needs.
+  Sign-in is also stricter: each challenge is used up by its first attempt,
+  whether that attempt succeeds or not, and the assertion's credential and
+  user handle must match the stored passkey. Registration accepts any of
+  the user's unexpired challenges, so adding a passkey in two tabs works,
+  and only known transports are stored.
 - **Signing out clears this device's offline data (#424).** Sign out now
   deletes the service worker's cached pages and data (and serwist's record
   of their URLs), the offline write queue and offline Documents, then does
