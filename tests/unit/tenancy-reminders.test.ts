@@ -4,6 +4,8 @@ import {
   createPropertyCommand,
   createTenancyCommand,
   updateTenancyCommand,
+  deleteTenancyCommand,
+  restoreTenancyCommand,
   permanentlyDeleteTenancyCommand,
   permanentlyDeletePropertyCommand,
   deletePropertyCommand,
@@ -18,6 +20,7 @@ import { sendNtfyReminder } from "@/lib/notifications/ntfy";
 import { sendExpiryWebhooks } from "@/lib/notifications/webhook";
 import { addDays, householdDay } from "@/lib/duePolicy";
 import { getCurrentTenancy } from "@/lib/tenancies";
+import { purgeExpiredTrash, TRASH_RETENTION_DAYS } from "@/lib/trash";
 
 // #388 — Reminders for a Tenancy's lease end, against a real migrated
 // database: the scheduler, the per-record health card on the Property and
@@ -247,13 +250,47 @@ describe("the household's timezone", () => {
   });
 });
 
+// #427 — a Tenancy in Trash is never the current one, so it gets no
+// Reminders until it's restored.
+describe("a Tenancy in Trash", () => {
+  it("gets no Reminders and isn't the current Tenancy, until it's restored", async () => {
+    const { tenancy } = await rentedProperty({ leaseEnd: "2026-11-24" });
+    await deleteTenancyCommand(tenancy.id);
+
+    await runExpirationCheck(at("2026-10-25"));
+    expect(sends()).toEqual({ email: 0, ntfy: 0, webhook: 0 });
+    expect(await getCurrentTenancy(tenancy.id)).toBeNull();
+
+    await restoreTenancyCommand(tenancy.id);
+    expect((await getCurrentTenancy(tenancy.id))?.tenancy.id).toBe(tenancy.id);
+    await runExpirationCheck(at("2026-10-25"));
+    expect(sends()).toEqual({ email: 1, ntfy: 1, webhook: 1 });
+  });
+});
+
 describe("permanent delete clears the Tenancy's sent log", () => {
   it("deleting the Tenancy", async () => {
     const { property, tenancy } = await rentedProperty({ leaseEnd: "2026-11-24" });
     await runExpirationCheck(at("2026-10-25"));
     expect(await db.prisma.notificationLog.count({ where: { ownerId: tenancy.id } })).toBe(3);
 
-    await permanentlyDeleteTenancyCommand(tenancy.id, { propertyId: property.id });
+    await deleteTenancyCommand(tenancy.id, { propertyId: property.id });
+    // In Trash, the log stays so a restore doesn't resend what went out.
+    expect(await db.prisma.notificationLog.count({ where: { ownerId: tenancy.id } })).toBe(3);
+    await permanentlyDeleteTenancyCommand(tenancy.id);
+    expect(await db.prisma.notificationLog.count({ where: { ownerId: tenancy.id } })).toBe(0);
+  });
+
+  it("the 30-day Trash purge", async () => {
+    const { tenancy } = await rentedProperty({ leaseEnd: "2026-11-24" });
+    await runExpirationCheck(at("2026-10-25"));
+    await db.prisma.rentalAgreement.update({
+      where: { id: tenancy.id },
+      data: { deletedAt: new Date(Date.now() - (TRASH_RETENTION_DAYS + 1) * 24 * 60 * 60 * 1000) },
+    });
+
+    await purgeExpiredTrash();
+    expect(await db.prisma.rentalAgreement.findUnique({ where: { id: tenancy.id } })).toBeNull();
     expect(await db.prisma.notificationLog.count({ where: { ownerId: tenancy.id } })).toBe(0);
   });
 

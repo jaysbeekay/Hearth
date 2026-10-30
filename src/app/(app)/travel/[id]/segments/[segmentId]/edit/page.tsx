@@ -18,9 +18,9 @@ export default async function EditTripSegmentPage({
   redirectIfReadOnly(await auth(), `/travel/${id}`);
   const segment = await prisma.tripSegment.findUnique({
     where: { id: segmentId },
-    include: { trip: { select: { title: true } } },
+    include: { trip: { select: { title: true, deletedAt: true } } },
   });
-  if (!segment || segment.tripId !== id) notFound();
+  if (!segment || segment.deletedAt || segment.trip.deletedAt || segment.tripId !== id) notFound();
 
   const boundAction = updateTripSegment.bind(null, id, segmentId);
 

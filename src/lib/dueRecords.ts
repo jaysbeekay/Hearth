@@ -117,7 +117,7 @@ export function dueTone(state: DueState): DueTone {
   }
 }
 
-type TenancyAgreement = { leaseStart: Date | null; leaseEnd: Date | null; createdAt: Date };
+type TenancyAgreement = { leaseStart: Date | null; leaseEnd: Date | null; createdAt: Date; deletedAt: Date | null };
 
 // Missing dates sort before any real one.
 const time = (date: Date | null) => (date ? date.getTime() : Number.NEGATIVE_INFINITY);
@@ -142,8 +142,12 @@ export function currentTenancy<T extends TenancyAgreement>(property: {
   isRented: boolean;
   rentalAgreements: T[];
 }): T | null {
-  if (!property.isRented || property.rentalAgreements.length === 0) return null;
-  return property.rentalAgreements.reduce((current, a) => (compareLeases(a, current) > 0 ? a : current));
+  // A Tenancy in Trash is never current (#427), whether or not the caller's
+  // query already left it out: its lease end isn't Due, on Upcoming or
+  // iCal, and gets no Reminders.
+  const live = property.rentalAgreements.filter((a) => a.deletedAt == null);
+  if (!property.isRented || live.length === 0) return null;
+  return live.reduce((current, a) => (compareLeases(a, current) > 0 ? a : current));
 }
 
 /** The rental agreement fields `currentTenancy` and the Due policy need, for a Prisma `select`. */
@@ -154,4 +158,15 @@ export const TENANCY_AGREEMENT_SELECT = {
   leaseEnd: true,
   reminderDaysBefore: true,
   createdAt: true,
+  deletedAt: true,
+} as const;
+
+/**
+ * A Property's `rentalAgreements` relation for currentTenancy: the Tenancies
+ * not in Trash, with the fields it needs. Every caller uses this, so none
+ * can forget the Trash filter (currentTenancy also skips any in Trash).
+ */
+export const LIVE_TENANCY_AGREEMENTS = {
+  where: { deletedAt: null },
+  select: TENANCY_AGREEMENT_SELECT,
 } as const;

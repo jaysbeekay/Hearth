@@ -17,7 +17,7 @@ export default async function PortfoliosPage() {
   const canWrite = sessionCanWrite(await auth());
 
   const portfolios = await prisma.portfolio.findMany({
-    include: { holdings: { include: { _count: { select: { trades: true } } } } },
+    include: { holdings: { include: { _count: { select: { trades: { where: { deletedAt: null } } } } } } },
     orderBy: { name: "asc" },
   });
 

@@ -23,9 +23,13 @@ import {
   createTenancyCommand,
   updateTenancyCommand,
   linkTenancyContractCommand,
+  deleteTenancyCommand,
+  restoreTenancyCommand,
   permanentlyDeleteTenancyCommand,
   createRentalStatementCommand,
   updateRentalStatementCommand,
+  deleteRentalStatementCommand,
+  restoreRentalStatementCommand,
   permanentlyDeleteRentalStatementCommand,
   TenancyContractLinkError,
 } from "@/lib/commands/home";
@@ -339,11 +343,31 @@ export async function deleteRentalAgreement(
 ): Promise<ActionState> {
   await requireUser();
   try {
-    await permanentlyDeleteTenancyCommand(agreementId, { propertyId });
+    await deleteTenancyCommand(agreementId, { propertyId });
   } catch (error) {
     return commandError(error, "Tenancy not found.");
   }
-  return { success: "Tenancy removed." };
+  return { success: "Tenancy moved to Trash." };
+}
+
+export async function restoreRentalAgreement(agreementId: string): Promise<ActionState> {
+  await requireUser();
+  try {
+    await restoreTenancyCommand(agreementId);
+  } catch (error) {
+    return commandError(error, "Tenancy not found.");
+  }
+  return { success: "Restored." };
+}
+
+export async function permanentlyDeleteRentalAgreement(agreementId: string): Promise<ActionState> {
+  await requireUser();
+  try {
+    await permanentlyDeleteTenancyCommand(agreementId);
+  } catch (error) {
+    return commandError(error, "Tenancy not found.");
+  }
+  return { success: "Deleted permanently." };
 }
 
 // Links (or, with a blank contractId, unlinks) a Tenancy's Contract and says
@@ -461,9 +485,29 @@ export async function deleteRentalStatement(
 ): Promise<ActionState> {
   await requireUser();
   try {
-    await permanentlyDeleteRentalStatementCommand(statementId, { propertyId });
+    await deleteRentalStatementCommand(statementId, { propertyId });
   } catch (error) {
     return commandError(error, "Statement not found.");
   }
-  return { success: "Statement removed." };
+  return { success: "Statement moved to Trash." };
+}
+
+export async function restoreRentalStatement(statementId: string): Promise<ActionState> {
+  await requireUser();
+  try {
+    await restoreRentalStatementCommand(statementId);
+  } catch (error) {
+    return commandError(error, "Statement not found.");
+  }
+  return { success: "Restored." };
+}
+
+export async function permanentlyDeleteRentalStatement(statementId: string): Promise<ActionState> {
+  await requireUser();
+  try {
+    await permanentlyDeleteRentalStatementCommand(statementId);
+  } catch (error) {
+    return commandError(error, "Statement not found.");
+  }
+  return { success: "Deleted permanently." };
 }

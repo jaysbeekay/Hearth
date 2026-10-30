@@ -15,7 +15,7 @@ const { GET } = await import("@/app/api/ical/route");
 const d = (s: string) => new Date(`${s}T00:00:00.000Z`);
 
 function lease(id: string, leaseStart: string | null, leaseEnd: string | null, createdAt: string) {
-  return { id, leaseStart: leaseStart ? d(leaseStart) : null, leaseEnd: leaseEnd ? d(leaseEnd) : null, createdAt: d(createdAt) };
+  return { id, leaseStart: leaseStart ? d(leaseStart) : null, leaseEnd: leaseEnd ? d(leaseEnd) : null, createdAt: d(createdAt), deletedAt: null };
 }
 
 describe("currentTenancy", () => {

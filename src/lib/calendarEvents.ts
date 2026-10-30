@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { calendarDayOf, type CalendarDay, type DueContext, type DueEntry } from "@/lib/duePolicy";
-import { contractDue, currentTenancy, tenancyDue, TENANCY_AGREEMENT_SELECT, vehicleDue, warrantyDue } from "@/lib/dueRecords";
+import { contractDue, currentTenancy, tenancyDue, LIVE_TENANCY_AGREEMENTS, vehicleDue, warrantyDue } from "@/lib/dueRecords";
 import { dayStart } from "@/lib/listDue";
 
 export type CalendarKind =
@@ -171,7 +171,7 @@ export async function getCalendarEvents(
 
   if (enabledModules.has("TRAVEL")) {
     const segments = await prisma.tripSegment.findMany({
-      where: { startDate: { not: null }, trip: { deletedAt: null } },
+      where: { startDate: { not: null }, deletedAt: null, trip: { deletedAt: null } },
       include: { trip: { select: { id: true, title: true } } },
     });
     for (const s of segments) {
@@ -204,7 +204,7 @@ export async function getCalendarEvents(
           id: true,
           label: true,
           isRented: true,
-          rentalAgreements: { select: TENANCY_AGREEMENT_SELECT },
+          rentalAgreements: LIVE_TENANCY_AGREEMENTS,
         },
       }),
     ]);
