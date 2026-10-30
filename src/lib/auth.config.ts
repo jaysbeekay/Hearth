@@ -41,8 +41,14 @@ const PUBLIC_PATHS = [
 // make the same allow/deny decision itself — NextAuth skips its own redirect
 // once a handler is supplied, and the proxy supplies one so it can attach
 // security headers. One list, two callers.
+//
+// Exact path or a sub-path of it, never a bare string prefix: "/setup" covers
+// "/setup" and "/setup/…" but not "/setupx", and "/api/health" doesn't make
+// a future "/api/health-admin" public by accident (#477). The token pages
+// keep working because their token is a path segment
+// (/reset-password/[token], /accept-invitation/[token]).
 export function isPublicPath(pathname: string): boolean {
-  return PUBLIC_PATHS.some((path) => pathname.startsWith(path));
+  return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
 }
 
 export const authConfig: NextAuthConfig = {

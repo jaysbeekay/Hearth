@@ -8,6 +8,9 @@
 # instance; Render's free web services can't attach one and spin down when
 # idle, which would also stop Hearth's in-process reminder scheduler.
 #
+# Needs a Hearth image with GET /api/health (the first release after v0.19.2,
+# or later): Render's health check fails on older images.
+#
 # Region isn't set, so Render's default applies (Oregon, USA). Render can't
 # move a service to another region after creation. To host elsewhere (e.g.
 # frankfurt or singapore), fork the repo, add `region:` below, and deploy
@@ -17,13 +20,16 @@ services:
     name: hearth
     runtime: image
     image:
-      # Published on each release tag. Image-backed services don't redeploy
-      # by themselves: use Manual Deploy > "Deploy latest reference" in the
-      # Render Dashboard to pick up a new release.
+      # `latest` is the newest release. To control upgrades, pin a release
+      # instead, e.g. docker.io/jaysbeekay/hearth:vX.Y.Z, in the service's
+      # Settings. Image-backed services don't redeploy by themselves: read
+      # CHANGELOG.md, then use Manual Deploy > "Deploy latest reference".
       url: docker.io/jaysbeekay/hearth:latest
-    # 0.5 CPU / 512 MB, the smallest paid instance (a disk needs one). Move
-    # to 1c-2g if the service restarts for lack of memory, e.g. during OCR.
-    plan: 0.5c-512mb
+    # 1 CPU / 2 GB. Hearth's server plus OCR of a scanned PDF (a tesseract
+    # process per page) doesn't leave safe headroom in 512 MB. A household
+    # that rarely scans documents can switch to 0.5c-512mb in Settings to
+    # save money, and switch back if Render restarts it for memory.
+    plan: 1c-2g
     numInstances: 1
     healthCheckPath: /api/health
     disk:
@@ -33,14 +39,23 @@ services:
     envVars:
       - key: PORT
         value: "3000"
+      # Listen on all interfaces so Render's proxy can reach the server. The
+      # image sets this already; repeated here as a precaution.
+      - key: HOSTNAME
+        value: 0.0.0.0
       - key: DATABASE_URL
         value: file:./data/app.db
       - key: UPLOADS_DIR
         value: ./data/uploads
-      # The public https:// URL, e.g. https://hearth-xxxx.onrender.com or your
-      # own domain. Passkeys are tied to it, so set the final domain before
-      # anyone registers one.
-      - key: APP_URL
+      # APP_URL is deliberately not set: Hearth falls back to Render's own
+      # RENDER_EXTERNAL_URL (https://<service>.onrender.com). For a custom
+      # domain, add APP_URL=https://your.domain in the Environment page
+      # BEFORE anyone registers a passkey: passkeys are bound to the hostname.
+      #
+      # Household timezone as an IANA name, e.g. Australia/Sydney or
+      # Europe/Berlin. Render's servers run on UTC, and reminders are dated
+      # in this zone until an admin picks one in Settings.
+      - key: TZ
         sync: false
       # Render generates each of these once: a random base64-encoded 256-bit
       # value, which is the format Hearth expects.

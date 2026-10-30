@@ -10,7 +10,7 @@ relying on a number here.
 | Target | Recommendation | In one line |
 |---|---|---|
 | **PikaPods** | **Go with changes** | It runs the published Docker image with a persistent volume, which is exactly what Hearth already is, so no code changes are required. This PR adds a health endpoint and documents the volume and env vars. The blocker is a licence: PikaPods lists apps with "a license that allows self-hosting", and Hearth has none. Choosing one, and applying, are for the owner. |
-| **Render** | **Go** (Blueprint and button added in this PR) | A paid web service with a persistent disk runs the same Docker image unchanged, at about $7.25/month. The free tier is out: it can't have a disk and sleeps after 15 minutes. With a disk there's one instance and a short outage on each deploy, which is fine for a household. |
+| **Render** | **Go** (Blueprint and button added in this PR) | A paid web service with a persistent disk runs the same Docker image unchanged, at about $25.25/month on the default 2 GB instance, or about $7.25 on 512 MB for households that rarely scan documents. Prices are from Render's pricing page; check it before relying on them. The free tier is out: it can't have a disk and sleeps after 15 minutes. With a disk there's one instance and a short outage on each deploy, which is fine for a household. |
 | **Vercel** | **No-go** for now | Every one of Hearth's runtime assumptions breaks on serverless. Making it work is four separate pieces of work and a different data-custody story. `git.deploymentEnabled: false` stays. |
 
 ## What Hearth assumes at runtime
@@ -66,6 +66,7 @@ against each one:
 | Not heavy on CPU or bandwidth by design | Yes: one household. OCR is bursty but short. |
 | No risk of abuse or affecting other pods (proxies, VPNs) | Yes. |
 | Actively developed, with security issues addressed | Yes. |
+| "Not compete with the author's own paid hosting service, unless alternative hosting options are actively promoted." | Yes: there is no paid Hearth hosting. |
 
 The homepage advertises a "20% revenue share with project authors where
 possible" ([pikapods.com](https://www.pikapods.com/)). Other projects say the
@@ -99,7 +100,7 @@ PikaPods directly. The FAQ gives `hello@pikapods.com` as the contact.
 - **Volume**: one, mounted at `/app/data`. It holds the database, documents,
   and local backups if those are enabled.
 - **Health check**: `GET /api/health`. It returns `200 {"status":"ok"}` when
-  the server and database answer, and `503 {"status":"unavailable"}`
+  the server can read its database, and `503 {"status":"unavailable"}`
   otherwise. It is public and returns nothing else.
 - **Env vars**:
 
@@ -172,9 +173,9 @@ Render is a general-purpose cloud platform. A household deploys its own
 copy with the "Deploy to Render" button, which reads a `render.yaml`
 Blueprint from this repository. There's no catalogue to apply to, so unlike
 PikaPods this can ship now. This PR adds the Blueprint and the README button.
-The button works once a release that includes `/api/health` is published:
-the Blueprint pulls `:latest`, and Render's health check fails on any image
-without that route.
+The button only works once a release that includes `/api/health` is
+published (the first release after v0.19.2): the Blueprint pulls `:latest`,
+and Render's health check fails on any image without that route.
 
 ### Against each runtime assumption
 
@@ -185,11 +186,11 @@ without that route.
 | `node-cron` schedulers | **Yes, on a paid instance** | A paid web service keeps running, so the in-process ticker works and no Render Cron Job is needed. A Free web service spins down after "15 minutes without receiving any inbound traffic", and waking takes "about one minute" ([Free instances](https://render.com/docs/free)). While it sleeps, nothing runs: no reminders, backups or price refresh. |
 | Render Cron Jobs → `/api/cron` | **Not needed; limited if used** | A cron job is a separate service with "a minimum monthly charge of $1", and "You can't add a disk to a cron job service" ([Cron Jobs](https://render.com/docs/cronjobs), [Disks](https://render.com/docs/disks)). It could only `curl` the web service's `/api/cron`, which today runs reminders only. That's [#481](https://github.com/jaysbeekay/Hearth/issues/481). It only matters for a sleeping free instance, and that can't keep data anyway. |
 | `pdftotext` / `pdftoppm` / `tesseract` | **Yes** | They're in the Docker image. Render requires images "built for the `linux/amd64` platform" ([Deploy a prebuilt image](https://render.com/docs/deploying-an-image)), which is what's published today. |
-| Secrets, `APP_URL`, passkeys | **Yes** | `generateValue: true` sets "a randomized, base64-encoded, 256-bit value" once ([Blueprint spec](https://render.com/docs/blueprint-spec#generating-random-secrets)). That is exactly the format `ENCRYPTION_KEY` needs (32 bytes, base64) and works for `AUTH_SECRET` and `SETUP_TOKEN` too. `APP_URL` uses `sync: false`, so Render prompts for it during the initial Blueprint creation, but "When you update an existing Blueprint, Render ignores any environment variables with `sync: false`". TLS ends at Render's load balancer, which forwards plain HTTP ([Web services](https://render.com/docs/web-services)). Render's page doesn't mention `X-Forwarded-Proto`. If it's missing, Hearth just skips HSTS and `upgrade-insecure-requests`; Render redirects HTTP to HTTPS itself. |
+| Secrets, `APP_URL`, passkeys | **Yes** | `generateValue: true` sets "a randomized, base64-encoded, 256-bit value" once ([Blueprint spec](https://render.com/docs/blueprint-spec#generating-random-secrets)). That is exactly the format `ENCRYPTION_KEY` needs (32 bytes, base64) and works for `AUTH_SECRET` and `SETUP_TOKEN` too. `APP_URL` isn't asked for: when it's unset, Hearth uses Render's `RENDER_EXTERNAL_URL`, "the service's full `onrender.com` URL" ([Environment variables](https://render.com/docs/environment-variables)). For a custom domain, set `APP_URL` in the Environment page *before anyone registers a passkey*, because passkeys are bound to the hostname. TLS ends at Render's load balancer, which forwards plain HTTP ([Web services](https://render.com/docs/web-services)). **Whether Render sets `X-Forwarded-Proto` is unknown**: its docs don't say. If it doesn't, Hearth won't send HSTS or `upgrade-insecure-requests`; Render redirects HTTP to HTTPS itself either way. |
 | Health checks | **Yes** | `healthCheckPath: /api/health`. Render stops routing to an instance that fails checks for 15 seconds, and restarts it after 60 seconds ([Health checks](https://render.com/docs/health-checks)). |
 | Deploys and scaling | **Single instance, brief downtime** | "Adding a disk to a service prevents zero-downtime deploys": Render stops the old instance before starting the new one. A disk is accessible by only one instance, so there's no horizontal scaling ([Disks](https://render.com/docs/disks)). Neither matters for one household: Hearth is a single-instance app anyway, and a deploy is a short outage. |
-| Updates | **Manual** | "Image-backed services do not automatically redeploy whenever a new image is associated with their assigned tag." The household clicks *Manual Deploy → Deploy latest reference*, or calls the service's deploy hook ([Deploy a prebuilt image](https://render.com/docs/deploying-an-image)). Migrations run automatically on start, as in Docker. |
-| Memory | **Tight on the smallest plan** | The Blueprint uses `0.5c-512mb`, the cheapest instance that can have a disk. A local production build used about 275 MB RSS idle and about 350 MB after serving the login and setup pages. That was on macOS, not in the container, and before OCR, which runs `tesseract` as a separate process. If Render restarts the service for memory, move to `1c-2g`. |
+| Updates | **Manual** | "Image-backed services do not automatically redeploy whenever a new image is associated with their assigned tag." The household reads `CHANGELOG.md`, then clicks *Manual Deploy → Deploy latest reference*, or calls the service's deploy hook ([Deploy a prebuilt image](https://render.com/docs/deploying-an-image)). Migrations run automatically on start, as in Docker. To control upgrades, pin a release: in the service's Settings, change the image URL to `docker.io/jaysbeekay/hearth:vX.Y.Z`, and change it to the next tag when you choose to upgrade. |
+| Memory | **2 GB by default; 512 MB is a cheaper option** | Measured natively on macOS, not in the container (Docker wasn't available), so treat these as estimates. The production server used about 275 MB RSS idle and about 350 MB after serving pages. OCR of a 6-page image-only PDF ran `pdftoppm` (peak about 46 MB) and then one `tesseract` per page, each peaking at about 108 MB. Server plus OCR comes to roughly 460 MB, which leaves too little headroom in 512 MB, so the Blueprint uses `1c-2g`. A household that rarely scans documents can switch to `0.5c-512mb` in Settings, and switch back if Render restarts the service for memory. |
 
 ### What the Blueprint sets up
 
@@ -201,14 +202,16 @@ without that route.
   (`https://render.com/schema/render.yaml.json`) on 2026-10-30, and
   `tests/unit/render-blueprint.test.ts` keeps it in step with the image's
   paths.
-- **Plan**: `0.5c-512mb`, one instance.
+- **Plan**: `1c-2g`, one instance (see Memory above).
 - **Disk**: `hearth-data`, 1 GB, mounted at `/app/data`. It can grow later
   but never shrink.
 - **Health check**: `/api/health`.
-- **Env vars**: `PORT=3000`, `DATABASE_URL=file:./data/app.db` and
+- **Env vars**: `PORT=3000`, `HOSTNAME=0.0.0.0` (the image sets it already;
+  repeated as a precaution), `DATABASE_URL=file:./data/app.db` and
   `UPLOADS_DIR=./data/uploads`. `AUTH_SECRET`, `ENCRYPTION_KEY` and
-  `SETUP_TOKEN` are generated by Render. `APP_URL` is prompted. Everything
-  else (`SMTP_*`, `NTFY_*`, `TZ`, backups…) is added afterwards in the
+  `SETUP_TOKEN` are generated by Render. `TZ` is prompted, because Render's
+  servers run on UTC. `APP_URL` is left unset, so Render's URL is used.
+  Everything else (`SMTP_*`, `NTFY_*`, backups…) is added afterwards in the
   service's Environment page.
 - **Region**: not set, so Render's default, Oregon, applies. Render's regions
   are Oregon, Ohio, Virginia, Frankfurt and Singapore
@@ -219,7 +222,10 @@ without that route.
 
 ### Cost to a household
 
-From [render.com/pricing](https://render.com/pricing):
+Render's docs pages don't state prices. These figures come from the pricing
+page, [render.com/pricing](https://render.com/pricing), as read on
+2026-10-30. They couldn't be checked against the docs, so check the pricing
+page before relying on them.
 
 - The Hobby workspace is "$0/month + compute", "For individuals building
   personal projects and prototypes", with "5 GB of bandwidth included" (then
@@ -228,8 +234,8 @@ From [render.com/pricing](https://render.com/pricing):
   | $25/month | 2 GB RAM | 1c-2g".
 - Persistent disks: "$0.25 per GB per month".
 
-So the Blueprint as written costs about **$7.25/month** (512 MB instance and
-a 1 GB disk), or about $25.25 if it needs the 2 GB instance. The free
+So the Blueprint as written costs about **$25.25/month** (2 GB instance and
+a 1 GB disk), or about $7.25 on the 512 MB instance. The free
 instance isn't an option: it can't have a disk, so every restart or
 spin-down would erase the household's data.
 
@@ -309,7 +315,7 @@ Neither is a supported, working path today, so `vercel.json` keeps
 
 So a Vercel deployment is free to start but could stop working in ways a
 household won't expect. Making it reliable costs about $25/month (Pro plus
-Turso Developer), against a few dollars on PikaPods or about $7.25 on Render.
+Turso Developer), against a few dollars on PikaPods or $7.25–$25.25 on Render.
 
 ### Data custody
 
@@ -325,13 +331,13 @@ is what Docker, PikaPods and Render give you.
 | | PikaPods | Render | Vercel |
 |---|---|---|---|
 | Runs Hearth unchanged | Yes | Yes (paid instance + disk) | No |
-| Monthly cost, one household | Configurator-priced; $1/pod minimum, "from $1.80"; size not yet agreed | About $7.25 (512 MB + 1 GB disk); about $25.25 on 2 GB | $0 on Hobby but unreliable; about $25 to make it work |
+| Monthly cost, one household | Configurator-priced; $1/pod minimum, "from $1.80"; size not yet agreed | About $25.25 (2 GB + 1 GB disk, the default); about $7.25 on 512 MB. From the pricing page, not the docs | $0 on Hobby but unreliable; about $25 to make it work |
 | Free option | $5 welcome credit | None that keeps data | Hobby, with once-a-day cron and Blob cut-offs |
 | Where data lives | EU (Germany, Finland) or US | Oregon by default; Ohio, Virginia, Frankfurt, Singapore | US East by default; split across Vercel and Turso |
 | Host's own backups | Best effort, plus optional encrypted Restic | Daily disk snapshots, kept 7 days | Turso PITR (1–10 days); Blob none stated |
 | Moving out | SFTP the `data/` folder | SCP / magic-wormhole the `data/` folder | Export from two services, convert the database |
 | Updates | PikaPods rolls out stable releases | Household clicks "Deploy latest reference" | The button copies the repo into the household's account; upstream releases need a manual sync |
-| Who must act | Owner: licence + application | Nobody: button in README | Not viable yet |
+| Who must act | Owner: licence + application | Owner: cut a release; then the README button | Not viable yet |
 
 All three hosts can technically read the household's data, as any host can.
 Hearth's own encrypted backups to the household's S3 or SFTP storage are the
@@ -351,8 +357,10 @@ These apply to any hosted instance:
   off. Keep a copy somewhere other than the host: a backup can't be decrypted
   without it.
 - **Set `APP_URL` before adding passkeys.** The URL's host is the passkey
-  relying-party ID. Moving from `*.pikapod.net` to a custom domain later means
-  everyone re-registers their passkeys. Pick the final domain first.
+  relying-party ID. Moving from `*.pikapod.net` or `*.onrender.com` to a
+  custom domain later means everyone re-registers their passkeys. Pick the
+  final domain first. On Render, an unset `APP_URL` falls back to the
+  service's `onrender.com` URL.
 - **Consider the IP allowlist.** PikaPods' firewall can restrict a pod to
   listed IPs ([Firewall](https://docs.pikapods.com/manage/firewall)). That's
   the hosted equivalent of the README's nginx + mTLS setup, which isn't
@@ -375,17 +383,18 @@ These apply to any hosted instance:
 
 Only the repository owner can do these:
 
-1. **Choose a licence.** PikaPods requires "a license that allows
-   self-hosting", and Hearth currently has none. Add a `LICENSE` file and
-   update README's "License" section. Which licence is the owner's call: it
-   decides whether hosts like PikaPods may run Hearth commercially, and on
-   what terms.
-2. **Cut a release before advertising the Render button.** The Blueprint
-   pulls `jaysbeekay/hearth:latest` and health-checks `/api/health`, which
-   only exists from this PR on. Until a release containing it is published,
+1. **Cut a release after merging.** The Render Blueprint pulls
+   `jaysbeekay/hearth:latest` and health-checks `/api/health`, which only
+   exists from this PR on. Until a release containing it is published,
    Render's health check gets a 404 and the deploy fails. After that release,
    a test deploy from the README button confirms the end-to-end flow. That
    needs a Render account and costs a few cents for a short test.
+2. **Choose a licence.** PikaPods requires "a license that allows
+   self-hosting", and Hearth currently has none. Add a `LICENSE` file and
+   update README's "License" section. Which licence is the owner's call. Note
+   that PikaPods is a paid hosting service, so the choice also decides
+   whether PikaPods (or any other host) may run Hearth commercially, and on
+   what terms.
 3. **Apply to PikaPods.** Suggest Hearth on PikaPods' feedback page and email
    `hello@pikapods.com`. Send the image name, port `3000`, volume `/app/data`,
    health check `/api/health`, and the env-var table above. Ask them to
@@ -440,7 +449,8 @@ All checked 2026-10-30.
   [Web services](https://render.com/docs/web-services) ·
   [Health checks](https://render.com/docs/health-checks) ·
   [Cron Jobs](https://render.com/docs/cronjobs) ·
-  [Regions](https://render.com/docs/regions)
+  [Regions](https://render.com/docs/regions) ·
+  [Environment variables](https://render.com/docs/environment-variables)
 - Vercel: [Functions limits](https://vercel.com/docs/functions/limitations) ·
   [Runtimes](https://vercel.com/docs/functions/runtimes) ·
   [Running Docker on Vercel](https://vercel.com/kb/guide/docker) ·

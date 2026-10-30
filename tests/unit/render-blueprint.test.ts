@@ -47,11 +47,16 @@ describe("render.yaml Blueprint", () => {
     }
   });
 
-  it("prompts for APP_URL rather than guessing it", () => {
-    expect(envEntry("APP_URL")).toContain("sync: false");
+  it("leaves APP_URL unset, so Hearth falls back to RENDER_EXTERNAL_URL", () => {
+    expect(blueprint).not.toMatch(/^\s+- key: APP_URL$/m);
   });
 
-  it("serves on the port the image listens on", () => {
+  it("prompts for the household timezone", () => {
+    expect(envEntry("TZ")).toContain("sync: false");
+  });
+
+  it("serves on the port and interface the image listens on", () => {
     expect(envEntry("PORT")).toContain('value: "3000"');
+    expect(envEntry("HOSTNAME")).toContain("value: 0.0.0.0");
   });
 });

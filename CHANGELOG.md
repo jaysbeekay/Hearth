@@ -48,25 +48,28 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 ### Added
 
 - **Health check endpoint and hosting notes (#477).** `GET /api/health`
-  answers `200 {"status":"ok"}` when the app and its database respond, and
-  `503 {"status":"unavailable"}` when they don't. It needs no login and
-  returns nothing else, so managed hosts such as PikaPods, Docker health
-  checks and uptime monitors can use it. README gains a "Deploy" section
-  listing what any Docker host needs (image, port `3000`, volume at
-  `/app/data`, health check, env vars), and fixes the container's database
-  path in Quick start (`/app/data/app.db`, not `/data/app.db`).
-  `docs/deployment/one-click.md` assesses PikaPods (go once Hearth has a
-  licence and the owner applies), Render (go) and Vercel (still no-go;
-  `vercel.json` keeps deploys off), with costs, data custody and security
-  notes. Follow-ups: #478–#482.
+  answers `200 {"status":"ok"}` when the app can read its database file, and
+  `503 {"status":"unavailable"}` when it can't. The result is reused for 5
+  seconds. It needs no login and returns nothing else, so managed hosts such
+  as PikaPods and Render, and uptime monitors, can use it. Docker Compose users
+  can add a `healthcheck` that runs
+  `wget -qO- http://localhost:3000/api/health`; the image itself doesn't
+  define one. README gains a "Deploy" section listing what any Docker host
+  needs (image, port `3000`, volume at `/app/data`, health check, env vars),
+  and fixes the container's database path in Quick start
+  (`/app/data/app.db`, not `/data/app.db`). `docs/deployment/one-click.md`
+  assesses PikaPods (go once Hearth has a licence and the owner applies),
+  Render (go) and Vercel (still no-go; `vercel.json` keeps deploys off), with
+  costs, data custody and security notes. Follow-ups: #478–#482.
 
 - **Deploy to Render (#477).** A `render.yaml` Blueprint and a README button
   set up Hearth on the household's own Render account. It runs the published
-  Docker image on a paid instance with a 1 GB persistent disk at
-  `/app/data`, and health-checks `/api/health`. Render generates
-  `AUTH_SECRET`, `ENCRYPTION_KEY` and `SETUP_TOKEN`, and prompts for
-  `APP_URL`. It costs about $7.25/month at Render's October 2026 prices; the
-  free tier can't keep data.
+  Docker image (needs the first release after v0.19.2, or later) on a 2 GB
+  instance with a 1 GB persistent disk at `/app/data`, and health-checks
+  `/api/health`. Render generates `AUTH_SECRET`, `ENCRYPTION_KEY` and
+  `SETUP_TOKEN`, and asks for `TZ`. It costs about $25/month, or about $7 on
+  the 512 MB instance for households that rarely scan documents (Render's
+  October 2026 prices). The free tier can't keep data.
 
 - **Renew a Contract.** Renew on a Contract's page, its Due banner and
   Needs attention opens a short form for the next Term: new start and end
@@ -162,6 +165,17 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   `ios-shell/www/app.js`, which are placeholders pending that setup.
 
 ### Changed
+
+- **An empty `APP_URL` now counts as unset (#477)**, so links fall back to
+  `http://localhost:3000` instead of being built from an empty string. On
+  Render, an unset `APP_URL` uses the service's own `RENDER_EXTERNAL_URL`.
+  An explicit `APP_URL` still wins.
+
+- **Public paths match whole path segments (#477).** The routes that need no
+  login (`/login`, `/setup`, `/api/cron`, `/api/health` and the rest) now
+  match the exact path or a sub-path, not any path that merely starts with
+  the same letters. A future route such as `/api/health-admin` or `/setupx`
+  can't become public by accident.
 
 - **One Document list (#397).** Every record's Documents use the same list:
   Contracts, Warranties, Maintenance records, Service records, Inventory
