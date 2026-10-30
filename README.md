@@ -16,10 +16,59 @@ Open `http://localhost:3000` — you'll be sent to `/setup` to create the first 
 
 | Variable | Description |
 |---|---|
-| `DATABASE_URL` | SQLite path — defaults to `file:/data/app.db` inside the container |
+| `DATABASE_URL` | SQLite path — defaults to `file:./data/app.db`, i.e. `/app/data/app.db` inside the container |
 | `AUTH_SECRET` | Session signing key — generate with `openssl rand -base64 32` |
 
 Everything else is optional. Set `SMTP_*` to enable email reminders, `NTFY_*` for push notifications, `OLLAMA_BASE_URL` for local AI extraction, and `S3_*` / `SFTP_*` for offsite backups. See the full reference below and `.env.example` for all available variables.
+
+## Deploy
+
+| Where | How |
+|---|---|
+| Your own server, NAS or VPS | Docker, below: [Self-hosting with Docker](#self-hosting-with-docker) |
+| Your own Render account | [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/jaysbeekay/Hearth) A paid Render service with a persistent disk. See [Deploy to Render](#deploy-to-render) below. |
+| Managed hosting, no server to run | [PikaPods](https://www.pikapods.com/) runs open-source apps from their Docker images. Hearth isn't listed there yet; the details a host needs are below. |
+| Vercel and other serverless hosts | Not supported. See [Why not serverless](#why-not-serverless-vercel-netlify-workers). |
+
+### Deploy to Render
+
+> **Needs the first Hearth release after v0.19.2, or later.** That release
+> adds the `/api/health` endpoint Render checks. Until it is published, a
+> deploy from the button fails its health check.
+
+1. Click the button, sign in to Render, and approve the Blueprint
+   ([`render.yaml`](render.yaml)). It creates one web service from the Docker
+   image, with a 1 GB disk at `/app/data`. The 2 GB instance is the default
+   (about $25/month at Render's October 2026 prices); 512 MB costs about $7
+   and suits households that rarely scan documents. Render's free tier can't
+   keep data.
+2. When asked for `TZ`, enter your timezone, e.g. `Australia/Sydney`.
+3. Render generates `AUTH_SECRET`, `ENCRYPTION_KEY` and `SETUP_TOKEN`. Copy
+   `SETUP_TOKEN` from the service's Environment page, then open the
+   service's `onrender.com` URL to finish setup.
+4. Using your own domain? Add it in Render, and set `APP_URL` to
+   `https://your.domain` *before* anyone registers a passkey: passkeys are tied
+   to the domain.
+5. To update, read [`CHANGELOG.md`](CHANGELOG.md), then use *Manual Deploy →
+   Deploy latest reference*.
+
+Any host that runs a Docker image with a persistent volume can run Hearth:
+
+- **Image**: `jaysbeekay/hearth:<version>` (or `:latest`), serving HTTP on port `3000`.
+- **Volume**: mount persistent storage at `/app/data`. The database, uploaded
+  documents and local backups all live there.
+- **Health check**: `GET /api/health` returns `200 {"status":"ok"}` when the
+  app can read its database, or `503` otherwise. It needs no login and
+  returns nothing else. With Docker Compose, you can add a `healthcheck`
+  that runs `wget -qO- http://localhost:3000/api/health`.
+- **Env vars**: `AUTH_SECRET` (required), `APP_URL` (the public `https://`
+  URL; passkeys are tied to it), `ENCRYPTION_KEY` and `SETUP_TOKEN` (both
+  strongly recommended on anything internet-facing). Everything else is
+  optional; see `.env.example`.
+
+[`docs/deployment/one-click.md`](docs/deployment/one-click.md) has the full
+assessment of PikaPods, Render and Vercel: costs, where your data lives, and
+security notes.
 
 ## Features
 
@@ -330,7 +379,10 @@ stays in one directory you can back up — but it rules out serverless hosting:
 
 `vercel.json` sets `git.deploymentEnabled: false` so Vercel doesn't attempt a
 build it can't complete. Use Docker (above), or any host that gives you a
-persistent volume and a long-running process.
+persistent volume and a long-running process. Vercel's container runtime and
+Blob storage were re-checked in October 2026 and don't change this; see
+[`docs/deployment/one-click.md`](docs/deployment/one-click.md) for the details
+and the follow-up issues that would.
 
 ## Locking down access with nginx + mTLS
 
