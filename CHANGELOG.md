@@ -18,6 +18,20 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   GHSA-xhq7-xmqj-769h, GHSA-333x-w4r6-6crp). The remaining low-severity
   `npm audit` entries all trace to `@simplewebauthn/server` 9.x and are
   tracked in #376.
+- `@simplewebauthn/server` 9.0.3 → 14.0.3 and `@simplewebauthn/browser`
+  9.0.1 → 14.0.0, clearing the last `npm audit` entries
+  (GHSA-6hxq-p678-4hr2, attestation certificate chains not checked against a
+  trust anchor; Hearth wasn't exposed, since it registers passkeys with
+  `attestationType: "none"`). `next-auth` 5.0.0-beta.32 is still the newest
+  release and still declares an optional peer on 9.x for its WebAuthn
+  provider, which Hearth doesn't use (passkeys are a plain credentials
+  provider calling `@simplewebauthn/server` directly), so an npm `overrides`
+  entry points that peer at Hearth's own version. Stored passkeys keep the
+  same format (base64url credential id, COSE public key, counter) and keep
+  signing in with no migration; new passkeys keep the same user handle. A
+  new e2e spec drives register, sign in and remove with a Chromium virtual
+  authenticator and signs in with a passkey stored in the 9.x row format
+  (#376).
 
 ### Added
 
@@ -369,6 +383,9 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **A refused passkey says so.** Signing in with a passkey Hearth doesn't
+  know (for example one removed in Settings) used to drop silently back to
+  the sign-in page; it now shows "Passkey sign-in failed" (#376).
 - **Wealth: net worth adds up, and crypto is priced from CoinGecko (#404).**
   The Wealth page shows the total above a plain list of every part of it
   (shares/ETFs/crypto, Property, Items), so the figures always sum to the

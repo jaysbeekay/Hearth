@@ -21,7 +21,7 @@ export function PasskeySignInButton({ callbackUrl = "/dashboard" }: { callbackUr
 
       let assertion;
       try {
-        assertion = await startAuthentication(options);
+        assertion = await startAuthentication({ optionsJSON: options });
       } catch (err) {
         if (err instanceof Error && err.name === "NotAllowedError") {
           setError("Sign-in was cancelled.");
@@ -38,7 +38,9 @@ export function PasskeySignInButton({ callbackUrl = "/dashboard" }: { callbackUr
         redirect: false,
       });
 
-      if (result?.ok) {
+      // next-auth reports a refused credentials sign-in as ok with an error
+      // set, so check both, or a rejected passkey would just bounce back here.
+      if (result?.ok && !result.error) {
         window.location.href = callbackUrl;
       } else {
         setError("Passkey sign-in failed. The passkey may not match an account.");

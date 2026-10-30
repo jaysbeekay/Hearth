@@ -3,17 +3,17 @@ import NextAuth, { CredentialsSignin, type Session } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import GitHub from "next-auth/providers/github";
 import bcrypt from "bcryptjs";
-import { verifyAuthenticationResponse } from "@simplewebauthn/server";
-import type {
-  AuthenticationResponseJSON,
-  AuthenticatorTransportFuture,
-} from "@simplewebauthn/types";
+import {
+  verifyAuthenticationResponse,
+  type AuthenticationResponseJSON,
+} from "@simplewebauthn/server";
 import { prisma } from "@/lib/prisma";
 import { env, isGithubOAuthConfigured } from "@/lib/env";
 import { authConfig } from "@/lib/auth.config";
 import type { Role } from "@/generated/prisma/enums";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import { verifyTotpCode, consumeRecoveryCode } from "@/lib/totp";
+import { toWebAuthnCredential } from "@/lib/passkeyCredential";
 
 export class TotpRequiredSignin extends CredentialsSignin {
   code = "totp_required";
@@ -128,16 +128,7 @@ const nextAuth = NextAuth({
             expectedChallenge: storedChallenge.challenge,
             expectedOrigin: env.appUrl,
             expectedRPID: rpId,
-            authenticator: {
-              credentialID: Buffer.from(passkeyCredential.credentialId, "base64url"),
-              credentialPublicKey: new Uint8Array(passkeyCredential.publicKey),
-              counter: passkeyCredential.counter,
-              transports: passkeyCredential.transports
-                ? (JSON.parse(
-                    passkeyCredential.transports,
-                  ) as AuthenticatorTransportFuture[])
-                : undefined,
-            },
+            credential: toWebAuthnCredential(passkeyCredential),
           });
         } catch {
           return null;
