@@ -1,0 +1,25 @@
+# Security updates stay on (repo setting); this file adds weekly version
+# updates and holds back the major bumps that need code changes first.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      # next-auth 5 beta peers on @simplewebauthn/server ^9; bumping either
+      # alone breaks npm ci and the passkey routes (#443, reverted in #459).
+      # #376 upgrades them together.
+      - dependency-name: "@simplewebauthn/*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "next-auth"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

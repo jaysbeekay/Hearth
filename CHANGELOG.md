@@ -119,6 +119,22 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   - The Assistant also gets `get_contract`, and both share their Contract
     tool descriptions, now in the glossary's terms. `get_contract` no
     longer lists trashed documents.
+- **CI split into separate required checks.** `.github/workflows/ci.yml` replaces
+  `e2e.yml` with one job per check: `typecheck`, `lint`, `unit`, `build`, `e2e`
+  and `standalone`. A failing lint step no longer shows up as an "e2e" failure.
+  `next build` now runs on every PR (before, only the Docker Scout image build
+  ran it), and the standalone shell suite now runs in CI. `main` has a
+  ruleset that requires these checks, plus Docker Scout, CodeQL and Codacy,
+  before a merge, and blocks force-pushes and deletion.
+- **Unit test coverage.** `npm run test:coverage` (Vitest + v8) reports
+  coverage. CI posts a summary on every run, fails if coverage drops below the
+  floor in `vitest.config.ts` (30% lines today), and uploads it to Codacy
+  once the `CODACY_PROJECT_TOKEN` secret is set.
+- **Dependabot version updates.** A weekly npm and GitHub Actions schedule,
+  with minor and patch bumps grouped. Major bumps of `@simplewebauthn/*` and
+  `next-auth` are held back: bumping one alone broke `main` (#443, reverted
+  in #459), and #376 upgrades them together.
+
 - **Standalone shell wealth parity (#440).** The offline shell's dashboard now
   lists net worth the way the web Wealth page does (#404): a Net worth total
   with its parts beneath — Shares, ETFs and crypto, Property and Items, each
