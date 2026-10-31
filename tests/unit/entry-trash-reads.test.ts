@@ -46,8 +46,8 @@ describe("a Tenancy in Trash", () => {
     });
     const older = lease("older", "2025-01-01", null);
     const trashed = lease("trashed", "2026-01-01", new Date());
-    expect(currentTenancy({ isRented: true, rentalAgreements: [older, trashed] })?.id).toBe("older");
-    expect(currentTenancy({ isRented: true, rentalAgreements: [trashed] })).toBeNull();
+    expect(currentTenancy({ isRented: true, archivedAt: null, rentalAgreements: [older, trashed] })?.id).toBe("older");
+    expect(currentTenancy({ isRented: true, archivedAt: null, rentalAgreements: [trashed] })).toBeNull();
   });
 
   it("is left out of What's due, Upcoming, the iCal feed and queryProperties", async () => {

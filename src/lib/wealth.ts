@@ -302,7 +302,8 @@ export async function getNetWorth(enabledModules: Set<ModuleKey>): Promise<NetWo
     }),
     enabledModules.has("HOME")
       ? prisma.property.findMany({
-          where: { deletedAt: null },
+          // #355 — an Archived Property isn't the household's any more.
+          where: { deletedAt: null, archivedAt: null },
           include: { valuations: { where: { deletedAt: null }, orderBy: { valuedAt: "desc" }, take: 1 } },
         })
       : [],

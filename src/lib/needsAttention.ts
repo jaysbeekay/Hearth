@@ -139,7 +139,7 @@ const VEHICLE_ACTIONS = new Map<string, string>([
   ["nextServiceDue", "Book service"],
 ]);
 
-type AttentionVehicle = Pick<Vehicle, "id" | "label" | "regoExpiry" | "insuranceExpiry" | "nextServiceDue" | "reminderDaysBefore">;
+type AttentionVehicle = Pick<Vehicle, "id" | "label" | "regoExpiry" | "insuranceExpiry" | "nextServiceDue" | "reminderDaysBefore" | "archivedAt">;
 
 /** One row per Due entry: a Vehicle's rego, insurance and service are separate dates, each with its own state. */
 export function buildVehicleAttentionItems(vehicles: AttentionVehicle[], ctx: DueContext): AttentionItem[] {
