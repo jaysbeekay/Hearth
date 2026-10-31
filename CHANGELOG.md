@@ -20,7 +20,10 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 - Manual-dispatch releases (`release.yml`) never built the Docker image or the
   Android APK/AAB (v0.19.2 shipped with neither), because tags created by the
   `GITHUB_TOKEN` don't fire push-triggered workflows. `release.yml` now
-  dispatches `docker-publish.yml` and `android-build.yml` against the new tag.
+  dispatches `docker-publish.yml` and `android-build.yml` against the new tag,
+  waits for both (dispatched or tag-push) builds to finish, and fails unless
+  the APK/AAB are attached to the Release and the Docker image is on Docker
+  Hub, so a green release run means the artifacts were actually published.
 - `android-build.yml` now always builds the release variant (unsigned when not
   a signed tag run) so manual runs exercise R8, and no longer builds the debug
   APK when dispatched against a tag.
@@ -71,7 +74,7 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 - `release.yml` and `docker-publish.yml` refuse to run outside `main` or a
   `v*` tag; `release.yml` validates the version input and no longer
   interpolates inputs into shell scripts; `actions: write` is held only by the
-  small dispatch job; Docker `latest` moves only for the highest stable
+  small `artifacts` job; Docker `latest` moves only for the highest stable
   release.
 
 ### Added

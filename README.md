@@ -889,6 +889,12 @@ that case `release.yml` dispatches `docker-publish.yml` and
 `android-build.yml` against the new tag itself (it has `actions: write` for
 this). Pushing the tag locally needs no extra step.
 
+Either way, `release.yml`'s `artifacts` job then waits for both builds to
+finish and checks that the signed `app-release.apk`/`app-release.aab` are
+attached to the Release and that `jaysbeekay/hearth:vx.y.z` is on Docker Hub.
+A green release run means the artifacts were published; if a build fails, the
+release run fails too and its summary links the failed run.
+
 `release.yml` only runs from `main` (manual dispatch) or a pushed `v*` tag,
 and validates the version as `x.y.z` (optionally `-suffix`).
 

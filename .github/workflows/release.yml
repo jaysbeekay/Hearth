@@ -78,19 +78,23 @@ jobs:
           body: ${{ steps.changelog.outputs.notes }}
           generate_release_notes: true
 
+  # Builds the release's artifacts and waits for them, so a green release run
+  # means the Docker image and the signed Android APK/AAB were actually
+  # published, not just that a build was requested.
+  #
   # A tag created by this workflow's own manual dispatch is made with the
   # GITHUB_TOKEN, and GitHub deliberately doesn't fire push-triggered
-  # workflows for refs created by that token. So the tag-push workflows
-  # (docker-publish.yml, android-build.yml) never ran for v0.19.2. Dispatch
-  # them explicitly against the new tag instead. Not needed (and would
-  # double-build) when a human pushed the tag: the push event covers it.
+  # workflows for refs created by that token (why v0.19.2 never built), so on
+  # a dispatch the tag builds are started here. When a human pushed the tag,
+  # the push event already started them and this job only waits for them.
   # Separate job so only this one holds `actions: write`, not the job that
   # runs the release action.
-  dispatch:
+  artifacts:
     needs: release
-    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
+    if: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # Android ~10 min, Docker up to its own 45 min timeout, plus queueing.
+    timeout-minutes: 75
     permissions:
       contents: read
       actions: write
@@ -98,30 +102,75 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
       TAG: ${{ needs.release.outputs.tag }}
+      EVENT_NAME: ${{ github.event_name }}
     steps:
-      # Each dispatch is its own step, so one failing doesn't skip the other;
-      # the last step fails the job if either did.
-      - name: Dispatch docker-publish.yml
-        id: docker
-        continue-on-error: true
-        run: gh workflow run docker-publish.yml --ref "$TAG"
-
-      - name: Dispatch android-build.yml
-        id: android
-        continue-on-error: true
-        run: gh workflow run android-build.yml --ref "$TAG"
-
-      - name: Report dispatch results
-        env:
-          DOCKER_RESULT: ${{ steps.docker.outcome }}
-          ANDROID_RESULT: ${{ steps.android.outcome }}
+      - name: Start or find the tag builds, and wait for them
         run: |
-          {
-            echo "### Tag build dispatch for $TAG"
-            echo "- docker-publish.yml: $DOCKER_RESULT"
-            echo "- android-build.yml: $ANDROID_RESULT"
-          } >> "$GITHUB_STEP_SUMMARY"
-          if [[ "$DOCKER_RESULT" != "success" || "$ANDROID_RESULT" != "success" ]]; then
-            echo "::error::A tag build failed to dispatch; re-run it from the Actions tab against $TAG."
+          set -uo pipefail
+          workflows=(docker-publish.yml android-build.yml)
+          # A minute of slack for clock skew between this runner and the API.
+          since=$(date -u -d '-1 minute' +%Y-%m-%dT%H:%M:%SZ)
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            event=workflow_dispatch
+            for wf in "${workflows[@]}"; do
+              gh workflow run "$wf" --ref "$TAG" || { echo "::error::Could not dispatch $wf for $TAG."; exit 1; }
+            done
+          else
+            event=push
+            # The push already started them; look back to the tag's push.
+            since=$(date -u -d '-30 minutes' +%Y-%m-%dT%H:%M:%SZ)
+          fi
+
+          find_run() {
+            gh run list --workflow "$1" --branch "$TAG" --event "$event" --limit 10 \
+              --json databaseId,createdAt \
+              --jq "[.[] | select(.createdAt >= \"$since\")] | sort_by(.createdAt) | last | .databaseId // empty"
+          }
+
+          failed=0
+          echo "### Release artifacts for $TAG" >> "$GITHUB_STEP_SUMMARY"
+          for wf in "${workflows[@]}"; do
+            id=""
+            for _ in $(seq 1 30); do
+              id=$(find_run "$wf")
+              [[ -n "$id" ]] && break
+              sleep 10
+            done
+            if [[ -z "$id" ]]; then
+              echo "::error::No $event run of $wf for $TAG appeared."
+              echo "- $wf: no run found" >> "$GITHUB_STEP_SUMMARY"
+              failed=1
+              continue
+            fi
+            url="https://github.com/$GH_REPO/actions/runs/$id"
+            if gh run watch "$id" --exit-status --interval 30 > /dev/null; then
+              echo "- $wf: success ($url)" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "::error::$wf failed for $TAG: $url"
+              echo "- $wf: **failed** ($url)" >> "$GITHUB_STEP_SUMMARY"
+              failed=1
+            fi
+          done
+          exit "$failed"
+
+      # A green build is not proof of publication: check the outputs exist.
+      - name: Verify the APK/AAB are on the Release
+        run: |
+          set -euo pipefail
+          assets=$(gh release view "$TAG" --json assets --jq '.assets[].name')
+          for name in app-release.apk app-release.aab; do
+            if ! grep -qx "$name" <<< "$assets"; then
+              echo "::error::$name is not attached to Release $TAG."
+              exit 1
+            fi
+          done
+          echo "- Release $TAG has app-release.apk and app-release.aab" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify the Docker image is published
+        run: |
+          set -euo pipefail
+          if ! docker buildx imagetools inspect "jaysbeekay/hearth:$TAG" > /dev/null; then
+            echo "::error::jaysbeekay/hearth:$TAG is not on Docker Hub."
             exit 1
           fi
+          echo "- Docker Hub has jaysbeekay/hearth:$TAG" >> "$GITHUB_STEP_SUMMARY"
