@@ -66,7 +66,7 @@ test.describe.serial("Wealth module", () => {
     await page.waitForURL(/\/wealth\/portfolios\/[^/]+\/holdings\/[^/]+$/);
     await expect(page.locator("body")).toContainText("Buy");
 
-    const buyRow = page.locator("div.rounded-xl.border.border-border.bg-surface.p-4", {
+    const buyRow = page.locator("div.rounded-lg.border.border-border.bg-surface.p-4", {
       hasText: "Buy",
     });
     const editHref = await buyRow.getByTitle("Edit trade").getAttribute("href");
@@ -127,7 +127,7 @@ test.describe.serial("Wealth module", () => {
   test("upload a trade document", async ({ page }) => {
     await page.goto(`/wealth/portfolios/${portfolioId}/holdings/${holdingId}`);
 
-    const buyRow = page.locator("div.rounded-xl.border.border-border.bg-surface.p-4", {
+    const buyRow = page.locator("div.rounded-lg.border.border-border.bg-surface.p-4", {
       hasText: "Buy",
     });
     await buyRow.locator('input[type="file"]').setInputFiles({
@@ -163,7 +163,7 @@ test.describe.serial("Wealth module", () => {
     await page.goto("/wealth/portfolios");
     await expect(page.locator("body")).toContainText("Test Portfolio");
 
-    const row = page.locator("div.rounded-xl.border.border-border.bg-surface", {
+    const row = page.locator("div.rounded-lg.border.border-border.bg-surface", {
       hasText: "Test Portfolio",
     });
     await row.getByRole("button", { name: "Delete", exact: true }).click();
