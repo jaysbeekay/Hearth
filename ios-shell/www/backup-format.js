@@ -224,22 +224,21 @@
     let carry = "";
     let pending = [];
     async function fill() {
-      while (pending.length === 0 && offset < source.size) {
-        const end = Math.min(offset + sliceBytes, source.size);
-        let slice;
-        try {
-          slice = await source.readSlice(offset, end);
-        } catch (error) {
-          throw new Error(`Could not read the backup file: ${error?.message ?? error}`);
+      try {
+        while (pending.length === 0 && offset < source.size) {
+          const end = Math.min(offset + sliceBytes, source.size);
+          const slice = await source.readSlice(offset, end);
+          offset = end;
+          const parts = (carry + slice).split("\n");
+          carry = parts.pop() ?? "";
+          pending = parts.filter((line) => line.length > 0);
         }
-        offset = end;
-        const parts = (carry + slice).split("\n");
-        carry = parts.pop() ?? "";
-        pending = parts.filter((line) => line.length > 0);
-      }
-      if (pending.length === 0 && carry.length > 0) {
-        pending = [carry];
-        carry = "";
+        if (pending.length === 0 && carry.length > 0) {
+          pending = [carry];
+          carry = "";
+        }
+      } catch (error) {
+        throw new Error(`Could not read the backup file: ${error?.message ?? error}`);
       }
     }
     return {
