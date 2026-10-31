@@ -47,6 +47,15 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Standalone shell: Recently deleted (#488).** More, Settings and Documents
+  now open a "Recently deleted" list of Documents in Trash, newest first, with
+  the record each belonged to, the date it was deleted and the days left before
+  it is removed for good. Each has Restore, which puts the Document back in its
+  version chain (and refuses with a message if its record was deleted), and
+  Delete permanently, which asks first and removes the file and row together
+  by the same purge the 30-day cleanup uses. A deleted record's Documents are
+  listed for their 30 days but can't be restored until the record is.
+
 - **Licence: AGPL-3.0-only.** Hearth now has a `LICENSE` file (the GNU Affero
   General Public License v3.0), a `license` field in `package.json`, and an
   updated README "License" section. This is the licence a managed host such

@@ -1471,3 +1471,149 @@ test("standalone purge keeps the row when the file can't be deleted, and retries
   await reloadStandalone(page);
   await expect.poll(async () => deletedDocuments((await shellTestState(page)).runs)).toEqual(["version-3", "version-2"]);
 });
+
+// #488 — Recently deleted: a list of Documents in Trash with Restore and
+// Delete permanently.
+async function openRecentlyDeleted(page: ShellPage) {
+  await page.locator(".bottom-nav").getByRole("button", { name: "Documents" }).click();
+  await page.getByRole("button", { name: "Recently deleted" }).click();
+  await expect(page.locator("#view-title")).toHaveText("Recently deleted");
+}
+
+function trashRows(page: ShellPage) {
+  return page.locator("section[aria-label='Recently deleted Documents'] .record-card");
+}
+
+test("standalone Recently deleted is empty when Trash has nothing (#488)", async ({ page }) => {
+  await openRecentlyDeleted(page);
+  await expect(page.getByRole("heading", { name: "Nothing recently deleted" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Restore/ })).toHaveCount(0);
+});
+
+test("standalone Recently deleted lists Trash and restores a Document (#488)", async ({ page }) => {
+  await withDocumentVersions(page, "1");
+  await page.locator(".bottom-nav").getByRole("button", { name: "Documents" }).click();
+  await page.locator(".record-card").filter({ hasText: "insurance.pdf" }).getByRole("button", { name: "Delete" }).click();
+  await openBroadbandPlan(page);
+  await documentCard(page, "lease-v3.pdf").getByRole("button", { name: "Delete" }).click();
+
+  // The list is the way back, with no Undo toast needed.
+  await openRecentlyDeleted(page);
+  const rows = trashRows(page);
+  await expect(rows).toHaveCount(2);
+  await expect(rows.first()).toContainText("30 days left");
+  await expect(rows.first()).toContainText(/Deleted \d{4}-\d{2}-\d{2}/);
+  expect((await rows.getByRole("heading").allTextContents()).sort()).toEqual(["insurance.pdf", "lease-v3.pdf"]);
+  await expect(rows.filter({ hasText: "lease-v3.pdf" })).toContainText("Contract · Broadband Plan");
+  await expect(page.getByRole("button", { name: "Delete lease-v3.pdf permanently" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Restore insurance.pdf" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Document restored.");
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText("lease-v3.pdf");
+  const state = await shellTestState(page);
+  expect(state.runs.some((run) => run.statement.includes("deleted_at = NULL") && run.values.includes("document-1"))).toBe(true);
+  expect(state.fileDeletes).toEqual([]);
+});
+
+test("standalone Recently deleted orders newest first and counts days left (#488)", async ({ page }) => {
+  // trash-0 .. trash-24 were deleted 2099-01-01 .. 2099-01-25. At 2099-01-30
+  // none has expired yet.
+  await withDocumentVersions(page, "many", { now: "2099-01-30T00:00:00.000Z" });
+  await openRecentlyDeleted(page);
+  const rows = trashRows(page);
+  await expect(rows).toHaveCount(25);
+  await expect(rows.first().getByRole("heading")).toHaveText("trash-24.pdf");
+  await expect(rows.first()).toContainText("Deleted 2099-01-25");
+  await expect(rows.first()).toContainText("26 days left");
+  await expect(rows.last().getByRole("heading")).toHaveText("trash-0.pdf");
+  await expect(rows.last()).toContainText("2 days left");
+});
+
+test("standalone Recently deleted refuses to restore under a deleted record (#488)", async ({ page }) => {
+  await withDocumentVersions(page, "1");
+  await openBroadbandPlan(page);
+  await documentCard(page, "lease-v3.pdf").getByRole("button", { name: "Delete" }).click();
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.locator('button[data-delete-record="contracts"][data-id="contract-1"]').click();
+  await expect(page.locator("#standalone-status")).toContainText("Deleted.");
+
+  await openRecentlyDeleted(page);
+  // Kept 30 days with the record, and listed as such.
+  await expect(trashRows(page).filter({ hasText: "lease-v3.pdf" })).toContainText("record deleted");
+  await page.getByRole("button", { name: "Restore lease-v3.pdf" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("the record it belonged to was deleted");
+  await expect(page.getByRole("heading", { name: "lease-v3.pdf" })).toBeVisible();
+  const state = await shellTestState(page);
+  expect(state.runs.some((run) => run.statement.includes("deleted_at = NULL"))).toBe(false);
+});
+
+test("standalone Recently deleted: Delete permanently removes the row and file after a confirm (#488)", async ({ page }) => {
+  await withDocumentVersions(page, "middle");
+  await openRecentlyDeleted(page);
+  const row = trashRows(page).filter({ hasText: "lease-v2.pdf" });
+
+  // Cancel changes nothing.
+  page.once("dialog", (dialog) => void dialog.dismiss());
+  await row.getByRole("button", { name: "Delete lease-v2.pdf permanently" }).click();
+  await expect(row).toBeVisible();
+  expect(deletedDocuments((await shellTestState(page)).runs)).toEqual([]);
+
+  let message = "";
+  page.once("dialog", (dialog) => {
+    message = dialog.message();
+    void dialog.accept();
+  });
+  await row.getByRole("button", { name: "Delete lease-v2.pdf permanently" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Deleted permanently.");
+  expect(message).toContain("lease-v2.pdf");
+  await expect(page.getByRole("heading", { name: "Nothing recently deleted" })).toBeVisible();
+  const state = await shellTestState(page);
+  expect(deletedDocuments(state.runs)).toEqual(["version-2"]);
+  expect(state.fileDeletes.map((call) => call.path?.split("/").pop())).toEqual(["lease-v2.pdf"]);
+  // v3 follows v1 directly now, so the Document isn't split.
+  const saved = await savedDocuments(page);
+  expect(saved.find((doc) => doc.id === "version-3")?.supersedes_id).toBe("version-1");
+});
+
+test("standalone Recently deleted keeps the row when the file can't be deleted (#488)", async ({ page }) => {
+  await withDocumentVersions(page, "middle", { deleteFileError: "other" });
+  await openRecentlyDeleted(page);
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("button", { name: "Delete lease-v2.pdf permanently" }).click();
+  await expect(page.locator("#standalone-status")).not.toContainText("Deleted permanently.");
+  await expect(page.locator("#standalone-status")).not.toBeHidden();
+  await expect(page.getByRole("heading", { name: "lease-v2.pdf" })).toBeVisible();
+  expect(deletedDocuments((await shellTestState(page)).runs)).toEqual([]);
+});
+
+test("standalone Recently deleted restores a middle version without splitting the Document (#488)", async ({ page }) => {
+  await withDocumentVersions(page, "middle");
+  await openBroadbandPlan(page);
+  await expect(documentCard(page, "lease-v3.pdf").getByText("2 versions")).toBeVisible();
+
+  await openRecentlyDeleted(page);
+  await page.getByRole("button", { name: "Restore lease-v2.pdf" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Document restored.");
+  await expect(page.getByRole("heading", { name: "Nothing recently deleted" })).toBeVisible();
+
+  // One Document of three versions, v3 on top: nothing duplicated or split.
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(page.locator("#view-title")).toHaveText("Documents");
+  await expect(documentCard(page, "lease-v3.pdf").getByText("3 versions")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "lease-v2.pdf" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "lease-v1.pdf" })).toHaveCount(0);
+  const state = await shellTestState(page);
+  expect(state.runs.some((run) => run.statement.includes("deleted_at = NULL") && run.values.includes("version-2"))).toBe(true);
+  expect(state.runs.some((run) => /INTO documents/i.test(run.statement))).toBe(false);
+});
+
+test("standalone Recently deleted is reachable from More and Settings (#488)", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.getByRole("button", { name: /Recently deleted/ }).click();
+  await expect(page.getByRole("heading", { name: "Nothing recently deleted" })).toBeVisible();
+  await page.getByRole("button", { name: "Back" }).click();
+  await page.getByRole("button", { name: /^Settings/ }).click();
+  await page.getByRole("button", { name: "Open recently deleted" }).click();
+  await expect(page.getByRole("heading", { name: "Nothing recently deleted" })).toBeVisible();
+});
