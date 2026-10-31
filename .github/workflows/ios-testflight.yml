@@ -27,6 +27,9 @@ jobs:
     # with an older SDK.
     runs-on: macos-26
     timeout-minutes: 45
+    # Same as android-build/docker-publish: tag runs read secrets from the
+    # `release` environment (tag rule v*) once the owner has moved them there.
+    environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}
     env:
       HAS_SIGNING: ${{ secrets.IOS_DIST_CERT_P12_BASE64 != '' && secrets.IOS_DIST_CERT_PASSWORD != '' && secrets.IOS_PROVISIONING_PROFILE_BASE64 != '' }}
       HAS_ASC_KEY: ${{ secrets.ASC_API_KEY_P8_BASE64 != '' && secrets.ASC_API_KEY_ID != '' && secrets.ASC_API_ISSUER_ID != '' }}

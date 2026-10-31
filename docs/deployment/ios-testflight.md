@@ -11,11 +11,17 @@ App Store distribution and uploads it to TestFlight.
 | Manual run (Actions → Build iOS and upload to TestFlight) against a `v*` tag | Yes | Yes |
 | Manual run against a branch | Yes | Only if **Upload to TestFlight** is ticked |
 
-A tag created by running `release.yml` from the Actions tab does not trigger
-push workflows (GitHub doesn't fire them for refs its own token creates). Until
-`release.yml` dispatches this workflow itself, run it manually against the new
-tag (Actions → Build iOS and upload to TestFlight → Run workflow, "Use
-workflow from" = the tag) after a dispatched release.
+A tag created by running `release.yml` from the Actions tab doesn't fire push
+workflows (GitHub doesn't for refs its own token creates), so `release.yml`'s
+`artifacts` job dispatches this workflow against the new tag, alongside Docker
+and Android, and waits for it. For a pushed tag it waits for the run the push
+started. A failed iOS build fails the release run, and its summary links the
+run.
+
+Tag runs use the `release` GitHub environment, like the Android and Docker
+jobs. Keep the iOS secrets at repository level until the proof run from `main`
+(below) has passed, because a run from a branch can't read environment
+secrets. After that you can move them into `release`.
 
 The signed IPA is also kept as a workflow artifact for 30 days. It is not
 attached to the public GitHub Release: an App Store–signed IPA can't be
