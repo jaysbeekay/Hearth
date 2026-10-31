@@ -15,6 +15,7 @@ test.beforeEach(async ({ page }) => {
     const sqliteRuns: { statement: string; values: unknown[]; transaction?: boolean }[] = [];
     const scheduledNotifications: unknown[] = [];
     const fileWrites: { directory?: string; path?: string; data?: string }[] = [];
+    const fileDeletes: { directory?: string; path?: string }[] = [];
     const rowsByTable: Record<string, unknown[]> = {
       local_profile: [
         {
@@ -251,6 +252,9 @@ test.beforeEach(async ({ page }) => {
           is_head: 1,
           uploaded_at: "2099-01-01T00:00:00.000Z",
         },
+        // #455 — Documents for the Trash tests, picked by
+        // localStorage "hearth-test-doc-versions" (see docVersionRows).
+        ...docVersionRows(localStorage.getItem("hearth-test-doc-versions") ?? ""),
         // #353 — Broadband Plan's paperwork: the prior Term's (linked to
         // term-1), the current policy, and a newer receipt. Only for the
         // tests that ask (withContractDocuments), since the document tests
@@ -299,11 +303,114 @@ test.beforeEach(async ({ page }) => {
       ],
     };
 
+    // #455 — Broadband Plan's three-version Document (v1 <- v2 <- v3), and
+    // variations on it. "1": all live. "middle": v2 in Trash. "expired":
+    // v1 <- v2 <- v3 <- v4 with v2 and v3 both past retention in Trash and a
+    // fresh Trash entry. "many": 25 expired Trash entries. "cycle": two live
+    // versions that each supersede the other. "tip": a trashed newer version
+    // on the vehicle's document.
+    function docVersionRows(mode: string) {
+      const base = { owner_type: "contract", owner_id: "contract-1", mime_type: "application/pdf", size: 1024, important: 0, deleted_at: null as string | null };
+      const version = (id: string, supersedesId: string | null, uploadedAt: string, extra: Record<string, unknown> = {}) => ({
+        ...base,
+        id,
+        filename: `${id.replace("version-", "lease-v")}.pdf`,
+        storage_key: `${id.replace("version-", "lease-v")}.pdf`,
+        supersedes_id: supersedesId,
+        is_head: 0,
+        uploaded_at: uploadedAt,
+        ...extra,
+      });
+      if (mode === "1" || mode === "middle") {
+        return [
+          version("version-1", null, "2099-01-01T00:00:00.000Z"),
+          version("version-2", "version-1", "2099-01-02T00:00:00.000Z", { deleted_at: mode === "middle" ? "2099-01-04T00:00:00.000Z" : null }),
+          version("version-3", "version-2", "2099-01-03T00:00:00.000Z", { is_head: 1 }),
+        ];
+      }
+      if (mode === "expired") {
+        return [
+          version("version-1", null, "2099-01-01T00:00:00.000Z"),
+          version("version-2", "version-1", "2099-01-02T00:00:00.000Z", { deleted_at: "2099-01-10T00:00:00.000Z" }),
+          version("version-3", "version-2", "2099-01-03T00:00:00.000Z", { deleted_at: "2099-01-10T12:00:00.000Z" }),
+          version("version-4", "version-3", "2099-01-20T00:00:00.000Z", { is_head: 1 }),
+          // Trashed at the newest moment in the database: never past retention.
+          { ...base, id: "fresh-trash", filename: "fresh-trash.pdf", storage_key: "fresh-trash.pdf", supersedes_id: null, is_head: 1, uploaded_at: "2099-01-05T00:00:00.000Z", deleted_at: "2099-01-20T00:00:00.000Z" },
+        ];
+      }
+      if (mode === "many") {
+        return [
+          version("version-live", null, "2099-02-20T00:00:00.000Z", { is_head: 1 }),
+          ...Array.from({ length: 25 }, (_, index) => ({
+            ...base,
+            id: `trash-${String(index).padStart(2, "0")}`,
+            filename: `trash-${index}.pdf`,
+            storage_key: `trash-${index}.pdf`,
+            supersedes_id: null,
+            is_head: 1,
+            uploaded_at: `2099-01-${String(index + 1).padStart(2, "0")}T00:00:00.000Z`,
+            deleted_at: `2099-01-${String(index + 1).padStart(2, "0")}T06:00:00.000Z`,
+          })),
+        ];
+      }
+      if (mode === "cycle") {
+        return [
+          version("version-1", "version-2", "2099-01-01T00:00:00.000Z"),
+          version("version-2", "version-1", "2099-01-02T00:00:00.000Z"),
+        ];
+      }
+      if (mode === "tip") {
+        return [{
+          ...base,
+          owner_type: "vehicle",
+          owner_id: "vehicle-1",
+          id: "document-1b",
+          filename: "insurance-2.pdf",
+          storage_key: "insurance-2.pdf",
+          sha256: "other-hash",
+          supersedes_id: "document-1",
+          is_head: 0,
+          uploaded_at: "2099-01-02T00:00:00.000Z",
+          deleted_at: "2099-01-03T00:00:00.000Z",
+        }];
+      }
+      return [];
+    }
+
     function rowsFor(statement: string, values: unknown[] = []) {
       const match = statement.match(/FROM\s+([a-z_]+)/i);
       if (!match) return [];
       const table = match[1];
       const rows = rowsByTable[table] ?? [];
+      if (table === "documents") {
+        // Each clause narrows the rows, like the WHERE it mirrors.
+        let documents = rows as { id?: string; deleted_at?: string | null; storage_key?: string; uploaded_at?: string }[];
+        let next = 0;
+        if (/WHERE id = \?/i.test(statement)) {
+          const wanted = values[next++];
+          documents = documents.filter((row) => row.id === wanted);
+        }
+        if (/storage_key = \?/i.test(statement)) {
+          const key = values[next++];
+          documents = documents.filter((row) => row.storage_key === key);
+        }
+        if (/AND id <> \?/i.test(statement)) {
+          const id = values[next++];
+          documents = documents.filter((row) => row.id !== id);
+        }
+        if (/deleted_at IS NOT NULL/i.test(statement)) documents = documents.filter((row) => row.deleted_at);
+        else if (/deleted_at IS NULL/i.test(statement)) documents = documents.filter((row) => !row.deleted_at);
+        if (/deleted_at < \?/i.test(statement)) {
+          const cutoff = String(values[next++]);
+          documents = documents.filter((row) => (row.deleted_at ?? "") < cutoff);
+        }
+        if (/ORDER BY uploaded_at DESC/i.test(statement)) documents = [...documents].sort((a, b) => String(b.uploaded_at).localeCompare(String(a.uploaded_at)));
+        if (/LIMIT \?/i.test(statement)) documents = documents.slice(0, Number(values[next++]));
+        return documents;
+      }
+      if (table === "inbox_documents" && /storage_key = \?/i.test(statement)) {
+        return (rows as { storage_key?: string; deleted_at?: string | null }[]).filter((row) => row.storage_key === values[0] && (!/deleted_at IS NULL/i.test(statement) || !row.deleted_at));
+      }
       if (table === "holdings" && /portfolio_id\s*=\s*\?/i.test(statement) && /ticker\s*=\s*\?/i.test(statement)) {
         const [portfolioId, ticker] = values;
         return rows.filter((row) => {
@@ -321,7 +428,81 @@ test.beforeEach(async ({ page }) => {
       return rows;
     }
 
-    (window as Window & { Capacitor?: unknown; __hearthStandaloneTest?: unknown }).__hearthStandaloneTest = { sqliteRuns, scheduledNotifications, fileWrites };
+    // Applies the statements the tests follow across renders to the rows. A
+    // Document statement that matches none of the patterns throws, so a new
+    // statement shape can't silently do nothing (#455).
+    function applyStatement(statement: string, values: unknown[]) {
+      const sql = statement.trim();
+      // Tenancy edits and deletes land in the rows, so a resync of local
+      // Reminders sees them (#388); a deleted contract goes too (#455).
+      const rowUpdate = /^UPDATE (rental_agreements|contracts) SET (.+) WHERE id = \?$/i.exec(sql);
+      if (rowUpdate && (rowUpdate[1] === "rental_agreements" || /deleted_at = \?/.test(rowUpdate[2]))) {
+        const table = rowUpdate[1];
+        const id = values[values.length - 1];
+        const columns = [...rowUpdate[2].matchAll(/(\w+) = \?/g)].map((m) => m[1]);
+        const rows = (rowsByTable[table] ?? []) as Record<string, unknown>[];
+        const row = rows.find((candidate) => candidate.id === id);
+        if (row) {
+          columns.forEach((column, index) => {
+            row[column] = values[index];
+          });
+          if (row.deleted_at) rowsByTable[table] = rows.filter((candidate) => candidate !== row);
+        }
+      }
+      if (/^(UPDATE|DELETE FROM|INSERT( OR REPLACE)? INTO) documents\b/i.test(sql)) applyDocumentStatement(sql, values);
+      if (/INSERT OR REPLACE INTO local_profile/i.test(statement)) {
+        rowsByTable.local_profile = [
+          {
+            id: String(values[0] ?? "local"),
+            display_name: String(values[1] ?? "Hearth standalone"),
+            default_currency: String(values[2] ?? "AUD"),
+            created_at: "2099-01-01T00:00:00.000Z",
+            updated_at: "2099-01-02T00:00:00.000Z",
+            version: 2,
+          },
+        ];
+      }
+    }
+
+    function applyDocumentStatement(sql: string, values: unknown[]) {
+      const documents = (rowsByTable.documents ?? []) as Record<string, unknown>[];
+      const update = /^UPDATE documents SET (.+) WHERE (id|supersedes_id) = \?$/i.exec(sql);
+      if (update) {
+        let next = 0;
+        const assignments = update[1].split(", ").map((part) => {
+          const [column, expression] = part.split(" = ");
+          if (expression === "?") return [column, values[next++]] as const;
+          if (expression === "NULL") return [column, null] as const;
+          if (/^\d+$/.test(expression)) return [column, Number(expression)] as const;
+          if (expression === "version + 1") return null;
+          throw new Error(`Mock: unsupported assignment in: ${sql}`);
+        });
+        const whereValue = values[next];
+        for (const row of documents.filter((candidate) => candidate[update[2]] === whereValue)) {
+          for (const assignment of assignments) if (assignment) row[assignment[0]] = assignment[1];
+        }
+        return;
+      }
+      if (/^DELETE FROM documents WHERE id = \?$/i.test(sql)) {
+        rowsByTable.documents = documents.filter((row) => row.id !== values[0]);
+        return;
+      }
+      const insert = /^INSERT( OR REPLACE)? INTO documents \(([^)]+)\) VALUES \((.+)\)$/i.exec(sql);
+      if (insert) {
+        const columns = insert[2].split(",").map((column) => column.trim());
+        const placeholders = insert[3].split(",").map((part) => part.trim());
+        let next = 0;
+        const row: Record<string, unknown> = { deleted_at: null };
+        columns.forEach((column, index) => {
+          row[column] = placeholders[index] === "?" ? values[next++] : Number(placeholders[index]);
+        });
+        rowsByTable.documents = [...documents.filter((candidate) => candidate.id !== row.id), row];
+        return;
+      }
+      throw new Error(`Mock: unhandled documents statement: ${sql}`);
+    }
+
+    (window as Window & { Capacitor?: unknown; __hearthStandaloneTest?: unknown }).__hearthStandaloneTest = { sqliteRuns, scheduledNotifications, fileWrites, fileDeletes };
     (window as Window & { Capacitor?: unknown; __hearthStandaloneTest?: unknown }).Capacitor = {
       getPlatform: () => "ios",
       Plugins: {
@@ -331,40 +512,17 @@ test.beforeEach(async ({ page }) => {
           execute: async () => ({ changes: { changes: 0 } }),
           run: async ({ statement, values = [] }: { statement: string; values?: unknown[] }) => {
             sqliteRuns.push({ statement, values });
-            // Tenancy edits and deletes land in the rows, so a resync of local
-            // Reminders sees them (#388).
-            const tenancyUpdate = /^UPDATE rental_agreements SET (.+) WHERE id = \?$/i.exec(statement.trim());
-            if (tenancyUpdate) {
-              const id = values[values.length - 1];
-              const columns = [...tenancyUpdate[1].matchAll(/(\w+) = \?/g)].map((m) => m[1]);
-              const rows = (rowsByTable.rental_agreements ?? []) as Record<string, unknown>[];
-              const row = rows.find((candidate) => candidate.id === id);
-              if (row) {
-                columns.forEach((column, index) => {
-                  row[column] = values[index];
-                });
-                if (row.deleted_at) rowsByTable.rental_agreements = rows.filter((candidate) => candidate !== row);
-              }
-            }
-            if (/INSERT OR REPLACE INTO local_profile/i.test(statement)) {
-              rowsByTable.local_profile = [
-                {
-                  id: String(values[0] ?? "local"),
-                  display_name: String(values[1] ?? "Hearth standalone"),
-                  default_currency: String(values[2] ?? "AUD"),
-                  created_at: "2099-01-01T00:00:00.000Z",
-                  updated_at: "2099-01-02T00:00:00.000Z",
-                  version: 2,
-                },
-              ];
-            }
+            applyStatement(statement, values);
             return { changes: { changes: 1 } };
           },
           query: async ({ statement, values = [] }: { statement: string; values?: unknown[] }) => ({ values: rowsFor(statement, values) }),
           // Recorded like run(), one entry per statement, tagged so a test
           // can tell the statements went in together.
           executeSet: async ({ set, transaction }: { set: { statement: string; values?: unknown[] }[]; transaction?: boolean }) => {
-            for (const item of set) sqliteRuns.push({ statement: item.statement, values: item.values ?? [], transaction });
+            for (const item of set) {
+              sqliteRuns.push({ statement: item.statement, values: item.values ?? [], transaction });
+              applyStatement(item.statement, item.values ?? []);
+            }
             return { changes: { changes: set.length } };
           },
           isSecretStored: async () => ({ result: true }),
@@ -387,7 +545,13 @@ test.beforeEach(async ({ page }) => {
             return {};
           },
           readFile: async () => ({ data: "JVBERi0=" }),
-          deleteFile: async () => ({}),
+          deleteFile: async (args: { directory?: string; path?: string }) => {
+            const failure = localStorage.getItem("hearth-test-delete-file-error");
+            if (failure === "missing") throw new Error("File does not exist");
+            if (failure === "other") throw new Error("Disk error");
+            fileDeletes.push(args);
+            return {};
+          },
         },
         LocalNotifications: {
           checkPermissions: async () => ({ display: "granted" }),
@@ -1031,4 +1195,279 @@ test("standalone Previous terms opens the prior Term's document (#353)", async (
   const popup = page.waitForEvent("popup");
   await page.getByRole("button", { name: "Open broadband-2097.pdf" }).click();
   await popup;
+});
+
+// #455 — Document delete moves to Trash with an Undo, the file goes only when
+// the Trash entry is purged, and the chain survives a trashed version.
+type ShellPage = import("@playwright/test").Page;
+
+async function reloadStandalone(page: ShellPage) {
+  await page.reload();
+  await page.getByRole("button", { name: "Use on this device" }).click();
+  await expect(page.locator("#standalone-screen")).toBeVisible();
+}
+
+// `now` fixes the device clock before the reload, for the purge tests (the
+// fixtures are dated 2099, so with the real clock nothing is ever purged).
+async function withDocumentVersions(page: ShellPage, mode: string, options: { now?: string; deleteFileError?: string } = {}) {
+  await page.evaluate(([value, error]) => {
+    localStorage.setItem("hearth-test-doc-versions", value);
+    if (error) localStorage.setItem("hearth-test-delete-file-error", error);
+  }, [mode, options.deleteFileError ?? ""] as const);
+  if (options.now) await page.clock.setFixedTime(new Date(options.now));
+  await reloadStandalone(page);
+}
+
+async function openBroadbandPlan(page: ShellPage) {
+  await page.locator(".bottom-nav").getByRole("button", { name: "Contracts" }).click();
+  await page.getByRole("button", { name: /Broadband Plan/ }).click();
+}
+
+function documentCard(page: ShellPage, filename: string) {
+  return page.locator(".record-card").filter({ has: page.getByRole("heading", { name: filename }) });
+}
+
+async function shellTestState(page: ShellPage) {
+  return page.evaluate(() => {
+    const hook = (window as Window & { __hearthStandaloneTest?: { sqliteRuns: { statement: string; values: unknown[] }[]; fileDeletes: { path?: string }[] } }).__hearthStandaloneTest;
+    return { runs: hook?.sqliteRuns ?? [], fileDeletes: hook?.fileDeletes ?? [] };
+  });
+}
+
+type Run = { statement: string; values: unknown[] };
+const deletedDocuments = (runs: Run[]) => runs.filter((run) => run.statement === "DELETE FROM documents WHERE id = ?").map((run) => String(run.values[0]));
+
+// The saved Document rows, as the mock holds them after the statements.
+async function savedDocuments(page: ShellPage) {
+  return page.evaluate(async () => {
+    const sqlite = (window as unknown as { Capacitor: { Plugins: { CapacitorSQLite: { query: (args: { statement: string }) => Promise<{ values: Record<string, unknown>[] }> } } } }).Capacitor.Plugins.CapacitorSQLite;
+    return (await sqlite.query({ statement: "SELECT * FROM documents" })).values;
+  });
+}
+
+test("standalone Delete moves a Document to Trash with an Undo and keeps its file (#455)", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "Documents" }).click();
+  const card = page.locator(".record-card").filter({ hasText: "insurance.pdf" });
+  await expect(card).toBeVisible();
+  await card.getByRole("button", { name: "Delete" }).click();
+
+  const status = page.locator("#standalone-status");
+  await expect(status).toHaveAttribute("role", "status");
+  await expect(status).toHaveAttribute("aria-live", "polite");
+  await expect(status).toContainText('"insurance.pdf" moved to Trash.');
+  await expect(card).toHaveCount(0);
+  let state = await shellTestState(page);
+  expect(state.runs.some((run) => run.statement.startsWith("UPDATE documents SET deleted_at = ?") && run.values.includes("document-1"))).toBe(true);
+  expect(state.fileDeletes).toEqual([]);
+
+  await status.getByRole("button", { name: "Undo" }).click();
+  await expect(page.locator(".record-card").filter({ hasText: "insurance.pdf" })).toBeVisible();
+  state = await shellTestState(page);
+  expect(state.runs.some((run) => run.statement.includes("deleted_at = NULL") && run.values.includes("document-1"))).toBe(true);
+  expect(state.fileDeletes).toEqual([]);
+});
+
+test("standalone deleting the latest version makes the previous one the latest again (#455)", async ({ page }) => {
+  await withDocumentVersions(page, "1");
+  await openBroadbandPlan(page);
+  await expect(documentCard(page, "lease-v3.pdf").getByText("3 versions")).toBeVisible();
+  await documentCard(page, "lease-v3.pdf").getByRole("button", { name: "Delete" }).click();
+
+  // v2 is the latest now, with v1 under it; the Document isn't hidden.
+  await expect(documentCard(page, "lease-v2.pdf").getByText("2 versions")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "lease-v3.pdf" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "lease-v1.pdf" })).toHaveCount(0);
+  let state = await shellTestState(page);
+  expect(state.fileDeletes).toEqual([]);
+  // is_head follows for older builds: v2 is the head now.
+  expect(state.runs.some((run) => run.statement === "UPDATE documents SET is_head = ? WHERE id = ?" && run.values[0] === 1 && run.values[1] === "version-2")).toBe(true);
+
+  await page.locator("#standalone-status").getByRole("button", { name: "Undo" }).click();
+  await expect(documentCard(page, "lease-v3.pdf").getByText("3 versions")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "lease-v2.pdf" })).toHaveCount(0);
+  state = await shellTestState(page);
+  expect(state.runs.some((run) => run.statement === "UPDATE documents SET is_head = ? WHERE id = ?" && run.values[0] === 0 && run.values[1] === "version-2")).toBe(true);
+});
+
+test("standalone a second delete keeps the first Undo; Undo steps back through them (#455)", async ({ page }) => {
+  await withDocumentVersions(page, "1");
+  await openBroadbandPlan(page);
+  const status = page.locator("#standalone-status");
+  await documentCard(page, "lease-v3.pdf").getByRole("button", { name: "Delete" }).click();
+  await expect(status.getByRole("button", { name: "Undo", exact: true })).toBeVisible();
+  await documentCard(page, "lease-v2.pdf").getByRole("button", { name: "Delete" }).click();
+  await expect(documentCard(page, "lease-v1.pdf")).toBeVisible();
+  await expect(status.getByRole("button", { name: "Undo (2)" })).toBeVisible();
+
+  // The latest delete is undone first, and the earlier Undo is still there.
+  await status.getByRole("button", { name: "Undo (2)" }).click();
+  await expect(documentCard(page, "lease-v2.pdf").getByText("2 versions")).toBeVisible();
+  await expect(status).toContainText("Document restored.");
+  await status.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(documentCard(page, "lease-v3.pdf").getByText("3 versions")).toBeVisible();
+  await expect(status.getByRole("button")).toHaveCount(0);
+});
+
+test("standalone another status message doesn't drop a pending Undo (#455)", async ({ page }) => {
+  await withDocumentVersions(page, "1");
+  await openBroadbandPlan(page);
+  await documentCard(page, "lease-v3.pdf").getByRole("button", { name: "Delete" }).click();
+  await expect(page.locator("#standalone-status").getByRole("button", { name: "Undo" })).toBeVisible();
+  await documentCard(page, "lease-v2.pdf").getByRole("button", { name: "Mark important" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Marked important.");
+  await expect(page.locator("#standalone-status").getByRole("button", { name: "Undo" })).toBeVisible();
+});
+
+test("standalone trashed middle version doesn't split the Document (#455)", async ({ page }) => {
+  await withDocumentVersions(page, "middle");
+  await openBroadbandPlan(page);
+  // v1 <- v2 (Trash) <- v3: one Document, v3 latest with v1 under it.
+  await expect(documentCard(page, "lease-v3.pdf").getByText("2 versions")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "lease-v1.pdf" })).toHaveCount(0);
+
+  // Deleting v3 leaves v1 the latest (v2 stays in Trash), not hidden.
+  await documentCard(page, "lease-v3.pdf").getByRole("button", { name: "Delete" }).click();
+  await expect(page.getByRole("heading", { name: "lease-v1.pdf" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "lease-v3.pdf" })).toHaveCount(0);
+});
+
+test("standalone a cycle of live versions never hides a Document (#455)", async ({ page }) => {
+  await withDocumentVersions(page, "cycle");
+  await openBroadbandPlan(page);
+  await expect(page.getByRole("heading", { name: "lease-v1.pdf" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "lease-v2.pdf" })).toBeVisible();
+});
+
+test("standalone deleting a record puts its Documents in Trash and says so (#455)", async ({ page }) => {
+  await withDocumentVersions(page, "1");
+  await openBroadbandPlan(page);
+  let message = "";
+  page.once("dialog", (dialog) => {
+    message = dialog.message();
+    void dialog.accept();
+  });
+  await page.locator('button[data-delete-record="contracts"][data-id="contract-1"]').click();
+  await expect(page.locator("#standalone-status")).toContainText("Deleted.");
+  expect(message).toContain("Trash for 30 days");
+  const state = await shellTestState(page);
+  const trashed = state.runs.filter((run) => run.statement.startsWith("UPDATE documents SET deleted_at = ?")).map((run) => run.values[1]);
+  expect(trashed.sort()).toEqual(["version-1", "version-2", "version-3"]);
+  expect(state.fileDeletes).toEqual([]);
+});
+
+test("standalone Undo refuses to restore a Document under a deleted record (#455)", async ({ page }) => {
+  await withDocumentVersions(page, "1");
+  await openBroadbandPlan(page);
+  await documentCard(page, "lease-v3.pdf").getByRole("button", { name: "Delete" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("moved to Trash");
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.locator('button[data-delete-record="contracts"][data-id="contract-1"]').click();
+  await expect(page.locator("#standalone-status")).toContainText("Deleted.");
+
+  await page.locator("#standalone-status").getByRole("button", { name: /Undo/ }).click();
+  await expect(page.locator("#standalone-status")).toContainText("the record it belonged to was deleted");
+  const state = await shellTestState(page);
+  expect(state.runs.some((run) => run.statement.includes("deleted_at = NULL"))).toBe(false);
+});
+
+test("standalone filing a new version goes on top of a trashed one (#455)", async ({ page }) => {
+  await withDocumentVersions(page, "tip");
+  await page.locator(".bottom-nav").getByRole("button", { name: "Documents" }).click();
+  await page.locator('form[data-file-inbox-id="inbox-1"] select[name="target"]').selectOption("vehicle|vehicle-1");
+  await page.locator('form[data-file-inbox-id="inbox-1"]').getByRole("button", { name: "File document" }).click();
+  // document-1's newer version is in Trash; the new one goes on top of that,
+  // so it never shares a place with it.
+  await expect.poll(async () => (await savedDocuments(page)).find((row) => row.filename === "receipt.pdf")?.supersedes_id).toBe("document-1b");
+});
+
+test("standalone imports an older backup whose latest version was deleted (#455)", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="settings"]').click();
+  const row = (id: string, supersedesId: string | null, extra: Record<string, unknown>) => ({
+    id,
+    owner_type: "contract",
+    owner_id: "contract-1",
+    filename: `${id}.pdf`,
+    storage_key: `${id}.pdf`,
+    mime_type: "application/pdf",
+    size: 1,
+    important: 0,
+    supersedes_id: supersedesId,
+    uploaded_at: "2099-01-01T00:00:00.000Z",
+    version: 1,
+    ...extra,
+  });
+  // As the old build left it: every older version is_head = 0, the latest deleted.
+  const backup = {
+    kind: "hearth-standalone-backup",
+    version: 1,
+    schemaVersion: 9,
+    exportedAt: "2099-01-01T00:00:00.000Z",
+    tables: { documents: [row("old-1", null, { is_head: 0 }), row("old-2", "old-1", { is_head: 0, deleted_at: "2099-01-02T00:00:00.000Z" })] },
+  };
+  await page.locator('form[data-import-standalone-backup-form] input[type="file"]').setInputFiles({
+    name: "hearth-backup.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(backup)),
+  });
+  await page.locator("form[data-import-standalone-backup-form]").getByRole("button", { name: "Import backup" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Imported");
+  await page.locator(".bottom-nav").getByRole("button", { name: "Documents" }).click();
+  await expect(page.getByRole("heading", { name: "old-1.pdf" })).toBeVisible();
+  expect((await shellTestState(page)).fileDeletes).toEqual([]);
+});
+
+test("standalone purge deletes expired Trash entries newest-first and relinks the chain (#455)", async ({ page }) => {
+  // v1 <- v2 (Trash, expired) <- v3 (Trash, expired) <- v4 live.
+  await withDocumentVersions(page, "expired", { now: "2099-03-01T00:00:00.000Z" });
+  await page.locator(".bottom-nav").getByRole("button", { name: "Documents" }).click();
+  await expect(page.getByRole("heading", { name: "lease-v4.pdf" })).toBeVisible();
+  const state = await shellTestState(page);
+  expect(deletedDocuments(state.runs)).toEqual(["version-3", "version-2"]);
+  expect(state.fileDeletes.map((call) => call.path?.split("/").pop())).toEqual(["lease-v3.pdf", "lease-v2.pdf"]);
+  // v4 follows v1 directly, not a deleted row, and the fresh entry stays.
+  const saved = await savedDocuments(page);
+  expect(saved.find((row) => row.id === "version-4")?.supersedes_id).toBe("version-1");
+  expect(saved.map((row) => row.id)).toContain("fresh-trash");
+  await expect(documentCard(page, "lease-v4.pdf").getByText("2 versions")).toBeVisible();
+});
+
+test("standalone purge does not trust a clock jumped far ahead (#455)", async ({ page }) => {
+  await withDocumentVersions(page, "expired", { now: "2199-01-01T00:00:00.000Z" });
+  await page.locator(".bottom-nav").getByRole("button", { name: "Documents" }).click();
+  await expect(page.getByRole("heading", { name: "lease-v4.pdf" })).toBeVisible();
+  const saved = await savedDocuments(page);
+  // Past the newest timestamp in the database nothing counts as expired: the
+  // entry trashed then stays, though the clock says 100 years have passed.
+  expect(saved.map((row) => row.id)).toContain("fresh-trash");
+  expect(deletedDocuments((await shellTestState(page)).runs)).not.toContain("fresh-trash");
+});
+
+test("standalone purge does nothing when the clock is behind the saved data (#455)", async ({ page }) => {
+  await withDocumentVersions(page, "expired", { now: "2098-01-01T00:00:00.000Z" });
+  await page.locator(".bottom-nav").getByRole("button", { name: "Documents" }).click();
+  await expect(page.getByRole("heading", { name: "lease-v4.pdf" })).toBeVisible();
+  const state = await shellTestState(page);
+  expect(deletedDocuments(state.runs)).toEqual([]);
+  expect(state.fileDeletes).toEqual([]);
+});
+
+test("standalone purge deletes at most 20 entries a launch (#455)", async ({ page }) => {
+  await withDocumentVersions(page, "many", { now: "2099-06-01T00:00:00.000Z" });
+  await page.locator(".bottom-nav").getByRole("button", { name: "Documents" }).click();
+  await expect(page.getByRole("heading", { name: "lease-vlive.pdf" })).toBeVisible();
+  expect(deletedDocuments((await shellTestState(page)).runs)).toHaveLength(20);
+});
+
+test("standalone purge keeps the row when the file can't be deleted, and retries (#455)", async ({ page }) => {
+  await withDocumentVersions(page, "expired", { now: "2099-03-01T00:00:00.000Z", deleteFileError: "other" });
+  await page.locator(".bottom-nav").getByRole("button", { name: "Documents" }).click();
+  await expect(page.getByRole("heading", { name: "lease-v4.pdf" })).toBeVisible();
+  expect(deletedDocuments((await shellTestState(page)).runs)).toEqual([]);
+  expect((await savedDocuments(page)).map((row) => row.id)).toEqual(expect.arrayContaining(["version-2", "version-3"]));
+
+  // A file that is already gone is fine: the rows go.
+  await page.evaluate(() => localStorage.setItem("hearth-test-delete-file-error", "missing"));
+  await reloadStandalone(page);
+  await expect.poll(async () => deletedDocuments((await shellTestState(page)).runs)).toEqual(["version-3", "version-2"]);
 });

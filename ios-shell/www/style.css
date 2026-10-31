@@ -586,3 +586,10 @@ button {
     padding-inline: 24px;
   }
 }
+
+/* Undo button in the status toast: the default button's 44px height, and its
+   accent colours (white on #533afd light, #161746 on #a391ff dark) clear 4.5:1
+   and 3:1 against the toast's surface in both themes. */
+.status-action {
+  margin-left: 8px;
+}
