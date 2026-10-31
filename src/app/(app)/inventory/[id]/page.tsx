@@ -20,6 +20,7 @@ import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
 import { buttonClass, menuItemClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Inventory Item" };
 
@@ -60,7 +61,7 @@ export default async function InventoryItemPage({
   const trashedLinks = await getTrashedVersionLinks("INVENTORY_ITEM", [item.id]);
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <PageShell width="detail">
       <div>
         <BackLink href="/inventory" label="Inventory" />
       </div>
@@ -159,6 +160,6 @@ export default async function InventoryItemPage({
         updatedByName={item.updatedBy?.name}
         memberCount={memberCount}
       />
-    </div>
+    </PageShell>
   );
 }

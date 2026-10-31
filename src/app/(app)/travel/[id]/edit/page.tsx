@@ -7,6 +7,7 @@ import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
 
 export default async function EditTripPage({
   params,
@@ -23,7 +24,7 @@ export default async function EditTripPage({
   const boundAction = updateTrip.bind(null, trip.id);
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="form">
       <BackLink href={`/travel/${trip.id}`} label={trip.title} />
       <div>
         <h1 className="text-2xl font-medium">Edit trip</h1>
@@ -32,6 +33,6 @@ export default async function EditTripPage({
       <Card>
         <TripForm action={boundAction} trip={trip} />
       </Card>
-    </div>
+    </PageShell>
   );
 }

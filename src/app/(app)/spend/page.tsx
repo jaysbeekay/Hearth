@@ -14,6 +14,7 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import { refreshFxRates, getFxRateMap, convertAmount } from "@/lib/fx";
 import { Card } from "@/components/ui/Card";
 import { chipClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Spending" };
 
@@ -121,7 +122,7 @@ export default async function SpendPage({
   const maxTotal = Math.max(...timeline.map((b) => b.total), 1);
 
   return (
-    <div className="max-w-3xl space-y-8">
+    <PageShell width="list">
       <h1 className="text-2xl font-medium">Spending</h1>
 
       {hasUnconverted && (
@@ -181,9 +182,9 @@ export default async function SpendPage({
             ? yearlyTimeline.map((bucket) => (
                 <div key={bucket.year} className="flex items-center gap-3">
                   <span className="w-16 shrink-0 text-right text-xs text-muted">{bucket.year}</span>
-                  <div className="flex-1 rounded-full bg-muted/10 h-5 overflow-hidden">
+                  <div className="flex-1 h-5 overflow-hidden rounded-lg bg-muted/10">
                     <div
-                      className="h-full rounded-full bg-accent/70"
+                      className="h-full rounded-lg bg-accent/70"
                       style={{ width: `${(bucket.total / maxTotal) * 100}%` }}
                     />
                   </div>
@@ -195,9 +196,9 @@ export default async function SpendPage({
             : monthlyTimeline.map((bucket) => (
                 <div key={bucket.month} className="flex items-center gap-3">
                   <span className="w-16 shrink-0 text-right text-xs text-muted">{bucket.month}</span>
-                  <div className="flex-1 rounded-full bg-muted/10 h-5 overflow-hidden">
+                  <div className="flex-1 h-5 overflow-hidden rounded-lg bg-muted/10">
                     <div
-                      className="h-full rounded-full bg-accent/70"
+                      className="h-full rounded-lg bg-accent/70"
                       style={{ width: `${(bucket.total / maxTotal) * 100}%` }}
                     />
                   </div>
@@ -221,9 +222,9 @@ export default async function SpendPage({
                   <span className="w-28 shrink-0 truncate text-xs text-muted">
                     {CATEGORY_LABELS[bucket.category] ?? bucket.category}
                   </span>
-                  <div className="flex-1 rounded-full bg-muted/10 h-5 overflow-hidden">
+                  <div className="flex-1 h-5 overflow-hidden rounded-lg bg-muted/10">
                     <div
-                      className="h-full rounded-full bg-accent/70"
+                      className="h-full rounded-lg bg-accent/70"
                       style={{ width: `${pct}%` }}
                     />
                   </div>
@@ -285,6 +286,6 @@ export default async function SpendPage({
           </div>
         </Card>
       )}
-    </div>
+    </PageShell>
   );
 }

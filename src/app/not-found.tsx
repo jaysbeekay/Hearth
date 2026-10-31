@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { buttonClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Page not found" };
 
 export default function NotFound() {
   return (
     <div className="flex flex-1 items-center justify-center px-4 py-12">
-      <div className="w-full max-w-sm space-y-6 text-center">
+      <PageShell width="auth" className="text-center">
         <div className="flex flex-col items-center gap-2">
           <h1 className="text-2xl font-medium">Page not found</h1>
           <p className="text-sm text-muted">
@@ -20,7 +21,7 @@ export default function NotFound() {
         >
           Back to Hearth
         </Link>
-      </div>
+      </PageShell>
     </div>
   );
 }

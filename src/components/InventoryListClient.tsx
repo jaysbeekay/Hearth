@@ -11,6 +11,7 @@ import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
 import { emptyStateClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
 type InventoryItemWithCount = InventoryItemModel & { _count: { documents: number } };
 
@@ -37,7 +38,7 @@ export function InventoryListClient({ items, dateFormat, region, canWrite = true
   }, [router]);
 
   return (
-    <div className="space-y-6">
+    <PageShell width="list">
       <ListPageHeader
         title={MODULE_REGISTRY.INVENTORY.label}
         action={canWrite ? { href: "/inventory/new", label: "Add item", online } : undefined}
@@ -71,6 +72,6 @@ export function InventoryListClient({ items, dateFormat, region, canWrite = true
           ))}
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

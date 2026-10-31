@@ -112,7 +112,7 @@ export function AiSettingsForm({
           ) : (
             <span />
           )}
-          {selected !== "" && <SubmitButton>{configured ? "Update" : "Save"}</SubmitButton>}
+          {selected !== "" && <SubmitButton variant="secondary">{configured ? "Update" : "Save"}</SubmitButton>}
         </div>
       </form>
 

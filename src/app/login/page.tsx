@@ -10,6 +10,7 @@ import { SignedOutCacheCleanup } from "@/components/SignedOutCacheCleanup";
 import { safeCallbackPath } from "@/lib/callbackUrl";
 import { Card } from "@/components/ui/Card";
 import { Banner } from "@/components/ui/Banner";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Sign in" };
 export const dynamic = "force-dynamic";
@@ -48,7 +49,7 @@ export default async function LoginPage({
 
   return (
     <div className="flex flex-1 items-center justify-center px-4 py-12">
-      <div className="w-full max-w-sm space-y-6">
+      <PageShell width="auth">
         <div className="flex flex-col items-center gap-2 text-center">
           <h1 className="text-2xl font-medium">Welcome back</h1>
           <p className="text-sm text-muted">Sign in to Hearth.</p>
@@ -68,7 +69,7 @@ export default async function LoginPage({
             callbackUrl={destination}
           />
         </Card>
-      </div>
+      </PageShell>
     </div>
   );
 }

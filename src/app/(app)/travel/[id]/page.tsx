@@ -31,6 +31,7 @@ import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
 import { buttonClass, menuItemClass, emptyStateClass, cardClass } from "@/lib/ui";
 import { Pill } from "@/components/ui/Pill";
+import { PageShell } from "@/components/ui/PageShell";
 
 const SEGMENT_ICONS: Record<string, LucideIcon> = {
   FLIGHT: Plane,
@@ -120,7 +121,7 @@ export default async function TripDetailPage({
     : segments;
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="detail">
       <div>
         <BackLink href="/travel" label="Travel" />
       </div>
@@ -175,7 +176,7 @@ export default async function TripDetailPage({
           {canWrite && (
             <Link
               href={`/travel/${trip.id}/segments/new`}
-              className={buttonClass("primary")}
+              className={buttonClass("secondary")}
             >
               <Plus size={16} />
               Add segment
@@ -370,7 +371,7 @@ export default async function TripDetailPage({
         updatedAt={trip.updatedAt}
         memberCount={memberCount}
       />
-    </div>
+    </PageShell>
   );
 }
 

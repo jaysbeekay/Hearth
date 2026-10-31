@@ -11,6 +11,7 @@ import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
 import { buttonClass, emptyStateClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Portfolios" };
 
@@ -24,7 +25,7 @@ export default async function PortfoliosPage() {
   });
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="list">
       <div className="flex items-center justify-between">
         <div>
           <BackLink href="/wealth" label="Wealth" />
@@ -85,6 +86,6 @@ export default async function PortfoliosPage() {
           ))}
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

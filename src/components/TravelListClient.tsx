@@ -15,6 +15,7 @@ import type { DistanceSummary } from "@/lib/integrations/flightDistance";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
 import { Card } from "@/components/ui/Card";
 import { emptyStateClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
 type TripWithCount = TripModel & { _count: { segments: number } };
 
@@ -41,7 +42,7 @@ export function TravelListClient({ trips, dateFormat, canWrite = true, distanceS
   }, [router]);
 
   return (
-    <div className="space-y-6">
+    <PageShell width="list">
       <ListPageHeader
         title={MODULE_REGISTRY.TRAVEL.label}
         exportPath="/api/export/travel"
@@ -102,6 +103,6 @@ export function TravelListClient({ trips, dateFormat, canWrite = true, distanceS
           ))}
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

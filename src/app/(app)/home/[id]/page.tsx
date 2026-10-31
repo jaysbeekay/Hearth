@@ -50,6 +50,7 @@ import { Card } from "@/components/ui/Card";
 import { Pill } from "@/components/ui/Pill";
 import { Banner } from "@/components/ui/Banner";
 import { buttonClass, menuItemClass, emptyStateClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
 const ITEM_ICONS: Record<string, LucideIcon> = {
   MAINTENANCE: Wrench,
@@ -123,7 +124,7 @@ export default async function PropertyDetailPage({
   });
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="detail">
       <div>
         <BackLink href="/home" label="Properties" />
       </div>
@@ -226,7 +227,7 @@ export default async function PropertyDetailPage({
           {canWrite && (
             <Link
               href={`/home/${property.id}/items/new`}
-              className={buttonClass("primary")}
+              className={buttonClass("secondary")}
             >
               <Plus size={16} />
               Add maintenance record
@@ -465,6 +466,6 @@ export default async function PropertyDetailPage({
         updatedAt={property.updatedAt}
         memberCount={memberCount}
       />
-    </div>
+    </PageShell>
   );
 }

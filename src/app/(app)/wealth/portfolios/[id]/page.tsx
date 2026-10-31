@@ -17,6 +17,7 @@ import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
 import { buttonClass, emptyStateClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Portfolio" };
 
@@ -55,7 +56,7 @@ export default async function PortfolioPage({
   const unpricedNote = unpricedHoldingsNote(portfolioValue?.unpricedCount ?? 0);
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <PageShell width="list">
       <div>
         <BackLink href="/wealth/portfolios" label="Portfolios" />
         <div className="mt-1 flex items-start justify-between gap-4">
@@ -120,7 +121,7 @@ export default async function PortfolioPage({
             {canWrite && (
               <Link
                 href={`/wealth/portfolios/${id}/holdings/new`}
-                className={buttonClass("primary")}
+                className={buttonClass("secondary")}
               >
                 <Plus size={16} />
                 Add holding
@@ -141,6 +142,6 @@ export default async function PortfolioPage({
           </div>
         )}
       </div>
-    </div>
+    </PageShell>
   );
 }

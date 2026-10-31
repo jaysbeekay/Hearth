@@ -9,6 +9,7 @@ import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Add Trade" };
 
@@ -32,7 +33,7 @@ export default async function NewTradePage({
   const action = createTrade.bind(null, holdingId);
 
   return (
-    <div className="max-w-xl space-y-6">
+    <PageShell width="form">
       <div>
         <BackLink href={`/wealth/portfolios/${portfolioId}/holdings/${holdingId}`} label={holding.ticker} />
         <h1 className="mt-1 text-2xl font-medium">Add trade</h1>
@@ -46,6 +47,6 @@ export default async function NewTradePage({
           defaultCurrency={holding.portfolio.currency}
         />
       </Card>
-    </div>
+    </PageShell>
   );
 }

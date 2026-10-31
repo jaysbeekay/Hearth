@@ -9,7 +9,7 @@ import {
 import { createProductFromAssistant, updateProductFromAssistant } from "@/lib/actions/products";
 import { formatDate, type DateFormat } from "@/lib/utils";
 import { useDateFormat } from "@/components/DateFormatProvider";
-import { buttonClass } from "@/lib/ui";
+import { buttonClass, cardClass } from "@/lib/ui";
 
 export interface ProposedAction {
   id: string;
@@ -141,7 +141,7 @@ export function ProposedActionCard({
     : ((action.data.title ?? action.data.description) as string | undefined);
 
   return (
-    <div className="mt-2 rounded-lg border border-accent/30 bg-accent/5 p-3 text-sm">
+    <div className={cardClass({}, "mt-2 text-sm")}>
       <p className="mb-2 font-medium">
         {action.operation === "create" ? "Create" : "Update"} {action.entity}
         {titleValue ? `: ${titleValue}` : ""}

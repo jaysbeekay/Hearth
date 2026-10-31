@@ -8,6 +8,7 @@ import { BackLink } from "@/components/BackLink";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
 
 export default async function NewContractPage({
   searchParams,
@@ -37,7 +38,7 @@ export default async function NewContractPage({
     : [];
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="form">
       <BackLink href="/contracts" label="Contracts" />
       <div>
         <h1 className="text-2xl font-medium">Add a contract</h1>
@@ -65,6 +66,6 @@ export default async function NewContractPage({
           vehiclesEnabled={vehiclesEnabled}
         />
       </Card>
-    </div>
+    </PageShell>
   );
 }

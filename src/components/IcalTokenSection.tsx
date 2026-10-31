@@ -86,7 +86,7 @@ export function IcalTokenSection({ hasToken, appUrl, embedded }: Props) {
       <div className="space-y-2">
         <div className="flex flex-wrap gap-2">
           <form action={genAction}>
-            <SubmitButton pendingText="Generating…">
+            <SubmitButton variant="secondary" pendingText="Generating…">
               {active ? "Generate new URL" : "Create calendar feed"}
             </SubmitButton>
           </form>

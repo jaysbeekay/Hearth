@@ -8,6 +8,7 @@ import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Edit Holding" };
 
@@ -31,7 +32,7 @@ export default async function EditHoldingPage({
   const action = updateHolding.bind(null, portfolioId, holdingId);
 
   return (
-    <div className="max-w-xl space-y-6">
+    <PageShell width="form">
       <div>
         <BackLink href={`/wealth/portfolios/${portfolioId}/holdings/${holdingId}`} label={holding.ticker} />
         <h1 className="mt-1 text-2xl font-medium">Edit holding</h1>
@@ -39,6 +40,6 @@ export default async function EditHoldingPage({
       <Card>
         <HoldingForm action={action} holding={holding} />
       </Card>
-    </div>
+    </PageShell>
   );
 }

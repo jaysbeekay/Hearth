@@ -3,6 +3,7 @@ import Link from "next/link";
 import { isSmtpConfigured } from "@/lib/appSettings";
 import { ForgotPasswordForm } from "@/components/ForgotPasswordForm";
 import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Reset password" };
 export const dynamic = "force-dynamic";
@@ -12,7 +13,7 @@ export default async function ForgotPasswordPage() {
 
   return (
     <div className="flex flex-1 items-center justify-center px-4 py-12">
-      <div className="w-full max-w-sm space-y-6">
+      <PageShell width="auth">
         <div className="flex flex-col items-center gap-2 text-center">
           <h1 className="text-2xl font-medium">Reset your password</h1>
           <p className="text-sm text-muted">
@@ -33,7 +34,7 @@ export default async function ForgotPasswordPage() {
             Back to sign in
           </Link>
         </p>
-      </div>
+      </PageShell>
     </div>
   );
 }

@@ -39,7 +39,7 @@ export function ChangePasswordForm() {
         />
       </div>
       <FormMessage error={state?.error} success={state?.success} />
-      <SubmitButton>Update password</SubmitButton>
+      <SubmitButton variant="secondary">Update password</SubmitButton>
     </form>
   );
 }

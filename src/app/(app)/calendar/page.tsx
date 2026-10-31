@@ -15,6 +15,7 @@ import { ExpiryBadge } from "@/components/ExpiryBadge";
 import { CalendarSubscribeButton } from "@/components/CalendarSubscribeButton";
 import type { CalendarEvent } from "@/lib/calendarEvents";
 import { cardClass, chipClass, emptyStateClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Upcoming" };
 
@@ -71,7 +72,7 @@ export default async function CalendarPage({
   const months = [...grouped.entries()].sort(([a], [b]) => a.localeCompare(b));
 
   return (
-    <div className="max-w-3xl space-y-8">
+    <PageShell width="list">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-medium">Upcoming</h1>
@@ -140,6 +141,6 @@ export default async function CalendarPage({
           </section>
         ))
       )}
-    </div>
+    </PageShell>
   );
 }

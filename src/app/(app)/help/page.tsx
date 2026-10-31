@@ -3,12 +3,13 @@ import { FAQ_SECTIONS, splitFaqAnswer } from "@/lib/help/faq";
 import { FOOTER_NAV } from "@/components/nav-items";
 import { buttonClass, cardClass } from "@/lib/ui";
 import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: FOOTER_NAV.help.label };
 
 export default function HelpPage() {
   return (
-    <div className="max-w-3xl space-y-10">
+    <PageShell width="detail">
       <div>
         <h1 className="text-2xl font-medium">{FOOTER_NAV.help.label}</h1>
         <p className="mt-1 text-sm text-muted">
@@ -74,6 +75,6 @@ export default function HelpPage() {
           Report a bug or suggestion
         </a>
       </Card>
-    </div>
+    </PageShell>
   );
 }

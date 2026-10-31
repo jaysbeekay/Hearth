@@ -55,7 +55,7 @@ export function ProductDocumentUploadForm({
         </SelectWrapper>
       </div>
       <FileDropZone name="file" required />
-      <SubmitButton>
+      <SubmitButton variant="secondary">
         <Upload size={16} className="mr-2" />
         Upload
       </SubmitButton>

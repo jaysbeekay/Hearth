@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { SetupForm } from "@/components/SetupForm";
 import { isSetupTokenRequired } from "@/lib/env";
 import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Set up" };
 export const dynamic = "force-dynamic";
@@ -16,7 +17,7 @@ export default async function SetupPage() {
 
   return (
     <div className="flex flex-1 items-center justify-center px-4 py-12">
-      <div className="w-full max-w-sm space-y-6">
+      <PageShell width="auth">
         <div className="flex flex-col items-center gap-2 text-center">
           <h1 className="text-2xl font-medium">Set up Hearth</h1>
           <p className="text-sm text-muted">
@@ -26,7 +27,7 @@ export default async function SetupPage() {
         <Card>
           <SetupForm setupTokenRequired={isSetupTokenRequired()} />
         </Card>
-      </div>
+      </PageShell>
     </div>
   );
 }

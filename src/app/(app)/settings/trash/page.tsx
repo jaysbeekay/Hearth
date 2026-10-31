@@ -58,6 +58,7 @@ import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
 import { Card } from "@/components/ui/Card";
 import { emptyStateClass, buttonClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.trash.label };
 
@@ -154,7 +155,7 @@ export default async function TrashPage() {
   const canWrite = sessionCanWrite(session);
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <PageShell width="form">
       <BackLink {...settingsBackLink(SETTINGS_ROUTES.trash)} />
       <div>
         <h1 className="text-2xl font-medium">{SETTINGS_ROUTES.trash.label}</h1>
@@ -208,6 +209,6 @@ export default async function TrashPage() {
           })}
         </Card>
       )}
-    </div>
+    </PageShell>
   );
 }

@@ -8,6 +8,7 @@ import { BackLink } from "@/components/BackLink";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
 
 export default async function NewHomeItemPage({
   params,
@@ -27,7 +28,7 @@ export default async function NewHomeItemPage({
   const boundAction = addHomeItem.bind(null, property.id);
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="form">
       <BackLink href={`/home/${property.id}`} label={property.label} />
       <div>
         <h1 className="text-2xl font-medium">Add maintenance record</h1>
@@ -40,6 +41,6 @@ export default async function NewHomeItemPage({
       <Card>
         <HomeItemForm action={boundAction} propertyId={property.id} defaultCurrency={preferredCurrency} />
       </Card>
-    </div>
+    </PageShell>
   );
 }

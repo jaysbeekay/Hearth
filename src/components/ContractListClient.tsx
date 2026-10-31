@@ -29,6 +29,7 @@ import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
 import { buttonClass, chipClass, emptyStateClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
 const STATUS_LABELS: Record<string, string> = { ACTIVE: "Active", CANCELLED: "Cancelled" };
 
@@ -131,7 +132,7 @@ export function ContractListClient({
   ];
 
   return (
-    <div className="space-y-6">
+    <PageShell width="list">
       <ListPageHeader
         title="Contracts"
         exportPath="/api/export/contracts"
@@ -313,6 +314,6 @@ export function ContractListClient({
           )}
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

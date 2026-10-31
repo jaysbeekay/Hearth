@@ -5,13 +5,14 @@ import { BackLink } from "@/components/BackLink";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
 
 export default async function NewTripPage() {
   await requireModuleEnabled("TRAVEL");
   redirectIfReadOnly(await auth(), "/travel");
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="form">
       <BackLink href="/travel" label="Travel" />
       <div>
         <h1 className="text-2xl font-medium">Add a trip</h1>
@@ -22,6 +23,6 @@ export default async function NewTripPage() {
       <Card>
         <TripForm action={createTrip} />
       </Card>
-    </div>
+    </PageShell>
   );
 }

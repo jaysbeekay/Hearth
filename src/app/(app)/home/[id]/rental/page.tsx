@@ -26,6 +26,7 @@ import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
 import { Pill } from "@/components/ui/Pill";
 import { buttonClass, emptyStateClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
 function reconcile(
   periodStart: Date | null,
@@ -118,7 +119,7 @@ export default async function RentalOverviewPage({
   );
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="detail">
       <div>
         <BackLink href={`/home/${property.id}`} label={property.label} />
       </div>
@@ -150,7 +151,7 @@ export default async function RentalOverviewPage({
           {canWrite && (
             <Link
               href={`/home/${property.id}/rental/agreements/new`}
-              className={buttonClass("primary", {}, "mt-4")}
+              className={buttonClass("secondary", {}, "mt-4")}
             >
               <Plus size={16} />
               Add tenancy
@@ -167,7 +168,7 @@ export default async function RentalOverviewPage({
             {canWrite && (
               <Link
                 href={`/home/${property.id}/rental/agreements/new`}
-                className={buttonClass("primary")}
+                className={buttonClass("secondary")}
               >
                 <Plus size={16} />
                 New tenancy
@@ -324,7 +325,7 @@ export default async function RentalOverviewPage({
             {canWrite && (
               <Link
                 href={`/home/${property.id}/rental/statements/new`}
-                className={buttonClass("primary")}
+                className={buttonClass("secondary")}
               >
                 <Plus size={16} />
                 Add statement
@@ -464,7 +465,7 @@ export default async function RentalOverviewPage({
           )}
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }
 

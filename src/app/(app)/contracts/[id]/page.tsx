@@ -38,6 +38,7 @@ import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { Card } from "@/components/ui/Card";
 import { buttonClass, menuItemClass, cardClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
 export default async function ContractDetailPage({
   params,
@@ -107,7 +108,7 @@ export default async function ContractDetailPage({
   });
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="detail">
       <div>
         <BackLink href="/contracts" label="Contracts" />
       </div>
@@ -369,6 +370,6 @@ export default async function ContractDetailPage({
         extractionConfirmedAt={contract.extractionConfirmedAt}
         memberCount={memberCount}
       />
-    </div>
+    </PageShell>
   );
 }

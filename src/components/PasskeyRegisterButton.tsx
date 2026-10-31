@@ -71,7 +71,7 @@ export function PasskeyRegisterButton() {
           type="button"
           onClick={register}
           disabled={pending}
-          className={`${buttonClass("primary")} justify-center disabled:cursor-not-allowed disabled:opacity-60`}
+          className={buttonClass("secondary")}
         >
           {pending ? "Registering…" : "Add passkey"}
         </button>

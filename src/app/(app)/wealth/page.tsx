@@ -16,6 +16,7 @@ import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { Card } from "@/components/ui/Card";
 import { Banner } from "@/components/ui/Banner";
 import { buttonClass, emptyStateClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Wealth" };
 
@@ -56,7 +57,7 @@ export default async function WealthPage() {
   }
 
   return (
-    <div className="max-w-4xl space-y-8">
+    <PageShell width="list">
       <ListPageHeader title="Wealth" exportPath="/api/export/wealth" action={headerAction} />
 
       {data.propertyStale && enabledModules.has("HOME") && (
@@ -142,6 +143,6 @@ export default async function WealthPage() {
           )}
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

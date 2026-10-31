@@ -17,6 +17,7 @@ import { UnconfiguredNotice } from "@/components/UnconfiguredNotice";
 import { ROLE_LABELS } from "@/lib/utils";
 import { SETTINGS_ROUTES } from "@/lib/routeLabels";
 import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -42,7 +43,7 @@ export default async function SettingsPage() {
   const appUrl = env.appUrl ?? "http://localhost:3000";
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <PageShell width="form">
       <h1 className="text-2xl font-medium">Settings</h1>
       <p className="text-sm text-muted">
         These settings only affect your own account, not the rest of the household.
@@ -168,6 +169,6 @@ export default async function SettingsPage() {
           <ChangePasswordForm />
         </Card>
       </div>
-    </div>
+    </PageShell>
   );
 }

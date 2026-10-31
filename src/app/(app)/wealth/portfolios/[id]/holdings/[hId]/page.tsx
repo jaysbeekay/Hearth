@@ -24,6 +24,7 @@ import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
 import { Pill } from "@/components/ui/Pill";
 import { cardClass, buttonClass, emptyStateClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Holding" };
 
@@ -275,7 +276,7 @@ export default async function HoldingPage({
   const tradesDesc = [...holding.trades].sort((a, b) => b.date.getTime() - a.date.getTime());
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="detail">
       <div>
         <BackLink href={`/wealth/portfolios/${portfolioId}`} label={holding.portfolio.name} />
         <div className="mt-1 flex items-start justify-between gap-4">
@@ -394,7 +395,7 @@ export default async function HoldingPage({
           {canWrite && (
             <Link
               href={`/wealth/portfolios/${portfolioId}/holdings/${holdingId}/trades/new`}
-              className={buttonClass("primary")}
+              className={buttonClass("secondary")}
             >
               <Plus size={16} />
               Add trade
@@ -494,6 +495,6 @@ export default async function HoldingPage({
           </div>
         )}
       </section>
-    </div>
+    </PageShell>
   );
 }

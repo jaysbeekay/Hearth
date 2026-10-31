@@ -40,6 +40,7 @@ import type { AiProviderId } from "@/lib/ai/types";
 import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
 import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.app.label };
 
@@ -102,7 +103,7 @@ export default async function AppSettingsPage() {
   ]);
 
   return (
-    <div className="max-w-2xl space-y-10">
+    <PageShell width="form">
       <div>
         <BackLink {...settingsBackLink(SETTINGS_ROUTES.app)} />
         <h1 className="text-2xl font-medium">{SETTINGS_ROUTES.app.label}</h1>
@@ -282,6 +283,6 @@ export default async function AppSettingsPage() {
           appUrlConfigured={isAppUrlConfigured()}
         />
       </div>
-    </div>
+    </PageShell>
   );
 }

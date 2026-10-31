@@ -8,6 +8,7 @@ import type { SecurityEventType } from "@/generated/prisma/enums";
 import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
 import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.security.label };
 
@@ -40,7 +41,7 @@ export default async function SecurityLogPage() {
   ]);
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <PageShell width="form">
       <BackLink {...settingsBackLink(SETTINGS_ROUTES.security)} />
       <h1 className="text-2xl font-medium">{SETTINGS_ROUTES.security.label}</h1>
       <p className="text-sm text-muted">
@@ -75,6 +76,6 @@ export default async function SecurityLogPage() {
           </ul>
         )}
       </Card>
-    </div>
+    </PageShell>
   );
 }

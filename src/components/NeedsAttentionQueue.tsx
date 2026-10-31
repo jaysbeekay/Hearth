@@ -108,7 +108,7 @@ function AttentionList({ items, canWrite }: { items: AttentionItem[]; canWrite: 
                 {item.action && (
                   <Link
                     href={item.action.href}
-                    className={buttonClass("primary")}
+                    className={buttonClass("secondary")}
                   >
                     {item.action.label}
                   </Link>

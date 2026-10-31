@@ -33,6 +33,7 @@ import { NeedsAttentionQueue } from "@/components/NeedsAttentionQueue";
 import { TakePhotoButton } from "@/components/TakePhotoButton";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { buttonClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -173,7 +174,7 @@ export default async function DashboardPage() {
   const canWrite = sessionCanWrite(session);
 
   return (
-    <div className="space-y-6">
+    <PageShell width="list">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-medium">Dashboard</h1>
@@ -241,6 +242,6 @@ export default async function DashboardPage() {
           </div>
         </section>
       )}
-    </div>
+    </PageShell>
   );
 }

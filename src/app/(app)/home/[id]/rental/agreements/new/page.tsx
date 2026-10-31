@@ -9,6 +9,7 @@ import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
 
 export default async function NewRentalAgreementPage({
   params,
@@ -29,7 +30,7 @@ export default async function NewRentalAgreementPage({
   const boundAction = createRentalAgreement.bind(null, property.id);
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="form">
       <div>
         <BackLink href={`/home/${property.id}/rental`} label="Tenancy" />
       </div>
@@ -51,6 +52,6 @@ export default async function NewRentalAgreementPage({
           defaultReminderDays={defaultDays}
         />
       </Card>
-    </div>
+    </PageShell>
   );
 }

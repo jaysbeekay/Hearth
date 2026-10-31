@@ -25,6 +25,7 @@ import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
 import { buttonClass, chipClass, emptyStateClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
 const CHIPS: { chip: ToggleableFilter; label: string; onlyWhenActive?: boolean }[] = [
   { chip: "dueSoon", label: "Due soon" },
@@ -121,7 +122,7 @@ export function ProductListClient({
   ];
 
   return (
-    <div className="space-y-6">
+    <PageShell width="list">
       <ListPageHeader
         title="Warranties"
         exportPath="/api/export/products"
@@ -263,6 +264,6 @@ export function ProductListClient({
           )}
         </section>
       )}
-    </div>
+    </PageShell>
   );
 }

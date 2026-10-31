@@ -34,6 +34,7 @@ import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
 import { buttonClass, menuItemClass, cardClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
 export default async function ProductDetailPage({
   params,
@@ -80,7 +81,7 @@ export default async function ProductDetailPage({
   );
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="detail">
       <div>
         <BackLink href="/products" label="Warranties" />
       </div>
@@ -231,6 +232,6 @@ export default async function ProductDetailPage({
         extractionConfirmedAt={product.extractionConfirmedAt}
         memberCount={memberCount}
       />
-    </div>
+    </PageShell>
   );
 }
