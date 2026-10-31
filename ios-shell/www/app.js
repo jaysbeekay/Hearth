@@ -16,8 +16,8 @@ const Purchases = Plugins.Purchases;
 // RevenueCat public SDK keys — safe to embed client-side (same class of key
 // as a Stripe publishable key), but these are placeholders until a
 // RevenueCat project + App Store Connect/Play Console non-consumable
-// products are created and wired together. See docs/ (or the PR that added
-// this) for the exact dashboard setup steps.
+// products are created and wired together. See docs/mobile/revenuecat.md
+// for the dashboard setup steps and key rotation.
 const REVENUECAT_API_KEY_IOS = "appl_REPLACE_WITH_REVENUECAT_IOS_KEY";
 const REVENUECAT_API_KEY_ANDROID = "goog_REPLACE_WITH_REVENUECAT_ANDROID_KEY";
 const STANDALONE_ENTITLEMENT_ID = "standalone_mode";
