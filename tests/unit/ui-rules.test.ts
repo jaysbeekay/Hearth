@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { buttonClass, cardClass, pillClass, bannerClass, pageShellClass } from "@/lib/ui";
+import { buttonClass, cardClass, pillClass, bannerClass, pageShellClass, mergeClasses } from "@/lib/ui";
 
 // #411 — the shared UI rules, checked against the source so a new page
 // can't quietly bring back a second radius, a bold weight or a hand-rolled
@@ -114,5 +114,21 @@ describe("lib/ui", () => {
     expect(pageShellClass("detail")).toContain("max-w-3xl");
     expect(pageShellClass("form")).toContain("max-w-2xl");
     expect(pageShellClass("auth")).toContain("max-w-sm");
+  });
+});
+
+describe("mergeClasses", () => {
+  it("lets an extra class replace the base class of its group", () => {
+    expect(mergeClasses("inline-flex h-9 px-3 text-sm", "hidden")).toBe("h-9 px-3 text-sm hidden");
+    expect(mergeClasses("rounded-lg p-4", "p-0")).toBe("rounded-lg p-0");
+    expect(buttonClass("secondary", {}, "w-full").split(" ")).toContain("w-full");
+    expect(buttonClass("secondary", { icon: true }, "w-full").split(" ")).not.toContain("w-9");
+  });
+
+  it("leaves responsive and state variants alongside the base", () => {
+    const cls = buttonClass("secondary", {}, "max-sm:hidden sm:w-auto");
+    expect(cls).toContain("inline-flex");
+    expect(cls).toContain("max-sm:hidden");
+    expect(cardClass({}, "md:p-6")).toContain("p-4");
   });
 });

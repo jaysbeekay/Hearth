@@ -23,6 +23,34 @@
 
 import { cn } from "@/lib/utils";
 
+// Tailwind decides between two classes of one group by stylesheet order, not
+// by their order in the class string, so a caller's extra class has to
+// replace the base class of its group rather than sit beside it (a
+// "max-sm:hidden" is fine, a bare "hidden" next to "inline-flex" is not).
+// Ported from #504.
+const CLASS_GROUPS: RegExp[] = [
+  /^(inline-flex|flex|block|inline-block|hidden|grid)$/,
+  /^justify-/,
+  /^items-/,
+  /^gap-/,
+  /^px-/,
+  /^py-/,
+  /^p-/,
+  /^h-/,
+  /^w-/,
+  /^text-(xs|sm|base|xl|2xl)$/,
+  /^text-(foreground|muted|accent|accent-foreground|danger|danger-foreground|warning|success)$/,
+];
+
+/** Base classes plus extras, where an extra replaces a base class of the same group. */
+export function mergeClasses(base: string, extra?: string | false | null): string {
+  if (!extra) return base;
+  const extras = extra.split(/\s+/).filter(Boolean);
+  const overridden = CLASS_GROUPS.filter((g) => extras.some((x) => g.test(x)));
+  const kept = base.split(/\s+/).filter((b) => b && !overridden.some((g) => g.test(b)));
+  return [...kept, ...extras].join(" ");
+}
+
 // ── Card ────────────────────────────────────────────────────────────────
 
 const CARD_BASE = "rounded-lg border border-border bg-surface";
@@ -36,32 +64,34 @@ export interface CardOptions {
 
 /** The classes for a card: surface, 1px border, rounded-lg, p-4. No shadow. */
 export function cardClass({ padding = "default", interactive = false }: CardOptions = {}, className?: string) {
-  return cn(
-    CARD_BASE,
-    padding === "default" && "p-4",
-    interactive && "transition-colors hover:border-accent/50",
+  return mergeClasses(
+    cn(
+      CARD_BASE,
+      padding === "default" && "p-4",
+      interactive && "transition-colors hover:border-accent/50",
+    ),
     className,
   );
 }
 
 /** A dialog panel or popover menu: the one place shadow-overlay is used. */
 export function overlayClass(className?: string) {
-  return cn(CARD_BASE, "shadow-overlay", className);
+  return mergeClasses(cn(CARD_BASE, "shadow-overlay"), className);
 }
 
 /** A bottom sheet on mobile: flush to the bottom edge, only the top corners rounded. */
 export function sheetClass(className?: string) {
-  return cn("w-full rounded-t-lg border-t border-border bg-surface shadow-overlay", className);
+  return mergeClasses(cn("w-full rounded-t-lg border-t border-border bg-surface shadow-overlay"), className);
 }
 
 /** The centred dialog panel (Dialog's default). */
 export function dialogPanelClass(className?: string) {
-  return overlayClass(cn("w-full max-w-sm p-4", className));
+  return mergeClasses(overlayClass("w-full max-w-sm p-4"), className);
 }
 
 /** An empty state: a plain bordered box of muted, centred text. */
 export function emptyStateClass(className?: string) {
-  return cn("rounded-lg border border-border p-6 text-center text-sm text-muted", className);
+  return mergeClasses(cn("rounded-lg border border-border p-6 text-center text-sm text-muted"), className);
 }
 
 // ── Pill ────────────────────────────────────────────────────────────────
@@ -82,7 +112,7 @@ const PILL_TONE = new Map<PillTone, string>([
 
 /** A status pill. Pills are for states; filter chips are secondary buttons. */
 export function pillClass(tone: PillTone = "neutral", className?: string) {
-  return cn(PILL_BASE, PILL_TONE.get(tone), className);
+  return mergeClasses(cn(PILL_BASE, PILL_TONE.get(tone)), className);
 }
 
 // ── Banner ──────────────────────────────────────────────────────────────
@@ -104,7 +134,7 @@ export function bannerToneClass(tone: BannerTone) {
 
 /** A banner: a 1px tinted box of running text, rounded-lg, px-4 py-3. */
 export function bannerClass(tone: BannerTone = "neutral", className?: string) {
-  return cn("rounded-lg border px-4 py-3 text-sm", BANNER_TONE.get(tone), className);
+  return mergeClasses(cn("rounded-lg border px-4 py-3 text-sm", BANNER_TONE.get(tone)), className);
 }
 
 // ── Button ──────────────────────────────────────────────────────────────
@@ -146,12 +176,14 @@ export function buttonClass(
   { icon = false, destructive = false, online = true }: ButtonOptions = {},
   className?: string,
 ) {
-  return cn(
-    BUTTON_BASE,
-    BUTTON_VARIANT.get(variant),
-    icon && "w-9 px-0",
-    destructive && "text-danger",
-    !online && "pointer-events-none opacity-40",
+  return mergeClasses(
+    cn(
+      BUTTON_BASE,
+      BUTTON_VARIANT.get(variant),
+      icon && "w-9 px-0",
+      destructive && "text-danger",
+      !online && "pointer-events-none opacity-40",
+    ),
     className,
   );
 }
@@ -161,11 +193,13 @@ export function buttonClass(
  * its filter is on. Pair it with aria-pressed.
  */
 export function chipClass(active: boolean, className?: string) {
-  return cn(
-    BUTTON_BASE,
-    HIT_AREA_BORDERED,
-    "border",
-    active ? "border-accent bg-accent/10 text-accent" : "border-border bg-surface text-muted hover:bg-hover-surface",
+  return mergeClasses(
+    cn(
+      BUTTON_BASE,
+      HIT_AREA_BORDERED,
+      "border",
+      active ? "border-accent bg-accent/10 text-accent" : "border-border bg-surface text-muted hover:bg-hover-surface",
+    ),
     className,
   );
 }
@@ -175,14 +209,16 @@ export function chipClass(active: boolean, className?: string) {
  * Overdue records that filters the list to them).
  */
 export function toneButtonClass(tone: BannerTone, className?: string) {
-  return cn(BUTTON_BASE, HIT_AREA_BORDERED, "border", BANNER_TONE.get(tone), className);
+  return mergeClasses(cn(BUTTON_BASE, HIT_AREA_BORDERED, "border", BANNER_TONE.get(tone)), className);
 }
 
 /** A row inside a popover menu (Export, the overflow menu). */
 export function menuItemClass({ destructive = false }: { destructive?: boolean } = {}, className?: string) {
-  return cn(
-    "flex min-h-11 w-full items-center gap-2 px-4 text-left text-sm transition-colors hover:bg-hover",
-    destructive && "text-danger",
+  return mergeClasses(
+    cn(
+      "flex min-h-11 w-full items-center gap-2 px-4 text-left text-sm transition-colors hover:bg-hover",
+      destructive && "text-danger",
+    ),
     className,
   );
 }
@@ -213,5 +249,5 @@ const PAGE_WIDTH = new Map<PageWidth, string>([
 
 /** The page column: list/dashboard 5xl, detail 3xl, form and settings 2xl, auth sm. */
 export function pageShellClass(width: PageWidth, className?: string) {
-  return cn("w-full space-y-6", PAGE_WIDTH.get(width), className);
+  return mergeClasses(cn("w-full space-y-6", PAGE_WIDTH.get(width)), className);
 }
