@@ -237,7 +237,8 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   so it reads differently from "Delete permanently". The standalone mobile
   shell, which has no Recently deleted page, no longer names one: a deleted
   Document says "deleted." with Undo, and its record's delete confirmation says
-  the documents are kept for 30 days.
+  the documents are kept for 30 days. Edit-form pickers mark a linked record
+  that has been deleted as "(deleted)" (was "(in Trash)").
   The `/settings/trash` route and internal names are unchanged.
 
 - **An empty `APP_URL` now counts as unset (#477)**, so links fall back to

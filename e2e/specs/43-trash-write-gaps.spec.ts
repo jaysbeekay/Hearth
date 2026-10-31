@@ -142,7 +142,7 @@ test.describe.serial("writes to and links to records in Trash", () => {
     await page.goto(`/contracts/${contractId}/edit`);
     const picker = page.getByLabel("Linked to");
     await expect(picker).toHaveValue(`property:${linkedId}`);
-    await expect(picker.locator("option", { hasText: `${linkedLabel} (in Trash)` })).toHaveCount(1);
+    await expect(picker.locator("option", { hasText: `${linkedLabel} (deleted)` })).toHaveCount(1);
     await expect(picker.locator("option", { hasText: otherLabel })).toHaveCount(0);
 
     // Saving another change keeps the link.
