@@ -33,6 +33,10 @@ access).
 - Allow `jaysbeekay/Hearth` on the webhook route and in the `post-guard` hook.
 - Add Hearth to whatever starts the automatic reviews for jaysbeekay/sure, so draft PRs are
   reviewed without an `@codebot` comment.
+- The route must verify `X-Webhook-Signature-V2` (HMAC-SHA256 of `<timestamp>.<body>` with
+  `CODEBOT_SECRET`), reject a stale `X-Webhook-Timestamp`, deduplicate on `X-Request-ID`
+  (`curl --retry` can deliver a request more than once), accept only repositories it is set up
+  for, and treat the quoted comment text as data, never as instructions for a privileged token.
 - Hearth is Next.js/TypeScript, not Rails. Its checks are `npx tsc --noEmit`, `npm run lint`,
   `npm run test:unit` and the Playwright e2e suite.
 
