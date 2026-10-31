@@ -504,14 +504,54 @@ function showStatus(node, message, ok = false) {
   node.classList.toggle("ok", ok);
 }
 
-function showStandaloneStatus(message, ok = false) {
+let standaloneStatusTimer = null;
+// Undo actions still on offer (#455). A second delete, or any other status
+// message, keeps the earlier Undo: the button always undoes the latest one.
+const pendingUndos = [];
+const STATUS_MS = 3600;
+const UNDO_STATUS_MS = 10000;
+
+// `action` ({ run }) puts an Undo button on the toast.
+function showStandaloneStatus(message, ok = false, action = null) {
+  if (action) pendingUndos.push(action);
   showStatus(standaloneStatus, message, ok);
-  window.setTimeout(() => {
-    standaloneStatus.hidden = true;
-    standaloneStatus.textContent = "";
-    standaloneStatus.classList.remove("ok");
-  }, 3600);
+  if (pendingUndos.length > 0) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "status-action";
+    button.textContent = pendingUndos.length > 1 ? `Undo (${pendingUndos.length})` : "Undo";
+    button.addEventListener("click", undoLatestAction);
+    standaloneStatus.append(" ", button);
+  }
+  scheduleStandaloneStatusHide();
 }
+
+function scheduleStandaloneStatusHide() {
+  window.clearTimeout(standaloneStatusTimer);
+  standaloneStatusTimer = window.setTimeout(hideStandaloneStatus, pendingUndos.length > 0 ? UNDO_STATUS_MS : STATUS_MS);
+}
+
+function hideStandaloneStatus() {
+  window.clearTimeout(standaloneStatusTimer);
+  pendingUndos.length = 0;
+  standaloneStatus.hidden = true;
+  standaloneStatus.textContent = "";
+  standaloneStatus.classList.remove("ok");
+}
+
+async function undoLatestAction() {
+  const action = pendingUndos.pop();
+  if (!action) return;
+  try {
+    await action.run();
+  } catch (error) {
+    showStandaloneStatus(error?.message || "Could not undo.");
+  }
+}
+
+// The toast stays up while its button has focus.
+standaloneStatus.addEventListener("focusin", () => window.clearTimeout(standaloneStatusTimer));
+standaloneStatus.addEventListener("focusout", scheduleStandaloneStatusHide);
 
 function show(screen) {
   modeScreen.hidden = screen !== "mode";
@@ -678,6 +718,7 @@ async function loadData() {
     trades,
     documents,
     inboxDocuments,
+    trashedDocLinks,
     reminderLogs,
   ] = await Promise.all([
     query("SELECT * FROM local_profile WHERE id = 'local' LIMIT 1"),
@@ -698,6 +739,7 @@ async function loadData() {
     query("SELECT * FROM trades WHERE deleted_at IS NULL ORDER BY trade_date DESC, updated_at DESC"),
     query("SELECT * FROM documents WHERE deleted_at IS NULL ORDER BY uploaded_at DESC"),
     query("SELECT * FROM inbox_documents WHERE deleted_at IS NULL ORDER BY uploaded_at DESC"),
+    query("SELECT id, owner_type, owner_id, supersedes_id FROM documents WHERE deleted_at IS NOT NULL"),
     query("SELECT * FROM reminder_delivery_logs ORDER BY sent_at DESC LIMIT 200"),
   ]);
   cache = {
@@ -719,6 +761,7 @@ async function loadData() {
     trades,
     documents,
     inboxDocuments,
+    trashedDocLinks,
     reminderLogs,
   };
 }
@@ -1215,6 +1258,8 @@ async function enterStandaloneApp() {
   show("standalone");
   await prefSet(MODE_KEY, "standalone");
   await initDb();
+  // A failure leaves the Trash as it was; the next launch tries again.
+  await purgeExpiredTrashedDocuments().catch(() => undefined);
   await loadStandaloneModuleSettings();
   await loadReminderDeliveryState();
   await render();
@@ -2378,7 +2423,7 @@ function renderDetail() {
   const row = getRecord(type, id);
   if (!row) return empty("Record not found", "It may have been removed.");
   const ownerType = ownerTypeForRecordType(type);
-  const docs = docsFor(ownerType, id).filter((doc) => Number(doc.is_head ?? 1) !== 0);
+  const docs = latestDocuments(docsFor(ownerType, id));
   return `
     <section class="hero-card">
       <p class="kicker">${escapeHtml(typeLabel(type))}</p>
@@ -2746,8 +2791,7 @@ function documentChip(filter, label) {
 }
 
 function filteredDocuments() {
-  return cache.documents
-    .filter((doc) => Number(doc.is_head ?? 1) !== 0)
+  return latestDocuments(cache.documents)
     .filter((doc) => recordTypeEnabled(recordTypeForOwnerType(doc.owner_type)))
     .filter((doc) => {
       if (state.documentFilter === "all") return true;
@@ -2846,17 +2890,82 @@ function inboxStatus(doc) {
 
 function duplicateMatchesForInbox(doc) {
   if (!doc.sha256 || doc.status !== "POSSIBLE_DUPLICATE") return [];
-  return cache.documents.filter((item) => item.sha256 === doc.sha256 && Number(item.is_head ?? 1) !== 0);
+  return latestDocuments(cache.documents.filter((item) => item.sha256 === doc.sha256));
 }
 
+// A Document's versions are chained through supersedes_id. Versions in Trash
+// aren't listed, but the chain is followed through them, so trashing one
+// doesn't split a Document in two (#455, as on the web). The latest version
+// is derived from the chain rather than read from is_head.
+function documentSupersedesLinks() {
+  const links = new Map();
+  for (const link of cache.trashedDocLinks ?? []) links.set(link.id, link.supersedes_id ?? null);
+  for (const doc of cache.documents) links.set(doc.id, doc.supersedes_id ?? null);
+  return links;
+}
+
+function documentSuccessors() {
+  const successors = new Map();
+  for (const [id, older] of documentSupersedesLinks()) {
+    if (older) successors.set(older, id);
+  }
+  return successors;
+}
+
+function hasLiveSuccessor(id, successors, live) {
+  const seen = new Set([id]);
+  let cursor = successors.get(id);
+  while (cursor && !seen.has(cursor)) {
+    if (live.has(cursor)) return true;
+    seen.add(cursor);
+    cursor = successors.get(cursor);
+  }
+  return false;
+}
+
+// Of the given live Documents, the ones with no newer live version. A live
+// Document no chain reaches (a cycle, possible through a backup import) is
+// listed on its own rather than hidden, as on the web.
+function latestDocuments(docs) {
+  const successors = documentSuccessors();
+  const live = new Set(cache.documents.map((item) => item.id));
+  const latest = cache.documents.filter((doc) => !hasLiveSuccessor(doc.id, successors, live));
+  const placed = new Set();
+  for (const doc of latest) {
+    for (const version of documentVersionChain(doc)) placed.add(version.id);
+  }
+  const listed = new Set(latest.map((doc) => doc.id));
+  for (const doc of cache.documents) {
+    if (!placed.has(doc.id)) listed.add(doc.id);
+  }
+  return docs.filter((doc) => listed.has(doc.id));
+}
+
+// The newest version of a chain, trashed or not: a new version is filed on top
+// of it, so it never competes with a trashed version for the same place.
+function documentChainTipId(id) {
+  const successors = documentSuccessors();
+  const seen = new Set([id]);
+  let cursor = id;
+  while (successors.has(cursor) && !seen.has(successors.get(cursor))) {
+    cursor = successors.get(cursor);
+    seen.add(cursor);
+  }
+  return cursor;
+}
+
+// The live versions of a Document, newest first, starting at `doc`.
 function documentVersionChain(doc) {
-  const chain = [];
-  let current = doc;
-  const seen = new Set();
-  while (current && !seen.has(current.id)) {
-    chain.push(current);
-    seen.add(current.id);
-    current = current.supersedes_id ? cache.documents.find((item) => item.id === current.supersedes_id) : null;
+  const links = documentSupersedesLinks();
+  const live = new Map(cache.documents.map((item) => [item.id, item]));
+  const chain = [doc];
+  const seen = new Set([doc.id]);
+  let cursor = links.get(doc.id) ?? null;
+  while (cursor && !seen.has(cursor)) {
+    const older = live.get(cursor);
+    if (older) chain.push(older);
+    seen.add(cursor);
+    cursor = links.get(cursor) ?? null;
   }
   return chain;
 }
@@ -3984,7 +4093,7 @@ async function maybeStoreFormFile(form, ownerType, id) {
 async function deleteRecord(type, id) {
   const row = getRecord(type, id);
   if (!row) return;
-  const confirmed = window.confirm(`Delete "${recordTitle(type, row)}" and its local documents?`);
+  const confirmed = window.confirm(`Delete "${recordTitle(type, row)}"? Its documents go to Trash for ${TRASH_RETENTION_DAYS} days, then their files are deleted.`);
   if (!confirmed) return;
   await softDeleteRecord(type, id);
   if (state.localRemindersEnabled && REMINDER_RECORD_TYPES.includes(type)) {
@@ -4021,7 +4130,7 @@ async function setRecordArchived(type, id, archived) {
 async function softDeleteRecord(type, id) {
   const ownerType = ownerTypeForRecordType(type);
   const docs = docsFor(ownerType, id);
-  for (const doc of docs) await deleteDocument(doc.id, false);
+  for (const doc of docs) await trashDocument(doc.id);
   const table = {
     contracts: "contracts",
     products: "products",
@@ -4071,16 +4180,111 @@ async function softDeleteRecord(type, id) {
   }
 }
 
-async function deleteDocument(id, rerender = true) {
+const TRASH_RETENTION_DAYS = 30;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const MAX_PURGE_PER_LAUNCH = 20;
+
+// Moves a Document to Trash. Its file and row stay until it's purged (#455).
+async function trashDocument(id) {
+  await run("UPDATE documents SET deleted_at = ?, version = version + 1 WHERE id = ?", [nowIso(), id]);
+}
+
+async function deleteDocument(id) {
   const doc = cache.documents.find((item) => item.id === id);
   if (!doc) return;
-  const confirmed = !rerender || window.confirm(`Delete "${doc.filename}" from this device?`);
-  if (!confirmed) return;
-  await Filesystem?.deleteFile({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${doc.storage_key}` }).catch(() => undefined);
-  await run("UPDATE documents SET deleted_at = ?, version = version + 1 WHERE id = ?", [nowIso(), id]);
-  if (rerender) {
-    showStandaloneStatus("Document deleted.", true);
-    await render();
+  await trashDocument(id);
+  await syncDocumentHeads(doc.owner_type, doc.owner_id);
+  showStandaloneStatus(`"${doc.filename}" moved to Trash.`, true, { run: () => restoreDocument(id) });
+  await render();
+}
+
+async function restoreDocument(id) {
+  const [doc] = await query("SELECT owner_type, owner_id, filename FROM documents WHERE id = ? AND deleted_at IS NOT NULL", [id]);
+  if (!doc) return;
+  // A live Document under a deleted record would be unreachable.
+  if (!getRecord(recordTypeForOwnerType(doc.owner_type), doc.owner_id)) {
+    throw new Error(`Can't restore "${doc.filename}": the record it belonged to was deleted.`);
+  }
+  await run("UPDATE documents SET deleted_at = NULL, version = version + 1 WHERE id = ?", [id]);
+  await syncDocumentHeads(doc.owner_type, doc.owner_id);
+  showStandaloneStatus("Document restored.", true);
+  await render();
+}
+
+// is_head is kept in step for older builds that still read it; this build
+// works the latest version out from the chain.
+async function syncDocumentHeads(ownerType, ownerId) {
+  await loadData();
+  const owned = docsFor(ownerType, ownerId);
+  const latestIds = new Set(latestDocuments(owned).map((doc) => doc.id));
+  for (const doc of owned) {
+    const expected = latestIds.has(doc.id) ? 1 : 0;
+    if (Number(doc.is_head ?? 1) !== expected) {
+      await run("UPDATE documents SET is_head = ? WHERE id = ?", [expected, doc.id]);
+    }
+  }
+}
+
+// Deletes a stored file. A file that is already gone is fine; any other
+// failure throws, so the row is kept and the delete is retried.
+async function deleteStoredFile(storageKey) {
+  if (!Filesystem) return;
+  try {
+    await Filesystem.deleteFile({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${storageKey}` });
+  } catch (error) {
+    if (!/not.?found|does not exist|no such file|enoent/i.test(String(error?.message ?? error))) throw error;
+  }
+}
+
+// Deletes a Trash entry's file and row together. It re-reads the row, so the
+// chain is relinked from what is saved now, not from a list read earlier.
+async function purgeDocument(id) {
+  const [doc] = await query("SELECT * FROM documents WHERE id = ? AND deleted_at IS NOT NULL", [id]);
+  if (!doc) return null;
+  // A file an Inbox entry still points at stays.
+  const inbox = await query("SELECT id FROM inbox_documents WHERE storage_key = ? AND deleted_at IS NULL LIMIT 1", [doc.storage_key]);
+  if (inbox.length === 0) await deleteStoredFile(doc.storage_key);
+  // The next version now follows this one's older version, so the chain stays whole.
+  await SQLite.executeSet({
+    database: DB,
+    transaction: true,
+    set: [
+      { statement: "UPDATE documents SET supersedes_id = ?, version = version + 1 WHERE supersedes_id = ?", values: [doc.supersedes_id ?? null, doc.id] },
+      { statement: "DELETE FROM documents WHERE id = ?", values: [doc.id] },
+    ],
+  });
+  return doc;
+}
+
+// Purges Trash entries past TRASH_RETENTION_DAYS, at most
+// MAX_PURGE_PER_LAUNCH a launch, newest first. This is irreversible and the
+// device clock is all it has, so it distrusts the clock:
+// - A clock more than a day behind the newest timestamp in the database is
+//   wrong, so nothing is purged.
+// - Time is only trusted up to 30 days past the newest timestamp in the
+//   database (the cutoff is min(now - 30 days, newest)). A clock that jumps
+//   ahead, however far, can't expire anything saved after the newest
+//   activity; it purges only what was already older than it.
+async function purgeExpiredTrashedDocuments() {
+  const stamps = [...await query("SELECT uploaded_at, deleted_at FROM documents"), ...await query("SELECT uploaded_at, deleted_at FROM inbox_documents")]
+    .flatMap((row) => [row.uploaded_at, row.deleted_at])
+    .map((value) => Date.parse(value))
+    .filter((value) => Number.isFinite(value));
+  if (stamps.length === 0) return;
+  const newest = stamps.reduce((max, value) => Math.max(max, value), 0);
+  const now = Date.now();
+  if (now < newest - DAY_MS) return;
+  const cutoff = new Date(Math.min(now - TRASH_RETENTION_DAYS * DAY_MS, newest)).toISOString();
+  const expired = await query("SELECT * FROM documents WHERE deleted_at IS NOT NULL AND deleted_at < ? ORDER BY uploaded_at DESC LIMIT ?", [cutoff, MAX_PURGE_PER_LAUNCH]);
+  const owners = new Map();
+  try {
+    for (const entry of expired) {
+      const purged = await purgeDocument(entry.id);
+      if (purged) owners.set(`${purged.owner_type}|${purged.owner_id}`, purged);
+    }
+  } finally {
+    await loadData();
+    for (const doc of owners.values()) await syncDocumentHeads(doc.owner_type, doc.owner_id);
   }
 }
 
@@ -4108,7 +4312,7 @@ async function fileInboxDocument(form) {
   }
   await run(
     "INSERT INTO documents (id, owner_type, owner_id, filename, storage_key, mime_type, size, kind, extracted_text, sha256, important, supersedes_id, is_head, uploaded_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 1, ?, 1)",
-    [localId("document"), ownerType, ownerId, doc.filename, doc.storage_key, doc.mime_type, doc.size, doc.target_type, doc.extracted_text, doc.sha256, matchingHead?.id ?? null, nowIso()],
+    [localId("document"), ownerType, ownerId, doc.filename, doc.storage_key, doc.mime_type, doc.size, doc.target_type, doc.extracted_text, doc.sha256, matchingHead ? documentChainTipId(matchingHead.id) : null, nowIso()],
   );
   await run("UPDATE inbox_documents SET deleted_at = ?, version = version + 1 WHERE id = ?", [nowIso(), doc.id]);
 }
