@@ -4200,7 +4200,7 @@ async function deleteDocument(id) {
   if (!doc) return;
   await trashDocument(id);
   await syncDocumentHeads(doc.owner_type, doc.owner_id);
-  showStandaloneStatus(`"${doc.filename}" deleted.`, true, { run: () => restoreDocument(id) });
+  showStandaloneStatus(`"${doc.filename}" moved to Recently deleted.`, true, { run: () => restoreDocument(id) });
   await render();
 }
 

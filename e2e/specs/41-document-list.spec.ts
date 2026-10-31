@@ -69,7 +69,7 @@ async function expectStarToggles(page: Page, filename: string) {
 async function moveToTrash(page: Page, filename: string) {
   await page.getByRole("button", { name: `Delete ${filename}`, exact: true }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
-  await expect(page.getByRole("status").first()).toContainText("Deleted.");
+  await expect(page.getByRole("status").first()).toContainText("Moved to Recently deleted.");
   await expect(docLink(page, filename)).toHaveCount(0);
 }
 
@@ -256,7 +256,7 @@ test.describe.serial("The one Document list", () => {
     await expect(dialog).toContainText("Settings → Recently deleted");
     await dialog.getByRole("button", { name: "Delete", exact: true }).click();
     const toast = page.getByRole("status");
-    await expect(toast).toContainText("Deleted.");
+    await expect(toast).toContainText("Moved to Recently deleted.");
     await expect(docLink(page, filename)).toHaveCount(0);
     await toast.getByRole("button", { name: "Undo" }).click();
     await expect(docLink(page, filename)).toHaveCount(1);

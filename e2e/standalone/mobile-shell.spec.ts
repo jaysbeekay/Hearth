@@ -1323,7 +1323,7 @@ test("standalone Delete moves a Document to Trash with an Undo and keeps its fil
   const status = page.locator("#standalone-status");
   await expect(status).toHaveAttribute("role", "status");
   await expect(status).toHaveAttribute("aria-live", "polite");
-  await expect(status).toContainText('"insurance.pdf" deleted.');
+  await expect(status).toContainText('"insurance.pdf" moved to Recently deleted.');
   await expect(card).toHaveCount(0);
   let state = await shellTestState(page);
   expect(state.runs.some((run) => run.statement.startsWith("UPDATE documents SET deleted_at = ?") && run.values.includes("document-1"))).toBe(true);
@@ -1428,7 +1428,7 @@ test("standalone Undo refuses to restore a Document under a deleted record (#455
   await withDocumentVersions(page, "1");
   await openBroadbandPlan(page);
   await documentCard(page, "lease-v3.pdf").getByRole("button", { name: "Delete" }).click();
-  await expect(page.locator("#standalone-status")).toContainText("deleted.");
+  await expect(page.locator("#standalone-status")).toContainText("moved to Recently deleted");
   page.once("dialog", (dialog) => void dialog.accept());
   await page.locator('button[data-delete-record="contracts"][data-id="contract-1"]').click();
   await expect(page.locator("#standalone-status")).toContainText("Deleted.");

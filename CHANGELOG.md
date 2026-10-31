@@ -196,7 +196,7 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 - "Trash" is now called "Recently deleted" everywhere it's shown: the Settings
   section and page, delete confirmations, toasts and error messages, and the
   standalone mobile shell. The confirm button on a restorable delete now says
-  "Delete" (was "Move to Trash") and the toast says "Deleted.", still with Undo.
+  "Delete" (was "Move to Trash") and the toast says "Moved to Recently deleted." (still with Undo), so it reads differently from "Delete permanently".
   The `/settings/trash` route and internal names are unchanged.
 
 - **An empty `APP_URL` now counts as unset (#477)**, so links fall back to

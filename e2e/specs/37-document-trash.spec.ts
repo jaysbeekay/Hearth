@@ -53,7 +53,7 @@ test.describe.serial("Trip segment Documents go to Trash", () => {
 
     await deleteFromList(page, filename);
     const toast = page.getByRole("status");
-    await expect(toast).toContainText("Deleted.");
+    await expect(toast).toContainText("Moved to Recently deleted.");
     await expect(page.locator('a[href^="/api/documents/"]', { hasText: filename })).toHaveCount(0);
 
     await toast.getByRole("button", { name: "Undo" }).click();
@@ -76,7 +76,7 @@ test.describe.serial("Trip segment Documents go to Trash", () => {
     expect(followed.headers()["content-disposition"]).toContain(filename);
 
     await deleteFromList(page, filename);
-    await expect(page.getByRole("status")).toContainText("Deleted.");
+    await expect(page.getByRole("status")).toContainText("Moved to Recently deleted.");
     expect((await context.request.get(`/api/documents/${id}`)).status()).toBe(404);
 
     await page.goto("/settings/trash");

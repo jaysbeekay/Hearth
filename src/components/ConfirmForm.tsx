@@ -39,7 +39,7 @@ export function ConfirmForm({
   offline?: { entity: string; entityId: string; label: string; parentId?: string; kind?: string };
   // #371 — for trash-backed deletes: the success toast offers Undo, which
   // calls the matching restore action. #362 — the confirm button then says
-  // "Delete" and the toast "Deleted.", whatever the record. `href` is where to go back to when
+  // "Delete" and the toast "Moved to Recently deleted.", whatever the record. `href` is where to go back to when
   // the delete navigated away (deleting from a record's own detail page).
   undo?: { action: () => Promise<unknown>; href?: string };
 }) {
@@ -54,7 +54,7 @@ export function ConfirmForm({
   }
 
   const confirmLabel = undo ? "Delete" : actionLabel;
-  const doneMessage = successMessage ?? (undo ? "Deleted." : "Removed.");
+  const doneMessage = successMessage ?? (undo ? "Moved to Recently deleted." : "Removed.");
   const destructive = /\b(delete|remove|trash|discard|permanently)\b/i.test(confirmLabel);
 
   function showDoneToast() {
