@@ -31,7 +31,11 @@ import { usePendingCreates } from "@/lib/usePendingCreates";
 import { buttonClass, chipClass, emptyStateClass, selectClass, inputClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
 
-const STATUS_LABELS: Record<string, string> = { ACTIVE: "Active", CANCELLED: "Cancelled" };
+const STATUS_LABELS = new Map([
+  ["ACTIVE", "Active"],
+  ["CANCELLED", "Cancelled"],
+]);
+const CATEGORY_LABEL_MAP = new Map(Object.entries(CATEGORY_LABELS));
 
 const CHIPS: { chip: ToggleableFilter; label: string; onlyWhenActive?: boolean }[] = [
   { chip: "dueSoon", label: "Due soon" },
@@ -212,7 +216,7 @@ export function ContractListClient({
               onClick={() => removeFilter("category")}
               className={chipClass(true)}
             >
-              {CATEGORY_LABELS[category] ?? category} <X size={16} />
+              {CATEGORY_LABEL_MAP.get(category) ?? category} <X size={16} />
             </button>
           )}
           {status && (
@@ -221,7 +225,7 @@ export function ContractListClient({
               onClick={() => removeFilter("status")}
               className={chipClass(true)}
             >
-              {STATUS_LABELS[status] ?? status} <X size={16} />
+              {STATUS_LABELS.get(status) ?? status} <X size={16} />
             </button>
           )}
           <button
