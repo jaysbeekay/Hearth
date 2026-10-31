@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { mergeClasses } from "@/lib/ui";
 
 // Plain class-string helpers, deliberately not in SubmitButton.tsx: that
 // file is "use client" (needs useFormStatus), which would make every export
@@ -35,11 +36,13 @@ export function buttonClass(
     className,
   }: { online?: boolean; iconOnly?: boolean; className?: string } = {},
 ) {
-  return cn(
-    BUTTON_BASE,
-    iconOnly ? "w-9 after:-inset-1" : "px-3 after:inset-x-0 after:-inset-y-1",
-    buttonVariants[variant],
-    !online && "pointer-events-none opacity-40",
+  return mergeClasses(
+    cn(
+      BUTTON_BASE,
+      iconOnly ? "w-9 after:-inset-1" : "px-3 after:inset-x-0 after:-inset-y-1",
+      buttonVariants[variant],
+      !online && "pointer-events-none opacity-40",
+    ),
     className,
   );
 }

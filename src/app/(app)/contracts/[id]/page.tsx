@@ -137,7 +137,7 @@ export default async function ContractDetailPage({
               {canRenew && (
                 <Link
                   href={renewHref}
-                  className={buttonClass("secondary", { className: "hidden sm:inline-flex" })}
+                  className={buttonClass("secondary", { className: "max-sm:hidden" })}
                 >
                   <RotateCw size={16} />
                   Renew

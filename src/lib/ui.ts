@@ -4,7 +4,7 @@
 //
 // The rules (see the issue for the audit behind them):
 // - Type: five sizes (text-2xl/xl/base/sm/xs = 24/20/16/14/12) and two
-//   weights (400 and font-medium). Sentence case, no uppercase or tracking.
+//   weights (400 and font-medium). Sentence case, no upper-casing or letter tracking.
 // - Shape: rounded-lg everywhere; rounded-full only for the FAB and dots.
 //   1px borders, dashed only for the file drop zone. No card shadows; menus
 //   and dialogs use shadow-overlay.
@@ -17,6 +17,33 @@ function join(...parts: (string | false | null | undefined)[]): string {
   return parts.filter(Boolean).join(" ");
 }
 
+// The few class groups a caller's extra classes may override. Tailwind
+// decides between two classes of one group by stylesheet order, not by the
+// order in the class string, so an override has to replace the base class
+// instead of sitting beside it.
+const GROUPS: RegExp[] = [
+  /^(inline-flex|flex|block|inline-block|hidden|grid)$/,
+  /^justify-/,
+  /^items-/,
+  /^gap-/,
+  /^px-/,
+  /^py-/,
+  /^p-/,
+  /^h-/,
+  /^w-/,
+  /^text-(xs|sm|base|lg|xl|2xl)$/,
+  /^text-(foreground|muted|accent|accent-foreground|danger|danger-foreground|warning|success)$/,
+];
+
+/** Base classes plus extras, where an extra replaces a base class of the same group. */
+export function mergeClasses(base: string, extra?: string | false | null): string {
+  if (!extra) return base;
+  const extras = extra.split(/\s+/).filter(Boolean);
+  const overridden = GROUPS.filter((g) => extras.some((x) => g.test(x)));
+  const kept = base.split(/\s+/).filter((b) => b && !overridden.some((g) => g.test(b)));
+  return [...kept, ...extras].join(" ");
+}
+
 // ---- Card -----------------------------------------------------------------
 
 const CARD = "rounded-lg border border-border bg-surface";
@@ -26,12 +53,12 @@ const CARD = "rounded-lg border border-border bg-surface";
  * own padding (a divided list, a table, a map).
  */
 export function cardClass(extra?: string, { padding = "default" }: { padding?: "default" | "none" } = {}) {
-  return join(CARD, padding === "default" && "p-4", extra);
+  return mergeClasses(join(CARD, padding === "default" && "p-4"), extra);
 }
 
 /** An empty list or "nothing here yet" box: a quiet card, not a dashed one. */
 export function emptyStateClass(extra?: string) {
-  return join("rounded-lg border border-border p-6 text-center text-sm text-muted", extra);
+  return mergeClasses("rounded-lg border border-border p-6 text-center text-sm text-muted", extra);
 }
 
 // ---- Pill -----------------------------------------------------------------
@@ -54,7 +81,7 @@ const PILL_TONE: Record<PillTone, string> = {
 };
 
 export function pillClass(tone: PillTone = "neutral", extra?: string) {
-  return join(PILL_BASE, PILL_TONE[tone], extra);
+  return mergeClasses(join(PILL_BASE, PILL_TONE[tone]), extra);
 }
 
 /** Text that lines up with pills but has no tint (a `later` date). */
@@ -85,7 +112,7 @@ export function bannerToneClass(tone: BannerTone) {
 }
 
 export function bannerClass(tone: BannerTone = "neutral", extra?: string) {
-  return join("rounded-lg border px-4 py-3 text-sm", BANNER_TONE[tone], extra);
+  return mergeClasses(join("rounded-lg border px-4 py-3 text-sm", BANNER_TONE[tone]), extra);
 }
 
 // ---- Filter chip ----------------------------------------------------------
@@ -100,9 +127,8 @@ export const chipShapeClass =
   "relative inline-flex h-9 shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap rounded-lg border px-3 text-sm font-medium transition-colors after:absolute after:inset-x-0 after:-inset-y-1 after:content-['']";
 
 export function chipClass(selected: boolean, extra?: string) {
-  return join(
-    chipShapeClass,
-    selected ? "border-accent bg-accent/10 text-accent" : "border-border bg-surface text-foreground hover:bg-hover-surface",
+  return mergeClasses(
+    join(chipShapeClass, selected ? "border-accent bg-accent/10 text-accent" : "border-border bg-surface text-foreground hover:bg-hover-surface"),
     extra,
   );
 }
@@ -111,7 +137,7 @@ export function chipClass(selected: boolean, extra?: string) {
 
 /** A dialog, sheet or dropdown menu panel: the one place shadow-overlay is used. */
 export function overlayClass(extra?: string) {
-  return join("rounded-lg border border-border bg-surface shadow-overlay", extra);
+  return mergeClasses("rounded-lg border border-border bg-surface shadow-overlay", extra);
 }
 
 // ---- Page width -----------------------------------------------------------
@@ -130,5 +156,5 @@ const PAGE_WIDTH: Record<PageWidth, string> = {
 };
 
 export function pageShellClass(width: PageWidth, extra?: string) {
-  return join("w-full space-y-6", PAGE_WIDTH[width], extra);
+  return mergeClasses(join("w-full space-y-6", PAGE_WIDTH[width]), extra);
 }
