@@ -554,6 +554,12 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **Standalone Upcoming no longer marks a Trip date overdue (#476).** Only a
+  Contract, Warranty or Vehicle date is ever Overdue or Due soon. A Trip or
+  Trip segment date is a plain neutral date, and once it has passed it leaves
+  Upcoming, as on the web. A past Due date stays, as Overdue, only for a
+  manual-renewal Contract still Active and for a Vehicle date; an Ended
+  fixed-term or auto-renewing Contract and a Lapsed Warranty are not shown.
 - **Standalone shell: deleting a Document moves it to Trash with an Undo
   (#455).** Delete no longer asks first and removes the file at once. The
   Document goes to Trash with an Undo (several deletes keep several Undos),
