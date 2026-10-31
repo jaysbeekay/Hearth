@@ -151,6 +151,34 @@ jobs:
           if-no-files-found: error
           retention-days: ${{ env.ARTIFACT_RETENTION }}
 
+      # Prove the artifacts that are about to be published are really signed
+      # with the release key, not unsigned or debug-signed (a corrupted or
+      # wrong keystore secret must fail here, not ship). apksigner checks the
+      # APK's v2/v3 signature; jarsigner checks the AAB's JAR signature. Both
+      # then compare the signer certificate against the release keystore.
+      - name: Verify release signatures
+        if: ${{ startsWith(github.ref, 'refs/tags/v') && env.HAS_SIGNING == 'true' }}
+        run: |
+          set -euo pipefail
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          AAB=android/app/build/outputs/bundle/release/app-release.aab
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -n1)
+          KEY_SHA=$(keytool -list -v -keystore "$RUNNER_TEMP/hearth-release.jks" \
+            -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" \
+            | awk -F': ' '/SHA256:/ {print $2; exit}' | tr -d ':' | tr 'A-F' 'a-f')
+          test -n "$KEY_SHA" || { echo "::error::Could not read the release key's certificate digest"; exit 1; }
+          APK_SHA=$("$APKSIGNER" verify --print-certs "$APK" \
+            | awk -F': ' '/Signer #1 certificate SHA-256 digest/ {print $2; exit}')
+          [ "$APK_SHA" = "$KEY_SHA" ] || { echo "::error::APK is not signed with the release key"; exit 1; }
+          jarsigner -verify "$AAB" >/dev/null || { echo "::error::AAB signature does not verify"; exit 1; }
+          AAB_SHA=$(keytool -printcert -jarfile "$AAB" \
+            | awk -F': ' '/SHA256:/ {print $2; exit}' | tr -d ':' | tr 'A-F' 'a-f')
+          [ "$AAB_SHA" = "$KEY_SHA" ] || { echo "::error::AAB is not signed with the release key"; exit 1; }
+          echo "APK and AAB are signed with the release key ($KEY_SHA)."
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+
       - name: Attach APK/AAB to release
         if: ${{ startsWith(github.ref, 'refs/tags/v') && env.HAS_SIGNING == 'true' }}
         run: |
