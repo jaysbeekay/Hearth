@@ -216,21 +216,42 @@
   // Yields the lines of a source without loading it all: `source` is
   // { size, readSlice(start, end) → Promise<string> }. Backup text is ASCII
   // (JSON header plus base64), so byte offsets and string offsets agree.
-  async function* readLines(source, sliceBytes = 4 * 1024 * 1024) {
+  // Returned as a plain async iterator (next() plus Symbol.asyncIterator)
+  // rather than an async generator, so the one awaited call, readSlice, sits
+  // inside a try and its failure reaches the caller as a readable message.
+  function readLines(source, sliceBytes = 4 * 1024 * 1024) {
+    let offset = 0;
     let carry = "";
-    for (let offset = 0; offset < source.size; offset += sliceBytes) {
-      let slice;
-      try {
-        slice = await source.readSlice(offset, Math.min(offset + sliceBytes, source.size));
-      } catch (error) {
-        throw new Error(`Could not read the backup file: ${error?.message ?? error}`);
+    let pending = [];
+    async function fill() {
+      while (pending.length === 0 && offset < source.size) {
+        const end = Math.min(offset + sliceBytes, source.size);
+        let slice;
+        try {
+          slice = await source.readSlice(offset, end);
+        } catch (error) {
+          throw new Error(`Could not read the backup file: ${error?.message ?? error}`);
+        }
+        offset = end;
+        const parts = (carry + slice).split("\n");
+        carry = parts.pop() ?? "";
+        pending = parts.filter((line) => line.length > 0);
       }
-      const text = carry + slice;
-      const lines = text.split("\n");
-      carry = lines.pop() ?? "";
-      for (const line of lines) if (line.length > 0) yield line;
+      if (pending.length === 0 && carry.length > 0) {
+        pending = [carry];
+        carry = "";
+      }
     }
-    if (carry.length > 0) yield carry;
+    return {
+      async next() {
+        await fill();
+        if (pending.length === 0) return { value: undefined, done: true };
+        return { value: pending.shift(), done: false };
+      },
+      [Symbol.asyncIterator]() {
+        return this;
+      },
+    };
   }
 
   function blobSource(blob) {
