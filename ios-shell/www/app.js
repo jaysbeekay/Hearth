@@ -1512,31 +1512,39 @@ function renderCalendar() {
   `;
 }
 
+// #476, #402 — Upcoming runs from today with no history, as on the web:
+// anything Overdue is in Needs attention instead. Only a Due entry (Contract,
+// Warranty, Vehicle) is ever Due soon, as in the web app's statusTone; a Trip
+// segment is a plain neutral date. The web lists Trip segments, not the Trip
+// itself, and a segment stays while any of it is ahead (its end, or its start
+// when it has none), shown from today once it has begun.
 function calendarEvents() {
   const events = [];
-  const add = (date, label, title, type, id, tone = "neutral") => {
+  const add = (date, label, title, type, id, isDue, lastDate = date) => {
     if (!date) return;
     const days = daysUntil(date);
-    if (days == null || days < -30) return;
-    events.push({ date: String(date).slice(0, 10), label, title, type, id, days, tone });
+    const lastDays = daysUntil(lastDate);
+    if (days == null || lastDays == null || lastDays < 0) return;
+    const shown = Math.max(days, 0);
+    const tone = isDue && shown <= 30 ? "warning" : "neutral";
+    events.push({ date: days < 0 ? localTermToday() : String(date).slice(0, 10), label, title, type, id, days: shown, tone });
   };
-  for (const row of cache.contracts) add(row.end_date, "Contract ends", recordTitle("contracts", row), "contracts", row.id);
-  for (const row of cache.products) add(row.warranty_end_date, "Warranty ends", recordTitle("products", row), "products", row.id);
+  for (const row of cache.contracts) add(row.end_date, "Contract ends", recordTitle("contracts", row), "contracts", row.id, true);
+  for (const row of cache.products) add(row.warranty_end_date, "Warranty ends", recordTitle("products", row), "products", row.id, true);
   for (const row of cache.vehicles) {
-    add(row.rego_expiry, "Rego expiry", recordTitle("vehicles", row), "vehicles", row.id);
-    add(row.insurance_expiry, "Insurance expiry", recordTitle("vehicles", row), "vehicles", row.id);
-    add(row.next_service_due, "Service due", recordTitle("vehicles", row), "vehicles", row.id);
+    add(row.rego_expiry, "Rego expiry", recordTitle("vehicles", row), "vehicles", row.id, true);
+    add(row.insurance_expiry, "Insurance expiry", recordTitle("vehicles", row), "vehicles", row.id, true);
+    add(row.next_service_due, "Service due", recordTitle("vehicles", row), "vehicles", row.id, true);
   }
-  for (const row of cache.trips) add(row.start_date, "Trip starts", recordTitle("trips", row), "trips", row.id);
-  for (const row of cache.tripSegments) add(row.start_date, typeLabel(row.type), recordTitle("tripSegments", row), "tripSegments", row.id);
+  for (const row of cache.tripSegments) add(row.start_date, typeLabel(row.type), recordTitle("tripSegments", row), "tripSegments", row.id, false, row.end_date || row.start_date);
   return events.sort((a, b) => a.date.localeCompare(b.date)).slice(0, 80);
 }
 
 function renderCalendarEvent(event) {
-  const badgeTone = event.days < 0 ? "danger" : event.days <= 30 ? "warning" : "";
-  const relative = event.days < 0 ? `${Math.abs(event.days)}d overdue` : event.days === 0 ? "Today" : `In ${event.days}d`;
+  const badgeTone = event.tone === "neutral" ? "" : event.tone;
+  const relative = event.days === 0 ? "Today" : `In ${event.days}d`;
   return `
-    <button class="record-card ${badgeTone === "danger" ? "danger-card" : badgeTone === "warning" ? "warning-card" : ""}" data-open-record="${escapeAttr(event.type)}" data-id="${escapeAttr(event.id)}">
+    <button class="record-card ${badgeTone === "warning" ? "warning-card" : ""}" data-open-record="${escapeAttr(event.type)}" data-id="${escapeAttr(event.id)}">
       <div class="badge-row">
         <span class="badge ${escapeAttr(badgeTone)}">${escapeHtml(relative)}</span>
         <span class="badge">${escapeHtml(event.label)}</span>
