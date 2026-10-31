@@ -889,4 +889,7 @@ in that case.
 
 ## License
 
-Private/personal project — no license specified.
+Hearth is licensed under the [GNU Affero General Public License v3.0](LICENSE)
+(AGPL-3.0-only). You're free to run, study, modify and share it. If you modify
+Hearth and let other people use it over a network, you must make your modified
+source available to them under the same licence.
