@@ -91,7 +91,8 @@ describe("lib/ui", () => {
     for (const variant of ["primary", "secondary", "quiet", "danger"] as const) {
       const cls = buttonClass(variant);
       expect(cls).toContain("h-9");
-      expect(cls).toContain("before:-inset-1");
+      // ::before sits on the padding box: 4px out, or 5px past a 1px border.
+      expect(cls).toContain(variant === "secondary" ? "before:-inset-[5px]" : "before:-inset-1");
       expect(cls).toContain("rounded-lg");
     }
     expect(buttonClass("secondary", { icon: true })).toContain("w-9");

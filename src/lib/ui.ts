@@ -112,15 +112,19 @@ export type ButtonVariant = "primary" | "secondary" | "quiet" | "danger";
 
 // h-9 is the 36px visual; the ::before pseudo-element reaches 4px past every
 // edge, so the hit area is at least 44px tall (and 44px wide for an icon
-// button) without the button looking any bigger.
+// button) without the button looking any bigger. ::before is placed from the
+// padding box, so a bordered button reaches 5px past its 1px border.
 const BUTTON_BASE =
-  "relative inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3 text-sm font-medium transition-colors before:absolute before:-inset-1 before:content-[''] disabled:cursor-not-allowed disabled:opacity-60 aria-disabled:pointer-events-none aria-disabled:opacity-60";
+  "relative inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3 text-sm font-medium transition-colors before:absolute before:content-[''] disabled:cursor-not-allowed disabled:opacity-60 aria-disabled:pointer-events-none aria-disabled:opacity-60";
+
+const HIT_AREA = "before:-inset-1";
+const HIT_AREA_BORDERED = "before:-inset-[5px]";
 
 const BUTTON_VARIANT: Record<ButtonVariant, string> = {
-  primary: "bg-accent text-accent-foreground hover:bg-accent/90",
-  secondary: "border border-border bg-surface hover:bg-hover-surface",
-  quiet: "hover:bg-hover",
-  danger: "bg-danger text-danger-foreground hover:bg-danger/90",
+  primary: `${HIT_AREA} bg-accent text-accent-foreground hover:bg-accent/90`,
+  secondary: `${HIT_AREA_BORDERED} border border-border bg-surface hover:bg-hover-surface`,
+  quiet: `${HIT_AREA} hover:bg-hover`,
+  danger: `${HIT_AREA} bg-danger text-danger-foreground hover:bg-danger/90`,
 };
 
 export interface ButtonOptions {
@@ -158,6 +162,7 @@ export function buttonClass(
 export function chipClass(active: boolean, className?: string) {
   return cn(
     BUTTON_BASE,
+    HIT_AREA_BORDERED,
     "border",
     active ? "border-accent bg-accent/10 text-accent" : "border-border bg-surface text-muted hover:bg-hover-surface",
     className,
@@ -169,7 +174,7 @@ export function chipClass(active: boolean, className?: string) {
  * Overdue records that filters the list to them).
  */
 export function toneButtonClass(tone: BannerTone, className?: string) {
-  return cn(BUTTON_BASE, "border", BANNER_TONE[tone], className);
+  return cn(BUTTON_BASE, HIT_AREA_BORDERED, "border", BANNER_TONE[tone], className);
 }
 
 /** A row inside a popover menu (Export, the overflow menu). */
