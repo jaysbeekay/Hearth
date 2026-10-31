@@ -81,7 +81,14 @@ chat. The workflow fails early with a list of missing names if any are absent.
    `IOS_PROVISIONING_PROFILE_BASE64`.
 
 The workflow refuses a profile for a different App ID, and an Ad Hoc or
-development profile. A profile is tied to its certificate, so regenerate it
+development profile.
+
+The profile must also cover every capability in the app's entitlements. If
+`ios/App/App/App.entitlements` exists (iCloud Documents, container
+`iCloud.com.hearthapp.app`), first enable **iCloud** with that container on the
+`com.hearthapp.app` identifier (Identifiers → the App ID → Capabilities). Then
+generate or regenerate the profile, because a profile made before a capability
+was added won't include it, and archiving will fail. A profile is tied to its certificate, so regenerate it
 whenever the certificate is renewed (yearly) and update both secrets.
 
 ### 3. App Store Connect API key
