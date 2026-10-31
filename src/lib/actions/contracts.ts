@@ -1,5 +1,6 @@
 "use server";
 
+import { coverSnapshot, lostCover } from "@/lib/coverNotice";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import {
@@ -154,6 +155,9 @@ export async function updateContract(
     };
   }
 
+  // #456 - a Contract that stops Covering a Vehicle date hands it back to the
+  // Vehicle's own date; the Contract page says which.
+  const covered = await coverSnapshot(contractId);
   try {
     await updateContractCommand(
       contractId,
@@ -165,7 +169,8 @@ export async function updateContract(
     // Keep what was entered, e.g. when a newly linked Property is in Trash (#447).
     return { ...commandError(error), values: formDataToStringValues(formData, CONTRACT_FORM_FIELDS) };
   }
-  redirect(`/contracts/${contractId}`);
+  const resumed = await lostCover(covered);
+  redirect(`/contracts/${contractId}${resumed ? `?resumed=${encodeURIComponent(resumed)}` : ""}`);
 }
 
 const RENEWAL_FORM_FIELDS = ["startDate", "endDate", "cost", "termDocumentId"];

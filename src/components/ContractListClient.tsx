@@ -42,7 +42,7 @@ const CHIPS: { chip: ToggleableFilter; label: string; onlyWhenActive?: boolean }
 ];
 
 interface Props {
-  contracts: ContractModel[];
+  contracts: (ContractModel & { vehicle?: { label: string } | null })[];
   /** #395 — household-wide, from the server; never recounted here. */
   counts: ListFilterCounts;
   /** #384 — the household's today and default thresholds, for each card's Due badge. */

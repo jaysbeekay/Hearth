@@ -105,6 +105,9 @@ async function reminderForTarget(
     where: { id: target.id, deletedAt: null },
     include: { contracts: COVERING_CONTRACTS },
   });
+  // The raw date is read before the preview only to skip a Vehicle with no date
+  // of its own. It is harmless for a Covered field: the Reminder plan drops that
+  // entry, so `preview` finds nothing and returns null, and the date is never sent.
   const date = v?.[target.field];
   if (!v || !date) return null;
   const p = await preview("VEHICLE", v.id, vehicleDueRecord(v), target.field);

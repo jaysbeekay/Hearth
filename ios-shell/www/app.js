@@ -996,8 +996,8 @@ function hasDocument(type, id) {
 }
 
 // #456 - Covers, hand-ported from src/lib/covers.ts. A Contract linked to a
-// Vehicle, in a Covering Category, not cancelled or trashed and with an end
-// date, supplies the Vehicle's rego or insurance date. With several, the one
+// Vehicle, in a Covering Category, not cancelled, trashed or awaiting review,
+// and with an end date, supplies the Vehicle's rego or insurance date. With several, the one
 // ending last wins, then the one entered last. The Vehicle's own dates are
 // never changed, so cancelling the Contract brings the manual date back.
 const COVERED_VEHICLE_FIELDS = new Map([
@@ -1009,7 +1009,7 @@ function vehicleCovers(vehicleId) {
   const winners = new Map();
   for (const contract of cache.contracts) {
     const field = COVERED_VEHICLE_FIELDS.get(contract.category);
-    if (contract.vehicle_id !== vehicleId || !field || contract.deleted_at || contract.status === "CANCELLED" || !contract.end_date) continue;
+    if (contract.vehicle_id !== vehicleId || !field || contract.deleted_at || contract.status === "CANCELLED" || Number(contract.extraction_pending ?? 0) === 1 || !contract.end_date) continue;
     const current = winners.get(field);
     const order = current
       ? String(contract.end_date).slice(0, 10).localeCompare(String(current.end_date).slice(0, 10)) ||
@@ -1034,7 +1034,8 @@ function vehicleDateLine(row, field) {
   const cover = vehicleCovers(row.id).get(field);
   const date = readableDate(vehicleDerivedDate(row, field));
   if (cover) return `${date} · From ${cover.title}`;
-  return row[field] ? `${date} · Add the policy as a contract to track cost and documents` : date;
+  const thing = field === "rego_expiry" ? "registration" : "policy";
+  return row[field] ? `${date} · Add the ${thing} as a contract to track cost and documents` : date;
 }
 
 function vehicleOwnDates(row) {
@@ -3138,6 +3139,12 @@ function vehicleDateField(label, name, column, row) {
   return `<div><span>${escapeHtml(label)}</span><input name="${name}" type="hidden" value="${escapeAttr(dateInputValue(row[column]))}" /><p class="muted">${escapeHtml(readableDate(cover.end_date))} · From ${escapeHtml(cover.title)}</p></div>`;
 }
 
+// The Categories, plus a saved value that isn't one of them (the field used to
+// be free text), so editing never rewrites it to the first option.
+function categoryChoices(current) {
+  return current && !CONTRACT_CATEGORIES.includes(current) ? [...CONTRACT_CATEGORIES, current] : CONTRACT_CATEGORIES;
+}
+
 function formFields(type, row) {
   if (type === "contracts") {
     return `
@@ -3145,7 +3152,7 @@ function formFields(type, row) {
         <label>Title<input name="title" value="${escapeAttr(row?.title)}" required /></label>
         <label>Provider<input name="provider" value="${escapeAttr(row?.provider)}" required /></label>
         <label>Contract number<input name="contractNumber" value="${escapeAttr(row?.contract_number)}" /></label>
-        <label>Category<select name="category">${options(CONTRACT_CATEGORIES, row?.category ?? state.form?.defaultCategory ?? "OTHER")}</select></label>
+        <label>Category<select name="category">${options(categoryChoices(row?.category), row?.category ?? state.form?.defaultCategory ?? "OTHER")}</select></label>
         <label>Status<select name="status">${options(["ACTIVE", "CANCELLED", "EXPIRED"], row?.status ?? "ACTIVE")}</select></label>
         <label>Start date<input name="startDate" type="date" value="${escapeAttr(dateInputValue(row?.start_date))}" /></label>
         <label>End date<input name="endDate" type="date" value="${escapeAttr(dateInputValue(row?.end_date))}" /></label>

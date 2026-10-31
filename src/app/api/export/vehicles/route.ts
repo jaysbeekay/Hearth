@@ -7,6 +7,7 @@ import { formatDate, formatCurrency, VEHICLE_ITEM_TYPE_LABELS } from "@/lib/util
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { sanitizeCsvRow } from "@/lib/csvSafety";
+import { COVERING_CONTRACTS, withVehicleCovers } from "@/lib/covers";
 
 export async function GET(request: NextRequest) {
   const session = await auth();
@@ -18,13 +19,13 @@ export async function GET(request: NextRequest) {
   const [vehicles, { dateFormat, region }] = await Promise.all([
     prisma.vehicle.findMany({
       where: { deletedAt: null },
-      include: { items: { orderBy: { date: "desc" } } },
+      include: { items: { orderBy: { date: "desc" } }, contracts: COVERING_CONTRACTS },
     }),
     getUserPreferences(),
   ]);
 
   const allItems = vehicles.flatMap((v) =>
-    v.items.map((item) => ({ ...item, vehicleLabel: v.label })),
+    v.items.map((item) => ({ ...item, vehicleLabel: v.label, vehicle: v, effective: withVehicleCovers(v) })),
   );
 
   if (format === "pdf") {
@@ -62,10 +63,15 @@ export async function GET(request: NextRequest) {
     formatDate(item.date, dateFormat),
     item.cost ?? "",
     item.currency,
+    // A Covering Contract's end date is the effective date; the Vehicle's own stays beside it (#456).
+    item.effective.regoExpiry ? formatDate(item.effective.regoExpiry, dateFormat) : "",
+    item.vehicle.regoExpiry ? formatDate(item.vehicle.regoExpiry, dateFormat) : "",
+    item.effective.insuranceExpiry ? formatDate(item.effective.insuranceExpiry, dateFormat) : "",
+    item.vehicle.insuranceExpiry ? formatDate(item.vehicle.insuranceExpiry, dateFormat) : "",
   ]);
 
   const csv = stringify([
-    ["Vehicle", "Type", "Title", "Provider", "Date", "Cost", "Currency"],
+    ["Vehicle", "Type", "Title", "Provider", "Date", "Cost", "Currency", "Rego expiry", "Rego expiry (own date)", "Insurance expiry", "Insurance expiry (own date)"],
     ...rows.map(sanitizeCsvRow),
   ]);
 

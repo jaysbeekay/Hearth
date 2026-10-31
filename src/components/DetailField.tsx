@@ -51,8 +51,14 @@ export function DetailField({
       {note && (
         <dd className="text-xs text-muted">
           {noteHref ? (
-            <Link href={noteHref} className="text-accent hover:underline">
-              {note}
+            <Link href={noteHref} className="inline-flex min-h-11 items-center text-accent hover:underline">
+              {note.endsWith(" →") ? (
+                <>
+                  {note.slice(0, -2)} <span aria-hidden="true">&nbsp;→</span>
+                </>
+              ) : (
+                note
+              )}
             </Link>
           ) : (
             note

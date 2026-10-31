@@ -72,7 +72,13 @@ export default async function VehicleDetailPage({
   const regoCover = coverFor("regoExpiry");
   const insuranceCover = coverFor("insuranceExpiry");
   const dueRow = vehicleDueRecord({ ...vehicle, contracts: linkedContracts });
-  const manualDateHint = "Add the policy as a contract to track cost and documents";
+  // The hint for a typed-in date no Contract Covers: said once, naming the
+  // right thing for each date, and a link to the pre-linked form for writers.
+  const hintFor = (field: "regoExpiry" | "insuranceExpiry") =>
+    withCovers.coveredFields.includes(field) || !vehicle[field] ? null : field;
+  const hintInsurance = hintFor("insuranceExpiry");
+  const hintRego = hintFor("regoExpiry");
+  const newContract = (category: string) => `/contracts/new?vehicleId=${vehicle.id}&category=${category}`;
 
   const healthFor = (field: "regoExpiry" | "insuranceExpiry" | "nextServiceDue", date: Date | null) =>
     date && !withCovers.coveredFields.includes(field)
@@ -154,7 +160,7 @@ export default async function VehicleDetailPage({
             <Detail
               label="Rego expiry"
               value={formatDate(withCovers.regoExpiry, dateFormat)}
-              note={regoCover ? `From ${regoCover.contract.title} →` : manualDateHint}
+              note={regoCover ? `From ${regoCover.contract.title} →` : undefined}
               noteHref={regoCover ? `/contracts/${regoCover.contract.id}` : undefined}
             />
           )}
@@ -162,7 +168,7 @@ export default async function VehicleDetailPage({
             <Detail
               label="Insurance expiry"
               value={formatDate(withCovers.insuranceExpiry, dateFormat)}
-              note={insuranceCover ? `From ${insuranceCover.contract.title} →` : manualDateHint}
+              note={insuranceCover ? `From ${insuranceCover.contract.title} →` : undefined}
               noteHref={insuranceCover ? `/contracts/${insuranceCover.contract.id}` : undefined}
             />
           )}
@@ -172,6 +178,32 @@ export default async function VehicleDetailPage({
           {vehicle.vin && <Detail label="VIN" value={vehicle.vin} copyable />}
           {vehicle.colour && <Detail label="Colour" value={vehicle.colour} />}
         </dl>
+        {(hintInsurance || hintRego) && (
+          <p className="mt-4 text-xs text-muted">
+            Add{" "}
+            {hintInsurance && (canWrite ? (
+              <Link href={newContract("CAR_INSURANCE")} className="text-accent hover:underline">
+                the insurance policy
+              </Link>
+            ) : (
+              "the insurance policy"
+            ))}
+            {hintInsurance && hintRego && " or "}
+            {hintRego && (canWrite ? (
+              <Link href={newContract("REGISTRATION")} className="text-accent hover:underline">
+                the registration
+              </Link>
+            ) : (
+              "the registration"
+            ))}{" "}
+            as a contract to track cost and documents.
+          </p>
+        )}
+        {withCovers.covers.some((c) => c.count > 1) && (
+          <p className="mt-2 text-xs text-muted">
+            More than one contract covers the same date: the one ending last sets it, and the others keep their own reminders.
+          </p>
+        )}
         {vehicle.notes && (
           <p className="mt-4 whitespace-pre-wrap text-sm text-foreground">{vehicle.notes}</p>
         )}
