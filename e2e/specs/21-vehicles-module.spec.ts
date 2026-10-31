@@ -201,7 +201,7 @@ test.describe.serial("Vehicles module", () => {
       await page.locator("#provider").fill("Allianz");
       await page.locator("#endDate").fill("2031-06-15");
       await page.locator("main button[type=submit]").click();
-      await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
+      await page.waitForURL(/\/contracts\/(?!new)[^/?]+$/);
       policyId = new URL(page.url()).pathname.split("/").pop()!;
     });
 
@@ -246,7 +246,7 @@ test.describe.serial("Vehicles module", () => {
       await page.locator("#provider").fill("Transport Dept");
       await page.locator("#endDate").fill("2031-08-20");
       await page.locator("main button[type=submit]").click();
-      await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
+      await page.waitForURL(/\/contracts\/(?!new)[^/?]+$/);
 
       await page.goto(`/vehicles/${vehicleId}`);
       await expect(page.getByText("Rego expiry")).toBeVisible();
