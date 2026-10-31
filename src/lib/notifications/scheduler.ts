@@ -163,6 +163,8 @@ export async function runExpirationCheck(now: Date = new Date()) {
     where: {
       OR: [{ regoExpiry: { not: null } }, { insuranceExpiry: { not: null } }, { nextServiceDue: { not: null } }],
       deletedAt: null,
+      // #355 — an Archived Vehicle gets no Reminders.
+      archivedAt: null,
     },
     include: { contracts: COVERING_CONTRACTS },
   });

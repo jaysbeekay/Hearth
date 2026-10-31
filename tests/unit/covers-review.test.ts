@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDb, createTestUser, setModuleEnabled } from "../helpers/testDb";
 import { COVERING_CONTRACTS, resumedDateMessage, withVehicleCovers } from "@/lib/covers";
-import { contractDue, vehicleDue } from "@/lib/dueRecords";
+import { contractDue, vehicleDue, vehicleDueRecord } from "@/lib/dueRecords";
 import { renewContractCommand } from "@/lib/commands/contracts";
 import { updateVehicleCommand } from "@/lib/commands/vehicles";
 import { vehicleSchema } from "@/lib/validation/vehicles";
@@ -194,5 +194,32 @@ describe("queryVehicles(attentionOnly) and whatsDue", () => {
       .map((d) => d.id);
     expect(new Set(attention)).toEqual(new Set(due));
     expect(attention).toEqual([plain.id]);
+  });
+});
+
+describe("an Archived Vehicle (#355)", () => {
+  it("has no Due entries, with or without a Covering Contract, and its record carries archivedAt", async () => {
+    const plain = await vehicleWith({ regoExpiry: day("2026-10-30") });
+    const covered = await vehicleWith();
+    await policy(covered.id);
+    for (const v of [plain, covered]) {
+      await db.prisma.vehicle.update({ where: { id: v.id }, data: { archivedAt: new Date("2026-10-01T00:00:00Z") } });
+      const row = await vehicleRow(v.id);
+      expect(vehicleDueRecord(row).archivedAt).not.toBeNull();
+      expect(vehicleDue(row, ctx)).toEqual([]);
+    }
+  });
+
+  it("sends no Reminders, though a Covering Contract still sends its own", async () => {
+    const v = await vehicleWith({ regoExpiry: day("2026-11-24") });
+    const c = await policy(v.id);
+    await db.prisma.vehicle.update({ where: { id: v.id }, data: { archivedAt: new Date("2026-10-01T00:00:00Z") } });
+    await runExpirationCheck(new Date("2026-10-25T09:00:00Z"));
+    expect(webhookKinds()).toEqual([`contract:${c.id}`]);
+
+    vi.mocked(sendExpiryWebhooks).mockClear();
+    await db.prisma.contract.update({ where: { id: c.id }, data: { status: "CANCELLED" } });
+    await runExpirationCheck(new Date("2026-10-26T09:00:00Z"));
+    expect(webhookKinds()).toEqual([]);
   });
 });

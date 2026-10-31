@@ -434,9 +434,10 @@ test.beforeEach(async ({ page }) => {
     function applyStatement(statement: string, values: unknown[]) {
       const sql = statement.trim();
       // Tenancy edits and deletes land in the rows, so a resync of local
-      // Reminders sees them (#388); a deleted contract goes too (#455).
-      const rowUpdate = /^UPDATE (rental_agreements|contracts) SET (.+) WHERE id = \?$/i.exec(sql);
-      if (rowUpdate && (rowUpdate[1] === "rental_agreements" || /deleted_at = \?|vehicle_id = \?/.test(rowUpdate[2]))) {
+      // Reminders sees them (#388); a deleted contract goes too (#455), and
+      // so does archiving a Vehicle or Property (#355); a saved contract's link (#456).
+      const rowUpdate = /^UPDATE (rental_agreements|contracts|vehicles|properties) SET (.+) WHERE id = \?$/i.exec(sql);
+      if (rowUpdate && (rowUpdate[1] !== "contracts" || /deleted_at = \?|vehicle_id = \?/.test(rowUpdate[2]))) {
         const table = rowUpdate[1];
         const id = values[values.length - 1];
         const columns = [...rowUpdate[2].matchAll(/(\w+) = \?/g)].map((m) => m[1]);
@@ -823,6 +824,16 @@ test("standalone settings exports and imports local backups", async ({ page }) =
     schemaVersion: 7,
     exportedAt: "2099-01-01T00:00:00.000Z",
     tables: {
+      // A backup from before #355 has no archived_at: the Vehicle imports as not Archived.
+      vehicles: [
+        {
+          id: "vehicle-imported",
+          label: "Old Backup Car",
+          created_at: "2099-01-01T00:00:00.000Z",
+          updated_at: "2099-01-01T00:00:00.000Z",
+          version: 1,
+        },
+      ],
       contracts: [
         {
           id: "contract-imported",
@@ -857,6 +868,8 @@ test("standalone settings exports and imports local backups", async ({ page }) =
     }).__hearthStandaloneTest;
   });
   expect(snapshot?.sqliteRuns.some((run) => run.statement.includes("INSERT OR REPLACE INTO contracts") && run.values.includes("contract-imported"))).toBe(true);
+  const importedVehicle = snapshot?.sqliteRuns.find((run) => run.statement.includes("INSERT OR REPLACE INTO vehicles") && run.values.includes("vehicle-imported"));
+  expect(importedVehicle?.statement).toContain("archived_at");
 });
 
 test("standalone help and local module settings mirror baseline settings/help surfaces", async ({ page }) => {
@@ -1135,6 +1148,62 @@ test("standalone schedules a local Reminder for a tenancy's lease end (#388)", a
   await page.getByRole("button", { name: /Tenancy · Alex Tenant/ }).click();
   await page.locator('button[data-delete-record="rentalAgreements"][data-id="rental-agreement-1"]').click();
   await expect.poll(leaseBodies).toEqual([]);
+});
+
+test("standalone Archive takes a Vehicle out of Upcoming and Reminders, and Restore brings it back (#355)", async ({ page }) => {
+  const reminderCards = () =>
+    page.locator(".record-card").filter({ hasText: "Family Car" }).filter({ hasText: /Rego|Insurance|Service/ });
+  const open = async (nav: string) => {
+    await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+    await page.locator(`#mobile-view button[data-nav="${nav}"]`).click();
+  };
+
+  await open("reminders");
+  await expect(reminderCards()).toHaveCount(3);
+
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-record-type="vehicles"]').click();
+  await page.getByRole("button", { name: /Family Car/ }).click();
+  await page.getByRole("button", { name: "Archive", exact: true }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Archived");
+  await expect(page.getByText(/Archived on/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Reminder health" })).toHaveCount(0);
+
+  await open("reminders");
+  await expect(reminderCards()).toHaveCount(0);
+  await open("calendar");
+  await expect(page.locator(".record-card").filter({ hasText: "Family Car" })).toHaveCount(0);
+
+  // Still listed, with its history, under the Archived filter only.
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-record-type="vehicles"]').click();
+  await expect(page.getByRole("button", { name: /Family Car/ })).toHaveCount(0);
+  await page.locator('.chip[data-record-filter="archived"]').click();
+  await expect(page.getByRole("button", { name: /Family Car/ })).toContainText("Archived");
+  await page.getByRole("button", { name: /Family Car/ }).click();
+  await expect(page.getByRole("button", { name: /Annual service/ })).toBeVisible();
+
+  await page.getByRole("button", { name: "Restore", exact: true }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Restored");
+  await open("reminders");
+  await expect(reminderCards()).toHaveCount(3);
+});
+
+test("standalone Archiving a Property stops its lease-end Reminder (#355)", async ({ page }) => {
+  const leaseCard = () => page.locator(".record-card").filter({ hasText: "Lease" }).filter({ hasText: "Home" });
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="reminders"]').click();
+  await expect(leaseCard()).toHaveCount(1);
+
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-record-type="properties"]').click();
+  await page.getByRole("button", { name: /Home/ }).first().click();
+  await page.getByRole("button", { name: "Archive", exact: true }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Archived");
+
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="reminders"]').click();
+  await expect(leaseCard()).toHaveCount(0);
 });
 
 test("standalone dashboard's missing-info stat card deep-links into a pre-filtered warranty list", async ({ page }) => {

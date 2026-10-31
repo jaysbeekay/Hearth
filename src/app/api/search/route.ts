@@ -55,6 +55,11 @@ function missingSubtitle(parts: string[]): string | undefined {
   return parts.length > 0 ? parts.join(" · ") : undefined;
 }
 
+// #355 — an Archived Vehicle or Property is still found, marked as such.
+function withArchived(subtitle: string | undefined, archivedAt: Date | null): string | undefined {
+  return archivedAt ? [subtitle, "Archived"].filter(Boolean).join(" · ") : subtitle;
+}
+
 // #332/#362 — the nav said "Policies & contracts" / "Purchases &
 // warranties" for a while and now says "Contracts" / "Warranties" again.
 // A query consisting of just one of those generic category words, old or
@@ -316,13 +321,16 @@ export async function GET(request: NextRequest) {
           rows.map((r) => ({
             id: r.id,
             title: r.label,
-            subtitle: filters.missingDetails
-              ? missingSubtitle(vehicleMissingParts(r))
-              : textOk && matchedViaFields(q, [r.vin, r.licensePlate]) && !matchedViaFields(q, [r.make, r.model])
-                ? [[r.make, r.model].filter(Boolean).join(" "), r.licensePlate ?? r.vin]
-                    .filter(Boolean)
-                    .join(" · ")
-                : [r.make, r.model].filter(Boolean).join(" ") || undefined,
+            subtitle: withArchived(
+              filters.missingDetails
+                ? missingSubtitle(vehicleMissingParts(r))
+                : textOk && matchedViaFields(q, [r.vin, r.licensePlate]) && !matchedViaFields(q, [r.make, r.model])
+                  ? [[r.make, r.model].filter(Boolean).join(" "), r.licensePlate ?? r.vin]
+                      .filter(Boolean)
+                      .join(" · ")
+                  : [r.make, r.model].filter(Boolean).join(" ") || undefined,
+              r.archivedAt,
+            ),
             href: `/vehicles/${r.id}`,
             group: "Vehicles",
           })),
@@ -443,6 +451,7 @@ export async function GET(request: NextRequest) {
             state: true,
             postcode: true,
             country: true,
+            archivedAt: true,
           },
           take: LIMIT,
         })
@@ -450,7 +459,7 @@ export async function GET(request: NextRequest) {
           rows.map((r) => ({
             id: r.id,
             title: r.label,
-            subtitle: formatPropertyAddress(r) || undefined,
+            subtitle: withArchived(formatPropertyAddress(r) || undefined, r.archivedAt),
             href: `/home/${r.id}`,
             group: "Property",
           })),

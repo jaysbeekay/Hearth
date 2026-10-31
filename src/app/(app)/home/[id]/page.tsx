@@ -5,7 +5,16 @@ import type { LucideIcon } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { addDocumentAction } from "@/lib/actions/documents";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
-import { deleteProperty, deleteHomeItem, restoreProperty, restoreHomeItem } from "@/lib/actions/home";
+import {
+  archiveProperty,
+  deleteProperty,
+  deleteHomeItem,
+  restoreProperty,
+  restoreHomeItem,
+  unarchiveProperty,
+} from "@/lib/actions/home";
+import { ArchiveButton } from "@/components/ArchiveButton";
+import { ArchivedNotice } from "@/components/ArchivedNotice";
 import { createPropertyValuation, deletePropertyValuation, restorePropertyValuation } from "@/lib/actions/wealth";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailField as Detail } from "@/components/DetailField";
@@ -88,6 +97,8 @@ export default async function PropertyDetailPage({
   const tenancy = currentTenancy(property);
   // #388 — the lease end gets Reminders like any other Due entry; the card
   // reads the same Reminder schedule the scheduler sends from.
+  // An Archived Property has no current Tenancy (#355), so it shows neither a
+  // lease banner nor a Reminder card.
   const leaseReminderHealth = tenancy?.leaseEnd
     ? await getReminderHealth({ ownerType: "TENANCY", ownerId: tenancy.id, record: { kind: "tenancy", ...tenancy } })
     : null;
@@ -134,6 +145,15 @@ export default async function PropertyDetailPage({
                 Edit
               </Link>
               <DetailOverflowMenu>
+                {!property.archivedAt && (
+                  <ArchiveButton
+                    mode="archive"
+                    noun="property"
+                    action={archiveProperty.bind(null, property.id)}
+                    undo={unarchiveProperty.bind(null, property.id)}
+                    className="flex min-h-11 w-full items-center gap-2 px-4 py-2 text-sm hover:bg-hover"
+                  />
+                )}
                 <ConfirmForm
                   action={deleteProperty.bind(null, property.id)}
                   undo={{ action: restoreProperty.bind(null, property.id), href: `/home/${property.id}` }}
@@ -149,6 +169,24 @@ export default async function PropertyDetailPage({
           )}
         </div>
       </div>
+
+      {property.archivedAt && (
+        <ArchivedNotice
+          archivedAt={property.archivedAt}
+          dateFormat={dateFormat}
+          effect={property.isRented ? "Reminders and Needs attention no longer include its lease end." : undefined}
+          activeContracts={linkedContracts.filter((c) => c.status === "ACTIVE")}
+        >
+          {canWrite && (
+            <ArchiveButton
+              mode="restore"
+              noun="property"
+              action={unarchiveProperty.bind(null, property.id)}
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+            />
+          )}
+        </ArchivedNotice>
+      )}
 
       {tenancy && (
         <DetailStatusBanner

@@ -23,6 +23,8 @@ export type StatusTone = "danger" | "warning" | "neutral" | "plain";
 export type RecordStatus =
   | DueState
   | "cancelled"
+  /** A Vehicle or Property the household no longer has (#355). */
+  | "archived"
   | "needs-review"
   /** Any other Housekeeping, such as missing details or a failed Reminder. */
   | "housekeeping"
@@ -42,6 +44,7 @@ export function statusTone(status: RecordStatus): StatusTone {
     case "lapsed":
     case "needs-new-end-date":
     case "cancelled":
+    case "archived":
     case "needs-review":
     case "housekeeping":
     case "no-date":

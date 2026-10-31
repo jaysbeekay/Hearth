@@ -26,6 +26,8 @@ type VehicleWithCount = VehicleModel & { _count: { items: number }; contracts: C
 
 interface Props {
   vehicles: VehicleWithCount[];
+  /** #355 — Vehicles the household no longer has, listed apart from the rest. */
+  archivedVehicles?: VehicleWithCount[];
   filters: ListFilters;
   /** #395 — household-wide, from the server; never recounted here. */
   counts: ListFilterCounts;
@@ -35,7 +37,7 @@ interface Props {
   canWrite?: boolean;
 }
 
-export function VehicleListClient({ vehicles, filters, counts, due, dateFormat, canWrite = true }: Props) {
+export function VehicleListClient({ vehicles, archivedVehicles = [], filters, counts, due, dateFormat, canWrite = true }: Props) {
   const online = useOnlineStatus();
   const router = useRouter();
   const { pendingOps, refresh: refreshPending } = usePendingCreates("vehicle");
@@ -43,8 +45,8 @@ export function VehicleListClient({ vehicles, filters, counts, due, dateFormat, 
   const filtered = hasListFilters(filters);
 
   useEffect(() => {
-    cachePageData("vehicles:list", vehicles).catch(() => {});
-  }, [vehicles]);
+    cachePageData("vehicles:list", [...vehicles, ...archivedVehicles]).catch(() => {});
+  }, [vehicles, archivedVehicles]);
 
   useEffect(() => {
     const onSyncComplete = () => router.refresh();
@@ -122,6 +124,21 @@ export function VehicleListClient({ vehicles, filters, counts, due, dateFormat, 
             />
           ))}
         </div>
+      )}
+
+      {/* #355 — hidden while a filter is on, since the filters are about
+          what the household still has. */}
+      {!filtered && archivedVehicles.length > 0 && (
+        <details data-testid="archived-section">
+          <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-muted hover:text-foreground">
+            Archived ({archivedVehicles.length})
+          </summary>
+          <div className="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {archivedVehicles.map((vehicle) => (
+              <VehicleCard key={vehicle.id} vehicle={vehicle} due={due} dateFormat={dateFormat} />
+            ))}
+          </div>
+        </details>
       )}
     </div>
   );

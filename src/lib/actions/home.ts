@@ -14,6 +14,8 @@ import {
   setPropertyRentedCommand,
   deletePropertyCommand,
   restorePropertyCommand,
+  archivePropertyCommand,
+  unarchivePropertyCommand,
   permanentlyDeletePropertyCommand,
   createMaintenanceRecordCommand,
   updateMaintenanceRecordCommand,
@@ -176,6 +178,27 @@ export async function restoreProperty(propertyId: string): Promise<ActionState> 
   await requireUser();
   try {
     await restorePropertyCommand(propertyId);
+  } catch (error) {
+    return commandError(error, "Property not found.");
+  }
+  return { success: "Restored." };
+}
+
+// #355 — Archive / unarchive: see archivePropertyCommand.
+export async function archiveProperty(propertyId: string): Promise<ActionState> {
+  const user = await requireUser();
+  try {
+    await archivePropertyCommand(propertyId, user.id);
+  } catch (error) {
+    return commandError(error, "Property not found.");
+  }
+  return { success: "Archived." };
+}
+
+export async function unarchiveProperty(propertyId: string): Promise<ActionState> {
+  const user = await requireUser();
+  try {
+    await unarchivePropertyCommand(propertyId, user.id);
   } catch (error) {
     return commandError(error, "Property not found.");
   }

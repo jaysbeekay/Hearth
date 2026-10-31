@@ -96,7 +96,7 @@ export async function queryTrips(upcomingOnly?: boolean) {
 export async function queryVehicles(attentionOnly?: boolean) {
   const today = await getHouseholdToday();
   const vehicles = await prisma.vehicle.findMany({
-    where: { deletedAt: null },
+    where: { deletedAt: null, archivedAt: null },
     select: {
       id: true,
       label: true,
@@ -108,6 +108,7 @@ export async function queryVehicles(attentionOnly?: boolean) {
       insuranceExpiry: true,
       nextServiceDue: true,
       notes: true,
+      archivedAt: true,
       reminderDaysBefore: true,
       contracts: COVERING_CONTRACTS,
     },
@@ -149,7 +150,7 @@ export async function queryVehicles(attentionOnly?: boolean) {
 
 export async function queryProperties() {
   const properties = await prisma.property.findMany({
-    where: { deletedAt: null },
+    where: { deletedAt: null, archivedAt: null },
     select: {
       id: true,
       label: true,
@@ -547,12 +548,13 @@ export async function whatsDue(enabledModules: Set<ModuleKey>, withinDays: numbe
     }),
     enabledModules.has("VEHICLES")
       ? prisma.vehicle.findMany({
-          where: { deletedAt: null },
+          where: { deletedAt: null, archivedAt: null },
           select: {
             id: true,
             label: true,
             regoExpiry: true,
             insuranceExpiry: true,
+            archivedAt: true,
             nextServiceDue: true,
             reminderDaysBefore: true,
             contracts: COVERING_CONTRACTS,
@@ -561,8 +563,8 @@ export async function whatsDue(enabledModules: Set<ModuleKey>, withinDays: numbe
       : [],
     enabledModules.has("HOME")
       ? prisma.property.findMany({
-          where: { deletedAt: null, isRented: true },
-          select: { id: true, label: true, isRented: true, rentalAgreements: LIVE_TENANCY_AGREEMENTS },
+          where: { deletedAt: null, archivedAt: null, isRented: true },
+          select: { id: true, label: true, isRented: true, archivedAt: true, rentalAgreements: LIVE_TENANCY_AGREEMENTS },
         })
       : [],
   ]);
@@ -627,5 +629,5 @@ export const TOOL_DESCRIPTIONS = {
     "id, title, field, date, daysLeft, state and label; state is due-soon (inside its due-soon window) or " +
     "overdue (an Expired Contract, a passed Vehicle date). Dates not yet in their due-soon window, an " +
     "auto-renewing Contract's renewal date, Ended Contracts, Lapsed Warranties and Cancelled Contracts " +
-    "are never Due, so they are not listed.",
+    "are never Due, so they are not listed, and neither are Archived Vehicles and Properties.",
 } as const;

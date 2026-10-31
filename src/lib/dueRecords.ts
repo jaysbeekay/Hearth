@@ -46,6 +46,12 @@ export interface VehicleDueRow {
    * the Vehicle a second Reminder stream next to its Covering Contract's.
    */
   contracts: CoveringContractRow[];
+  /**
+   * #355 - an Archived Vehicle has no Due entries. Required, not optional,
+   * so a query that forgets to select it fails to type-check instead of
+   * quietly bringing a sold Vehicle's dates back.
+   */
+  archivedAt: DateInput;
 }
 
 export interface TenancyDueRow {
@@ -87,6 +93,7 @@ export function vehicleDueRecord(row: VehicleDueRow): Extract<DueRecord, { kind:
     nextServiceDue: row.nextServiceDue,
     reminderDaysBefore: row.reminderDaysBefore,
     coveredFields: coveredFieldsOf(vehicleCovers(row.contracts)),
+    archivedAt: row.archivedAt,
   };
 }
 
@@ -134,12 +141,16 @@ function compareLeases(a: TenancyAgreement, b: TenancyAgreement): number {
  * tracking is on. Most recent means the latest lease start, then the latest
  * lease end, and only then the latest entered, so back-entering an old
  * lease never displaces the running one. Older agreements are history, so
- * their lease ends are never Due.
+ * their lease ends are never Due. An Archived Property (the household no
+ * longer has it) has none either.
  */
 export function currentTenancy<T extends TenancyAgreement>(property: {
   isRented: boolean;
+  /** Required so no caller can forget it: an Archived Property has no current Tenancy (#355). */
+  archivedAt: Date | null;
   rentalAgreements: T[];
 }): T | null {
+  if (property.archivedAt != null) return null;
   // A Tenancy in Trash is never current (#427), whether or not the caller's
   // query already left it out: its lease end isn't Due, on Upcoming or
   // iCal, and gets no Reminders.
