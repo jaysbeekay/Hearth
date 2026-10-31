@@ -8,7 +8,6 @@ import { INVENTORY_ITEM_CATEGORIES } from "@/lib/validation/inventory";
 import { showToast } from "@/components/Toast";
 import { LinkedToField } from "@/components/LinkedToField";
 import { extractionMessage } from "@/lib/autoFillHighlight";
-import { cn } from "@/lib/utils";
 import { buttonClass, pillClass } from "@/lib/ui";
 import { Card } from "@/components/ui/Card";
 

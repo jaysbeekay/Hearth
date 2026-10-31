@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: "Page not found" };
 
 export default function NotFound() {
   return (
-    <div className="flex flex-1 items-center justify-center px-4 py-12">
+    <div className="flex flex-1 items-center justify-center px-4 py-8">
       <PageShell width="auth" className="text-center">
         <div className="flex flex-col items-center gap-2">
           <h1 className="text-2xl font-medium">Page not found</h1>

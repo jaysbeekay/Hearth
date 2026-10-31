@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { disableTotp, type ActionState } from "@/lib/actions/auth";
 import { FormMessage } from "@/components/FormMessage";
 import { inputClass } from "@/components/SelectWrapper";
-import { cn } from "@/lib/utils";
 import { buttonClass } from "@/lib/ui";
 import { Pill } from "@/components/ui/Pill";
 

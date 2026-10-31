@@ -14,7 +14,6 @@ import {
   whenOfflineDataClaimed,
 } from "@/lib/offlineSession";
 import { awaitSyncIdle, syncPendingOperations } from "@/lib/offlineSync";
-import { cn } from "@/lib/utils";
 import { buttonClass } from "@/lib/ui";
 
 // How long the pre-sign-out check may take before we stop waiting on

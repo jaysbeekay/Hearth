@@ -48,7 +48,7 @@ export default async function LoginPage({
   ]);
 
   return (
-    <div className="flex flex-1 items-center justify-center px-4 py-12">
+    <div className="flex flex-1 items-center justify-center px-4 py-8">
       <PageShell width="auth">
         <div className="flex flex-col items-center gap-2 text-center">
           <h1 className="text-2xl font-medium">Welcome back</h1>
