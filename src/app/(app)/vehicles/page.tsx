@@ -5,6 +5,7 @@ import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { getDueContext } from "@/lib/appSettings";
 import { VehicleListClient } from "@/components/VehicleListClient";
+import { COVERING_CONTRACTS } from "@/lib/covers";
 import { parseListFilters, vehicleFilterWheres, vehicleRules } from "@/lib/recordFilters";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
@@ -27,6 +28,7 @@ export default async function VehiclesPage({
       where: { deletedAt: null, AND: vehicleFilterWheres(filters) },
       include: {
         _count: { select: { items: true, contracts: { where: { deletedAt: null } } } },
+        contracts: COVERING_CONTRACTS,
       },
       orderBy: { createdAt: "desc" },
     }),

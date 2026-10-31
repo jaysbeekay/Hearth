@@ -321,7 +321,7 @@ test.beforeEach(async ({ page }) => {
       return rows;
     }
 
-    (window as Window & { Capacitor?: unknown; __hearthStandaloneTest?: unknown }).__hearthStandaloneTest = { sqliteRuns, scheduledNotifications, fileWrites };
+    (window as Window & { Capacitor?: unknown; __hearthStandaloneTest?: unknown }).__hearthStandaloneTest = { sqliteRuns, scheduledNotifications, fileWrites, rowsByTable };
     (window as Window & { Capacitor?: unknown; __hearthStandaloneTest?: unknown }).Capacitor = {
       getPlatform: () => "ios",
       Plugins: {
@@ -861,6 +861,59 @@ test("standalone vehicle service-due date feeds the detail page, calendar and re
   await page.locator('#mobile-view button[data-nav="reminders"]').click();
   await expect(
     page.locator(".record-card").filter({ hasText: "Family Car" }).filter({ hasText: "Service" }),
+  ).toHaveCount(1);
+});
+
+// #456 - a Contract that Covers a Vehicle supplies its insurance date, as on the web.
+test("standalone Add insurance opens the contract form linked to the vehicle, and a Covering Contract supplies the date (#456)", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-record-type="vehicles"]').click();
+  await page.getByRole("button", { name: /Family Car/ }).click();
+  // With no covering Contract the typed-in date stays, with its hint.
+  await expect(page.getByText(/Add the policy as a contract to track cost and documents/).first()).toBeVisible();
+
+  await page.getByRole("button", { name: "Add insurance" }).click();
+  await expect(page.locator('select[name="category"]')).toHaveValue("CAR_INSURANCE");
+  await expect(page.locator('select[name="vehicleId"]')).toHaveValue("vehicle-1");
+  await page.locator('input[name="title"]').fill("Allianz policy");
+  await page.locator('input[name="provider"]').fill("Allianz");
+  await page.locator('input[name="endDate"]').fill("2099-09-09");
+  await page.locator('form[data-save-type="contracts"]').getByRole("button", { name: "Save" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Saved");
+  const insert = (await sqliteRuns(page)).find((run) => run.statement.startsWith("INSERT INTO contracts"));
+  expect(insert?.values).toContain("CAR_INSURANCE");
+  expect(insert?.values).toContain("vehicle-1");
+
+  // What that save writes, so the shell's cache sees the Covering Contract.
+  await page.evaluate(async () => {
+    const test = (window as Window & { __hearthStandaloneTest?: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest!;
+    test.rowsByTable.contracts.push({
+      id: "contract-cover",
+      title: "Allianz policy",
+      category: "CAR_INSURANCE",
+      provider: "Allianz",
+      end_date: "2099-09-09",
+      status: "ACTIVE",
+      vehicle_id: "vehicle-1",
+      reminder_days_before: "30,14,7,1",
+      updated_at: "2099-01-01T00:00:00.000Z",
+    });
+    await (window as unknown as { loadData: () => Promise<void> }).loadData();
+  });
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-record-type="vehicles"]').click();
+  await page.getByRole("button", { name: /Family Car/ }).click();
+  await expect(page.getByText(/From Allianz policy/).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add insurance" })).toHaveCount(0);
+
+  // The Vehicle has no Reminder of its own for insurance: the Contract's stands in.
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="reminders"]').click();
+  await expect(
+    page.locator(".record-card").filter({ hasText: "Family Car" }).filter({ hasText: "Insurance" }),
+  ).toHaveCount(0);
+  await expect(
+    page.locator(".record-card").filter({ hasText: "Family Car" }).filter({ hasText: "Rego" }),
   ).toHaveCount(1);
 });
 

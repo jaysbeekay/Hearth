@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { calendarDayOf, type CalendarDay, type DueContext, type DueEntry } from "@/lib/duePolicy";
 import { contractDue, currentTenancy, tenancyDue, LIVE_TENANCY_AGREEMENTS, vehicleDue, warrantyDue } from "@/lib/dueRecords";
+import { COVERING_CONTRACTS } from "@/lib/covers";
 import { dayStart } from "@/lib/listDue";
 
 export type CalendarKind =
@@ -140,6 +141,7 @@ export async function getCalendarEvents(
       where: { deletedAt: null },
       include: {
         items: { where: { deletedAt: null, date: { gte: fromDate } }, select: { id: true, title: true, date: true } },
+        contracts: COVERING_CONTRACTS,
       },
     });
     for (const v of vehicles) {

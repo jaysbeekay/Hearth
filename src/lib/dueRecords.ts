@@ -9,7 +9,16 @@
 // Pure and free of runtime imports beyond the policy, so client components
 // (the list cards) can use it with a DueContext handed down from the server.
 
-import { dueEntries, isDue, type DateInput, type DueContext, type DueEntry, type DueState } from "@/lib/duePolicy";
+import { coveredFieldsOf, vehicleCovers, type CoveringContractRow } from "@/lib/covers";
+import {
+  dueEntries,
+  isDue,
+  type DateInput,
+  type DueContext,
+  type DueEntry,
+  type DueRecord,
+  type DueState,
+} from "@/lib/duePolicy";
 
 export type { DueContext, DueEntry, DueState };
 
@@ -31,6 +40,12 @@ export interface VehicleDueRow {
   insuranceExpiry: DateInput;
   nextServiceDue: DateInput;
   reminderDaysBefore?: string | null;
+  /**
+   * The Vehicle's linked Contracts that may Cover it (`COVERING_CONTRACTS`
+   * in src/lib/covers.ts). Required, so a query can't forget them and give
+   * the Vehicle a second Reminder stream next to its Covering Contract's.
+   */
+  contracts: CoveringContractRow[];
 }
 
 export interface TenancyDueRow {
@@ -59,17 +74,24 @@ export function warrantyDue(row: WarrantyDueRow, ctx: DueContext): DueEntry[] {
   );
 }
 
+/**
+ * A Vehicle as a Due record: the dates a Covering Contract supplies (#456)
+ * are left out of its own entries, since the Contract's entries stand in.
+ * Reminders, health and the lists all build the record here.
+ */
+export function vehicleDueRecord(row: VehicleDueRow): Extract<DueRecord, { kind: "vehicle" }> {
+  return {
+    kind: "vehicle",
+    regoExpiry: row.regoExpiry,
+    insuranceExpiry: row.insuranceExpiry,
+    nextServiceDue: row.nextServiceDue,
+    reminderDaysBefore: row.reminderDaysBefore,
+    coveredFields: coveredFieldsOf(vehicleCovers(row.contracts)),
+  };
+}
+
 export function vehicleDue(row: VehicleDueRow, ctx: DueContext): DueEntry[] {
-  return dueEntries(
-    {
-      kind: "vehicle",
-      regoExpiry: row.regoExpiry,
-      insuranceExpiry: row.insuranceExpiry,
-      nextServiceDue: row.nextServiceDue,
-      reminderDaysBefore: row.reminderDaysBefore,
-    },
-    ctx,
-  );
+  return dueEntries(vehicleDueRecord(row), ctx);
 }
 
 export function tenancyDue(row: TenancyDueRow, ctx: DueContext): DueEntry[] {

@@ -193,6 +193,7 @@ export function daysUntil(date: Date | string | null | undefined, today: string)
 export const CATEGORY_LABELS: Record<string, string> = {
   RENTAL: "Rental",
   CAR_INSURANCE: "Car insurance",
+  REGISTRATION: "Vehicle registration",
   HOME_INSURANCE: "Home insurance",
   STRATA_INSURANCE: "Strata insurance (body corporate / HOA)",
   HEALTH_INSURANCE: "Health insurance",

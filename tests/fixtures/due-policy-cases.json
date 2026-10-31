@@ -164,6 +164,16 @@
       "expected": [{ "field": "regoExpiry", "date": "2026-11-03", "daysLeft": 10, "state": "due-soon", "label": "Rego due 3 Nov" }]
     },
     {
+      "name": "vehicle: rego and insurance both Covered leaves only the service date",
+      "record": { "kind": "vehicle", "regoExpiry": "2026-11-03", "insuranceExpiry": "2026-10-19", "nextServiceDue": "2026-12-01", "reminderDaysBefore": null, "coveredFields": ["regoExpiry", "insuranceExpiry"] },
+      "expected": [{ "field": "nextServiceDue", "date": "2026-12-01", "daysLeft": 38, "state": "later", "label": "Service due 1 Dec" }]
+    },
+    {
+      "name": "vehicle: a Covered rego date returns no entry, however far past",
+      "record": { "kind": "vehicle", "regoExpiry": "2026-01-01", "insuranceExpiry": "2026-11-03", "nextServiceDue": null, "reminderDaysBefore": null, "coveredFields": ["regoExpiry"] },
+      "expected": [{ "field": "insuranceExpiry", "date": "2026-11-03", "daysLeft": 10, "state": "due-soon", "label": "Insurance due 3 Nov" }]
+    },
+    {
       "name": "vehicle: no dates returns nothing",
       "record": { "kind": "vehicle", "regoExpiry": null, "insuranceExpiry": null, "nextServiceDue": null, "reminderDaysBefore": null },
       "expected": []

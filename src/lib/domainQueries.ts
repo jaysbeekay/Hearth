@@ -16,6 +16,7 @@ import { prisma } from "@/lib/prisma";
 import { CATEGORY_LABELS, daysUntil, formatPropertyAddress, monthlyEquivalent } from "@/lib/utils";
 import { getDueContext, getHouseholdToday } from "@/lib/appSettings";
 import { calendarDayOf, isDue, type DueContext, type DueEntry } from "@/lib/duePolicy";
+import { COVERING_CONTRACTS, withVehicleCovers } from "@/lib/covers";
 import { contractDue, currentTenancy, tenancyDue, LIVE_TENANCY_AGREEMENTS, vehicleDue, warrantyDue } from "@/lib/dueRecords";
 import { buildCategoryBreakdown, monthlySpend } from "@/lib/spend";
 import { getFxRateMap, refreshFxRates } from "@/lib/fx";
@@ -107,17 +108,35 @@ export async function queryVehicles(attentionOnly?: boolean) {
       insuranceExpiry: true,
       nextServiceDue: true,
       notes: true,
+      contracts: COVERING_CONTRACTS,
     },
   });
-  const withDays = vehicles.map((v) => ({
-    ...v,
-    regoExpiry: iso(v.regoExpiry),
-    insuranceExpiry: iso(v.insuranceExpiry),
-    nextServiceDue: iso(v.nextServiceDue),
-    daysUntilRegoExpiry: daysUntil(v.regoExpiry, today),
-    daysUntilInsuranceExpiry: daysUntil(v.insuranceExpiry, today),
-    daysUntilNextServiceDue: daysUntil(v.nextServiceDue, today),
-  }));
+  // #456 - a Covering Contract supplies the rego or insurance date, so these
+  // tools report the same date the Vehicle page does, and which Contract.
+  const withDays = vehicles.map((raw) => {
+    const { covers, regoExpiry, insuranceExpiry, nextServiceDue, ...v } = withVehicleCovers(raw);
+    const coveredBy = (field: "regoExpiry" | "insuranceExpiry") => {
+      const cover = covers.find((c) => c.field === field);
+      return cover ? { contractId: cover.contract.id, title: cover.contract.title } : null;
+    };
+    return {
+      id: v.id,
+      label: v.label,
+      make: v.make,
+      model: v.model,
+      year: v.year,
+      licensePlate: v.licensePlate,
+      notes: v.notes,
+      regoExpiry: iso(regoExpiry),
+      insuranceExpiry: iso(insuranceExpiry),
+      nextServiceDue: iso(nextServiceDue),
+      regoCoveredBy: coveredBy("regoExpiry"),
+      insuranceCoveredBy: coveredBy("insuranceExpiry"),
+      daysUntilRegoExpiry: daysUntil(regoExpiry, today),
+      daysUntilInsuranceExpiry: daysUntil(insuranceExpiry, today),
+      daysUntilNextServiceDue: daysUntil(nextServiceDue, today),
+    };
+  });
   if (!attentionOnly) return withDays;
   const needsAttention = (days: number | null) => days != null && days <= 30;
   return withDays.filter(
@@ -533,6 +552,7 @@ export async function whatsDue(enabledModules: Set<ModuleKey>, withinDays: numbe
             insuranceExpiry: true,
             nextServiceDue: true,
             reminderDaysBefore: true,
+            contracts: COVERING_CONTRACTS,
           },
         })
       : [],

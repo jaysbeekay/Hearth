@@ -8,6 +8,7 @@ import { NextRequest } from "next/server";
 import { setupTestDb, createTestUser, setModuleEnabled } from "../helpers/testDb";
 import { getDueContext } from "@/lib/appSettings";
 import { addDays, type DueContext, type DueState } from "@/lib/duePolicy";
+import { COVERING_CONTRACTS } from "@/lib/covers";
 import { bannerEntries, contractDue, headlineEntry, vehicleDue, warrantyDue } from "@/lib/dueRecords";
 import { contractDueCounts, contractDueFilter, vehicleDueFilter, warrantyDueCounts, warrantyDueFilter } from "@/lib/listDue";
 import { buildContractAttentionItems, buildVehicleAttentionItems, buildWarrantyAttentionItems } from "@/lib/needsAttention";
@@ -181,7 +182,7 @@ describe("Warranties show one state everywhere", () => {
 
 describe("A Vehicle's Due entries show one state each, everywhere", () => {
   it("lists, Search, the dashboard, Upcoming and the banner agree", async () => {
-    const [vehicle] = await db.prisma.vehicle.findMany();
+    const [vehicle] = await db.prisma.vehicle.findMany({ include: { contracts: COVERING_CONTRACTS } });
     const states = Object.fromEntries(vehicleDue(vehicle, ctx).map((e) => [e.field, e.state]));
     expect(states).toEqual({ regoExpiry: "overdue", nextServiceDue: "due-soon", insuranceExpiry: "later" });
 
@@ -195,7 +196,7 @@ describe("A Vehicle's Due entries show one state each, everywhere", () => {
     ]);
     for (const due of ["soon", "overdue"] as const) {
       const f = vehicleDueFilter(due, ctx);
-      expect((await db.prisma.vehicle.findMany({ where: f.where })).filter(f.matches)).toHaveLength(1);
+      expect((await db.prisma.vehicle.findMany({ where: f.where, include: { contracts: COVERING_CONTRACTS } })).filter(f.matches)).toHaveLength(1);
       expect(await searchTitles("Vehicles", due)).toEqual(["Car"]);
     }
 

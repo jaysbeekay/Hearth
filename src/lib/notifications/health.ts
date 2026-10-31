@@ -10,6 +10,8 @@ import {
   type ReminderRecord,
 } from "@/lib/notifications/reminderSchedule";
 import type { DueContext, VehicleDueField } from "@/lib/duePolicy";
+import { COVERING_CONTRACTS } from "@/lib/covers";
+import { vehicleDueRecord } from "@/lib/dueRecords";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenancies } from "@/lib/tenancies";
 import type { NotificationOwnerType } from "@/generated/prisma/enums";
@@ -192,6 +194,7 @@ export async function getHouseholdReminderHealth(): Promise<HouseholdReminderHea
           deletedAt: null,
           OR: [{ regoExpiry: { not: null } }, { insuranceExpiry: { not: null } }, { nextServiceDue: { not: null } }],
         },
+        include: { contracts: COVERING_CONTRACTS },
       }),
       getCurrentTenancies(),
     ]);
@@ -229,7 +232,7 @@ export async function getHouseholdReminderHealth(): Promise<HouseholdReminderHea
       check("PRODUCT", { kind: "warranty", ...p }, productLogs.get(p.id) ?? [], p.description, `/products/${p.id}`);
     }
     for (const v of vehicles) {
-      check("VEHICLE", { kind: "vehicle", ...v }, vehicleLogs.get(v.id) ?? [], v.label, `/vehicles/${v.id}`);
+      check("VEHICLE", vehicleDueRecord(v), vehicleLogs.get(v.id) ?? [], v.label, `/vehicles/${v.id}`);
     }
     for (const { propertyId, propertyLabel, tenancy } of tenancies) {
       check(

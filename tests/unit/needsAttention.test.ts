@@ -177,6 +177,7 @@ describe("Due rows follow the Due policy (#384)", () => {
           insuranceExpiry: inDays(90),
           nextServiceDue: inDays(5),
           reminderDaysBefore: null,
+          contracts: [],
         },
       ],
       ctx,

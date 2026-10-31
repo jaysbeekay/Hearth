@@ -1,5 +1,8 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { COVERING_CONTRACTS, vehicleCovers } from "@/lib/covers";
+import { formatDate } from "@/lib/utils";
+import { getUserPreferences } from "@/lib/userPreferences";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { updateVehicle } from "@/lib/actions/vehicles";
 import { VehicleForm } from "@/components/VehicleForm";
@@ -16,7 +19,10 @@ export default async function EditVehiclePage({
 
   const { id } = await params;
   redirectIfReadOnly(await auth(), `/vehicles/${id}`);
-  const vehicle = await prisma.vehicle.findUnique({ where: { id } });
+  const [vehicle, { dateFormat }] = await Promise.all([
+    prisma.vehicle.findUnique({ where: { id }, include: { contracts: COVERING_CONTRACTS } }),
+    getUserPreferences(),
+  ]);
   if (!vehicle || vehicle.deletedAt) notFound();
 
   const boundAction = updateVehicle.bind(null, vehicle.id);
@@ -29,7 +35,16 @@ export default async function EditVehiclePage({
         <p className="text-sm text-muted">{vehicle.label}</p>
       </div>
       <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
-        <VehicleForm action={boundAction} vehicle={vehicle} />
+        <VehicleForm
+          action={boundAction}
+          vehicle={vehicle}
+          covers={vehicleCovers(vehicle.contracts).map((c) => ({
+            field: c.field,
+            contractId: c.contract.id,
+            title: c.contract.title,
+            dateLabel: formatDate(c.date, dateFormat),
+          }))}
+        />
       </div>
     </div>
   );

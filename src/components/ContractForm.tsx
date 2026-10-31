@@ -56,6 +56,7 @@ export function ContractForm({
   vehicles = [],
   defaultPropertyId,
   defaultVehicleId,
+  defaultCategory,
   homeEnabled = false,
   vehiclesEnabled = false,
 }: {
@@ -68,6 +69,8 @@ export function ContractForm({
   // property/vehicle" on the asset's own detail page.
   defaultPropertyId?: string;
   defaultVehicleId?: string;
+  // #456 - the Category an "Add insurance" / "Add registration" shortcut opens with.
+  defaultCategory?: string;
   homeEnabled?: boolean;
   vehiclesEnabled?: boolean;
 }) {
@@ -236,7 +239,7 @@ export function ContractForm({
                 id="category"
                 name="category"
                 required
-                defaultValue={effectiveValues?.category ?? contract?.category ?? "OTHER"}
+                defaultValue={effectiveValues?.category ?? contract?.category ?? defaultCategory ?? "OTHER"}
                 className={selectClass}
               >
                 {Object.entries(CATEGORY_LABELS).map(([value, label]) => (

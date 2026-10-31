@@ -1,0 +1,140 @@
+// Covers (#456, glossary): the narrow case of Linked to where a Contract's
+// end date *is* the Vehicle's expiry. A Covering Contract supplies the
+// Vehicle's date and the Vehicle's own Due entry for that field is switched
+// off (`coveredFields` in the Due policy), so there is one Reminder stream.
+//
+// A Contract Covers a Vehicle when it is
+//   - linked to the Vehicle (`vehicleId`),
+//   - in a Covering Category: CAR_INSURANCE covers `insuranceExpiry`,
+//     REGISTRATION covers `regoExpiry`,
+//   - not Cancelled and not in Trash, and
+//   - has an end date (without one it supplies nothing, so the manual date stays).
+// When several Contracts Cover the same field, the one ending last wins (a
+// renewal added before the old policy ran out); ties go to the one entered
+// last. When the Covering Contract is cancelled, trashed, unlinked,
+// re-categorised or loses its end date, the Vehicle's own manual date takes
+// over again: nothing is ever written to the Vehicle, so nothing is lost.
+//
+// Pure and free of runtime imports, so server, client and vitest can all use
+// it. The standalone shell keeps a hand-ported copy (ios-shell/www/app.js).
+
+import type { ContractCategory } from "@/generated/prisma/enums";
+import type { VehicleDueField } from "@/lib/duePolicy";
+
+type CoverableField = Extract<VehicleDueField, "regoExpiry" | "insuranceExpiry">;
+
+/** Which Vehicle date each Covering Category supplies. */
+const COVERED_FIELD = new Map<string, CoverableField>([
+  ["CAR_INSURANCE", "insuranceExpiry"],
+  ["REGISTRATION", "regoExpiry"],
+]);
+
+export const COVERING_CATEGORIES: ContractCategory[] = ["CAR_INSURANCE", "REGISTRATION"];
+
+/** The Vehicle date a Contract Category Covers, or null for a Category that doesn't. */
+export function coveredFieldOf(category: string): CoverableField | null {
+  return COVERED_FIELD.get(category) ?? null;
+}
+
+/** The Contract fields the rule needs. */
+export interface CoveringContractRow {
+  id: string;
+  title: string;
+  provider: string;
+  category: string;
+  status: string;
+  endDate: Date | null;
+  createdAt: Date;
+  deletedAt: Date | null;
+}
+
+/**
+ * The `contracts` relation to load with a Vehicle, so every caller gets
+ * the rows `vehicleCovers` needs. The `where` only narrows; `vehicleCovers`
+ * decides.
+ */
+export const COVERING_CONTRACTS = {
+  where: {
+    deletedAt: null,
+    status: { not: "CANCELLED" as const },
+    endDate: { not: null },
+    category: { in: COVERING_CATEGORIES },
+  },
+  select: {
+    id: true,
+    title: true,
+    provider: true,
+    category: true,
+    status: true,
+    endDate: true,
+    createdAt: true,
+    deletedAt: true,
+  },
+  orderBy: { endDate: "desc" as const },
+};
+
+export interface VehicleCover {
+  field: CoverableField;
+  contract: { id: string; title: string; provider: string };
+  /** The Contract's end date: the Vehicle's date while it Covers. */
+  date: Date;
+}
+
+/** Whether a linked Contract Covers its Vehicle's date (see the rule above). */
+export function isCovering(contract: CoveringContractRow): boolean {
+  return (
+    contract.deletedAt == null &&
+    contract.status !== "CANCELLED" &&
+    contract.endDate != null &&
+    COVERED_FIELD.has(contract.category)
+  );
+}
+
+// Positive when `a` should win over `b`: later end, then entered later, then id (stable).
+function compareCovers(a: CoveringContractRow, b: CoveringContractRow): number {
+  return (
+    a.endDate!.getTime() - b.endDate!.getTime() ||
+    a.createdAt.getTime() - b.createdAt.getTime() ||
+    a.id.localeCompare(b.id)
+  );
+}
+
+/** The covers a Vehicle's linked Contracts give it: at most one per date. */
+export function vehicleCovers(contracts: CoveringContractRow[]): VehicleCover[] {
+  const winners = new Map<CoverableField, CoveringContractRow>();
+  for (const contract of contracts) {
+    if (!isCovering(contract)) continue;
+    const field = coveredFieldOf(contract.category)!;
+    const current = winners.get(field);
+    if (!current || compareCovers(contract, current) > 0) winners.set(field, contract);
+  }
+  return [...winners].map(([field, c]) => ({
+    field,
+    contract: { id: c.id, title: c.title, provider: c.provider },
+    date: c.endDate!,
+  }));
+}
+
+/** The Vehicle dates a set of covers switches off, for the Due policy's `coveredFields`. */
+export function coveredFieldsOf(covers: VehicleCover[]): VehicleDueField[] {
+  return covers.map((c) => c.field);
+}
+
+/**
+ * A Vehicle with its Covered dates replaced by the Covering Contracts' end
+ * dates, for anything that shows the date (detail, card, MCP, iCal). The
+ * row's own dates are untouched in the database.
+ */
+export function withVehicleCovers<
+  V extends { regoExpiry: Date | null; insuranceExpiry: Date | null; contracts: CoveringContractRow[] },
+>(vehicle: V): V & { covers: VehicleCover[]; coveredFields: VehicleDueField[] } {
+  const covers = vehicleCovers(vehicle.contracts);
+  const dateFor = (field: CoverableField, own: Date | null) => covers.find((c) => c.field === field)?.date ?? own;
+  return {
+    ...vehicle,
+    regoExpiry: dateFor("regoExpiry", vehicle.regoExpiry),
+    insuranceExpiry: dateFor("insuranceExpiry", vehicle.insuranceExpiry),
+    covers,
+    coveredFields: coveredFieldsOf(covers),
+  };
+}
