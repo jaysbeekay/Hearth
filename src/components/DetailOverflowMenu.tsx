@@ -47,6 +47,10 @@ export function DetailOverflowMenu({
     };
   }, [open]);
 
+  const closeMenu = () => {
+    setOpen(false);
+  };
+
   return (
     <div ref={ref} className="relative">
       <button
@@ -72,7 +76,7 @@ export function DetailOverflowMenu({
             aria-label={label}
             className="absolute right-0 z-10 mt-1 hidden w-48 overflow-hidden rounded-lg border border-border bg-surface shadow-md md:block"
           >
-            <CloseMenuContext.Provider value={() => setOpen(false)}>{children}</CloseMenuContext.Provider>
+            <CloseMenuContext.Provider value={closeMenu}>{children}</CloseMenuContext.Provider>
           </div>
 
           {/* Mobile: bottom sheet, matching BottomNav's "More" pattern —
@@ -95,7 +99,7 @@ export function DetailOverflowMenu({
                   <X size={18} />
                 </button>
               </div>
-              <CloseMenuContext.Provider value={() => setOpen(false)}>{children}</CloseMenuContext.Provider>
+              <CloseMenuContext.Provider value={closeMenu}>{children}</CloseMenuContext.Provider>
             </>
           </Dialog>
         </>
