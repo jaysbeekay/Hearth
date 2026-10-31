@@ -491,33 +491,53 @@ function showStatus(node, message, ok = false) {
 }
 
 let standaloneStatusTimer = null;
+// Undo actions still on offer (#455). A second delete, or any other status
+// message, keeps the earlier Undo: the button always undoes the latest one.
+const pendingUndos = [];
+const STATUS_MS = 3600;
+const UNDO_STATUS_MS = 10000;
 
-// `action` ({ label, run }) adds a button to the toast, kept up longer, for
-// an Undo (#455).
+// `action` ({ run }) puts an Undo button on the toast.
 function showStandaloneStatus(message, ok = false, action = null) {
+  if (action) pendingUndos.push(action);
   showStatus(standaloneStatus, message, ok);
-  if (action) {
+  if (pendingUndos.length > 0) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "status-action";
-    button.textContent = action.label;
-    button.addEventListener("click", async () => {
-      button.disabled = true;
-      hideStandaloneStatus();
-      await action.run();
-    });
+    button.textContent = pendingUndos.length > 1 ? `Undo (${pendingUndos.length})` : "Undo";
+    button.addEventListener("click", undoLatestAction);
     standaloneStatus.append(" ", button);
   }
+  scheduleStandaloneStatusHide();
+}
+
+function scheduleStandaloneStatusHide() {
   window.clearTimeout(standaloneStatusTimer);
-  standaloneStatusTimer = window.setTimeout(hideStandaloneStatus, action ? 8000 : 3600);
+  standaloneStatusTimer = window.setTimeout(hideStandaloneStatus, pendingUndos.length > 0 ? UNDO_STATUS_MS : STATUS_MS);
 }
 
 function hideStandaloneStatus() {
   window.clearTimeout(standaloneStatusTimer);
+  pendingUndos.length = 0;
   standaloneStatus.hidden = true;
   standaloneStatus.textContent = "";
   standaloneStatus.classList.remove("ok");
 }
+
+async function undoLatestAction() {
+  const action = pendingUndos.pop();
+  if (!action) return;
+  try {
+    await action.run();
+  } catch (error) {
+    showStandaloneStatus(error?.message || "Could not undo.");
+  }
+}
+
+// The toast stays up while its button has focus.
+standaloneStatus.addEventListener("focusin", () => window.clearTimeout(standaloneStatusTimer));
+standaloneStatus.addEventListener("focusout", scheduleStandaloneStatusHide);
 
 function show(screen) {
   modeScreen.hidden = screen !== "mode";
@@ -1215,6 +1235,8 @@ async function enterStandaloneApp() {
   show("standalone");
   await prefSet(MODE_KEY, "standalone");
   await initDb();
+  // A failure leaves the Trash as it was; the next launch tries again.
+  await purgeExpiredTrashedDocuments().catch(() => undefined);
   await loadStandaloneModuleSettings();
   await loadReminderDeliveryState();
   await render();
@@ -1248,13 +1270,7 @@ async function autoConnectIfSaved() {
   navigateToConnectedServer(normalizedUrl);
 }
 
-let trashPurged = false;
-
 async function render() {
-  if (!trashPurged) {
-    trashPurged = true;
-    await purgeExpiredTrashedDocuments().catch(() => undefined);
-  }
   await loadData();
   if (!recordTypeEnabled(state.recordType)) {
     state.recordType = "contracts";
@@ -2875,11 +2891,22 @@ function hasLiveSuccessor(id, successors, live) {
   return false;
 }
 
-// Of the given live Documents, the ones with no newer live version.
+// Of the given live Documents, the ones with no newer live version. A live
+// Document no chain reaches (a cycle, possible through a backup import) is
+// listed on its own rather than hidden, as on the web.
 function latestDocuments(docs) {
   const successors = documentSuccessors();
   const live = new Set(cache.documents.map((item) => item.id));
-  return docs.filter((doc) => !hasLiveSuccessor(doc.id, successors, live));
+  const latest = cache.documents.filter((doc) => !hasLiveSuccessor(doc.id, successors, live));
+  const placed = new Set();
+  for (const doc of latest) {
+    for (const version of documentVersionChain(doc)) placed.add(version.id);
+  }
+  const listed = new Set(latest.map((doc) => doc.id));
+  for (const doc of cache.documents) {
+    if (!placed.has(doc.id)) listed.add(doc.id);
+  }
+  return docs.filter((doc) => listed.has(doc.id));
 }
 
 // The newest version of a chain, trashed or not: a new version is filed on top
@@ -4034,7 +4061,7 @@ async function maybeStoreFormFile(form, ownerType, id) {
 async function deleteRecord(type, id) {
   const row = getRecord(type, id);
   if (!row) return;
-  const confirmed = window.confirm(`Delete "${recordTitle(type, row)}" and its local documents?`);
+  const confirmed = window.confirm(`Delete "${recordTitle(type, row)}"? Its documents go to Trash for ${TRASH_RETENTION_DAYS} days, then their files are deleted.`);
   if (!confirmed) return;
   await softDeleteRecord(type, id);
   if (state.localRemindersEnabled && REMINDER_RECORD_TYPES.includes(type)) {
@@ -4100,6 +4127,8 @@ async function softDeleteRecord(type, id) {
 }
 
 const TRASH_RETENTION_DAYS = 30;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const MAX_PURGE_PER_LAUNCH = 20;
 
 // Moves a Document to Trash. Its file and row stay until it's purged (#455).
 async function trashDocument(id) {
@@ -4111,16 +4140,17 @@ async function deleteDocument(id) {
   if (!doc) return;
   await trashDocument(id);
   await syncDocumentHeads(doc.owner_type, doc.owner_id);
-  showStandaloneStatus(`"${doc.filename}" moved to Trash.`, true, {
-    label: "Undo",
-    run: () => restoreDocument(id),
-  });
+  showStandaloneStatus(`"${doc.filename}" moved to Trash.`, true, { run: () => restoreDocument(id) });
   await render();
 }
 
 async function restoreDocument(id) {
-  const [doc] = await query("SELECT owner_type, owner_id FROM documents WHERE id = ?", [id]);
+  const [doc] = await query("SELECT owner_type, owner_id, filename FROM documents WHERE id = ? AND deleted_at IS NOT NULL", [id]);
   if (!doc) return;
+  // A live Document under a deleted record would be unreachable.
+  if (!getRecord(recordTypeForOwnerType(doc.owner_type), doc.owner_id)) {
+    throw new Error(`Can't restore "${doc.filename}": the record it belonged to was deleted.`);
+  }
   await run("UPDATE documents SET deleted_at = NULL, version = version + 1 WHERE id = ?", [id]);
   await syncDocumentHeads(doc.owner_type, doc.owner_id);
   showStandaloneStatus("Document restored.", true);
@@ -4139,25 +4169,69 @@ async function syncDocumentHeads(ownerType, ownerId) {
       await run("UPDATE documents SET is_head = ? WHERE id = ?", [expected, doc.id]);
     }
   }
-  await loadData();
 }
 
-// Deletes a Document's row and its file together. Only for Documents already
-// in Trash and past retention. The next version is relinked to this one's
-// older version so the chain stays whole.
-async function purgeDocument(doc) {
-  await run("UPDATE documents SET supersedes_id = ?, version = version + 1 WHERE supersedes_id = ?", [doc.supersedes_id ?? null, doc.id]);
-  const sharing = await query("SELECT id FROM documents WHERE storage_key = ? AND id <> ? LIMIT 1", [doc.storage_key, doc.id]);
-  if (sharing.length === 0) {
-    await Filesystem?.deleteFile({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${doc.storage_key}` }).catch(() => undefined);
+// Deletes a stored file. A file that is already gone is fine; any other
+// failure throws, so the row is kept and the delete is retried.
+async function deleteStoredFile(storageKey) {
+  if (!Filesystem) return;
+  try {
+    await Filesystem.deleteFile({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${storageKey}` });
+  } catch (error) {
+    if (!/not.?found|does not exist|no such file|enoent/i.test(String(error?.message ?? error))) throw error;
   }
-  await run("DELETE FROM documents WHERE id = ?", [doc.id]);
 }
 
+// Deletes a Trash entry's file and row together. It re-reads the row, so the
+// chain is relinked from what is saved now, not from a list read earlier.
+async function purgeDocument(id) {
+  const [doc] = await query("SELECT * FROM documents WHERE id = ? AND deleted_at IS NOT NULL", [id]);
+  if (!doc) return null;
+  // A file an Inbox entry still points at stays.
+  const inbox = await query("SELECT id FROM inbox_documents WHERE storage_key = ? AND deleted_at IS NULL LIMIT 1", [doc.storage_key]);
+  if (inbox.length === 0) await deleteStoredFile(doc.storage_key);
+  // The next version now follows this one's older version, so the chain stays whole.
+  await SQLite.executeSet({
+    database: DB,
+    transaction: true,
+    set: [
+      { statement: "UPDATE documents SET supersedes_id = ?, version = version + 1 WHERE supersedes_id = ?", values: [doc.supersedes_id ?? null, doc.id] },
+      { statement: "DELETE FROM documents WHERE id = ?", values: [doc.id] },
+    ],
+  });
+  return doc;
+}
+
+// Purges Trash entries past TRASH_RETENTION_DAYS, at most
+// MAX_PURGE_PER_LAUNCH a launch, newest first. This is irreversible and the
+// device clock is all it has, so it distrusts the clock:
+// - A clock more than a day behind the newest timestamp in the database is
+//   wrong, so nothing is purged.
+// - Time is only trusted up to 30 days past the newest timestamp in the
+//   database (the cutoff is min(now - 30 days, newest)). A clock that jumps
+//   ahead, however far, can't expire anything saved after the newest
+//   activity; it purges only what was already older than it.
 async function purgeExpiredTrashedDocuments() {
-  const cutoff = new Date(Date.now() - TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
-  const expired = await query("SELECT * FROM documents WHERE deleted_at IS NOT NULL AND deleted_at < ?", [cutoff]);
-  for (const doc of expired) await purgeDocument(doc);
+  const stamps = [...await query("SELECT uploaded_at, deleted_at FROM documents"), ...await query("SELECT uploaded_at, deleted_at FROM inbox_documents")]
+    .flatMap((row) => [row.uploaded_at, row.deleted_at])
+    .map((value) => Date.parse(value))
+    .filter((value) => Number.isFinite(value));
+  if (stamps.length === 0) return;
+  const newest = stamps.reduce((max, value) => Math.max(max, value), 0);
+  const now = Date.now();
+  if (now < newest - DAY_MS) return;
+  const cutoff = new Date(Math.min(now - TRASH_RETENTION_DAYS * DAY_MS, newest)).toISOString();
+  const expired = await query("SELECT * FROM documents WHERE deleted_at IS NOT NULL AND deleted_at < ? ORDER BY uploaded_at DESC LIMIT ?", [cutoff, MAX_PURGE_PER_LAUNCH]);
+  const owners = new Map();
+  try {
+    for (const entry of expired) {
+      const purged = await purgeDocument(entry.id);
+      if (purged) owners.set(`${purged.owner_type}|${purged.owner_id}`, purged);
+    }
+  } finally {
+    await loadData();
+    for (const doc of owners.values()) await syncDocumentHeads(doc.owner_type, doc.owner_id);
+  }
 }
 
 async function deleteInboxDocument(id, rerender = true) {
