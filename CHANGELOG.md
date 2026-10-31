@@ -68,6 +68,11 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   standalone shell follows the same rules, with a Category picker, a vehicle
   link on its contract form and the same shortcuts. No schema migration.
 
+- **Licence: AGPL-3.0-only.** Hearth now has a `LICENSE` file (the GNU Affero
+  General Public License v3.0), a `license` field in `package.json`, and an
+  updated README "License" section. This is the licence a managed host such
+  as PikaPods needs before it can list the app.
+
 - **Health check endpoint and hosting notes (#477).** `GET /api/health`
   answers `200 {"status":"ok"}` when the app can read its database file, and
   `503 {"status":"unavailable"}` when it can't. The result is reused for 5
