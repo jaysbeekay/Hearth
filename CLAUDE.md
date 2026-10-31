@@ -43,6 +43,25 @@ Don't add the issue to the project board manually — "Auto-add to project" and
 "Item added to project → set Status" board workflows handle that automatically
 on creation.
 
+## Gatekeeper reviews
+
+Gatekeeper (`thebotkeeper[bot]`, see `docs/gatekeeper.md`) reviews automatically:
+a new issue gets a QA Review, a **draft PR** gets a light-touch PR review, and
+marking a PR **ready** gets a full PR review. CI runs at each step too.
+
+- At each gate, wait until the review has landed **and** every CI check it
+  triggered has completed before fixing anything. Don't fix findings or CI
+  failures piecemeal as they arrive.
+- Validate every finding against the current code and head commit, then fix it
+  or decline it with evidence. Reply on the PR or issue citing the review's
+  comment id, so it counts as answered.
+- Classify feedback by content, not by author: Gatekeeper, CodeRabbit and other
+  bots post alongside the owner's own comments.
+- The owner can lift a wait with an override in their own words that names the
+  issue or PR. It lifts only the wait it names.
+- A green, reviewed PR is not an approved one. Merge only with the owner's
+  explicit approval.
+
 ## What this is
 
 Hearth is a self-hostable household management app (contracts/warranties, and opt-in

@@ -1,0 +1,103 @@
+name: CodeBot
+
+on:
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: codebot-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  codebot:
+
+    if: >
+      startsWith(github.event.comment.body, '@codebot') &&
+      github.event.comment.user.login == 'jaysbeekay' &&
+      github.event.comment.author_association == 'OWNER'
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+
+      - name: Log trigger
+        run: |
+          echo "Triggered by: ${{ github.event.comment.user.login }}"
+          echo "Repo: ${{ github.repository }}"
+          echo "Issue/PR: ${{ github.event.issue.number }}"
+
+      # Acknowledge the request straight away with a 👀 reaction on the
+      # @codebot comment. continue-on-error so a failed reaction can never
+      # block the webhook send below.
+      - name: React with eyes to the request
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api -X POST \
+            "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" \
+            -f content=eyes
+
+      - name: Build curated payload
+        id: payload
+        run: |
+          # printf (not `> payload.json`) so no trailing newline is added —
+          # the signing step must hash the exact bytes curl will send.
+          # Shape mirrors GitHub's native issue_comment webhook payload
+          # (nested repository.full_name / issue.number / issue.title /
+          # issue.user.login / issue.pull_request / comment.body /
+          # comment.user.login) because that's what the Hermes route's
+          # prompt template and skills (pr-gatekeeper, qa-issue-review)
+          # actually expect via {dot.notation}.
+          printf '%s' "$(jq -c '{
+            event_type: "codebot_trigger",
+            repository: { full_name: .repository.full_name },
+            issue: ( .issue
+                     | {number, title, user: {login: .user.login}}
+                     + (if has("pull_request") then {pull_request: .pull_request} else {} end) ),
+            is_pull_request: (.issue | has("pull_request")),
+            comment: {
+              id: .comment.id,
+              body: .comment.body,
+              user: { login: .comment.user.login },
+              html_url: .comment.html_url,
+              author_association: .comment.author_association
+            }
+          }' "$GITHUB_EVENT_PATH")" > payload.json
+
+          echo "Payload built:"
+          cat payload.json
+
+      - name: Sign and send curated event to Hermes
+        env:
+          CODEBOT_SECRET: ${{ secrets.CODEBOT_SECRET }}
+        run: |
+          # payload.json was written with printf (no trailing newline) so the
+          # bytes we hash below are byte-for-byte identical to what curl sends.
+          TIMESTAMP=$(date +%s)
+          BODY=$(cat payload.json)
+          SIGNATURE=$(printf '%s.%s' "$TIMESTAMP" "$BODY" \
+            | openssl dgst -sha256 -hmac "$CODEBOT_SECRET" -r \
+            | awk '{print $1}')
+
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            --retry 3 \
+            --retry-delay 5 \
+            --max-time 300 \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-Webhook-Signature-V2: $SIGNATURE" \
+            -H "X-Webhook-Timestamp: $TIMESTAMP" \
+            -H "X-Request-ID: codebot-${{ github.event.comment.id }}" \
+            --data-binary @payload.json \
+            "${{ secrets.AI_WEBHOOK_URL }}"
