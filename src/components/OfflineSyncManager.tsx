@@ -14,7 +14,7 @@ import { whenOfflineDataClaimed } from "@/lib/offlineSession";
 import { showToast } from "@/components/Toast";
 import { Dialog } from "@/components/Dialog";
 import { useCanWrite } from "@/components/CanWriteProvider";
-import { cn, humanFileSize } from "@/lib/utils";
+import { humanFileSize } from "@/lib/utils";
 import { buttonClass } from "@/lib/ui";
 
 type SyncState = "idle" | "syncing" | "done" | "error";

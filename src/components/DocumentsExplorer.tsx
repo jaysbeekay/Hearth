@@ -9,7 +9,7 @@ import { DocumentLink } from "@/components/DocumentLink";
 import { DocumentPreviewModal, isPreviewable } from "@/components/DocumentPreviewModal";
 import { humanFileSize } from "@/lib/utils";
 import { DOCUMENT_CATEGORIES, DOCUMENT_CATEGORY_LABELS, type DocumentCategory } from "@/lib/documents/categories";
-import { buttonClass, emptyStateClass } from "@/lib/ui";
+import { buttonClass, emptyStateClass, selectClass } from "@/lib/ui";
 import { Card } from "@/components/ui/Card";
 import { Pill } from "@/components/ui/Pill";
 
@@ -113,7 +113,7 @@ export function DocumentsExplorer({
               value={category}
               onChange={(e) => setCategory(e.target.value as "ALL" | DocumentCategory)}
               aria-label="Filter by document type"
-              className="rounded-lg border border-border bg-background px-3 h-9 text-sm outline-none focus:border-accent appearance-none pr-8"
+              className={selectClass}
             >
               <option value="ALL">All document types</option>
               {DOCUMENT_CATEGORIES.map((key) => (
@@ -125,7 +125,7 @@ export function DocumentsExplorer({
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value as SortKey)}
-            className="rounded-lg border border-border bg-background px-3 h-9 text-sm outline-none focus:border-accent appearance-none pr-8"
+            className={selectClass}
           >
             {(Object.keys(SORT_LABELS) as SortKey[]).map((key) => (
               <option key={key} value={key}>

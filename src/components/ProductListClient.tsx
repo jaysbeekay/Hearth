@@ -24,8 +24,9 @@ import type { DueContext } from "@/lib/duePolicy";
 import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
-import { buttonClass, chipClass, emptyStateClass } from "@/lib/ui";
+import { buttonClass, chipClass, emptyStateClass, inputClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
+import { cn } from "@/lib/utils";
 
 const CHIPS: { chip: ToggleableFilter; label: string; onlyWhenActive?: boolean }[] = [
   { chip: "dueSoon", label: "Due soon" },
@@ -140,7 +141,7 @@ export function ProductListClient({
             clearTimeout(searchTimeout.current);
             searchTimeout.current = setTimeout(() => formRef.current?.requestSubmit(), 400);
           }}
-          className="flex-1 min-h-11 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-accent"
+          className={cn(inputClass, "flex-1")}
         />
         <button
           type="submit"

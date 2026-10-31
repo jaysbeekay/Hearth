@@ -8,7 +8,7 @@ import { INVENTORY_ITEM_CATEGORIES } from "@/lib/validation/inventory";
 import { showToast } from "@/components/Toast";
 import { LinkedToField } from "@/components/LinkedToField";
 import { extractionMessage } from "@/lib/autoFillHighlight";
-import { buttonClass, pillClass } from "@/lib/ui";
+import { buttonClass, pillClass, inputClass } from "@/lib/ui";
 import { Card } from "@/components/ui/Card";
 
 const INVENTORY_CATEGORY_LABELS: Record<string, string> = {
@@ -383,7 +383,7 @@ export function ImportClient({
                             updateRow(row.id, { type });
                             scanRow(row.id, type, row.file);
                           }}
-                          className="rounded-lg border border-border bg-background px-2 py-1 text-xs outline-none focus:border-accent"
+                          className={inputClass}
                         >
                           <option value="CONTRACT">Contract</option>
                           <option value="PRODUCT">Warranty</option>

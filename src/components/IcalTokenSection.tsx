@@ -4,7 +4,8 @@ import { useActionState, useRef } from "react";
 import { generateIcalToken, revokeIcalToken, type IcalActionState } from "@/lib/actions/ical";
 import { FormMessage } from "@/components/FormMessage";
 import { SubmitButton } from "@/components/SubmitButton";
-import { buttonClass, cardClass } from "@/lib/ui";
+import { buttonClass, cardClass, inputClass } from "@/lib/ui";
+import { cn } from "@/lib/utils";
 
 interface Props {
   // Whether a feed is currently active. The token itself is stored only as a
@@ -59,7 +60,7 @@ export function IcalTokenSection({ hasToken, appUrl, embedded }: Props) {
               ref={inputRef}
               readOnly
               value={justGenerated}
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm outline-none"
+              className={cn(inputClass, "font-mono")}
             />
             <button type="button" onClick={copy} className={`shrink-0 ${buttonClass("secondary")}`}>
               Copy

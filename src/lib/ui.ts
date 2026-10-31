@@ -192,6 +192,9 @@ export function menuItemClass({ destructive = false }: { destructive?: boolean }
 export const inputClass =
   "h-9 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none transition-colors focus:border-accent disabled:opacity-60";
 
+/** A native select: the input look, with room for SelectWrapper's chevron. */
+export const selectClass = cn(inputClass, "appearance-none pr-8");
+
 /** A textarea: the input look without the fixed height. */
 export const textareaClass =
   "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-accent disabled:opacity-60";

@@ -14,7 +14,7 @@ import { ListSummaryStrip } from "@/components/ListSummaryStrip";
 import { ListFilterChips, ListFilterHiddenInputs } from "@/components/ListFilterChips";
 import { deleteContract, restoreContract } from "@/lib/actions/contracts";
 import type { ContractModel } from "@/generated/prisma/models";
-import { CATEGORY_LABELS } from "@/lib/utils";
+import { CATEGORY_LABELS, cn } from "@/lib/utils";
 import type { DueContext } from "@/lib/duePolicy";
 import {
   contractMissingParts,
@@ -28,7 +28,7 @@ import {
 import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
-import { buttonClass, chipClass, emptyStateClass } from "@/lib/ui";
+import { buttonClass, chipClass, emptyStateClass, selectClass, inputClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
 
 const STATUS_LABELS: Record<string, string> = { ACTIVE: "Active", CANCELLED: "Cancelled" };
@@ -150,7 +150,7 @@ export function ContractListClient({
             clearTimeout(searchTimeout.current);
             searchTimeout.current = setTimeout(() => formRef.current?.requestSubmit(), 400);
           }}
-          className="flex-1 min-h-11 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-accent"
+          className={cn(inputClass, "flex-1")}
         />
         {/* #403 — w-full on the selects: in the stacked (phone) form the
             SelectWrapper stretches to the row, and a content-sized select left
@@ -160,7 +160,7 @@ export function ContractListClient({
             name="category"
             defaultValue={category ?? ""}
             onChange={(e) => e.currentTarget.form?.requestSubmit()}
-            className="min-h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-accent appearance-none pr-8"
+            className={selectClass}
           >
             <option value="">All categories</option>
             {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
@@ -175,7 +175,7 @@ export function ContractListClient({
             name="status"
             defaultValue={status ?? ""}
             onChange={(e) => e.currentTarget.form?.requestSubmit()}
-            className="min-h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-accent appearance-none pr-8"
+            className={selectClass}
           >
             <option value="">All statuses</option>
             <option value="ACTIVE">Active</option>

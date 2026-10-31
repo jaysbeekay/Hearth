@@ -18,7 +18,7 @@ import { LinkedToField } from "@/components/LinkedToField";
 import { extractionMessage, isAiExtractionSource } from "@/lib/autoFillHighlight";
 import { Card } from "@/components/ui/Card";
 import { Banner } from "@/components/ui/Banner";
-import { buttonClass, chipClass, emptyStateClass, pillClass } from "@/lib/ui";
+import { buttonClass, chipClass, emptyStateClass, pillClass, inputClass } from "@/lib/ui";
 
 export type InboxDocumentStatus =
   | "NEEDS_CLASSIFICATION"
@@ -584,7 +584,7 @@ export function InboxReviewClient({
                     updateRow(doc.id, { type });
                     scan(doc.id, type, doc.filename);
                   }}
-                  className="rounded-lg border border-border bg-background px-2 py-1 text-xs outline-none focus:border-accent"
+                  className={inputClass}
                 >
                   <option value="CONTRACT">Contract</option>
                   <option value="PRODUCT">Warranty</option>

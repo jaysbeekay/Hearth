@@ -52,7 +52,7 @@ export default async function SettingsPage() {
       <div className="grid gap-6 md:grid-cols-2">
         <Card as="section">
           <h2 className="mb-3 font-medium">Profile</h2>
-          <dl className="grid grid-cols-2 gap-4">
+          <dl className="grid gap-3">
             <div className="min-w-0">
               <dt className="text-xs text-muted">Name</dt>
               <dd className="text-sm font-medium break-words">{user.name}</dd>
