@@ -41,6 +41,7 @@ import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
 import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/ui/PageShell";
+import { inlineLinkClass } from "@/lib/ui";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.app.label };
 
@@ -253,7 +254,7 @@ export default async function AppSettingsPage() {
                 href="https://aviationstack.com/signup/free"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-accent hover:underline"
+                className={inlineLinkClass}
               >
                 Get a free API key at aviationstack.com
               </a>

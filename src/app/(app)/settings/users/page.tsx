@@ -49,7 +49,7 @@ export default async function ManageUsersPage() {
               </div>
               {user.id !== session.user.id && (
                 <div className="flex items-center gap-3">
-                  <MemberRoleForm userId={user.id} role={user.role} />
+                  <MemberRoleForm userId={user.id} role={user.role} name={user.name} />
                   <ConfirmForm
                     action={deleteUser.bind(null, user.id)}
                     confirmText={`Remove ${user.name} from the household? Their records and documents stay with the household.`}

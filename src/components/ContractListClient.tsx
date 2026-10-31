@@ -162,6 +162,7 @@ export function ContractListClient({
         <SelectWrapper>
           <select
             name="category"
+            aria-label="Filter by category"
             defaultValue={category ?? ""}
             onChange={(e) => e.currentTarget.form?.requestSubmit()}
             className={selectClass}
@@ -177,6 +178,7 @@ export function ContractListClient({
         <SelectWrapper>
           <select
             name="status"
+            aria-label="Filter by status"
             defaultValue={status ?? ""}
             onChange={(e) => e.currentTarget.form?.requestSubmit()}
             className={selectClass}

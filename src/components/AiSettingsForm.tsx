@@ -15,7 +15,7 @@ import { FormMessage } from "@/components/FormMessage";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 import { TestConnectionButton } from "@/components/TestConnectionButton";
-import { bannerClass } from "@/lib/ui";
+import { bannerClass, inlineLinkClass } from "@/lib/ui";
 
 export function AiSettingsForm({
   provider,
@@ -80,7 +80,7 @@ export function AiSettingsForm({
             ) : (
               <p className="text-xs text-muted">
                 No API key needed — Ollama uses the base URL configured in{" "}
-                <a href="/settings/app" className="text-accent hover:underline">
+                <a href="/settings/app" className={inlineLinkClass}>
                   System settings
                 </a>
                 .

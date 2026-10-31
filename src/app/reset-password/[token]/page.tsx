@@ -5,6 +5,7 @@ import { hashToken } from "@/lib/crypto";
 import { ResetPasswordForm } from "@/components/ResetPasswordForm";
 import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/ui/PageShell";
+import { inlineLinkClass } from "@/lib/ui";
 
 export const metadata: Metadata = { title: "Reset password" };
 export const dynamic = "force-dynamic";
@@ -43,7 +44,7 @@ export default async function ResetPasswordPage({
           </Card>
         ) : (
           <p className="text-center text-sm text-muted">
-            <Link href="/forgot-password" className="text-accent hover:underline">
+            <Link href="/forgot-password" className={inlineLinkClass}>
               Request a new reset link
             </Link>
           </p>

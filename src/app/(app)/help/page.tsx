@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { FAQ_SECTIONS, splitFaqAnswer } from "@/lib/help/faq";
 import { FOOTER_NAV } from "@/components/nav-items";
-import { buttonClass, cardClass } from "@/lib/ui";
+import { buttonClass, cardClass, inlineLinkClass } from "@/lib/ui";
 import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/ui/PageShell";
 
@@ -20,7 +20,7 @@ export default function HelpPage() {
             href="https://github.com/jaysbeekay/Hearth#readme"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-accent hover:underline"
+            className={inlineLinkClass}
           >
             README on GitHub
           </a>

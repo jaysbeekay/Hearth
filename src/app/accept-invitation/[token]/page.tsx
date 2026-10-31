@@ -5,6 +5,7 @@ import { hashToken } from "@/lib/crypto";
 import { AcceptInvitationForm } from "@/components/AcceptInvitationForm";
 import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/ui/PageShell";
+import { inlineLinkClass } from "@/lib/ui";
 
 export const metadata: Metadata = { title: "Accept invitation" };
 export const dynamic = "force-dynamic";
@@ -50,7 +51,7 @@ export default async function AcceptInvitationPage({
           </Card>
         ) : (
           <p className="text-center text-sm text-muted">
-            <Link href="/login" className="text-accent hover:underline">
+            <Link href="/login" className={inlineLinkClass}>
               Back to sign in
             </Link>
           </p>

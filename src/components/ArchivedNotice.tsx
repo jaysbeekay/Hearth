@@ -2,6 +2,7 @@ import Link from "next/link";
 import { StatusPill } from "@/components/StatusPill";
 import { formatDate } from "@/lib/utils";
 import { Banner } from "@/components/ui/Banner";
+import { inlineLinkClass } from "@/lib/ui";
 
 // #355 — the note at the top of an Archived Vehicle's or Property's page.
 // `children` is the Restore button, for a member who can write.
@@ -39,7 +40,7 @@ export function ArchivedNotice({
             {activeContracts.map((contract, index) => (
               <span key={contract.id}>
                 {index > 0 && ", "}
-                <Link href={`/contracts/${contract.id}`} className="text-accent hover:underline">
+                <Link href={`/contracts/${contract.id}`} className={inlineLinkClass}>
                   {contract.title}
                 </Link>
               </span>

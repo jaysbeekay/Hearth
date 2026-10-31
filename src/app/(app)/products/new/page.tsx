@@ -10,6 +10,7 @@ import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/ui/PageShell";
+import { inlineLinkClass } from "@/lib/ui";
 
 export default async function NewProductPage() {
   redirectIfReadOnly(await auth(), "/products");
@@ -33,7 +34,7 @@ export default async function NewProductPage() {
         <p className="mt-1 text-xs text-muted">
           Warranties cover things you&apos;ve bought. Looking for insurance, a phone plan or
           another recurring cost instead? Try{" "}
-          <Link href="/contracts/new" className="text-accent hover:underline">
+          <Link href="/contracts/new" className={inlineLinkClass}>
             add a contract
           </Link>
           .
@@ -41,7 +42,7 @@ export default async function NewProductPage() {
             <>
               {" "}
               Just cataloguing what you own?{" "}
-              <Link href="/inventory/new" className="text-accent hover:underline">
+              <Link href="/inventory/new" className={inlineLinkClass}>
                 Add to inventory
               </Link>
               .

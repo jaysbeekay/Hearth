@@ -251,3 +251,11 @@ const PAGE_WIDTH = new Map<PageWidth, string>([
 export function pageShellClass(width: PageWidth, className?: string) {
   return mergeClasses(cn("w-full space-y-6", PAGE_WIDTH.get(width)), className);
 }
+
+// ── Links ───────────────────────────────────────────────────────────────
+
+/**
+ * A link inside running text: underlined, since the accent alone is too
+ * close in lightness to muted text to tell it apart (WCAG 1.4.1).
+ */
+export const inlineLinkClass = "text-accent underline underline-offset-2";

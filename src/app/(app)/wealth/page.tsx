@@ -15,7 +15,7 @@ import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { Card } from "@/components/ui/Card";
 import { Banner } from "@/components/ui/Banner";
-import { buttonClass, emptyStateClass } from "@/lib/ui";
+import { buttonClass, emptyStateClass, inlineLinkClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Wealth" };
@@ -113,7 +113,7 @@ export default async function WealthPage() {
           {allHoldings.length > 6 && (
             <p className="text-center text-sm text-muted">
               Showing top 6 of {allHoldings.length} holdings.{" "}
-              <Link href="/wealth/portfolios" className="text-accent hover:underline">View all</Link>
+              <Link href="/wealth/portfolios" className={inlineLinkClass}>View all</Link>
             </p>
           )}
         </section>

@@ -18,7 +18,7 @@ import { Field } from "@/components/FormField";
 import { SelectWrapper, inputClass, textareaClass, selectClass } from "@/components/SelectWrapper";
 import { OCCUPANCY_STATUSES } from "@/lib/validation/home";
 import { OCCUPANCY_STATUS_LABELS } from "@/lib/utils";
-import { bannerClass, overlayClass } from "@/lib/ui";
+import { bannerClass, overlayClass, inlineLinkClass } from "@/lib/ui";
 
 interface GeocodeSuggestion {
   display_name: string;
@@ -128,7 +128,7 @@ export function PropertyForm({
             property.isRented ? (
               <>
                 This property already has a tenancy —{" "}
-                <Link href={`/home/${property.id}/rental`} className="text-accent hover:underline">
+                <Link href={`/home/${property.id}/rental`} className={inlineLinkClass}>
                   view it
                 </Link>
                 .
@@ -137,7 +137,7 @@ export function PropertyForm({
               <>
                 This property has no tenancy (rent, statements, reconciliation) yet
                 —{" "}
-                <Link href={`/home/${property.id}/rental`} className="text-accent hover:underline">
+                <Link href={`/home/${property.id}/rental`} className={inlineLinkClass}>
                   set it up
                 </Link>
                 .

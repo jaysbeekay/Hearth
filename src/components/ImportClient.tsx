@@ -8,7 +8,7 @@ import { INVENTORY_ITEM_CATEGORIES } from "@/lib/validation/inventory";
 import { showToast } from "@/components/Toast";
 import { LinkedToField } from "@/components/LinkedToField";
 import { extractionMessage } from "@/lib/autoFillHighlight";
-import { buttonClass, pillClass, inputClass } from "@/lib/ui";
+import { buttonClass, pillClass, inputClass, inlineLinkClass } from "@/lib/ui";
 import { Card } from "@/components/ui/Card";
 
 const INVENTORY_CATEGORY_LABELS: Record<string, string> = {
@@ -693,7 +693,7 @@ export function ImportClient({
                     <p className="text-sm text-muted">
                       Saved to the Inbox as-is — say whether it&apos;s a contract, warranty or other
                       record later from{" "}
-                      <a href="/documents/inbox" className="text-accent hover:underline">
+                      <a href="/documents/inbox" className={inlineLinkClass}>
                         Inbox
                       </a>
                       .

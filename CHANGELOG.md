@@ -211,6 +211,9 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   (`tests/unit/ui-rules.test.ts`) and an e2e check
   (`e2e/specs/51-ui-rules.spec.ts`) hold these rules in place. The iOS and
   Android shell keeps its own styles and is unchanged.
+- Links inside running text are now underlined, so they no longer rely on
+  colour alone, and the contract list's filter selects and each member's role
+  select have accessible names (#411 review).
 
 - **An empty `APP_URL` now counts as unset (#477)**, so links fall back to
   `http://localhost:3000` instead of being built from an empty string. On
