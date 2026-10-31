@@ -889,14 +889,40 @@ that case `release.yml` dispatches `docker-publish.yml` and
 `android-build.yml` against the new tag itself (it has `actions: write` for
 this). Pushing the tag locally needs no extra step.
 
-`android-build.yml` attaches the signed APK/AAB to the release, and needs the
-`ANDROID_KEYSTORE_*` / `ANDROID_KEY_*` secrets; without them a tagged build
-fails on purpose rather than publish an unsigned build. Manual step if a
-release's Android build ever needs redoing (e.g. v0.19.2): Actions -> Build
-Android APK/AAB -> Run workflow, choosing the release tag as the ref (not
-`main`, or nothing is attached to the release). `android-check.yml` runs the
-Gradle/R8 build on pull requests that touch Android inputs, so breakage shows
-up before release.
+`release.yml` only runs from `main` (manual dispatch) or a pushed `v*` tag,
+and validates the version as `x.y.z` (optionally `-suffix`).
+
+`android-build.yml` signs **only tag runs** (`refs/tags/v*`) and only if the
+signing secrets exist; it then attaches the signed APK/AAB to the release. A
+tag run with no signing secrets fails on purpose rather than publish an
+unsigned build. Any other ref (a branch dispatch, for instance) builds
+**unsigned** artifacts, named `hearth-release-apk-unsigned` /
+`hearth-release-aab-unsigned`, kept for 7 days. Docker `latest` only moves
+when the tag is the highest stable release.
+
+**Re-running an old tag does not pick up fixes.** A workflow run on a tag uses
+that tag's own copy of the workflow files, so re-running a release whose
+workflows were broken (such as v0.19.2) fails the same way. Cut a new patch
+release (v0.19.3) instead.
+
+`android-check.yml` runs the Gradle/R8 release build on pull requests that
+touch Android inputs (and weekly, opening an issue if it fails), so breakage
+shows up before release.
+
+**One-time owner setup for the `release` environment.** The signing and
+Docker Hub jobs run in a GitHub environment named `release` on tag runs:
+
+1. Settings -> Environments -> New environment: `release`.
+2. Deployment branches and tags -> Selected branches and tags -> add a tag
+   rule `v*`, so only release tags can read its secrets.
+3. Move `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
+   `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `DOCKERHUB_USERNAME` and
+   `DOCKERHUB_TOKEN` into the environment's secrets.
+4. Delete the repository-level copies of those secrets.
+
+Until step 4 the jobs keep working from repo-level secrets. Once done, a
+manual `docker-publish.yml` dispatch from `main` can no longer log in to
+Docker Hub; run it against a tag.
 
 ## License
 

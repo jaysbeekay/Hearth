@@ -59,3 +59,13 @@
 #   javax.annotation.Nullable, javax.annotation.concurrent.GuardedBy
 -dontwarn com.google.errorprone.annotations.**
 -dontwarn javax.annotation.**
+
+# sqlcipher-android (the encrypted SQLite engine behind the sqlite plugin) is
+# JNI-backed: native code looks up these Java classes/methods/fields by name,
+# so they must not be renamed or stripped. Also keep every native-method
+# holder, since R8 would otherwise rename them and break JNI linking
+# (UnsatisfiedLinkError).
+-keep class net.zetetic.database.** { *; }
+-keepclasseswithmembernames class * {
+    native <methods>;
+}

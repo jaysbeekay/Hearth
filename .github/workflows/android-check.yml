@@ -1,6 +1,7 @@
 name: Android check
 
-# Guard for the tag-only Android release build. android-build.yml only runs on
+# Guard for the tag-only Android release build. (The release build is a
+# superset of the debug build, so there is no separate assembleDebug.) android-build.yml only runs on
 # a release tag, so an Android-only break (R8, a plugin bump, Gradle) used to
 # sit unnoticed until the next release (v0.18.0-v0.19.1 all failed). This runs
 # the same steps on pull requests that touch what feeds the Android build.
@@ -32,9 +33,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  android-debug:
+  android-build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -65,20 +66,44 @@ jobs:
         run: chmod +x gradlew
         working-directory: android
 
-      - name: Build debug APK
-        run: ./gradlew assembleDebug --no-daemon
-        working-directory: android
-
       # Unsigned release build: runs minification + R8 exactly as a release
       # does, which is the step that broke. No secrets needed.
       - name: Build release APK (unsigned, runs R8)
         run: ./gradlew assembleRelease --no-daemon
         working-directory: android
 
-      - name: Upload R8 report on failure
-        if: failure()
+      # Always kept (7 days): the merged R8 config lists every consumer rule
+      # contributed by dependencies, which is how to check what they keep.
+      - name: Upload R8 report
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: r8-report
           path: android/app/build/outputs/mapping/release/
           if-no-files-found: ignore
+          retention-days: 7
+
+  # A scheduled failure has no PR to show red, so open an issue instead.
+  notify:
+    needs: android-build
+    if: ${{ failure() && github.event_name == 'schedule' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Open an issue unless one is already open
+        run: |
+          TITLE="Scheduled Android build check is failing"
+          EXISTING=$(gh issue list --state open --search "\"$TITLE\" in:title" --json number --jq '.[0].number')
+          if [[ -n "$EXISTING" ]]; then
+            gh issue comment "$EXISTING" --body "Still failing: $RUN_URL"
+          else
+            gh issue create --title "$TITLE" --label "type:bug" \
+              --body "The weekly android-check run failed: $RUN_URL. Android release builds are tag-only, so this will break the next release if not fixed."
+          fi

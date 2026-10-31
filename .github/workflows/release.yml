@@ -6,41 +6,62 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to release (e.g. 0.1.0). Creates the vX.Y.Z tag if it doesn't exist yet."
+        description: "Version to release (e.g. 0.1.0). Creates the vX.Y.Z tag if it doesn't exist yet. Run against main."
         required: true
 
 permissions:
-  contents: write
-  actions: write # to dispatch docker-publish.yml / android-build.yml, see below
+  contents: read
 
 jobs:
   release:
+    # Releases come from main (manual dispatch) or from a pushed v* tag.
+    if: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.tag.outputs.name }}
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - name: Resolve tag
+      - name: Resolve and validate tag
         id: tag
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          REF: ${{ github.ref }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          if [ -n "${{ inputs.version }}" ]; then
-            NAME="v${{ inputs.version }}"
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            if [[ "$REF" != "refs/heads/main" ]]; then
+              echo "::error::Run this workflow against main, not $REF."
+              exit 1
+            fi
+            VERSION="$INPUT_VERSION"
           else
-            NAME="$GITHUB_REF_NAME"
+            VERSION="${REF_NAME#v}"
           fi
-          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          if ! [[ $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "::error::Invalid version '$VERSION' (expected x.y.z or x.y.z-suffix)."
+            exit 1
+          fi
+          echo "name=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Extract changelog section
         id: changelog
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+          NAME: ${{ steps.tag.outputs.name }}
         run: |
-          VERSION="${{ steps.tag.outputs.name }}"
-          VERSION="${VERSION#v}"
           NOTES=$(awk -v ver="[$VERSION]" '
             $0 ~ /^## \[/ { if (found) exit; if (index($0, ver)) { found=1; next } else next }
             found { print }
           ' CHANGELOG.md)
           if [ -z "$NOTES" ]; then
-            NOTES="_No changelog entry found for ${{ steps.tag.outputs.name }} — see commits below._"
+            NOTES="_No changelog entry found for $NAME — see commits below._"
           fi
           {
             echo "notes<<RELEASE_NOTES_EOF"
@@ -57,17 +78,50 @@ jobs:
           body: ${{ steps.changelog.outputs.notes }}
           generate_release_notes: true
 
-      # A tag created by this workflow's own manual dispatch is made with the
-      # GITHUB_TOKEN, and GitHub deliberately doesn't fire push-triggered
-      # workflows for refs created by that token. So the tag-push workflows
-      # (docker-publish.yml, android-build.yml) never ran for v0.19.2. Dispatch
-      # them explicitly against the new tag instead. Not needed (and would
-      # double-build) when a human pushed the tag: the push event covers it.
-      - name: Dispatch tag builds (manual release only)
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        run: |
-          gh workflow run docker-publish.yml --ref "${{ steps.tag.outputs.name }}"
-          gh workflow run android-build.yml --ref "${{ steps.tag.outputs.name }}"
+  # A tag created by this workflow's own manual dispatch is made with the
+  # GITHUB_TOKEN, and GitHub deliberately doesn't fire push-triggered
+  # workflows for refs created by that token. So the tag-push workflows
+  # (docker-publish.yml, android-build.yml) never ran for v0.19.2. Dispatch
+  # them explicitly against the new tag instead. Not needed (and would
+  # double-build) when a human pushed the tag: the push event covers it.
+  # Separate job so only this one holds `actions: write`, not the job that
+  # runs the release action.
+  dispatch:
+    needs: release
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ needs.release.outputs.tag }}
+    steps:
+      # Each dispatch is its own step, so one failing doesn't skip the other;
+      # the last step fails the job if either did.
+      - name: Dispatch docker-publish.yml
+        id: docker
+        continue-on-error: true
+        run: gh workflow run docker-publish.yml --ref "$TAG"
+
+      - name: Dispatch android-build.yml
+        id: android
+        continue-on-error: true
+        run: gh workflow run android-build.yml --ref "$TAG"
+
+      - name: Report dispatch results
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
+          DOCKER_RESULT: ${{ steps.docker.outcome }}
+          ANDROID_RESULT: ${{ steps.android.outcome }}
+        run: |
+          {
+            echo "### Tag build dispatch for $TAG"
+            echo "- docker-publish.yml: $DOCKER_RESULT"
+            echo "- android-build.yml: $ANDROID_RESULT"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$DOCKER_RESULT" != "success" || "$ANDROID_RESULT" != "success" ]]; then
+            echo "::error::A tag build failed to dispatch; re-run it from the Actions tab against $TAG."
+            exit 1
+          fi

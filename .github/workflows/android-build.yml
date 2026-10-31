@@ -8,11 +8,26 @@ on:
 permissions:
   contents: write
 
+# Never cancel a release build half way; just don't run two for one ref.
+concurrency:
+  group: android-build-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Tag runs use the `release` environment (holds the signing secrets, and
+    # is restricted to `v*` tags by the owner). Every other ref gets no
+    # environment (empty string), so a branch build never reaches the secrets
+    # and isn't rejected by the environment's deployment-tag rule.
+    environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}
     env:
-      HAS_SIGNING: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      # Sign ONLY for a release tag, and only when the keystore secret exists.
+      # Branch / main / PR-ish runs always build unsigned.
+      HAS_SIGNING: ${{ startsWith(github.ref, 'refs/tags/v') && secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      # Branch artifacts are throwaway; tag artifacts keep the default 90 days.
+      ARTIFACT_RETENTION: ${{ startsWith(github.ref, 'refs/tags/v') && 90 || 7 }}
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -36,6 +51,16 @@ jobs:
 
       - name: Sync Capacitor Android project
         run: npx cap sync android
+
+      # A tagged build with no signing secrets used to fall back to attaching
+      # the debug APK to the public release. Fail instead of shipping one.
+      - name: Require release signing for tagged builds
+        if: ${{ startsWith(github.ref, 'refs/tags/v') && env.HAS_SIGNING != 'true' }}
+        run: |
+          echo "::error::Release signing is not configured, so this tag would" \
+               "have published an unsigned debug build. Set ANDROID_KEYSTORE_BASE64," \
+               "ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD."
+          exit 1
 
       - name: Set version from tag
         if: startsWith(github.ref, 'refs/tags/v')
@@ -74,19 +99,10 @@ jobs:
           name: hearth-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
-
-      # A tagged build with no signing secrets used to fall back to attaching
-      # the debug APK to the public release. Fail instead of shipping one.
-      - name: Require release signing for tagged builds
-        if: ${{ startsWith(github.ref, 'refs/tags/v') && env.HAS_SIGNING != 'true' }}
-        run: |
-          echo "::error::Release signing is not configured, so this tag would" \
-               "have published an unsigned debug build. Set ANDROID_KEYSTORE_BASE64," \
-               "ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD."
-          exit 1
+          retention-days: ${{ env.ARTIFACT_RETENTION }}
 
       - name: Decode release keystore
-        if: ${{ env.HAS_SIGNING == 'true' }}
+        if: ${{ startsWith(github.ref, 'refs/tags/v') && env.HAS_SIGNING == 'true' }}
         run: echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/hearth-release.jks"
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -112,6 +128,7 @@ jobs:
           name: ${{ env.HAS_SIGNING == 'true' && 'hearth-release-apk' || 'hearth-release-apk-unsigned' }}
           path: android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
+          retention-days: ${{ env.ARTIFACT_RETENTION }}
 
       # The Play Store requires an .aab (App Bundle), not the .apk above —
       # that one's for direct sideload / GitHub Releases only.
@@ -132,26 +149,33 @@ jobs:
           name: ${{ env.HAS_SIGNING == 'true' && 'hearth-release-aab' || 'hearth-release-aab-unsigned' }}
           path: android/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
+          retention-days: ${{ env.ARTIFACT_RETENTION }}
 
       - name: Attach APK/AAB to release
         if: ${{ startsWith(github.ref, 'refs/tags/v') && env.HAS_SIGNING == 'true' }}
         run: |
           # release.yml also triggers on this tag push and creates the
           # GitHub Release; wait for it to exist before uploading to it.
-          # Only signed artifacts are ever published — the unsigned-fallback
-          # path that used to attach a debug APK is gone.
+          # Only signed artifacts are ever published.
           assets=(
             "android/app/build/outputs/apk/release/app-release.apk"
             "android/app/build/outputs/bundle/release/app-release.aab"
           )
           for i in $(seq 1 30); do
-            if gh release view "${{ github.ref_name }}" >/dev/null 2>&1; then
-              gh release upload "${{ github.ref_name }}" "${assets[@]}" --clobber
+            if gh release view "$TAG" >/dev/null 2>&1; then
+              gh release upload "$TAG" "${assets[@]}" --clobber
               exit 0
             fi
             sleep 10
           done
-          echo "Release ${{ github.ref_name }} never appeared; skipping upload." >&2
+          echo "Release $TAG never appeared; skipping upload." >&2
           exit 1
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+
+      # The decoded keystore must not outlive the job (self-hosted runners,
+      # or anything later in this job).
+      - name: Remove decoded keystore
+        if: ${{ always() }}
+        run: rm -f "$RUNNER_TEMP/hearth-release.jks"
