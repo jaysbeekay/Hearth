@@ -12,6 +12,12 @@ const Filesystem = Plugins.Filesystem;
 const Preferences = Plugins.Preferences;
 const LocalNotifications = Plugins.LocalNotifications;
 const Purchases = Plugins.Purchases;
+const Share = Plugins.Share;
+// iOS only: the app target's own plugin (ios/App/App/ICloudBackupPlugin.swift).
+const ICloudBackup = Plugins.ICloudBackup;
+const AppPlugin = Plugins.App;
+// ios-shell/www/backup-format.js, loaded before this file.
+const BackupFormat = window.HearthBackupFormat;
 
 // RevenueCat public SDK keys — safe to embed client-side (same class of key
 // as a Stripe publishable key), but these are placeholders until a
@@ -36,7 +42,13 @@ const CLEARTEXT_HOSTS = ["localhost", "127.0.0.1", "::1", "[::1]"];
 const CLEARTEXT_SUFFIXES = [".local", ".home.arpa"];
 const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
 const FILE_DIRECTORY = "DATA";
-const BACKUP_DIRECTORY = "DOCUMENTS";
+// Backups are built in the app cache and leave it only through the share
+// sheet or iCloud, never through a shared folder (#226).
+const BACKUP_EXPORT_DIRECTORY = "CACHE";
+const RESTORE_STAGING_ROOT = "standalone-restore-staging";
+// Files a restore replaced, kept until its database write commits.
+const RESTORE_ASIDE_ROOT = "standalone-restore-previous";
+const RESTORE_JOURNAL_KEY = "hearth.mobile.restoreJournal";
 const FILE_ROOT = "standalone-documents";
 const BACKUP_ROOT = "hearth-backups";
 const REMINDER_CHANNEL_ID = "hearth-standalone-reminders";
@@ -44,6 +56,14 @@ const REMINDER_HOUR = 9;
 // Bump with every ensureStandaloneSchema change; backups record it too.
 const STANDALONE_SCHEMA_VERSION = 11;
 const MAX_IMPORTED_TRADES = 5000;
+const LAST_BACKUP_KEY = "hearth.mobile.lastBackupAt";
+const ICLOUD_LAST_BACKUP_KEY = "hearth.mobile.lastICloudBackupAt";
+const ICLOUD_AUTO_BACKUP_KEY = "hearth.mobile.icloudAutoBackup";
+const ICLOUD_AUTO_BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const ICLOUD_BACKUPS_KEPT = 7;
+const BACKUP_NUDGE_DAYS = 30;
+// Preferences that travel with a backup. Backup bookkeeping does not.
+const BACKUP_PREFERENCE_KEYS = [STANDALONE_MODULES_KEY, LOCAL_REMINDERS_KEY];
 const ALLOWED_MIME_TYPES = new Set([
   "application/pdf",
   "image/jpeg",
@@ -427,6 +447,10 @@ const state = {
   assistantQuery: "",
   localRemindersEnabled: false,
   pendingNotificationCount: null,
+  lastBackupAt: null,
+  lastICloudBackupAt: null,
+  icloudAutoBackup: false,
+  icloud: null,
   enabledStandaloneModules: [...DEFAULT_STANDALONE_MODULE_KEYS],
   detail: null,
   detailBack: null,
@@ -689,7 +713,32 @@ function generatePassphrase() {
   return btoa(binary);
 }
 
+// Backup export reads every table, and restore rewrites them, as one
+// exclusive step: other writes wait for it, so a backup is a consistent
+// snapshot and a restore never interleaves with an edit (#226).
+let dbGate = Promise.resolve();
+
+async function withExclusiveDb(work) {
+  const previous = dbGate;
+  let release;
+  dbGate = new Promise((resolve) => {
+    release = resolve;
+  });
+  await previous;
+  try {
+    return await work();
+  } finally {
+    release();
+  }
+}
+
+async function runSet(set) {
+  await dbGate;
+  await SQLite.executeSet({ database: DB, set, transaction: true });
+}
+
 async function run(statement, values = []) {
+  await dbGate;
   await SQLite.run({ database: DB, statement, values, transaction: true });
 }
 
@@ -1258,11 +1307,14 @@ async function enterStandaloneApp() {
   show("standalone");
   await prefSet(MODE_KEY, "standalone");
   await initDb();
+  await recoverInterruptedRestore().catch(() => undefined);
   // A failure leaves the Trash as it was; the next launch tries again.
   await purgeExpiredTrashedDocuments().catch(() => undefined);
   await loadStandaloneModuleSettings();
   await loadReminderDeliveryState();
+  await loadBackupState().catch(() => undefined);
   await render();
+  void maybeRunICloudAutoBackup();
 }
 
 async function openConnected() {
@@ -1375,6 +1427,7 @@ function renderDashboard() {
       <h2>What needs attention</h2>
       <p>${attention.length > 0 ? `${attention.length} item${attention.length === 1 ? "" : "s"} need a look.` : "Everything tracked locally looks calm."}</p>
     </section>
+    ${renderBackupNudge()}
 
     <section class="grid-2">
       ${statCard("Active contracts", activeContracts.length, "records", "contracts")}
@@ -2012,7 +2065,7 @@ function renderHelp() {
     ["Adding records", "Use Dashboard quick add for common entries, Records for module lists, or Documents to import a file first and file it later."],
     ["Documents", "Standalone stores PDF, Word and image files in app-protected storage and keeps document metadata in encrypted SQLite."],
     ["Reminders", "Standalone can schedule local device reminders for contracts, warranties, vehicles and leases. Server email/ntfy reminders stay connected-only."],
-    ["Backups", "Use Settings to export a Hearth standalone JSON backup. Backups are manual and are not uploaded by Hearth."],
+    ["Backups", "Settings exports an encrypted backup, protected by a password you choose, that you can save to Files, iCloud Drive or Google Drive. On iPhone you can also turn on a daily backup to your own iCloud Drive. Hearth never sees your backups, and a lost password cannot be reset."],
     ["Privacy", "No standalone record is shared with a server or another person unless you switch modes or manually export/share a backup or file."],
   ];
   return `
@@ -2087,22 +2140,7 @@ function renderSettings() {
         ${OPTIONAL_MODULES.map(renderModuleSetting).join("")}
       </div>
     </section>
-    <section class="card form-card">
-      <h2>Standalone backup</h2>
-      <p class="muted">Export a standalone JSON snapshot for safekeeping, or merge a previous standalone backup into this phone. The backup includes local records, document metadata and document file contents.</p>
-      <div class="detail-grid">
-        ${detailLine("Backup format", "Hearth standalone JSON")}
-        ${detailLine("Import mode", "Merge by record id — existing records are updated, not wiped")}
-        ${detailLine("Sharing", "Manual only; no cloud sync is started by Hearth")}
-      </div>
-      <div class="actions">
-        <button data-export-standalone-backup>Export backup</button>
-      </div>
-      <form data-import-standalone-backup-form class="field-grid">
-        <input name="file" type="file" accept=".json,application/json" required />
-        <button type="submit">Import backup</button>
-      </form>
-    </section>
+    ${renderBackupSettings()}
     <section class="card form-card">
       <h2>Connected-only baseline features</h2>
       <div class="detail-grid">
@@ -2139,79 +2177,660 @@ function detailLine(label, value) {
   return `<div class="detail-row"><span class="detail-label">${escapeHtml(label)}</span><span class="detail-value">${escapeHtml(value)}</span></div>`;
 }
 
-async function exportStandaloneBackup() {
-  if (!Filesystem) throw new Error("Native file storage bridge unavailable.");
-  const backup = await buildStandaloneBackup();
-  const date = nowIso().slice(0, 10);
-  const filename = `hearth-standalone-${date}.json`;
-  const path = `${BACKUP_ROOT}/${filename}`;
-  await Filesystem.writeFile({
-    directory: BACKUP_DIRECTORY,
-    path,
-    data: JSON.stringify(backup, null, 2),
-    recursive: true,
-  });
-  showStandaloneStatus(`Backup exported to ${filename}.`, true);
+// ---- Standalone backup and restore (#226) --------------------------------
+//
+// Backups use the encrypted, line-per-record format in backup-format.js. A
+// backup is written to the app cache, then either handed to the OS share
+// sheet or copied into the user's iCloud Drive (iOS), and the cache copy is
+// deleted: no readable copy is left in a shared folder. Restore decrypts and
+// checks every record and stages document files before it touches the
+// database, then applies all rows in one transaction.
+
+function backupFilename(iso = nowIso()) {
+  return `hearth-standalone-${iso.slice(0, 10)}-${iso.slice(11, 19).replace(/:/g, "")}${BackupFormat.FILE_EXTENSION}`;
 }
 
-async function buildStandaloneBackup() {
-  const tables = {};
-  for (const table of BACKUP_TABLES) {
-    const rows = await query(`SELECT * FROM ${table.table}`);
-    tables[table.key] = await Promise.all(rows.map((row) => enrichBackupRow(table, row)));
+function documentStorageKeys(tables) {
+  const keys = new Set();
+  for (const rows of [tables.documents, tables.inboxDocuments]) {
+    for (const row of Array.isArray(rows) ? rows : []) if (row?.storage_key) keys.add(row.storage_key);
   }
+  return keys;
+}
+
+async function collectBackupPreferences() {
+  const entries = [];
+  for (const key of BACKUP_PREFERENCE_KEYS) {
+    const value = await prefGet(key);
+    if (value != null) entries.push([key, value]);
+  }
+  return Object.fromEntries(entries);
+}
+
+// Writes an encrypted backup of everything on this phone to `path`, one
+// record at a time, so no more than one document is in memory at once.
+async function writeEncryptedBackup(password, directory, path) {
+  if (!Filesystem) throw new Error("Native file storage bridge unavailable.");
+  if (!BackupFormat) throw new Error("Backup support is missing from this build.");
+  const writer = await BackupFormat.createWriter({ password, schemaVersion: STANDALONE_SCHEMA_VERSION, exportedAt: nowIso() });
+  const tables = await readBackupTables();
+  await Filesystem.writeFile({ directory, path, data: `${writer.headerLine}\n`, encoding: "utf8", recursive: true });
+  const append = async (record) => {
+    const line = await writer.encrypt(record);
+    await Filesystem.appendFile({ directory, path, data: `${line}\n`, encoding: "utf8" });
+  };
+  await append({ type: "manifest", tables, preferences: await collectBackupPreferences() });
+  let missingFiles = 0;
+  for (const key of documentStorageKeys(tables)) {
+    const data = await readStoredFileBase64(key).catch(() => null);
+    if (data == null) {
+      missingFiles += 1;
+      continue;
+    }
+    for (const record of BackupFormat.fileRecords(key, data)) await append(record);
+  }
+  const endLine = await writer.end();
+  await Filesystem.appendFile({ directory, path, data: `${endLine}\n`, encoding: "utf8" });
+  return { missingFiles };
+}
+
+function sameText(left, right) {
+  return left === right;
+}
+
+// Every table is read inside one SQLite read transaction while other writes
+// wait (withExclusiveDb), so the backup is a single point-in-time snapshot.
+async function readBackupTables() {
+  return withExclusiveDb(async () => {
+    const began = await SQLite.beginTransaction?.({ database: DB }).then(() => true, () => false);
+    try {
+      const tables = {};
+      for (const table of BACKUP_TABLES) tables[table.key] = await query(`SELECT * FROM ${table.table}`);
+      return tables;
+    } finally {
+      if (began) await SQLite.commitTransaction({ database: DB }).catch(() => undefined);
+    }
+  });
+}
+
+function checkNewBackupPassword(password, confirm) {
+  BackupFormat.checkPassword(password);
+  // Both values are what the user just typed: no stored secret is compared.
+  if (!sameText(password, confirm)) throw new Error("The two passwords do not match.");
+}
+
+async function markBackedUp(key = LAST_BACKUP_KEY) {
+  const at = nowIso();
+  await prefSet(key, at);
+  if (key === LAST_BACKUP_KEY) state.lastBackupAt = at;
+  else state.lastICloudBackupAt = at;
+}
+
+// A backup missing document files is still saved (the records in it are
+// worth keeping) but is never counted as this phone's last complete backup.
+function missingFilesNote(missingFiles) {
+  if (missingFiles === 0) return "";
+  return ` ${missingFiles} document file${missingFiles === 1 ? "" : "s"} could not be read on this phone and ${missingFiles === 1 ? "is" : "are"} not in it, so it is not counted as a complete backup.`;
+}
+
+async function markCompleteBackup(missingFiles, key = LAST_BACKUP_KEY) {
+  if (missingFiles === 0) await markBackedUp(key);
+}
+
+async function exportAndShareBackup(password, confirm) {
+  checkNewBackupPassword(password, confirm);
+  const name = backupFilename();
+  const path = `${BACKUP_ROOT}/${name}`;
+  showStandaloneStatus("Encrypting backup…", true);
+  const { missingFiles } = await writeEncryptedBackup(password, BACKUP_EXPORT_DIRECTORY, path);
+  if (!Share) {
+    await markCompleteBackup(missingFiles);
+    showStandaloneStatus(`Backup saved as ${name}.${missingFilesNote(missingFiles)}`, true);
+    return;
+  }
+  try {
+    const { uri } = await Filesystem.getUri({ directory: BACKUP_EXPORT_DIRECTORY, path });
+    await Share.share({ title: "Hearth backup", dialogTitle: "Save your Hearth backup", files: [uri] });
+    await markCompleteBackup(missingFiles);
+    showStandaloneStatus(`Backup ${name} shared. Keep the password safe.${missingFilesNote(missingFiles)}`, true);
+  } catch (error) {
+    if (/cancel/i.test(String(error?.message ?? ""))) {
+      showStandaloneStatus("Backup not saved: sharing was cancelled.");
+      return;
+    }
+    throw error;
+  } finally {
+    await Filesystem.deleteFile({ directory: BACKUP_EXPORT_DIRECTORY, path }).catch(() => undefined);
+  }
+}
+
+async function backupToICloud(password) {
+  if (!ICloudBackup) throw new Error("iCloud backup is only available on iPhone and iPad.");
+  const name = backupFilename();
+  const path = `${BACKUP_ROOT}/${name}`;
+  try {
+    const { missingFiles } = await writeEncryptedBackup(password, BACKUP_EXPORT_DIRECTORY, path);
+    const { uri } = await Filesystem.getUri({ directory: BACKUP_EXPORT_DIRECTORY, path });
+    await ICloudBackup.upload({ path: uri, name, keep: ICLOUD_BACKUPS_KEPT });
+    await markCompleteBackup(missingFiles);
+    // The daily schedule counts the attempt, so a phone with an unreadable
+    // file is not re-backed-up on every foreground; the nudge stays on.
+    await markBackedUp(ICLOUD_LAST_BACKUP_KEY);
+    return { name, missingFiles };
+  } finally {
+    await Filesystem.deleteFile({ directory: BACKUP_EXPORT_DIRECTORY, path }).catch(() => undefined);
+  }
+}
+
+async function loadBackupState() {
+  state.lastBackupAt = await prefGet(LAST_BACKUP_KEY);
+  state.lastICloudBackupAt = await prefGet(ICLOUD_LAST_BACKUP_KEY);
+  state.icloudAutoBackup = (await prefGet(ICLOUD_AUTO_BACKUP_KEY)) === "true";
+  await refreshICloudBackups();
+}
+
+async function refreshICloudBackups() {
+  if (!ICloudBackup) {
+    state.icloud = null;
+    return;
+  }
+  const status = await ICloudBackup.status().catch((error) => ({ available: false, reason: error.message }));
+  const backups = status.available ? (await ICloudBackup.list().catch(() => ({ backups: [] }))).backups ?? [] : [];
+  state.icloud = { available: Boolean(status.available), reason: status.reason ?? "", backups };
+}
+
+async function enableICloudAutoBackup(password, confirm) {
+  checkNewBackupPassword(password, confirm);
+  if (!state.icloud?.available) throw new Error(state.icloud?.reason || "iCloud Drive is unavailable.");
+  await ICloudBackup.setAutoBackupPassword({ password });
+  await prefSet(ICLOUD_AUTO_BACKUP_KEY, "true");
+  state.icloudAutoBackup = true;
+  showStandaloneStatus("Backing up to iCloud…", true);
+  const { name, missingFiles } = await backupToICloud(password);
+  await refreshICloudBackups();
+  showStandaloneStatus(`Daily iCloud backup is on. First backup ${name} saved.${missingFilesNote(missingFiles)}`, true);
+}
+
+async function disableICloudAutoBackup() {
+  await prefSet(ICLOUD_AUTO_BACKUP_KEY, "false");
+  state.icloudAutoBackup = false;
+  await ICloudBackup?.clearAutoBackupPassword().catch(() => undefined);
+  showStandaloneStatus("Daily iCloud backup is off. Existing iCloud backups are kept.", true);
+}
+
+let autoBackupRunning = false;
+
+// Runs when standalone mode opens and whenever the app comes back to the
+// foreground: a phone that is used at all gets a fresh iCloud copy daily.
+async function maybeRunICloudAutoBackup() {
+  if (autoBackupRunning || !ICloudBackup || !state.icloudAutoBackup) return;
+  const last = Date.parse(state.lastICloudBackupAt ?? "");
+  if (Number.isFinite(last) && Date.now() - last < ICLOUD_AUTO_BACKUP_INTERVAL_MS) return;
+  autoBackupRunning = true;
+  try {
+    const { password } = await ICloudBackup.getAutoBackupPassword();
+    if (!password) {
+      await prefSet(ICLOUD_AUTO_BACKUP_KEY, "false");
+      state.icloudAutoBackup = false;
+      showStandaloneStatus("Daily iCloud backup was turned off: its password is no longer on this phone. Turn it on again in Settings.");
+      return;
+    }
+    const status = await ICloudBackup.status();
+    if (!status.available) return;
+    const { missingFiles } = await backupToICloud(password);
+    if (missingFiles > 0) showStandaloneStatus(`iCloud backup saved.${missingFilesNote(missingFiles)}`);
+    await refreshICloudBackups();
+    if (state.route === "settings" || state.route === "dashboard") await render();
+  } catch (error) {
+    showStandaloneStatus(`iCloud backup failed: ${error.message || "unknown error"}. Hearth will try again later.`);
+  } finally {
+    autoBackupRunning = false;
+  }
+}
+
+// ---- Restore ----
+
+function fileBackupSource(file) {
+  return { ...BackupFormat.blobSource(file), text: () => file.text() };
+}
+
+function iCloudBackupSource(name, size) {
   return {
-    kind: "hearth-standalone-backup",
-    version: 1,
-    schemaVersion: STANDALONE_SCHEMA_VERSION,
-    exportedAt: nowIso(),
-    tables,
+    size,
+    readSlice: async (start, end) => (await ICloudBackup.readChunk({ name, offset: start, length: end - start })).data ?? "",
   };
 }
 
-async function enrichBackupRow(table, row) {
-  if (!["documents", "inboxDocuments"].includes(table.key)) return row;
-  const fileData = await readStoredFileBase64(row.storage_key).catch(() => null);
-  return fileData ? { ...row, file_data: fileData } : row;
+async function restoreFromFile(form) {
+  const file = formFile(form);
+  if (!file) throw new Error("Choose a backup file first.");
+  await restoreStandaloneBackup(fileBackupSource(file), restoreOptions(form));
+}
+
+async function restoreFromICloud(form) {
+  const name = String(new FormData(form).get("backup") ?? "");
+  if (!name) throw new Error("Choose an iCloud backup first.");
+  const options = restoreOptions(form);
+  showStandaloneStatus("Downloading backup from iCloud…", true);
+  const { size } = await ICloudBackup.prepare({ name });
+  await restoreStandaloneBackup(iCloudBackupSource(name, size), options);
+}
+
+function restoreOptions(form) {
+  const data = new FormData(form);
+  const mode = data.get("mode") === "merge" ? "merge" : "replace";
+  if (mode === "replace" && data.get("confirmReplace") !== "on") {
+    throw new Error("Tick the box to confirm that restoring replaces everything on this phone.");
+  }
+  return { mode, password: String(data.get("password") ?? "") };
+}
+
+// `source` is { size, readSlice(start, end), text?() }. A v1 (plain JSON)
+// backup is still accepted from a file, for backups made before #226.
+async function restoreStandaloneBackup(source, { mode, password }) {
+  if (!BackupFormat) throw new Error("Backup support is missing from this build.");
+  const lines = BackupFormat.readLines(source);
+  const first = await lines.next();
+  if (first.done) throw new Error("That backup file is empty.");
+  const header = BackupFormat.parseHeader(first.value);
+  if (!header) {
+    if (!source.text) throw new Error("That is not a Hearth backup.");
+    return restoreLegacyBackup(await source.text(), mode);
+  }
+  if (header.schemaVersion > STANDALONE_SCHEMA_VERSION) {
+    throw new Error("This backup was made by a newer version of Hearth. Update the app to restore it.");
+  }
+  showStandaloneStatus("Checking backup…", true);
+  const reader = await BackupFormat.createReader(first.value, password);
+  await clearRestoreStaging();
+  try {
+    let manifest = null;
+    let ended = false;
+    let index = 0;
+    const nextSeq = new Map();
+    for await (const line of lines) {
+      index += 1;
+      if (ended) throw new Error("The backup file is damaged.");
+      const record = await reader.decrypt(line, index);
+      if (index === 1) {
+        if (record.type !== "manifest" || typeof record.tables !== "object" || record.tables == null) throw new Error("The backup file is damaged.");
+        manifest = record;
+        continue;
+      }
+      if (record.type === "file") {
+        const expected = nextSeq.get(record.key) ?? 0;
+        if (!BackupFormat.isSafeStorageKey(record.key) || record.seq !== expected || typeof record.data !== "string") {
+          throw new Error("The backup file is damaged.");
+        }
+        await stageRestoreFile(record.key, record.data, expected > 0);
+        nextSeq.set(record.key, expected + 1);
+        continue;
+      }
+      if (record.type === "end") {
+        if (record.records !== index - 1) throw new Error("The backup file is damaged.");
+        ended = true;
+        continue;
+      }
+      throw new Error("The backup file is damaged.");
+    }
+    if (!manifest || !ended) throw new Error("The backup file is incomplete. It may not have finished copying.");
+    return await applyRestore({ tables: manifest.tables, preferences: manifest.preferences ?? {}, stagedKeys: [...nextSeq.keys()], mode });
+  } finally {
+    await clearRestoreStaging();
+  }
+}
+
+async function restoreLegacyBackup(text, mode) {
+  let backup;
+  try {
+    backup = JSON.parse(text);
+  } catch {
+    throw new Error("That is not a Hearth backup.");
+  }
+  if (backup?.kind !== "hearth-standalone-backup" || typeof backup.tables !== "object" || backup.tables == null) {
+    throw new Error("That is not a Hearth standalone backup.");
+  }
+  if (Number(backup.schemaVersion) > STANDALONE_SCHEMA_VERSION) {
+    throw new Error("This backup was made by a newer version of Hearth. Update the app to restore it.");
+  }
+  await clearRestoreStaging();
+  try {
+    const stagedKeys = [];
+    for (const rows of [backup.tables.documents, backup.tables.inboxDocuments]) {
+      for (const row of Array.isArray(rows) ? rows : []) {
+        if (!row?.file_data || !BackupFormat.isSafeStorageKey(row.storage_key) || stagedKeys.includes(row.storage_key)) continue;
+        await stageRestoreFile(row.storage_key, String(row.file_data), false);
+        stagedKeys.push(row.storage_key);
+      }
+    }
+    return await applyRestore({ tables: backup.tables, preferences: {}, stagedKeys, mode, legacy: true });
+  } finally {
+    await clearRestoreStaging();
+  }
+}
+
+async function stageRestoreFile(key, base64, append) {
+  if (!Filesystem) throw new Error("Native file storage bridge unavailable.");
+  const path = `${RESTORE_STAGING_ROOT}/${key}`;
+  if (append) await Filesystem.appendFile({ directory: FILE_DIRECTORY, path, data: base64 });
+  else await Filesystem.writeFile({ directory: FILE_DIRECTORY, path, data: base64, recursive: true });
+}
+
+async function clearRestoreStaging() {
+  await Filesystem?.rmdir({ directory: FILE_DIRECTORY, path: RESTORE_STAGING_ROOT, recursive: true }).catch(() => undefined);
+}
+
+function restoreValue(value) {
+  if (value == null) return null;
+  if (typeof value === "boolean") return value ? 1 : 0;
+  if (typeof value === "string" || (typeof value === "number" && Number.isFinite(value))) return value;
+  throw new Error("The backup contains a value Hearth cannot read.");
+}
+
+// Validates every row and returns the statements that restore them. Merge
+// keeps a row already on this phone when its version is newer.
+async function buildRestoreStatements(tables, mode) {
+  const set = [];
+  let restored = 0;
+  let kept = 0;
+  for (const table of BACKUP_TABLES) {
+    const rows = Array.isArray(tables[table.key]) ? tables[table.key] : [];
+    if (mode === "replace") set.push({ statement: `DELETE FROM ${table.table}`, values: [] });
+    // Merge: a row with a version is replaced only by a backup row at least
+    // as new; a row without one (Term history, the reminder log) is never
+    // replaced, only added when this phone doesn't have it.
+    const versioned = table.columns.includes("version");
+    const localVersions = new Map();
+    if (mode === "merge" && rows.length > 0) {
+      const sql = versioned ? `SELECT id, version FROM ${table.table}` : `SELECT id FROM ${table.table}`;
+      for (const row of await query(sql)) localVersions.set(row.id, versioned ? Number(row.version) || 0 : Infinity);
+    }
+    const placeholders = table.columns.map(() => "?").join(", ");
+    const statement = `INSERT OR REPLACE INTO ${table.table} (${table.columns.join(", ")}) VALUES (${placeholders})`;
+    for (const row of rows) {
+      if (!row || typeof row !== "object" || typeof row.id !== "string" || row.id.length === 0) {
+        throw new Error("The backup contains a record Hearth cannot read.");
+      }
+      if (row.storage_key != null && !BackupFormat.isSafeStorageKey(row.storage_key)) {
+        throw new Error("The backup contains a document Hearth cannot read.");
+      }
+      if (localVersions.has(row.id) && localVersions.get(row.id) > (Number(row.version) || 0)) {
+        kept += 1;
+        continue;
+      }
+      const fields = new Map(Object.entries(row));
+      set.push({ statement, values: table.columns.map((column) => restoreValue(fields.get(column))) });
+      restored += 1;
+    }
+  }
+  // A backup without a profile row still leaves the phone with one.
+  const now = nowIso();
+  set.push({
+    statement: "INSERT OR IGNORE INTO local_profile (id, display_name, default_currency, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, 1)",
+    values: ["local", "Hearth standalone", "AUD", now, now],
+  });
+  return { set, restored, kept };
+}
+
+async function fileExists(path) {
+  return Filesystem.stat({ directory: FILE_DIRECTORY, path }).then(() => true, () => false);
+}
+
+async function ensureParentDir(path) {
+  const parent = path.slice(0, path.lastIndexOf("/"));
+  await Filesystem.mkdir({ directory: FILE_DIRECTORY, path: parent, recursive: true }).catch(() => undefined);
+}
+
+async function referencedStorageKeys() {
+  const rows = [
+    ...(await query("SELECT storage_key FROM documents")),
+    ...(await query("SELECT storage_key FROM inbox_documents")),
+  ];
+  return new Set(rows.map((row) => row.storage_key).filter(Boolean));
+}
+
+async function writeRestoreJournal(journal) {
+  await prefSet(RESTORE_JOURNAL_KEY, JSON.stringify(journal));
+}
+
+// Puts back every file a restore moved, newest first: placed files are
+// removed and the originals they displaced return.
+async function rollbackRestoreFiles(journal) {
+  for (const key of [...journal.placed].reverse()) {
+    await Filesystem.deleteFile({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${key}` }).catch(() => undefined);
+  }
+  for (const key of journal.aside) {
+    await ensureParentDir(`${FILE_ROOT}/${key}`);
+    await Filesystem.rename({ directory: FILE_DIRECTORY, from: `${RESTORE_ASIDE_ROOT}/${key}`, to: `${FILE_ROOT}/${key}` }).catch(() => undefined);
+  }
+}
+
+// After the database commit: drop the displaced originals and, for Replace,
+// the files of documents the backup no longer has. Returns the files that
+// could not be deleted.
+async function finishRestoreFiles(journal) {
+  let undeleted = 0;
+  if (journal.mode === "replace") {
+    const referenced = await referencedStorageKeys();
+    for (const key of journal.priorKeys) {
+      if (referenced.has(key)) continue;
+      await Filesystem.deleteFile({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${key}` }).catch(async () => {
+        if (await fileExists(`${FILE_ROOT}/${key}`)) undeleted += 1;
+      });
+    }
+  }
+  await Filesystem.rmdir({ directory: FILE_DIRECTORY, path: RESTORE_ASIDE_ROOT, recursive: true }).catch(() => undefined);
+  await prefRemove(RESTORE_JOURNAL_KEY);
+  return undeleted;
+}
+
+// Runs at launch. A restore that stopped part-way (the app was killed, the
+// phone died) is finished if its database write committed, or rolled back
+// if it did not, so files and records always agree.
+async function recoverInterruptedRestore() {
+  const raw = await prefGet(RESTORE_JOURNAL_KEY);
+  if (!raw || !Filesystem) return;
+  let journal;
+  try {
+    journal = JSON.parse(raw);
+  } catch {
+    await prefRemove(RESTORE_JOURNAL_KEY);
+    return;
+  }
+  const marker = await query("SELECT value FROM schema_metadata WHERE key = 'last_restore_id'").catch(() => []);
+  if (marker.some((row) => row.value === journal.id)) {
+    await finishRestoreFiles(journal);
+  } else {
+    await rollbackRestoreFiles(journal);
+    await Filesystem.rmdir({ directory: FILE_DIRECTORY, path: RESTORE_ASIDE_ROOT, recursive: true }).catch(() => undefined);
+    await prefRemove(RESTORE_JOURNAL_KEY);
+  }
+  await clearRestoreStaging();
+}
+
+// Files first, database second, each step journalled: every staged file is
+// checked, originals it replaces are moved aside (never deleted) and the new
+// file moved in; only then does one transaction write the rows plus a
+// restore marker. Any failure before the commit puts every file back. After
+// the commit the originals, and in Replace the files of documents the backup
+// doesn't have, are deleted.
+async function applyRestore({ tables, preferences, stagedKeys, mode, legacy = false }) {
+  const { set, restored, kept } = await buildRestoreStatements(tables, mode);
+  for (const key of stagedKeys) {
+    if (!(await fileExists(`${RESTORE_STAGING_ROOT}/${key}`))) throw new Error("Could not prepare the backup's documents on this phone. Nothing was changed.");
+  }
+  const journal = {
+    id: crypto.randomUUID(),
+    mode,
+    priorKeys: mode === "replace" ? [...(await referencedStorageKeys())] : [],
+    placed: [],
+    aside: [],
+  };
+  await writeRestoreJournal(journal);
+  try {
+    for (const key of stagedKeys) {
+      const to = `${FILE_ROOT}/${key}`;
+      await ensureParentDir(to);
+      if (await fileExists(to)) {
+        await ensureParentDir(`${RESTORE_ASIDE_ROOT}/${key}`);
+        await Filesystem.rename({ directory: FILE_DIRECTORY, from: to, to: `${RESTORE_ASIDE_ROOT}/${key}` });
+        journal.aside.push(key);
+        await writeRestoreJournal(journal);
+      }
+      await Filesystem.rename({ directory: FILE_DIRECTORY, from: `${RESTORE_STAGING_ROOT}/${key}`, to });
+      journal.placed.push(key);
+      await writeRestoreJournal(journal);
+    }
+    set.push({ statement: "INSERT OR REPLACE INTO schema_metadata (key, value) VALUES ('last_restore_id', ?)", values: [journal.id] });
+    await withExclusiveDb(() => SQLite.executeSet({ database: DB, set, transaction: true }));
+  } catch (error) {
+    await rollbackRestoreFiles(journal);
+    await Filesystem.rmdir({ directory: FILE_DIRECTORY, path: RESTORE_ASIDE_ROOT, recursive: true }).catch(() => undefined);
+    await prefRemove(RESTORE_JOURNAL_KEY);
+    throw new Error(`Restore failed, and this phone was left as it was (${error?.message || "unknown error"}).`);
+  }
+  const undeletedFiles = await finishRestoreFiles(journal);
+  const missingFiles = documentStorageKeys(tables).size - stagedKeys.length;
+  const restoredPreferences = new Map(Object.entries(preferences && typeof preferences === "object" ? preferences : {}));
+  for (const key of BACKUP_PREFERENCE_KEYS) {
+    const value = restoredPreferences.get(key);
+    if (typeof value === "string") await prefSet(key, value);
+  }
+  await loadStandaloneModuleSettings();
+  await loadReminderDeliveryState();
+  await loadData();
+  if (state.localRemindersEnabled) {
+    await syncLocalReminders(false).catch((error) => showStandaloneStatus(error.message || "Restored, but reminders could not be rescheduled."));
+  }
+  const parts = [`Restored ${restored} record${restored === 1 ? "" : "s"}`];
+  if (kept > 0) parts.push(`kept ${kept} already on this phone`);
+  if (missingFiles > 0) parts.push(`${missingFiles} document file${missingFiles === 1 ? "" : "s"} missing from the backup`);
+  if (undeletedFiles > 0) parts.push(`${undeletedFiles} old document file${undeletedFiles === 1 ? "" : "s"} could not be removed`);
+  showStandaloneStatus(`${parts.join(", ")}.${legacy ? " This was an unencrypted older backup: export a new encrypted one." : ""}`, true);
+  return { restored, kept, missingFiles };
+}
+
+function backupAge(iso) {
+  const at = Date.parse(iso ?? "");
+  return Number.isFinite(at) ? Math.floor((Date.now() - at) / 86400000) : null;
+}
+
+function hasStandaloneData() {
+  return BACKUP_TABLES.some((table) => table.key !== "profile" && table.key !== "reminderLogs" && (cache[table.key]?.length ?? 0) > 0);
+}
+
+// Dashboard nudge: shown once there is something to lose and the last
+// backup is missing or older than BACKUP_NUDGE_DAYS.
+function renderBackupNudge() {
+  if (!hasStandaloneData()) return "";
+  const age = backupAge(state.lastBackupAt);
+  if (age != null && age < BACKUP_NUDGE_DAYS) return "";
+  return `
+    <section class="card form-card warning-card" data-backup-nudge>
+      <h2>Back up this phone</h2>
+      <p class="card-meta">${age == null ? "Nothing on this phone has been backed up yet." : `Your last backup was ${age} days ago.`} If this phone is lost or reset, records and documents that are not backed up are gone.</p>
+      <div class="actions"><button data-nav="settings">Back up now</button></div>
+    </section>
+  `;
+}
+
+function lastBackupLabel() {
+  if (!state.lastBackupAt) return "Never";
+  return `${readableDate(state.lastBackupAt)}${backupAge(state.lastBackupAt) >= BACKUP_NUDGE_DAYS ? " (overdue)" : ""}`;
+}
+
+function renderBackupSettings() {
+  return `
+    <section class="card form-card">
+      <h2>Back up this phone</h2>
+      <p class="muted">Backups are encrypted with a password you choose and include every record, document and module setting. Keep the password safe: without it a backup cannot be opened, and Hearth cannot reset it.</p>
+      <div class="detail-grid">
+        ${detailLine("Last backup", lastBackupLabel())}
+        ${detailLine("Format", "Encrypted Hearth backup (.hearthbackup)")}
+      </div>
+      <form data-export-standalone-backup-form class="field-grid">
+        <label>Backup password<input name="password" type="password" autocomplete="new-password" minlength="${BackupFormat?.MIN_PASSWORD_LENGTH ?? 8}" required /></label>
+        <label>Confirm password<input name="confirm" type="password" autocomplete="new-password" required /></label>
+        <div class="actions">
+          <button type="submit" name="target" value="share">Export and share</button>
+          ${state.icloud?.available ? '<button type="submit" name="target" value="icloud" class="secondary">Back up to iCloud now</button>' : ""}
+        </div>
+      </form>
+    </section>
+    ${renderICloudSettings()}
+    <section class="card form-card">
+      <h2>Restore from a file</h2>
+      <p class="muted">Choose a .hearthbackup file (or an older Hearth JSON backup) from Files, iCloud Drive or Google Drive.</p>
+      <form data-import-standalone-backup-form class="field-grid">
+        <input name="file" type="file" required />
+        <label>Backup password<input name="password" type="password" autocomplete="current-password" /></label>
+        ${renderRestoreModeFields()}
+        <button type="submit">Restore backup</button>
+      </form>
+    </section>
+  `;
+}
+
+function renderRestoreModeFields() {
+  return `
+    <label>Restore mode
+      <select name="mode">
+        <option value="replace">Replace everything on this phone</option>
+        <option value="merge">Merge into this phone (keep newer local edits)</option>
+      </select>
+    </label>
+    <label class="checkbox-row"><input name="confirmReplace" type="checkbox" /> I understand Replace deletes records on this phone that are not in the backup</label>
+  `;
+}
+
+function renderICloudSettings() {
+  if (!ICloudBackup || !state.icloud) return "";
+  if (!state.icloud.available) {
+    return `
+      <section class="card form-card">
+        <h2>iCloud backup</h2>
+        <p class="muted">${escapeHtml(state.icloud.reason || "iCloud Drive is unavailable.")}</p>
+      </section>
+    `;
+  }
+  const backups = state.icloud.backups ?? [];
+  return `
+    <section class="card form-card">
+      <h2>iCloud backup</h2>
+      <p class="muted">Encrypted backups are saved to the Hearth folder in your iCloud Drive. Hearth keeps the newest ${ICLOUD_BACKUPS_KEPT}.</p>
+      <div class="detail-grid">
+        ${detailLine("Daily backup", state.icloudAutoBackup ? "On" : "Off")}
+        ${detailLine("Last iCloud backup", state.lastICloudBackupAt ? readableDate(state.lastICloudBackupAt) : "Never")}
+        ${detailLine("Backups in iCloud", String(backups.length))}
+      </div>
+      ${state.icloudAutoBackup
+        ? '<div class="actions"><button class="secondary" data-disable-icloud-auto-backup>Turn off daily backup</button></div>'
+        : `<form data-enable-icloud-auto-backup-form class="field-grid">
+            <p class="muted">Daily backup runs when you open Hearth, at most once a day. Its password is kept in this phone's keychain; you will need to type it to restore on a new phone.</p>
+            <label>Backup password<input name="password" type="password" autocomplete="new-password" minlength="${BackupFormat?.MIN_PASSWORD_LENGTH ?? 8}" required /></label>
+            <label>Confirm password<input name="confirm" type="password" autocomplete="new-password" required /></label>
+            <button type="submit">Turn on daily iCloud backup</button>
+          </form>`}
+      ${backups.length === 0 ? "" : `
+        <form data-restore-icloud-backup-form class="field-grid">
+          <h3>Restore from iCloud</h3>
+          <label>Backup
+            <select name="backup">
+              ${backups.map((backup) => `<option value="${escapeAttr(backup.name)}">${escapeHtml(`${readableDate(backup.modifiedAt)} · ${bytesLabel(backup.size)}${backup.downloaded ? "" : " · in iCloud"}`)}</option>`).join("")}
+            </select>
+          </label>
+          <label>Backup password<input name="password" type="password" autocomplete="current-password" required /></label>
+          ${renderRestoreModeFields()}
+          <button type="submit">Restore from iCloud</button>
+        </form>`}
+    </section>
+  `;
 }
 
 async function readStoredFileBase64(storageKey) {
   if (!Filesystem || !storageKey) return null;
   const result = await Filesystem.readFile({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${storageKey}` });
   return String(result.data ?? "");
-}
-
-async function importStandaloneBackup(file) {
-  if (!file) throw new Error("Choose a backup file first.");
-  const backup = JSON.parse(await file.text());
-  if (backup?.kind !== "hearth-standalone-backup" || typeof backup.tables !== "object") {
-    throw new Error("That is not a Hearth standalone backup.");
-  }
-  let imported = 0;
-  for (const table of BACKUP_TABLES) {
-    const rows = Array.isArray(backup.tables[table.key]) ? backup.tables[table.key] : [];
-    for (const row of rows) {
-      await upsertBackupRow(table, row);
-      imported += 1;
-    }
-  }
-  await loadData();
-  showStandaloneStatus(`Imported ${imported} backup row${imported === 1 ? "" : "s"}.`, true);
-}
-
-async function upsertBackupRow(table, row) {
-  if (!row || typeof row !== "object") return;
-  const values = table.columns.map((column) => row[column] ?? null);
-  const placeholders = table.columns.map(() => "?").join(", ");
-  await run(`INSERT OR REPLACE INTO ${table.table} (${table.columns.join(", ")}) VALUES (${placeholders})`, values);
-  if (["documents", "inboxDocuments"].includes(table.key) && row.storage_key && row.file_data && Filesystem) {
-    await Filesystem.writeFile({
-      directory: FILE_DIRECTORY,
-      path: `${FILE_ROOT}/${row.storage_key}`,
-      data: String(row.file_data),
-      recursive: true,
-    }).catch(() => undefined);
-  }
 }
 
 function monthlyEquivalent(cost, frequency) {
@@ -4251,14 +4870,10 @@ async function purgeDocument(id) {
   const inbox = await query("SELECT id FROM inbox_documents WHERE storage_key = ? AND deleted_at IS NULL LIMIT 1", [doc.storage_key]);
   if (inbox.length === 0) await deleteStoredFile(doc.storage_key);
   // The next version now follows this one's older version, so the chain stays whole.
-  await SQLite.executeSet({
-    database: DB,
-    transaction: true,
-    set: [
-      { statement: "UPDATE documents SET supersedes_id = ?, version = version + 1 WHERE supersedes_id = ?", values: [doc.supersedes_id ?? null, doc.id] },
-      { statement: "DELETE FROM documents WHERE id = ?", values: [doc.id] },
-    ],
-  });
+  await runSet([
+    { statement: "UPDATE documents SET supersedes_id = ?, version = version + 1 WHERE supersedes_id = ?", values: [doc.supersedes_id ?? null, doc.id] },
+    { statement: "DELETE FROM documents WHERE id = ?", values: [doc.id] },
+  ]);
   return doc;
 }
 
@@ -4588,20 +5203,16 @@ async function renewContract(form) {
       if (documentId && !candidates.some((doc) => doc.id === documentId)) throw new Error("That document can't be linked to the term being kept.");
     }
     const now = nowIso();
-    await SQLite.executeSet({
-      database: DB,
-      transaction: true,
-      set: [
-        {
-          statement: "INSERT INTO contract_terms (id, contract_id, start_date, end_date, cost, currency, billing_frequency, document_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-          values: [localId("term"), id, row.start_date ?? null, row.end_date ?? null, row.cost ?? null, row.currency || defaultCurrency(), row.billing_frequency ?? null, documentId, now],
-        },
-        {
-          statement: "UPDATE contracts SET start_date = ?, end_date = ?, cost = ?, updated_at = ?, version = version + 1 WHERE id = ?",
-          values: [startDate, endDate, numberOrNull(fieldValue(form, "cost")), now, id],
-        },
-      ],
-    });
+    await runSet([
+      {
+        statement: "INSERT INTO contract_terms (id, contract_id, start_date, end_date, cost, currency, billing_frequency, document_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        values: [localId("term"), id, row.start_date ?? null, row.end_date ?? null, row.cost ?? null, row.currency || defaultCurrency(), row.billing_frequency ?? null, documentId, now],
+      },
+      {
+        statement: "UPDATE contracts SET start_date = ?, end_date = ?, cost = ?, updated_at = ?, version = version + 1 WHERE id = ?",
+        values: [startDate, endDate, numberOrNull(fieldValue(form, "cost")), now, id],
+      },
+    ]);
     await maybeStoreFormFile(form, "contract", id);
   } catch (error) {
     if (submit) submit.disabled = false;
@@ -4896,8 +5507,9 @@ mobileView.addEventListener("click", async (event) => {
     await confirmDetails(button.dataset.confirmDetails, button.dataset.id);
     return;
   }
-  if (button.dataset.exportStandaloneBackup !== undefined) {
-    await exportStandaloneBackup().catch((error) => showStandaloneStatus(error.message || "Could not export backup."));
+  if (button.dataset.disableIcloudAutoBackup !== undefined) {
+    await disableICloudAutoBackup().catch((error) => showStandaloneStatus(error.message || "Could not turn off iCloud backup."));
+    await render();
     return;
   }
   if (button.dataset.cancelForm !== undefined) {
@@ -4998,8 +5610,35 @@ mobileView.addEventListener("submit", async (event) => {
       await render();
       return;
     }
+    if (form.dataset.exportStandaloneBackupForm !== undefined) {
+      const data = new FormData(form);
+      const password = String(data.get("password") ?? "");
+      const confirm = String(data.get("confirm") ?? "");
+      if (event.submitter?.value === "icloud") {
+        checkNewBackupPassword(password, confirm);
+        showStandaloneStatus("Backing up to iCloud…", true);
+        const { name, missingFiles } = await backupToICloud(password);
+        await refreshICloudBackups();
+        showStandaloneStatus(`Backup ${name} saved to iCloud Drive.${missingFilesNote(missingFiles)}`, true);
+      } else {
+        await exportAndShareBackup(password, confirm);
+      }
+      await render();
+      return;
+    }
+    if (form.dataset.enableIcloudAutoBackupForm !== undefined) {
+      const data = new FormData(form);
+      await enableICloudAutoBackup(String(data.get("password") ?? ""), String(data.get("confirm") ?? ""));
+      await render();
+      return;
+    }
     if (form.dataset.importStandaloneBackupForm !== undefined) {
-      await importStandaloneBackup(formFile(form));
+      await restoreFromFile(form);
+      await render();
+      return;
+    }
+    if (form.dataset.restoreIcloudBackupForm !== undefined) {
+      await restoreFromICloud(form);
       await render();
       return;
     }
@@ -5012,6 +5651,12 @@ mobileView.addEventListener("submit", async (event) => {
   } catch (error) {
     showStandaloneStatus(error.message || "Could not save.");
   }
+});
+
+// A daily iCloud backup is due-checked whenever the app returns to the
+// foreground, not just at launch (#226).
+AppPlugin?.addListener?.("appStateChange", ({ isActive }) => {
+  if (isActive && !standaloneScreen.hidden) void maybeRunICloudAutoBackup();
 });
 
 (async function init() {
