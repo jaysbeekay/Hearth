@@ -18,12 +18,12 @@ import { mergeClasses } from "@/lib/ui";
 
 export type ButtonVariant = "primary" | "secondary" | "quiet" | "danger";
 
-export const buttonVariants: Record<ButtonVariant, string> = {
-  primary: "bg-accent text-accent-foreground hover:bg-accent/90",
-  secondary: "border border-border bg-surface text-foreground hover:bg-hover-surface",
-  quiet: "text-foreground hover:bg-hover",
-  danger: "bg-danger text-danger-foreground hover:bg-danger/90",
-};
+export const buttonVariants = new Map<ButtonVariant, string>([
+  ["primary", "bg-accent text-accent-foreground hover:bg-accent/90"],
+  ["secondary", "border border-border bg-surface text-foreground hover:bg-hover-surface"],
+  ["quiet", "text-foreground hover:bg-hover"],
+  ["danger", "bg-danger text-danger-foreground hover:bg-danger/90"],
+]);
 
 const BUTTON_BASE =
   "relative inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors after:absolute after:content-[''] disabled:cursor-not-allowed disabled:opacity-60";
@@ -40,7 +40,7 @@ export function buttonClass(
     cn(
       BUTTON_BASE,
       iconOnly ? "w-9 after:-inset-1" : "px-3 after:inset-x-0 after:-inset-y-1",
-      buttonVariants[variant],
+      buttonVariants.get(variant) ?? "",
       !online && "pointer-events-none opacity-40",
     ),
     className,

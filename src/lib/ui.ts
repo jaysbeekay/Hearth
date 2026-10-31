@@ -72,16 +72,16 @@ export type PillTone = "danger" | "warning" | "success" | "accent" | "neutral";
 
 const PILL_BASE = "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-lg px-2 py-0.5 text-xs font-medium";
 
-const PILL_TONE: Record<PillTone, string> = {
-  danger: "bg-danger/10 text-danger",
-  warning: "bg-warning/10 text-warning",
-  success: "bg-success/10 text-success",
-  accent: "bg-accent/10 text-accent",
-  neutral: "bg-muted/10 text-muted",
-};
+const PILL_TONE = new Map<PillTone, string>([
+  ["danger", "bg-danger/10 text-danger"],
+  ["warning", "bg-warning/10 text-warning"],
+  ["success", "bg-success/10 text-success"],
+  ["accent", "bg-accent/10 text-accent"],
+  ["neutral", "bg-muted/10 text-muted"],
+]);
 
 export function pillClass(tone: PillTone = "neutral", extra?: string) {
-  return mergeClasses(join(PILL_BASE, PILL_TONE[tone]), extra);
+  return mergeClasses(join(PILL_BASE, PILL_TONE.get(tone) ?? ""), extra);
 }
 
 /** Text that lines up with pills but has no tint (a `later` date). */
@@ -97,22 +97,22 @@ export const plainPillClass = "inline-flex shrink-0 items-center gap-1 whitespac
  */
 export type BannerTone = "danger" | "warning" | "success" | "accent" | "neutral" | "plain";
 
-const BANNER_TONE: Record<BannerTone, string> = {
-  danger: "border-danger/30 bg-danger/10 text-danger",
-  warning: "border-warning/30 bg-warning/10 text-warning",
-  success: "border-success/30 bg-success/10 text-success",
-  accent: "border-accent/30 bg-accent/5 text-foreground",
-  neutral: "border-border bg-muted/10 text-foreground",
-  plain: "border-border bg-surface text-foreground",
-};
+const BANNER_TONE = new Map<BannerTone, string>([
+  ["danger", "border-danger/30 bg-danger/10 text-danger"],
+  ["warning", "border-warning/30 bg-warning/10 text-warning"],
+  ["success", "border-success/30 bg-success/10 text-success"],
+  ["accent", "border-accent/30 bg-accent/5 text-foreground"],
+  ["neutral", "border-border bg-muted/10 text-foreground"],
+  ["plain", "border-border bg-surface text-foreground"],
+]);
 
 /** Only the border, tint and text colour, for a banner with its own layout. */
 export function bannerToneClass(tone: BannerTone) {
-  return BANNER_TONE[tone];
+  return BANNER_TONE.get(tone) ?? "";
 }
 
 export function bannerClass(tone: BannerTone = "neutral", extra?: string) {
-  return mergeClasses(join("rounded-lg border px-4 py-3 text-sm", BANNER_TONE[tone]), extra);
+  return mergeClasses(join("rounded-lg border px-4 py-3 text-sm", BANNER_TONE.get(tone) ?? ""), extra);
 }
 
 // ---- Filter chip ----------------------------------------------------------
@@ -161,13 +161,13 @@ export const selectClass = `${inputClass} appearance-none pr-8`;
  */
 export type PageWidth = "list" | "detail" | "form" | "auth";
 
-const PAGE_WIDTH: Record<PageWidth, string> = {
-  list: "max-w-5xl",
-  detail: "max-w-3xl",
-  form: "max-w-2xl",
-  auth: "max-w-sm",
-};
+const PAGE_WIDTH = new Map<PageWidth, string>([
+  ["list", "max-w-5xl"],
+  ["detail", "max-w-3xl"],
+  ["form", "max-w-2xl"],
+  ["auth", "max-w-sm"],
+]);
 
 export function pageShellClass(width: PageWidth, extra?: string) {
-  return mergeClasses(join("w-full space-y-6", PAGE_WIDTH[width]), extra);
+  return mergeClasses(join("w-full space-y-6", PAGE_WIDTH.get(width) ?? ""), extra);
 }
