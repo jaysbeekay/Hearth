@@ -152,6 +152,10 @@ security notes.
 | --- | --- |
 | ![Dashboard](docs/screenshots/dashboard.png) | ![Contracts list](docs/screenshots/contracts-list.png) |
 
+| Dashboard — dark | Contract detail — dark |
+| --- | --- |
+| ![Dashboard in dark mode](docs/screenshots/dashboard-dark.png) | ![Contract detail in dark mode](docs/screenshots/contract-detail-dark.png) |
+
 | Contract detail | Travel — trips |
 | --- | --- |
 | ![Contract detail](docs/screenshots/contract-detail.png) | ![Travel list](docs/screenshots/travel-list.png) |

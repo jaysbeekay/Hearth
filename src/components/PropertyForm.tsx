@@ -15,7 +15,7 @@ import {
   type QueuedOperation,
 } from "@/lib/offlineQueue";
 import { Field } from "@/components/FormField";
-import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
+import { SelectWrapper, inputClass, selectClass, textareaClass } from "@/components/SelectWrapper";
 import { OCCUPANCY_STATUSES } from "@/lib/validation/home";
 import { OCCUPANCY_STATUS_LABELS } from "@/lib/utils";
 import { Banner } from "@/components/ui";
@@ -171,7 +171,7 @@ export function PropertyForm({
           name="notes"
           rows={4}
           defaultValue={effectiveValues?.notes ?? property?.notes ?? ""}
-          className={inputClass}
+          className={textareaClass}
         />
       </Field>
 

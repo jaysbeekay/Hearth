@@ -19,7 +19,7 @@ import {
   type QueuedOperation,
 } from "@/lib/offlineQueue";
 import { Field } from "@/components/FormField";
-import { inputClass, selectClass } from "@/components/SelectWrapper";
+import { inputClass, selectClass, textareaClass } from "@/components/SelectWrapper";
 import { LinkedToField } from "@/components/LinkedToField";
 import { applyIfEmpty, markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 import { DateInput } from "@/components/DateInput";
@@ -398,7 +398,7 @@ export function ProductForm({
           name="notes"
           rows={4}
           defaultValue={effectiveValues?.notes ?? product?.notes ?? ""}
-          className={inputClass}
+          className={textareaClass}
         />
       </Field>
 

@@ -29,7 +29,7 @@ import {
 import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
-import { chipClass } from "@/lib/ui";
+import { chipClass, inputClass, mergeClasses, selectClass } from "@/lib/ui";
 import { EmptyState, PageShell } from "@/components/ui";
 
 const STATUS_LABELS: Record<string, string> = { ACTIVE: "Active", CANCELLED: "Cancelled" };
@@ -151,7 +151,7 @@ export function ContractListClient({
             clearTimeout(searchTimeout.current);
             searchTimeout.current = setTimeout(() => formRef.current?.requestSubmit(), 400);
           }}
-          className="flex-1 min-h-11 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-accent"
+          className={mergeClasses(inputClass, "flex-1")}
         />
         {/* #403 — w-full on the selects: in the stacked (phone) form the
             SelectWrapper stretches to the row, and a content-sized select left
@@ -161,7 +161,7 @@ export function ContractListClient({
             name="category"
             defaultValue={category ?? ""}
             onChange={(e) => e.currentTarget.form?.requestSubmit()}
-            className="min-h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-accent appearance-none pr-8"
+            className={selectClass}
           >
             <option value="">All categories</option>
             {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
@@ -176,7 +176,7 @@ export function ContractListClient({
             name="status"
             defaultValue={status ?? ""}
             onChange={(e) => e.currentTarget.form?.requestSubmit()}
-            className="min-h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-accent appearance-none pr-8"
+            className={selectClass}
           >
             <option value="">All statuses</option>
             <option value="ACTIVE">Active</option>

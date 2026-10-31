@@ -193,6 +193,24 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- **One set of UI rules (#411).** The app now uses five type sizes and two
+  weights, one 8px radius, no card shadows, 16px icons in content and 20px
+  in navigation, and one 36px input and select style. Cards, empty states,
+  status pills, banners, filter chips, menus and dialogs each come from one
+  shared definition (`src/lib/ui.ts`, `src/components/ui.tsx`), so a page
+  can't drift from the others. Buttons are cut to primary, secondary, quiet
+  and danger at one size, 36px to look at with a 44px hit area. Each page
+  has at most one filled primary button: row actions, empty-state calls to
+  action and detail-page Add buttons are secondary, and filled red is only
+  used inside confirm dialogs. Empty states are a plain bordered box instead
+  of a dashed one, and filter chips look like small buttons instead of
+  round pills. Page widths are fixed by page kind: lists and the dashboard
+  are wider, record pages narrower, and forms and settings narrower again.
+  Decorative icons are gone, including the large glyphs on the sign-in and
+  error pages, the chat avatars and the file icon on each Inbox row. README
+  screenshots are refreshed, with dark-mode captures of the dashboard and
+  a contract.
+
 - **An empty `APP_URL` now counts as unset (#477)**, so links fall back to
   `http://localhost:3000` instead of being built from an empty string. On
   Render, an unset `APP_URL` uses the service's own `RENDER_EXTERNAL_URL`.

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { startRegistration } from "@simplewebauthn/browser";
 import { buttonClass } from "@/lib/buttonStyles";
+import { inputClass, mergeClasses } from "@/lib/ui";
 
 export function PasskeyRegisterButton() {
   const router = useRouter();
@@ -65,7 +66,7 @@ export function PasskeyRegisterButton() {
           type="text"
           placeholder="Nickname (e.g. MacBook Touch ID)"
           maxLength={100}
-          className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+          className={mergeClasses(inputClass, "flex-1")}
         />
         <button
           type="button"

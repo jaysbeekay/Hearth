@@ -8,6 +8,7 @@ import { FormMessage } from "@/components/FormMessage";
 import { ASSET_CLASSES, ASSET_CLASS_LABELS } from "@/lib/validation/wealth";
 import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
+import { mergeClasses } from "@/lib/ui";
 
 const COMMON_EXCHANGES = ["ASX", "NYSE", "NASDAQ", "LSE", "TSX", "CRYPTO", "OTHER"];
 
@@ -50,7 +51,7 @@ export function HoldingForm({
           required
           defaultValue={state?.values?.ticker ?? holding?.ticker ?? ""}
           placeholder="e.g. CBA.AX, AAPL, bitcoin"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm outline-none focus:border-accent"
+          className={mergeClasses(inputClass, "font-mono")}
         />
         <p className="mt-1 text-xs text-muted">
           ASX: append .AX (e.g. CBA.AX) · Crypto: set the asset class to Crypto and use the CoinGecko ID (e.g. bitcoin) or symbol (e.g. BTC)

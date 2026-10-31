@@ -25,7 +25,7 @@ import type { DueContext } from "@/lib/duePolicy";
 import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
-import { chipClass } from "@/lib/ui";
+import { chipClass, inputClass, mergeClasses } from "@/lib/ui";
 import { EmptyState, PageShell } from "@/components/ui";
 
 const CHIPS: { chip: ToggleableFilter; label: string; onlyWhenActive?: boolean }[] = [
@@ -141,7 +141,7 @@ export function ProductListClient({
             clearTimeout(searchTimeout.current);
             searchTimeout.current = setTimeout(() => formRef.current?.requestSubmit(), 400);
           }}
-          className="flex-1 min-h-11 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-accent"
+          className={mergeClasses(inputClass, "flex-1")}
         />
         <button
           type="submit"

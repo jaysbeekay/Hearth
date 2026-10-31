@@ -29,7 +29,7 @@ export function ChatThreadList({
         <Link
           href="/assistant"
           onClick={onNavigate}
-          className={buttonClass("primary")}
+          className={buttonClass("secondary", { className: "w-full" })}
         >
           <Plus size={16} />
           New chat

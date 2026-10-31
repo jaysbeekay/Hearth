@@ -14,7 +14,7 @@ import {
   type QueuedOperation,
 } from "@/lib/offlineQueue";
 import { Field } from "@/components/FormField";
-import { inputClass } from "@/components/SelectWrapper";
+import { inputClass, textareaClass } from "@/components/SelectWrapper";
 import { DateInput } from "@/components/DateInput";
 import { Banner } from "@/components/ui";
 
@@ -124,7 +124,7 @@ export function TripForm({
           name="notes"
           rows={4}
           defaultValue={effectiveValues?.notes ?? trip?.notes ?? ""}
-          className={inputClass}
+          className={textareaClass}
         />
       </Field>
 

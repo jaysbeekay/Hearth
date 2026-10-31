@@ -7,7 +7,7 @@ import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { Field } from "@/components/FormField";
-import { inputClass } from "@/components/SelectWrapper";
+import { inputClass, textareaClass } from "@/components/SelectWrapper";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
 import { applyIfEmpty, extractionMessage } from "@/lib/autoFillHighlight";
@@ -232,7 +232,7 @@ export function RentalStatementForm({
           name="notes"
           rows={3}
           defaultValue={state?.values?.notes ?? statement?.notes ?? ""}
-          className={inputClass}
+          className={textareaClass}
         />
       </Field>
 

@@ -140,6 +140,19 @@ export function overlayClass(extra?: string) {
   return mergeClasses("rounded-lg border border-border bg-surface shadow-overlay", extra);
 }
 
+// ---- Form controls --------------------------------------------------------
+
+/** Text inputs and selects: one 36px control. Textareas keep their own height. */
+export const inputClass =
+  "h-9 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none transition-colors focus:border-accent";
+
+/** A textarea: the input look at its own height. */
+export const textareaClass =
+  "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-accent";
+
+/** A select inside SelectWrapper, which draws the chevron in the pr-8 gap. */
+export const selectClass = `${inputClass} appearance-none pr-8`;
+
 // ---- Page width -----------------------------------------------------------
 
 /**

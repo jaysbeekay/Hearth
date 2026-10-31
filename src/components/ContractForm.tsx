@@ -13,7 +13,7 @@ import {
   CATEGORY_LABELS,
   RENEWAL_LABELS,
 } from "@/lib/utils";
-import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
+import { SelectWrapper, inputClass, selectClass, textareaClass } from "@/components/SelectWrapper";
 import { LinkedToField } from "@/components/LinkedToField";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
@@ -446,7 +446,7 @@ export function ContractForm({
           name="notes"
           rows={4}
           defaultValue={effectiveValues?.notes ?? contract?.notes ?? ""}
-          className={inputClass}
+          className={textareaClass}
         />
       </Field>
 

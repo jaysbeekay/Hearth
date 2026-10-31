@@ -42,7 +42,7 @@ export default async function SettingsPage() {
   const appUrl = env.appUrl ?? "http://localhost:3000";
 
   return (
-    <PageShell width="form">
+    <PageShell width="detail">
       <h1 className="text-2xl font-medium">Settings</h1>
       <p className="text-sm text-muted">
         These settings only affect your own account, not the rest of the household.
