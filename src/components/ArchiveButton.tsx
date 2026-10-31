@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Archive, ArchiveRestore } from "lucide-react";
 import { showToast } from "@/components/Toast";
+import { useCloseOverflowMenu } from "@/components/DetailOverflowMenu";
 import type { ActionState } from "@/lib/actions/auth";
 
 type Result = ActionState;
@@ -28,6 +29,7 @@ export function ArchiveButton({
   className?: string;
 }) {
   const router = useRouter();
+  const closeMenu = useCloseOverflowMenu();
   const [pending, setPending] = useState(false);
 
   async function run() {
@@ -71,11 +73,14 @@ export function ArchiveButton({
     }
   }
 
+  function handleClick() {
+    closeMenu();
+    run().catch(() => undefined);
+  }
+
   const Icon = mode === "archive" ? Archive : ArchiveRestore;
   return (
-    <button type="button" disabled={pending} onClick={() => {
-        run().catch(() => undefined);
-      }} className={className}>
+    <button type="button" disabled={pending} onClick={handleClick} className={className}>
       <Icon size={16} />
       {mode === "archive" ? "Archive" : "Restore"}
     </button>

@@ -173,6 +173,7 @@ describe("Due rows follow the Due policy (#384)", () => {
         {
           id: "v",
           label: "Car",
+          archivedAt: null,
           regoExpiry: inDays(-2),
           insuranceExpiry: inDays(90),
           nextServiceDue: inDays(5),

@@ -204,6 +204,7 @@ export async function getCalendarEvents(
           id: true,
           label: true,
           isRented: true,
+          archivedAt: true,
           rentalAgreements: LIVE_TENANCY_AGREEMENTS,
         },
       }),

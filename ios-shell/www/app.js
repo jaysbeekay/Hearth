@@ -2991,9 +2991,9 @@ function filingTargets() {
   return [
     ...cache.contracts.map((row) => filingTarget("contract", row.id, "Contract", recordTitle("contracts", row))),
     ...cache.products.map((row) => filingTarget("product", row.id, "Warranty", recordTitle("products", row))),
-    ...(moduleEnabled("vehicles") ? activeRows(cache.vehicles).map((row) => filingTarget("vehicle", row.id, "Vehicle", recordTitle("vehicles", row))) : []),
+    ...(moduleEnabled("vehicles") ? cache.vehicles.map((row) => filingTarget("vehicle", row.id, "Vehicle", archivedTitle("vehicles", row))) : []),
     ...(moduleEnabled("vehicles") ? cache.vehicleItems.map((row) => filingTarget("vehicle_item", row.id, "Service record", recordTitle("vehicleItems", row))) : []),
-    ...(moduleEnabled("properties") ? activeRows(cache.properties).map((row) => filingTarget("property", row.id, "Property", recordTitle("properties", row))) : []),
+    ...(moduleEnabled("properties") ? cache.properties.map((row) => filingTarget("property", row.id, "Property", archivedTitle("properties", row))) : []),
     ...(moduleEnabled("properties") ? cache.homeItems.map((row) => filingTarget("home_item", row.id, "Maintenance record", recordTitle("homeItems", row))) : []),
     ...(moduleEnabled("properties") ? cache.rentalAgreements.map((row) => filingTarget("rental_agreement", row.id, "Tenancy", recordTitle("rentalAgreements", row))) : []),
     ...(moduleEnabled("properties") ? cache.rentalStatements.map((row) => filingTarget("rental_statement", row.id, "Rental statement", recordTitle("rentalStatements", row))) : []),
@@ -3004,6 +3004,12 @@ function filingTargets() {
     ...(moduleEnabled("portfolios") ? cache.holdings.map((row) => filingTarget("holding", row.id, "Holding", recordTitle("holdings", row))) : []),
     ...(moduleEnabled("portfolios") ? cache.trades.map((row) => filingTarget("trade", row.id, "Trade", recordTitle("trades", row))) : []),
   ].sort((a, b) => a.label.localeCompare(b.label));
+}
+
+// Late paperwork (a sale receipt) still files to an Archived record, so it stays
+// in the picker, labelled (#355).
+function archivedTitle(type, row) {
+  return isArchived(row) ? `${recordTitle(type, row)} (archived)` : recordTitle(type, row);
 }
 
 function filingTarget(ownerType, ownerId, label, title) {
@@ -3317,7 +3323,7 @@ function contractOptions(selected) {
 // only useful once a property exists and the Home module is on — otherwise
 // show a hint instead of silently hiding the field with no explanation.
 function propertyPickerOrHint(propertyId) {
-  if (cache.properties.length > 0) {
+  if (activeRows(cache.properties).length > 0 || cache.properties.some((property) => property.id === propertyId)) {
     return `
       <label>Property<select name="propertyId">${propertyOptions(propertyId)}</select></label>
     `;

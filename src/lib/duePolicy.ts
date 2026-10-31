@@ -389,6 +389,10 @@ const VEHICLE_FIELDS: {
 ];
 
 function vehicleEntries(record: Extract<DueRecord, { kind: "vehicle" }>, ctx: DueContext): DueEntry[] {
+  // #355 — an Archived Vehicle has no entries. Whatever builds a vehicle
+  // DueRecord from a row (vehicleDue in dueRecords.ts, and the Covers
+  // builder #456/#487 adds, `vehicleDueRecord(row)`) must pass `archivedAt`
+  // through, or a sold Vehicle's dates come back.
   if (record.archivedAt != null) return [];
   const window = dueSoonWindow(record.reminderDaysBefore, ctx.defaultReminderDays);
   const entries: DueEntry[] = [];

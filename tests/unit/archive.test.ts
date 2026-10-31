@@ -215,13 +215,21 @@ describe("an Archived Vehicle stops driving Reminders", () => {
     expect(vi.mocked(sendExpiryWebhooks).mock.calls.map((c) => c[0].kind).sort()).toEqual(["contract", "vehicle"]);
   });
 
-  it("leaves it out of the household Reminder roll-up", async () => {
-    await createVehicleCommand({ label: "Old ute", regoExpiry: day("2026-11-24") }, actorId);
-    const archived = await createVehicleCommand({ label: "Sold car", regoExpiry: day("2026-11-24") }, actorId);
-    await archiveVehicleCommand(archived.id, actorId);
-    const health = await getHouseholdReminderHealth();
-    const labels = JSON.stringify(health);
-    expect(labels).not.toContain("Sold car");
+  it("leaves it out of the household Reminder roll-up, which still lists an active Vehicle", async () => {
+    // A failed delivery for a date inside 90 days makes a Vehicle "uncovered".
+    const soon = daysFromNow(10);
+    const fail = (vehicleId: string) =>
+      db.prisma.notificationLog.create({
+        data: { ownerType: "VEHICLE", ownerId: vehicleId, field: "regoExpiry", channel: "WEBHOOK", thresholdDays: 14, status: "FAILED", error: "boom", dueDate: soon },
+      });
+    const daily = await createVehicleCommand({ label: "Daily car", regoExpiry: soon }, actorId);
+    const sold = await createVehicleCommand({ label: "Sold car", regoExpiry: soon }, actorId);
+    await fail(daily.id);
+    await fail(sold.id);
+    await archiveVehicleCommand(sold.id, actorId);
+    const titles = (await getHouseholdReminderHealth()).uncovered.map((u) => u.title);
+    expect(titles.some((t) => t.startsWith("Daily car"))).toBe(true);
+    expect(titles.some((t) => t.startsWith("Sold car"))).toBe(false);
   });
 });
 

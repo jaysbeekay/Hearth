@@ -19,6 +19,7 @@ const RENTED_PROPERTY_SELECT = {
   id: true,
   label: true,
   isRented: true,
+  archivedAt: true,
   rentalAgreements: LIVE_TENANCY_AGREEMENTS,
 } as const;
 
@@ -27,6 +28,11 @@ async function currentTenanciesWhere(where: Prisma.PropertyWhereInput): Promise<
   const properties = await prisma.property.findMany({
     // Neither in Trash nor Archived (#355): the household no longer has
     // an Archived Property, so its lease end isn't Due and gets no Reminders.
+    // currentTenancy() also returns null for an Archived Property, so a
+    // caller with its own query can't bring it back without selecting
+    // `archivedAt` (it's a required field). The Covers work (#456/#487)
+    // builds Vehicle Due records through vehicleDueRecord(row), which must
+    // carry `archivedAt` for the same reason.
     where: { ...where, deletedAt: null, archivedAt: null, isRented: true },
     select: RENTED_PROPERTY_SELECT,
   });

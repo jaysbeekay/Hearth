@@ -59,7 +59,10 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   the Assistant's and MCP's vehicle and property lists, and an Archived
   Vehicle is never "missing key details". An Archived Property's valuation
   no longer counts toward net worth. They're also left out of the pickers
-  for linking new Contracts, Warranties and Inbox Documents. Contracts
+  for linking new Contracts and Warranties, but stay in the Inbox and Import
+  filing pickers, labelled "(archived)", for late paperwork. The vehicle and
+  home CSV exports gain an Archived column, and an Archived record's page
+  lists the active Contracts still linked to it. Contracts
   linked to an Archived Vehicle or Property keep their own Reminders, since
   a Contract is its own Due source. Items follow after #380. The standalone
   mobile shell has the same Archive and Restore, an Archived filter chip, and
@@ -70,6 +73,7 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   General Public License v3.0), a `license` field in `package.json`, and an
   updated README "License" section. This is the licence a managed host such
   as PikaPods needs before it can list the app.
+
 - **Health check endpoint and hosting notes (#477).** `GET /api/health`
   answers `200 {"status":"ok"}` when the app can read its database file, and
   `503 {"status":"unavailable"}` when it can't. The result is reused for 5

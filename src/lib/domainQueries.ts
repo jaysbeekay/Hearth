@@ -531,6 +531,7 @@ export async function whatsDue(enabledModules: Set<ModuleKey>, withinDays: numbe
             label: true,
             regoExpiry: true,
             insuranceExpiry: true,
+            archivedAt: true,
             nextServiceDue: true,
             reminderDaysBefore: true,
           },
@@ -539,7 +540,7 @@ export async function whatsDue(enabledModules: Set<ModuleKey>, withinDays: numbe
     enabledModules.has("HOME")
       ? prisma.property.findMany({
           where: { deletedAt: null, archivedAt: null, isRented: true },
-          select: { id: true, label: true, isRented: true, rentalAgreements: LIVE_TENANCY_AGREEMENTS },
+          select: { id: true, label: true, isRented: true, archivedAt: true, rentalAgreements: LIVE_TENANCY_AGREEMENTS },
         })
       : [],
   ]);

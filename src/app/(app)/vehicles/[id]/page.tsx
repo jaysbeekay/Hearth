@@ -121,7 +121,7 @@ export default async function VehicleDetailPage({
                     noun="vehicle"
                     action={archiveVehicle.bind(null, vehicle.id)}
                     undo={unarchiveVehicle.bind(null, vehicle.id)}
-                    className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-hover"
+                    className="flex min-h-11 w-full items-center gap-2 px-4 py-2 text-sm hover:bg-hover"
                   />
                 )}
                 <ConfirmForm
@@ -141,13 +141,18 @@ export default async function VehicleDetailPage({
       </div>
 
       {vehicle.archivedAt && (
-        <ArchivedNotice archivedAt={vehicle.archivedAt} dateFormat={dateFormat} what="rego, insurance and service dates">
+        <ArchivedNotice
+          archivedAt={vehicle.archivedAt}
+          dateFormat={dateFormat}
+          effect="Reminders and Needs attention no longer include its rego, insurance or service dates."
+          activeContracts={linkedContracts.filter((c) => c.status === "ACTIVE")}
+        >
           {canWrite && (
             <ArchiveButton
               mode="restore"
               noun="vehicle"
               action={unarchiveVehicle.bind(null, vehicle.id)}
-              className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
             />
           )}
         </ArchivedNotice>

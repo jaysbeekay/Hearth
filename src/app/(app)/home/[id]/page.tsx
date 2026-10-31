@@ -97,11 +97,10 @@ export default async function PropertyDetailPage({
   const tenancy = currentTenancy(property);
   // #388 — the lease end gets Reminders like any other Due entry; the card
   // reads the same Reminder schedule the scheduler sends from.
-  // An Archived Property's lease end is no longer Due and gets no Reminders
-  // (#355), so it shows neither a banner nor a Reminder card.
-  const dueTenancy = property.archivedAt ? null : tenancy;
-  const leaseReminderHealth = dueTenancy?.leaseEnd
-    ? await getReminderHealth({ ownerType: "TENANCY", ownerId: dueTenancy.id, record: { kind: "tenancy", ...dueTenancy } })
+  // An Archived Property has no current Tenancy (#355), so it shows neither a
+  // lease banner nor a Reminder card.
+  const leaseReminderHealth = tenancy?.leaseEnd
+    ? await getReminderHealth({ ownerType: "TENANCY", ownerId: tenancy.id, record: { kind: "tenancy", ...tenancy } })
     : null;
 
   const latestValuation = property.valuations[0] ?? null;
@@ -152,7 +151,7 @@ export default async function PropertyDetailPage({
                     noun="property"
                     action={archiveProperty.bind(null, property.id)}
                     undo={unarchiveProperty.bind(null, property.id)}
-                    className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-hover"
+                    className="flex min-h-11 w-full items-center gap-2 px-4 py-2 text-sm hover:bg-hover"
                   />
                 )}
                 <ConfirmForm
@@ -172,24 +171,29 @@ export default async function PropertyDetailPage({
       </div>
 
       {property.archivedAt && (
-        <ArchivedNotice archivedAt={property.archivedAt} dateFormat={dateFormat} what="lease end">
+        <ArchivedNotice
+          archivedAt={property.archivedAt}
+          dateFormat={dateFormat}
+          effect={property.isRented ? "Reminders and Needs attention no longer include its lease end." : undefined}
+          activeContracts={linkedContracts.filter((c) => c.status === "ACTIVE")}
+        >
           {canWrite && (
             <ArchiveButton
               mode="restore"
               noun="property"
               action={unarchiveProperty.bind(null, property.id)}
-              className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
             />
           )}
         </ArchivedNotice>
       )}
 
-      {dueTenancy && (
+      {tenancy && (
         <DetailStatusBanner
-          entries={tenancyDue(dueTenancy, due)}
+          entries={tenancyDue(tenancy, due)}
           hasDocuments
           documentsHref={`/home/${property.id}/rental`}
-          editHref={`/home/${property.id}/rental/agreements/${dueTenancy.id}/edit`}
+          editHref={`/home/${property.id}/rental/agreements/${tenancy.id}/edit`}
           renewLabel="Update tenancy"
           newEndDateLabel="Set the new lease end"
           newEndDateMessage="Lease ended."
@@ -442,12 +446,12 @@ export default async function PropertyDetailPage({
         </div>
       )}
 
-      {dueTenancy && leaseReminderHealth && (
+      {tenancy && leaseReminderHealth && (
         <ReminderHealthCard
           title="Lease reminders"
           health={leaseReminderHealth}
           dateFormat={dateFormat}
-          testTarget={{ kind: "tenancy", id: dueTenancy.id }}
+          testTarget={{ kind: "tenancy", id: tenancy.id }}
         />
       )}
 

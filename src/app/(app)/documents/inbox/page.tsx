@@ -47,12 +47,16 @@ export default async function InboxPage({
   ]);
   const [properties, vehicles] = await Promise.all([
     enabledModules.has("HOME")
-      ? prisma.property.findMany({ where: { deletedAt: null, archivedAt: null }, select: { id: true, label: true } })
+      ? prisma.property.findMany({ where: { deletedAt: null }, select: { id: true, label: true, archivedAt: true } })
       : [],
     enabledModules.has("VEHICLES")
-      ? prisma.vehicle.findMany({ where: { deletedAt: null, archivedAt: null }, select: { id: true, label: true } })
+      ? prisma.vehicle.findMany({ where: { deletedAt: null }, select: { id: true, label: true, archivedAt: true } })
       : [],
   ]);
+  // #355 — late paperwork (a sale receipt, a final invoice) still files to an
+  // Archived record, so it stays in the picker, labelled.
+  const withArchivedLabel = (rows: { id: string; label: string; archivedAt: Date | null }[]) =>
+    rows.map((row) => ({ id: row.id, label: row.archivedAt ? `${row.label} (archived)` : row.label }));
   const hasMore = rows.length > PAGE_SIZE;
   const docs = rows.slice(0, PAGE_SIZE);
 
@@ -116,8 +120,8 @@ export default async function InboxPage({
           duplicateOf: duplicatesByDoc.get(d.id) ?? [],
         }))}
         inventoryEnabled={enabledModules.has("INVENTORY")}
-        properties={properties}
-        vehicles={vehicles}
+        properties={withArchivedLabel(properties)}
+        vehicles={withArchivedLabel(vehicles)}
         homeEnabled={enabledModules.has("HOME")}
         vehiclesEnabled={enabledModules.has("VEHICLES")}
       />

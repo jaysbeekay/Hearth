@@ -168,7 +168,7 @@ export async function GET(request: NextRequest) {
     // so moving the lease end updates the event instead of adding one.
     const rentedProperties = await prisma.property.findMany({
       where: { deletedAt: null, archivedAt: null, isRented: true },
-      select: { id: true, label: true, isRented: true, rentalAgreements: LIVE_TENANCY_AGREEMENTS },
+      select: { id: true, label: true, isRented: true, archivedAt: true, rentalAgreements: LIVE_TENANCY_AGREEMENTS },
     });
     for (const property of rentedProperties) {
       const tenancy = currentTenancy(property);

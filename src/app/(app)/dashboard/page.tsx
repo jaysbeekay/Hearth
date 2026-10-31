@@ -75,6 +75,7 @@ export default async function DashboardPage() {
               id: true,
               label: true,
               isRented: true,
+              archivedAt: true,
               rentalAgreements: LIVE_TENANCY_AGREEMENTS,
             },
           })

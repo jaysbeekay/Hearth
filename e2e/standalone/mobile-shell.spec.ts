@@ -1122,6 +1122,7 @@ test("standalone Archive takes a Vehicle out of Upcoming and Reminders, and Rest
   await page.locator('#mobile-view button[data-record-type="vehicles"]').click();
   await expect(page.getByRole("button", { name: /Family Car/ })).toHaveCount(0);
   await page.locator('.chip[data-record-filter="archived"]').click();
+  await expect(page.getByRole("button", { name: /Family Car/ })).toContainText("Archived");
   await page.getByRole("button", { name: /Family Car/ }).click();
   await expect(page.getByRole("button", { name: /Annual service/ })).toBeVisible();
 

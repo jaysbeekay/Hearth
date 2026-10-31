@@ -129,7 +129,7 @@ export function VehicleListClient({ vehicles, archivedVehicles = [], filters, co
           what the household still has. */}
       {!filtered && archivedVehicles.length > 0 && (
         <details data-testid="archived-section">
-          <summary className="cursor-pointer text-sm font-medium text-muted hover:text-foreground">
+          <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-muted hover:text-foreground">
             Archived ({archivedVehicles.length})
           </summary>
           <div className="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
