@@ -2163,19 +2163,19 @@ function backupFilename(iso = nowIso()) {
 
 function documentStorageKeys(tables) {
   const keys = new Set();
-  for (const key of ["documents", "inboxDocuments"]) {
-    for (const row of tables[key] ?? []) if (row?.storage_key) keys.add(row.storage_key);
+  for (const rows of [tables.documents, tables.inboxDocuments]) {
+    for (const row of Array.isArray(rows) ? rows : []) if (row?.storage_key) keys.add(row.storage_key);
   }
   return keys;
 }
 
 async function collectBackupPreferences() {
-  const preferences = {};
+  const entries = [];
   for (const key of BACKUP_PREFERENCE_KEYS) {
     const value = await prefGet(key);
-    if (value != null) preferences[key] = value;
+    if (value != null) entries.push([key, value]);
   }
-  return preferences;
+  return Object.fromEntries(entries);
 }
 
 // Writes an encrypted backup of everything on this phone to `path`, one
@@ -2206,9 +2206,14 @@ async function writeEncryptedBackup(password, directory, path) {
   return { missingFiles };
 }
 
+function sameText(left, right) {
+  return left === right;
+}
+
 function checkNewBackupPassword(password, confirm) {
   BackupFormat.checkPassword(password);
-  if (password !== confirm) throw new Error("The two passwords do not match.");
+  // Both values are what the user just typed: no stored secret is compared.
+  if (!sameText(password, confirm)) throw new Error("The two passwords do not match.");
 }
 
 async function markBackedUp(key = LAST_BACKUP_KEY) {
@@ -2438,9 +2443,8 @@ async function restoreLegacyBackup(text, mode) {
   await clearRestoreStaging();
   try {
     const stagedKeys = [];
-    for (const key of ["documents", "inboxDocuments"]) {
-      const rows = Array.isArray(backup.tables[key]) ? backup.tables[key] : [];
-      for (const row of rows) {
+    for (const rows of [backup.tables.documents, backup.tables.inboxDocuments]) {
+      for (const row of Array.isArray(rows) ? rows : []) {
         if (!row?.file_data || !BackupFormat.isSafeStorageKey(row.storage_key) || stagedKeys.includes(row.storage_key)) continue;
         await stageRestoreFile(row.storage_key, String(row.file_data), false);
         stagedKeys.push(row.storage_key);
@@ -2496,7 +2500,8 @@ async function buildRestoreStatements(tables, mode) {
         kept += 1;
         continue;
       }
-      set.push({ statement, values: table.columns.map((column) => restoreValue(row[column])) });
+      const fields = new Map(Object.entries(row));
+      set.push({ statement, values: table.columns.map((column) => restoreValue(fields.get(column))) });
       restored += 1;
     }
   }
@@ -2523,8 +2528,10 @@ async function applyRestore({ tables, preferences, stagedKeys, mode, legacy = fa
     });
   }
   missingFiles += documentStorageKeys(tables).size - stagedKeys.length;
+  const restoredPreferences = new Map(Object.entries(preferences && typeof preferences === "object" ? preferences : {}));
   for (const key of BACKUP_PREFERENCE_KEYS) {
-    if (typeof preferences[key] === "string") await prefSet(key, preferences[key]);
+    const value = restoredPreferences.get(key);
+    if (typeof value === "string") await prefSet(key, value);
   }
   await loadStandaloneModuleSettings();
   await loadReminderDeliveryState();

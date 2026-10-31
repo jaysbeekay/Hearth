@@ -57,10 +57,7 @@
   }
 
   function base64ToBytes(value) {
-    const binary = atob(value);
-    const bytes = new Uint8Array(binary.length);
-    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-    return bytes;
+    return Uint8Array.from(atob(value), (char) => char.charCodeAt(0));
   }
 
   function checkPassword(password) {
