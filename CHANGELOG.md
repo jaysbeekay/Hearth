@@ -611,6 +611,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **Contract and Warranty edit forms no longer offer Properties and Vehicles
+  in Trash (#489).** The Linked to picker lists only live records, as the
+  new-record forms already did, plus the record's current link if it is in
+  Trash, shown as "(in Trash)" so saving doesn't unlink it. Archived records
+  stay selectable. The "(in Trash)" wording now lives in one place
+  (`src/lib/trashWording.ts`), shared with the Inventory item edit form.
+
 - **Standalone shell: deleting a Document moves it to Trash with an Undo
   (#455).** Delete no longer asks first and removes the file at once. The
   Document goes to Trash with an Undo (several deletes keep several Undos),
