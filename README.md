@@ -887,6 +887,14 @@ GitHub Actions doesn't fire push-triggered workflows for refs created by its
 own token — so also run `docker-publish.yml` manually against the new tag
 in that case.
 
+`android-build.yml` and `ios-testflight.yml` also run on every `vx.y.z` tag.
+The iOS workflow signs the Capacitor shell and uploads it to TestFlight, with
+the version taken from the tag; see
+[`docs/deployment/ios-testflight.md`](./docs/deployment/ios-testflight.md) for
+the signing and App Store Connect secrets it needs. Like `docker-publish.yml`,
+run it manually against the tag when the tag came from `release.yml`'s
+dispatch.
+
 ## License
 
 Hearth is licensed under the [GNU Affero General Public License v3.0](LICENSE)

@@ -1,0 +1,265 @@
+name: Build iOS and upload to TestFlight
+
+# Builds the Capacitor shell (ios/ + ios-shell/www), signs it for App Store
+# distribution and uploads it to TestFlight. Required secrets and how to
+# create them: docs/deployment/ios-testflight.md.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: "Upload to TestFlight (always on when run against a v* tag)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-testflight-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    # Xcode 26 / iOS 26 SDK: the project was last upgraded with Xcode 26
+    # (LastUpgradeCheck 2660), and App Store Connect rejects uploads built
+    # with an older SDK.
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      HAS_SIGNING: ${{ secrets.IOS_DIST_CERT_P12_BASE64 != '' && secrets.IOS_PROVISIONING_PROFILE_BASE64 != '' }}
+      HAS_ASC_KEY: ${{ secrets.ASC_API_KEY_P8_BASE64 != '' && secrets.ASC_API_KEY_ID != '' && secrets.ASC_API_ISSUER_ID != '' }}
+      SHOULD_UPLOAD: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.upload == true }}
+      TEAM_ID: NANJZZ9DQR
+      BUNDLE_ID: com.hearthapp.app
+      PBXPROJ: ios/App/App.xcodeproj/project.pbxproj
+      ARCHIVE_PATH: ${{ github.workspace }}/build/Hearth.xcarchive
+      EXPORT_PATH: ${{ github.workspace }}/build/export
+    steps:
+      # Fail before spending macOS minutes when the secrets aren't there. A
+      # tag build that silently skipped TestFlight would look like a release
+      # that shipped.
+      - name: Require signing and App Store Connect secrets
+        if: ${{ env.HAS_SIGNING != 'true' || (env.SHOULD_UPLOAD == 'true' && env.HAS_ASC_KEY != 'true') }}
+        run: |
+          echo "::error::iOS signing / App Store Connect secrets are missing. Set" \
+               "IOS_DIST_CERT_P12_BASE64, IOS_DIST_CERT_PASSWORD," \
+               "IOS_PROVISIONING_PROFILE_BASE64, ASC_API_KEY_P8_BASE64," \
+               "ASC_API_KEY_ID and ASC_API_ISSUER_ID — see docs/deployment/ios-testflight.md."
+          exit 1
+
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Copies ios-shell/www into ios/App/App/public (gitignored) and
+      # regenerates CapApp-SPM's plugin list.
+      - name: Sync Capacitor iOS project
+        run: npx cap sync ios
+
+      - name: Resolve version and build number
+        id: version
+        run: |
+          # CFBundleShortVersionString comes from the tag (vX.Y.Z), or from
+          # package.json on a manual run against a branch. Apple only accepts
+          # up to three dot-separated integers, so a pre-release suffix such
+          # as -rc.1 is dropped.
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            RAW="${GITHUB_REF_NAME#v}"
+          else
+            RAW="$(node -p "require('./package.json').version")"
+          fi
+          VERSION="${RAW%%-*}"
+          VERSION="${VERSION%%+*}"
+          if ! [[ "$VERSION" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]]; then
+            echo "::error::'$RAW' does not give a valid iOS marketing version." >&2
+            exit 1
+          fi
+          # CFBundleVersion must be unique per marketing version and never go
+          # backwards. The workflow run number satisfies both and survives a
+          # re-tag or a re-run of a failed upload (run_attempt is folded in so
+          # a re-run doesn't reuse a number App Store Connect already saw).
+          BUILD="${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "build=$BUILD" >> "$GITHUB_OUTPUT"
+          echo "Marketing version $VERSION, build $BUILD"
+
+      - name: Install distribution certificate and provisioning profile
+        id: signing
+        env:
+          CERT_P12_BASE64: ${{ secrets.IOS_DIST_CERT_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+          PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/hearth-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
+
+          echo "$CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/dist.p12"
+          echo "$PROFILE_BASE64" | base64 --decode > "$RUNNER_TEMP/dist.mobileprovision"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/dist.p12" -P "$CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          rm -f "$RUNNER_TEMP/dist.p12"
+
+          security cms -D -i "$RUNNER_TEMP/dist.mobileprovision" > "$RUNNER_TEMP/profile.plist"
+          PROFILE_UUID="$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$RUNNER_TEMP/profile.plist")"
+          PROFILE_NAME="$(/usr/libexec/PlistBuddy -c 'Print :Name' "$RUNNER_TEMP/profile.plist")"
+          PROFILE_APP_ID="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$RUNNER_TEMP/profile.plist")"
+          if [ "$PROFILE_APP_ID" != "$TEAM_ID.$BUNDLE_ID" ]; then
+            echo "::error::Provisioning profile is for '$PROFILE_APP_ID', expected '$TEAM_ID.$BUNDLE_ID'." >&2
+            exit 1
+          fi
+          if /usr/libexec/PlistBuddy -c 'Print :ProvisionedDevices' "$RUNNER_TEMP/profile.plist" >/dev/null 2>&1; then
+            echo "::error::Provisioning profile '$PROFILE_NAME' lists devices, so it is an Ad Hoc or development profile. TestFlight needs an App Store Connect distribution profile." >&2
+            exit 1
+          fi
+
+          PROFILES_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$PROFILES_DIR"
+          cp "$RUNNER_TEMP/dist.mobileprovision" "$PROFILES_DIR/$PROFILE_UUID.mobileprovision"
+
+          echo "keychain=$KEYCHAIN" >> "$GITHUB_OUTPUT"
+          echo "profile_uuid=$PROFILE_UUID" >> "$GITHUB_OUTPUT"
+          echo "Installed profile '$PROFILE_NAME' ($PROFILE_UUID)"
+
+      # The committed project uses automatic signing with "Apple Development"
+      # for local work. For CI, switch only the App target's Release
+      # configuration to manual App Store signing and stamp the version, so
+      # Swift Package targets keep their own (unsigned) settings — command
+      # line build-setting overrides would apply to every target.
+      - name: Configure Release signing and version
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          BUILD: ${{ steps.version.outputs.build }}
+          PROFILE_UUID: ${{ steps.signing.outputs.profile_uuid }}
+        run: |
+          set -euo pipefail
+          perl -0pi -e '
+            s{(504EC3181FED79650016851F /\* Release \*/ = \{.*?name = Release;)}{
+              my $b = $1;
+              $b =~ s/CODE_SIGN_STYLE = \w+;/CODE_SIGN_STYLE = Manual;/;
+              $b =~ s/CODE_SIGN_IDENTITY = "[^"]*";/CODE_SIGN_IDENTITY = "Apple Distribution";/;
+              $b =~ s/PROVISIONING_PROFILE_SPECIFIER = "[^"]*";/PROVISIONING_PROFILE_SPECIFIER = "$ENV{PROFILE_UUID}";/;
+              $b =~ s/MARKETING_VERSION = [^;]+;/MARKETING_VERSION = $ENV{VERSION};/;
+              $b =~ s/CURRENT_PROJECT_VERSION = [^;]+;/CURRENT_PROJECT_VERSION = $ENV{BUILD};/;
+              $b
+            }se
+          ' "$PBXPROJ"
+          BLOCK="$(awk '/504EC3181FED79650016851F \/\* Release \*\/ = \{/,/name = Release;/' "$PBXPROJ")"
+          for expected in \
+            "CODE_SIGN_STYLE = Manual;" \
+            'CODE_SIGN_IDENTITY = "Apple Distribution";' \
+            "PROVISIONING_PROFILE_SPECIFIER = \"$PROFILE_UUID\";" \
+            "MARKETING_VERSION = $VERSION;" \
+            "CURRENT_PROJECT_VERSION = $BUILD;"; do
+            if ! grep -qF "$expected" <<< "$BLOCK"; then
+              echo "::error::Could not set '$expected' on the App target's Release configuration." >&2
+              exit 1
+            fi
+          done
+          echo "$BLOCK"
+
+      - name: Archive
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath "$ARCHIVE_PATH" \
+            OTHER_CODE_SIGN_FLAGS="--keychain ${{ steps.signing.outputs.keychain }}" \
+            2>&1 | tee "$RUNNER_TEMP/xcodebuild-archive.log"
+
+      - name: Export IPA
+        env:
+          PROFILE_UUID: ${{ steps.signing.outputs.profile_uuid }}
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>export</string>
+            <key>teamID</key><string>${TEAM_ID}</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>signingCertificate</key><string>Apple Distribution</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>${BUNDLE_ID}</key><string>${PROFILE_UUID}</string>
+            </dict>
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict>
+          </plist>
+          PLIST
+          xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportPath "$EXPORT_PATH" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            2>&1 | tee "$RUNNER_TEMP/xcodebuild-export.log"
+          ls -l "$EXPORT_PATH"
+          test -f "$EXPORT_PATH/App.ipa"
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: hearth-ios-${{ steps.version.outputs.version }}-${{ steps.version.outputs.build }}
+          path: ${{ env.EXPORT_PATH }}/App.ipa
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload to TestFlight
+        if: ${{ env.SHOULD_UPLOAD == 'true' }}
+        env:
+          ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          # altool looks for the key as AuthKey_<id>.p8 in this directory.
+          KEY_DIR="$HOME/.appstoreconnect/private_keys"
+          mkdir -p "$KEY_DIR"
+          echo "$ASC_API_KEY_P8_BASE64" | base64 --decode > "$KEY_DIR/AuthKey_${ASC_API_KEY_ID}.p8"
+          xcrun altool --upload-app \
+            --type ios \
+            --file "$EXPORT_PATH/App.ipa" \
+            --apiKey "$ASC_API_KEY_ID" \
+            --apiIssuer "$ASC_API_ISSUER_ID"
+          echo "Uploaded ${{ steps.version.outputs.version }} (${{ steps.version.outputs.build }}). It appears in TestFlight once App Store Connect finishes processing."
+
+      - name: Upload xcodebuild logs
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: xcodebuild-logs
+          path: ${{ runner.temp }}/xcodebuild-*.log
+          if-no-files-found: ignore
+
+      - name: Clean up signing material
+        if: ${{ always() }}
+        run: |
+          if [ -n "${{ steps.signing.outputs.keychain }}" ]; then
+            security delete-keychain "${{ steps.signing.outputs.keychain }}" || true
+          fi
+          rm -f "$RUNNER_TEMP/dist.mobileprovision" "$RUNNER_TEMP/profile.plist"
+          rm -rf "$HOME/.appstoreconnect/private_keys"
+          rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/${{ steps.signing.outputs.profile_uuid }}.mobileprovision"
