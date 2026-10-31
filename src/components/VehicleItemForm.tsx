@@ -9,7 +9,7 @@ import { FormMessage } from "@/components/FormMessage";
 import { Field } from "@/components/FormField";
 import { VEHICLE_ITEM_TYPES } from "@/lib/validation/vehicles";
 import { VEHICLE_ITEM_TYPE_LABELS } from "@/lib/utils";
-import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
+import { SelectWrapper, inputClass, textareaClass, selectClass } from "@/components/SelectWrapper";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
@@ -199,7 +199,7 @@ export function VehicleItemForm({
           name="notes"
           rows={4}
           defaultValue={state?.values?.notes ?? item?.notes ?? ""}
-          className={inputClass}
+          className={textareaClass}
         />
       </Field>
 

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { hashToken } from "@/lib/crypto";
 import { ResetPasswordForm } from "@/components/ResetPasswordForm";
+import { Card } from "@/components/ui/Card";
 
 export const metadata: Metadata = { title: "Reset password" };
 export const dynamic = "force-dynamic";
@@ -36,9 +37,9 @@ export default async function ResetPasswordPage({
         </div>
 
         {valid ? (
-          <div className="rounded-lg border border-border bg-surface p-6">
+          <Card>
             <ResetPasswordForm token={token} />
-          </div>
+          </Card>
         ) : (
           <p className="text-center text-sm text-muted">
             <Link href="/forgot-password" className="text-accent hover:underline">

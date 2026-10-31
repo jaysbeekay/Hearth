@@ -7,6 +7,8 @@ import { ExpiryBadge } from "@/components/ExpiryBadge";
 import { StatusPill } from "@/components/StatusPill";
 import { DismissibleRow } from "@/components/DismissibleRow";
 import type { AttentionItem } from "@/lib/needsAttention";
+import { Card } from "@/components/ui/Card";
+import { buttonClass } from "@/lib/ui";
 
 // Same key NotificationNudgeBanner used, so a household that already
 // dismissed that banner doesn't see the equivalent queue row reappear.
@@ -58,7 +60,7 @@ function AttentionList({ items, canWrite }: { items: AttentionItem[]; canWrite: 
     <ul className="space-y-2">
       {items.map((item) => {
         const row = (
-          <li className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface p-3 md:flex-nowrap">
+          <Card as="li" className="flex flex-wrap items-center gap-3 md:flex-nowrap">
             <Link href={item.href} className="min-w-0 flex-1 hover:underline">
               <p className="truncate text-sm font-medium">{item.title}</p>
               {item.subtitle && (
@@ -106,14 +108,14 @@ function AttentionList({ items, canWrite }: { items: AttentionItem[]; canWrite: 
                 {item.action && (
                   <Link
                     href={item.action.href}
-                    className="inline-flex items-center rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground hover:opacity-90"
+                    className={buttonClass("primary")}
                   >
                     {item.action.label}
                   </Link>
                 )}
               </div>
             )}
-          </li>
+          </Card>
         );
 
         if (item.id === "system-reminders") {

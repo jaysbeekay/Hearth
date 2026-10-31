@@ -4,6 +4,8 @@ import { useState, useTransition } from "react";
 import { Upload, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { parseTradesCsv, importTrades } from "@/lib/actions/wealth";
 import { buttonClass } from "@/lib/ui";
+import { Pill } from "@/components/ui/Pill";
+import { Banner } from "@/components/ui/Banner";
 
 interface ParsedRow {
   ticker: string;
@@ -76,17 +78,17 @@ export function WealthImportClient({ portfolioId }: Props) {
       </div>
 
       {parseError && (
-        <div className="flex items-start gap-2 rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
+        <Banner tone="danger" className="flex items-start gap-2">
           <AlertCircle size={16} className="mt-0.5 shrink-0" />
           {parseError}
-        </div>
+        </Banner>
       )}
 
       {result && (
-        <div className="flex items-start gap-2 rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
+        <Banner tone="success" className="flex items-start gap-2">
           <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
           {result}
-        </div>
+        </Banner>
       )}
 
       {rows.length > 0 && (
@@ -124,9 +126,9 @@ export function WealthImportClient({ portfolioId }: Props) {
                       {row.assetClass === "CRYPTO" && <span className="ml-1 font-sans text-xs font-normal text-muted">Crypto</span>}
                     </td>
                     <td className="px-3 py-2">
-                      <span className="rounded-full bg-muted/10 px-2 py-0.5 text-xs font-medium text-muted">
+                      <Pill>
                         {row.type}
-                      </span>
+                      </Pill>
                     </td>
                     <td className="px-3 py-2">{row.date}</td>
                     <td className="px-3 py-2 text-right">{row.units.toLocaleString()}</td>

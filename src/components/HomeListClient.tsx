@@ -12,6 +12,7 @@ import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
 import { useCanWrite } from "@/components/CanWriteProvider";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
+import { Card } from "@/components/ui/Card";
 
 type PropertyWithCount = PropertyModel & { _count: { items: number } };
 
@@ -54,7 +55,7 @@ export function HomeListClient({ properties, archivedProperties = [], taxDeducti
       />
 
       {taxDeductibleSummary.length > 0 && (
-        <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
+        <Card>
           <h2 className="mb-3 font-medium">Tax-deductible spending by financial year</h2>
           <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
             {taxDeductibleSummary.map(({ label, amount, currency }) => (
@@ -64,7 +65,7 @@ export function HomeListClient({ properties, archivedProperties = [], taxDeducti
               </div>
             ))}
           </dl>
-        </div>
+        </Card>
       )}
 
       {pendingOps.length > 0 && (

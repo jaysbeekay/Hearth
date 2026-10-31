@@ -3,6 +3,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { hashToken } from "@/lib/crypto";
 import { AcceptInvitationForm } from "@/components/AcceptInvitationForm";
+import { Card } from "@/components/ui/Card";
 
 export const metadata: Metadata = { title: "Accept invitation" };
 export const dynamic = "force-dynamic";
@@ -43,9 +44,9 @@ export default async function AcceptInvitationPage({
         </div>
 
         {valid ? (
-          <div className="rounded-lg border border-border bg-surface p-6">
+          <Card>
             <AcceptInvitationForm token={token} />
-          </div>
+          </Card>
         ) : (
           <p className="text-center text-sm text-muted">
             <Link href="/login" className="text-accent hover:underline">

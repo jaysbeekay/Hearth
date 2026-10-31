@@ -6,6 +6,7 @@ import { PropertyForm } from "@/components/PropertyForm";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { Card } from "@/components/ui/Card";
 
 export default async function EditPropertyPage({
   params,
@@ -28,9 +29,9 @@ export default async function EditPropertyPage({
         <h1 className="text-2xl font-medium">Edit property</h1>
         <p className="text-sm text-muted">{property.label}</p>
       </div>
-      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
+      <Card>
         <PropertyForm action={boundAction} property={property} />
-      </div>
+      </Card>
     </div>
   );
 }

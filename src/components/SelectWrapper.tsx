@@ -1,10 +1,12 @@
 import { ChevronDown } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { inputClass } from "@/lib/ui";
 
-export const inputClass =
-  "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent";
+// #411 — the one 36px input/select look lives in lib/ui; these re-exports
+// keep the forms' existing imports working.
+export { inputClass, textareaClass } from "@/lib/ui";
 
-export const selectClass =
-  "w-full rounded-lg border border-border bg-background px-3 h-9 text-sm outline-none focus:border-accent appearance-none pr-8";
+export const selectClass = cn(inputClass, "appearance-none pr-8");
 
 export function SelectWrapper({ children }: { children: React.ReactNode }) {
   return (

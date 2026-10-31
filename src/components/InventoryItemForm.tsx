@@ -9,7 +9,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { Field } from "@/components/FormField";
 import { INVENTORY_ITEM_CATEGORIES } from "@/lib/validation/inventory";
-import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
+import { SelectWrapper, inputClass, textareaClass, selectClass } from "@/components/SelectWrapper";
 import { FileDropZone } from "@/components/FileDropZone";
 import { applyIfEmpty, markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 import {
@@ -20,6 +20,7 @@ import {
   type QueuedOperation,
 } from "@/lib/offlineQueue";
 import { DateInput } from "@/components/DateInput";
+import { bannerClass } from "@/lib/ui";
 
 const CATEGORY_LABELS: Record<string, string> = {
   APPLIANCE: "Appliance",
@@ -142,7 +143,7 @@ export function InventoryItemForm({
       className="space-y-6"
     >
       {pendingOp && (
-        <p className="rounded-lg border border-dashed border-warning/40 bg-warning/10 px-4 py-2 text-sm text-warning">
+        <p className={bannerClass("warning")}>
           Editing an offline entry that hasn&apos;t synced yet — saving updates it in place.
         </p>
       )}
@@ -274,7 +275,7 @@ export function InventoryItemForm({
           name="notes"
           rows={3}
           defaultValue={effectiveValues?.notes ?? item?.notes ?? ""}
-          className={inputClass}
+          className={textareaClass}
         />
       </Field>
 

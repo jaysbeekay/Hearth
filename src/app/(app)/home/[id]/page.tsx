@@ -46,6 +46,10 @@ import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { ReminderHealthCard } from "@/components/ReminderHealthCard";
 import { getReminderHealth } from "@/lib/notifications/health";
+import { Card } from "@/components/ui/Card";
+import { Pill } from "@/components/ui/Pill";
+import { Banner } from "@/components/ui/Banner";
+import { buttonClass, menuItemClass } from "@/lib/ui";
 
 const ITEM_ICONS: Record<string, LucideIcon> = {
   MAINTENANCE: Wrench,
@@ -130,16 +134,16 @@ export default async function PropertyDetailPage({
             {formatPropertyAddress(property) || "No address set"}
           </p>
           <h1 className="text-2xl font-medium">{property.label}</h1>
-          <span className="mt-1 inline-block rounded-full bg-muted/10 px-2 py-0.5 text-xs font-medium text-muted">
+          <Pill className="mt-1">
             {OCCUPANCY_STATUS_LABELS[property.occupancyStatus] ?? property.occupancyStatus}
-          </span>
+          </Pill>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {canWrite && (
             <>
               <Link
                 href={`/home/${property.id}/edit`}
-                className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+                className={buttonClass("secondary")}
               >
                 <Pencil size={16} />
                 Edit
@@ -158,7 +162,7 @@ export default async function PropertyDetailPage({
                   action={deleteProperty.bind(null, property.id)}
                   undo={{ action: restoreProperty.bind(null, property.id), href: `/home/${property.id}` }}
                   confirmText="Move this property to Trash? Its maintenance records and documents are kept, and you can restore it within 30 days from Settings → Trash."
-                  className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
+                  className={menuItemClass({ destructive: true })}
                   offline={{ entity: "property", entityId: property.id, label: `Delete property: ${property.label}` }}
                 >
                   <Trash2 size={16} />
@@ -210,10 +214,10 @@ export default async function PropertyDetailPage({
       )}
 
       {property.notes && (
-        <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
+        <Card>
           <h2 className="mb-2 font-medium">Notes</h2>
           <p className="whitespace-pre-wrap text-sm text-foreground">{property.notes}</p>
-        </div>
+        </Card>
       )}
 
       <div className="space-y-3">
@@ -222,7 +226,7 @@ export default async function PropertyDetailPage({
           {canWrite && (
             <Link
               href={`/home/${property.id}/items/new`}
-              className="flex items-center gap-2 whitespace-nowrap rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+              className={buttonClass("primary")}
             >
               <Plus size={16} />
               Add maintenance record
@@ -239,9 +243,8 @@ export default async function PropertyDetailPage({
             {items.map((item) => {
               const Icon = ITEM_ICONS[item.type] ?? Tag;
               return (
-                <div
+                <Card
                   key={item.id}
-                  className="rounded-lg border border-border bg-surface p-4 md:p-6"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="flex min-w-0 items-start gap-3">
@@ -253,9 +256,9 @@ export default async function PropertyDetailPage({
                         <p className="flex flex-wrap items-center gap-2 font-medium">
                           {item.title}
                           {item.isTaxDeductible && (
-                            <span className="rounded-full bg-muted/10 px-2 py-0.5 text-xs font-normal text-muted">
+                            <Pill>
                               Tax deductible
-                            </span>
+                            </Pill>
                           )}
                         </p>
                         {item.provider && (
@@ -268,7 +271,7 @@ export default async function PropertyDetailPage({
                         <>
                           <Link
                             href={`/home/${property.id}/items/${item.id}/edit`}
-                            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+                            className={buttonClass("secondary")}
                           >
                             <Pencil size={16} />
                             Edit
@@ -310,7 +313,7 @@ export default async function PropertyDetailPage({
                       </div>
                     )}
                   </div>
-                </div>
+                </Card>
               );
             })}
           </div>
@@ -323,7 +326,7 @@ export default async function PropertyDetailPage({
           {canWrite && (
             <Link
               href={`/contracts/new?propertyId=${property.id}`}
-              className="flex items-center gap-2 whitespace-nowrap rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+              className={buttonClass("secondary")}
             >
               <Plus size={16} />
               Add contract
@@ -356,16 +359,16 @@ export default async function PropertyDetailPage({
         </div>
 
         {valuationStale && (
-          <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/10 p-3 text-sm text-foreground">
+          <Banner className="flex items-center gap-2">
             <AlertTriangle size={16} className="shrink-0" />
             {latestValuation
               ? "Valuation is over 12 months old — consider updating."
               : "No valuation recorded yet — add one to include this property in your net worth."}
-          </div>
+          </Banner>
         )}
 
         {property.valuations.length > 0 && (
-          <div className="rounded-lg border border-border bg-surface divide-y divide-border">
+          <Card padding="none" className="divide-y divide-border">
             {property.valuations.map((v) => (
               <div key={v.id} className="flex items-center justify-between gap-4 p-4">
                 <div>
@@ -394,18 +397,18 @@ export default async function PropertyDetailPage({
                 )}
               </div>
             ))}
-          </div>
+          </Card>
         )}
 
         {canWrite && (
-          <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
+          <Card>
             <h3 className="mb-3 text-sm font-medium">Add valuation</h3>
             <PropertyValuationForm
               action={createPropertyValuation.bind(null, property.id)}
               propertyId={property.id}
               defaultCurrency={preferredCurrency}
             />
-          </div>
+          </Card>
         )}
       </div>
 
@@ -416,7 +419,7 @@ export default async function PropertyDetailPage({
           agreement is created, so existing tracking stays visible even if
           occupancyStatus later changes). */}
       {(property.occupancyStatus === "RENTED" || property.isRented) && (
-        <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
+        <Card>
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <Home size={16} className="text-muted" />
@@ -432,7 +435,7 @@ export default async function PropertyDetailPage({
             ) : (
               <Link
                 href={`/home/${property.id}/rental`}
-                className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+                className={buttonClass("secondary")}
               >
                 Set up rental tracking
               </Link>
@@ -443,7 +446,7 @@ export default async function PropertyDetailPage({
               This property is rented — track statements and reconcile rent income.
             </p>
           )}
-        </div>
+        </Card>
       )}
 
       {tenancy && leaseReminderHealth && (

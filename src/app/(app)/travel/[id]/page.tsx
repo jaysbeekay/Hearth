@@ -28,6 +28,8 @@ import { FlightRefreshForm } from "@/components/FlightRefreshForm";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { Card } from "@/components/ui/Card";
+import { buttonClass, menuItemClass } from "@/lib/ui";
 
 const SEGMENT_ICONS: Record<string, LucideIcon> = {
   FLIGHT: Plane,
@@ -137,7 +139,7 @@ export default async function TripDetailPage({
             <>
               <Link
                 href={`/travel/${trip.id}/edit`}
-                className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+                className={buttonClass("secondary")}
               >
                 <Pencil size={16} />
                 Edit
@@ -147,7 +149,7 @@ export default async function TripDetailPage({
                   action={deleteTrip.bind(null, trip.id)}
                   undo={{ action: restoreTrip.bind(null, trip.id), href: `/travel/${trip.id}` }}
                   confirmText="Move this trip to Trash? Its segments and documents are kept, and you can restore it within 30 days from Settings → Trash."
-                  className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
+                  className={menuItemClass({ destructive: true })}
                   offline={{ entity: "trip", entityId: trip.id, label: `Delete trip: ${trip.title}` }}
                 >
                   <Trash2 size={16} />
@@ -160,10 +162,10 @@ export default async function TripDetailPage({
       </div>
 
       {trip.notes && (
-        <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
+        <Card>
           <h2 className="mb-2 font-medium">Notes</h2>
           <p className="whitespace-pre-wrap text-sm text-foreground">{trip.notes}</p>
-        </div>
+        </Card>
       )}
 
       <div className="space-y-3">
@@ -172,7 +174,7 @@ export default async function TripDetailPage({
           {canWrite && (
             <Link
               href={`/travel/${trip.id}/segments/new`}
-              className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+              className={buttonClass("primary")}
             >
               <Plus size={16} />
               Add segment
@@ -189,9 +191,8 @@ export default async function TripDetailPage({
             {displaySegments.map((segment) => {
               const Icon = SEGMENT_ICONS[segment.type] ?? Ticket;
               return (
-                <div
+                <Card
                   key={segment.id}
-                  className="rounded-lg border border-border bg-surface p-4 md:p-6"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="flex min-w-0 items-start gap-3">
@@ -211,7 +212,7 @@ export default async function TripDetailPage({
                         <>
                           <Link
                             href={`/travel/${trip.id}/segments/${segment.id}/edit`}
-                            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+                            className={buttonClass("secondary")}
                           >
                             <Pencil size={16} />
                             Edit
@@ -356,7 +357,7 @@ export default async function TripDetailPage({
                       </div>
                     )}
                   </div>
-                </div>
+                </Card>
               );
             })}
           </div>

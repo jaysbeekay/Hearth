@@ -16,6 +16,7 @@ import { OfflineDocumentsPanel } from "@/components/OfflineDocumentsPanel";
 import { UnconfiguredNotice } from "@/components/UnconfiguredNotice";
 import { ROLE_LABELS } from "@/lib/utils";
 import { SETTINGS_ROUTES } from "@/lib/routeLabels";
+import { Card } from "@/components/ui/Card";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -48,7 +49,7 @@ export default async function SettingsPage() {
       </p>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
+        <Card as="section">
           <h2 className="mb-3 font-medium">Profile</h2>
           <dl className="grid grid-cols-2 gap-4">
             <div className="min-w-0">
@@ -73,9 +74,9 @@ export default async function SettingsPage() {
               {SETTINGS_ROUTES.household.label}
             </Link>
           )}
-        </section>
+        </Card>
 
-        <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
+        <Card as="section">
           <h2 className="mb-3 font-medium">Reminders</h2>
           <p className="mb-3 text-sm text-muted">
             Reminders are sent by email{ntfyConfigured ? " and push (ntfy)" : ""}.{" "}
@@ -95,9 +96,9 @@ export default async function SettingsPage() {
             )}
           </p>
           <NotificationPreferencesForm emailReminders={user.emailReminders} />
-        </section>
+        </Card>
 
-        <section className="rounded-lg border border-border bg-surface p-4 md:p-6 md:col-span-2">
+        <Card as="section" className="md:col-span-2">
           <h2 className="mb-3 font-medium">Preferences</h2>
           <p className="mb-3 text-sm text-muted">
             Localisation used throughout the app — dates, default currency for new records, your
@@ -119,9 +120,9 @@ export default async function SettingsPage() {
               "Only an admin can change it."
             )}
           </p>
-        </section>
+        </Card>
 
-        <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
+        <Card as="section">
           <h2 className="mb-3 font-medium">Security</h2>
           <div className="flex flex-col gap-1">
             <Link href={SETTINGS_ROUTES.passkeys.href} className={quickLinkClass}>
@@ -144,11 +145,11 @@ export default async function SettingsPage() {
               <UnconfiguredNotice feature="two-factor authentication" />
             )}
           </div>
-        </section>
+        </Card>
 
         <IcalTokenSection hasToken={Boolean(user.icalTokenHash)} appUrl={appUrl} />
 
-        <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
+        <Card as="section">
           <h2 className="mb-3 font-medium">Trash</h2>
           <p className="mb-3 text-sm text-muted">
             Deleted contracts, warranties, vehicles, properties, trips, and inventory items stay
@@ -158,14 +159,14 @@ export default async function SettingsPage() {
             <Trash2 size={16} />
             {SETTINGS_ROUTES.trash.label}
           </Link>
-        </section>
+        </Card>
 
         <OfflineDocumentsPanel />
 
-        <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
+        <Card as="section">
           <h2 className="mb-3 font-medium">Change password</h2>
           <ChangePasswordForm />
-        </section>
+        </Card>
       </div>
     </div>
   );

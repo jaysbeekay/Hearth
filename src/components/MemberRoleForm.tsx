@@ -5,6 +5,7 @@ import { updateMemberRole, type ActionState } from "@/lib/actions/auth";
 import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 import { FormMessage } from "@/components/FormMessage";
 import { ROLE_DESCRIPTIONS } from "@/lib/utils";
+import { buttonClass } from "@/lib/ui";
 
 export function MemberRoleForm({ userId, role }: { userId: string; role: string }) {
   const [state, formAction] = useActionState<ActionState, FormData>(
@@ -30,7 +31,7 @@ export function MemberRoleForm({ userId, role }: { userId: string; role: string 
         </SelectWrapper>
         <button
           type="submit"
-          className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium hover:bg-hover"
+          className={buttonClass("secondary")}
         >
           Save
         </button>

@@ -7,6 +7,7 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import { BackLink } from "@/components/BackLink";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
+import { Card } from "@/components/ui/Card";
 
 export default async function NewHomeItemPage({
   params,
@@ -36,9 +37,9 @@ export default async function NewHomeItemPage({
           attached.
         </p>
       </div>
-      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
+      <Card>
         <HomeItemForm action={boundAction} propertyId={property.id} defaultCurrency={preferredCurrency} />
-      </div>
+      </Card>
     </div>
   );
 }

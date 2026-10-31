@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { getChatConfig, isChatConfigured } from "@/lib/ai/chat/dispatch";
 import { listChatThreads, getChatThreadMessages } from "@/lib/chat/threads";
 import { AssistantClient } from "@/components/AssistantClient";
+import { buttonClass } from "@/lib/ui";
 
 export const metadata: Metadata = { title: "Assistant" };
 
@@ -37,7 +38,7 @@ export default async function AssistantPage({
         {isAdmin && (
           <Link
             href="/settings/app"
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+            className={buttonClass("primary")}
           >
             Configure in System settings
           </Link>

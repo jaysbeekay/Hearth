@@ -16,6 +16,7 @@ import {
   type DocumentVersionLink,
 } from "@/lib/documents/documentList";
 import { humanFileSize } from "@/lib/utils";
+import { Pill } from "@/components/ui/Pill";
 
 // #397 — the one Document list, for every kind of record. Each Document
 // shows its type, a star, a preview where the browser can show the file,
@@ -30,7 +31,7 @@ type Row = DocumentListRow & {
 
 function TypePill({ label }: { label: string | null }) {
   if (!label) return null;
-  return <span className="rounded-lg bg-muted/10 px-1.5 py-0.5 text-xs font-medium text-muted">{label}</span>;
+  return <Pill>{label}</Pill>;
 }
 
 export function DocumentList({
@@ -92,9 +93,9 @@ export function DocumentList({
                   </span>
                   <TypePill label={documentTypeLabel(doc, productKind(doc))} />
                   {older.length > 0 && (
-                    <span className="rounded-lg bg-muted/10 px-1.5 py-0.5 text-xs font-medium text-muted">
+                    <Pill>
                       Latest
-                    </span>
+                    </Pill>
                   )}
                 </span>
               </DocumentLink>

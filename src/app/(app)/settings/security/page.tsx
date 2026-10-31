@@ -7,6 +7,7 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import type { SecurityEventType } from "@/generated/prisma/enums";
 import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
+import { Card } from "@/components/ui/Card";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.security.label };
 
@@ -48,7 +49,7 @@ export default async function SecurityLogPage() {
         events.
       </p>
 
-      <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
+      <Card as="section">
         {events.length === 0 ? (
           <p className="text-sm text-muted">No security events recorded yet.</p>
         ) : (
@@ -73,7 +74,7 @@ export default async function SecurityLogPage() {
             ))}
           </ul>
         )}
-      </section>
+      </Card>
     </div>
   );
 }

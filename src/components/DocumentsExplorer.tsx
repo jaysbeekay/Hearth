@@ -10,6 +10,8 @@ import { DocumentPreviewModal, isPreviewable } from "@/components/DocumentPrevie
 import { humanFileSize } from "@/lib/utils";
 import { DOCUMENT_CATEGORIES, DOCUMENT_CATEGORY_LABELS, type DocumentCategory } from "@/lib/documents/categories";
 import { buttonClass } from "@/lib/ui";
+import { Card } from "@/components/ui/Card";
+import { Pill } from "@/components/ui/Pill";
 
 export interface DocRow {
   id: string;
@@ -142,7 +144,7 @@ export function DocumentsExplorer({
       ) : (
         <>
           {/* Table — md and up */}
-          <div className="hidden overflow-x-auto rounded-lg border border-border bg-surface md:block">
+          <Card padding="none" className="hidden overflow-x-auto md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs text-muted">
@@ -170,12 +172,12 @@ export function DocumentsExplorer({
                       </DocumentLink>
                     </td>
                     <td className="px-4 py-2">
-                      <span className="rounded-full bg-muted/10 px-2 py-0.5 text-xs font-medium text-muted">
+                      <Pill>
                         {doc.category ? DOCUMENT_CATEGORY_LABELS[doc.category as DocumentCategory] ?? doc.category : "Uncategorised"}
-                      </span>
-                      <span className="ml-2 rounded-full bg-muted/10 px-2 py-0.5 text-xs font-medium text-muted">
+                      </Pill>
+                      <Pill className="ml-2">
                         {doc.type}
-                      </span>
+                      </Pill>
                     </td>
                     <td className="max-w-xs px-4 py-2">
                       <Link href={doc.parentHref} className="truncate text-accent hover:underline">
@@ -204,14 +206,13 @@ export function DocumentsExplorer({
                 ))}
               </tbody>
             </table>
-          </div>
+          </Card>
 
           {/* Cards — below md */}
           <div className="grid gap-2 md:hidden">
             {visible.map((doc) => (
-              <div
+              <Card
                 key={`${doc.type}-${doc.id}`}
-                className="rounded-lg border border-border bg-surface p-3"
               >
                 <div className="flex items-start justify-between gap-2">
                   <DocumentLink
@@ -246,7 +247,7 @@ export function DocumentsExplorer({
                   <span><Timestamp value={doc.uploadedAt} /></span>
                   <span>{humanFileSize(doc.size)}</span>
                 </div>
-              </div>
+              </Card>
             ))}
           </div>
         </>

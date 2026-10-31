@@ -9,7 +9,7 @@ import { FormMessage } from "@/components/FormMessage";
 import { Field } from "@/components/FormField";
 import { HOME_ITEM_TYPES } from "@/lib/validation/home";
 import { HOME_ITEM_TYPE_LABELS } from "@/lib/utils";
-import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
+import { SelectWrapper, inputClass, textareaClass, selectClass } from "@/components/SelectWrapper";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
 import { applyIfEmpty, markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
@@ -214,7 +214,7 @@ export function HomeItemForm({
           name="notes"
           rows={4}
           defaultValue={state?.values?.notes ?? item?.notes ?? ""}
-          className={inputClass}
+          className={textareaClass}
         />
       </Field>
 

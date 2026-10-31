@@ -4,6 +4,7 @@ import { TripForm } from "@/components/TripForm";
 import { BackLink } from "@/components/BackLink";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
+import { Card } from "@/components/ui/Card";
 
 export default async function NewTripPage() {
   await requireModuleEnabled("TRAVEL");
@@ -18,9 +19,9 @@ export default async function NewTripPage() {
           Start an itinerary, then add flights, lodging, and activities.
         </p>
       </div>
-      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
+      <Card>
         <TripForm action={createTrip} />
-      </div>
+      </Card>
     </div>
   );
 }

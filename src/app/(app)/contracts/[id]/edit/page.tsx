@@ -6,6 +6,7 @@ import { isModuleEnabled } from "@/lib/modules/enablement";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { Card } from "@/components/ui/Card";
 
 export default async function EditContractPage({
   params,
@@ -37,7 +38,7 @@ export default async function EditContractPage({
         <h1 className="text-2xl font-medium">Edit contract</h1>
         <p className="text-sm text-muted">{contract.title}</p>
       </div>
-      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
+      <Card>
         <ContractForm
           action={boundAction}
           contract={contract}
@@ -46,7 +47,7 @@ export default async function EditContractPage({
           homeEnabled={homeEnabled}
           vehiclesEnabled={vehiclesEnabled}
         />
-      </div>
+      </Card>
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { FormMessage } from "@/components/FormMessage";
 import { inputClass } from "@/components/SelectWrapper";
 import { cn } from "@/lib/utils";
 import { buttonClass } from "@/lib/ui";
+import { Pill } from "@/components/ui/Pill";
 
 type SetupStep = "idle" | "scanning" | "recovery-codes";
 
@@ -78,9 +79,9 @@ export function TotpSection({ enabled }: { enabled: boolean }) {
     return (
       <div className="space-y-2">
         <p className="flex items-center gap-2 text-sm">
-          <span className="rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
+          <Pill tone="success">
             Enabled
-          </span>
+          </Pill>
           Two-factor authentication is protecting your account.
         </p>
         <button

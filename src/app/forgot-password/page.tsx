@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { isSmtpConfigured } from "@/lib/appSettings";
 import { ForgotPasswordForm } from "@/components/ForgotPasswordForm";
+import { Card } from "@/components/ui/Card";
 
 export const metadata: Metadata = { title: "Reset password" };
 export const dynamic = "force-dynamic";
@@ -22,9 +23,9 @@ export default async function ForgotPasswordPage() {
         </div>
 
         {smtpConfigured && (
-          <div className="rounded-lg border border-border bg-surface p-6">
+          <Card>
             <ForgotPasswordForm />
-          </div>
+          </Card>
         )}
 
         <p className="text-center text-sm text-muted">

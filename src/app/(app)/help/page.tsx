@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { FAQ_SECTIONS, splitFaqAnswer } from "@/lib/help/faq";
 import { FOOTER_NAV } from "@/components/nav-items";
-import { buttonClass } from "@/lib/ui";
+import { buttonClass, cardClass } from "@/lib/ui";
+import { Card } from "@/components/ui/Card";
 
 export const metadata: Metadata = { title: FOOTER_NAV.help.label };
 
@@ -35,7 +36,7 @@ export default function HelpPage() {
             {section.entries.map((entry) => (
               <details
                 key={entry.q}
-                className="group rounded-lg border border-border bg-surface p-4 open:pb-4"
+                className={cardClass({}, "group open:pb-4")}
               >
                 <summary className="cursor-pointer list-none text-sm font-medium marker:content-none">
                   <span className="flex items-center justify-between gap-3">
@@ -54,7 +55,7 @@ export default function HelpPage() {
         </div>
       ))}
 
-      <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
+      <Card as="section">
         <div className="mb-4">
           <h2 className="font-medium">Share feedback</h2>
           <p className="mt-1 text-sm text-muted">
@@ -72,7 +73,7 @@ export default function HelpPage() {
         >
           Report a bug or suggestion
         </a>
-      </section>
+      </Card>
     </div>
   );
 }

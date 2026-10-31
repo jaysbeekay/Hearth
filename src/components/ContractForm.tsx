@@ -13,7 +13,7 @@ import {
   CATEGORY_LABELS,
   RENEWAL_LABELS,
 } from "@/lib/utils";
-import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
+import { SelectWrapper, inputClass, textareaClass, selectClass } from "@/components/SelectWrapper";
 import { LinkedToField } from "@/components/LinkedToField";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
@@ -26,6 +26,7 @@ import {
 } from "@/lib/offlineQueue";
 import { applyIfEmpty, extractionMessage, isAiExtractionSource } from "@/lib/autoFillHighlight";
 import { DateInput } from "@/components/DateInput";
+import { bannerClass } from "@/lib/ui";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -189,7 +190,7 @@ export function ContractForm({
       className="space-y-6"
     >
       {pendingOp && (
-        <p className="rounded-lg border border-dashed border-warning/40 bg-warning/10 px-4 py-2 text-sm text-warning">
+        <p className={bannerClass("warning")}>
           Editing an offline entry that hasn&apos;t synced yet — saving updates it in place.
         </p>
       )}
@@ -444,7 +445,7 @@ export function ContractForm({
           name="notes"
           rows={4}
           defaultValue={effectiveValues?.notes ?? contract?.notes ?? ""}
-          className={inputClass}
+          className={textareaClass}
         />
       </Field>
 

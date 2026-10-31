@@ -6,6 +6,7 @@ import { VehicleForm } from "@/components/VehicleForm";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { Card } from "@/components/ui/Card";
 
 export default async function EditVehiclePage({
   params,
@@ -28,9 +29,9 @@ export default async function EditVehiclePage({
         <h1 className="text-2xl font-medium">Edit vehicle</h1>
         <p className="text-sm text-muted">{vehicle.label}</p>
       </div>
-      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
+      <Card>
         <VehicleForm action={boundAction} vehicle={vehicle} />
-      </div>
+      </Card>
     </div>
   );
 }

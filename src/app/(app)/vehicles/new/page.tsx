@@ -4,6 +4,7 @@ import { VehicleForm } from "@/components/VehicleForm";
 import { BackLink } from "@/components/BackLink";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
+import { Card } from "@/components/ui/Card";
 
 export default async function NewVehiclePage() {
   await requireModuleEnabled("VEHICLES");
@@ -18,9 +19,9 @@ export default async function NewVehiclePage() {
           Track registration, insurance, and service history for this vehicle.
         </p>
       </div>
-      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
+      <Card>
         <VehicleForm action={createVehicle} />
-      </div>
+      </Card>
     </div>
   );
 }

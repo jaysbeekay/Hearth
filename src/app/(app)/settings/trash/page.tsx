@@ -56,6 +56,7 @@ import { DOCUMENT_KIND_LABEL, type OwnedDocumentKind } from "@/lib/documents/kin
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
+import { Card } from "@/components/ui/Card";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.trash.label };
 
@@ -167,7 +168,7 @@ export default async function TrashPage() {
           Trash is empty.
         </p>
       ) : (
-        <ul className="divide-y divide-border rounded-lg border border-border bg-surface">
+        <Card as="ul" padding="none" className="divide-y divide-border">
           {entries.map((entry) => {
             const meta = metaFor(entry);
             const Icon = meta.icon;
@@ -204,7 +205,7 @@ export default async function TrashPage() {
               </li>
             );
           })}
-        </ul>
+        </Card>
       )}
     </div>
   );

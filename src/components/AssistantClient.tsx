@@ -8,6 +8,7 @@ import { ChatMessageList, type DisplayMessage } from "@/components/ChatMessageLi
 import { ChatComposer } from "@/components/ChatComposer";
 import { readSseStream } from "@/lib/ai/chat/streamParsing";
 import type { ProposedAction } from "@/components/ProposedActionCard";
+import { Card } from "@/components/ui/Card";
 
 type ChatStreamEvent =
   | { type: "delta"; text: string }
@@ -163,7 +164,7 @@ export function AssistantClient({
   }
 
   return (
-    <div className="flex h-[calc(100vh-14rem)] overflow-hidden rounded-lg border border-border bg-surface md:h-[calc(100vh-11rem)]">
+    <Card padding="none" className="flex h-[calc(100vh-14rem)] overflow-hidden md:h-[calc(100vh-11rem)]">
       <aside className="hidden w-64 shrink-0 border-r border-border md:block">
         <ChatThreadList threads={threads} activeThreadId={threadId} />
       </aside>
@@ -224,6 +225,6 @@ export function AssistantClient({
           </div>
         </div>
       )}
-    </div>
+    </Card>
   );
 }

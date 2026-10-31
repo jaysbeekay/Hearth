@@ -20,6 +20,7 @@ import { MODULE_REGISTRY } from "@/lib/modules/registry";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
+import { Card } from "@/components/ui/Card";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.household.label };
 
@@ -111,7 +112,7 @@ export default async function HouseholdSettingsPage() {
         </Link>
       </div>
 
-      <section className="rounded-lg border border-border bg-surface p-4 md:p-6 space-y-4">
+      <Card as="section" className="space-y-4">
         <div>
           <h2 className="font-medium">Household timezone</h2>
           <p className="text-xs text-muted mt-0.5">
@@ -125,7 +126,7 @@ export default async function HouseholdSettingsPage() {
           serverDefault={getServerDefaultTimeZone()}
           choices={householdTimeZoneChoices(householdTimeZone)}
         />
-      </section>
+      </Card>
     </div>
   );
 }

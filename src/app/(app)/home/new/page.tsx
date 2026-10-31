@@ -4,6 +4,7 @@ import { PropertyForm } from "@/components/PropertyForm";
 import { BackLink } from "@/components/BackLink";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
+import { Card } from "@/components/ui/Card";
 
 export default async function NewPropertyPage() {
   await requireModuleEnabled("HOME");
@@ -18,9 +19,9 @@ export default async function NewPropertyPage() {
           Track maintenance, improvements, and repairs for this property.
         </p>
       </div>
-      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
+      <Card>
         <PropertyForm action={createProperty} />
-      </div>
+      </Card>
     </div>
   );
 }

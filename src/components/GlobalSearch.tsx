@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Search, X, Loader2 } from "lucide-react";
 import type { SearchResult } from "@/app/api/search/route";
 import { toggleListFilter, writeListFilters, type ToggleableFilter } from "@/lib/recordFilters";
+import { overlayClass } from "@/lib/ui";
 
 const OPEN_EVENT = "hearth:open-search";
 
@@ -128,7 +129,7 @@ export function GlobalSearch() {
         role="dialog"
         aria-label="Search"
         aria-modal="true"
-        className="w-full max-w-lg overflow-hidden rounded-lg border border-border bg-surface shadow-overlay"
+        className={overlayClass("w-full max-w-lg overflow-hidden")}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 border-b border-border px-4 py-3">

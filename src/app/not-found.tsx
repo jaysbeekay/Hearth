@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { buttonClass } from "@/lib/ui";
 
 export const metadata: Metadata = { title: "Page not found" };
 
@@ -15,7 +16,7 @@ export default function NotFound() {
         </div>
         <Link
           href="/"
-          className="inline-flex items-center justify-center rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+          className={buttonClass("primary")}
         >
           Back to Hearth
         </Link>

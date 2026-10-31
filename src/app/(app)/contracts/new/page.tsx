@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { BackLink } from "@/components/BackLink";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
+import { Card } from "@/components/ui/Card";
 
 export default async function NewContractPage({
   searchParams,
@@ -52,7 +53,7 @@ export default async function NewContractPage({
           instead.
         </p>
       </div>
-      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
+      <Card>
         <ContractForm
           action={createContract}
           defaultCurrency={preferredCurrency}
@@ -63,7 +64,7 @@ export default async function NewContractPage({
           homeEnabled={homeEnabled}
           vehiclesEnabled={vehiclesEnabled}
         />
-      </div>
+      </Card>
     </div>
   );
 }

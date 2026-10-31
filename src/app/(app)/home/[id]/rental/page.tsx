@@ -23,6 +23,9 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { Card } from "@/components/ui/Card";
+import { Pill } from "@/components/ui/Pill";
+import { buttonClass } from "@/lib/ui";
 
 function reconcile(
   periodStart: Date | null,
@@ -147,7 +150,7 @@ export default async function RentalOverviewPage({
           {canWrite && (
             <Link
               href={`/home/${property.id}/rental/agreements/new`}
-              className="mt-4 inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+              className={buttonClass("primary", {}, "mt-4")}
             >
               <Plus size={16} />
               Add tenancy
@@ -164,7 +167,7 @@ export default async function RentalOverviewPage({
             {canWrite && (
               <Link
                 href={`/home/${property.id}/rental/agreements/new`}
-                className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+                className={buttonClass("primary")}
               >
                 <Plus size={16} />
                 New tenancy
@@ -177,9 +180,8 @@ export default async function RentalOverviewPage({
           ) : (
             <div className="space-y-3">
               {agreements.map((ag, i) => (
-                <div
+                <Card
                   key={ag.id}
-                  className="rounded-lg border border-border bg-surface p-4 md:p-6"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
@@ -191,9 +193,9 @@ export default async function RentalOverviewPage({
                           </span>
                         )}
                         {i === 0 && (
-                          <span className="ml-2 rounded-full bg-muted/10 px-2 py-0.5 text-xs font-normal text-muted">
+                          <Pill className="ml-2">
                             Current
-                          </span>
+                          </Pill>
                         )}
                       </p>
                       {ag.tenantName && (
@@ -205,7 +207,7 @@ export default async function RentalOverviewPage({
                         <>
                           <Link
                             href={`/home/${property.id}/rental/agreements/${ag.id}/edit`}
-                            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+                            className={buttonClass("secondary")}
                           >
                             <Pencil size={16} />
                             Edit
@@ -270,7 +272,7 @@ export default async function RentalOverviewPage({
                             <input type="hidden" name="contractId" value="" />
                             <button
                               type="submit"
-                              className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium hover:bg-hover"
+                              className={buttonClass("secondary")}
                             >
                               Unlink
                             </button>
@@ -300,14 +302,14 @@ export default async function RentalOverviewPage({
                         </SelectWrapper>
                         <button
                           type="submit"
-                          className="rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+                          className={buttonClass("secondary")}
                         >
                           Link
                         </button>
                       </form>
                     )}
                   </div>
-                </div>
+                </Card>
               ))}
             </div>
           )}
@@ -322,7 +324,7 @@ export default async function RentalOverviewPage({
             {canWrite && (
               <Link
                 href={`/home/${property.id}/rental/statements/new`}
-                className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+                className={buttonClass("primary")}
               >
                 <Plus size={16} />
                 Add statement
@@ -353,9 +355,8 @@ export default async function RentalOverviewPage({
                 const currency = stmt.currency;
 
                 return (
-                  <div
+                  <Card
                     key={stmt.id}
-                    className="rounded-lg border border-border bg-surface p-4 md:p-6"
                   >
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div>
@@ -375,7 +376,7 @@ export default async function RentalOverviewPage({
                           <>
                             <Link
                               href={`/home/${property.id}/rental/statements/${stmt.id}/edit`}
-                              className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+                              className={buttonClass("secondary")}
                             >
                               <Pencil size={16} />
                               Edit
@@ -456,7 +457,7 @@ export default async function RentalOverviewPage({
                         </div>
                       )}
                     </div>
-                  </div>
+                  </Card>
                 );
               })}
             </div>

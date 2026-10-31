@@ -7,6 +7,7 @@ import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { getReminderConfig } from "@/lib/appSettings";
+import { Card } from "@/components/ui/Card";
 
 export default async function EditRentalAgreementPage({
   params,
@@ -41,9 +42,9 @@ export default async function EditRentalAgreementPage({
         </p>
       </div>
 
-      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
+      <Card>
         <RentalAgreementForm action={boundAction} agreement={agreement} defaultReminderDays={defaultDays} />
-      </div>
+      </Card>
     </div>
   );
 }

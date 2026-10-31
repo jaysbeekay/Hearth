@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ChevronDown, Plus } from "lucide-react";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { cn } from "@/lib/utils";
-import { buttonClass, menuItemClass } from "@/lib/ui";
+import { buttonClass, menuItemClass, overlayClass } from "@/lib/ui";
 
 export interface ListPageAction {
   href: string;
@@ -52,7 +52,7 @@ export function ListPageHeader({
               <summary className={buttonClass("secondary", {}, "list-none")}>
                 Export <ChevronDown size={16} />
               </summary>
-              <div className="absolute right-0 z-10 mt-1 w-28 overflow-hidden rounded-lg border border-border bg-surface shadow-overlay">
+              <div className={overlayClass("absolute right-0 z-10 mt-1 w-28 overflow-hidden")}>
                 <a href={`${exportPath}?format=csv`} download className={menuItemClass()}>CSV</a>
                 <a href={`${exportPath}?format=pdf`} download className={menuItemClass()}>PDF</a>
               </div>

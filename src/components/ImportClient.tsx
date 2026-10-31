@@ -10,6 +10,7 @@ import { LinkedToField } from "@/components/LinkedToField";
 import { extractionMessage } from "@/lib/autoFillHighlight";
 import { cn } from "@/lib/utils";
 import { buttonClass } from "@/lib/ui";
+import { Card } from "@/components/ui/Card";
 
 const INVENTORY_CATEGORY_LABELS: Record<string, string> = {
   APPLIANCE: "Appliance",
@@ -361,7 +362,7 @@ export function ImportClient({
 
           <div className="space-y-3">
             {rows.map((row) => (
-              <div key={row.id} className="rounded-lg border border-border bg-surface p-4">
+              <Card key={row.id}>
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-2">
                     <FileText size={16} className="shrink-0 text-muted" />
@@ -716,7 +717,7 @@ export function ImportClient({
                     View →
                   </a>
                 )}
-              </div>
+              </Card>
             ))}
           </div>
         </>

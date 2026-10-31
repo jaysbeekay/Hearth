@@ -6,6 +6,7 @@ import { TripSegmentForm } from "@/components/TripSegmentForm";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { Card } from "@/components/ui/Card";
 
 export default async function EditTripSegmentPage({
   params,
@@ -31,9 +32,9 @@ export default async function EditTripSegmentPage({
         <h1 className="text-2xl font-medium">Edit segment</h1>
         <p className="text-sm text-muted">{segment.title}</p>
       </div>
-      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
+      <Card>
         <TripSegmentForm action={boundAction} segment={segment} />
-      </div>
+      </Card>
     </div>
   );
 }

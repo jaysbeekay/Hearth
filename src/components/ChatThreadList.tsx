@@ -5,6 +5,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { deleteChatThread } from "@/lib/actions/chatThreads";
 import { cn } from "@/lib/utils";
+import { buttonClass } from "@/lib/ui";
 
 export interface ThreadSummary {
   id: string;
@@ -28,7 +29,7 @@ export function ChatThreadList({
         <Link
           href="/assistant"
           onClick={onNavigate}
-          className="flex items-center justify-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+          className={buttonClass("primary")}
         >
           <Plus size={16} />
           New chat

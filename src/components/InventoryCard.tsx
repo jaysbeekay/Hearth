@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { InventoryItemModel } from "@/generated/prisma/models";
 import { formatDate, formatCurrency } from "@/lib/utils";
+import { Pill } from "@/components/ui/Pill";
+import { cardClass } from "@/lib/ui";
 
 const CATEGORY_LABELS: Record<string, string> = {
   APPLIANCE: "Appliance",
@@ -28,7 +30,7 @@ export function InventoryCard({
   return (
     <Link
       href={`/inventory/${item.id}`}
-      className="block min-w-0 rounded-lg border border-border bg-surface p-4 transition-colors hover:border-accent/50"
+      className={cardClass({ interactive: true }, "block min-w-0")}
     >
       <div className="min-w-0">
         {subtitle && <p className="truncate text-sm text-muted">{subtitle}</p>}
@@ -37,13 +39,13 @@ export function InventoryCard({
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-2">
-          <span className="rounded-full bg-muted/10 px-2 py-0.5 text-xs font-medium text-muted">
+          <Pill>
             {CATEGORY_LABELS[item.category] ?? item.category}
-          </span>
+          </Pill>
           {item.location && (
-            <span className="rounded-full bg-muted/10 px-2 py-0.5 text-xs text-muted">
+            <Pill>
               {item.location}
-            </span>
+            </Pill>
           )}
         </div>
 

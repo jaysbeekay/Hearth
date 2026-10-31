@@ -3,6 +3,8 @@ import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { formatCurrency, formatNumber } from "@/lib/utils";
 import { ASSET_CLASS_LABELS } from "@/lib/validation/wealth";
 import type { HoldingValue } from "@/lib/wealth";
+import { Pill } from "@/components/ui/Pill";
+import { cardClass } from "@/lib/ui";
 
 interface Props {
   holding: HoldingValue;
@@ -21,7 +23,7 @@ export function HoldingCard({ holding, portfolioId, region }: Props) {
   return (
     <Link
       href={`/wealth/portfolios/${portfolioId}/holdings/${holding.holdingId}`}
-      className="block rounded-lg border border-border bg-surface p-4 hover:border-accent/50 transition-colors"
+      className={cardClass({ interactive: true }, "block")}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
@@ -30,9 +32,9 @@ export function HoldingCard({ holding, portfolioId, region }: Props) {
             <p className="text-xs text-muted truncate">{holding.name}</p>
           )}
         </div>
-        <span className="shrink-0 rounded-full bg-muted/10 px-2 py-0.5 text-xs font-medium text-muted">
+        <Pill>
           {ASSET_CLASS_LABELS[holding.assetClass] ?? holding.assetClass}
-        </span>
+        </Pill>
       </div>
 
       {/* #403 — min-w-0 lets the grid cells shrink (they default to min-width:auto);

@@ -8,6 +8,7 @@ import { isAppUrlConfigured, isGithubOAuthConfigured } from "@/lib/env";
 import { LoginForm } from "@/components/LoginForm";
 import { SignedOutCacheCleanup } from "@/components/SignedOutCacheCleanup";
 import { safeCallbackPath } from "@/lib/callbackUrl";
+import { Card } from "@/components/ui/Card";
 
 export const metadata: Metadata = { title: "Sign in" };
 export const dynamic = "force-dynamic";
@@ -58,14 +59,14 @@ export default async function LoginPage({
           </p>
         )}
         <SignedOutCacheCleanup />
-        <div className="rounded-lg border border-border bg-surface p-6">
+        <Card>
           <LoginForm
             smtpConfigured={smtpConfigured}
             githubConfigured={isGithubOAuthConfigured()}
             passkeysAvailable={passkeyCount > 0}
             callbackUrl={destination}
           />
-        </div>
+        </Card>
       </div>
     </div>
   );

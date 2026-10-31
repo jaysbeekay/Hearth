@@ -15,6 +15,7 @@ import { FormMessage } from "@/components/FormMessage";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 import { TestConnectionButton } from "@/components/TestConnectionButton";
+import { bannerClass } from "@/lib/ui";
 
 export function AiSettingsForm({
   provider,
@@ -61,7 +62,7 @@ export function AiSettingsForm({
           <>
             {needsApiKey ? (
               <div className="space-y-1">
-                <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
+                <p className={bannerClass("warning")}>
                   Documents will be sent to {AI_PROVIDER_LABELS[selected]} for processing.
                 </p>
                 <label htmlFor="apiKey" className="text-sm font-medium">

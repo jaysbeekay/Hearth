@@ -14,6 +14,7 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import { ExpiryBadge } from "@/components/ExpiryBadge";
 import { CalendarSubscribeButton } from "@/components/CalendarSubscribeButton";
 import type { CalendarEvent } from "@/lib/calendarEvents";
+import { cardClass } from "@/lib/ui";
 
 export const metadata: Metadata = { title: "Upcoming" };
 
@@ -114,7 +115,7 @@ export default async function CalendarPage({
                 <Link
                   key={event.id}
                   href={event.href}
-                  className="flex items-start gap-3 rounded-lg border border-border bg-surface p-3 transition-colors hover:border-accent/50"
+                  className={cardClass({ interactive: true }, "flex items-start gap-3")}
                 >
                   <div className="mt-0.5 w-10 shrink-0 text-center">
                     <p className="text-xs text-muted">
