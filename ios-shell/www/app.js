@@ -46,6 +46,9 @@ const FILE_DIRECTORY = "DATA";
 // sheet or iCloud, never through a shared folder (#226).
 const BACKUP_EXPORT_DIRECTORY = "CACHE";
 const RESTORE_STAGING_ROOT = "standalone-restore-staging";
+// Files a restore replaced, kept until its database write commits.
+const RESTORE_ASIDE_ROOT = "standalone-restore-previous";
+const RESTORE_JOURNAL_KEY = "hearth.mobile.restoreJournal";
 const FILE_ROOT = "standalone-documents";
 const BACKUP_ROOT = "hearth-backups";
 const REMINDER_CHANNEL_ID = "hearth-standalone-reminders";
@@ -710,7 +713,32 @@ function generatePassphrase() {
   return btoa(binary);
 }
 
+// Backup export reads every table, and restore rewrites them, as one
+// exclusive step: other writes wait for it, so a backup is a consistent
+// snapshot and a restore never interleaves with an edit (#226).
+let dbGate = Promise.resolve();
+
+async function withExclusiveDb(work) {
+  const previous = dbGate;
+  let release;
+  dbGate = new Promise((resolve) => {
+    release = resolve;
+  });
+  await previous;
+  try {
+    return await work();
+  } finally {
+    release();
+  }
+}
+
+async function runSet(set) {
+  await dbGate;
+  await SQLite.executeSet({ database: DB, set, transaction: true });
+}
+
 async function run(statement, values = []) {
+  await dbGate;
   await SQLite.run({ database: DB, statement, values, transaction: true });
 }
 
@@ -1279,6 +1307,7 @@ async function enterStandaloneApp() {
   show("standalone");
   await prefSet(MODE_KEY, "standalone");
   await initDb();
+  await recoverInterruptedRestore().catch(() => undefined);
   // A failure leaves the Trash as it was; the next launch tries again.
   await purgeExpiredTrashedDocuments().catch(() => undefined);
   await loadStandaloneModuleSettings();
@@ -2184,8 +2213,7 @@ async function writeEncryptedBackup(password, directory, path) {
   if (!Filesystem) throw new Error("Native file storage bridge unavailable.");
   if (!BackupFormat) throw new Error("Backup support is missing from this build.");
   const writer = await BackupFormat.createWriter({ password, schemaVersion: STANDALONE_SCHEMA_VERSION, exportedAt: nowIso() });
-  const tables = {};
-  for (const table of BACKUP_TABLES) tables[table.key] = await query(`SELECT * FROM ${table.table}`);
+  const tables = await readBackupTables();
   await Filesystem.writeFile({ directory, path, data: `${writer.headerLine}\n`, encoding: "utf8", recursive: true });
   const append = async (record) => {
     const line = await writer.encrypt(record);
@@ -2210,6 +2238,21 @@ function sameText(left, right) {
   return left === right;
 }
 
+// Every table is read inside one SQLite read transaction while other writes
+// wait (withExclusiveDb), so the backup is a single point-in-time snapshot.
+async function readBackupTables() {
+  return withExclusiveDb(async () => {
+    const began = await SQLite.beginTransaction?.({ database: DB }).then(() => true, () => false);
+    try {
+      const tables = {};
+      for (const table of BACKUP_TABLES) tables[table.key] = await query(`SELECT * FROM ${table.table}`);
+      return tables;
+    } finally {
+      if (began) await SQLite.commitTransaction({ database: DB }).catch(() => undefined);
+    }
+  });
+}
+
 function checkNewBackupPassword(password, confirm) {
   BackupFormat.checkPassword(password);
   // Both values are what the user just typed: no stored secret is compared.
@@ -2223,8 +2266,15 @@ async function markBackedUp(key = LAST_BACKUP_KEY) {
   else state.lastICloudBackupAt = at;
 }
 
+// A backup missing document files is still saved (the records in it are
+// worth keeping) but is never counted as this phone's last complete backup.
 function missingFilesNote(missingFiles) {
-  return missingFiles > 0 ? ` ${missingFiles} document file${missingFiles === 1 ? " was" : "s were"} missing on this phone and left out.` : "";
+  if (missingFiles === 0) return "";
+  return ` ${missingFiles} document file${missingFiles === 1 ? "" : "s"} could not be read on this phone and ${missingFiles === 1 ? "is" : "are"} not in it, so it is not counted as a complete backup.`;
+}
+
+async function markCompleteBackup(missingFiles, key = LAST_BACKUP_KEY) {
+  if (missingFiles === 0) await markBackedUp(key);
 }
 
 async function exportAndShareBackup(password, confirm) {
@@ -2234,14 +2284,14 @@ async function exportAndShareBackup(password, confirm) {
   showStandaloneStatus("Encrypting backup…", true);
   const { missingFiles } = await writeEncryptedBackup(password, BACKUP_EXPORT_DIRECTORY, path);
   if (!Share) {
-    await markBackedUp();
+    await markCompleteBackup(missingFiles);
     showStandaloneStatus(`Backup saved as ${name}.${missingFilesNote(missingFiles)}`, true);
     return;
   }
   try {
     const { uri } = await Filesystem.getUri({ directory: BACKUP_EXPORT_DIRECTORY, path });
     await Share.share({ title: "Hearth backup", dialogTitle: "Save your Hearth backup", files: [uri] });
-    await markBackedUp();
+    await markCompleteBackup(missingFiles);
     showStandaloneStatus(`Backup ${name} shared. Keep the password safe.${missingFilesNote(missingFiles)}`, true);
   } catch (error) {
     if (/cancel/i.test(String(error?.message ?? ""))) {
@@ -2262,7 +2312,9 @@ async function backupToICloud(password) {
     const { missingFiles } = await writeEncryptedBackup(password, BACKUP_EXPORT_DIRECTORY, path);
     const { uri } = await Filesystem.getUri({ directory: BACKUP_EXPORT_DIRECTORY, path });
     await ICloudBackup.upload({ path: uri, name, keep: ICLOUD_BACKUPS_KEPT });
-    await markBackedUp();
+    await markCompleteBackup(missingFiles);
+    // The daily schedule counts the attempt, so a phone with an unreadable
+    // file is not re-backed-up on every foreground; the nudge stays on.
     await markBackedUp(ICLOUD_LAST_BACKUP_KEY);
     return { name, missingFiles };
   } finally {
@@ -2325,7 +2377,8 @@ async function maybeRunICloudAutoBackup() {
     }
     const status = await ICloudBackup.status();
     if (!status.available) return;
-    await backupToICloud(password);
+    const { missingFiles } = await backupToICloud(password);
+    if (missingFiles > 0) showStandaloneStatus(`iCloud backup saved.${missingFilesNote(missingFiles)}`);
     await refreshICloudBackups();
     if (state.route === "settings" || state.route === "dashboard") await render();
   } catch (error) {
@@ -2483,9 +2536,14 @@ async function buildRestoreStatements(tables, mode) {
   for (const table of BACKUP_TABLES) {
     const rows = Array.isArray(tables[table.key]) ? tables[table.key] : [];
     if (mode === "replace") set.push({ statement: `DELETE FROM ${table.table}`, values: [] });
+    // Merge: a row with a version is replaced only by a backup row at least
+    // as new; a row without one (Term history, the reminder log) is never
+    // replaced, only added when this phone doesn't have it.
+    const versioned = table.columns.includes("version");
     const localVersions = new Map();
-    if (mode === "merge" && table.columns.includes("version") && rows.length > 0) {
-      for (const row of await query(`SELECT id, version FROM ${table.table}`)) localVersions.set(row.id, Number(row.version) || 0);
+    if (mode === "merge" && rows.length > 0) {
+      const sql = versioned ? `SELECT id, version FROM ${table.table}` : `SELECT id FROM ${table.table}`;
+      for (const row of await query(sql)) localVersions.set(row.id, versioned ? Number(row.version) || 0 : Infinity);
     }
     const placeholders = table.columns.map(() => "?").join(", ");
     const statement = `INSERT OR REPLACE INTO ${table.table} (${table.columns.join(", ")}) VALUES (${placeholders})`;
@@ -2514,20 +2572,125 @@ async function buildRestoreStatements(tables, mode) {
   return { set, restored, kept };
 }
 
+async function fileExists(path) {
+  return Filesystem.stat({ directory: FILE_DIRECTORY, path }).then(() => true, () => false);
+}
+
+async function ensureParentDir(path) {
+  const parent = path.slice(0, path.lastIndexOf("/"));
+  await Filesystem.mkdir({ directory: FILE_DIRECTORY, path: parent, recursive: true }).catch(() => undefined);
+}
+
+async function referencedStorageKeys() {
+  const rows = [
+    ...(await query("SELECT storage_key FROM documents")),
+    ...(await query("SELECT storage_key FROM inbox_documents")),
+  ];
+  return new Set(rows.map((row) => row.storage_key).filter(Boolean));
+}
+
+async function writeRestoreJournal(journal) {
+  await prefSet(RESTORE_JOURNAL_KEY, JSON.stringify(journal));
+}
+
+// Puts back every file a restore moved, newest first: placed files are
+// removed and the originals they displaced return.
+async function rollbackRestoreFiles(journal) {
+  for (const key of [...journal.placed].reverse()) {
+    await Filesystem.deleteFile({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${key}` }).catch(() => undefined);
+  }
+  for (const key of journal.aside) {
+    await ensureParentDir(`${FILE_ROOT}/${key}`);
+    await Filesystem.rename({ directory: FILE_DIRECTORY, from: `${RESTORE_ASIDE_ROOT}/${key}`, to: `${FILE_ROOT}/${key}` }).catch(() => undefined);
+  }
+}
+
+// After the database commit: drop the displaced originals and, for Replace,
+// the files of documents the backup no longer has. Returns the files that
+// could not be deleted.
+async function finishRestoreFiles(journal) {
+  let undeleted = 0;
+  if (journal.mode === "replace") {
+    const referenced = await referencedStorageKeys();
+    for (const key of journal.priorKeys) {
+      if (referenced.has(key)) continue;
+      await Filesystem.deleteFile({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${key}` }).catch(async () => {
+        if (await fileExists(`${FILE_ROOT}/${key}`)) undeleted += 1;
+      });
+    }
+  }
+  await Filesystem.rmdir({ directory: FILE_DIRECTORY, path: RESTORE_ASIDE_ROOT, recursive: true }).catch(() => undefined);
+  await prefRemove(RESTORE_JOURNAL_KEY);
+  return undeleted;
+}
+
+// Runs at launch. A restore that stopped part-way (the app was killed, the
+// phone died) is finished if its database write committed, or rolled back
+// if it did not, so files and records always agree.
+async function recoverInterruptedRestore() {
+  const raw = await prefGet(RESTORE_JOURNAL_KEY);
+  if (!raw || !Filesystem) return;
+  let journal;
+  try {
+    journal = JSON.parse(raw);
+  } catch {
+    await prefRemove(RESTORE_JOURNAL_KEY);
+    return;
+  }
+  const marker = await query("SELECT value FROM schema_metadata WHERE key = 'last_restore_id'").catch(() => []);
+  if (marker.some((row) => row.value === journal.id)) {
+    await finishRestoreFiles(journal);
+  } else {
+    await rollbackRestoreFiles(journal);
+    await Filesystem.rmdir({ directory: FILE_DIRECTORY, path: RESTORE_ASIDE_ROOT, recursive: true }).catch(() => undefined);
+    await prefRemove(RESTORE_JOURNAL_KEY);
+  }
+  await clearRestoreStaging();
+}
+
+// Files first, database second, each step journalled: every staged file is
+// checked, originals it replaces are moved aside (never deleted) and the new
+// file moved in; only then does one transaction write the rows plus a
+// restore marker. Any failure before the commit puts every file back. After
+// the commit the originals, and in Replace the files of documents the backup
+// doesn't have, are deleted.
 async function applyRestore({ tables, preferences, stagedKeys, mode, legacy = false }) {
   const { set, restored, kept } = await buildRestoreStatements(tables, mode);
-  await SQLite.executeSet({ database: DB, set, transaction: true });
-  let missingFiles = 0;
   for (const key of stagedKeys) {
-    const to = `${FILE_ROOT}/${key}`;
-    const parent = to.slice(0, to.lastIndexOf("/"));
-    await Filesystem.mkdir({ directory: FILE_DIRECTORY, path: parent, recursive: true }).catch(() => undefined);
-    await Filesystem.deleteFile({ directory: FILE_DIRECTORY, path: to }).catch(() => undefined);
-    await Filesystem.rename({ directory: FILE_DIRECTORY, from: `${RESTORE_STAGING_ROOT}/${key}`, to }).catch(() => {
-      missingFiles += 1;
-    });
+    if (!(await fileExists(`${RESTORE_STAGING_ROOT}/${key}`))) throw new Error("Could not prepare the backup's documents on this phone. Nothing was changed.");
   }
-  missingFiles += documentStorageKeys(tables).size - stagedKeys.length;
+  const journal = {
+    id: crypto.randomUUID(),
+    mode,
+    priorKeys: mode === "replace" ? [...(await referencedStorageKeys())] : [],
+    placed: [],
+    aside: [],
+  };
+  await writeRestoreJournal(journal);
+  try {
+    for (const key of stagedKeys) {
+      const to = `${FILE_ROOT}/${key}`;
+      await ensureParentDir(to);
+      if (await fileExists(to)) {
+        await ensureParentDir(`${RESTORE_ASIDE_ROOT}/${key}`);
+        await Filesystem.rename({ directory: FILE_DIRECTORY, from: to, to: `${RESTORE_ASIDE_ROOT}/${key}` });
+        journal.aside.push(key);
+        await writeRestoreJournal(journal);
+      }
+      await Filesystem.rename({ directory: FILE_DIRECTORY, from: `${RESTORE_STAGING_ROOT}/${key}`, to });
+      journal.placed.push(key);
+      await writeRestoreJournal(journal);
+    }
+    set.push({ statement: "INSERT OR REPLACE INTO schema_metadata (key, value) VALUES ('last_restore_id', ?)", values: [journal.id] });
+    await withExclusiveDb(() => SQLite.executeSet({ database: DB, set, transaction: true }));
+  } catch (error) {
+    await rollbackRestoreFiles(journal);
+    await Filesystem.rmdir({ directory: FILE_DIRECTORY, path: RESTORE_ASIDE_ROOT, recursive: true }).catch(() => undefined);
+    await prefRemove(RESTORE_JOURNAL_KEY);
+    throw new Error(`Restore failed, and this phone was left as it was (${error?.message || "unknown error"}).`);
+  }
+  const undeletedFiles = await finishRestoreFiles(journal);
+  const missingFiles = documentStorageKeys(tables).size - stagedKeys.length;
   const restoredPreferences = new Map(Object.entries(preferences && typeof preferences === "object" ? preferences : {}));
   for (const key of BACKUP_PREFERENCE_KEYS) {
     const value = restoredPreferences.get(key);
@@ -2540,8 +2703,9 @@ async function applyRestore({ tables, preferences, stagedKeys, mode, legacy = fa
     await syncLocalReminders(false).catch((error) => showStandaloneStatus(error.message || "Restored, but reminders could not be rescheduled."));
   }
   const parts = [`Restored ${restored} record${restored === 1 ? "" : "s"}`];
-  if (kept > 0) parts.push(`kept ${kept} newer on this phone`);
+  if (kept > 0) parts.push(`kept ${kept} already on this phone`);
   if (missingFiles > 0) parts.push(`${missingFiles} document file${missingFiles === 1 ? "" : "s"} missing from the backup`);
+  if (undeletedFiles > 0) parts.push(`${undeletedFiles} old document file${undeletedFiles === 1 ? "" : "s"} could not be removed`);
   showStandaloneStatus(`${parts.join(", ")}.${legacy ? " This was an unencrypted older backup: export a new encrypted one." : ""}`, true);
   return { restored, kept, missingFiles };
 }
@@ -4706,14 +4870,10 @@ async function purgeDocument(id) {
   const inbox = await query("SELECT id FROM inbox_documents WHERE storage_key = ? AND deleted_at IS NULL LIMIT 1", [doc.storage_key]);
   if (inbox.length === 0) await deleteStoredFile(doc.storage_key);
   // The next version now follows this one's older version, so the chain stays whole.
-  await SQLite.executeSet({
-    database: DB,
-    transaction: true,
-    set: [
-      { statement: "UPDATE documents SET supersedes_id = ?, version = version + 1 WHERE supersedes_id = ?", values: [doc.supersedes_id ?? null, doc.id] },
-      { statement: "DELETE FROM documents WHERE id = ?", values: [doc.id] },
-    ],
-  });
+  await runSet([
+    { statement: "UPDATE documents SET supersedes_id = ?, version = version + 1 WHERE supersedes_id = ?", values: [doc.supersedes_id ?? null, doc.id] },
+    { statement: "DELETE FROM documents WHERE id = ?", values: [doc.id] },
+  ]);
   return doc;
 }
 
@@ -5043,20 +5203,16 @@ async function renewContract(form) {
       if (documentId && !candidates.some((doc) => doc.id === documentId)) throw new Error("That document can't be linked to the term being kept.");
     }
     const now = nowIso();
-    await SQLite.executeSet({
-      database: DB,
-      transaction: true,
-      set: [
-        {
-          statement: "INSERT INTO contract_terms (id, contract_id, start_date, end_date, cost, currency, billing_frequency, document_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-          values: [localId("term"), id, row.start_date ?? null, row.end_date ?? null, row.cost ?? null, row.currency || defaultCurrency(), row.billing_frequency ?? null, documentId, now],
-        },
-        {
-          statement: "UPDATE contracts SET start_date = ?, end_date = ?, cost = ?, updated_at = ?, version = version + 1 WHERE id = ?",
-          values: [startDate, endDate, numberOrNull(fieldValue(form, "cost")), now, id],
-        },
-      ],
-    });
+    await runSet([
+      {
+        statement: "INSERT INTO contract_terms (id, contract_id, start_date, end_date, cost, currency, billing_frequency, document_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        values: [localId("term"), id, row.start_date ?? null, row.end_date ?? null, row.cost ?? null, row.currency || defaultCurrency(), row.billing_frequency ?? null, documentId, now],
+      },
+      {
+        statement: "UPDATE contracts SET start_date = ?, end_date = ?, cost = ?, updated_at = ?, version = version + 1 WHERE id = ?",
+        values: [startDate, endDate, numberOrNull(fieldValue(form, "cost")), now, id],
+      },
+    ]);
     await maybeStoreFormFile(form, "contract", id);
   } catch (error) {
     if (submit) submit.disabled = false;

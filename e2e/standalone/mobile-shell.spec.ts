@@ -443,6 +443,11 @@ test.beforeEach(async ({ page }) => {
         return;
       }
       const restoreRow = /^INSERT OR REPLACE INTO ([a-z_]+) \(([^)]+)\) VALUES/i.exec(sql);
+      // A restore's commit marker (#226).
+      if (restoreRow?.[1] === "schema_metadata" && /'last_restore_id'/.test(sql)) {
+        rowsByTable.schema_metadata = [...((rowsByTable.schema_metadata ?? []) as { key?: unknown }[]).filter((row) => row.key !== "last_restore_id"), { key: "last_restore_id", value: values[0] }];
+        return;
+      }
       if (restoreRow && !["documents", "local_profile", "schema_metadata"].includes(restoreRow[1])) {
         const columns = restoreRow[2].split(",").map((column) => column.trim());
         const row = Object.fromEntries(columns.map((column, index) => [column, values[index]]));
@@ -523,6 +528,18 @@ test.beforeEach(async ({ page }) => {
       throw new Error(`Mock: unhandled documents statement: ${sql}`);
     }
 
+    // "hearth-test-seed" puts preferences, files and rows in place before the
+    // app starts, to test what it does at launch (an interrupted restore).
+    try {
+      const seed = JSON.parse(localStorage.getItem("hearth-test-seed") ?? "null") as
+        | { preferences?: Record<string, string>; files?: Record<string, string>; rows?: Record<string, unknown[]> }
+        | null;
+      for (const [key, value] of Object.entries(seed?.preferences ?? {})) preferences.set(key, value);
+      for (const [key, value] of Object.entries(seed?.files ?? {})) files.set(key, value);
+      for (const [table, rows] of Object.entries(seed?.rows ?? {})) rowsByTable[table] = [...(rowsByTable[table] ?? []), ...rows];
+    } catch {
+      // No seed.
+    }
     (window as Window & { Capacitor?: unknown; __hearthStandaloneTest?: unknown }).__hearthStandaloneTest = {
       sqliteRuns,
       scheduledNotifications,
@@ -603,13 +620,27 @@ test.beforeEach(async ({ page }) => {
           appendFile: async (args: { directory?: string; path?: string; data?: string }) => {
             files.set(fileKey(args), (files.get(fileKey(args)) ?? "") + (args.data ?? ""));
           },
-          readFile: async (args: { directory?: string; path?: string }) => ({ data: files.get(fileKey(args)) ?? "JVBERi0=" }),
+          readFile: async (args: { directory?: string; path?: string }) => {
+            // "hearth-test-unreadable-file" names a path fragment whose
+            // reads fail, to test a backup that can't read every document.
+            const unreadable = localStorage.getItem("hearth-test-unreadable-file");
+            if (unreadable && String(args.path).includes(unreadable)) throw new Error("File does not exist");
+            return { data: files.get(fileKey(args)) ?? "JVBERi0=" };
+          },
+          stat: async (args: { directory?: string; path?: string }) => {
+            if (!files.has(fileKey(args))) throw new Error("File does not exist");
+            return { type: "file", size: (files.get(fileKey(args)) ?? "").length };
+          },
           getUri: async (args: { directory?: string; path?: string }) => ({ uri: `file:///${String(args.directory).toLowerCase()}/${args.path}` }),
           mkdir: async () => ({}),
           rmdir: async (args: { directory?: string; path?: string }) => {
             for (const key of [...files.keys()]) if (key.startsWith(`${fileKey(args)}/`)) files.delete(key);
           },
           rename: async (args: { directory?: string; from: string; to: string }) => {
+            // "hearth-test-rename-error" names a path fragment whose moves
+            // fail, to test that a restore puts every file back.
+            const failing = localStorage.getItem("hearth-test-rename-error");
+            if (failing && args.to.includes(failing)) throw new Error("Disk full");
             const from = `${args.directory}:${args.from}`;
             if (!files.has(from)) throw new Error("File does not exist");
             files.set(`${args.directory}:${args.to}`, files.get(from) ?? "");
@@ -620,6 +651,7 @@ test.beforeEach(async ({ page }) => {
             if (failure === "missing") throw new Error("File does not exist");
             if (failure === "other") throw new Error("Disk error");
             fileDeletes.push(args);
+            files.delete(fileKey(args));
             return {};
           },
         },
@@ -1032,6 +1064,112 @@ test("standalone iCloud backup uploads, turns on daily backup and restores from 
   await page.getByRole("button", { name: "Turn off daily backup" }).click();
   await expect(page.locator("#standalone-status")).toContainText("Daily iCloud backup is off");
 });
+
+test("standalone backup that can't read a document file is not counted as complete", async ({ page }) => {
+  await page.evaluate(() => localStorage.setItem("hearth-test-unreadable-file", "receipt.pdf"));
+  await openBackupSettings(page);
+  const form = page.locator("form[data-export-standalone-backup-form]");
+  await form.getByLabel("Backup password").fill("correct horse battery");
+  await form.getByLabel("Confirm password").fill("correct horse battery");
+  await form.getByRole("button", { name: "Export and share" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("not counted as a complete backup");
+  await expect(page.locator(".detail-row", { hasText: "Last backup" })).toContainText("Never");
+  await page.locator(".bottom-nav").getByRole("button", { name: "Dashboard" }).click();
+  await expect(page.locator("[data-backup-nudge]")).toBeVisible();
+  await page.evaluate(() => localStorage.removeItem("hearth-test-unreadable-file"));
+});
+
+test("standalone restore that fails moving a file puts every file back and writes no rows", async ({ page }) => {
+  await openBackupSettings(page);
+  const { text } = await exportBackup(page);
+  await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    harness.files.set("DATA:standalone-documents/insurance.pdf", "ORIGINAL");
+    localStorage.setItem("hearth-test-rename-error", "standalone-documents/receipt.pdf");
+  });
+  await restoreFile(page, text, { password: "correct horse battery" });
+  await expect(page.locator("#standalone-status")).toContainText("Restore failed, and this phone was left as it was");
+  const state = await page.evaluate(async () => {
+    localStorage.removeItem("hearth-test-rename-error");
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    return {
+      documentFiles: [...harness.files.entries()].filter(([key]) => key.startsWith("DATA:standalone-documents/")),
+      asideFiles: [...harness.files.keys()].filter((key) => key.startsWith("DATA:standalone-restore-previous/")),
+      restoreRuns: harness.sqliteRuns.filter((run) => run.transaction === true && run.statement.startsWith("DELETE FROM")).length,
+      journal: (await (window as unknown as { Capacitor: { Plugins: { Preferences: { get(a: { key: string }): Promise<{ value: string | null }> } } } }).Capacitor.Plugins.Preferences.get({ key: "hearth.mobile.restoreJournal" })).value,
+    };
+  });
+  expect(state.documentFiles).toEqual([["DATA:standalone-documents/insurance.pdf", "ORIGINAL"]]);
+  expect(state.asideFiles).toEqual([]);
+  expect(state.restoreRuns).toBe(0);
+  expect(state.journal).toBeNull();
+});
+
+test("standalone Replace restore deletes the files of documents the backup doesn't have", async ({ page }) => {
+  await openBackupSettings(page);
+  const { text } = await exportBackup(page);
+  await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    harness.files.set("DATA:standalone-documents/added-later.pdf", "LATER");
+    (harness.rowsByTable.documents as unknown as Record<string, unknown>[]).push({ id: "document-later", owner_type: "contract", owner_id: "contract-1", filename: "added-later.pdf", storage_key: "added-later.pdf", deleted_at: null });
+  });
+  await restoreFile(page, text, { password: "correct horse battery" });
+  await expect(page.locator("#standalone-status")).toContainText("Restored");
+  const keys = await page.evaluate(() => [...(window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest.files.keys()]);
+  expect(keys).not.toContain("DATA:standalone-documents/added-later.pdf");
+  expect(keys).toContain("DATA:standalone-documents/receipt.pdf");
+  expect(keys.filter((key) => key.startsWith("DATA:standalone-restore-"))).toEqual([]);
+});
+
+test("standalone Merge never overwrites a row that has no version", async ({ page }) => {
+  await openBackupSettings(page);
+  const { text } = await exportBackup(page);
+  await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    const term = (harness.rowsByTable.contract_terms as unknown as Record<string, unknown>[]).find((row) => row.id === "term-1");
+    if (term) term.cost = 999;
+  });
+  await restoreFile(page, text, { password: "correct horse battery", mode: "merge", confirm: false });
+  await expect(page.locator("#standalone-status")).toContainText("kept");
+  const { sqliteRuns, rowsByTable } = await backupHarness(page);
+  expect(sqliteRuns.some((run) => run.statement.startsWith("INSERT OR REPLACE INTO contract_terms") && run.values.includes("term-1"))).toBe(false);
+  expect((rowsByTable.contract_terms as unknown as Record<string, unknown>[]).find((row) => row.id === "term-1")?.cost).toBe(999);
+});
+
+// A restore interrupted after moving files: rolled back at the next launch if
+// its database write never committed, finished if it did.
+for (const committed of [false, true]) {
+  test(`standalone launch ${committed ? "finishes" : "rolls back"} a restore interrupted ${committed ? "after" : "before"} its database write`, async ({ page }) => {
+    const journal = { id: "restore-1", mode: "replace", priorKeys: ["orphan.pdf", "insurance.pdf"], placed: ["insurance.pdf"], aside: ["insurance.pdf"] };
+    await page.evaluate(({ journal, committed }) => {
+      localStorage.setItem("hearth-test-seed", JSON.stringify({
+        preferences: { "hearth.mobile.restoreJournal": JSON.stringify(journal) },
+        files: {
+          "DATA:standalone-documents/insurance.pdf": "FROM-BACKUP",
+          "DATA:standalone-restore-previous/insurance.pdf": "ORIGINAL",
+          "DATA:standalone-documents/orphan.pdf": "ORPHAN",
+        },
+        rows: committed ? { schema_metadata: [{ key: "last_restore_id", value: "restore-1" }] } : {},
+      }));
+    }, { journal, committed });
+    await page.reload();
+    await page.getByRole("button", { name: "Use on this device" }).click();
+    await expect(page.locator("#standalone-screen")).toBeVisible();
+    await expect.poll(() => page.evaluate(() => (window as unknown as { Capacitor: { Plugins: { Preferences: { get(a: { key: string }): Promise<{ value: string | null }> } } } }).Capacitor.Plugins.Preferences.get({ key: "hearth.mobile.restoreJournal" }).then((r) => r.value))).toBeNull();
+    const files = await page.evaluate(() => {
+      localStorage.removeItem("hearth-test-seed");
+      return Object.fromEntries((window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest.files);
+    });
+    if (committed) {
+      expect(files["DATA:standalone-documents/insurance.pdf"]).toBe("FROM-BACKUP");
+      expect(files["DATA:standalone-documents/orphan.pdf"]).toBeUndefined();
+    } else {
+      expect(files["DATA:standalone-documents/insurance.pdf"]).toBe("ORIGINAL");
+      expect(files["DATA:standalone-documents/orphan.pdf"]).toBe("ORPHAN");
+    }
+    expect(files["DATA:standalone-restore-previous/insurance.pdf"]).toBeUndefined();
+  });
+}
 
 test("standalone help and local module settings mirror baseline settings/help surfaces", async ({ page }) => {
   await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
