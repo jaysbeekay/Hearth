@@ -40,7 +40,7 @@ async function uploadToSegment(page: Page, filename: string): Promise<string> {
 async function deleteFromList(page: Page, filename: string) {
   await page.getByRole("button", { name: `Delete ${filename}`, exact: true }).click();
   const dialog = page.getByRole("alertdialog");
-  await expect(dialog).toContainText("Move");
+  await expect(dialog).toContainText(`Delete ${filename}?`);
   await expect(dialog).toContainText("Settings → Recently deleted");
   await expect(dialog).not.toContainText("can't be undone");
   await dialog.getByRole("button", { name: "Delete", exact: true }).click();
