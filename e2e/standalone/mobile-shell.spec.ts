@@ -11,6 +11,11 @@ test.beforeEach(async ({ page }) => {
   });
 
   await page.addInitScript(() => {
+    // Fixture flags ("hearth-test-*") come from the page URL's query string,
+    // set by reloadWithTestFlags. Not localStorage: Chromium sometimes loses a
+    // file:// localStorage write made just before a reload (about 1 in 10),
+    // and the reloaded page then starts with the default fixtures.
+    const testFlag = (key: string) => new URLSearchParams(location.search).get(key);
     const preferences = new Map<string, string>();
     const sqliteRuns: { statement: string; values: unknown[]; transaction?: boolean }[] = [];
     const scheduledNotifications: unknown[] = [];
@@ -253,13 +258,13 @@ test.beforeEach(async ({ page }) => {
           uploaded_at: "2099-01-01T00:00:00.000Z",
         },
         // #455 — Documents for the Trash tests, picked by
-        // localStorage "hearth-test-doc-versions" (see docVersionRows).
-        ...docVersionRows(localStorage.getItem("hearth-test-doc-versions") ?? ""),
+        // the "hearth-test-doc-versions" flag (see docVersionRows).
+        ...docVersionRows(testFlag("hearth-test-doc-versions") ?? ""),
         // #353 — Broadband Plan's paperwork: the prior Term's (linked to
         // term-1), the current policy, and a newer receipt. Only for the
         // tests that ask (withContractDocuments), since the document tests
         // count what's listed.
-        ...(localStorage.getItem("hearth-test-contract-documents") !== "1" ? [] : [
+        ...(testFlag("hearth-test-contract-documents") !== "1" ? [] : [
           ["document-contract-2097", "broadband-2097.pdf", "POLICY", "2097-07-01T00:00:00.000Z"],
           ["document-contract-2098", "broadband-2098.pdf", "POLICY", "2098-07-01T00:00:00.000Z"],
           ["document-contract-receipt", "broadband-receipt.pdf", "RECEIPT", "2099-01-02T00:00:00.000Z"],
@@ -547,7 +552,7 @@ test.beforeEach(async ({ page }) => {
           },
           readFile: async () => ({ data: "JVBERi0=" }),
           deleteFile: async (args: { directory?: string; path?: string }) => {
-            const failure = localStorage.getItem("hearth-test-delete-file-error");
+            const failure = testFlag("hearth-test-delete-file-error");
             if (failure === "missing") throw new Error("File does not exist");
             if (failure === "other") throw new Error("Disk error");
             fileDeletes.push(args);
@@ -1167,8 +1172,15 @@ async function sqliteRuns(page: import("@playwright/test").Page): Promise<Sqlite
 
 // Reloads the shell with Broadband Plan's documents seeded (see the mock).
 async function withContractDocuments(page: import("@playwright/test").Page) {
-  await page.evaluate(() => localStorage.setItem("hearth-test-contract-documents", "1"));
-  await page.reload();
+  await reloadWithTestFlags(page, { "hearth-test-contract-documents": "1" });
+}
+
+// Reloads the shell with fixture flags for the mock, kept in the URL's query
+// string (on top of any set earlier) so they reach the reloaded page reliably.
+async function reloadWithTestFlags(page: import("@playwright/test").Page, flags: Record<string, string>) {
+  const url = new URL(page.url());
+  for (const [key, value] of Object.entries(flags)) url.searchParams.set(key, value);
+  await page.goto(url.toString());
   await page.getByRole("button", { name: "Use on this device" }).click();
   await expect(page.locator("#standalone-screen")).toBeVisible();
 }
@@ -1270,21 +1282,14 @@ test("standalone Previous terms opens the prior Term's document (#353)", async (
 // the Trash entry is purged, and the chain survives a trashed version.
 type ShellPage = import("@playwright/test").Page;
 
-async function reloadStandalone(page: ShellPage) {
-  await page.reload();
-  await page.getByRole("button", { name: "Use on this device" }).click();
-  await expect(page.locator("#standalone-screen")).toBeVisible();
-}
-
 // `now` fixes the device clock before the reload, for the purge tests (the
 // fixtures are dated 2099, so with the real clock nothing is ever purged).
 async function withDocumentVersions(page: ShellPage, mode: string, options: { now?: string; deleteFileError?: string } = {}) {
-  await page.evaluate(([value, error]) => {
-    localStorage.setItem("hearth-test-doc-versions", value);
-    if (error) localStorage.setItem("hearth-test-delete-file-error", error);
-  }, [mode, options.deleteFileError ?? ""] as const);
   if (options.now) await page.clock.setFixedTime(new Date(options.now));
-  await reloadStandalone(page);
+  await reloadWithTestFlags(page, {
+    "hearth-test-doc-versions": mode,
+    ...(options.deleteFileError ? { "hearth-test-delete-file-error": options.deleteFileError } : {}),
+  });
 }
 
 async function openBroadbandPlan(page: ShellPage) {
@@ -1536,7 +1541,6 @@ test("standalone purge keeps the row when the file can't be deleted, and retries
   expect((await savedDocuments(page)).map((row) => row.id)).toEqual(expect.arrayContaining(["version-2", "version-3"]));
 
   // A file that is already gone is fine: the rows go.
-  await page.evaluate(() => localStorage.setItem("hearth-test-delete-file-error", "missing"));
-  await reloadStandalone(page);
+  await reloadWithTestFlags(page, { "hearth-test-delete-file-error": "missing" });
   await expect.poll(async () => deletedDocuments((await shellTestState(page)).runs)).toEqual(["version-3", "version-2"]);
 });
