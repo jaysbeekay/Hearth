@@ -222,7 +222,7 @@ export default async function RentalOverviewPage({
                               parentId: property.id,
                               label: `Delete tenancy: ${ag.tenantName ?? property.label}`,
                             }}
-                            confirmText="Move this tenancy to Trash? Statements are not affected, and you can restore it within 30 days from Settings → Trash."
+                            confirmText="Delete this tenancy? Statements are not affected, and you can restore it within 30 days from Settings → Recently deleted."
                             className={buttonClass("secondary", { destructive: true })}
                           >
                             <Trash2 size={16} />
@@ -296,7 +296,7 @@ export default async function RentalOverviewPage({
                             <option value="">Not linked</option>
                             {rentalContracts.map((c) => (
                               <option key={c.id} value={c.id} disabled={c.rentalAgreement !== null}>
-                                {`${c.title} (${c.provider})${c.rentalAgreement !== null ? " (linked to a tenancy in Trash)" : ""}`}
+                                {`${c.title} (${c.provider})${c.rentalAgreement !== null ? " (linked to a deleted tenancy)" : ""}`}
                               </option>
                             ))}
                           </select>
@@ -391,7 +391,7 @@ export default async function RentalOverviewPage({
                                 parentId: property.id,
                                 label: `Delete statement: ${formatDate(stmt.statementDate ?? stmt.periodEnd, dateFormat)}`,
                               }}
-                              confirmText="Move this statement to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash."
+                              confirmText="Delete this statement? Its documents are kept, and you can restore it within 30 days from Settings → Recently deleted."
                               className={buttonClass("secondary", { destructive: true })}
                             >
                               <Trash2 size={16} />

@@ -162,7 +162,7 @@ export default async function PropertyDetailPage({
                 <ConfirmForm
                   action={deleteProperty.bind(null, property.id)}
                   undo={{ action: restoreProperty.bind(null, property.id), href: `/home/${property.id}` }}
-                  confirmText="Move this property to Trash? Its maintenance records and documents are kept, and you can restore it within 30 days from Settings → Trash."
+                  confirmText="Delete this property? Its maintenance records and documents are kept, and you can restore it within 30 days from Settings → Recently deleted."
                   className={menuItemClass({ destructive: true })}
                   offline={{ entity: "property", entityId: property.id, label: `Delete property: ${property.label}` }}
                 >
@@ -280,7 +280,7 @@ export default async function PropertyDetailPage({
                           <ConfirmForm
                             action={deleteHomeItem.bind(null, property.id, item.id)}
                             undo={{ action: restoreHomeItem.bind(null, item.id) }}
-                            confirmText={`Move "${item.title}" to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash.`}
+                            confirmText={`Delete "${item.title}"? Its documents are kept, and you can restore it within 30 days from Settings → Recently deleted.`}
                             className={buttonClass("secondary", { destructive: true })}
                           >
                             <Trash2 size={16} />
@@ -389,8 +389,8 @@ export default async function PropertyDetailPage({
                       parentId: property.id,
                       label: `Delete valuation: ${formatDate(v.valuedAt, dateFormat)}`,
                     }}
-                    confirmText="Move this valuation to Trash? You can restore it within 30 days from Settings → Trash."
-                    ariaLabel={`Move valuation from ${formatDate(v.valuedAt, dateFormat)} to Trash`}
+                    confirmText="Delete this valuation? You can restore it within 30 days from Settings → Recently deleted."
+                    ariaLabel={`Delete valuation from ${formatDate(v.valuedAt, dateFormat)}`}
                     className={buttonClass("secondary", { icon: true, destructive: true })}
                   >
                     <Trash2 size={16} />

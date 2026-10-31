@@ -7,6 +7,32 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+### Changed
+
+- **One set of shared UI rules (#411).** The app now draws from one type
+  scale (24/20/16/14/12px at two weights, sentence case), one radius
+  (`rounded-lg`, with `rounded-full` only for dots), 1px borders, no card
+  shadows and a single overlay shadow for dialogs and menus. Cards, pills,
+  banners and page widths come from `Card`, `Pill`, `Banner` and
+  `PageShell` (`src/components/ui/`), and every class string they use lives
+  in `src/lib/ui.ts`. Buttons are primary, secondary, quiet or danger at
+  one 36px size with a 44px hit area; each page has at most one primary
+  button (row actions, settings saves and detail-page actions are
+  secondary), filter chips look like secondary buttons rather than status
+  pills, and inputs and selects share one 36px style. Icons are 16px in
+  content and 20px in navigation, and decorative icons (the 32px glyphs on
+  sign-in and error pages, the chat avatars, the per-row icons in the
+  Needs attention queue) are gone. Dashed borders are kept only for file
+  drop zones, and hover motion is colour-only. A unit test
+  (`tests/unit/ui-rules.test.ts`) and an e2e check
+  (`e2e/specs/51-ui-rules.spec.ts`) hold these rules in place. The iOS and
+  Android shell keeps its own styles and is unchanged.
+- Links inside running text are now underlined, so they no longer rely on
+  colour alone, and the contract list's filter selects and each member's role
+  select have accessible names (#411 review).
+
+## [0.20.0] - 2026-10-31
+
 ### Fixed
 
 - Android release build (`android-build.yml`) failing since v0.18.0: R8 aborted
@@ -228,27 +254,15 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
-- **One set of shared UI rules (#411).** The app now draws from one type
-  scale (24/20/16/14/12px at two weights, sentence case), one radius
-  (`rounded-lg`, with `rounded-full` only for dots), 1px borders, no card
-  shadows and a single overlay shadow for dialogs and menus. Cards, pills,
-  banners and page widths come from `Card`, `Pill`, `Banner` and
-  `PageShell` (`src/components/ui/`), and every class string they use lives
-  in `src/lib/ui.ts`. Buttons are primary, secondary, quiet or danger at
-  one 36px size with a 44px hit area; each page has at most one primary
-  button (row actions, settings saves and detail-page actions are
-  secondary), filter chips look like secondary buttons rather than status
-  pills, and inputs and selects share one 36px style. Icons are 16px in
-  content and 20px in navigation, and decorative icons (the 32px glyphs on
-  sign-in and error pages, the chat avatars, the per-row icons in the
-  Needs attention queue) are gone. Dashed borders are kept only for file
-  drop zones, and hover motion is colour-only. A unit test
-  (`tests/unit/ui-rules.test.ts`) and an e2e check
-  (`e2e/specs/51-ui-rules.spec.ts`) hold these rules in place. The iOS and
-  Android shell keeps its own styles and is unchanged.
-- Links inside running text are now underlined, so they no longer rely on
-  colour alone, and the contract list's filter selects and each member's role
-  select have accessible names (#411 review).
+- "Trash" is now called "Recently deleted" everywhere it's shown: the Settings
+  section and page, delete confirmations, toasts and error messages. The
+  confirm button on a restorable delete now says "Delete" (was "Move to
+  Trash") and the toast says "Moved to Recently deleted." (still with Undo),
+  so it reads differently from "Delete permanently". The standalone mobile
+  shell, which has no Recently deleted page, no longer names one: a deleted
+  Document says "deleted." with Undo, and its record's delete confirmation says
+  the documents are kept for 30 days.
+  The `/settings/trash` route and internal names are unchanged.
 
 - **An empty `APP_URL` now counts as unset (#477)**, so links fall back to
   `http://localhost:3000` instead of being built from an empty string. On

@@ -100,7 +100,7 @@ test.describe.serial("Vehicles module", () => {
       hasText: "Updated Service Record",
     });
     await row.getByRole("button", { name: "Delete", exact: true }).click();
-    await page.getByRole("button", { name: "Move to Trash" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
 
     // Soft-deleted: gone from the active list, but the files are untouched.
     await expect(page.locator("body")).not.toContainText("Updated Service Record");
@@ -147,7 +147,7 @@ test.describe.serial("Vehicles module", () => {
     await expect(row).toContainText("Document uploaded.");
 
     await row.getByRole("button", { name: "Delete", exact: true }).click();
-    await page.getByRole("button", { name: "Move to Trash" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
     await expect(page.locator("body")).not.toContainText("Test Purchase Record");
   });
 
@@ -177,7 +177,7 @@ test.describe.serial("Vehicles module", () => {
     await page.goto(`/vehicles/${vehicleId}`);
     await page.getByRole("button", { name: "More actions" }).click();
     await page.getByRole("button", { name: "Delete", exact: true }).click();
-    await page.getByRole("button", { name: "Move to Trash" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
     await page.waitForURL(/\/vehicles$/);
 
     await expect(page.locator("body")).not.toContainText("Test Vehicle");

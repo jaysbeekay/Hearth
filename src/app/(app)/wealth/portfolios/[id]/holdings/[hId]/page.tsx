@@ -465,7 +465,7 @@ export default async function HoldingPage({
                               parentId: holdingId,
                               label: `Delete trade: ${holding.ticker} ${formatDate(trade.date, dateFormat)}`,
                             }}
-                            confirmText="Move this trade to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash."
+                            confirmText="Delete this trade? Its documents are kept, and you can restore it within 30 days from Settings → Recently deleted."
                             ariaLabel={`Delete trade from ${formatDate(trade.date, dateFormat)}`}
                             className={buttonClass("secondary", { icon: true, destructive: true })}
                           >

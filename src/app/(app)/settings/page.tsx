@@ -151,7 +151,7 @@ export default async function SettingsPage() {
         <IcalTokenSection hasToken={Boolean(user.icalTokenHash)} appUrl={appUrl} />
 
         <Card as="section">
-          <h2 className="mb-3 font-medium">Trash</h2>
+          <h2 className="mb-3 font-medium">Recently deleted</h2>
           <p className="mb-3 text-sm text-muted">
             Deleted contracts, warranties, vehicles, properties, trips, and inventory items stay
             here for 30 days before they&apos;re removed for good.

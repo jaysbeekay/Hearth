@@ -167,7 +167,7 @@ export default async function TrashPage() {
 
       {entries.length === 0 ? (
         <p className={emptyStateClass()}>
-          Trash is empty.
+          Nothing has been deleted recently.
         </p>
       ) : (
         <Card as="ul" padding="none" className="divide-y divide-border">

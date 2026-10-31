@@ -917,7 +917,7 @@ when the tag is the highest stable release.
 **Re-running an old tag does not pick up fixes.** A workflow run on a tag uses
 that tag's own copy of the workflow files, so re-running a release whose
 workflows were broken (such as v0.19.2) fails the same way. Cut a new patch
-release (v0.19.3) instead.
+release instead (v0.20.0 was the first built this way).
 
 `android-check.yml` runs the Gradle/R8 release build on pull requests that
 touch Android inputs (and weekly, opening an issue if it fails), so breakage

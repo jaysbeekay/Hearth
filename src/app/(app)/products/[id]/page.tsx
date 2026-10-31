@@ -109,7 +109,7 @@ export default async function ProductDetailPage({
                 <ConfirmForm
                   action={deleteProduct.bind(null, product.id)}
                   undo={{ action: restoreProduct.bind(null, product.id), href: `/products/${product.id}` }}
-                  confirmText="Move this warranty to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash."
+                  confirmText="Delete this warranty? Its documents are kept, and you can restore it within 30 days from Settings → Recently deleted."
                   className={menuItemClass({ destructive: true })}
                   offline={{ entity: "product", entityId: product.id, label: `Delete warranty: ${product.description}` }}
                 >
