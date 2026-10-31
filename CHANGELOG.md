@@ -7,6 +7,8 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-10-31
+
 ### Fixed
 
 - Android release build (`android-build.yml`) failing since v0.18.0: R8 aborted
