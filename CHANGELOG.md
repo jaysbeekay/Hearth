@@ -7,6 +7,27 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+### Fixed
+
+- Android release build (`android-build.yml`) failing since v0.18.0: R8 aborted
+  with missing `com.google.errorprone.annotations.*` / `javax.annotation.*`
+  classes referenced by Tink (via the encrypted-SQLite plugin). Added the
+  matching `-dontwarn` rules plus keep rules for the Capacitor/RevenueCat
+  plugin packages, sqlcipher (`net.zetetic.database.**`, JNI native methods)
+  and Tink's protobuf fields in `proguard-rules.pro`. Minification stays on.
+- `android-actions/setup-android` v3 failed on current runners; bumped to
+  v4.0.4.
+- Manual-dispatch releases (`release.yml`) never built the Docker image or the
+  Android APK/AAB (v0.19.2 shipped with neither), because tags created by the
+  `GITHUB_TOKEN` don't fire push-triggered workflows. `release.yml` now
+  dispatches `docker-publish.yml` and `android-build.yml` against the new tag,
+  waits for both (dispatched or tag-push) builds to finish, and fails unless
+  the APK/AAB are attached to the Release and the Docker image is on Docker
+  Hub, so a green release run means the artifacts were actually published.
+- `android-build.yml` now always builds the release variant (unsigned when not
+  a signed tag run) so manual runs exercise R8, and no longer builds the debug
+  APK when dispatched against a tag.
+
 ### Security
 
 - `nodemailer` 10.0.16 → 10.2.1 and `mailparser` → 3.12.4, fixing three
@@ -44,6 +65,17 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   sign-in purges them instead), and offline Documents and cached lists
   from before it are purged. If someone other than the person who queued
   them is that first writer, they'll sync under that member's account.
+- Android release signing is now tag-only: `android-build.yml` signs only on a
+  `v*` tag with the secrets present; branch and `main` runs build unsigned
+  (`*-unsigned` artifacts, 7-day retention). Decoded keystore is deleted at
+  the end of every run.
+- Signing and Docker Hub jobs use a `release` environment (owner restricts it
+  to `v*` tags and moves the secrets into it; see README "Releasing").
+- `release.yml` and `docker-publish.yml` refuse to run outside `main` or a
+  `v*` tag; `release.yml` validates the version input and no longer
+  interpolates inputs into shell scripts; `actions: write` is held only by the
+  small `artifacts` job; Docker `latest` moves only for the highest stable
+  release.
 
 ### Added
 
@@ -194,6 +226,9 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   Console non-consumable products to be set up before shipping — see the
   comments beside `REVENUECAT_API_KEY_IOS`/`REVENUECAT_API_KEY_ANDROID` in
   `ios-shell/www/app.js`, which are placeholders pending that setup.
+- `android-check.yml`: path-filtered pull request check (plus a weekly run)
+  that runs `cap sync android` and an unsigned `assembleRelease` (R8) so Android-only breakage surfaces before a release. A failing scheduled run
+  opens an issue.
 
 ### Changed
 
