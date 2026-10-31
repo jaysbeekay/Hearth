@@ -5,6 +5,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { deleteChatThread } from "@/lib/actions/chatThreads";
 import { cn } from "@/lib/utils";
+import { buttonClass } from "@/lib/ui";
 
 export interface ThreadSummary {
   id: string;
@@ -28,7 +29,7 @@ export function ChatThreadList({
         <Link
           href="/assistant"
           onClick={onNavigate}
-          className="flex items-center justify-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+          className={buttonClass("secondary")}
         >
           <Plus size={16} />
           New chat
@@ -64,9 +65,9 @@ export function ChatThreadList({
               actionLabel="Delete conversation"
               ariaLabel="Delete conversation"
               successMessage=""
-              className="shrink-0 rounded-md p-1 text-muted opacity-0 hover:text-danger group-hover:opacity-100"
+              className={buttonClass("quiet", { icon: true }, "shrink-0 text-muted opacity-0 hover:text-danger group-hover:opacity-100")}
             >
-              <Trash2 size={14} />
+              <Trash2 size={16} />
             </ConfirmForm>
           </div>
         ))}

@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { cn } from "@/lib/utils";
 import { showToast } from "@/components/Toast";
+import { bannerClass } from "@/lib/ui";
 
 export function FormMessage({
   error,
@@ -26,12 +26,7 @@ export function FormMessage({
   if (!error && !success) return null;
 
   return (
-    <p
-      className={cn(
-        "rounded-lg px-3 py-2 text-sm",
-        error ? "bg-danger/10 text-danger" : "bg-success/10 text-success",
-      )}
-    >
+    <p className={bannerClass(error ? "danger" : "success")}>
       {error ?? success}
     </p>
   );

@@ -9,7 +9,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { Field } from "@/components/FormField";
 import { INVENTORY_ITEM_CATEGORIES } from "@/lib/validation/inventory";
-import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
+import { SelectWrapper, inputClass, textareaClass, selectClass } from "@/components/SelectWrapper";
 import { FileDropZone } from "@/components/FileDropZone";
 import { applyIfEmpty, markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 import {
@@ -20,6 +20,8 @@ import {
   type QueuedOperation,
 } from "@/lib/offlineQueue";
 import { DateInput } from "@/components/DateInput";
+import { bannerClass } from "@/lib/ui";
+import { Card } from "@/components/ui/Card";
 
 const CATEGORY_LABELS: Record<string, string> = {
   APPLIANCE: "Appliance",
@@ -142,12 +144,12 @@ export function InventoryItemForm({
       className="space-y-6"
     >
       {pendingOp && (
-        <p className="rounded-lg border border-dashed border-warning/40 bg-warning/10 px-4 py-2 text-sm text-warning">
+        <p className={bannerClass("warning")}>
           Editing an offline entry that hasn&apos;t synced yet — saving updates it in place.
         </p>
       )}
       {!item && (
-        <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
+        <Card className="space-y-2">
           <p className="flex items-center gap-2 text-sm font-medium">
             <Upload size={16} />
             Save time: upload a receipt or invoice and Hearth fills in the details
@@ -158,7 +160,7 @@ export function InventoryItemForm({
             onFileSelected={handleFileChange}
           />
           {scanning && (
-            <p role="status" aria-live="polite" className="text-xs text-muted animate-pulse">
+            <p role="status" aria-live="polite" className="text-xs text-muted">
               Scanning document…
             </p>
           )}
@@ -167,7 +169,7 @@ export function InventoryItemForm({
               {scanMessage}
             </p>
           )}
-        </div>
+        </Card>
       )}
 
       <Field label="Label" htmlFor="label" required>
@@ -274,7 +276,7 @@ export function InventoryItemForm({
           name="notes"
           rows={3}
           defaultValue={effectiveValues?.notes ?? item?.notes ?? ""}
-          className={inputClass}
+          className={textareaClass}
         />
       </Field>
 

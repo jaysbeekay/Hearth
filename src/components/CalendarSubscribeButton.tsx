@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Dialog } from "@/components/Dialog";
 import { IcalTokenSection } from "@/components/IcalTokenSection";
-import { compactButtonClass } from "@/lib/buttonStyles";
+import { buttonClass, dialogPanelClass } from "@/lib/ui";
 
 // #368 — the Upcoming page's one obvious next step is getting these dates
 // into the calendar people already use. Same feed controls as Settings →
@@ -13,18 +13,18 @@ export function CalendarSubscribeButton({ hasToken, appUrl }: { hasToken: boolea
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className={`shrink-0 ${compactButtonClass()}`}>
+      <button type="button" onClick={() => setOpen(true)} className={`shrink-0 ${buttonClass("secondary")}`}>
         Subscribe in your calendar
       </button>
       <Dialog
         open={open}
         onClose={() => setOpen(false)}
         labelledBy="calendar-feed-heading"
-        panelClassName="w-full max-w-lg rounded-xl border border-border bg-surface p-5 shadow-xl"
+        panelClassName={dialogPanelClass("max-w-lg")}
       >
         <IcalTokenSection hasToken={hasToken} appUrl={appUrl} embedded />
         <div className="mt-4 flex justify-end">
-          <button type="button" onClick={() => setOpen(false)} className={compactButtonClass()}>
+          <button type="button" onClick={() => setOpen(false)} className={buttonClass("secondary")}>
             Done
           </button>
         </div>

@@ -20,13 +20,18 @@ import { MODULE_REGISTRY } from "@/lib/modules/registry";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
+import { Card } from "@/components/ui/Card";
+import { cardClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.household.label };
 
 // min-h-11 (44px) keeps these comfortably tappable on mobile even though
 // they're plain text links, not buttons.
-const quickLinkClass =
-  "flex min-h-11 items-center justify-between gap-3 rounded-lg border border-border px-3 text-sm font-medium hover:bg-hover";
+const quickLinkClass = cardClass(
+  { padding: "none", interactive: true },
+  "flex min-h-11 items-center justify-between gap-3 px-3 text-sm font-medium",
+);
 
 export default async function HouseholdSettingsPage() {
   const session = await auth();
@@ -54,10 +59,10 @@ export default async function HouseholdSettingsPage() {
   const notificationsConfigured = smtpConfigured || ntfyConfigured;
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <PageShell width="form">
       <BackLink {...settingsBackLink(SETTINGS_ROUTES.household)} />
       <div>
-        <h1 className="text-2xl font-semibold">{SETTINGS_ROUTES.household.label}</h1>
+        <h1 className="text-2xl font-medium">{SETTINGS_ROUTES.household.label}</h1>
         <p className="mt-1 text-sm text-muted">
           Settings shared by the whole household, not just your own account.
         </p>
@@ -66,7 +71,7 @@ export default async function HouseholdSettingsPage() {
       <div className="flex flex-col gap-2">
         <Link href={SETTINGS_ROUTES.users.href} className={quickLinkClass}>
           <span className="flex items-center gap-3">
-            <Users size={18} />
+            <Users size={20} />
             {SETTINGS_ROUTES.users.label}
           </span>
           <span className="text-xs font-normal text-muted">
@@ -75,7 +80,7 @@ export default async function HouseholdSettingsPage() {
         </Link>
         <Link href={SETTINGS_ROUTES.backups.href} className={quickLinkClass}>
           <span className="flex items-center gap-3">
-            <DatabaseBackup size={18} />
+            <DatabaseBackup size={20} />
             {SETTINGS_ROUTES.backups.label}
           </span>
           <span className="text-xs font-normal text-muted">
@@ -84,7 +89,7 @@ export default async function HouseholdSettingsPage() {
         </Link>
         <Link href={SETTINGS_ROUTES.webhooks.href} className={quickLinkClass}>
           <span className="flex items-center gap-3">
-            <Webhook size={18} />
+            <Webhook size={20} />
             {SETTINGS_ROUTES.webhooks.label}
           </span>
           <span className="text-xs font-normal text-muted">
@@ -93,7 +98,7 @@ export default async function HouseholdSettingsPage() {
         </Link>
         <Link href={SETTINGS_ROUTES.modules.href} className={quickLinkClass}>
           <span className="flex items-center gap-3">
-            <LayoutGrid size={18} />
+            <LayoutGrid size={20} />
             {SETTINGS_ROUTES.modules.label}
           </span>
           <span className="text-xs font-normal text-muted">
@@ -102,7 +107,7 @@ export default async function HouseholdSettingsPage() {
         </Link>
         <Link href={SETTINGS_ROUTES.app.href} className={quickLinkClass}>
           <span className="flex items-center gap-3">
-            <Settings2 size={18} />
+            <Settings2 size={20} />
             {SETTINGS_ROUTES.app.label}
           </span>
           <span className="text-xs font-normal text-muted">
@@ -111,7 +116,7 @@ export default async function HouseholdSettingsPage() {
         </Link>
       </div>
 
-      <section className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
+      <Card as="section" className="space-y-4">
         <div>
           <h2 className="font-medium">Household timezone</h2>
           <p className="text-xs text-muted mt-0.5">
@@ -125,7 +130,7 @@ export default async function HouseholdSettingsPage() {
           serverDefault={getServerDefaultTimeZone()}
           choices={householdTimeZoneChoices(householdTimeZone)}
         />
-      </section>
-    </div>
+      </Card>
+    </PageShell>
   );
 }

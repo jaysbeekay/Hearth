@@ -14,8 +14,7 @@ import {
   whenOfflineDataClaimed,
 } from "@/lib/offlineSession";
 import { awaitSyncIdle, syncPendingOperations } from "@/lib/offlineSync";
-import { buttonVariants, compactButtonClass } from "@/lib/buttonStyles";
-import { cn } from "@/lib/utils";
+import { buttonClass } from "@/lib/ui";
 
 // How long the pre-sign-out check may take before we stop waiting on
 // IndexedDB and say so, rather than hang or assume nothing is unsynced.
@@ -174,7 +173,7 @@ export function SignOutButton({
         labelledBy="signout-unsynced-title"
         describedBy="signout-unsynced-text"
       >
-        <h2 id="signout-unsynced-title" className="text-base font-semibold">
+        <h2 id="signout-unsynced-title" className="text-base font-medium">
           {unknown ? "Couldn't check for unsynced changes" : "Unsynced changes"}
         </h2>
         <p id="signout-unsynced-text" className="mt-2 text-sm text-foreground">
@@ -190,7 +189,7 @@ export function SignOutButton({
             type="button"
             disabled={busy !== null}
             onClick={close}
-            className={`${compactButtonClass()} disabled:opacity-50`}
+            className={`${buttonClass("secondary")} disabled:opacity-50`}
           >
             Cancel
           </button>
@@ -198,7 +197,7 @@ export function SignOutButton({
             type="button"
             disabled={busy !== null}
             onClick={() => { void onDiscard(); }}
-            className={`${compactButtonClass("danger")} disabled:opacity-50`}
+            className={`${buttonClass("secondary", { destructive: true })} disabled:opacity-50`}
           >
             {discardLabel}
           </button>
@@ -207,10 +206,7 @@ export function SignOutButton({
               type="button"
               disabled={busy !== null}
               onClick={() => { void onSyncNow(); }}
-              className={cn(
-                "inline-flex min-h-11 items-center justify-center rounded-lg px-3 text-sm font-medium disabled:opacity-50",
-                buttonVariants.primary,
-              )}
+              className={buttonClass("primary")}
             >
               {busy === "sync" ? "Syncing…" : "Sync now"}
             </button>

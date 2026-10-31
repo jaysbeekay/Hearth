@@ -204,6 +204,14 @@ security notes.
 | --- | --- |
 | ![Warranties](docs/screenshots/products-list.png) | ![Contract — renew](docs/screenshots/contract-renew.png) |
 
+| Dashboard — dark | Contract detail — dark |
+| --- | --- |
+| ![Dashboard in dark mode](docs/screenshots/dashboard-dark.png) | ![Contract detail in dark mode](docs/screenshots/contract-detail-dark.png) |
+
+| Contracts — dark | Settings — dark |
+| --- | --- |
+| ![Contracts list in dark mode](docs/screenshots/contracts-list-dark.png) | ![Settings in dark mode](docs/screenshots/settings-personal-dark.png) |
+
 ## Tech stack
 
 Next.js (App Router) + TypeScript, Prisma 7 (SQLite via `@prisma/adapter-libsql`),

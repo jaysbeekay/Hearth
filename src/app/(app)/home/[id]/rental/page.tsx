@@ -23,6 +23,10 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { Card } from "@/components/ui/Card";
+import { Pill } from "@/components/ui/Pill";
+import { buttonClass, emptyStateClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
 function reconcile(
   periodStart: Date | null,
@@ -115,7 +119,7 @@ export default async function RentalOverviewPage({
   );
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="detail">
       <div>
         <BackLink href={`/home/${property.id}`} label={property.label} />
       </div>
@@ -123,7 +127,7 @@ export default async function RentalOverviewPage({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm text-muted">{property.label}</p>
-          <h1 className="text-2xl font-semibold">Tenancy</h1>
+          <h1 className="text-2xl font-medium">Tenancy</h1>
         </div>
         {canWrite && property.isRented && (
             <>
@@ -131,7 +135,7 @@ export default async function RentalOverviewPage({
                 action={setPropertyRented.bind(null, property.id, false)}
                 confirmText="Stop tracking a tenancy for this property? Past tenancies and statements will be kept."
                 actionLabel="Stop tracking tenancy"
-                className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-muted hover:bg-hover"
+                className={buttonClass("secondary")}
               >
                 Stop tracking tenancy
               </ConfirmForm>
@@ -140,14 +144,14 @@ export default async function RentalOverviewPage({
       </div>
 
       {!property.isRented && agreements.length === 0 && (
-        <div className="rounded-xl border border-dashed border-border p-10 text-center">
+        <div className={emptyStateClass()}>
           <p className="text-sm text-muted">
             This property has no tenancy yet.
           </p>
           {canWrite && (
             <Link
               href={`/home/${property.id}/rental/agreements/new`}
-              className="mt-4 inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+              className={buttonClass("secondary", {}, "mt-4")}
             >
               <Plus size={16} />
               Add tenancy
@@ -164,7 +168,7 @@ export default async function RentalOverviewPage({
             {canWrite && (
               <Link
                 href={`/home/${property.id}/rental/agreements/new`}
-                className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+                className={buttonClass("secondary")}
               >
                 <Plus size={16} />
                 New tenancy
@@ -177,9 +181,8 @@ export default async function RentalOverviewPage({
           ) : (
             <div className="space-y-3">
               {agreements.map((ag, i) => (
-                <div
+                <Card
                   key={ag.id}
-                  className="rounded-xl border border-border bg-surface p-4 md:p-6"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
@@ -191,9 +194,9 @@ export default async function RentalOverviewPage({
                           </span>
                         )}
                         {i === 0 && (
-                          <span className="ml-2 rounded-full bg-muted/10 px-2 py-0.5 text-xs font-normal text-muted">
+                          <Pill className="ml-2">
                             Current
-                          </span>
+                          </Pill>
                         )}
                       </p>
                       {ag.tenantName && (
@@ -205,7 +208,7 @@ export default async function RentalOverviewPage({
                         <>
                           <Link
                             href={`/home/${property.id}/rental/agreements/${ag.id}/edit`}
-                            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+                            className={buttonClass("secondary")}
                           >
                             <Pencil size={16} />
                             Edit
@@ -220,7 +223,7 @@ export default async function RentalOverviewPage({
                               label: `Delete tenancy: ${ag.tenantName ?? property.label}`,
                             }}
                             confirmText="Move this tenancy to Trash? Statements are not affected, and you can restore it within 30 days from Settings → Trash."
-                            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
+                            className={buttonClass("secondary", { destructive: true })}
                           >
                             <Trash2 size={16} />
                             Delete
@@ -247,7 +250,7 @@ export default async function RentalOverviewPage({
 
                   <div className="mt-4 border-t border-border pt-4">
                     <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-                      <Link2 size={14} className="text-muted" />
+                      <Link2 size={16} className="text-muted" />
                       Linked contract
                     </div>
                     {ag.contract ? (
@@ -270,7 +273,7 @@ export default async function RentalOverviewPage({
                             <input type="hidden" name="contractId" value="" />
                             <button
                               type="submit"
-                              className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium hover:bg-hover"
+                              className={buttonClass("secondary")}
                             >
                               Unlink
                             </button>
@@ -300,14 +303,14 @@ export default async function RentalOverviewPage({
                         </SelectWrapper>
                         <button
                           type="submit"
-                          className="rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+                          className={buttonClass("secondary")}
                         >
                           Link
                         </button>
                       </form>
                     )}
                   </div>
-                </div>
+                </Card>
               ))}
             </div>
           )}
@@ -322,7 +325,7 @@ export default async function RentalOverviewPage({
             {canWrite && (
               <Link
                 href={`/home/${property.id}/rental/statements/new`}
-                className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+                className={buttonClass("secondary")}
               >
                 <Plus size={16} />
                 Add statement
@@ -331,7 +334,7 @@ export default async function RentalOverviewPage({
           </div>
 
           {statements.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
+            <p className={emptyStateClass()}>
               No statements yet. Upload your first rental statement to start reconciling.
             </p>
           ) : (
@@ -353,9 +356,8 @@ export default async function RentalOverviewPage({
                 const currency = stmt.currency;
 
                 return (
-                  <div
+                  <Card
                     key={stmt.id}
-                    className="rounded-xl border border-border bg-surface p-4 md:p-6"
                   >
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div>
@@ -375,7 +377,7 @@ export default async function RentalOverviewPage({
                           <>
                             <Link
                               href={`/home/${property.id}/rental/statements/${stmt.id}/edit`}
-                              className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+                              className={buttonClass("secondary")}
                             >
                               <Pencil size={16} />
                               Edit
@@ -390,7 +392,7 @@ export default async function RentalOverviewPage({
                                 label: `Delete statement: ${formatDate(stmt.statementDate ?? stmt.periodEnd, dateFormat)}`,
                               }}
                               confirmText="Move this statement to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash."
-                              className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
+                              className={buttonClass("secondary", { destructive: true })}
                             >
                               <Trash2 size={16} />
                               Delete
@@ -439,7 +441,7 @@ export default async function RentalOverviewPage({
 
                     <div className="mt-4 border-t border-border pt-4">
                       <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-                        <FileText size={14} className="text-muted" />
+                        <FileText size={16} className="text-muted" />
                         Documents
                       </div>
                       <DocumentList
@@ -456,14 +458,14 @@ export default async function RentalOverviewPage({
                         </div>
                       )}
                     </div>
-                  </div>
+                  </Card>
                 );
               })}
             </div>
           )}
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }
 

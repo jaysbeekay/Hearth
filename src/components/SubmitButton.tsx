@@ -1,32 +1,26 @@
 "use client";
 
 import { useFormStatus } from "react-dom";
-import { cn } from "@/lib/utils";
-import { buttonVariants } from "@/lib/buttonStyles";
+import { buttonClass, type ButtonVariant } from "@/lib/ui";
 
 export function SubmitButton({
   children,
   className,
   variant = "primary",
+  destructive,
   pendingText = "Saving…",
 }: {
   children: React.ReactNode;
   className?: string;
-  variant?: "primary" | "danger" | "secondary";
+  variant?: ButtonVariant;
+  /** Danger text on a secondary/quiet button; filled danger is for confirm dialogs only. */
+  destructive?: boolean;
   pendingText?: string;
 }) {
   const { pending } = useFormStatus();
 
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className={cn(
-        "inline-flex min-h-11 items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition disabled:opacity-60 disabled:cursor-not-allowed",
-        buttonVariants[variant],
-        className,
-      )}
-    >
+    <button type="submit" disabled={pending} className={buttonClass(variant, { destructive }, className)}>
       {pending ? pendingText : children}
     </button>
   );

@@ -6,6 +6,8 @@ import { isModuleEnabled } from "@/lib/modules/enablement";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
 
 export default async function EditContractPage({
   params,
@@ -31,13 +33,13 @@ export default async function EditContractPage({
   const boundAction = updateContract.bind(null, contract.id);
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="form">
       <BackLink href={`/contracts/${contract.id}`} label={contract.title} />
       <div>
-        <h1 className="text-2xl font-semibold">Edit contract</h1>
+        <h1 className="text-2xl font-medium">Edit contract</h1>
         <p className="text-sm text-muted">{contract.title}</p>
       </div>
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <Card>
         <ContractForm
           action={boundAction}
           contract={contract}
@@ -46,7 +48,7 @@ export default async function EditContractPage({
           homeEnabled={homeEnabled}
           vehiclesEnabled={vehiclesEnabled}
         />
-      </div>
-    </div>
+      </Card>
+    </PageShell>
   );
 }

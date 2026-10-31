@@ -39,6 +39,9 @@ import { getHouseholdReminderHealth } from "@/lib/notifications/health";
 import type { AiProviderId } from "@/lib/ai/types";
 import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
+import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
+import { inlineLinkClass } from "@/lib/ui";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.app.label };
 
@@ -48,7 +51,7 @@ export const metadata: Metadata = { title: SETTINGS_ROUTES.app.label };
 // the long scroll easier to navigate.
 function CategoryHeading({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="border-b border-border pb-2 text-sm font-semibold text-muted">
+    <h2 className="border-b border-border pb-2 text-sm font-medium text-muted">
       {children}
     </h2>
   );
@@ -101,10 +104,10 @@ export default async function AppSettingsPage() {
   ]);
 
   return (
-    <div className="max-w-2xl space-y-10">
+    <PageShell width="form">
       <div>
         <BackLink {...settingsBackLink(SETTINGS_ROUTES.app)} />
-        <h1 className="text-2xl font-semibold">{SETTINGS_ROUTES.app.label}</h1>
+        <h1 className="text-2xl font-medium">{SETTINGS_ROUTES.app.label}</h1>
         <p className="mt-1 text-sm text-muted">
           Configure application-wide settings. These override environment variables and are stored
           encrypted in the database where applicable.
@@ -113,7 +116,7 @@ export default async function AppSettingsPage() {
 
       <div className="space-y-4">
         <CategoryHeading>Notifications</CategoryHeading>
-        <section className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
+        <Card as="section" className="space-y-4">
           <div>
             <h3 className="font-medium">Email (SMTP)</h3>
             <p className="text-xs text-muted mt-0.5">Used to send reminders</p>
@@ -130,9 +133,9 @@ export default async function AppSettingsPage() {
             }}
             appUrlConfigured={isAppUrlConfigured()}
           />
-        </section>
+        </Card>
 
-        <section className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
+        <Card as="section" className="space-y-4">
           <div>
             <h3 className="font-medium">Push notifications (ntfy)</h3>
             <p className="text-xs text-muted mt-0.5">Real-time push via ntfy.sh or a self-hosted ntfy server</p>
@@ -145,12 +148,12 @@ export default async function AppSettingsPage() {
               tokenIsSet: ntfyTokenIsSet,
             }}
           />
-        </section>
+        </Card>
       </div>
 
       <div className="space-y-4">
         <CategoryHeading>AI and privacy</CategoryHeading>
-        <section className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
+        <Card as="section" className="space-y-4">
           <div>
             <h3 className="font-medium">Local AI (Ollama)</h3>
             <p className="text-xs text-muted mt-0.5">Used as a fallback extraction backend when no cloud AI key is set</p>
@@ -162,9 +165,9 @@ export default async function AppSettingsPage() {
               model: ollama.model,
             }}
           />
-        </section>
+        </Card>
 
-        <section className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
+        <Card as="section" className="space-y-4">
           <div>
             <h3 className="font-medium">AI document extraction</h3>
             <p className="text-xs text-muted mt-0.5">
@@ -178,9 +181,9 @@ export default async function AppSettingsPage() {
             model={aiModel || null}
             apiKeyIsSet={aiApiKeyIsSet}
           />
-        </section>
+        </Card>
 
-        <section className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
+        <Card as="section" className="space-y-4">
           <div>
             <h3 className="font-medium">AI Assistant</h3>
             <p className="text-xs text-muted mt-0.5">
@@ -197,12 +200,12 @@ export default async function AppSettingsPage() {
             model={chatModel || null}
             apiKeyIsSet={chatApiKeyIsSet}
           />
-        </section>
+        </Card>
       </div>
 
       <div className="space-y-4">
         <CategoryHeading>Document ingestion</CategoryHeading>
-        <section className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
+        <Card as="section" className="space-y-4">
           <div>
             <h3 className="font-medium">Email ingestion</h3>
             <p className="text-xs text-muted mt-0.5">
@@ -223,12 +226,12 @@ export default async function AppSettingsPage() {
               passwordIsSet: emailIngestPasswordIsSet,
             }}
           />
-        </section>
+        </Card>
       </div>
 
       <div className="space-y-4">
         <CategoryHeading>Advanced system settings</CategoryHeading>
-        <section className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
+        <Card as="section" className="space-y-4">
           <div>
             <h3 className="font-medium">Barcode lookup</h3>
             <p className="text-xs text-muted mt-0.5">Looks up a scanned barcode when adding a warranty</p>
@@ -240,9 +243,9 @@ export default async function AppSettingsPage() {
               apiKeyIsSet: barcodeApiKeyIsSet,
             }}
           />
-        </section>
+        </Card>
 
-        <section className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
+        <Card as="section" className="space-y-4">
           <div>
             <h3 className="font-medium">Flight status (AviationStack)</h3>
             <p className="text-xs text-muted mt-0.5">
@@ -251,16 +254,16 @@ export default async function AppSettingsPage() {
                 href="https://aviationstack.com/signup/free"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-accent hover:underline"
+                className={inlineLinkClass}
               >
                 Get a free API key at aviationstack.com
               </a>
             </p>
           </div>
           <AviationStackForm action={saveAviationStackSettings} isKeySet={aviationKeyIsSet} />
-        </section>
+        </Card>
 
-        <section className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
+        <Card as="section" className="space-y-4">
           <div>
             <h3 className="font-medium">Schedules</h3>
             <p className="text-xs text-muted mt-0.5">Cron expressions for reminders and backups</p>
@@ -274,13 +277,13 @@ export default async function AppSettingsPage() {
               retentionCount: backupSchedule.retentionCount,
             }}
           />
-        </section>
+        </Card>
 
         <HouseholdReminderHealthCard
           health={reminderHealth}
           appUrlConfigured={isAppUrlConfigured()}
         />
       </div>
-    </div>
+    </PageShell>
   );
 }

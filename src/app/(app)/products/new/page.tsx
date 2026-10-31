@@ -8,6 +8,9 @@ import { isBarcodeLookupConfigured } from "@/lib/appSettings";
 import { BackLink } from "@/components/BackLink";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
+import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
+import { inlineLinkClass } from "@/lib/ui";
 
 export default async function NewProductPage() {
   redirectIfReadOnly(await auth(), "/products");
@@ -21,17 +24,17 @@ export default async function NewProductPage() {
     : [];
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="form">
       <BackLink href="/products" label="Warranties" />
       <div>
-        <h1 className="text-2xl font-semibold">Add a warranty</h1>
+        <h1 className="text-2xl font-medium">Add a warranty</h1>
         <p className="text-sm text-muted">
           Capture the purchase details so you never miss a warranty deadline.
         </p>
         <p className="mt-1 text-xs text-muted">
           Warranties cover things you&apos;ve bought. Looking for insurance, a phone plan or
           another recurring cost instead? Try{" "}
-          <Link href="/contracts/new" className="text-accent hover:underline">
+          <Link href="/contracts/new" className={inlineLinkClass}>
             add a contract
           </Link>
           .
@@ -39,7 +42,7 @@ export default async function NewProductPage() {
             <>
               {" "}
               Just cataloguing what you own?{" "}
-              <Link href="/inventory/new" className="text-accent hover:underline">
+              <Link href="/inventory/new" className={inlineLinkClass}>
                 Add to inventory
               </Link>
               .
@@ -47,7 +50,7 @@ export default async function NewProductPage() {
           )}
         </p>
       </div>
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <Card>
         <ProductForm
           action={createProduct}
           defaultCurrency={preferredCurrency}
@@ -55,7 +58,7 @@ export default async function NewProductPage() {
           homeEnabled={enabledModules.has("HOME")}
           barcodeLookupEnabled={barcodeLookupEnabled}
         />
-      </div>
-    </div>
+      </Card>
+    </PageShell>
   );
 }

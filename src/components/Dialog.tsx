@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useHasMounted } from "@/lib/useHasMounted";
 import { useFocusTrap } from "@/lib/useFocusTrap";
+import { dialogPanelClass } from "@/lib/ui";
 
 // Every open Dialog, oldest first; the last one is on top.
 const openDialogs: object[] = [];
@@ -22,7 +23,7 @@ export function Dialog({
   labelledBy,
   describedBy,
   role = "dialog",
-  panelClassName = "w-full max-w-sm rounded-xl border border-border bg-surface p-5 shadow-xl",
+  panelClassName = dialogPanelClass(),
   backdropClassName = "fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4",
   disableClose,
   children,

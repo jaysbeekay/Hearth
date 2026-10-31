@@ -9,6 +9,7 @@ import { Field } from "@/components/FormField";
 import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 import { TestConnectionButton } from "@/components/TestConnectionButton";
 import { BACKUP_DESTINATION_LABELS, type BackupDestinationChoice } from "@/lib/backupDestination";
+import { bannerClass } from "@/lib/ui";
 
 const checkboxClass = "size-4 rounded border-border accent-accent";
 
@@ -47,7 +48,7 @@ export function SmtpForm({
   return (
     <form action={formAction} className="space-y-4">
       {!appUrlConfigured && (
-        <p className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
+        <p className={bannerClass("warning")}>
           APP_URL isn&apos;t set — password-reset and invitation links in emails will point to
           http://localhost:3000 and won&apos;t work for recipients. Set APP_URL to this
           app&apos;s real address (see .env.example).
@@ -88,7 +89,7 @@ export function SmtpForm({
         ) : (
           <span />
         )}
-        <SubmitButton>Save email settings</SubmitButton>
+        <SubmitButton variant="secondary">Save email settings</SubmitButton>
       </div>
     </form>
   );
@@ -151,7 +152,7 @@ export function EmailIngestForm({
         ) : (
           <span />
         )}
-        <SubmitButton>Save email ingestion settings</SubmitButton>
+        <SubmitButton variant="secondary">Save email ingestion settings</SubmitButton>
       </div>
     </form>
   );
@@ -192,7 +193,7 @@ export function NtfyForm({
         ) : (
           <span />
         )}
-        <SubmitButton>Save ntfy settings</SubmitButton>
+        <SubmitButton variant="secondary">Save ntfy settings</SubmitButton>
       </div>
     </form>
   );
@@ -230,7 +231,7 @@ export function OllamaForm({
         ) : (
           <span />
         )}
-        <SubmitButton>Save Ollama settings</SubmitButton>
+        <SubmitButton variant="secondary">Save Ollama settings</SubmitButton>
       </div>
     </form>
   );
@@ -261,7 +262,7 @@ export function BarcodeForm({
       </div>
       <FormMessage error={state?.error} success={state?.success} />
       <div className="flex justify-end">
-        <SubmitButton>Save barcode settings</SubmitButton>
+        <SubmitButton variant="secondary">Save barcode settings</SubmitButton>
       </div>
     </form>
   );
@@ -383,7 +384,7 @@ export function BackupDestinationForm({
 
       <FormMessage error={state?.error} success={state?.success} />
       <div className="flex justify-end">
-        <SubmitButton>Save backup destination</SubmitButton>
+        <SubmitButton variant="secondary">Save backup destination</SubmitButton>
       </div>
     </form>
   );
@@ -425,7 +426,7 @@ export function ScheduleForm({
       </p>
       <FormMessage error={state?.error} success={state?.success} />
       <div className="flex justify-end">
-        <SubmitButton>Save schedule settings</SubmitButton>
+        <SubmitButton variant="secondary">Save schedule settings</SubmitButton>
       </div>
     </form>
   );
@@ -472,7 +473,7 @@ export function HouseholdTimeZoneForm({
       </Field>
       <FormMessage error={state?.error} success={state?.success} />
       <div className="flex justify-end">
-        <SubmitButton>Save timezone</SubmitButton>
+        <SubmitButton variant="secondary">Save timezone</SubmitButton>
       </div>
     </form>
   );
@@ -499,7 +500,7 @@ export function AviationStackForm({
       </Field>
       <FormMessage error={state?.error} success={state?.success} />
       <div className="flex justify-end">
-        <SubmitButton>Save</SubmitButton>
+        <SubmitButton variant="secondary">Save</SubmitButton>
       </div>
     </form>
   );

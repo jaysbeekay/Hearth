@@ -161,7 +161,7 @@ test("a tenancy's lease end delivers a tenancy.expiring webhook and shows on the
     expect(payload.daysRemaining).toBeLessThanOrEqual(11);
 
     await page.goto(propertyUrl);
-    const card = page.locator("div.rounded-xl", { has: page.getByRole("heading", { name: "Lease reminders" }) });
+    const card = page.locator("div.rounded-lg", { has: page.getByRole("heading", { name: "Lease reminders" }) });
     await expect(card).toBeVisible();
     await expect(card).toContainText("1d, 7d, 14d, 30d");
     // The delivery attempt is on the card. (The first test's endpoint is

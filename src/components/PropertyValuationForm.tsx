@@ -8,6 +8,7 @@ import { FormMessage } from "@/components/FormMessage";
 import { SubmitButton } from "@/components/SubmitButton";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
 import { DateInput } from "@/components/DateInput";
+import { inputClass } from "@/lib/ui";
 
 export function PropertyValuationForm({
   action,
@@ -40,7 +41,7 @@ export function PropertyValuationForm({
             name="valuedAt"
             required
             defaultValue={state?.values?.valuedAt ?? new Date().toISOString().slice(0, 10)}
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+            className={inputClass}
           />
         </div>
         <div>
@@ -53,7 +54,7 @@ export function PropertyValuationForm({
             min="0"
             defaultValue={state?.values?.value}
             placeholder="e.g. 750000"
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+            className={inputClass}
           />
         </div>
       </div>
@@ -69,7 +70,7 @@ export function PropertyValuationForm({
             name="source"
             defaultValue={state?.values?.source}
             placeholder="e.g. CoreLogic, agent appraisal"
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+            className={inputClass}
           />
         </div>
       </div>
@@ -80,13 +81,13 @@ export function PropertyValuationForm({
           name="notes"
           defaultValue={state?.values?.notes}
           placeholder="Any additional context"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+          className={inputClass}
         />
       </div>
       <FormMessage error={state?.error} success={state?.success} />
       {/* #285 — capture-time disclosure that this isn't private storage. */}
       <p className="text-xs text-muted">Visible to your whole household once saved.</p>
-      <SubmitButton>
+      <SubmitButton variant="secondary">
         <Plus size={16} />
         Save valuation
       </SubmitButton>

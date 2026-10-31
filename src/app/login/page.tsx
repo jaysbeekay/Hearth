@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { Flame } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { isSmtpConfigured } from "@/lib/appSettings";
@@ -9,6 +8,9 @@ import { isAppUrlConfigured, isGithubOAuthConfigured } from "@/lib/env";
 import { LoginForm } from "@/components/LoginForm";
 import { SignedOutCacheCleanup } from "@/components/SignedOutCacheCleanup";
 import { safeCallbackPath } from "@/lib/callbackUrl";
+import { Card } from "@/components/ui/Card";
+import { Banner } from "@/components/ui/Banner";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Sign in" };
 export const dynamic = "force-dynamic";
@@ -46,29 +48,28 @@ export default async function LoginPage({
   ]);
 
   return (
-    <div className="flex flex-1 items-center justify-center px-4 py-12">
-      <div className="w-full max-w-sm space-y-6">
+    <div className="flex flex-1 items-center justify-center px-4 py-8">
+      <PageShell width="auth">
         <div className="flex flex-col items-center gap-2 text-center">
-          <Flame size={32} className="text-accent" />
-          <h1 className="text-2xl font-semibold">Welcome back</h1>
+          <h1 className="text-2xl font-medium">Welcome back</h1>
           <p className="text-sm text-muted">Sign in to Hearth.</p>
         </div>
         {passwordChanged && (
-          <p className="rounded-lg border border-border bg-surface px-4 py-3 text-sm text-muted">
+          <Banner tone="plain" role="status">
             Password updated. Changing it signs out every device, so sign in again with your
             new password.
-          </p>
+          </Banner>
         )}
         <SignedOutCacheCleanup />
-        <div className="rounded-xl border border-border bg-surface p-6">
+        <Card>
           <LoginForm
             smtpConfigured={smtpConfigured}
             githubConfigured={isGithubOAuthConfigured()}
             passkeysAvailable={passkeyCount > 0}
             callbackUrl={destination}
           />
-        </div>
-      </div>
+        </Card>
+      </PageShell>
     </div>
   );
 }

@@ -18,6 +18,9 @@ import { getHouseholdMemberCount } from "@/lib/household";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { Card } from "@/components/ui/Card";
+import { buttonClass, menuItemClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Inventory Item" };
 
@@ -58,7 +61,7 @@ export default async function InventoryItemPage({
   const trashedLinks = await getTrashedVersionLinks("INVENTORY_ITEM", [item.id]);
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <PageShell width="detail">
       <div>
         <BackLink href="/inventory" label="Inventory" />
       </div>
@@ -66,7 +69,7 @@ export default async function InventoryItemPage({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm text-muted">{CATEGORY_LABELS[item.category] ?? item.category}</p>
-          <h1 className="text-2xl font-semibold">{item.label}</h1>
+          <h1 className="text-2xl font-medium">{item.label}</h1>
           {(item.brand || item.model) && (
             <p className="text-muted">{[item.brand, item.model].filter(Boolean).join(" · ")}</p>
           )}
@@ -76,9 +79,9 @@ export default async function InventoryItemPage({
             <>
               <Link
                 href={`/inventory/${id}/edit`}
-                className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-hover"
+                className={buttonClass("secondary")}
               >
-                <Pencil size={14} />
+                <Pencil size={16} />
                 Edit
               </Link>
               <DetailOverflowMenu>
@@ -86,7 +89,7 @@ export default async function InventoryItemPage({
                   action={deleteInventoryItem.bind(null, id)}
                   undo={{ action: restoreInventoryItem.bind(null, id), href: `/inventory/${id}` }}
                   confirmText="Move this item to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash."
-                  className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
+                  className={menuItemClass({ destructive: true })}
                   offline={{ entity: "inventoryItem", entityId: id, label: `Delete item: ${item.label}` }}
                 >
                   <Trash2 size={16} />
@@ -98,7 +101,7 @@ export default async function InventoryItemPage({
         </div>
       </div>
 
-      <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <Card as="section">
         <dl className="grid grid-cols-2 gap-4 text-sm">
           {item.serialNumber && (
             <div className="min-w-0">
@@ -138,9 +141,9 @@ export default async function InventoryItemPage({
         {item.notes && (
           <p className="mt-4 whitespace-pre-wrap text-sm text-foreground">{item.notes}</p>
         )}
-      </section>
+      </Card>
 
-      <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <Card as="section">
         <h2 className="mb-3 font-medium">Documents</h2>
         <DocumentList kind="INVENTORY_ITEM" ownerId={item.id} documents={item.documents} trashedLinks={trashedLinks.get(item.id)} />
         {canWrite && (
@@ -148,7 +151,7 @@ export default async function InventoryItemPage({
             <DocumentUploadForm action={addDocumentAction.bind(null, "INVENTORY_ITEM", id)} />
           </div>
         )}
-      </section>
+      </Card>
 
       <RecordMeta
         createdByName={item.createdBy.name}
@@ -157,6 +160,6 @@ export default async function InventoryItemPage({
         updatedByName={item.updatedBy?.name}
         memberCount={memberCount}
       />
-    </div>
+    </PageShell>
   );
 }

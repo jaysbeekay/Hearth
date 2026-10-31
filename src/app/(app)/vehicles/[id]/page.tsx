@@ -34,6 +34,9 @@ import { DetailStatusBanner } from "@/components/DetailStatusBanner";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { Card } from "@/components/ui/Card";
+import { buttonClass, menuItemClass, emptyStateClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
 const ITEM_ICONS: Record<string, LucideIcon> = {
   SERVICE: Wrench,
@@ -95,21 +98,21 @@ export default async function VehicleDetailPage({
   });
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="detail">
       <div>
         <BackLink href="/vehicles" label="Vehicles" />
       </div>
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">{vehicle.label}</h1>
+          <h1 className="text-2xl font-medium">{vehicle.label}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {canWrite && (
             <>
               <Link
                 href={`/vehicles/${vehicle.id}/edit`}
-                className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+                className={buttonClass("secondary")}
               >
                 <Pencil size={16} />
                 Edit
@@ -121,14 +124,14 @@ export default async function VehicleDetailPage({
                     noun="vehicle"
                     action={archiveVehicle.bind(null, vehicle.id)}
                     undo={unarchiveVehicle.bind(null, vehicle.id)}
-                    className="flex min-h-11 w-full items-center gap-2 px-4 py-2 text-sm hover:bg-hover"
+                    className={menuItemClass()}
                   />
                 )}
                 <ConfirmForm
                   action={deleteVehicle.bind(null, vehicle.id)}
                   undo={{ action: restoreVehicle.bind(null, vehicle.id), href: `/vehicles/${vehicle.id}` }}
                   confirmText="Move this vehicle to Trash? Its service records and documents are kept, and you can restore it within 30 days from Settings → Trash."
-                  className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
+                  className={menuItemClass({ destructive: true })}
                   offline={{ entity: "vehicle", entityId: vehicle.id, label: `Delete vehicle: ${vehicle.label}` }}
                 >
                   <Trash2 size={16} />
@@ -152,7 +155,7 @@ export default async function VehicleDetailPage({
               mode="restore"
               noun="vehicle"
               action={unarchiveVehicle.bind(null, vehicle.id)}
-              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+              className={buttonClass("secondary")}
             />
           )}
         </ArchivedNotice>
@@ -168,7 +171,7 @@ export default async function VehicleDetailPage({
         renewLabel="Update dates"
       />
 
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <Card>
         <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">
           {vehicle.make && <Detail label="Make" value={vehicle.make} />}
           {vehicle.model && <Detail label="Model" value={vehicle.model} />}
@@ -194,7 +197,7 @@ export default async function VehicleDetailPage({
         {vehicle.notes && (
           <p className="mt-4 whitespace-pre-wrap text-sm text-foreground">{vehicle.notes}</p>
         )}
-      </div>
+      </Card>
 
       {regoHealth && (
         <ReminderHealthCard
@@ -227,7 +230,7 @@ export default async function VehicleDetailPage({
           {canWrite && (
             <Link
               href={`/contracts/new?vehicleId=${vehicle.id}`}
-              className="flex items-center gap-2 whitespace-nowrap rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+              className={buttonClass("secondary")}
             >
               <Plus size={16} />
               Add contract
@@ -235,7 +238,7 @@ export default async function VehicleDetailPage({
           )}
         </div>
         {linkedContracts.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted">
+          <p className={emptyStateClass()}>
             No contracts or warranties linked yet.
           </p>
         ) : (
@@ -253,7 +256,7 @@ export default async function VehicleDetailPage({
           {canWrite && (
             <Link
               href={`/vehicles/${vehicle.id}/items/new`}
-              className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+              className={buttonClass("secondary")}
             >
               <Plus size={16} />
               Add service record
@@ -262,7 +265,7 @@ export default async function VehicleDetailPage({
         </div>
 
         {items.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
+          <p className={emptyStateClass()}>
             No service records yet. Add a service, repair or roadworthy to start tracking.
           </p>
         ) : (
@@ -270,9 +273,8 @@ export default async function VehicleDetailPage({
             {items.map((item) => {
               const Icon = ITEM_ICONS[item.type] ?? Tag;
               return (
-                <div
+                <Card
                   key={item.id}
-                  className="rounded-xl border border-border bg-surface p-4 md:p-6"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="flex min-w-0 items-start gap-3">
@@ -292,7 +294,7 @@ export default async function VehicleDetailPage({
                         <>
                           <Link
                             href={`/vehicles/${vehicle.id}/items/${item.id}/edit`}
-                            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+                            className={buttonClass("secondary")}
                           >
                             <Pencil size={16} />
                             Edit
@@ -301,7 +303,7 @@ export default async function VehicleDetailPage({
                             action={deleteVehicleItem.bind(null, vehicle.id, item.id)}
                             undo={{ action: restoreVehicleItem.bind(null, item.id) }}
                             confirmText={`Move "${item.title}" to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash.`}
-                            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
+                            className={buttonClass("secondary", { destructive: true })}
                           >
                             <Trash2 size={16} />
                             Delete
@@ -334,7 +336,7 @@ export default async function VehicleDetailPage({
                       </div>
                     )}
                   </div>
-                </div>
+                </Card>
               );
             })}
           </div>
@@ -348,6 +350,6 @@ export default async function VehicleDetailPage({
         updatedAt={vehicle.updatedAt}
         memberCount={memberCount}
       />
-    </div>
+    </PageShell>
   );
 }

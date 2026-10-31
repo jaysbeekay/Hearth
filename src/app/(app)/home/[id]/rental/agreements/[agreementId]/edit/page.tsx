@@ -7,6 +7,8 @@ import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { getReminderConfig } from "@/lib/appSettings";
+import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
 
 export default async function EditRentalAgreementPage({
   params,
@@ -27,23 +29,23 @@ export default async function EditRentalAgreementPage({
   const { defaultDays } = await getReminderConfig();
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="form">
       <div>
         <BackLink href={`/home/${property.id}/rental`} label="Tenancy" />
       </div>
 
       <div>
         <p className="text-sm text-muted">{property.label}</p>
-        <h1 className="text-2xl font-semibold">Edit tenancy</h1>
+        <h1 className="text-2xl font-medium">Edit tenancy</h1>
         <p className="mt-1 text-sm text-muted">
           Correct a mistake in this tenancy. To record new terms (new tenant or rent change),
           add a new tenancy instead.
         </p>
       </div>
 
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <Card>
         <RentalAgreementForm action={boundAction} agreement={agreement} defaultReminderDays={defaultDays} />
-      </div>
-    </div>
+      </Card>
+    </PageShell>
   );
 }

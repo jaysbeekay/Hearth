@@ -7,6 +7,9 @@ import { prisma } from "@/lib/prisma";
 import { BackLink } from "@/components/BackLink";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
+import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
+import { inlineLinkClass } from "@/lib/ui";
 
 export default async function NewContractPage({
   searchParams,
@@ -36,23 +39,23 @@ export default async function NewContractPage({
     : [];
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="form">
       <BackLink href="/contracts" label="Contracts" />
       <div>
-        <h1 className="text-2xl font-semibold">Add a contract</h1>
+        <h1 className="text-2xl font-medium">Add a contract</h1>
         <p className="text-sm text-muted">
           Capture the key details so you never miss a renewal or cancellation deadline.
         </p>
         <p className="mt-1 text-xs text-muted">
           Contracts have a term or a recurring cost — insurance, a phone plan, a lease, a loan.
           For something you bought that&apos;s under warranty, try{" "}
-          <Link href="/products/new" className="text-accent hover:underline">
+          <Link href="/products/new" className={inlineLinkClass}>
             add a warranty
           </Link>{" "}
           instead.
         </p>
       </div>
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <Card>
         <ContractForm
           action={createContract}
           defaultCurrency={preferredCurrency}
@@ -63,7 +66,7 @@ export default async function NewContractPage({
           homeEnabled={homeEnabled}
           vehiclesEnabled={vehiclesEnabled}
         />
-      </div>
-    </div>
+      </Card>
+    </PageShell>
   );
 }

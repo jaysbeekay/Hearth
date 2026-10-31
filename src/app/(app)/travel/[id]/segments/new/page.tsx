@@ -7,6 +7,8 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import { BackLink } from "@/components/BackLink";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
+import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
 
 export default async function NewTripSegmentPage({
   params,
@@ -26,15 +28,15 @@ export default async function NewTripSegmentPage({
   const boundAction = addTripSegment.bind(null, trip.id);
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="form">
       <BackLink href={`/travel/${trip.id}`} label={trip.title} />
       <div>
-        <h1 className="text-2xl font-semibold">Add a segment</h1>
+        <h1 className="text-2xl font-medium">Add a segment</h1>
         <p className="text-sm text-muted">{trip.title}</p>
       </div>
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <Card>
         <TripSegmentForm action={boundAction} tripId={trip.id} defaultCurrency={preferredCurrency} />
-      </div>
-    </div>
+      </Card>
+    </PageShell>
   );
 }

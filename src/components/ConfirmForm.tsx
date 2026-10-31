@@ -4,9 +4,8 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { showToast } from "@/components/Toast";
 import { deleteOperation, enqueueOperation, OfflineQueueRefusedError } from "@/lib/offlineQueue";
-import { buttonVariants, compactButtonClass } from "@/lib/buttonStyles";
-import { cn } from "@/lib/utils";
 import { Dialog } from "@/components/Dialog";
+import { buttonClass } from "@/lib/ui";
 
 export function ConfirmForm({
   action,
@@ -116,7 +115,7 @@ export function ConfirmForm({
             type="button"
             disabled={pending}
             onClick={close}
-            className={`${compactButtonClass()} disabled:opacity-50`}
+            className={`${buttonClass("secondary")} disabled:opacity-50`}
           >
             Cancel
           </button>
@@ -179,10 +178,7 @@ export function ConfirmForm({
                 setPending(false);
               }
             }}
-            className={cn(
-              "inline-flex min-h-11 items-center justify-center rounded-lg px-3 text-sm font-medium disabled:opacity-50",
-              buttonVariants.danger,
-            )}
+            className={buttonClass("danger")}
           >
             {pending ? "Working…" : confirmLabel}
           </button>

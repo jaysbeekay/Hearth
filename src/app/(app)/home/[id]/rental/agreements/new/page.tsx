@@ -8,6 +8,8 @@ import { getReminderConfig } from "@/lib/appSettings";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
 
 export default async function NewRentalAgreementPage({
   params,
@@ -28,28 +30,28 @@ export default async function NewRentalAgreementPage({
   const boundAction = createRentalAgreement.bind(null, property.id);
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="form">
       <div>
         <BackLink href={`/home/${property.id}/rental`} label="Tenancy" />
       </div>
 
       <div>
         <p className="text-sm text-muted">{property.label}</p>
-        <h1 className="text-2xl font-semibold">New tenancy</h1>
+        <h1 className="text-2xl font-medium">New tenancy</h1>
         <p className="mt-1 text-sm text-muted">
           Record a tenancy for this property. Add a new one whenever the rent, tenant or terms
           change, so the history is kept for reconciliation.
         </p>
       </div>
 
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <Card>
         <RentalAgreementForm
           action={boundAction}
           propertyId={property.id}
           defaultCurrency={preferredCurrency}
           defaultReminderDays={defaultDays}
         />
-      </div>
-    </div>
+      </Card>
+    </PageShell>
   );
 }

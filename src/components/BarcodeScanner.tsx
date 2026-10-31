@@ -58,7 +58,7 @@ export function BarcodeScanner({
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-black/80 p-4">
-      <div className="relative w-full max-w-sm overflow-hidden rounded-xl bg-black">
+      <div className="relative w-full max-w-sm overflow-hidden rounded-lg bg-black">
         <video ref={videoRef} className="w-full" muted playsInline />
       </div>
       <p className="text-sm text-white/80">

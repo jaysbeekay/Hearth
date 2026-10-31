@@ -1,6 +1,7 @@
 "use client";
 
 import { isChipActive, writeListFilters, type ListFilters, type ToggleableFilter } from "@/lib/recordFilters";
+import { chipClass } from "@/lib/ui";
 
 // #395 — the list filter chip row shared by Contracts, Warranties and
 // Vehicles. A chip marked `onlyWhenActive` isn't offered on that list but
@@ -28,11 +29,7 @@ export function ListFilterChips({
               onToggle(chip);
             }}
             aria-pressed={active}
-            className={`rounded-full border px-3 py-1 text-xs font-medium ${
-              active
-                ? "border-accent bg-accent/10 text-accent"
-                : "border-border bg-surface text-muted hover:bg-hover"
-            }`}
+            className={chipClass(active)}
           >
             {label}
           </button>

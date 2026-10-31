@@ -12,7 +12,7 @@ import {
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 import { FormMessage } from "@/components/FormMessage";
-import { compactButtonClass } from "@/lib/buttonStyles";
+import { buttonClass } from "@/lib/ui";
 
 export function PreferencesForm({
   dateFormat,
@@ -89,7 +89,7 @@ export function PreferencesForm({
       </div>
       <div className="sm:col-span-2 space-y-2">
         <FormMessage error={state?.error} success={state?.success} />
-        <button type="submit" className={compactButtonClass()}>
+        <button type="submit" className={buttonClass("secondary")}>
           Save preferences
         </button>
       </div>

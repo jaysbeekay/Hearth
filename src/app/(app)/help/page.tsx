@@ -1,15 +1,17 @@
 import type { Metadata } from "next";
-import { linkButtonClass } from "@/lib/buttonStyles";
 import { FAQ_SECTIONS, splitFaqAnswer } from "@/lib/help/faq";
 import { FOOTER_NAV } from "@/components/nav-items";
+import { buttonClass, cardClass, inlineLinkClass } from "@/lib/ui";
+import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: FOOTER_NAV.help.label };
 
 export default function HelpPage() {
   return (
-    <div className="max-w-3xl space-y-10">
+    <PageShell width="detail">
       <div>
-        <h1 className="text-2xl font-semibold">{FOOTER_NAV.help.label}</h1>
+        <h1 className="text-2xl font-medium">{FOOTER_NAV.help.label}</h1>
         <p className="mt-1 text-sm text-muted">
           Answers to common questions about using Hearth. For the full user
           manual — setup, self-hosting, and every feature in more depth —
@@ -18,7 +20,7 @@ export default function HelpPage() {
             href="https://github.com/jaysbeekay/Hearth#readme"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-accent hover:underline"
+            className={inlineLinkClass}
           >
             README on GitHub
           </a>
@@ -28,19 +30,19 @@ export default function HelpPage() {
 
       {FAQ_SECTIONS.map((section) => (
         <div key={section.heading} className="space-y-4">
-          <h2 className="border-b border-border pb-2 text-sm font-semibold text-muted">
+          <h2 className="border-b border-border pb-2 text-sm font-medium text-muted">
             {section.heading}
           </h2>
           <div className="space-y-2">
             {section.entries.map((entry) => (
               <details
                 key={entry.q}
-                className="group rounded-xl border border-border bg-surface p-4 open:pb-4"
+                className={cardClass({}, "group open:pb-4")}
               >
                 <summary className="cursor-pointer list-none text-sm font-medium marker:content-none">
                   <span className="flex items-center justify-between gap-3">
                     {entry.q}
-                    <span className="text-muted transition group-open:rotate-45">+</span>
+                    <span className="text-muted transition-colors group-open:rotate-45">+</span>
                   </span>
                 </summary>
                 <p className="mt-2 text-sm text-foreground">
@@ -54,7 +56,7 @@ export default function HelpPage() {
         </div>
       ))}
 
-      <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <Card as="section">
         <div className="mb-4">
           <h2 className="font-medium">Share feedback</h2>
           <p className="mt-1 text-sm text-muted">
@@ -68,11 +70,11 @@ export default function HelpPage() {
           href="https://github.com/jaysbeekay/Hearth/issues/new/choose"
           target="_blank"
           rel="noopener noreferrer"
-          className={linkButtonClass("primary")}
+          className={buttonClass("primary")}
         >
           Report a bug or suggestion
         </a>
-      </section>
-    </div>
+      </Card>
+    </PageShell>
   );
 }

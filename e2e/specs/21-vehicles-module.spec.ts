@@ -49,7 +49,7 @@ test.describe.serial("Vehicles module", () => {
     await page.getByRole("button", { name: "Add service record" }).click();
     await page.waitForURL(/\/vehicles\/(?!new$)[^/]+$/);
 
-    const row = page.locator("div.rounded-xl.border.border-border.bg-surface", {
+    const row = page.locator("div.rounded-lg.border.border-border.bg-surface", {
       hasText: "Test Service Record",
     });
     const editHref = await row.getByRole("link", { name: "Edit" }).getAttribute("href");
@@ -61,7 +61,7 @@ test.describe.serial("Vehicles module", () => {
   test("upload a document to the service record", async ({ page }) => {
     await page.goto(`/vehicles/${vehicleId}`);
 
-    const row = page.locator("div.rounded-xl.border.border-border.bg-surface", {
+    const row = page.locator("div.rounded-lg.border.border-border.bg-surface", {
       hasText: "Test Service Record",
     });
     await row.locator('input[type="file"]').setInputFiles({
@@ -96,7 +96,7 @@ test.describe.serial("Vehicles module", () => {
     expect(fs.existsSync(fileDir)).toBe(true);
 
     await page.goto(`/vehicles/${vehicleId}`);
-    const row = page.locator("div.rounded-xl.border.border-border.bg-surface", {
+    const row = page.locator("div.rounded-lg.border.border-border.bg-surface", {
       hasText: "Updated Service Record",
     });
     await row.getByRole("button", { name: "Delete", exact: true }).click();
@@ -133,7 +133,7 @@ test.describe.serial("Vehicles module", () => {
     await page.getByRole("button", { name: "Add service record" }).click();
     await page.waitForURL(/\/vehicles\/(?!new$)[^/]+$/);
 
-    const row = page.locator("div.rounded-xl.border.border-border.bg-surface", {
+    const row = page.locator("div.rounded-lg.border.border-border.bg-surface", {
       hasText: "Test Purchase Record",
     });
     await expect(row).toContainText("Purchase");

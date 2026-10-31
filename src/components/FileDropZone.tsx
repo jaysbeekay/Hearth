@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Upload, FileText, X } from "lucide-react";
 import { cn, humanFileSize } from "@/lib/utils";
 import { MAX_UPLOAD_BYTES } from "@/lib/uploadLimits";
+import { buttonClass, cardClass } from "@/lib/ui";
 
 export function FileDropZone({
   name = "file",
@@ -83,7 +84,7 @@ export function FileDropZone({
           if (f) applyFile(f);
         }}
         className={cn(
-          "flex cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed p-6 text-center transition",
+          "flex cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed p-6 text-center transition-colors",
           "has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent has-[:focus-visible]:outline-offset-2",
           dragOver ? "border-accent bg-accent/5" : "border-border hover:border-accent/50",
         )}
@@ -108,7 +109,7 @@ export function FileDropZone({
         />
       </label>
       {file && (
-        <div className="flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm">
+        <div className={cardClass({ padding: "none" }, "flex items-center gap-2 px-3 py-2 text-sm")}>
           <FileText size={16} className="shrink-0 text-muted" />
           <span className="min-w-0 flex-1 truncate">{file.name}</span>
           <span className="shrink-0 text-xs text-muted">{humanFileSize(file.size)}</span>
@@ -116,9 +117,9 @@ export function FileDropZone({
             type="button"
             onClick={clearFile}
             aria-label={`Remove ${file.name}`}
-            className="shrink-0 rounded p-1 text-muted hover:text-danger"
+            className={buttonClass("quiet", { icon: true }, "text-muted hover:text-danger")}
           >
-            <X size={14} />
+            <X size={16} />
           </button>
         </div>
       )}

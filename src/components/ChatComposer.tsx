@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { Send } from "lucide-react";
+import { buttonClass, textareaClass } from "@/lib/ui";
+import { cn } from "@/lib/utils";
 
 export function ChatComposer({
   onSend,
@@ -39,12 +41,12 @@ export function ChatComposer({
         rows={1}
         placeholder="Ask about your household data…"
         disabled={disabled}
-        className="max-h-40 flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent disabled:opacity-50"
+        className={cn(textareaClass, "max-h-40 flex-1 resize-none")}
       />
       <button
         type="submit"
         disabled={disabled || !value.trim()}
-        className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground hover:opacity-90 disabled:opacity-50"
+        className={buttonClass("primary", { icon: true })}
         aria-label="Send"
       >
         <Send size={16} />
