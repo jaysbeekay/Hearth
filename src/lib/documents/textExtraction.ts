@@ -45,34 +45,85 @@ const PROBE_ARGS: Record<ExtractionBinary, string[]> = {
 };
 const PROBE_TIMEOUT_MS = 5_000;
 
-const binaryAvailability = new Map<ExtractionBinary, Promise<boolean>>();
+// "available": the probe ran (even a non-zero exit: old poppler builds exit 1
+// for `-v`). "missing": not on PATH (ENOENT). "unusable": present but it
+// couldn't be run, e.g. EACCES, a probe timeout or a crash on a signal, so the
+// settings card must not claim it works.
+export type BinaryStatus = "available" | "missing" | "unusable";
+
+// A negative result is re-probed after this long, so installing the tools on
+// a running bare-metal server is picked up without a restart. A positive
+// result stays cached; a real call that hits ENOENT/EACCES downgrades it.
+const NEGATIVE_PROBE_TTL_MS = 60_000;
+
+interface ProbeEntry {
+  status: Promise<BinaryStatus>;
+  settled?: BinaryStatus;
+  probedAt: number;
+}
+const binaryStatus = new Map<ExtractionBinary, ProbeEntry>();
 
 function isMissingBinaryError(error: unknown): boolean {
   return (error as NodeJS.ErrnoException | null)?.code === "ENOENT";
 }
 
-// Only ENOENT means "not installed". Old poppler builds exit non-zero for
-// `-v`, and a timeout or other failure still means the binary exists.
-function isBinaryAvailable(binary: ExtractionBinary): Promise<boolean> {
-  let cached = binaryAvailability.get(binary);
-  if (!cached) {
-    cached = execFileAsync(binary, PROBE_ARGS[binary], { timeout: PROBE_TIMEOUT_MS }).then(
-      () => true,
-      (error: unknown) => !isMissingBinaryError(error),
-    );
-    binaryAvailability.set(binary, cached);
-  }
-  return cached;
+// ENOENT (not installed) or EACCES (installed, not executable): the tool
+// couldn't run at all, as opposed to running and failing on this file.
+function isUnrunnableBinaryError(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException | null)?.code;
+  return code === "ENOENT" || code === "EACCES";
 }
 
-// A real call that fails with ENOENT (e.g. the binary was removed after the
-// probe) updates the cache so later uploads skip it straight away.
+export function classifyProbeError(error: unknown): BinaryStatus {
+  const e = error as {
+    code?: string | number;
+    killed?: boolean;
+    signal?: string | null;
+  } | null;
+  if (e?.code === "ENOENT") return "missing";
+  if (typeof e?.code === "number" && !e.killed && !e.signal) return "available";
+  return "unusable";
+}
+
+function probeStatus(binary: ExtractionBinary): Promise<BinaryStatus> {
+  const cached = binaryStatus.get(binary);
+  const stale =
+    cached?.settled !== undefined &&
+    cached.settled !== "available" &&
+    Date.now() - cached.probedAt >= NEGATIVE_PROBE_TTL_MS;
+  if (cached && !stale) return cached.status;
+
+  const entry: ProbeEntry = {
+    probedAt: Date.now(),
+    status: execFileAsync(binary, PROBE_ARGS[binary], { timeout: PROBE_TIMEOUT_MS }).then(
+      () => "available" as const,
+      (error: unknown) => classifyProbeError(error),
+    ),
+  };
+  entry.status.then((status) => {
+    entry.settled = status;
+  });
+  binaryStatus.set(binary, entry);
+  return entry.status;
+}
+
+async function isBinaryAvailable(binary: ExtractionBinary): Promise<boolean> {
+  return (await probeStatus(binary)) === "available";
+}
+
+// A real call that fails because the binary is gone (ENOENT) or can't be run
+// (EACCES) updates the cache so later uploads skip it; the TTL above still
+// re-probes it later.
 function noteFailure(binary: ExtractionBinary, error: unknown) {
-  if (isMissingBinaryError(error)) binaryAvailability.set(binary, Promise.resolve(false));
+  if (!isUnrunnableBinaryError(error)) return;
+  const status: BinaryStatus = isMissingBinaryError(error) ? "missing" : "unusable";
+  binaryStatus.set(binary, { status: Promise.resolve(status), settled: status, probedAt: Date.now() });
 }
 
 export interface ExtractionCapabilities {
   binaries: Record<ExtractionBinary, boolean>;
+  /** Why a binary is or isn't usable. */
+  status: Record<ExtractionBinary, BinaryStatus>;
   /** Text-layer PDFs (pdftotext). */
   pdfText: boolean;
   /** Scanned PDFs (pdftoppm + tesseract). */
@@ -82,31 +133,38 @@ export interface ExtractionCapabilities {
 }
 
 export async function getExtractionCapabilities(): Promise<ExtractionCapabilities> {
-  const results = await Promise.all(EXTRACTION_BINARIES.map((b) => isBinaryAvailable(b)));
-  const binaries = Object.fromEntries(
+  const results = await Promise.all(EXTRACTION_BINARIES.map((b) => probeStatus(b)));
+  const status = Object.fromEntries(
     EXTRACTION_BINARIES.map((b, i) => [b, results[i]]),
+  ) as Record<ExtractionBinary, BinaryStatus>;
+  const binaries = Object.fromEntries(
+    EXTRACTION_BINARIES.map((b) => [b, status[b] === "available"]),
   ) as Record<ExtractionBinary, boolean>;
   return {
     binaries,
+    status,
     pdfText: binaries.pdftotext,
     pdfOcr: binaries.pdftoppm && binaries.tesseract,
     imageOcr: binaries.tesseract,
   };
 }
 
-/** True when this server has no stage-1 tool that could read this file type. */
+/**
+ * For a file whose stage-1 text came back EMPTY (e.g. the inbox's stored
+ * text): true when that emptiness is explained by a missing/unusable tool
+ * rather than by a blank document. An empty PDF result means the text layer
+ * was missing or too short, i.e. it needed OCR, so it is unavailable whenever
+ * OCR is, even if pdftotext works.
+ */
 export async function isTextExtractionUnavailableFor(mimeType: string): Promise<boolean> {
-  if (mimeType === "application/pdf") {
-    const caps = await getExtractionCapabilities();
-    return !caps.pdfText && !caps.pdfOcr;
-  }
+  if (mimeType === "application/pdf") return !(await getExtractionCapabilities()).pdfOcr;
   if (mimeType.startsWith("image/")) return !(await isBinaryAvailable("tesseract"));
   return false;
 }
 
 /** Test-only: forget cached probe results. */
 export function resetExtractionCapabilitiesCache() {
-  binaryAvailability.clear();
+  binaryStatus.clear();
 }
 
 async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
@@ -219,7 +277,7 @@ export async function extractTextDetailed(
       try {
         return { text: await ocrImage(inputPath), unavailable: false };
       } catch (error) {
-        return { text: "", unavailable: isMissingBinaryError(error) };
+        return { text: "", unavailable: isUnrunnableBinaryError(error) };
       }
     });
   }
