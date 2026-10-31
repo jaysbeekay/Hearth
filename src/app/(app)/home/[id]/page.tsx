@@ -307,7 +307,7 @@ export default async function PropertyDetailPage({
                     <DocumentList kind="HOME_ITEM" ownerId={item.id} documents={item.documents} trashedLinks={trashedLinks.get(item.id)} />
                     {canWrite && (
                       <div className="mt-3">
-                        <DocumentUploadForm action={addDocumentAction.bind(null, "HOME_ITEM", item.id)} />
+                        <DocumentUploadForm action={addDocumentAction.bind(null, "HOME_ITEM", item.id)} variant="secondary" />
                       </div>
                     )}
                   </div>

@@ -485,7 +485,7 @@ export default async function HoldingPage({
                           trashedLinks={trashedLinks.get(trade.id)}
                         />
                       )}
-                      <DocumentUploadForm action={addDocumentAction.bind(null, "TRADE", trade.id)} />
+                      <DocumentUploadForm action={addDocumentAction.bind(null, "TRADE", trade.id)} variant="secondary" />
                     </div>
                   )}
                 </Card>

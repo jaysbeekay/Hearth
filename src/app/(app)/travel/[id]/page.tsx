@@ -352,7 +352,7 @@ export default async function TripDetailPage({
                     />
                     {canWrite && (
                       <div className="mt-3">
-                        <DocumentUploadForm action={addDocumentAction.bind(null, "TRIP_SEGMENT", segment.id)} />
+                        <DocumentUploadForm action={addDocumentAction.bind(null, "TRIP_SEGMENT", segment.id)} variant="secondary" />
                       </div>
                     )}
                   </div>

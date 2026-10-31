@@ -14,18 +14,32 @@ export function CalendarSubscribeButton({ hasToken, appUrl }: { hasToken: boolea
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className={`shrink-0 ${buttonClass("secondary")}`}>
+      <button
+        type="button"
+        onClick={() => {
+          setOpen(true);
+        }}
+        className={`shrink-0 ${buttonClass("secondary")}`}
+      >
         Subscribe in your calendar
       </button>
       <Dialog
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={() => {
+          setOpen(false);
+        }}
         labelledBy="calendar-feed-heading"
         panelClassName={overlayClass("w-full max-w-lg p-4")}
       >
         <IcalTokenSection hasToken={hasToken} appUrl={appUrl} embedded />
         <div className="mt-4 flex justify-end">
-          <button type="button" onClick={() => setOpen(false)} className={buttonClass("secondary")}>
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+            }}
+            className={buttonClass("secondary")}
+          >
             Done
           </button>
         </div>

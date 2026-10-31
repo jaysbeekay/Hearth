@@ -331,7 +331,7 @@ export default async function VehicleDetailPage({
                     <DocumentList kind="VEHICLE_ITEM" ownerId={item.id} documents={item.documents} trashedLinks={trashedLinks.get(item.id)} />
                     {canWrite && (
                       <div className="mt-3">
-                        <DocumentUploadForm action={addDocumentAction.bind(null, "VEHICLE_ITEM", item.id)} />
+                        <DocumentUploadForm action={addDocumentAction.bind(null, "VEHICLE_ITEM", item.id)} variant="secondary" />
                       </div>
                     )}
                   </div>

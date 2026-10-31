@@ -9,11 +9,15 @@ import { FileDropZone } from "@/components/FileDropZone";
 import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 import { DOCUMENT_CATEGORIES, DOCUMENT_CATEGORY_LABELS } from "@/lib/documents/categories";
 import { useCanWrite } from "@/components/CanWriteProvider";
+import type { ButtonVariant } from "@/lib/buttonStyles";
 
 export function DocumentUploadForm({
   action,
+  variant = "primary",
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
+  /** #411 — "secondary" where the form repeats per row, so a page keeps one primary. */
+  variant?: ButtonVariant;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(action, null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -53,7 +57,7 @@ export function DocumentUploadForm({
         </SelectWrapper>
       </div>
       <FileDropZone name="file" required />
-      <SubmitButton>
+      <SubmitButton variant={variant}>
         <Upload size={16} className="mr-2" />
         Upload
       </SubmitButton>
