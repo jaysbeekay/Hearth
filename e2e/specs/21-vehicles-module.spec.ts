@@ -173,6 +173,87 @@ test.describe.serial("Vehicles module", () => {
     await expect(card.getByText(/^Service due \d{1,2} [A-Z][a-z]{2}( \d{4})?$/)).toBeVisible();
   });
 
+  // #456 - a Contract that Covers the Vehicle supplies its insurance date.
+  test.describe.serial("a Contract that Covers the Vehicle", () => {
+    let policyId: string;
+    const policyTitle = "Covers E2E Policy";
+
+    test("with no covering Contract, the manual date stays with a hint", async ({ page }) => {
+      await page.goto(`/vehicles/${vehicleId}/edit`);
+      await page.locator("#insuranceExpiry").fill("2031-01-01");
+      await page.getByRole("button", { name: "Save changes" }).click();
+      await page.waitForURL(/\/vehicles\/(?!new$)[^/]+$/);
+
+      await expect(page.getByText("Insurance expiry")).toBeVisible();
+      await expect(page.getByText("Add the policy as a contract to track cost and documents")).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Insurance reminder" })).toBeVisible();
+    });
+
+    test("Add insurance opens the contract form pre-linked, as car insurance", async ({ page }) => {
+      await page.goto(`/vehicles/${vehicleId}`);
+      await page.getByRole("link", { name: "Add insurance" }).click();
+      await page.waitForURL(/\/contracts\/new\?/);
+
+      await expect(page.locator("#category")).toHaveValue("CAR_INSURANCE");
+      await expect(page.getByLabel("Linked to")).toHaveValue(`vehicle:${vehicleId}`);
+
+      await page.locator("#title").fill(policyTitle);
+      await page.locator("#provider").fill("Allianz");
+      await page.locator("#endDate").fill("2031-06-15");
+      await page.locator("main button[type=submit]").click();
+      await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
+      policyId = new URL(page.url()).pathname.split("/").pop()!;
+    });
+
+    test("the Vehicle shows the date as derived, read-only, with one Reminder stream", async ({ page }) => {
+      await page.goto(`/vehicles/${vehicleId}`);
+      await expect(page.getByRole("link", { name: `From ${policyTitle} →` })).toHaveAttribute(
+        "href",
+        `/contracts/${policyId}`,
+      );
+      await expect(page.getByText("Add the policy as a contract to track cost and documents")).toHaveCount(0);
+      // The Contract's Reminders replace the Vehicle's own for this date.
+      await expect(page.getByRole("heading", { name: "Insurance reminder" })).toHaveCount(0);
+      await expect(page.getByRole("link", { name: "Add insurance" })).toHaveCount(0);
+
+      await page.goto(`/vehicles/${vehicleId}/edit`);
+      await expect(page.locator("input#insuranceExpiry")).toHaveCount(0);
+      await expect(page.getByRole("link", { name: `From ${policyTitle} →` })).toBeVisible();
+    });
+
+    test("saving the Vehicle keeps its manual date for when the Contract is cancelled", async ({ page }) => {
+      await page.goto(`/vehicles/${vehicleId}/edit`);
+      await page.getByRole("button", { name: "Save changes" }).click();
+      await page.waitForURL(/\/vehicles\/(?!new$)[^/]+$/);
+
+      await page.goto(`/contracts/${policyId}/edit`);
+      await page.selectOption("#status", "CANCELLED");
+      await page.locator("main button[type=submit]").click();
+      await page.waitForURL(new RegExp(`/contracts/${policyId}$`));
+
+      await page.goto(`/vehicles/${vehicleId}`);
+      await expect(page.getByRole("link", { name: `From ${policyTitle} →` })).toHaveCount(0);
+      await expect(page.getByText("Add the policy as a contract to track cost and documents")).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Insurance reminder" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "Add insurance" })).toBeVisible();
+    });
+
+    test("a Registration Contract Covers the rego date the same way", async ({ page }) => {
+      await page.goto(`/vehicles/${vehicleId}`);
+      await page.getByRole("link", { name: "Add registration" }).click();
+      await expect(page.locator("#category")).toHaveValue("REGISTRATION");
+      await page.locator("#title").fill("Covers E2E Rego");
+      await page.locator("#provider").fill("Transport Dept");
+      await page.locator("#endDate").fill("2031-08-20");
+      await page.locator("main button[type=submit]").click();
+      await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
+
+      await page.goto(`/vehicles/${vehicleId}`);
+      await expect(page.getByText("Rego expiry")).toBeVisible();
+      await expect(page.getByRole("link", { name: "From Covers E2E Rego →" })).toBeVisible();
+    });
+  });
+
   test("delete the vehicle", async ({ page }) => {
     await page.goto(`/vehicles/${vehicleId}`);
     await page.getByRole("button", { name: "More actions" }).click();
