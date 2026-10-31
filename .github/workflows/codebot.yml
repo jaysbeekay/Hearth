@@ -55,6 +55,8 @@ jobs:
 
       - name: Build curated payload
         id: payload
+        env:
+          COMMENT_ID: ${{ github.event.comment.id }}
         run: |
           # printf (not `> payload.json`) so no trailing newline is added —
           # the signing step must hash the exact bytes curl will send.
@@ -80,8 +82,9 @@ jobs:
             }
           }' "$GITHUB_EVENT_PATH")" > payload.json
 
-          echo "Payload built:"
-          cat payload.json
+          # Log the shape, not the content: the comment body and issue title
+          # stay out of the Actions log.
+          echo "Payload built: $(wc -c < payload.json) bytes, comment ${COMMENT_ID}"
 
       - name: Sign and send curated event to Hermes
         env:
