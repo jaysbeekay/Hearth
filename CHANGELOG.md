@@ -47,6 +47,11 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Docs: proposal for Standalone-mode backup and restore (#226).**
+  `docs/proposals/standalone-backup-226.md` compares backup options for
+  the on-device Standalone mode and recommends an encrypted export file
+  via the share sheet, a tested restore flow and backup reminders before
+  the paid unlock launches. Proposal only; nothing implemented.
 - **Licence: AGPL-3.0-only.** Hearth now has a `LICENSE` file (the GNU Affero
   General Public License v3.0), a `license` field in `package.json`, and an
   updated README "License" section. This is the licence a managed host such
