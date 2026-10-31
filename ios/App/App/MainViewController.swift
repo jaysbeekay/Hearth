@@ -9,6 +9,8 @@ import UIKit
 class MainViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(ServerConfigPlugin())
+        // Same story for the standalone iCloud backup plugin (#226).
+        bridge?.registerPluginInstance(ICloudBackupPlugin())
     }
 
     // By default Capacitor opens any toplevel navigation to an external host
