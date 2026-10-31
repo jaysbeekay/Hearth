@@ -122,7 +122,7 @@ export function ChatSettingsForm({
           actionLabel="Remove settings"
           className="inline-flex items-center gap-2 text-sm text-muted hover:text-danger"
         >
-          <Trash2 size={14} />
+          <Trash2 size={16} />
           Remove
         </ConfirmForm>
       )}

@@ -88,7 +88,7 @@ export default async function ProductDetailPage({
           <p className="text-sm text-muted">
             {product.manufacturer ?? product.vendor ?? "Warranty"}
           </p>
-          <h1 className="text-2xl font-semibold">{product.description}</h1>
+          <h1 className="text-2xl font-medium">{product.description}</h1>
           {product.vendor && <p className="text-muted">{product.vendor}</p>}
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -124,7 +124,7 @@ export default async function ProductDetailPage({
         <img
           src={documentFileHref(photo.id)}
           alt={product.description}
-          className="max-h-80 w-full rounded-xl border border-border object-contain"
+          className="max-h-80 w-full rounded-lg border border-border object-contain"
         />
       )}
 
@@ -147,7 +147,7 @@ export default async function ProductDetailPage({
         <ExtractionReviewPanel fields={pendingReview} action={reviewProductExtraction.bind(null, product.id)} />
       )}
 
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
         <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">
           <Detail label="Brand" value={product.manufacturer ?? "—"} />
           <Detail label="Model" value={product.model ?? "—"} />
@@ -172,7 +172,7 @@ export default async function ProductDetailPage({
       )}
 
       {(product.property || product.warrantyForItems.length > 0) && (
-        <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+        <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-3 font-medium">Linked to</h2>
           <div className="grid gap-2 sm:grid-cols-2">
             {product.property && (
@@ -180,7 +180,7 @@ export default async function ProductDetailPage({
                 href={`/home/${product.property.id}`}
                 className="flex items-center gap-3 rounded-lg border border-border p-3 hover:bg-hover"
               >
-                <Home size={18} className="text-muted" />
+                <Home size={16} className="text-muted" />
                 <span>
                   <span className="block text-sm font-medium">{product.property.label}</span>
                   <span className="block text-xs text-muted">Property</span>
@@ -193,7 +193,7 @@ export default async function ProductDetailPage({
                 href={`/inventory/${invItem.id}`}
                 className="flex items-center gap-3 rounded-lg border border-border p-3 hover:bg-hover"
               >
-                <Package size={18} className="text-muted" />
+                <Package size={16} className="text-muted" />
                 <span>
                   <span className="block text-sm font-medium">{invItem.label}</span>
                   <span className="block text-xs text-muted">Inventory item — warranty registered here</span>
@@ -205,13 +205,13 @@ export default async function ProductDetailPage({
       )}
 
       {product.notes && (
-        <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+        <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-2 font-medium">Notes</h2>
           <p className="whitespace-pre-wrap text-sm text-foreground">{product.notes}</p>
         </div>
       )}
 
-      <div id="documents" className="scroll-mt-20 rounded-xl border border-border bg-surface p-4 md:p-6">
+      <div id="documents" className="scroll-mt-20 rounded-lg border border-border bg-surface p-4 md:p-6">
         <h2 className="mb-3 font-medium">Documents</h2>
         <DocumentList kind="PRODUCT" ownerId={product.id} documents={product.documents} trashedLinks={trashedLinks.get(product.id)} />
         {canWrite && (

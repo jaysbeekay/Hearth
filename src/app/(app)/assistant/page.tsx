@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Bot } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { getChatConfig, isChatConfigured } from "@/lib/ai/chat/dispatch";
 import { listChatThreads, getChatThreadMessages } from "@/lib/chat/threads";
@@ -28,9 +27,8 @@ export default async function AssistantPage({
   if (!isChatConfigured(chatUser)) {
     const isAdmin = session.user.role === "ADMIN";
     return (
-      <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border p-12 text-center">
-        <Bot size={32} className="text-muted" />
-        <h1 className="text-lg font-semibold">Assistant not configured</h1>
+      <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border p-12 text-center">
+        <h1 className="text-xl font-medium">Assistant not configured</h1>
         <p className="max-w-sm text-sm text-muted">
           {isAdmin
             ? "Bring your own AI provider key to enable an assistant that can answer questions about your household's contracts, warranties, trips, vehicles, properties, inventory, and wealth."
@@ -59,7 +57,7 @@ export default async function AssistantPage({
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="text-2xl font-semibold">Assistant</h1>
+        <h1 className="text-2xl font-medium">Assistant</h1>
         <p className="text-sm text-muted">
           Ask about your household data — it can also propose creating or updating a contract or
           warranty, but nothing is written without your explicit confirmation first.

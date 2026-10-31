@@ -64,9 +64,9 @@ export function ChatThreadList({
               actionLabel="Delete conversation"
               ariaLabel="Delete conversation"
               successMessage=""
-              className="shrink-0 rounded-md p-1 text-muted opacity-0 hover:text-danger group-hover:opacity-100"
+              className="shrink-0 rounded-lg p-1 text-muted opacity-0 hover:text-danger group-hover:opacity-100"
             >
-              <Trash2 size={14} />
+              <Trash2 size={16} />
             </ConfirmForm>
           </div>
         ))}

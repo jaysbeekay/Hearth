@@ -33,14 +33,14 @@ export default async function NewRentalStatementPage({
 
       <div>
         <p className="text-sm text-muted">{property.label}</p>
-        <h1 className="text-2xl font-semibold">Add rental statement</h1>
+        <h1 className="text-2xl font-medium">Add rental statement</h1>
         <p className="mt-1 text-sm text-muted">
           Upload your agent&apos;s statement — fields will be auto-filled where possible.
           Expected amounts are calculated from the tenancy for reconciliation.
         </p>
       </div>
 
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
         <RentalStatementForm
           action={boundAction}
           propertyId={property.id}

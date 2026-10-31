@@ -13,12 +13,12 @@ export default async function NewPropertyPage() {
     <div className="max-w-3xl space-y-6">
       <BackLink href="/home" label="Properties" />
       <div>
-        <h1 className="text-2xl font-semibold">Add a property</h1>
+        <h1 className="text-2xl font-medium">Add a property</h1>
         <p className="text-sm text-muted">
           Track maintenance, improvements, and repairs for this property.
         </p>
       </div>
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
         <PropertyForm action={createProperty} />
       </div>
     </div>

@@ -36,7 +36,7 @@ export function OfflineDocumentsPanel() {
   const totalBytes = docs.reduce((sum, d) => sum + d.size, 0);
 
   return (
-    <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+    <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="font-medium">Downloaded documents</h2>
         {docs.length > 0 && (
@@ -72,7 +72,7 @@ export function OfflineDocumentsPanel() {
                   type="button"
                   onClick={() => handleRemove(doc.url)}
                   aria-label={`Remove ${doc.filename} from offline storage`}
-                  className="rounded-md p-2 text-muted hover:text-danger"
+                  className="rounded-lg p-2 text-muted hover:text-danger"
                 >
                   <Trash2 size={16} />
                 </button>

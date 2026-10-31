@@ -163,7 +163,7 @@ export function AssistantClient({
   }
 
   return (
-    <div className="flex h-[calc(100vh-14rem)] overflow-hidden rounded-xl border border-border bg-surface md:h-[calc(100vh-11rem)]">
+    <div className="flex h-[calc(100vh-14rem)] overflow-hidden rounded-lg border border-border bg-surface md:h-[calc(100vh-11rem)]">
       <aside className="hidden w-64 shrink-0 border-r border-border md:block">
         <ChatThreadList threads={threads} activeThreadId={threadId} />
       </aside>
@@ -200,7 +200,7 @@ export function AssistantClient({
             role="dialog"
             aria-label="Previous chats"
             aria-modal="true"
-            className="max-h-[70vh] w-full overflow-hidden rounded-t-2xl border-t border-border bg-surface pb-[env(safe-area-inset-bottom)]"
+            className="max-h-[70vh] w-full overflow-hidden rounded-t-lg border-t border-border bg-surface pb-[env(safe-area-inset-bottom)]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-border px-3 py-2">
@@ -211,7 +211,7 @@ export function AssistantClient({
                 aria-label="Close"
                 className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-hover"
               >
-                <X size={18} />
+                <X size={20} />
               </button>
             </div>
             <div className="max-h-[calc(70vh-3rem)] overflow-y-auto">

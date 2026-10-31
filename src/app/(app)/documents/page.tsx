@@ -418,7 +418,7 @@ export default async function DocumentsPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Documents</h1>
+          <h1 className="text-2xl font-medium">Documents</h1>
           <p className="text-sm text-muted">
             {showAll
               ? "Every uploaded document, including anything still waiting to be filed."
@@ -464,7 +464,7 @@ export default async function DocumentsPage({
               href={`/documents?page=${page - 1}${type ? `&type=${encodeURIComponent(type)}` : ""}${showAll ? "&view=all" : ""}`}
               className="inline-flex items-center gap-1 text-sm text-accent hover:underline"
             >
-              <ChevronLeft size={14} aria-hidden />
+              <ChevronLeft size={16} aria-hidden />
               Newer
             </Link>
           ) : (
@@ -476,7 +476,7 @@ export default async function DocumentsPage({
               className="inline-flex items-center gap-1 text-sm text-accent hover:underline"
             >
               Older
-              <ChevronRight size={14} aria-hidden />
+              <ChevronRight size={16} aria-hidden />
             </Link>
           )}
         </div>

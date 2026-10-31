@@ -29,10 +29,10 @@ export default async function NewVehicleItemPage({
     <div className="max-w-3xl space-y-6">
       <BackLink href={`/vehicles/${vehicle.id}`} label={vehicle.label} />
       <div>
-        <h1 className="text-2xl font-semibold">Add service record</h1>
+        <h1 className="text-2xl font-medium">Add service record</h1>
         <p className="text-sm text-muted">{vehicle.label}</p>
       </div>
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
         <VehicleItemForm action={boundAction} vehicleId={vehicle.id} defaultCurrency={preferredCurrency} />
       </div>
     </div>

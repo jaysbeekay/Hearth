@@ -25,7 +25,7 @@ export function HouseholdReminderHealthCard({
   appUrlConfigured?: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
+    <div className="rounded-lg border border-border bg-surface p-4 md:p-6 space-y-4">
       <div>
         <h3 className="flex items-center gap-2 font-medium">
           <BellRing size={16} className="text-muted" aria-hidden />
@@ -46,12 +46,12 @@ export function HouseholdReminderHealthCard({
           <dd className="flex items-center gap-1.5 text-sm font-medium">
             {health.deliveryReady ? (
               <>
-                <CheckCircle2 size={14} className="text-success" aria-hidden />
+                <CheckCircle2 size={16} className="text-success" aria-hidden />
                 Ready
               </>
             ) : (
               <>
-                <AlertTriangle size={14} className="text-muted" aria-hidden />
+                <AlertTriangle size={16} className="text-muted" aria-hidden />
                 Not configured
               </>
             )}

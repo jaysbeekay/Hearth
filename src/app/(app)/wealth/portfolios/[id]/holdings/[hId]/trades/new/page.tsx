@@ -34,9 +34,9 @@ export default async function NewTradePage({
     <div className="max-w-xl space-y-6">
       <div>
         <BackLink href={`/wealth/portfolios/${portfolioId}/holdings/${holdingId}`} label={holding.ticker} />
-        <h1 className="mt-1 text-2xl font-semibold">Add trade</h1>
+        <h1 className="mt-1 text-2xl font-medium">Add trade</h1>
       </div>
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
         <TradeForm
           action={action}
           holdingId={holdingId}

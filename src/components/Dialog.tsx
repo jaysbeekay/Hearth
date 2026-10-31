@@ -22,7 +22,7 @@ export function Dialog({
   labelledBy,
   describedBy,
   role = "dialog",
-  panelClassName = "w-full max-w-sm rounded-xl border border-border bg-surface p-5 shadow-xl",
+  panelClassName = "w-full max-w-sm rounded-lg border border-border bg-surface p-5 shadow-overlay",
   backdropClassName = "fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4",
   disableClose,
   children,

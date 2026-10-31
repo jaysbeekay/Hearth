@@ -51,7 +51,7 @@ export function WebhookActions({
           confirmText={`Remove the "${name}" webhook?`}
           actionLabel="Remove webhook"
           ariaLabel={`Remove webhook ${name}`}
-          className="rounded-md p-2 text-muted hover:text-danger"
+          className="rounded-lg p-2 text-muted hover:text-danger"
         >
           <Trash2 size={16} />
         </ConfirmForm>

@@ -95,7 +95,7 @@ export function ToastContainer() {
                   dismiss(toast.id);
                   toast.action!.onClick();
                 }}
-                className="shrink-0 rounded-md px-2 py-1 font-medium text-accent hover:bg-accent/10"
+                className="shrink-0 rounded-lg px-2 py-1 font-medium text-accent hover:bg-accent/10"
               >
                 {toast.action.label}
               </button>
@@ -104,9 +104,9 @@ export function ToastContainer() {
               type="button"
               onClick={() => dismiss(toast.id)}
               aria-label="Dismiss"
-              className="-mr-1 shrink-0 rounded-md p-1 text-muted hover:text-foreground"
+              className="-mr-1 shrink-0 rounded-lg p-1 text-muted hover:text-foreground"
             >
-              <X size={14} />
+              <X size={16} />
             </button>
           </div>
         );

@@ -38,7 +38,7 @@ export function ReminderHealthCard({
   testTarget?: TestReminderTarget;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+    <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 font-medium">
           {health.enabled ? (
@@ -90,12 +90,12 @@ export function ReminderHealthCard({
           <dd className="flex items-center gap-1.5 text-sm font-medium">
             {health.deliveryReady ? (
               <>
-                <CheckCircle2 size={14} className="text-success" aria-hidden />
+                <CheckCircle2 size={16} className="text-success" aria-hidden />
                 Ready
               </>
             ) : (
               <>
-                <AlertTriangle size={14} className="text-muted" aria-hidden />
+                <AlertTriangle size={16} className="text-muted" aria-hidden />
                 Not configured
               </>
             )}

@@ -61,7 +61,7 @@ export function PropertyMap({
   return (
     <div
       ref={containerRef}
-      className="h-64 w-full overflow-hidden rounded-xl border border-border"
+      className="h-64 w-full overflow-hidden rounded-lg border border-border"
     />
   );
 }

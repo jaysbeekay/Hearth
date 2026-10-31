@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import { ListPageHeader } from "@/components/ListPageHeader";
-import { linkButtonClass, toolbarButtonClass } from "@/lib/buttonStyles";
 import { useRouter } from "next/navigation";
 import { Plus, X, Trash2, Upload } from "lucide-react";
 import { SelectWrapper } from "@/components/SelectWrapper";
@@ -29,6 +28,7 @@ import {
 import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
+import { buttonClass } from "@/lib/ui";
 
 const STATUS_LABELS: Record<string, string> = { ACTIVE: "Active", CANCELLED: "Cancelled" };
 
@@ -183,7 +183,7 @@ export function ContractListClient({
         </SelectWrapper>
         <button
           type="submit"
-          className={toolbarButtonClass}
+          className={buttonClass("secondary", {}, "list-none")}
         >
           Filter
         </button>
@@ -202,7 +202,7 @@ export function ContractListClient({
               onClick={() => removeFilter("q")}
               className="flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:bg-hover"
             >
-              &quot;{q}&quot; <X size={12} />
+              &quot;{q}&quot; <X size={16} />
             </button>
           )}
           {category && (
@@ -211,7 +211,7 @@ export function ContractListClient({
               onClick={() => removeFilter("category")}
               className="flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:bg-hover"
             >
-              {CATEGORY_LABELS[category] ?? category} <X size={12} />
+              {CATEGORY_LABELS[category] ?? category} <X size={16} />
             </button>
           )}
           {status && (
@@ -220,7 +220,7 @@ export function ContractListClient({
               onClick={() => removeFilter("status")}
               className="flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:bg-hover"
             >
-              {STATUS_LABELS[status] ?? status} <X size={12} />
+              {STATUS_LABELS[status] ?? status} <X size={16} />
             </button>
           )}
           <button
@@ -252,7 +252,7 @@ export function ContractListClient({
 
       {contracts.length === 0 ? (
         pendingOps.length === 0 && (
-          <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border p-10 text-center">
+          <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border p-10 text-center">
             <p className="text-sm text-muted">
               {filtered
                 ? "No contracts match your search or filters."
@@ -260,11 +260,11 @@ export function ContractListClient({
             </p>
             {!filtered && canWrite && (
               <div className="flex flex-wrap items-center justify-center gap-2">
-                <Link href="/contracts/new" className={linkButtonClass("primary")}>
+                <Link href="/contracts/new" className={buttonClass("primary")}>
                   <Plus size={16} />
                   Add contract
                 </Link>
-                <Link href="/import" className={linkButtonClass("secondary")}>
+                <Link href="/import" className={buttonClass("secondary")}>
                   <Upload size={16} />
                   Upload a document
                 </Link>
@@ -287,7 +287,7 @@ export function ContractListClient({
                     className="flex h-full w-full flex-col items-center justify-center gap-1 bg-danger text-xs font-medium text-danger-foreground"
                     offline={{ entity: "contract", entityId: contract.id, label: `Delete contract: ${contract.title}` }}
                   >
-                    <Trash2 size={18} />
+                    <Trash2 size={16} />
                     Delete
                   </ConfirmForm>
                 }

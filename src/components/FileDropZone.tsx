@@ -83,7 +83,7 @@ export function FileDropZone({
           if (f) applyFile(f);
         }}
         className={cn(
-          "flex cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed p-6 text-center transition",
+          "flex cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed p-6 text-center transition-colors",
           "has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent has-[:focus-visible]:outline-offset-2",
           dragOver ? "border-accent bg-accent/5" : "border-border hover:border-accent/50",
         )}
@@ -118,7 +118,7 @@ export function FileDropZone({
             aria-label={`Remove ${file.name}`}
             className="shrink-0 rounded p-1 text-muted hover:text-danger"
           >
-            <X size={14} />
+            <X size={16} />
           </button>
         </div>
       )}

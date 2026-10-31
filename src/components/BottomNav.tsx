@@ -137,7 +137,7 @@ export function BottomNav({
         }}
         label="More navigation options"
         backdropClassName="fixed inset-0 z-40 flex items-end bg-black/40 md:hidden"
-        panelClassName="max-h-[90dvh] w-full overflow-y-auto rounded-t-2xl border-t border-border bg-surface p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+        panelClassName="max-h-[90dvh] w-full overflow-y-auto rounded-t-lg border-t border-border bg-surface p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
       >
         <>
           <div className="mb-3 flex items-center justify-between">
@@ -150,12 +150,12 @@ export function BottomNav({
               aria-label="Close"
               className="flex size-11 items-center justify-center rounded-full hover:bg-hover"
             >
-              <X size={18} />
+              <X size={20} />
             </button>
           </div>
           {overflowModules.length > 0 && (
             <>
-              <p className="mb-1.5 text-xs font-semibold text-muted">Modules</p>
+              <p className="mb-1.5 text-xs font-medium text-muted">Modules</p>
               <div className="mb-3 grid grid-cols-3 gap-2">
                 {overflowModules.map(({ href, label, icon }) => (
                   <MoreLink key={href} href={href} label={label} icon={icon} active={isActive(href, pathname)} />
@@ -164,7 +164,7 @@ export function BottomNav({
             </>
           )}
 
-          <p className="mb-1.5 text-xs font-semibold text-muted">Tools</p>
+          <p className="mb-1.5 text-xs font-medium text-muted">Tools</p>
           <div className="grid grid-cols-3 gap-2">
             {overflowTools.map(({ href, label, icon }) => (
               <MoreLink key={href} href={href} label={label} icon={icon} active={isActive(href, pathname)} />

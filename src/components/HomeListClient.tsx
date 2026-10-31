@@ -54,7 +54,7 @@ export function HomeListClient({ properties, archivedProperties = [], taxDeducti
       />
 
       {taxDeductibleSummary.length > 0 && (
-        <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+        <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-3 font-medium">Tax-deductible spending by financial year</h2>
           <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
             {taxDeductibleSummary.map(({ label, amount, currency }) => (
@@ -84,7 +84,7 @@ export function HomeListClient({ properties, archivedProperties = [], taxDeducti
 
       {properties.length === 0 ? (
         pendingOps.length === 0 && (
-          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
+          <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted">
             No properties yet. Add your first property to start tracking maintenance and improvements.
           </p>
         )

@@ -115,7 +115,7 @@ export default async function ContractDetailPage({
           <p className="text-sm text-muted">
             {CATEGORY_LABELS[contract.category] ?? contract.category}
           </p>
-          <h1 className="text-2xl font-semibold">{contract.title}</h1>
+          <h1 className="text-2xl font-medium">{contract.title}</h1>
           <p className="text-muted">{contract.provider}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -206,7 +206,7 @@ export default async function ContractDetailPage({
                 ariaLabel="Mark contract as cancelled"
                 className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium hover:bg-hover-surface"
               >
-                <Ban size={14} />
+                <Ban size={16} />
                 Not renewing? Mark as cancelled
               </ConfirmForm>
             )
@@ -223,7 +223,7 @@ export default async function ContractDetailPage({
         <ExtractionReviewPanel fields={pendingReview} action={reviewContractExtraction.bind(null, contract.id)} />
       )}
 
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
         <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">
           <Detail label="Contract number" value={contract.contractNumber ?? "—"} copyable />
           <Detail label="Start date" value={formatDate(contract.startDate, dateFormat)} />
@@ -261,7 +261,7 @@ export default async function ContractDetailPage({
       )}
 
       {(contract.contactName || contract.contactPhone || contract.contactEmail) && (
-        <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+        <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-3 font-medium">Contact details</h2>
           <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">
             <Detail label="Name" value={contract.contactName ?? "—"} />
@@ -272,14 +272,14 @@ export default async function ContractDetailPage({
       )}
 
       {contract.notes && (
-        <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+        <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-2 font-medium">Notes</h2>
           <p className="whitespace-pre-wrap text-sm text-foreground">{contract.notes}</p>
         </div>
       )}
 
       {(contract.property || contract.vehicle) && (
-        <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+        <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-3 font-medium">Linked to</h2>
           <div className="grid gap-2 sm:grid-cols-2">
             {contract.property && (
@@ -287,7 +287,7 @@ export default async function ContractDetailPage({
                 href={`/home/${contract.property.id}`}
                 className="flex items-center gap-3 rounded-lg border border-border p-3 hover:bg-hover"
               >
-                <Home size={18} className="text-muted" />
+                <Home size={16} className="text-muted" />
                 <span>
                   <span className="block text-sm font-medium">{contract.property.label}</span>
                   <span className="block text-xs text-muted">Property</span>
@@ -299,7 +299,7 @@ export default async function ContractDetailPage({
                 href={`/vehicles/${contract.vehicle.id}`}
                 className="flex items-center gap-3 rounded-lg border border-border p-3 hover:bg-hover"
               >
-                <Car size={18} className="text-muted" />
+                <Car size={16} className="text-muted" />
                 <span>
                   <span className="block text-sm font-medium">{contract.vehicle.label}</span>
                   <span className="block text-xs text-muted">Vehicle</span>
@@ -311,9 +311,9 @@ export default async function ContractDetailPage({
       )}
 
       {contract.category === "RENTAL" && contract.rentalAgreement && !contract.rentalAgreement.deletedAt && (
-        <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+        <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
           <div className="mb-3 flex items-center gap-2">
-            <Home size={18} className="text-muted" />
+            <Home size={16} className="text-muted" />
             <h2 className="font-medium">Linked tenancy</h2>
           </div>
           <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">
@@ -349,7 +349,7 @@ export default async function ContractDetailPage({
         </div>
       )}
 
-      <div id="documents" className="scroll-mt-20 rounded-xl border border-border bg-surface p-4 md:p-6">
+      <div id="documents" className="scroll-mt-20 rounded-lg border border-border bg-surface p-4 md:p-6">
         <h2 className="mb-3 font-medium">Documents</h2>
         <DocumentList kind="CONTRACT" ownerId={contract.id} documents={contract.documents} trashedLinks={trashedLinks.get(contract.id)} />
         {canWrite && (

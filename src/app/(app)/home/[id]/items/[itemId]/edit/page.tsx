@@ -28,10 +28,10 @@ export default async function EditHomeItemPage({
     <div className="max-w-3xl space-y-6">
       <BackLink href={`/home/${id}`} label={item.property.label} />
       <div>
-        <h1 className="text-2xl font-semibold">Edit maintenance record</h1>
+        <h1 className="text-2xl font-medium">Edit maintenance record</h1>
         <p className="text-sm text-muted">{item.title}</p>
       </div>
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
         <HomeItemForm action={boundAction} item={item} />
       </div>
     </div>

@@ -66,7 +66,7 @@ export default async function InventoryItemPage({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm text-muted">{CATEGORY_LABELS[item.category] ?? item.category}</p>
-          <h1 className="text-2xl font-semibold">{item.label}</h1>
+          <h1 className="text-2xl font-medium">{item.label}</h1>
           {(item.brand || item.model) && (
             <p className="text-muted">{[item.brand, item.model].filter(Boolean).join(" · ")}</p>
           )}
@@ -78,7 +78,7 @@ export default async function InventoryItemPage({
                 href={`/inventory/${id}/edit`}
                 className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-hover"
               >
-                <Pencil size={14} />
+                <Pencil size={16} />
                 Edit
               </Link>
               <DetailOverflowMenu>
@@ -98,7 +98,7 @@ export default async function InventoryItemPage({
         </div>
       </div>
 
-      <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
         <dl className="grid grid-cols-2 gap-4 text-sm">
           {item.serialNumber && (
             <div className="min-w-0">
@@ -140,7 +140,7 @@ export default async function InventoryItemPage({
         )}
       </section>
 
-      <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
         <h2 className="mb-3 font-medium">Documents</h2>
         <DocumentList kind="INVENTORY_ITEM" ownerId={item.id} documents={item.documents} trashedLinks={trashedLinks.get(item.id)} />
         {canWrite && (

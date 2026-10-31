@@ -51,7 +51,7 @@ export function markAutoFilled(
     "rounded",
     "px-1.5",
     "py-0.5",
-    "text-[10px]",
+    "text-xs",
     "font-medium",
     ...AUTOFILL_BADGE_CLASSES[source],
   ].join(" ");

@@ -158,7 +158,7 @@ export function InventoryItemForm({
             onFileSelected={handleFileChange}
           />
           {scanning && (
-            <p role="status" aria-live="polite" className="text-xs text-muted animate-pulse">
+            <p role="status" aria-live="polite" className="text-xs text-muted">
               Scanning document…
             </p>
           )}

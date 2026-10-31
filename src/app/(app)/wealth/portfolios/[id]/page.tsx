@@ -58,7 +58,7 @@ export default async function PortfolioPage({
         <BackLink href="/wealth/portfolios" label="Portfolios" />
         <div className="mt-1 flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold">{portfolio.name}</h1>
+            <h1 className="text-2xl font-medium">{portfolio.name}</h1>
             {portfolio.description && <p className="text-sm text-muted">{portfolio.description}</p>}
           </div>
           {canWrite && (
@@ -75,24 +75,24 @@ export default async function PortfolioPage({
 
       {portfolioValue && (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-          <div className="rounded-xl border border-border bg-surface p-4">
+          <div className="rounded-lg border border-border bg-surface p-4">
             <p className="text-xs text-muted">Market value</p>
-            <p className="mt-1 text-xl font-semibold">{formatCurrency(portfolioValue.totalValue, portfolio.currency, undefined, region, { showCode: true })}</p>
+            <p className="mt-1 text-xl font-medium">{formatCurrency(portfolioValue.totalValue, portfolio.currency, undefined, region, { showCode: true })}</p>
           </div>
-          <div className="rounded-xl border border-border bg-surface p-4">
+          <div className="rounded-lg border border-border bg-surface p-4">
             <p className="text-xs text-muted">
               Cost basis <span className="text-muted">({COST_METHOD_LABELS[portfolio.costMethod]})</span>
             </p>
-            <p className="mt-1 text-xl font-semibold">{formatCurrency(portfolioValue.pricedCost, portfolio.currency, undefined, region, { showCode: true })}</p>
+            <p className="mt-1 text-xl font-medium">{formatCurrency(portfolioValue.pricedCost, portfolio.currency, undefined, region, { showCode: true })}</p>
             {excludedCost > 0.005 && (
               <p className="text-xs text-muted" data-testid="excluded-cost">
                 Plus {formatCurrency(excludedCost, portfolio.currency, undefined, region, { showCode: true })} not counted
               </p>
             )}
           </div>
-          <div className="rounded-xl border border-border bg-surface p-4">
+          <div className="rounded-lg border border-border bg-surface p-4">
             <p className="text-xs text-muted">Total gain / loss</p>
-            <p className={`mt-1 text-xl font-semibold ${pricedGainLoss >= 0 ? "text-success" : "text-danger"}`}>
+            <p className={`mt-1 text-xl font-medium ${pricedGainLoss >= 0 ? "text-success" : "text-danger"}`}>
               {formatCurrency(pricedGainLoss, portfolio.currency, undefined, region, { showCode: true })}
             </p>
           </div>
@@ -128,7 +128,7 @@ export default async function PortfolioPage({
         </div>
 
         {!portfolioValue?.holdings.length ? (
-          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
+          <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted">
             No holdings yet. Add a holding manually or import a CSV of your trade history.
           </p>
         ) : (

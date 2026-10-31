@@ -31,7 +31,7 @@ export function ContractCard({
   return (
     <Link
       href={`/contracts/${contract.id}`}
-      className="block min-w-0 rounded-lg border border-border bg-surface p-4 transition hover:border-accent/50"
+      className="block min-w-0 rounded-lg border border-border bg-surface p-4 transition-colors hover:border-accent/50"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">

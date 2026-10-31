@@ -17,7 +17,7 @@ export function FlightRefreshForm({
       onClick={() => startTransition(() => { void action(); })}
       className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium hover:bg-hover disabled:opacity-50"
     >
-      <RefreshCw size={12} className={pending ? "animate-spin" : ""} />
+      <RefreshCw size={16} className={pending ? "animate-spin" : ""} />
       {pending ? "Refreshing…" : "Refresh"}
     </button>
   );

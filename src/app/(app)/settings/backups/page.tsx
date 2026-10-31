@@ -58,9 +58,9 @@ export default async function BackupsPage() {
   return (
     <div className="max-w-2xl space-y-6">
       <BackLink {...settingsBackLink(SETTINGS_ROUTES.backups)} />
-      <h1 className="text-2xl font-semibold">{SETTINGS_ROUTES.backups.label}</h1>
+      <h1 className="text-2xl font-medium">{SETTINGS_ROUTES.backups.label}</h1>
 
-      <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
         <h2 className="mb-3 font-medium">Status</h2>
         <ul className="space-y-1 text-sm">
           <li>
@@ -86,7 +86,7 @@ export default async function BackupsPage() {
         )}
       </section>
 
-      <section className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
+      <section className="rounded-lg border border-border bg-surface p-4 md:p-6 space-y-4">
         <div>
           <h2 className="font-medium">Backup destination</h2>
           <p className="text-xs text-muted mt-0.5">
@@ -118,7 +118,7 @@ export default async function BackupsPage() {
         />
       </section>
 
-      <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
         <h2 className="mb-3 font-medium">Recent runs</h2>
         {logs.length === 0 ? (
           <p className="text-sm text-muted">No backups have run yet.</p>

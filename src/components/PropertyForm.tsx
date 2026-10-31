@@ -289,7 +289,7 @@ function AddressFields({
           <input type="hidden" name="lat" value={lat ?? ""} />
           <input type="hidden" name="lng" value={lng ?? ""} />
           {showSuggestions && visibleSuggestions.length > 0 && (
-            <ul className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-border bg-surface shadow-md">
+            <ul className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-border bg-surface shadow-overlay">
               {visibleSuggestions.map((s) => (
                 <li key={`${s.lat},${s.lng}`}>
                   <button

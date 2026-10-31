@@ -25,10 +25,10 @@ export default async function EditPropertyPage({
     <div className="max-w-3xl space-y-6">
       <BackLink href={`/home/${property.id}`} label={property.label} />
       <div>
-        <h1 className="text-2xl font-semibold">Edit property</h1>
+        <h1 className="text-2xl font-medium">Edit property</h1>
         <p className="text-sm text-muted">{property.label}</p>
       </div>
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
         <PropertyForm action={boundAction} property={property} />
       </div>
     </div>

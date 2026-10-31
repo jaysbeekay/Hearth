@@ -30,14 +30,14 @@ export default async function WebhooksPage() {
   return (
     <div className="max-w-2xl space-y-6">
       <BackLink {...settingsBackLink(SETTINGS_ROUTES.webhooks)} />
-      <h1 className="text-2xl font-semibold">{SETTINGS_ROUTES.webhooks.label}</h1>
+      <h1 className="text-2xl font-medium">{SETTINGS_ROUTES.webhooks.label}</h1>
       <p className="text-sm text-muted">
         Notify other platforms (e.g. Home Assistant, or an MCP agent like Hermes) when a
         contract or warranty is coming due. Each endpoint receives the same reminders as
         email/push, at the reminder thresholds set on each contract or warranty.
       </p>
 
-      <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
         <h2 className="mb-3 font-medium">Endpoints</h2>
         {endpoints.length === 0 ? (
           <p className="text-sm text-muted">No webhook endpoints configured yet.</p>
@@ -65,12 +65,12 @@ export default async function WebhooksPage() {
         )}
       </section>
 
-      <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
         <h2 className="mb-3 font-medium">Add a webhook endpoint</h2>
         <CreateWebhookForm />
       </section>
 
-      <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
         <h2 className="mb-3 font-medium">Recent deliveries</h2>
         {logs.length === 0 ? (
           <p className="text-sm text-muted">No deliveries yet.</p>

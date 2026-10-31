@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { Upload, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { parseTradesCsv, importTrades } from "@/lib/actions/wealth";
-import { linkButtonClass } from "@/lib/buttonStyles";
+import { buttonClass } from "@/lib/ui";
 
 interface ParsedRow {
   ticker: string;
@@ -96,14 +96,14 @@ export function WealthImportClient({ portfolioId }: Props) {
             <button
               onClick={handleImport}
               disabled={isImporting}
-              className={`${linkButtonClass("primary")} disabled:opacity-50`}
+              className={`${buttonClass("primary")} disabled:opacity-50`}
             >
-              {isImporting && <Loader2 size={14} className="animate-spin" />}
+              {isImporting && <Loader2 size={16} className="animate-spin" />}
               Import {rows.length} trades
             </button>
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-border">
+          <div className="overflow-x-auto rounded-lg border border-border">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs text-muted">
@@ -119,7 +119,7 @@ export function WealthImportClient({ portfolioId }: Props) {
               <tbody>
                 {rows.map((row, i) => (
                   <tr key={i} className="border-b border-border/50 last:border-0">
-                    <td className="px-3 py-2 font-mono font-semibold">
+                    <td className="px-3 py-2 font-mono font-medium">
                       {row.ticker}
                       {row.assetClass === "CRYPTO" && <span className="ml-1 font-sans text-xs font-normal text-muted">Crypto</span>}
                     </td>

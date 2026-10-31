@@ -47,12 +47,12 @@ export function TravelListClient({ trips, dateFormat, canWrite = true, distanceS
       />
 
       {distanceSummary && distanceSummary.totalKm > 0 && (
-        <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+        <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
           <div className="flex items-center gap-2">
-            <Route size={18} className="text-muted" />
+            <Route size={16} className="text-muted" />
             <h2 className="font-medium">Distance travelled</h2>
           </div>
-          <p className="mt-2 text-2xl font-semibold">
+          <p className="mt-2 text-2xl font-medium">
             {formatDistance(distanceSummary.totalKm)}
           </p>
           {distanceSummary.byYear.length > 1 && (
@@ -89,7 +89,7 @@ export function TravelListClient({ trips, dateFormat, canWrite = true, distanceS
 
       {trips.length === 0 ? (
         pendingOps.length === 0 && (
-          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
+          <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted">
             No trips yet. Add your first trip to start building an itinerary.
           </p>
         )

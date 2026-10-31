@@ -74,7 +74,7 @@ export function DetailOverflowMenu({
             ref={dropdownRef}
             role="dialog"
             aria-label={label}
-            className="absolute right-0 z-10 mt-1 hidden w-48 overflow-hidden rounded-lg border border-border bg-surface shadow-md md:block"
+            className="absolute right-0 z-10 mt-1 hidden w-48 overflow-hidden rounded-lg border border-border bg-surface shadow-overlay md:block"
           >
             <CloseMenuContext.Provider value={closeMenu}>{children}</CloseMenuContext.Provider>
           </div>
@@ -86,7 +86,7 @@ export function DetailOverflowMenu({
             onClose={() => setOpen(false)}
             label={label}
             backdropClassName="fixed inset-0 z-40 flex items-end bg-black/40 md:hidden"
-            panelClassName="w-full rounded-t-2xl border-t border-border bg-surface p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]"
+            panelClassName="w-full rounded-t-lg border-t border-border bg-surface p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]"
           >
             <>
               <div className="mb-1 flex items-center justify-end px-2 pt-1">
@@ -96,7 +96,7 @@ export function DetailOverflowMenu({
                   aria-label="Close"
                   className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-hover"
                 >
-                  <X size={18} />
+                  <X size={20} />
                 </button>
               </div>
               <CloseMenuContext.Provider value={closeMenu}>{children}</CloseMenuContext.Provider>
