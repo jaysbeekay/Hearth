@@ -7,6 +7,19 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+## [0.20.1] - 2026-10-31
+
+### Fixed
+
+- **Android release assets were not published for v0.20.0.** The new
+  "Verify release signatures" step in `android-build.yml` rejected the signed
+  APK even though Gradle signed it with the release keystore, so the APK/AAB
+  were never attached to the v0.20.0 Release (the Docker image did publish).
+  The check now looks for the release key's certificate digest anywhere in
+  `apksigner`/`keytool` output instead of on one exact label, and prints the
+  certificate digests it saw when they don't match. Digests are public, so
+  this exposes nothing secret.
+
 ## [0.20.0] - 2026-10-31
 
 ### Fixed
