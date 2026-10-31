@@ -23,6 +23,14 @@ async function seed() {
 }
 
 describe("link targets on the edit forms", () => {
+  it("are the live records when the current link is live", async () => {
+    const { liveHome, archivedHome } = await seed();
+    expect(await propertyLinkTargets(liveHome.id)).toEqual([
+      { id: liveHome.id, label: "Beach house" },
+      { id: archivedHome.id, label: "Sold unit" },
+    ]);
+  });
+
   it("leave out records in Trash but keep Archived ones", async () => {
     const { liveHome, archivedHome, liveCar } = await seed();
     expect(await propertyLinkTargets(null)).toEqual([
@@ -32,11 +40,15 @@ describe("link targets on the edit forms", () => {
     expect(await vehicleLinkTargets(undefined)).toEqual([{ id: liveCar.id, label: "Hatchback" }]);
   });
 
-  it("keep the current link when it is in Trash, marked as such", async () => {
-    const { trashedHome, trashedCar, liveCar } = await seed();
-    const properties = await propertyLinkTargets(trashedHome.id);
-    expect(properties).toContainEqual({ id: trashedHome.id, label: "Old flat (in Trash)" });
-    expect(properties).toHaveLength(3);
+  it("keep the current link when it is in Trash, marked as such, but no other record in Trash", async () => {
+    const { liveHome, trashedHome, archivedHome, trashedCar, liveCar } = await seed();
+    const createdById = (await db.prisma.user.findFirstOrThrow()).id;
+    await db.prisma.property.create({ data: { label: "Another old flat", createdById, deletedAt: new Date() } });
+    expect(await propertyLinkTargets(trashedHome.id)).toEqual([
+      { id: liveHome.id, label: "Beach house" },
+      { id: trashedHome.id, label: "Old flat (in Trash)" },
+      { id: archivedHome.id, label: "Sold unit" },
+    ]);
     expect(await vehicleLinkTargets(trashedCar.id)).toEqual([
       { id: liveCar.id, label: "Hatchback" },
       { id: trashedCar.id, label: "Ute (in Trash)" },
