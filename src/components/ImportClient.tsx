@@ -8,8 +8,8 @@ import { INVENTORY_ITEM_CATEGORIES } from "@/lib/validation/inventory";
 import { showToast } from "@/components/Toast";
 import { LinkedToField } from "@/components/LinkedToField";
 import { extractionMessage } from "@/lib/autoFillHighlight";
-import { buttonVariants, compactButtonClass } from "@/lib/buttonStyles";
-import { cn } from "@/lib/utils";
+import { buttonClass } from "@/lib/buttonStyles";
+import { Card, Pill } from "@/components/ui";
 
 const INVENTORY_CATEGORY_LABELS: Record<string, string> = {
   APPLIANCE: "Appliance",
@@ -352,10 +352,7 @@ export function ImportClient({
               <button
                 type="button"
                 onClick={saveAll}
-                className={cn(
-                  "inline-flex min-h-11 items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition",
-                  buttonVariants.primary,
-                )}
+                className={buttonClass("primary")}
               >
                 Save all ({readyCount})
               </button>
@@ -364,7 +361,7 @@ export function ImportClient({
 
           <div className="space-y-3">
             {rows.map((row) => (
-              <div key={row.id} className="rounded-lg border border-border bg-surface p-4">
+              <Card key={row.id}>
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-2">
                     <FileText size={16} className="shrink-0 text-muted" />
@@ -709,7 +706,7 @@ export function ImportClient({
                   <button
                     type="button"
                     onClick={() => saveRow(row)}
-                    className={`mt-3 ${compactButtonClass()}`}
+                    className={`mt-3 ${buttonClass("secondary")}`}
                   >
                     Save
                   </button>
@@ -719,7 +716,7 @@ export function ImportClient({
                     View →
                   </a>
                 )}
-              </div>
+              </Card>
             ))}
           </div>
         </>
@@ -751,9 +748,9 @@ function RowField({
             {/* #290: a colour tint/ring alone doesn't reach a screen reader
                 or a colour-blind reviewer — this badge and the sr-only text
                 that follows it do. */}
-            <span aria-hidden="true" className="rounded-lg bg-accent/10 px-1 py-0.5 text-xs font-medium text-accent">
+            <Pill tone="accent" aria-hidden="true">
               Auto
-            </span>
+            </Pill>
             <span className="sr-only">(auto-filled from document — review before saving)</span>
           </>
         )}

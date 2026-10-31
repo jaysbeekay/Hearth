@@ -4,55 +4,46 @@ import { cn } from "@/lib/utils";
 // file is "use client" (needs useFormStatus), which would make every export
 // client-only and unusable from Server Components that just want the class
 // string (e.g. settings/page.tsx rendering a plain <button>).
+//
+// #411 — one button set at one size:
+// - primary: the page's one main action. At most one per page.
+// - secondary: every other action, row actions included.
+// - quiet: no border, for icon buttons and low-weight actions (Cancel).
+// - danger: filled red, only for the confirm button inside a confirm dialog.
+//   A Delete that opens the dialog is secondary (or quiet) with text-danger.
+// 36px visual height with a 44px hit area: the ::after box reaches 4px above
+// and below the button, so touch targets meet the guideline without making
+// every button look tall.
 
-export const buttonVariants = {
-  primary: "bg-accent text-accent-foreground hover:opacity-90",
-  danger: "bg-danger text-danger-foreground hover:opacity-90",
-  secondary:
-    "bg-transparent border border-border hover:bg-hover",
+export type ButtonVariant = "primary" | "secondary" | "quiet" | "danger";
+
+export const buttonVariants: Record<ButtonVariant, string> = {
+  primary: "bg-accent text-accent-foreground hover:bg-accent/90",
+  secondary: "border border-border bg-surface text-foreground hover:bg-hover-surface",
+  quiet: "text-foreground hover:bg-hover",
+  danger: "bg-danger text-danger-foreground hover:bg-danger/90",
 };
 
-// min-h-11 (44px) meets the touch-target guideline on every consumer below —
-// full-size buttons and links alike, since none of them override height.
+const BUTTON_BASE =
+  "relative inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors after:absolute after:content-[''] disabled:cursor-not-allowed disabled:opacity-60";
 
-// Shared with SubmitButton (real <button type="submit"> elements) so
-// <Link>-as-button "add record" affordances, and any type="button" element
-// styled the same way, use one visual definition instead of re-declaring it
-// per call site.
-export function linkButtonClass(
-  variant: keyof typeof buttonVariants = "primary",
-  { online = true }: { online?: boolean } = {},
+export function buttonClass(
+  variant: ButtonVariant = "secondary",
+  {
+    online = true,
+    iconOnly = false,
+    className,
+  }: { online?: boolean; iconOnly?: boolean; className?: string } = {},
 ) {
   return cn(
-    "flex min-h-11 items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium",
+    BUTTON_BASE,
+    iconOnly ? "w-9 after:-inset-1" : "px-3 after:inset-x-0 after:-inset-y-1",
     buttonVariants[variant],
     !online && "pointer-events-none opacity-40",
+    className,
   );
 }
 
-// Compact bordered buttons (inline row actions: "Save", "Cancel", "Copy",
-// "Revoke token") — smaller horizontal padding than the full button family
-// above, but still 44px tall so the smaller footprint doesn't cost touch
-// accuracy.
-export const compactButtonVariants = {
-  secondary: "border-border hover:bg-hover",
-  danger: "border-border text-danger hover:bg-danger/5",
-};
-
-export function compactButtonClass(
-  variant: keyof typeof compactButtonVariants = "secondary",
-) {
-  return cn(
-    "inline-flex min-h-11 items-center justify-center rounded-lg border px-3 text-sm font-medium",
-    compactButtonVariants[variant],
-  );
-}
-
-// List-page toolbar: the "Export ▾" <details> trigger and its "Filter"
-// sibling share this look (bordered, no fill) across every list page.
-export const toolbarButtonClass =
-  "flex min-h-11 cursor-pointer list-none items-center justify-center gap-1 rounded-lg border border-border px-3 text-sm font-medium hover:bg-hover";
-
-// Rows inside the "Export" <details> dropdown (CSV/PDF download links).
-export const exportMenuItemClass =
-  "flex min-h-11 items-center px-4 text-sm hover:bg-hover";
+// Rows inside the "Export" <details> dropdown (CSV/PDF download links) and
+// other overlay menus: full-width, 44px rows.
+export const exportMenuItemClass = "flex min-h-11 items-center px-4 text-sm transition-colors hover:bg-hover";

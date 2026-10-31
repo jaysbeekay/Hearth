@@ -31,7 +31,7 @@ import {
 import { contractRules, productRules, vehicleRules } from "@/lib/recordFilters";
 import { NeedsAttentionQueue } from "@/components/NeedsAttentionQueue";
 import { TakePhotoButton } from "@/components/TakePhotoButton";
-import { compactButtonClass } from "@/lib/buttonStyles";
+import { buttonClass } from "@/lib/buttonStyles";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 
 export const metadata: Metadata = { title: "Dashboard" };
@@ -185,7 +185,7 @@ export default async function DashboardPage() {
         {canWrite && (
           <div className="flex items-center gap-2">
             <TakePhotoButton />
-            <Link href="/import" className={`${compactButtonClass("secondary")} gap-2`}>
+            <Link href="/import" className={`${buttonClass("secondary")} gap-2`}>
               <Upload size={16} />
               {/* Shortened on phones so it fits beside Take photo and Add. */}
               <span>

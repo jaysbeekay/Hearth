@@ -10,9 +10,11 @@
 // "Needs review"), so colour is never the only signal. Every tone's text
 // stays >= 4.5:1 on its tint in both themes (scripts/check-contrast.mjs).
 //
-// Pure and free of runtime imports, so server and client components share it.
+// Pure (it imports only the pure src/lib/ui.ts), so server and client
+// components share it. The pill and banner looks themselves live in ui.ts (#411).
 
 import type { DueState } from "@/lib/duePolicy";
+import { bannerToneClass, pillClass, plainPillClass } from "@/lib/ui";
 
 export type StatusTone = "danger" | "warning" | "neutral" | "plain";
 
@@ -52,21 +54,12 @@ export function statusTone(status: RecordStatus): StatusTone {
   }
 }
 
-const PILL_BASE = "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-lg py-1 text-xs font-medium";
-
 const PILL_CLASS = new Map<StatusTone, string>([
-  ["danger", `${PILL_BASE} px-2.5 bg-danger/10 text-danger`],
-  ["warning", `${PILL_BASE} px-2.5 bg-warning/10 text-warning`],
-  ["neutral", `${PILL_BASE} px-2.5 bg-muted/10 text-muted`],
+  ["danger", pillClass("danger")],
+  ["warning", pillClass("warning")],
+  ["neutral", pillClass("neutral")],
   // No tint and no side padding: plain text that lines up with the pills.
-  ["plain", `${PILL_BASE} text-muted`],
-]);
-
-const BANNER_CLASS = new Map<StatusTone, string>([
-  ["danger", "border-danger/30 bg-danger/10 text-danger"],
-  ["warning", "border-warning/30 bg-warning/10 text-warning"],
-  ["neutral", "border-border bg-muted/10 text-foreground"],
-  ["plain", "border-border bg-surface text-foreground"],
+  ["plain", plainPillClass],
 ]);
 
 const TEXT_CLASS = new Map<StatusTone, string>([
@@ -86,5 +79,5 @@ export function statusPillClass(tone: StatusTone): string {
 
 /** The border, tint and text classes for a status banner in a tone. */
 export function statusBannerClass(tone: StatusTone): string {
-  return BANNER_CLASS.get(tone) ?? "";
+  return bannerToneClass(tone);
 }

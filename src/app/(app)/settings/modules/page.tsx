@@ -6,6 +6,7 @@ import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { ModuleToggle } from "@/components/ModuleToggle";
 import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
+import { Card } from "@/components/ui";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.modules.label };
 
@@ -27,7 +28,7 @@ export default async function ModulesPage() {
         just the person who added them.
       </p>
 
-      <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
+      <Card as="section">
         <ul className="divide-y divide-border">
           {Object.values(MODULE_REGISTRY).map(({ key, label, description, icon: Icon }) => {
             const enabled = enabledModules.has(key);
@@ -45,7 +46,7 @@ export default async function ModulesPage() {
             );
           })}
         </ul>
-      </section>
+      </Card>
     </div>
   );
 }

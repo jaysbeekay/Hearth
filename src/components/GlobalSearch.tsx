@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Search, X, Loader2 } from "lucide-react";
 import type { SearchResult } from "@/app/api/search/route";
 import { toggleListFilter, writeListFilters, type ToggleableFilter } from "@/lib/recordFilters";
+import { buttonClass } from "@/lib/buttonStyles";
+import { chipClass, overlayClass } from "@/lib/ui";
 
 const OPEN_EVENT = "hearth:open-search";
 
@@ -128,7 +130,7 @@ export function GlobalSearch() {
         role="dialog"
         aria-label="Search"
         aria-modal="true"
-        className="w-full max-w-lg overflow-hidden rounded-lg border border-border bg-surface shadow-overlay"
+        className={overlayClass("w-full max-w-lg overflow-hidden")}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 border-b border-border px-4 py-3">
@@ -190,7 +192,7 @@ export function GlobalSearch() {
               }
             }}
             aria-label="Close search"
-            className="shrink-0 rounded-lg p-1 text-muted hover:bg-hover"
+            className={buttonClass("quiet", { iconOnly: true, className: "shrink-0 text-muted" })}
           >
             <X size={16} />
           </button>
@@ -216,11 +218,7 @@ export function GlobalSearch() {
                   closeButtonRef.current?.focus();
                 }
               }}
-              className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
-                filter === f.value
-                  ? "border-accent bg-accent/10 text-accent"
-                  : "border-border text-muted hover:bg-hover"
-              }`}
+              className={chipClass(filter === f.value)}
             >
               {f.label}
             </button>

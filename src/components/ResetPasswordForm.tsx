@@ -4,7 +4,7 @@ import { useActionState } from "react";
 import Link from "next/link";
 import { resetPassword, type ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
-import { linkButtonClass } from "@/lib/buttonStyles";
+import { buttonClass } from "@/lib/buttonStyles";
 import { FormMessage } from "@/components/FormMessage";
 import { inputClass } from "@/components/SelectWrapper";
 
@@ -20,7 +20,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
         <FormMessage success={state.success} />
         <Link
           href="/login"
-          className={`${linkButtonClass("primary")} w-full justify-center`}
+          className={`${buttonClass("primary")} w-full justify-center`}
         >
           Continue to sign in
         </Link>

@@ -20,6 +20,7 @@ import { formatTimestamp, humanFileSize } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
+import { Card } from "@/components/ui";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.backups.label };
 
@@ -60,7 +61,7 @@ export default async function BackupsPage() {
       <BackLink {...settingsBackLink(SETTINGS_ROUTES.backups)} />
       <h1 className="text-2xl font-medium">{SETTINGS_ROUTES.backups.label}</h1>
 
-      <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
+      <Card as="section">
         <h2 className="mb-3 font-medium">Status</h2>
         <ul className="space-y-1 text-sm">
           <li>
@@ -84,9 +85,9 @@ export default async function BackupsPage() {
             <BackupNowForm />
           </div>
         )}
-      </section>
+      </Card>
 
-      <section className="rounded-lg border border-border bg-surface p-4 md:p-6 space-y-4">
+      <Card as="section" className="space-y-4">
         <div>
           <h2 className="font-medium">Backup destination</h2>
           <p className="text-xs text-muted mt-0.5">
@@ -116,9 +117,9 @@ export default async function BackupsPage() {
             },
           }}
         />
-      </section>
+      </Card>
 
-      <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
+      <Card as="section">
         <h2 className="mb-3 font-medium">Recent runs</h2>
         {logs.length === 0 ? (
           <p className="text-sm text-muted">No backups have run yet.</p>
@@ -149,7 +150,7 @@ export default async function BackupsPage() {
             ))}
           </ul>
         )}
-      </section>
+      </Card>
     </div>
   );
 }

@@ -56,6 +56,8 @@ import { DOCUMENT_KIND_LABEL, type OwnedDocumentKind } from "@/lib/documents/kin
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
+import { EmptyState, Card } from "@/components/ui";
+import { buttonClass } from "@/lib/buttonStyles";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.trash.label };
 
@@ -163,11 +165,11 @@ export default async function TrashPage() {
       </div>
 
       {entries.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted">
+        <EmptyState as="p">
           Trash is empty.
-        </p>
+        </EmptyState>
       ) : (
-        <ul className="divide-y divide-border rounded-lg border border-border bg-surface">
+        <Card as="ul" padding="none" className="divide-y divide-border">
           {entries.map((entry) => {
             const meta = metaFor(entry);
             const Icon = meta.icon;
@@ -194,7 +196,7 @@ export default async function TrashPage() {
                       confirmText={`Permanently delete "${entry.label}"? This removes it and its documents for everyone in the household — it can't be undone.`}
                       actionLabel="Delete permanently"
                       successMessage="Deleted permanently."
-                      className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
+                      className={buttonClass("secondary", { className: "text-danger" })}
                     >
                       <Trash2 size={16} className="mr-1.5" />
                       Delete permanently
@@ -204,7 +206,7 @@ export default async function TrashPage() {
               </li>
             );
           })}
-        </ul>
+        </Card>
       )}
     </div>
   );

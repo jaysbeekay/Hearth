@@ -6,6 +6,8 @@ import { auth } from "@/lib/auth";
 import { getChatConfig, isChatConfigured } from "@/lib/ai/chat/dispatch";
 import { listChatThreads, getChatThreadMessages } from "@/lib/chat/threads";
 import { AssistantClient } from "@/components/AssistantClient";
+import { buttonClass } from "@/lib/buttonStyles";
+import { EmptyState } from "@/components/ui";
 
 export const metadata: Metadata = { title: "Assistant" };
 
@@ -28,7 +30,7 @@ export default async function AssistantPage({
   if (!isChatConfigured(chatUser)) {
     const isAdmin = session.user.role === "ADMIN";
     return (
-      <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border p-12 text-center">
+      <EmptyState className="flex flex-col items-center justify-center gap-3">
         <h1 className="text-base font-medium">Assistant not configured</h1>
         <p className="max-w-sm text-sm text-muted">
           {isAdmin
@@ -38,12 +40,12 @@ export default async function AssistantPage({
         {isAdmin && (
           <Link
             href="/settings/app"
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+            className={buttonClass("primary")}
           >
             Configure in System settings
           </Link>
         )}
-      </div>
+      </EmptyState>
     );
   }
 

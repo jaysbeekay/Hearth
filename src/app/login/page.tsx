@@ -9,6 +9,7 @@ import { isAppUrlConfigured, isGithubOAuthConfigured } from "@/lib/env";
 import { LoginForm } from "@/components/LoginForm";
 import { SignedOutCacheCleanup } from "@/components/SignedOutCacheCleanup";
 import { safeCallbackPath } from "@/lib/callbackUrl";
+import { Banner, Card } from "@/components/ui";
 
 export const metadata: Metadata = { title: "Sign in" };
 export const dynamic = "force-dynamic";
@@ -53,20 +54,20 @@ export default async function LoginPage({
           <p className="text-sm text-muted">Sign in to Hearth.</p>
         </div>
         {passwordChanged && (
-          <p className="rounded-lg border border-border bg-surface px-4 py-3 text-sm text-muted">
+          <Banner as="p" tone="plain" className="text-muted">
             Password updated. Changing it signs out every device, so sign in again with your
             new password.
-          </p>
+          </Banner>
         )}
         <SignedOutCacheCleanup />
-        <div className="rounded-lg border border-border bg-surface p-6">
+        <Card>
           <LoginForm
             smtpConfigured={smtpConfigured}
             githubConfigured={isGithubOAuthConfigured()}
             passkeysAvailable={passkeyCount > 0}
             callbackUrl={destination}
           />
-        </div>
+        </Card>
       </div>
     </div>
   );

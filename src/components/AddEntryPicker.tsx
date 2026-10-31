@@ -3,9 +3,10 @@
 import { useId, useState } from "react";
 import Link from "next/link";
 import { Plus, FileText, Package, Boxes, Home as HomeIcon, Files, X } from "lucide-react";
-import { linkButtonClass } from "@/lib/buttonStyles";
+import { buttonClass } from "@/lib/buttonStyles";
 import { Dialog } from "@/components/Dialog";
 import { useCanWrite } from "@/components/CanWriteProvider";
+import { overlayClass, cardClass } from "@/lib/ui";
 
 interface Option {
   label: string;
@@ -66,7 +67,7 @@ export function AddEntryPicker({ enabledModules }: { enabledModules: string[] })
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={linkButtonClass("primary")}
+        className={buttonClass("primary")}
       >
         <Plus size={16} />
         Add
@@ -78,7 +79,7 @@ export function AddEntryPicker({ enabledModules }: { enabledModules: string[] })
         open={open}
         onClose={() => setOpen(false)}
         labelledBy={titleId}
-        panelClassName="w-full max-w-md rounded-lg border border-border bg-surface p-5 shadow-overlay"
+        panelClassName={overlayClass("w-full max-w-md p-4")}
       >
         <div className="mb-3 flex items-center justify-between">
           <h2 id={titleId} className="text-base font-medium">
@@ -88,7 +89,7 @@ export function AddEntryPicker({ enabledModules }: { enabledModules: string[] })
             type="button"
             onClick={() => setOpen(false)}
             aria-label="Close"
-            className="flex size-11 items-center justify-center rounded-lg text-muted hover:bg-hover"
+            className={buttonClass("quiet", { iconOnly: true, className: "text-muted" })}
           >
             <X size={16} />
           </button>
@@ -99,7 +100,7 @@ export function AddEntryPicker({ enabledModules }: { enabledModules: string[] })
               key={option.href}
               href={option.href}
               onClick={() => setOpen(false)}
-              className="flex items-start gap-3 rounded-lg border border-border p-3 hover:border-accent/50 hover:bg-accent/5"
+              className={cardClass("flex items-start gap-3 transition-colors hover:bg-hover-surface")}
             >
               <option.icon size={16} className="mt-0.5 shrink-0 text-accent" />
               <div className="min-w-0">

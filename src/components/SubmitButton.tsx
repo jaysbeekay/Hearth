@@ -1,8 +1,7 @@
 "use client";
 
 import { useFormStatus } from "react-dom";
-import { cn } from "@/lib/utils";
-import { buttonVariants } from "@/lib/buttonStyles";
+import { buttonClass, type ButtonVariant } from "@/lib/buttonStyles";
 
 export function SubmitButton({
   children,
@@ -12,7 +11,7 @@ export function SubmitButton({
 }: {
   children: React.ReactNode;
   className?: string;
-  variant?: "primary" | "danger" | "secondary";
+  variant?: ButtonVariant;
   pendingText?: string;
 }) {
   const { pending } = useFormStatus();
@@ -21,11 +20,7 @@ export function SubmitButton({
     <button
       type="submit"
       disabled={pending}
-      className={cn(
-        "inline-flex min-h-11 items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition disabled:opacity-60 disabled:cursor-not-allowed",
-        buttonVariants[variant],
-        className,
-      )}
+      className={buttonClass(variant, { className })}
     >
       {pending ? pendingText : children}
     </button>

@@ -6,6 +6,7 @@ import { RentalStatementForm } from "@/components/RentalStatementForm";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { Card } from "@/components/ui";
 
 export default async function EditRentalStatementPage({
   params,
@@ -35,9 +36,9 @@ export default async function EditRentalStatementPage({
         <h1 className="text-2xl font-medium">Edit statement</h1>
       </div>
 
-      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
+      <Card>
         <RentalStatementForm action={boundAction} statement={statement} />
-      </div>
+      </Card>
     </div>
   );
 }

@@ -9,6 +9,7 @@ import { Field } from "@/components/FormField";
 import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 import { TestConnectionButton } from "@/components/TestConnectionButton";
 import { BACKUP_DESTINATION_LABELS, type BackupDestinationChoice } from "@/lib/backupDestination";
+import { Banner } from "@/components/ui";
 
 const checkboxClass = "size-4 rounded-lg border-border accent-accent";
 
@@ -47,11 +48,11 @@ export function SmtpForm({
   return (
     <form action={formAction} className="space-y-4">
       {!appUrlConfigured && (
-        <p className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
+        <Banner as="p" tone="warning">
           APP_URL isn&apos;t set — password-reset and invitation links in emails will point to
           http://localhost:3000 and won&apos;t work for recipients. Set APP_URL to this
           app&apos;s real address (see .env.example).
-        </p>
+        </Banner>
       )}
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="SMTP host" htmlFor="smtpHost">

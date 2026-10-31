@@ -16,6 +16,7 @@ import {
 import { Field } from "@/components/FormField";
 import { inputClass } from "@/components/SelectWrapper";
 import { DateInput } from "@/components/DateInput";
+import { Banner } from "@/components/ui";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -72,9 +73,9 @@ export function VehicleForm({
       className="space-y-6"
     >
       {pendingOp && (
-        <p className="rounded-lg border border-dashed border-warning/40 bg-warning/10 px-4 py-2 text-sm text-warning">
+        <Banner as="p" tone="warning">
           Editing an offline entry that hasn&apos;t synced yet — saving updates it in place.
-        </p>
+        </Banner>
       )}
       <div className="grid gap-4 md:grid-cols-2">
         <Field label="Label" htmlFor="label" required>

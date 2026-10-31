@@ -12,8 +12,6 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { ConfirmForm } from "@/components/ConfirmForm";
 
-const buttonClass =
-  "rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-hover";
 
 export function WebhookActions({
   endpointId,
@@ -37,12 +35,12 @@ export function WebhookActions({
     <div className="flex flex-col items-end gap-2">
       <div className="flex items-center gap-2">
         <form action={testAction}>
-          <SubmitButton variant="secondary" className={buttonClass}>
+          <SubmitButton variant="secondary">
             Send test
           </SubmitButton>
         </form>
         <form action={toggleAction}>
-          <SubmitButton variant="secondary" className={buttonClass}>
+          <SubmitButton variant="secondary">
             {enabled ? "Disable" : "Enable"}
           </SubmitButton>
         </form>

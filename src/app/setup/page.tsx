@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { SetupForm } from "@/components/SetupForm";
 import { isSetupTokenRequired } from "@/lib/env";
+import { Card } from "@/components/ui";
 
 export const metadata: Metadata = { title: "Set up" };
 export const dynamic = "force-dynamic";
@@ -23,9 +24,9 @@ export default async function SetupPage() {
             Create the first admin account for your household.
           </p>
         </div>
-        <div className="rounded-lg border border-border bg-surface p-6">
+        <Card>
           <SetupForm setupTokenRequired={isSetupTokenRequired()} />
-        </div>
+        </Card>
       </div>
     </div>
   );

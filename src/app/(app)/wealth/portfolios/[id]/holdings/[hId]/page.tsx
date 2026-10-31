@@ -21,6 +21,9 @@ import { isCryptoHolding, priceCacheKey } from "@/lib/priceSource";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { buttonClass } from "@/lib/buttonStyles";
+import { cardClass } from "@/lib/ui";
+import { Card, EmptyState, Pill } from "@/components/ui";
 
 export const metadata: Metadata = { title: "Holding" };
 
@@ -286,7 +289,7 @@ export default async function HoldingPage({
               <>
                 <Link
                   href={`/wealth/portfolios/${portfolioId}/holdings/${holdingId}/edit`}
-                  className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+                  className={buttonClass("secondary")}
                 >
                   <Pencil size={16} />
                   Edit
@@ -295,7 +298,7 @@ export default async function HoldingPage({
                   action={deleteHolding.bind(null, portfolioId, holdingId)}
                   confirmText={`Delete ${holding.ticker} and all its trades? This cannot be undone.`}
                   actionLabel={`Delete ${holding.ticker}`}
-                  className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
+                  className={buttonClass("secondary", { className: "text-danger" })}
                 >
                   <Trash2 size={16} />
                   Delete
@@ -308,13 +311,13 @@ export default async function HoldingPage({
 
       {/* Position summary */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <div className="rounded-lg border border-border bg-surface p-4">
+        <Card>
           <p className="text-xs text-muted">Units held</p>
           <p className="mt-1 text-base font-medium">
             {formatNumber(units, region)}
           </p>
-        </div>
-        <div className="rounded-lg border border-border bg-surface p-4">
+        </Card>
+        <Card>
           <p className="text-xs text-muted">Current price</p>
           <p className="mt-1 text-base font-medium">
             {currentPrice != null ? formatCurrency(currentPrice, currency, undefined, region, { showCode: true }) : <span className="text-muted">No price</span>}
@@ -324,14 +327,14 @@ export default async function HoldingPage({
               {priceEntry.changePct >= 0 ? "+" : ""}{priceEntry.changePct.toFixed(2)}% today
             </p>
           )}
-        </div>
-        <div className="rounded-lg border border-border bg-surface p-4">
+        </Card>
+        <Card>
           <p className="text-xs text-muted">Market value</p>
           <p className="mt-1 text-base font-medium">
             {currentValue != null ? formatCurrency(currentValue, currency, undefined, region, { showCode: true }) : "—"}
           </p>
-        </div>
-        <div className="rounded-lg border border-border bg-surface p-4">
+        </Card>
+        <Card>
           <p className="text-xs text-muted">Unrealised gain/loss</p>
           <p className={`mt-1 text-base font-medium ${gainLoss == null ? "" : gainLoss >= 0 ? "text-success" : "text-danger"}`}>
             {gainLoss != null
@@ -345,10 +348,10 @@ export default async function HoldingPage({
               ({gainLossPct >= 0 ? "+" : ""}{gainLossPct.toFixed(1)}%)
             </p>
           )}
-        </div>
+        </Card>
       </div>
 
-      <dl className="grid grid-cols-2 gap-4 rounded-lg border border-border bg-surface p-4 md:p-6 sm:grid-cols-3">
+      <dl className={cardClass("grid grid-cols-2 gap-4 sm:grid-cols-3")}>
         <div className="min-w-0">
           <dt className="text-xs text-muted">
             Cost basis <span className="text-muted">({COST_METHOD_LABELS[holding.portfolio.costMethod]})</span>
@@ -372,13 +375,13 @@ export default async function HoldingPage({
 
       {/* Performance chart */}
       {chartPoints.length >= 2 && (
-        <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
+        <Card as="section">
           <h2 className="mb-4 font-medium">Performance since first purchase</h2>
           <PerformanceChart points={chartPoints} currency={currency} dateFormat={dateFormat} region={region} />
           {chartStartsLate && (
             <p className="mt-2 text-xs text-muted">Chart shows prices from {formatDate(chartPoints[0].date, dateFormat)}.</p>
           )}
-        </section>
+        </Card>
       )}
       {chartPoints.length < 2 && tracksHistory && holding.trades.length > 0 && units > 0 && (
         <p className="text-sm text-muted">No price history yet. It is fetched in the background; refresh in a moment to see the chart.</p>
@@ -391,7 +394,7 @@ export default async function HoldingPage({
           {canWrite && (
             <Link
               href={`/wealth/portfolios/${portfolioId}/holdings/${holdingId}/trades/new`}
-              className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+              className={buttonClass("primary")}
             >
               <Plus size={16} />
               Add trade
@@ -400,9 +403,9 @@ export default async function HoldingPage({
         </div>
 
         {tradesDesc.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted">
+          <EmptyState as="p">
             No trades yet.
-          </p>
+          </EmptyState>
         ) : (
           <div className="space-y-3">
             {tradesDesc.map((trade) => {
@@ -415,12 +418,12 @@ export default async function HoldingPage({
                   : null;
 
               return (
-                <div key={trade.id} className="rounded-lg border border-border bg-surface p-4">
+                <Card key={trade.id}>
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3">
-                      <span className="shrink-0 rounded-full bg-muted/10 px-2.5 py-0.5 text-xs font-medium text-muted">
+                      <Pill>
                         {TRADE_TYPE_LABELS[trade.type] ?? trade.type}
-                      </span>
+                      </Pill>
                       <div>
                         <p className="text-sm font-medium">
                           {formatNumber(trade.units, region)} units @ {formatCurrency(trade.pricePerUnit, trade.currency, undefined, region, { showCode: true })}
@@ -447,7 +450,7 @@ export default async function HoldingPage({
                         <>
                           <Link
                             href={`/wealth/portfolios/${portfolioId}/holdings/${holdingId}/trades/${trade.id}/edit`}
-                            className="rounded-lg border border-border p-2 hover:bg-hover"
+                            className={buttonClass("secondary", { iconOnly: true })}
                             title="Edit trade"
                           >
                             <Pencil size={16} />
@@ -463,7 +466,7 @@ export default async function HoldingPage({
                             }}
                             confirmText="Move this trade to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash."
                             ariaLabel={`Delete trade from ${formatDate(trade.date, dateFormat)}`}
-                            className="rounded-lg border border-border p-2 text-danger hover:bg-danger/10"
+                            className={buttonClass("secondary", { iconOnly: true, className: "text-danger" })}
                           >
                             <Trash2 size={16} />
                           </ConfirmForm>
@@ -485,7 +488,7 @@ export default async function HoldingPage({
                       <DocumentUploadForm action={addDocumentAction.bind(null, "TRADE", trade.id)} />
                     </div>
                   )}
-                </div>
+                </Card>
               );
             })}
           </div>

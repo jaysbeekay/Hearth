@@ -18,6 +18,8 @@ import { Field } from "@/components/FormField";
 import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 import { OCCUPANCY_STATUSES } from "@/lib/validation/home";
 import { OCCUPANCY_STATUS_LABELS } from "@/lib/utils";
+import { Banner } from "@/components/ui";
+import { bannerClass, overlayClass } from "@/lib/ui";
 
 interface GeocodeSuggestion {
   display_name: string;
@@ -85,9 +87,9 @@ export function PropertyForm({
       className="space-y-6"
     >
       {pendingOp && (
-        <p className="rounded-lg border border-dashed border-warning/40 bg-warning/10 px-4 py-2 text-sm text-warning">
+        <Banner as="p" tone="warning">
           Editing an offline entry that hasn&apos;t synced yet — saving updates it in place.
-        </p>
+        </Banner>
       )}
       <div className="grid gap-4 md:grid-cols-2">
         <Field label="Label" htmlFor="label" required>
@@ -122,7 +124,7 @@ export function PropertyForm({
       </div>
 
       {occupancyStatus === "RENTED" && (
-        <p className="rounded-lg border border-dashed border-border bg-hover px-4 py-2 text-sm text-muted">
+        <p className={bannerClass("neutral")}>
           {property ? (
             property.isRented ? (
               <>
@@ -289,7 +291,7 @@ function AddressFields({
           <input type="hidden" name="lat" value={lat ?? ""} />
           <input type="hidden" name="lng" value={lng ?? ""} />
           {showSuggestions && visibleSuggestions.length > 0 && (
-            <ul className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-border bg-surface shadow-overlay">
+            <ul className={overlayClass("absolute z-10 mt-1 w-full overflow-hidden")}>
               {visibleSuggestions.map((s) => (
                 <li key={`${s.lat},${s.lng}`}>
                   <button

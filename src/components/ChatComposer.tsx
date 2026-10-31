@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Send } from "lucide-react";
+import { buttonClass } from "@/lib/buttonStyles";
 
 export function ChatComposer({
   onSend,
@@ -44,7 +45,7 @@ export function ChatComposer({
       <button
         type="submit"
         disabled={disabled || !value.trim()}
-        className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground hover:opacity-90 disabled:opacity-50"
+        className={buttonClass("primary", { iconOnly: true, className: "shrink-0" })}
         aria-label="Send"
       >
         <Send size={16} />

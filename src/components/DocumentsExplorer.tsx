@@ -5,11 +5,13 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { FileText, Image as ImageIcon, Eye, Upload } from "lucide-react";
 import { SelectWrapper, inputClass } from "@/components/SelectWrapper";
-import { linkButtonClass } from "@/lib/buttonStyles";
+import { buttonClass } from "@/lib/buttonStyles";
 import { DocumentLink } from "@/components/DocumentLink";
 import { DocumentPreviewModal, isPreviewable } from "@/components/DocumentPreviewModal";
 import { humanFileSize } from "@/lib/utils";
 import { DOCUMENT_CATEGORIES, DOCUMENT_CATEGORY_LABELS, type DocumentCategory } from "@/lib/documents/categories";
+import { EmptyState, Card, Pill } from "@/components/ui";
+import { pillClass } from "@/lib/ui";
 
 export interface DocRow {
   id: string;
@@ -75,19 +77,19 @@ export function DocumentsExplorer({
   if (docs.length === 0) {
     if (emptyMessage) {
       return (
-        <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted">
+        <EmptyState as="p">
           {emptyMessage}
-        </p>
+        </EmptyState>
       );
     }
     return (
-      <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border p-10 text-center">
+      <EmptyState className="flex flex-col items-center gap-3">
         <p className="text-sm text-muted">No documents uploaded yet.</p>
-        <Link href="/import" className={linkButtonClass("primary")}>
+        <Link href="/import" className={buttonClass("primary")}>
           <Upload size={16} />
           Upload a document
         </Link>
-      </div>
+      </EmptyState>
     );
   }
 
@@ -136,13 +138,13 @@ export function DocumentsExplorer({
       </div>
 
       {visible.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted">
+        <EmptyState as="p">
           No documents match the selected filters.
-        </p>
+        </EmptyState>
       ) : (
         <>
           {/* Table — md and up */}
-          <div className="hidden overflow-x-auto rounded-lg border border-border bg-surface md:block">
+          <Card padding="none" className="hidden overflow-x-auto md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs text-muted">
@@ -170,12 +172,12 @@ export function DocumentsExplorer({
                       </DocumentLink>
                     </td>
                     <td className="px-4 py-2">
-                      <span className="rounded-full bg-muted/10 px-2 py-0.5 text-xs font-medium text-muted">
+                      <Pill>
                         {doc.category ? DOCUMENT_CATEGORY_LABELS[doc.category as DocumentCategory] ?? doc.category : "Uncategorised"}
-                      </span>
-                      <span className="ml-2 rounded-full bg-muted/10 px-2 py-0.5 text-xs font-medium text-muted">
+                      </Pill>
+                      <Pill className="ml-2">
                         {doc.type}
-                      </span>
+                      </Pill>
                     </td>
                     <td className="max-w-xs px-4 py-2">
                       <Link href={doc.parentHref} className="truncate text-accent hover:underline">
@@ -194,7 +196,7 @@ export function DocumentsExplorer({
                           type="button"
                           onClick={() => setPreview(doc)}
                           aria-label={`Preview ${doc.filename}`}
-                          className="rounded-lg p-1 text-muted hover:bg-hover"
+                          className={buttonClass("quiet", { iconOnly: true, className: "text-muted" })}
                         >
                           <Eye size={16} />
                         </button>
@@ -204,14 +206,13 @@ export function DocumentsExplorer({
                 ))}
               </tbody>
             </table>
-          </div>
+          </Card>
 
           {/* Cards — below md */}
           <div className="grid gap-2 md:hidden">
             {visible.map((doc) => (
-              <div
+              <Card
                 key={`${doc.type}-${doc.id}`}
-                className="rounded-lg border border-border bg-surface p-3"
               >
                 <div className="flex items-start justify-between gap-2">
                   <DocumentLink
@@ -229,14 +230,14 @@ export function DocumentsExplorer({
                       type="button"
                       onClick={() => setPreview(doc)}
                       aria-label={`Preview ${doc.filename}`}
-                      className="shrink-0 rounded-lg p-1 text-muted hover:bg-hover"
+                      className={buttonClass("quiet", { iconOnly: true, className: "shrink-0 text-muted" })}
                     >
                       <Eye size={16} />
                     </button>
                   )}
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
-                  <span className="rounded-full bg-muted/10 px-2 py-0.5 font-medium text-muted">
+                  <span className={pillClass()}>
                     {doc.type}
                   </span>
                   <span>{doc.category ? DOCUMENT_CATEGORY_LABELS[doc.category as DocumentCategory] ?? doc.category : "Uncategorised"}</span>
@@ -246,7 +247,7 @@ export function DocumentsExplorer({
                   <span><Timestamp value={doc.uploadedAt} /></span>
                   <span>{humanFileSize(doc.size)}</span>
                 </div>
-              </div>
+              </Card>
             ))}
           </div>
         </>

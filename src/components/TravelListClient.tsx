@@ -13,6 +13,7 @@ import { usePendingCreates } from "@/lib/usePendingCreates";
 import { formatDistance } from "@/lib/utils";
 import type { DistanceSummary } from "@/lib/integrations/flightDistance";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
+import { Card, EmptyState } from "@/components/ui";
 
 type TripWithCount = TripModel & { _count: { segments: number } };
 
@@ -47,7 +48,7 @@ export function TravelListClient({ trips, dateFormat, canWrite = true, distanceS
       />
 
       {distanceSummary && distanceSummary.totalKm > 0 && (
-        <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
+        <Card>
           <div className="flex items-center gap-2">
             <Route size={16} className="text-muted" />
             <h2 className="font-medium">Distance travelled</h2>
@@ -69,7 +70,7 @@ export function TravelListClient({ trips, dateFormat, canWrite = true, distanceS
             Computed from flight segments with a known route — configure AviationStack (Settings → Household &amp; System → System
             settings) to auto-fill distances for new flights.
           </p>
-        </div>
+        </Card>
       )}
 
       {pendingOps.length > 0 && (
@@ -89,9 +90,9 @@ export function TravelListClient({ trips, dateFormat, canWrite = true, distanceS
 
       {trips.length === 0 ? (
         pendingOps.length === 0 && (
-          <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted">
+          <EmptyState as="p">
             No trips yet. Add your first trip to start building an itinerary.
-          </p>
+          </EmptyState>
         )
       ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">

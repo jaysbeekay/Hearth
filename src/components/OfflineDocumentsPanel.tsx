@@ -9,6 +9,7 @@ import {
 } from "@/lib/offlineDocuments";
 import { humanFileSize } from "@/lib/utils";
 import { showToast } from "@/components/Toast";
+import { Card } from "@/components/ui";
 
 export function OfflineDocumentsPanel() {
   const [docs, setDocs] = useState<OfflineDocument[] | null>(null);
@@ -36,7 +37,7 @@ export function OfflineDocumentsPanel() {
   const totalBytes = docs.reduce((sum, d) => sum + d.size, 0);
 
   return (
-    <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
+    <Card as="section">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="font-medium">Downloaded documents</h2>
         {docs.length > 0 && (
@@ -81,6 +82,6 @@ export function OfflineDocumentsPanel() {
           </ul>
         </>
       )}
-    </section>
+    </Card>
   );
 }

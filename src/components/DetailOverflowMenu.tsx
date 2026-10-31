@@ -4,6 +4,8 @@ import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { MoreVertical, X } from "lucide-react";
 import { Dialog } from "@/components/Dialog";
 import { useFocusTrap } from "@/lib/useFocusTrap";
+import { buttonClass } from "@/lib/buttonStyles";
+import { overlayClass } from "@/lib/ui";
 
 // #355 — an item that acts in place (Archive) rather than navigating away
 // calls this to close the menu; one that is a link or opens a dialog already
@@ -59,7 +61,7 @@ export function DetailOverflowMenu({
         aria-label={label}
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="flex h-11 w-11 items-center justify-center rounded-lg border border-border hover:bg-hover"
+        className={buttonClass("secondary", { iconOnly: true })}
       >
         <MoreVertical size={16} />
       </button>
@@ -74,7 +76,7 @@ export function DetailOverflowMenu({
             ref={dropdownRef}
             role="dialog"
             aria-label={label}
-            className="absolute right-0 z-10 mt-1 hidden w-48 overflow-hidden rounded-lg border border-border bg-surface shadow-overlay md:block"
+            className={overlayClass("absolute right-0 z-10 mt-1 hidden w-48 overflow-hidden md:block")}
           >
             <CloseMenuContext.Provider value={closeMenu}>{children}</CloseMenuContext.Provider>
           </div>
@@ -94,7 +96,7 @@ export function DetailOverflowMenu({
                   type="button"
                   onClick={() => setOpen(false)}
                   aria-label="Close"
-                  className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-hover"
+                  className={buttonClass("quiet", { iconOnly: true })}
                 >
                   <X size={20} />
                 </button>

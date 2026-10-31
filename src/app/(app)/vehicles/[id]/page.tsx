@@ -34,6 +34,8 @@ import { DetailStatusBanner } from "@/components/DetailStatusBanner";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { buttonClass } from "@/lib/buttonStyles";
+import { Card, EmptyState } from "@/components/ui";
 
 const ITEM_ICONS: Record<string, LucideIcon> = {
   SERVICE: Wrench,
@@ -109,7 +111,7 @@ export default async function VehicleDetailPage({
             <>
               <Link
                 href={`/vehicles/${vehicle.id}/edit`}
-                className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+                className={buttonClass("secondary")}
               >
                 <Pencil size={16} />
                 Edit
@@ -152,7 +154,7 @@ export default async function VehicleDetailPage({
               mode="restore"
               noun="vehicle"
               action={unarchiveVehicle.bind(null, vehicle.id)}
-              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+              className={buttonClass("secondary")}
             />
           )}
         </ArchivedNotice>
@@ -168,7 +170,7 @@ export default async function VehicleDetailPage({
         renewLabel="Update dates"
       />
 
-      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
+      <Card>
         <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">
           {vehicle.make && <Detail label="Make" value={vehicle.make} />}
           {vehicle.model && <Detail label="Model" value={vehicle.model} />}
@@ -194,7 +196,7 @@ export default async function VehicleDetailPage({
         {vehicle.notes && (
           <p className="mt-4 whitespace-pre-wrap text-sm text-foreground">{vehicle.notes}</p>
         )}
-      </div>
+      </Card>
 
       {regoHealth && (
         <ReminderHealthCard
@@ -227,7 +229,7 @@ export default async function VehicleDetailPage({
           {canWrite && (
             <Link
               href={`/contracts/new?vehicleId=${vehicle.id}`}
-              className="flex items-center gap-2 whitespace-nowrap rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+              className={buttonClass("secondary", { className: "whitespace-nowrap" })}
             >
               <Plus size={16} />
               Add contract
@@ -235,9 +237,9 @@ export default async function VehicleDetailPage({
           )}
         </div>
         {linkedContracts.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted">
+          <EmptyState as="p">
             No contracts or warranties linked yet.
-          </p>
+          </EmptyState>
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
             {linkedContracts.map((contract) => (
@@ -253,7 +255,7 @@ export default async function VehicleDetailPage({
           {canWrite && (
             <Link
               href={`/vehicles/${vehicle.id}/items/new`}
-              className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+              className={buttonClass("primary")}
             >
               <Plus size={16} />
               Add service record
@@ -262,17 +264,16 @@ export default async function VehicleDetailPage({
         </div>
 
         {items.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted">
+          <EmptyState as="p">
             No service records yet. Add a service, repair or roadworthy to start tracking.
-          </p>
+          </EmptyState>
         ) : (
           <div className="space-y-3">
             {items.map((item) => {
               const Icon = ITEM_ICONS[item.type] ?? Tag;
               return (
-                <div
+                <Card
                   key={item.id}
-                  className="rounded-lg border border-border bg-surface p-4 md:p-6"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="flex min-w-0 items-start gap-3">
@@ -292,7 +293,7 @@ export default async function VehicleDetailPage({
                         <>
                           <Link
                             href={`/vehicles/${vehicle.id}/items/${item.id}/edit`}
-                            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+                            className={buttonClass("secondary")}
                           >
                             <Pencil size={16} />
                             Edit
@@ -301,7 +302,7 @@ export default async function VehicleDetailPage({
                             action={deleteVehicleItem.bind(null, vehicle.id, item.id)}
                             undo={{ action: restoreVehicleItem.bind(null, item.id) }}
                             confirmText={`Move "${item.title}" to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash.`}
-                            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
+                            className={buttonClass("secondary", { className: "text-danger" })}
                           >
                             <Trash2 size={16} />
                             Delete
@@ -334,7 +335,7 @@ export default async function VehicleDetailPage({
                       </div>
                     )}
                   </div>
-                </div>
+                </Card>
               );
             })}
           </div>

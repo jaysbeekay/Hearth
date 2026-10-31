@@ -32,6 +32,9 @@ import { getHouseholdMemberCount } from "@/lib/household";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { buttonClass } from "@/lib/buttonStyles";
+import { Card } from "@/components/ui";
+import { cardClass } from "@/lib/ui";
 
 export default async function ProductDetailPage({
   params,
@@ -97,7 +100,7 @@ export default async function ProductDetailPage({
             <>
               <Link
                 href={`/products/${product.id}/edit`}
-                className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+                className={buttonClass("secondary")}
               >
                 <Pencil size={16} />
                 Edit
@@ -147,7 +150,7 @@ export default async function ProductDetailPage({
         <ExtractionReviewPanel fields={pendingReview} action={reviewProductExtraction.bind(null, product.id)} />
       )}
 
-      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
+      <Card>
         <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">
           <Detail label="Brand" value={product.manufacturer ?? "—"} />
           <Detail label="Model" value={product.model ?? "—"} />
@@ -161,7 +164,7 @@ export default async function ProductDetailPage({
             value={product.price != null ? formatCurrency(product.price, product.currency, undefined, region) : "—"}
           />
         </dl>
-      </div>
+      </Card>
 
       {product.warrantyEndDate && (
         <ReminderHealthCard
@@ -172,13 +175,13 @@ export default async function ProductDetailPage({
       )}
 
       {(product.property || product.warrantyForItems.length > 0) && (
-        <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
+        <Card>
           <h2 className="mb-3 font-medium">Linked to</h2>
           <div className="grid gap-2 sm:grid-cols-2">
             {product.property && (
               <Link
                 href={`/home/${product.property.id}`}
-                className="flex items-center gap-3 rounded-lg border border-border p-3 hover:bg-hover"
+                className={cardClass("flex items-center gap-3 transition-colors hover:bg-hover-surface")}
               >
                 <Home size={16} className="text-muted" />
                 <span>
@@ -191,7 +194,7 @@ export default async function ProductDetailPage({
               <Link
                 key={invItem.id}
                 href={`/inventory/${invItem.id}`}
-                className="flex items-center gap-3 rounded-lg border border-border p-3 hover:bg-hover"
+                className={cardClass("flex items-center gap-3 transition-colors hover:bg-hover-surface")}
               >
                 <Package size={16} className="text-muted" />
                 <span>
@@ -201,17 +204,17 @@ export default async function ProductDetailPage({
               </Link>
             ))}
           </div>
-        </div>
+        </Card>
       )}
 
       {product.notes && (
-        <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
+        <Card>
           <h2 className="mb-2 font-medium">Notes</h2>
           <p className="whitespace-pre-wrap text-sm text-foreground">{product.notes}</p>
-        </div>
+        </Card>
       )}
 
-      <div id="documents" className="scroll-mt-20 rounded-lg border border-border bg-surface p-4 md:p-6">
+      <Card id="documents" className="scroll-mt-20">
         <h2 className="mb-3 font-medium">Documents</h2>
         <DocumentList kind="PRODUCT" ownerId={product.id} documents={product.documents} trashedLinks={trashedLinks.get(product.id)} />
         {canWrite && (
@@ -219,7 +222,7 @@ export default async function ProductDetailPage({
             <ProductDocumentUploadForm action={boundUpload} />
           </div>
         )}
-      </div>
+      </Card>
 
       <RecordMeta
         createdByName={product.createdBy.name}

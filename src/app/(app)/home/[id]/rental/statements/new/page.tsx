@@ -7,6 +7,7 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { Card } from "@/components/ui";
 
 export default async function NewRentalStatementPage({
   params,
@@ -40,13 +41,13 @@ export default async function NewRentalStatementPage({
         </p>
       </div>
 
-      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
+      <Card>
         <RentalStatementForm
           action={boundAction}
           propertyId={property.id}
           defaultCurrency={preferredCurrency}
         />
-      </div>
+      </Card>
     </div>
   );
 }

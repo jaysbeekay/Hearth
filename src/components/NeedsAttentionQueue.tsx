@@ -7,6 +7,9 @@ import { ExpiryBadge } from "@/components/ExpiryBadge";
 import { StatusPill } from "@/components/StatusPill";
 import { DismissibleRow } from "@/components/DismissibleRow";
 import type { AttentionItem } from "@/lib/needsAttention";
+import { buttonClass } from "@/lib/buttonStyles";
+import { Card } from "@/components/ui";
+import { emptyStateClass } from "@/lib/ui";
 
 // Same key NotificationNudgeBanner used, so a household that already
 // dismissed that banner doesn't see the equivalent queue row reappear.
@@ -41,7 +44,7 @@ export function NeedsAttentionQueue({
           Due <span className="font-normal text-muted">({due.length})</span>
         </h3>
         {due.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted">
+          <p className={emptyStateClass()}>
             Nothing due.
           </p>
         ) : (
@@ -67,7 +70,7 @@ function AttentionList({ items, canWrite }: { items: AttentionItem[]; canWrite: 
       {items.map((item) => {
         const Icon = item.id === "inbox" ? Inbox : KIND_ICON[item.kind];
         const row = (
-          <li className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface p-3 md:flex-nowrap">
+          <Card as="li" className="flex flex-wrap items-center gap-3 md:flex-nowrap">
             <Icon size={16} className="shrink-0 text-muted" aria-hidden />
 
             <Link href={item.href} className="min-w-0 flex-1 hover:underline">
@@ -108,7 +111,7 @@ function AttentionList({ items, canWrite }: { items: AttentionItem[]; canWrite: 
                     confirmText="Mark this contract as cancelled? This just changes its status — it won't delete the contract or its documents."
                     actionLabel="Mark as cancelled"
                     ariaLabel={`Mark ${item.title} as cancelled`}
-                    className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted hover:bg-hover"
+                    className={buttonClass("secondary", { className: "text-muted" })}
                   >
                     <Ban size={16} />
                     Cancel
@@ -117,14 +120,14 @@ function AttentionList({ items, canWrite }: { items: AttentionItem[]; canWrite: 
                 {item.action && (
                   <Link
                     href={item.action.href}
-                    className="inline-flex items-center rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground hover:opacity-90"
+                    className={buttonClass("primary")}
                   >
                     {item.action.label}
                   </Link>
                 )}
               </div>
             )}
-          </li>
+          </Card>
         );
 
         if (item.id === "system-reminders") {

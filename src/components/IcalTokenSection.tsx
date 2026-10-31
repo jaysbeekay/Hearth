@@ -4,7 +4,8 @@ import { useActionState, useRef } from "react";
 import { generateIcalToken, revokeIcalToken, type IcalActionState } from "@/lib/actions/ical";
 import { FormMessage } from "@/components/FormMessage";
 import { SubmitButton } from "@/components/SubmitButton";
-import { compactButtonClass } from "@/lib/buttonStyles";
+import { buttonClass } from "@/lib/buttonStyles";
+import { cardClass } from "@/lib/ui";
 
 interface Props {
   // Whether a feed is currently active. The token itself is stored only as a
@@ -43,7 +44,7 @@ export function IcalTokenSection({ hasToken, appUrl, embedded }: Props) {
   }
 
   return (
-    <section className={embedded ? undefined : "rounded-lg border border-border bg-surface p-4 md:p-6"}>
+    <section className={embedded ? undefined : cardClass()}>
       <h2 id={embedded ? "calendar-feed-heading" : undefined} className="mb-1 font-medium">
         Calendar feed
       </h2>
@@ -61,7 +62,7 @@ export function IcalTokenSection({ hasToken, appUrl, embedded }: Props) {
               value={justGenerated}
               className="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm outline-none"
             />
-            <button type="button" onClick={copy} className={`shrink-0 ${compactButtonClass()}`}>
+            <button type="button" onClick={copy} className={`shrink-0 ${buttonClass("secondary")}`}>
               Copy
             </button>
           </div>
@@ -92,7 +93,7 @@ export function IcalTokenSection({ hasToken, appUrl, embedded }: Props) {
           </form>
           {active && (
             <form action={revokeAction}>
-              <button type="submit" className={compactButtonClass("danger")}>
+              <button type="submit" className={buttonClass("secondary", { className: "text-danger" })}>
                 Revoke feed
               </button>
             </form>

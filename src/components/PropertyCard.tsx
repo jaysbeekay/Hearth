@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { PropertyModel } from "@/generated/prisma/models";
 import { formatPropertyAddress } from "@/lib/utils";
 import { StatusPill } from "@/components/StatusPill";
+import { cardClass } from "@/lib/ui";
 
 export function PropertyCard({
   property,
@@ -16,7 +17,7 @@ export function PropertyCard({
   return (
     <Link
       href={`/home/${property.id}`}
-      className="block min-w-0 rounded-lg border border-border bg-surface p-4 transition hover:border-accent/50"
+      className={cardClass("block min-w-0 transition-colors hover:border-accent/50")}
     >
       <div className="min-w-0">
         <p className="truncate text-sm text-muted">

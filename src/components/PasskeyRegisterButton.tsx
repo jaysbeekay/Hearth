@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { startRegistration } from "@simplewebauthn/browser";
-import { linkButtonClass } from "@/lib/buttonStyles";
+import { buttonClass } from "@/lib/buttonStyles";
 
 export function PasskeyRegisterButton() {
   const router = useRouter();
@@ -71,7 +71,7 @@ export function PasskeyRegisterButton() {
           type="button"
           onClick={register}
           disabled={pending}
-          className={`${linkButtonClass("primary")} justify-center disabled:cursor-not-allowed disabled:opacity-60`}
+          className={`${buttonClass("primary")} justify-center disabled:cursor-not-allowed disabled:opacity-60`}
         >
           {pending ? "Registering…" : "Add passkey"}
         </button>

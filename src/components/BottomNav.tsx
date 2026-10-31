@@ -10,6 +10,7 @@ import type { ModuleKey } from "@/lib/modules/registry";
 import { Dialog } from "@/components/Dialog";
 import { InboxCountBadge, inboxLinkLabel } from "@/components/InboxCountBadge";
 import { SignOutButton } from "@/components/SignOutButton";
+import { buttonClass } from "@/lib/buttonStyles";
 
 function isActive(href: string, pathname: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -148,7 +149,7 @@ export function BottomNav({
                 setMoreOpen(false);
               }}
               aria-label="Close"
-              className="flex size-11 items-center justify-center rounded-full hover:bg-hover"
+              className={buttonClass("quiet", { iconOnly: true })}
             >
               <X size={20} />
             </button>

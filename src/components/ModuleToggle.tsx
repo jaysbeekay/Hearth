@@ -6,6 +6,7 @@ import type { ActionState } from "@/lib/actions/auth";
 import type { ModuleKey } from "@/lib/modules/registry";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
+import { buttonClass } from "@/lib/buttonStyles";
 
 export function ModuleToggle({ moduleKey, enabled }: { moduleKey: ModuleKey; enabled: boolean }) {
   const [state, action] = useActionState<ActionState, FormData>(
@@ -18,7 +19,7 @@ export function ModuleToggle({ moduleKey, enabled }: { moduleKey: ModuleKey; ena
       <form action={action}>
         <SubmitButton
           variant="secondary"
-          className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-hover"
+          className={buttonClass("secondary")}
         >
           {enabled ? "Disable" : "Enable"}
         </SubmitButton>

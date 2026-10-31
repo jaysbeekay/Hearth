@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { TripModel } from "@/generated/prisma/models";
 import { formatDate } from "@/lib/utils";
+import { cardClass } from "@/lib/ui";
 
 export function TripCard({
   trip,
@@ -12,7 +13,7 @@ export function TripCard({
   return (
     <Link
       href={`/travel/${trip.id}`}
-      className="block min-w-0 rounded-lg border border-border bg-surface p-4 transition hover:border-accent/50"
+      className={cardClass("block min-w-0 transition-colors hover:border-accent/50")}
     >
       <div className="min-w-0">
         <p className="truncate text-sm text-muted">{trip.destination || "No destination set"}</p>

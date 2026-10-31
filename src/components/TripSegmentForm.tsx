@@ -15,6 +15,7 @@ import { FileDropZone } from "@/components/FileDropZone";
 import { applyIfEmpty, markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
 import { DateInput } from "@/components/DateInput";
+import { cardClass } from "@/lib/ui";
 
 type SegmentType = (typeof TRIP_SEGMENT_TYPES)[number];
 
@@ -133,7 +134,7 @@ export function TripSegmentForm({
   return (
     <form action={formAction} className="space-y-6">
       {!segment && (
-        <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
+        <div className={cardClass("space-y-2")}>
           <p className="flex items-center gap-2 text-sm font-medium">
             <Upload size={16} />
             Save time: upload a document and Hearth fills in the details

@@ -3,7 +3,8 @@
 import { useState, useTransition } from "react";
 import { Upload, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { parseTradesCsv, importTrades } from "@/lib/actions/wealth";
-import { linkButtonClass } from "@/lib/buttonStyles";
+import { buttonClass } from "@/lib/buttonStyles";
+import { bannerClass, pillClass } from "@/lib/ui";
 
 interface ParsedRow {
   ticker: string;
@@ -76,14 +77,14 @@ export function WealthImportClient({ portfolioId }: Props) {
       </div>
 
       {parseError && (
-        <div className="flex items-start gap-2 rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
+        <div className={bannerClass("danger", "flex items-start gap-2")}>
           <AlertCircle size={16} className="mt-0.5 shrink-0" />
           {parseError}
         </div>
       )}
 
       {result && (
-        <div className="flex items-start gap-2 rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
+        <div className={bannerClass("success", "flex items-start gap-2")}>
           <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
           {result}
         </div>
@@ -96,7 +97,7 @@ export function WealthImportClient({ portfolioId }: Props) {
             <button
               onClick={handleImport}
               disabled={isImporting}
-              className={`${linkButtonClass("primary")} disabled:opacity-50`}
+              className={`${buttonClass("primary")} disabled:opacity-50`}
             >
               {isImporting && <Loader2 size={16} className="animate-spin" />}
               Import {rows.length} trades
@@ -124,7 +125,7 @@ export function WealthImportClient({ portfolioId }: Props) {
                       {row.assetClass === "CRYPTO" && <span className="ml-1 font-sans text-xs font-normal text-muted">Crypto</span>}
                     </td>
                     <td className="px-3 py-2">
-                      <span className="rounded-full bg-muted/10 px-2 py-0.5 text-xs font-medium text-muted">
+                      <span className={pillClass()}>
                         {row.type}
                       </span>
                     </td>

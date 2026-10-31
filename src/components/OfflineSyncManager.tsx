@@ -14,7 +14,7 @@ import { whenOfflineDataClaimed } from "@/lib/offlineSession";
 import { showToast } from "@/components/Toast";
 import { Dialog } from "@/components/Dialog";
 import { useCanWrite } from "@/components/CanWriteProvider";
-import { buttonVariants, compactButtonClass } from "@/lib/buttonStyles";
+import { buttonClass } from "@/lib/buttonStyles";
 import { cn, humanFileSize } from "@/lib/utils";
 
 type SyncState = "idle" | "syncing" | "done" | "error";
@@ -155,7 +155,7 @@ export function OfflineSyncManager() {
             Discard {changes}? They were never saved and can&apos;t be recovered.
           </p>
           <div className="mt-4 flex justify-end gap-2">
-            <button type="button" onClick={() => { setConfirmDiscard(false); }} className={compactButtonClass()}>
+            <button type="button" onClick={() => { setConfirmDiscard(false); }} className={buttonClass("secondary")}>
               Cancel
             </button>
             <button
@@ -169,10 +169,7 @@ export function OfflineSyncManager() {
                   })
                   .catch(() => {});
               }}
-              className={cn(
-                "inline-flex min-h-11 items-center justify-center rounded-lg px-3 text-sm font-medium",
-                buttonVariants.danger,
-              )}
+              className={buttonClass("danger")}
             >
               Discard
             </button>

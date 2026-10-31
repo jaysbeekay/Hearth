@@ -6,6 +6,7 @@ import { PasskeyItem } from "@/components/PasskeyItem";
 import { PasskeyRegisterButton } from "@/components/PasskeyRegisterButton";
 import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
+import { Card } from "@/components/ui";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.passkeys.label };
 
@@ -33,7 +34,7 @@ export default async function PasskeysPage() {
         </p>
       </div>
 
-      <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
+      <Card as="section">
         <h2 className="mb-3 font-medium">Your passkeys</h2>
         {passkeys.length === 0 ? (
           <p className="text-sm text-muted">No passkeys registered yet.</p>
@@ -50,15 +51,15 @@ export default async function PasskeysPage() {
             ))}
           </ul>
         )}
-      </section>
+      </Card>
 
-      <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
+      <Card as="section">
         <h2 className="mb-3 font-medium">Register a new passkey</h2>
         <p className="mb-4 text-sm text-muted">
           Give it an optional nickname so you can identify it later (e.g. &quot;iPhone 16 Face ID&quot;).
         </p>
         <PasskeyRegisterButton />
-      </section>
+      </Card>
     </div>
   );
 }

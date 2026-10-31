@@ -5,6 +5,7 @@ import { TestConnectionButton } from "@/components/TestConnectionButton";
 import { WriteOnly } from "@/components/CanWriteProvider";
 import { sendTestReminder, type TestReminderTarget } from "@/lib/actions/reminders";
 import type { ReminderHealth } from "@/lib/notifications/health";
+import { Card } from "@/components/ui";
 
 const CHANNEL_LABELS = new Map([
   ["EMAIL", "email"],
@@ -38,7 +39,7 @@ export function ReminderHealthCard({
   testTarget?: TestReminderTarget;
 }) {
   return (
-    <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
+    <Card>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 font-medium">
           {health.enabled ? (
@@ -125,6 +126,6 @@ export function ReminderHealthCard({
           </div>
         )}
       </dl>
-    </div>
+    </Card>
   );
 }

@@ -20,6 +20,7 @@ import {
   type ListFilters,
 } from "@/lib/recordFilters";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
+import { EmptyState } from "@/components/ui";
 
 type VehicleWithCount = VehicleModel & { _count: { items: number } };
 
@@ -105,11 +106,11 @@ export function VehicleListClient({ vehicles, archivedVehicles = [], filters, co
 
       {vehicles.length === 0 ? (
         pendingOps.length === 0 && (
-          <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted">
+          <EmptyState as="p">
             {filtered
               ? "No vehicles match these filters."
               : "No vehicles yet. Add your first vehicle to start tracking registration, insurance, and service history."}
-          </p>
+          </EmptyState>
         )
       ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">

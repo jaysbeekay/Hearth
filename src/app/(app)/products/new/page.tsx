@@ -8,6 +8,7 @@ import { isBarcodeLookupConfigured } from "@/lib/appSettings";
 import { BackLink } from "@/components/BackLink";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
+import { Card } from "@/components/ui";
 
 export default async function NewProductPage() {
   redirectIfReadOnly(await auth(), "/products");
@@ -47,7 +48,7 @@ export default async function NewProductPage() {
           )}
         </p>
       </div>
-      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
+      <Card>
         <ProductForm
           action={createProduct}
           defaultCurrency={preferredCurrency}
@@ -55,7 +56,7 @@ export default async function NewProductPage() {
           homeEnabled={enabledModules.has("HOME")}
           barcodeLookupEnabled={barcodeLookupEnabled}
         />
-      </div>
+      </Card>
     </div>
   );
 }

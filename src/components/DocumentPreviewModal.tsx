@@ -5,6 +5,8 @@ import { X } from "lucide-react";
 import { getOfflineDocument } from "@/lib/offlineDocuments";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { isBrowserViewableImage } from "@/lib/documents/documentList";
+import { buttonClass } from "@/lib/buttonStyles";
+import { overlayClass } from "@/lib/ui";
 
 export interface PreviewableDoc {
   filename: string;
@@ -76,7 +78,7 @@ export function DocumentPreviewModal({
         role="dialog"
         aria-label={`Preview of ${doc.filename}`}
         aria-modal="true"
-        className="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-overlay"
+        className={overlayClass("flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden")}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
@@ -85,7 +87,7 @@ export function DocumentPreviewModal({
             type="button"
             onClick={onClose}
             aria-label="Close preview"
-            className="shrink-0 rounded-lg p-1 text-muted hover:bg-hover"
+            className={buttonClass("quiet", { iconOnly: true, className: "shrink-0 text-muted" })}
           >
             <X size={16} />
           </button>

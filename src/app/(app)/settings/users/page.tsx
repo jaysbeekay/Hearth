@@ -12,6 +12,7 @@ import { formatTimestamp, ROLE_LABELS } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
+import { Card } from "@/components/ui";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.users.label };
 
@@ -32,7 +33,7 @@ export default async function ManageUsersPage() {
       <BackLink {...settingsBackLink(SETTINGS_ROUTES.users)} />
       <h1 className="text-2xl font-medium">{SETTINGS_ROUTES.users.label}</h1>
 
-      <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
+      <Card as="section">
         <ul className="divide-y divide-border">
           {users.map((user) => (
             <li key={user.id} className="flex items-center justify-between gap-3 py-3">
@@ -61,12 +62,12 @@ export default async function ManageUsersPage() {
             </li>
           ))}
         </ul>
-      </section>
+      </Card>
 
-      <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
+      <Card as="section">
         <h2 className="mb-3 font-medium">Add a household member</h2>
         <CreateUserForm smtpConfigured={smtpConfigured} />
-      </section>
+      </Card>
     </div>
   );
 }

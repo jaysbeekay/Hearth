@@ -8,6 +8,8 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { inputClass } from "@/components/SelectWrapper";
 import { isAiExtractionSource, type ExtractionSource } from "@/lib/autoFillHighlight";
 import { useCanWrite } from "@/components/CanWriteProvider";
+import { Banner, Pill } from "@/components/ui";
+import { bannerClass } from "@/lib/ui";
 
 export interface ReviewFieldSpec {
   fieldName: string;
@@ -68,7 +70,7 @@ export function ExtractionReviewPanel({
   const canWrite = useCanWrite();
   if (!canWrite) {
     return (
-      <div className="space-y-3 rounded-lg border border-border bg-muted/10 p-4 md:p-6">
+      <Banner className="space-y-3">
         <p className="flex items-center gap-2 text-sm font-medium text-foreground">
           <AlertCircle size={16} className="shrink-0" aria-hidden />
           Needs review — {fields.length} field{fields.length === 1 ? "" : "s"} were filled in
@@ -82,9 +84,9 @@ export function ExtractionReviewPanel({
               </dt>
               <dd className="flex flex-wrap items-center gap-2 text-sm">
                 {field.currentValue || "—"}
-                <span className="rounded-lg bg-current/10 px-1.5 py-0.5 text-xs font-medium text-muted">
+                <Pill>
                   {sourceLabel(field.source)}
-                </span>
+                </Pill>
                 {field.confidence != null && (
                   <span className="text-xs text-muted">
                     {Math.round(field.confidence * 100)}% confidence
@@ -94,14 +96,14 @@ export function ExtractionReviewPanel({
             </div>
           ))}
         </dl>
-      </div>
+      </Banner>
     );
   }
 
   return (
     <form
       action={formAction}
-      className="space-y-3 rounded-lg border border-border bg-muted/10 p-4 md:p-6"
+      className={bannerClass("neutral", "space-y-3")}
     >
       <p className="flex items-center gap-2 text-sm font-medium text-foreground">
         <AlertCircle size={16} className="shrink-0" aria-hidden />
@@ -124,9 +126,9 @@ export function ExtractionReviewPanel({
                 defaultValue={field.currentValue}
                 className={`${inputClass} max-w-xs`}
               />
-              <span className="rounded-lg bg-current/10 px-1.5 py-0.5 text-xs font-medium text-muted">
+              <Pill>
                 {sourceLabel(field.source)}
-              </span>
+              </Pill>
               {field.confidence != null && (
                 <span className="text-xs text-muted">
                   {Math.round(field.confidence * 100)}% confidence

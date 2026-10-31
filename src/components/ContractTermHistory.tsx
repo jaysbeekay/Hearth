@@ -3,6 +3,7 @@ import { DocumentLink } from "@/components/DocumentLink";
 import { documentFileHref } from "@/lib/documents/kinds";
 import { formatTermCost, formatTermCostChange, termCostChange, type TermCost } from "@/lib/contractTerms";
 import { formatDate } from "@/lib/utils";
+import { Card } from "@/components/ui";
 
 export interface HistoryTerm extends TermCost {
   id: string;
@@ -26,7 +27,7 @@ export function ContractTermHistory({
 }) {
   if (terms.length === 0) return null;
   return (
-    <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
+    <Card>
       <h2 className="mb-3 font-medium">Previous terms</h2>
       <ul className="divide-y divide-border">
         {terms.map((term, index) => {
@@ -57,6 +58,6 @@ export function ContractTermHistory({
           );
         })}
       </ul>
-    </div>
+    </Card>
   );
 }

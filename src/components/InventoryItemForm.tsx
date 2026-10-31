@@ -20,6 +20,8 @@ import {
   type QueuedOperation,
 } from "@/lib/offlineQueue";
 import { DateInput } from "@/components/DateInput";
+import { Banner } from "@/components/ui";
+import { cardClass } from "@/lib/ui";
 
 const CATEGORY_LABELS: Record<string, string> = {
   APPLIANCE: "Appliance",
@@ -142,12 +144,12 @@ export function InventoryItemForm({
       className="space-y-6"
     >
       {pendingOp && (
-        <p className="rounded-lg border border-dashed border-warning/40 bg-warning/10 px-4 py-2 text-sm text-warning">
+        <Banner as="p" tone="warning">
           Editing an offline entry that hasn&apos;t synced yet — saving updates it in place.
-        </p>
+        </Banner>
       )}
       {!item && (
-        <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
+        <div className={cardClass("space-y-2")}>
           <p className="flex items-center gap-2 text-sm font-medium">
             <Upload size={16} />
             Save time: upload a receipt or invoice and Hearth fills in the details
@@ -278,7 +280,7 @@ export function InventoryItemForm({
         />
       </Field>
 
-      <fieldset className="space-y-3 rounded-lg border border-border p-4">
+      <fieldset className={cardClass("space-y-3")}>
         <legend className="px-1 text-sm font-medium">Warranty tracking</legend>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" name="warrantyRegistered" defaultChecked={effectiveValues?.warrantyRegistered === "on" || item?.warrantyRegistered} />

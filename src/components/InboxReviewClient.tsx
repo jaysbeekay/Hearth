@@ -16,6 +16,9 @@ import { showToast } from "@/components/Toast";
 import { useCanWrite } from "@/components/CanWriteProvider";
 import { LinkedToField } from "@/components/LinkedToField";
 import { extractionMessage, isAiExtractionSource } from "@/lib/autoFillHighlight";
+import { buttonClass } from "@/lib/buttonStyles";
+import { Card, EmptyState, Banner } from "@/components/ui";
+import { chipClass } from "@/lib/ui";
 
 export type InboxDocumentStatus =
   | "NEEDS_CLASSIFICATION"
@@ -76,7 +79,7 @@ function ReadOnlyInboxList({ docs }: { docs: InboxDocSummary[] }) {
   return (
     <ul className="space-y-3">
       {docs.map((doc) => (
-        <li key={doc.id} className="space-y-1 rounded-lg border border-border bg-surface p-4">
+        <Card as="li" key={doc.id} className="space-y-1">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <a href={doc.downloadHref} className="flex min-w-0 items-center gap-2 hover:underline">
               <span className="min-w-0 truncate text-sm font-medium">{doc.filename}</span>
@@ -108,7 +111,7 @@ function ReadOnlyInboxList({ docs }: { docs: InboxDocSummary[] }) {
               ))}
             </ul>
           )}
-        </li>
+        </Card>
       ))}
     </ul>
   );
@@ -234,11 +237,7 @@ function FilterChip({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-full border px-3 py-1 text-xs font-medium ${
-        active
-          ? "border-accent bg-accent/10 text-accent"
-          : "border-border bg-surface text-muted hover:bg-hover"
-      }`}
+      className={chipClass(active)}
     >
       {label} ({count})
     </button>
@@ -506,9 +505,9 @@ export function InboxReviewClient({
 
   if (remainingDocs.length === 0) {
     return (
-      <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted">
+      <EmptyState as="p">
         Nothing in the Inbox.
-      </p>
+      </EmptyState>
     );
   }
 
@@ -539,9 +538,9 @@ export function InboxReviewClient({
       )}
 
       {visibleDocs.length === 0 && (
-        <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted">
+        <EmptyState as="p">
           No documents match this filter.
-        </p>
+        </EmptyState>
       )}
 
       {/* #400 — read-only members see what's waiting, and can filter it, as
@@ -561,7 +560,7 @@ export function InboxReviewClient({
         const isDuplicatePending = doc.status === "POSSIBLE_DUPLICATE" && !keptSeparate.has(doc.id);
         const isAttaching = attaching.has(doc.id);
         return (
-          <div key={doc.id} className="rounded-lg border border-border bg-surface p-4">
+          <Card key={doc.id}>
             {/* #403 — header and type select shared one flex line; at 390px
                 the shrink-0 "via email from …" metadata slid under the select.
                 Stack them below sm and let the metadata wrap instead. */}
@@ -603,7 +602,7 @@ export function InboxReviewClient({
             </div>
 
             {isDuplicatePending && (
-              <div className="space-y-2 rounded-lg border border-warning/30 bg-warning/10 p-3">
+              <Banner tone="warning" className="space-y-2">
                 <p className="flex items-center gap-1.5 text-sm font-medium text-warning">
                   <Copy size={16} />
                   This file looks identical to something already saved.
@@ -626,7 +625,7 @@ export function InboxReviewClient({
                           type="button"
                           disabled={isAttaching}
                           onClick={() => attachAsVersion(doc, match)}
-                          className="rounded-lg border border-border px-2 py-1 text-xs font-medium hover:bg-hover disabled:opacity-60"
+                          className={buttonClass("secondary")}
                         >
                           {isAttaching ? "Attaching…" : "Attach as new version"}
                         </button>
@@ -638,12 +637,12 @@ export function InboxReviewClient({
                   <button
                     type="button"
                     onClick={() => keepSeparate(doc)}
-                    className="rounded-lg border border-border px-2 py-1 text-xs font-medium hover:bg-hover"
+                    className={buttonClass("secondary")}
                   >
                     Keep as separate document
                   </button>
                 </div>
-              </div>
+              </Banner>
             )}
 
             {!isDuplicatePending && row.status === "scanning" && (
@@ -948,12 +947,12 @@ export function InboxReviewClient({
               <button
                 type="button"
                 onClick={() => classify(doc)}
-                className="mt-3 rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-accent-foreground hover:opacity-90"
+                className={buttonClass("primary", { className: "mt-3" })}
               >
                 Save
               </button>
             )}
-          </div>
+          </Card>
         );
       })}
     </div>

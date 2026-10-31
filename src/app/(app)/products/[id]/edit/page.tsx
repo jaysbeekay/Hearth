@@ -6,6 +6,7 @@ import { isModuleEnabled } from "@/lib/modules/enablement";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { Card } from "@/components/ui";
 
 export default async function EditProductPage({
   params,
@@ -33,14 +34,14 @@ export default async function EditProductPage({
         <h1 className="text-2xl font-medium">Edit warranty</h1>
         <p className="text-sm text-muted">{product.description}</p>
       </div>
-      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
+      <Card>
         <ProductForm
           action={boundAction}
           product={product}
           properties={properties}
           homeEnabled={homeEnabled}
         />
-      </div>
+      </Card>
     </div>
   );
 }

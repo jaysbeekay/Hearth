@@ -10,6 +10,7 @@ import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
+import { EmptyState } from "@/components/ui";
 
 type InventoryItemWithCount = InventoryItemModel & { _count: { documents: number } };
 
@@ -59,9 +60,9 @@ export function InventoryListClient({ items, dateFormat, region, canWrite = true
 
       {items.length === 0 ? (
         pendingOps.length === 0 && (
-          <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted">
+          <EmptyState as="p">
             No items yet. Add your first inventory item to start cataloguing your household.
-          </p>
+          </EmptyState>
         )
       ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">

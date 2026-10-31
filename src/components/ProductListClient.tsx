@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import { ListPageHeader } from "@/components/ListPageHeader";
-import { linkButtonClass, toolbarButtonClass } from "@/lib/buttonStyles";
+import { buttonClass } from "@/lib/buttonStyles";
 import { useRouter } from "next/navigation";
 import { Plus, X, Upload } from "lucide-react";
 import { ProductCard } from "@/components/ProductCard";
@@ -25,6 +25,8 @@ import type { DueContext } from "@/lib/duePolicy";
 import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
+import { chipClass } from "@/lib/ui";
+import { EmptyState } from "@/components/ui";
 
 const CHIPS: { chip: ToggleableFilter; label: string; onlyWhenActive?: boolean }[] = [
   { chip: "dueSoon", label: "Due soon" },
@@ -143,7 +145,7 @@ export function ProductListClient({
         />
         <button
           type="submit"
-          className={toolbarButtonClass}
+          className={buttonClass("secondary", { className: "list-none" })}
         >
           Filter
         </button>
@@ -162,7 +164,7 @@ export function ProductListClient({
               onClick={() => {
                 router.push(listHref("/products", filters));
               }}
-              className="flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:bg-hover"
+              className={chipClass(false)}
             >
               &quot;{q}&quot; <X size={16} />
             </button>
@@ -196,7 +198,7 @@ export function ProductListClient({
 
       {products.length === 0 ? (
         pendingOps.length === 0 && (
-          <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border p-10 text-center">
+          <EmptyState className="flex flex-col items-center gap-3">
             <p className="text-sm text-muted">
               {filtered
                 ? "No warranties match your search or filters."
@@ -204,17 +206,17 @@ export function ProductListClient({
             </p>
             {!filtered && canWrite && (
               <div className="flex flex-wrap items-center justify-center gap-2">
-                <Link href="/products/new" className={linkButtonClass("primary")}>
+                <Link href="/products/new" className={buttonClass("primary")}>
                   <Plus size={16} />
                   Add warranty
                 </Link>
-                <Link href="/import" className={linkButtonClass("secondary")}>
+                <Link href="/import" className={buttonClass("secondary")}>
                   <Upload size={16} />
                   Upload a document
                 </Link>
               </div>
             )}
-          </div>
+          </EmptyState>
         )
       ) : (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
@@ -243,7 +245,7 @@ export function ProductListClient({
                 href="/inventory/new"
                 aria-disabled={!online}
                 tabIndex={!online ? -1 : undefined}
-                className={`${linkButtonClass("secondary", { online })} shrink-0 whitespace-nowrap`}
+                className={`${buttonClass("secondary", { online })} shrink-0 whitespace-nowrap`}
               >
                 <Plus size={16} />
                 Add item
@@ -251,9 +253,9 @@ export function ProductListClient({
             )}
           </div>
           {inventoryItems.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted">
+            <EmptyState as="p">
               No inventory items yet.
-            </p>
+            </EmptyState>
           ) : (
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
               {inventoryItems.map((item) => (

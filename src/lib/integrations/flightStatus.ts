@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getAviationStackConfig } from "@/lib/appSettings";
 import { saveTripSegmentFlightData } from "@/lib/commands/trips";
+import type { PillTone } from "@/lib/ui";
 
 const STALE_MS = 15 * 60 * 1000; // 15 minutes
 
@@ -20,15 +21,16 @@ export const FLIGHT_STATUS_LABELS: Record<string, string> = {
 // their own rather than going through statusTone, because a flight status is
 // live data from the flight-status provider, not a Due state or a record's
 // Housekeeping, and a Trip is never Due.
-export function flightStatusColour(status: string | null | undefined): string {
+/** The pill tone for a flight status (#411): danger when it won't fly, warning when diverted. */
+export function flightStatusTone(status: string | null | undefined): PillTone {
   switch (status) {
     case "cancelled":
     case "incident":
-      return "text-danger bg-danger/10 border-danger/20";
+      return "danger";
     case "diverted":
-      return "text-warning bg-warning/10 border-warning/20";
+      return "warning";
     default:
-      return "text-muted bg-muted/10 border-border";
+      return "neutral";
   }
 }
 

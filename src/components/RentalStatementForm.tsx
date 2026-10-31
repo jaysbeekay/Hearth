@@ -13,6 +13,7 @@ import { FileDropZone } from "@/components/FileDropZone";
 import { applyIfEmpty, extractionMessage } from "@/lib/autoFillHighlight";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
 import { DateInput } from "@/components/DateInput";
+import { cardClass } from "@/lib/ui";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -108,7 +109,7 @@ export function RentalStatementForm({
   return (
     <form action={formAction} className="space-y-6">
       {!statement && (
-        <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
+        <div className={cardClass("space-y-2")}>
           <p className="flex items-center gap-2 text-sm font-medium">
             <Upload size={16} />
             Save time: upload a rental statement or invoice and Hearth fills in the details

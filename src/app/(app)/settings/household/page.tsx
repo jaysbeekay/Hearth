@@ -20,13 +20,13 @@ import { MODULE_REGISTRY } from "@/lib/modules/registry";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
+import { Card } from "@/components/ui";
+import { buttonClass } from "@/lib/buttonStyles";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.household.label };
 
-// min-h-11 (44px) keeps these comfortably tappable on mobile even though
-// they're plain text links, not buttons.
-const quickLinkClass =
-  "flex min-h-11 items-center justify-between gap-3 rounded-lg border border-border px-3 text-sm font-medium hover:bg-hover";
+// Secondary buttons, so these links keep the shared 44px hit area (#411).
+const quickLinkClass = buttonClass("secondary", { className: "w-full justify-between" });
 
 export default async function HouseholdSettingsPage() {
   const session = await auth();
@@ -111,7 +111,7 @@ export default async function HouseholdSettingsPage() {
         </Link>
       </div>
 
-      <section className="rounded-lg border border-border bg-surface p-4 md:p-6 space-y-4">
+      <Card as="section" className="space-y-4">
         <div>
           <h2 className="font-medium">Household timezone</h2>
           <p className="text-xs text-muted mt-0.5">
@@ -125,7 +125,7 @@ export default async function HouseholdSettingsPage() {
           serverDefault={getServerDefaultTimeZone()}
           choices={householdTimeZoneChoices(householdTimeZone)}
         />
-      </section>
+      </Card>
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { startAuthentication } from "@simplewebauthn/browser";
+import { buttonClass } from "@/lib/buttonStyles";
 
 export function PasskeySignInButton({ callbackUrl = "/dashboard" }: { callbackUrl?: string }) {
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +57,7 @@ export function PasskeySignInButton({ callbackUrl = "/dashboard" }: { callbackUr
         type="button"
         onClick={authenticate}
         disabled={pending}
-        className="flex w-full items-center justify-center gap-2 rounded-lg border border-border py-2 text-sm font-medium hover:bg-hover disabled:cursor-not-allowed disabled:opacity-60"
+        className={buttonClass("secondary", { className: "w-full" })}
       >
         {pending ? (
           "Waiting for passkey…"

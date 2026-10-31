@@ -9,6 +9,7 @@ import type { ModuleKey } from "@/lib/modules/registry";
 import { SignOutButton } from "@/components/SignOutButton";
 import { openGlobalSearch } from "@/components/GlobalSearch";
 import { InboxCountBadge, inboxLinkLabel } from "@/components/InboxCountBadge";
+import { buttonClass } from "@/lib/buttonStyles";
 
 function isActive(href: string, pathname: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -44,7 +45,7 @@ export function Sidebar({
         <button
           type="button"
           onClick={openGlobalSearch}
-          className="flex w-full items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-muted hover:bg-hover"
+          className={buttonClass("secondary", { className: "w-full text-muted" })}
         >
           <Search size={16} />
           <span className="flex-1 text-left">Search</span>

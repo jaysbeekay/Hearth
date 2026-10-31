@@ -8,6 +8,7 @@ import { formatTimestamp } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
+import { Card } from "@/components/ui";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.webhooks.label };
 
@@ -37,7 +38,7 @@ export default async function WebhooksPage() {
         email/push, at the reminder thresholds set on each contract or warranty.
       </p>
 
-      <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
+      <Card as="section">
         <h2 className="mb-3 font-medium">Endpoints</h2>
         {endpoints.length === 0 ? (
           <p className="text-sm text-muted">No webhook endpoints configured yet.</p>
@@ -63,14 +64,14 @@ export default async function WebhooksPage() {
             ))}
           </ul>
         )}
-      </section>
+      </Card>
 
-      <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
+      <Card as="section">
         <h2 className="mb-3 font-medium">Add a webhook endpoint</h2>
         <CreateWebhookForm />
-      </section>
+      </Card>
 
-      <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
+      <Card as="section">
         <h2 className="mb-3 font-medium">Recent deliveries</h2>
         {logs.length === 0 ? (
           <p className="text-sm text-muted">No deliveries yet.</p>
@@ -95,7 +96,7 @@ export default async function WebhooksPage() {
             ))}
           </ul>
         )}
-      </section>
+      </Card>
     </div>
   );
 }

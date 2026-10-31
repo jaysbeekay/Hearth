@@ -15,6 +15,7 @@ import { FormMessage } from "@/components/FormMessage";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 import { TestConnectionButton } from "@/components/TestConnectionButton";
+import { Banner } from "@/components/ui";
 
 export function ChatSettingsForm({
   provider,
@@ -61,9 +62,9 @@ export function ChatSettingsForm({
           <>
             {needsApiKey ? (
               <div className="space-y-1">
-                <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
+                <Banner as="p" tone="warning">
                   Your household&apos;s data will be sent to {AI_PROVIDER_LABELS[selected]} to answer questions.
-                </p>
+                </Banner>
                 <label htmlFor="chatApiKey" className="text-sm font-medium">
                   API key
                 </label>

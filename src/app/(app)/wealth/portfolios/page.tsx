@@ -9,6 +9,8 @@ import { deletePortfolio } from "@/lib/actions/wealth";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { buttonClass } from "@/lib/buttonStyles";
+import { EmptyState, Card } from "@/components/ui";
 
 export const metadata: Metadata = { title: "Portfolios" };
 
@@ -31,7 +33,7 @@ export default async function PortfoliosPage() {
         {canWrite && (
           <Link
             href="/wealth/portfolios/new"
-            className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+            className={buttonClass("primary")}
           >
             <Plus size={16} />
             New portfolio
@@ -40,13 +42,13 @@ export default async function PortfoliosPage() {
       </div>
 
       {portfolios.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted">
+        <EmptyState as="p">
           No portfolios yet.
-        </p>
+        </EmptyState>
       ) : (
         <div className="space-y-3">
           {portfolios.map((p) => (
-            <div key={p.id} className="rounded-lg border border-border bg-surface p-4 md:p-6">
+            <Card key={p.id}>
               <div className="flex items-start justify-between gap-4">
                 <Link href={`/wealth/portfolios/${p.id}`} className="min-w-0">
                   <p className="font-medium hover:text-accent">{p.name}</p>
@@ -60,7 +62,7 @@ export default async function PortfoliosPage() {
                     <>
                       <Link
                         href={`/wealth/portfolios/${p.id}/edit`}
-                        className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+                        className={buttonClass("secondary")}
                       >
                         <Pencil size={16} />
                         Edit
@@ -69,7 +71,7 @@ export default async function PortfoliosPage() {
                         action={deletePortfolio.bind(null, p.id)}
                         confirmText={`Delete "${p.name}" and all its holdings and trades? This cannot be undone.`}
                         actionLabel={`Delete "${p.name}"`}
-                        className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
+                        className={buttonClass("secondary", { className: "text-danger" })}
                         offline={{ entity: "portfolio", entityId: p.id, label: `Delete portfolio: ${p.name}` }}
                       >
                         <Trash2 size={16} />
@@ -79,7 +81,7 @@ export default async function PortfoliosPage() {
                   )}
                 </div>
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       )}

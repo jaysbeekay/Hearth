@@ -26,6 +26,8 @@ import {
 } from "@/lib/offlineQueue";
 import { applyIfEmpty, extractionMessage, isAiExtractionSource } from "@/lib/autoFillHighlight";
 import { DateInput } from "@/components/DateInput";
+import { Banner } from "@/components/ui";
+import { cardClass } from "@/lib/ui";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -189,12 +191,12 @@ export function ContractForm({
       className="space-y-6"
     >
       {pendingOp && (
-        <p className="rounded-lg border border-dashed border-warning/40 bg-warning/10 px-4 py-2 text-sm text-warning">
+        <Banner as="p" tone="warning">
           Editing an offline entry that hasn&apos;t synced yet — saving updates it in place.
-        </p>
+        </Banner>
       )}
       {!contract && (
-        <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
+        <div className={cardClass("space-y-2")}>
           <p className="flex items-center gap-2 text-sm font-medium">
             <Upload size={16} />
             Save time: drop in the contract PDF and Hearth fills the form for you
@@ -213,7 +215,7 @@ export function ContractForm({
         </div>
       )}
 
-      <fieldset className="space-y-4 rounded-lg border border-border p-4">
+      <fieldset className={cardClass("space-y-4")}>
         <legend className="px-1 text-sm font-medium text-muted">
           Contract details
         </legend>
@@ -402,7 +404,7 @@ export function ContractForm({
         </div>
       </fieldset>
 
-      <fieldset className="space-y-4 rounded-lg border border-border p-4">
+      <fieldset className={cardClass("space-y-4")}>
         <legend className="px-1 text-sm font-medium text-muted">
           Contact details (optional)
         </legend>
@@ -479,7 +481,7 @@ export function ContractForm({
       </div>
 
       {extractionUsed && (
-        <div className="flex items-start gap-2 rounded-lg border border-dashed border-border p-3">
+        <div className={cardClass("flex items-start gap-2")}>
           <input
             id="confirmExtractionCheckbox"
             type="checkbox"

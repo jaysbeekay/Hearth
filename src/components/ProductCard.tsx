@@ -3,6 +3,7 @@ import type { ProductModel } from "@/generated/prisma/models";
 import { ExpiryBadge } from "@/components/ExpiryBadge";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { headlineEntry, warrantyDue, type DueContext } from "@/lib/dueRecords";
+import { cardClass } from "@/lib/ui";
 
 export function ProductCard({
   product,
@@ -24,7 +25,7 @@ export function ProductCard({
   return (
     <Link
       href={`/products/${product.id}`}
-      className="block min-w-0 rounded-lg border border-border bg-surface p-4 transition hover:border-accent/50"
+      className={cardClass("block min-w-0 transition-colors hover:border-accent/50")}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">

@@ -6,9 +6,9 @@ import { bannerEntries, type DueEntry } from "@/lib/dueRecords";
 import { statusBannerClass, statusTone } from "@/lib/statusTone";
 import type { ActionState } from "@/lib/actions/auth";
 import { DueLabelText } from "@/components/DueLabelText";
+import { buttonClass } from "@/lib/buttonStyles";
 
-const actionClass =
-  "inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium hover:bg-hover-surface";
+const actionClass = buttonClass("secondary");
 
 // The policy's label (in the viewer's date format, #422), plus how many days
 // are left while there are some. A date that needs replacing says what

@@ -6,6 +6,7 @@ import { HomeItemForm } from "@/components/HomeItemForm";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { Card } from "@/components/ui";
 
 export default async function EditHomeItemPage({
   params,
@@ -31,9 +32,9 @@ export default async function EditHomeItemPage({
         <h1 className="text-2xl font-medium">Edit maintenance record</h1>
         <p className="text-sm text-muted">{item.title}</p>
       </div>
-      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
+      <Card>
         <HomeItemForm action={boundAction} item={item} />
-      </div>
+      </Card>
     </div>
   );
 }

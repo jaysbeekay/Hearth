@@ -23,6 +23,9 @@ import { inputClass, selectClass } from "@/components/SelectWrapper";
 import { LinkedToField } from "@/components/LinkedToField";
 import { applyIfEmpty, markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 import { DateInput } from "@/components/DateInput";
+import { buttonClass } from "@/lib/buttonStyles";
+import { Banner } from "@/components/ui";
+import { cardClass } from "@/lib/ui";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -211,13 +214,13 @@ export function ProductForm({
       className="space-y-6"
     >
       {pendingOp && (
-        <p className="rounded-lg border border-dashed border-warning/40 bg-warning/10 px-4 py-2 text-sm text-warning">
+        <Banner as="p" tone="warning">
           Editing an offline entry that hasn&apos;t synced yet — saving updates it in place.
-        </p>
+        </Banner>
       )}
       {!product && (
         <div className="space-y-4">
-          <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
+          <div className={cardClass("space-y-2")}>
             <p className="flex items-center gap-2 text-sm font-medium">
               <Upload size={16} />
               Save time: upload an invoice and Hearth fills in the details
@@ -235,7 +238,7 @@ export function ProductForm({
             )}
           </div>
 
-          <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
+          <div className={cardClass("space-y-2")}>
             <p className="flex items-center gap-2 text-sm font-medium">
               <Upload size={16} />
               Upload a photo of the product (optional)
@@ -316,7 +319,7 @@ export function ProductForm({
               onClick={() => setScannerOpen(true)}
               aria-label="Scan barcode"
               title="Scan barcode"
-              className="flex items-center justify-center rounded-lg border border-border px-3 hover:bg-hover"
+              className={buttonClass("secondary")}
             >
               <ScanBarcode size={16} />
             </button>
@@ -413,7 +416,7 @@ export function ProductForm({
       </Field>
 
       {extractionUsed && (
-        <div className="flex items-start gap-2 rounded-lg border border-dashed border-border p-3">
+        <div className={cardClass("flex items-start gap-2")}>
           <input
             id="confirmExtractionCheckbox"
             type="checkbox"
