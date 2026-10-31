@@ -69,7 +69,7 @@ export function WealthImportClient({ portfolioId }: Props) {
         <p className="mb-3 text-sm text-muted">
           Supported formats: CommSec, SelfWealth, Stake, or generic (Date, Ticker, Type, Units, Price, Fees, Currency columns, plus an optional Asset Class or Exchange column; Crypto or CRYPTO marks a coin, otherwise rows import as shares).
         </p>
-        <label className="flex cursor-pointer items-center gap-3 rounded-lg border-2 border-dashed border-border px-4 py-6 hover:border-accent/50 transition-colors">
+        <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-border px-4 py-6 hover:border-accent/50 transition-colors">
           <Upload size={20} className="text-muted" />
           <span className="text-sm text-muted">Choose CSV file…</span>
           <input type="file" accept=".csv" className="sr-only" onChange={handleFile} disabled={isParsing || isImporting} />

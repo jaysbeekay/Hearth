@@ -29,7 +29,7 @@ import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
-import { buttonClass, menuItemClass } from "@/lib/ui";
+import { buttonClass, menuItemClass, emptyStateClass } from "@/lib/ui";
 
 const SEGMENT_ICONS: Record<string, LucideIcon> = {
   FLIGHT: Plane,
@@ -183,7 +183,7 @@ export default async function TripDetailPage({
         </div>
 
         {displaySegments.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted">
+          <p className={emptyStateClass()}>
             No segments yet. Add a flight, lodging, or activity to build the itinerary.
           </p>
         ) : (

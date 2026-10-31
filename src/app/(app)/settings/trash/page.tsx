@@ -57,6 +57,7 @@ import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
 import { Card } from "@/components/ui/Card";
+import { emptyStateClass } from "@/lib/ui";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.trash.label };
 
@@ -164,7 +165,7 @@ export default async function TrashPage() {
       </div>
 
       {entries.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted">
+        <p className={emptyStateClass()}>
           Trash is empty.
         </p>
       ) : (

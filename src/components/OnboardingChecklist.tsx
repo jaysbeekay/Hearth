@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Check, Circle, FileUp, Plus, X } from "lucide-react";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
 import { useDismissible } from "@/lib/useDismissible";
-import { buttonClass } from "@/lib/ui";
+import { buttonClass, cardClass } from "@/lib/ui";
 
 const DISMISS_KEY = "hearth:onboarding-checklist-dismissed";
 // #345 — set when the "Review optional modules" step is followed, so a
@@ -12,11 +12,7 @@ const DISMISS_KEY = "hearth:onboarding-checklist-dismissed";
 // the step (it used to require enabling at least one).
 const MODULES_REVIEWED_KEY = "hearth:onboarding-modules-reviewed";
 
-// Solid bg-surface rather than the shared secondary variant's bg-transparent
-// — these buttons sit on this card's own bg-accent/5 tint, so a transparent
-// button would let that tint bleed through instead of reading as a button.
-const secondaryOnAccentClass =
-  "flex min-h-11 items-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-hover-surface";
+const secondaryOnAccentClass = buttonClass("secondary");
 
 export function OnboardingChecklist({
   enabledModules,
@@ -44,7 +40,7 @@ export function OnboardingChecklist({
   ];
 
   return (
-    <section className="relative space-y-4 rounded-lg border border-dashed border-accent/40 bg-accent/5 p-6 text-center md:p-10">
+    <section className={cardClass({}, "relative space-y-4 text-center")}>
       <button
         type="button"
         aria-label="Dismiss getting-started checklist"
@@ -88,7 +84,7 @@ export function OnboardingChecklist({
             <Link
               href={step.href}
               onClick={"onClick" in step ? step.onClick : undefined}
-              className="flex min-h-11 items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm hover:border-accent/50"
+              className={cardClass({ padding: "none", interactive: true }, "flex min-h-11 items-center gap-2 px-3 py-2 text-sm")}
             >
               {step.done ? (
                 <Check size={16} className="shrink-0 text-success" />

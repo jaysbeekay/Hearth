@@ -9,7 +9,7 @@ import { DocumentLink } from "@/components/DocumentLink";
 import { DocumentPreviewModal, isPreviewable } from "@/components/DocumentPreviewModal";
 import { humanFileSize } from "@/lib/utils";
 import { DOCUMENT_CATEGORIES, DOCUMENT_CATEGORY_LABELS, type DocumentCategory } from "@/lib/documents/categories";
-import { buttonClass } from "@/lib/ui";
+import { buttonClass, emptyStateClass } from "@/lib/ui";
 import { Card } from "@/components/ui/Card";
 import { Pill } from "@/components/ui/Pill";
 
@@ -77,13 +77,13 @@ export function DocumentsExplorer({
   if (docs.length === 0) {
     if (emptyMessage) {
       return (
-        <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted">
+        <p className={emptyStateClass()}>
           {emptyMessage}
         </p>
       );
     }
     return (
-      <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border p-10 text-center">
+      <div className={emptyStateClass("flex flex-col items-center gap-3")}>
         <p className="text-sm text-muted">No documents uploaded yet.</p>
         <Link href="/import" className={buttonClass("primary")}>
           <Upload size={16} />
@@ -138,7 +138,7 @@ export function DocumentsExplorer({
       </div>
 
       {visible.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted">
+        <p className={emptyStateClass()}>
           No documents match the selected filters.
         </p>
       ) : (

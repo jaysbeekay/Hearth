@@ -10,6 +10,7 @@ import type { ModuleKey } from "@/lib/modules/registry";
 import { Dialog } from "@/components/Dialog";
 import { InboxCountBadge, inboxLinkLabel } from "@/components/InboxCountBadge";
 import { SignOutButton } from "@/components/SignOutButton";
+import { sheetClass } from "@/lib/ui";
 
 function isActive(href: string, pathname: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -137,7 +138,7 @@ export function BottomNav({
         }}
         label="More navigation options"
         backdropClassName="fixed inset-0 z-40 flex items-end bg-black/40 md:hidden"
-        panelClassName="max-h-[90dvh] w-full overflow-y-auto rounded-t-lg border-t border-border bg-surface p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+        panelClassName={sheetClass("max-h-[90dvh] overflow-y-auto p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]")}
       >
         <>
           <div className="mb-3 flex items-center justify-between">

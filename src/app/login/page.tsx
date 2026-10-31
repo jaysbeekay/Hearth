@@ -9,6 +9,7 @@ import { LoginForm } from "@/components/LoginForm";
 import { SignedOutCacheCleanup } from "@/components/SignedOutCacheCleanup";
 import { safeCallbackPath } from "@/lib/callbackUrl";
 import { Card } from "@/components/ui/Card";
+import { Banner } from "@/components/ui/Banner";
 
 export const metadata: Metadata = { title: "Sign in" };
 export const dynamic = "force-dynamic";
@@ -53,10 +54,10 @@ export default async function LoginPage({
           <p className="text-sm text-muted">Sign in to Hearth.</p>
         </div>
         {passwordChanged && (
-          <p className="rounded-lg border border-border bg-surface px-4 py-3 text-sm text-muted">
+          <Banner tone="plain" role="status">
             Password updated. Changing it signs out every device, so sign in again with your
             new password.
-          </p>
+          </Banner>
         )}
         <SignedOutCacheCleanup />
         <Card>

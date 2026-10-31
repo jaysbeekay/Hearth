@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { MoreVertical, X } from "lucide-react";
 import { Dialog } from "@/components/Dialog";
 import { useFocusTrap } from "@/lib/useFocusTrap";
-import { buttonClass, overlayClass } from "@/lib/ui";
+import { buttonClass, overlayClass, sheetClass } from "@/lib/ui";
 
 // #355 — an item that acts in place (Archive) rather than navigating away
 // calls this to close the menu; one that is a link or opens a dialog already
@@ -87,7 +87,7 @@ export function DetailOverflowMenu({
             onClose={() => setOpen(false)}
             label={label}
             backdropClassName="fixed inset-0 z-40 flex items-end bg-black/40 md:hidden"
-            panelClassName="w-full rounded-t-lg border-t border-border bg-surface p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]"
+            panelClassName={sheetClass("p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]")}
           >
             <>
               <div className="mb-1 flex items-center justify-end px-2 pt-1">

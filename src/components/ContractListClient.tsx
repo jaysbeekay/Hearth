@@ -28,7 +28,7 @@ import {
 import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
-import { buttonClass } from "@/lib/ui";
+import { buttonClass, chipClass, emptyStateClass } from "@/lib/ui";
 
 const STATUS_LABELS: Record<string, string> = { ACTIVE: "Active", CANCELLED: "Cancelled" };
 
@@ -200,7 +200,7 @@ export function ContractListClient({
             <button
               type="button"
               onClick={() => removeFilter("q")}
-              className="flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:bg-hover"
+              className={chipClass(true)}
             >
               &quot;{q}&quot; <X size={16} />
             </button>
@@ -209,7 +209,7 @@ export function ContractListClient({
             <button
               type="button"
               onClick={() => removeFilter("category")}
-              className="flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:bg-hover"
+              className={chipClass(true)}
             >
               {CATEGORY_LABELS[category] ?? category} <X size={16} />
             </button>
@@ -218,7 +218,7 @@ export function ContractListClient({
             <button
               type="button"
               onClick={() => removeFilter("status")}
-              className="flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:bg-hover"
+              className={chipClass(true)}
             >
               {STATUS_LABELS[status] ?? status} <X size={16} />
             </button>
@@ -252,7 +252,7 @@ export function ContractListClient({
 
       {contracts.length === 0 ? (
         pendingOps.length === 0 && (
-          <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border p-10 text-center">
+          <div className={emptyStateClass("flex flex-col items-center gap-3")}>
             <p className="text-sm text-muted">
               {filtered
                 ? "No contracts match your search or filters."

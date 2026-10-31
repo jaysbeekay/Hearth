@@ -24,6 +24,7 @@ import { LinkedToField } from "@/components/LinkedToField";
 import { applyIfEmpty, markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 import { DateInput } from "@/components/DateInput";
 import { bannerClass, buttonClass } from "@/lib/ui";
+import { Card } from "@/components/ui/Card";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -218,7 +219,7 @@ export function ProductForm({
       )}
       {!product && (
         <div className="space-y-4">
-          <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
+          <Card className="space-y-2">
             <p className="flex items-center gap-2 text-sm font-medium">
               <Upload size={16} />
               Save time: upload an invoice and Hearth fills in the details
@@ -234,15 +235,15 @@ export function ProductForm({
                 {scanMessage}
               </p>
             )}
-          </div>
+          </Card>
 
-          <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
+          <Card className="space-y-2">
             <p className="flex items-center gap-2 text-sm font-medium">
               <Upload size={16} />
               Upload a photo of the product (optional)
             </p>
             <FileDropZone name="photoFile" accept="image/*" label="Drag a photo here or click to browse" hint="JPG, PNG, or WEBP — up to 15MB" />
-          </div>
+          </Card>
         </div>
       )}
 
@@ -414,7 +415,7 @@ export function ProductForm({
       </Field>
 
       {extractionUsed && (
-        <div className="flex items-start gap-2 rounded-lg border border-dashed border-border p-3">
+        <div className={bannerClass("neutral", "flex items-start gap-2")}>
           <input
             id="confirmExtractionCheckbox"
             type="checkbox"

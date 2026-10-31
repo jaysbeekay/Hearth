@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Plus, FileText, Package, Boxes, Home as HomeIcon, Files, X } from "lucide-react";
 import { Dialog } from "@/components/Dialog";
 import { useCanWrite } from "@/components/CanWriteProvider";
-import { buttonClass } from "@/lib/ui";
+import { buttonClass, dialogPanelClass } from "@/lib/ui";
 
 interface Option {
   label: string;
@@ -78,7 +78,7 @@ export function AddEntryPicker({ enabledModules }: { enabledModules: string[] })
         open={open}
         onClose={() => setOpen(false)}
         labelledBy={titleId}
-        panelClassName="w-full max-w-md rounded-lg border border-border bg-surface p-5 shadow-overlay"
+        panelClassName={dialogPanelClass("max-w-md")}
       >
         <div className="mb-3 flex items-center justify-between">
           <h2 id={titleId} className="text-base font-medium">

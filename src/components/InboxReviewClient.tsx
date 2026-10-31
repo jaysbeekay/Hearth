@@ -18,7 +18,7 @@ import { LinkedToField } from "@/components/LinkedToField";
 import { extractionMessage, isAiExtractionSource } from "@/lib/autoFillHighlight";
 import { Card } from "@/components/ui/Card";
 import { Banner } from "@/components/ui/Banner";
-import { buttonClass } from "@/lib/ui";
+import { buttonClass, chipClass, emptyStateClass } from "@/lib/ui";
 
 export type InboxDocumentStatus =
   | "NEEDS_CLASSIFICATION"
@@ -238,11 +238,7 @@ function FilterChip({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-full border px-3 py-1 text-xs font-medium ${
-        active
-          ? "border-accent bg-accent/10 text-accent"
-          : "border-border bg-surface text-muted hover:bg-hover"
-      }`}
+      className={chipClass(active)}
     >
       {label} ({count})
     </button>
@@ -510,7 +506,7 @@ export function InboxReviewClient({
 
   if (remainingDocs.length === 0) {
     return (
-      <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted">
+      <p className={emptyStateClass()}>
         Nothing in the Inbox.
       </p>
     );
@@ -543,7 +539,7 @@ export function InboxReviewClient({
       )}
 
       {visibleDocs.length === 0 && (
-        <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted">
+        <p className={emptyStateClass()}>
           No documents match this filter.
         </p>
       )}

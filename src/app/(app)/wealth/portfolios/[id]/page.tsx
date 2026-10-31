@@ -16,7 +16,7 @@ import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
-import { buttonClass } from "@/lib/ui";
+import { buttonClass, emptyStateClass } from "@/lib/ui";
 
 export const metadata: Metadata = { title: "Portfolio" };
 
@@ -130,7 +130,7 @@ export default async function PortfolioPage({
         </div>
 
         {!portfolioValue?.holdings.length ? (
-          <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted">
+          <p className={emptyStateClass()}>
             No holdings yet. Add a holding manually or import a CSV of your trade history.
           </p>
         ) : (

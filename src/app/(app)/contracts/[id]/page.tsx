@@ -206,7 +206,7 @@ export default async function ContractDetailPage({
                 confirmText={statusConfirmText}
                 actionLabel={statusLabel}
                 ariaLabel="Mark contract as cancelled"
-                className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium hover:bg-hover-surface"
+                className={buttonClass("secondary")}
               >
                 <Ban size={16} />
                 Not renewing? Mark as cancelled

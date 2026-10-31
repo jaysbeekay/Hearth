@@ -25,7 +25,7 @@ import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
 import { Pill } from "@/components/ui/Pill";
-import { buttonClass } from "@/lib/ui";
+import { buttonClass, emptyStateClass } from "@/lib/ui";
 
 function reconcile(
   periodStart: Date | null,
@@ -143,7 +143,7 @@ export default async function RentalOverviewPage({
       </div>
 
       {!property.isRented && agreements.length === 0 && (
-        <div className="rounded-lg border border-dashed border-border p-10 text-center">
+        <div className={emptyStateClass()}>
           <p className="text-sm text-muted">
             This property has no tenancy yet.
           </p>
@@ -333,7 +333,7 @@ export default async function RentalOverviewPage({
           </div>
 
           {statements.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted">
+            <p className={emptyStateClass()}>
               No statements yet. Upload your first rental statement to start reconciling.
             </p>
           ) : (

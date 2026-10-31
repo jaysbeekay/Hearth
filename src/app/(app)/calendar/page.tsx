@@ -14,7 +14,7 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import { ExpiryBadge } from "@/components/ExpiryBadge";
 import { CalendarSubscribeButton } from "@/components/CalendarSubscribeButton";
 import type { CalendarEvent } from "@/lib/calendarEvents";
-import { cardClass } from "@/lib/ui";
+import { cardClass, chipClass, emptyStateClass } from "@/lib/ui";
 
 export const metadata: Metadata = { title: "Upcoming" };
 
@@ -89,11 +89,7 @@ export default async function CalendarPage({
             key={h}
             href={`/calendar?horizon=${h}`}
             aria-pressed={horizon === h}
-            className={`rounded-full border px-3 py-1 text-sm font-medium ${
-              horizon === h
-                ? "border-accent bg-accent/10 text-accent"
-                : "border-border bg-surface text-muted hover:bg-hover-surface"
-            }`}
+            className={chipClass(horizon === h)}
           >
             {h} days
           </Link>
@@ -101,7 +97,7 @@ export default async function CalendarPage({
       </div>
 
       {months.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted">
+        <p className={emptyStateClass()}>
           Nothing coming up in the next {horizon} days.
         </p>
       ) : (

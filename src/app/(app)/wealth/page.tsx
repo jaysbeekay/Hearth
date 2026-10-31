@@ -15,7 +15,7 @@ import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { Card } from "@/components/ui/Card";
 import { Banner } from "@/components/ui/Banner";
-import { buttonClass } from "@/lib/ui";
+import { buttonClass, emptyStateClass } from "@/lib/ui";
 
 export const metadata: Metadata = { title: "Wealth" };
 
@@ -118,7 +118,7 @@ export default async function WealthPage() {
         </section>
       ) : (
         <div className="space-y-4">
-          <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted">
+          <p className={emptyStateClass()}>
             {hasPortfolios
               ? "No holdings yet. Add your first holding or import trades from a CSV."
               : "Create a portfolio to start tracking your shares and investments."}

@@ -35,7 +35,7 @@ import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
-import { buttonClass, menuItemClass } from "@/lib/ui";
+import { buttonClass, menuItemClass, emptyStateClass } from "@/lib/ui";
 
 const ITEM_ICONS: Record<string, LucideIcon> = {
   SERVICE: Wrench,
@@ -237,7 +237,7 @@ export default async function VehicleDetailPage({
           )}
         </div>
         {linkedContracts.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted">
+          <p className={emptyStateClass()}>
             No contracts or warranties linked yet.
           </p>
         ) : (
@@ -264,7 +264,7 @@ export default async function VehicleDetailPage({
         </div>
 
         {items.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted">
+          <p className={emptyStateClass()}>
             No service records yet. Add a service, repair or roadworthy to start tracking.
           </p>
         ) : (

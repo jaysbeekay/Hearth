@@ -8,7 +8,7 @@ import { StatusPill } from "@/components/StatusPill";
 import { DismissibleRow } from "@/components/DismissibleRow";
 import type { AttentionItem } from "@/lib/needsAttention";
 import { Card } from "@/components/ui/Card";
-import { buttonClass } from "@/lib/ui";
+import { buttonClass, emptyStateClass } from "@/lib/ui";
 
 // Same key NotificationNudgeBanner used, so a household that already
 // dismissed that banner doesn't see the equivalent queue row reappear.
@@ -35,7 +35,7 @@ export function NeedsAttentionQueue({
           Due <span className="font-normal text-muted">({due.length})</span>
         </h3>
         {due.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted">
+          <p className={emptyStateClass()}>
             Nothing due.
           </p>
         ) : (

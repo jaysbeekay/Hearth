@@ -14,6 +14,7 @@ import { formatDistance } from "@/lib/utils";
 import type { DistanceSummary } from "@/lib/integrations/flightDistance";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
 import { Card } from "@/components/ui/Card";
+import { emptyStateClass } from "@/lib/ui";
 
 type TripWithCount = TripModel & { _count: { segments: number } };
 
@@ -90,7 +91,7 @@ export function TravelListClient({ trips, dateFormat, canWrite = true, distanceS
 
       {trips.length === 0 ? (
         pendingOps.length === 0 && (
-          <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted">
+          <p className={emptyStateClass()}>
             No trips yet. Add your first trip to start building an itinerary.
           </p>
         )

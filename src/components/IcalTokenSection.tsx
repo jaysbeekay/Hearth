@@ -4,7 +4,7 @@ import { useActionState, useRef } from "react";
 import { generateIcalToken, revokeIcalToken, type IcalActionState } from "@/lib/actions/ical";
 import { FormMessage } from "@/components/FormMessage";
 import { SubmitButton } from "@/components/SubmitButton";
-import { buttonClass } from "@/lib/ui";
+import { buttonClass, cardClass } from "@/lib/ui";
 
 interface Props {
   // Whether a feed is currently active. The token itself is stored only as a
@@ -43,7 +43,7 @@ export function IcalTokenSection({ hasToken, appUrl, embedded }: Props) {
   }
 
   return (
-    <section className={embedded ? undefined : "rounded-lg border border-border bg-surface p-4 md:p-6"}>
+    <section className={embedded ? undefined : cardClass()}>
       <h2 id={embedded ? "calendar-feed-heading" : undefined} className="mb-1 font-medium">
         Calendar feed
       </h2>

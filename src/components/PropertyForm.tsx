@@ -123,7 +123,7 @@ export function PropertyForm({
       </div>
 
       {occupancyStatus === "RENTED" && (
-        <p className="rounded-lg border border-dashed border-border bg-hover px-4 py-2 text-sm text-muted">
+        <p className={bannerClass("neutral", "text-muted")}>
           {property ? (
             property.isRented ? (
               <>

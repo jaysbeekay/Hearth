@@ -27,6 +27,7 @@ import {
 import { applyIfEmpty, extractionMessage, isAiExtractionSource } from "@/lib/autoFillHighlight";
 import { DateInput } from "@/components/DateInput";
 import { bannerClass } from "@/lib/ui";
+import { Card } from "@/components/ui/Card";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -195,7 +196,7 @@ export function ContractForm({
         </p>
       )}
       {!contract && (
-        <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
+        <Card className="space-y-2">
           <p className="flex items-center gap-2 text-sm font-medium">
             <Upload size={16} />
             Save time: drop in the contract PDF and Hearth fills the form for you
@@ -211,7 +212,7 @@ export function ContractForm({
               {scanMessage}
             </p>
           )}
-        </div>
+        </Card>
       )}
 
       <fieldset className="space-y-4 rounded-lg border border-border p-4">
@@ -480,7 +481,7 @@ export function ContractForm({
       </div>
 
       {extractionUsed && (
-        <div className="flex items-start gap-2 rounded-lg border border-dashed border-border p-3">
+        <div className={bannerClass("neutral", "flex items-start gap-2")}>
           <input
             id="confirmExtractionCheckbox"
             type="checkbox"

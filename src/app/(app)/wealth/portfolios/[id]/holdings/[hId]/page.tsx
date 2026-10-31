@@ -23,7 +23,7 @@ import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
 import { Pill } from "@/components/ui/Pill";
-import { cardClass, buttonClass } from "@/lib/ui";
+import { cardClass, buttonClass, emptyStateClass } from "@/lib/ui";
 
 export const metadata: Metadata = { title: "Holding" };
 
@@ -403,7 +403,7 @@ export default async function HoldingPage({
         </div>
 
         {tradesDesc.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted">
+          <p className={emptyStateClass()}>
             No trades yet.
           </p>
         ) : (

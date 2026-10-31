@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 import { getChatConfig, isChatConfigured } from "@/lib/ai/chat/dispatch";
 import { listChatThreads, getChatThreadMessages } from "@/lib/chat/threads";
 import { AssistantClient } from "@/components/AssistantClient";
-import { buttonClass } from "@/lib/ui";
+import { buttonClass, emptyStateClass } from "@/lib/ui";
 
 export const metadata: Metadata = { title: "Assistant" };
 
@@ -28,7 +28,7 @@ export default async function AssistantPage({
   if (!isChatConfigured(chatUser)) {
     const isAdmin = session.user.role === "ADMIN";
     return (
-      <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border p-12 text-center">
+      <div className={emptyStateClass("flex flex-col items-center justify-center gap-3")}>
         <h1 className="text-xl font-medium">Assistant not configured</h1>
         <p className="max-w-sm text-sm text-muted">
           {isAdmin

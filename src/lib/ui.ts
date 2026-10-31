@@ -48,6 +48,21 @@ export function overlayClass(className?: string) {
   return cn(CARD_BASE, "shadow-overlay", className);
 }
 
+/** A bottom sheet on mobile: flush to the bottom edge, only the top corners rounded. */
+export function sheetClass(className?: string) {
+  return cn("w-full rounded-t-lg border-t border-border bg-surface shadow-overlay", className);
+}
+
+/** The centred dialog panel (Dialog's default). */
+export function dialogPanelClass(className?: string) {
+  return overlayClass(cn("w-full max-w-sm p-4", className));
+}
+
+/** An empty state: a plain bordered box of muted, centred text. */
+export function emptyStateClass(className?: string) {
+  return cn("rounded-lg border border-border p-6 text-center text-sm text-muted", className);
+}
+
 // ── Pill ────────────────────────────────────────────────────────────────
 
 export type PillTone = "danger" | "warning" | "success" | "accent" | "neutral" | "plain";
@@ -132,6 +147,19 @@ export function buttonClass(
     icon && "w-9 px-0",
     destructive && "text-danger",
     !online && "pointer-events-none opacity-40",
+    className,
+  );
+}
+
+/**
+ * A filter chip: a secondary button (not a pill) that stays pressed while
+ * its filter is on. Pair it with aria-pressed.
+ */
+export function chipClass(active: boolean, className?: string) {
+  return cn(
+    BUTTON_BASE,
+    "border",
+    active ? "border-accent bg-accent/10 text-accent" : "border-border bg-surface text-muted hover:bg-hover-surface",
     className,
   );
 }

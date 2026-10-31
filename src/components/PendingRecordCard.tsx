@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Clock, Trash2 } from "lucide-react";
 import { deleteOperation, type QueuedOperation } from "@/lib/offlineQueue";
 import { Pill } from "@/components/ui/Pill";
+import { cardClass } from "@/lib/ui";
 
 export function PendingRecordCard({
   op,
@@ -27,7 +28,7 @@ export function PendingRecordCard({
   }
 
   return (
-    <div className="min-w-0 rounded-lg border border-dashed border-border bg-surface p-4">
+    <div className={cardClass({}, "min-w-0")}>
       <Pill>
         <Clock size={16} aria-hidden />
         Pending sync

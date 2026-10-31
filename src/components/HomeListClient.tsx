@@ -13,6 +13,7 @@ import { usePendingCreates } from "@/lib/usePendingCreates";
 import { useCanWrite } from "@/components/CanWriteProvider";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
 import { Card } from "@/components/ui/Card";
+import { emptyStateClass } from "@/lib/ui";
 
 type PropertyWithCount = PropertyModel & { _count: { items: number } };
 
@@ -85,7 +86,7 @@ export function HomeListClient({ properties, archivedProperties = [], taxDeducti
 
       {properties.length === 0 ? (
         pendingOps.length === 0 && (
-          <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted">
+          <p className={emptyStateClass()}>
             No properties yet. Add your first property to start tracking maintenance and improvements.
           </p>
         )

@@ -10,7 +10,7 @@ import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
-import { buttonClass } from "@/lib/ui";
+import { buttonClass, emptyStateClass } from "@/lib/ui";
 
 export const metadata: Metadata = { title: "Portfolios" };
 
@@ -42,7 +42,7 @@ export default async function PortfoliosPage() {
       </div>
 
       {portfolios.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted">
+        <p className={emptyStateClass()}>
           No portfolios yet.
         </p>
       ) : (

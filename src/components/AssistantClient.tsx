@@ -9,6 +9,7 @@ import { ChatComposer } from "@/components/ChatComposer";
 import { readSseStream } from "@/lib/ai/chat/streamParsing";
 import type { ProposedAction } from "@/components/ProposedActionCard";
 import { Card } from "@/components/ui/Card";
+import { sheetClass } from "@/lib/ui";
 
 type ChatStreamEvent =
   | { type: "delta"; text: string }
@@ -201,7 +202,7 @@ export function AssistantClient({
             role="dialog"
             aria-label="Previous chats"
             aria-modal="true"
-            className="max-h-[70vh] w-full overflow-hidden rounded-t-lg border-t border-border bg-surface pb-[env(safe-area-inset-bottom)]"
+            className={sheetClass("max-h-[70vh] overflow-hidden pb-[env(safe-area-inset-bottom)]")}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-border px-3 py-2">

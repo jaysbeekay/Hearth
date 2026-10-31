@@ -49,7 +49,7 @@ import { getReminderHealth } from "@/lib/notifications/health";
 import { Card } from "@/components/ui/Card";
 import { Pill } from "@/components/ui/Pill";
 import { Banner } from "@/components/ui/Banner";
-import { buttonClass, menuItemClass } from "@/lib/ui";
+import { buttonClass, menuItemClass, emptyStateClass } from "@/lib/ui";
 
 const ITEM_ICONS: Record<string, LucideIcon> = {
   MAINTENANCE: Wrench,
@@ -235,7 +235,7 @@ export default async function PropertyDetailPage({
         </div>
 
         {items.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted">
+          <p className={emptyStateClass()}>
             No maintenance records yet. Add maintenance, an improvement or a repair to start tracking.
           </p>
         ) : (
@@ -334,7 +334,7 @@ export default async function PropertyDetailPage({
           )}
         </div>
         {linkedContracts.length === 0 && linkedProducts.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted">
+          <p className={emptyStateClass()}>
             No contracts or warranties linked yet.
           </p>
         ) : (
