@@ -13,6 +13,8 @@ import {
   updateVehicleCommand,
   deleteVehicleCommand,
   restoreVehicleCommand,
+  archiveVehicleCommand,
+  unarchiveVehicleCommand,
   permanentlyDeleteVehicleCommand,
   createServiceRecordCommand,
   updateServiceRecordCommand,
@@ -137,6 +139,27 @@ export async function restoreVehicle(vehicleId: string): Promise<ActionState> {
   await requireUser();
   try {
     await restoreVehicleCommand(vehicleId);
+  } catch (error) {
+    return commandError(error, "Vehicle not found.");
+  }
+  return { success: "Restored." };
+}
+
+// #355 — Archive / unarchive: see archiveVehicleCommand.
+export async function archiveVehicle(vehicleId: string): Promise<ActionState> {
+  const user = await requireUser();
+  try {
+    await archiveVehicleCommand(vehicleId, user.id);
+  } catch (error) {
+    return commandError(error, "Vehicle not found.");
+  }
+  return { success: "Archived." };
+}
+
+export async function unarchiveVehicle(vehicleId: string): Promise<ActionState> {
+  const user = await requireUser();
+  try {
+    await unarchiveVehicleCommand(vehicleId, user.id);
   } catch (error) {
     return commandError(error, "Vehicle not found.");
   }

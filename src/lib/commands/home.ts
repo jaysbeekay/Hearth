@@ -115,6 +115,45 @@ export async function setPropertyRentedCommand(id: string, isRented: boolean, ac
   revalidatePath(`/home/${id}/rental`);
 }
 
+// #355 — Archive: the household no longer has the Property (sold, or its
+// lease ended). Not Trash: it stays where it is, viewable, with its
+// Maintenance records, Tenancies and Documents, but its Tenancy's lease end
+// stops being Due and stops getting Reminders (src/lib/tenancies.ts).
+// Archiving an already Archived one keeps its original date. A Property in
+// Trash is read-only, so it can't be archived or unarchived until restored.
+// Contracts linked to it are untouched: a Contract is its own Due source.
+export async function archivePropertyCommand(id: string, actorId: string, options: UpdateOptions = {}) {
+  await assertModuleEnabled("HOME");
+  await updateLiveUnlessStale(
+    options.baseUpdatedAt,
+    (guard) =>
+      prisma.property.updateMany({
+        where: { id, deletedAt: null, archivedAt: null, ...guard },
+        data: { archivedAt: new Date(), updatedById: actorId },
+      }),
+    () => findLiveProperty(id),
+  );
+  revalidatePropertyLists();
+  revalidatePath(`/home/${id}`);
+  return findProperty(id);
+}
+
+export async function unarchivePropertyCommand(id: string, actorId: string, options: UpdateOptions = {}) {
+  await assertModuleEnabled("HOME");
+  await updateLiveUnlessStale(
+    options.baseUpdatedAt,
+    (guard) =>
+      prisma.property.updateMany({
+        where: { id, deletedAt: null, archivedAt: { not: null }, ...guard },
+        data: { archivedAt: null, updatedById: actorId },
+      }),
+    () => findLiveProperty(id),
+  );
+  revalidatePropertyLists();
+  revalidatePath(`/home/${id}`);
+  return findProperty(id);
+}
+
 // #287 — soft delete: moves the Property to Trash. Everything under it stays
 // intact so restorePropertyCommand brings it back as it was.
 export async function deletePropertyCommand(id: string) {

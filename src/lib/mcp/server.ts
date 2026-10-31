@@ -155,7 +155,8 @@ export async function createMcpServer() {
         title: "List vehicles",
         description:
           "List vehicles with registration/insurance expiry, optionally only ones needing " +
-          "attention (expiring within 30 days or already expired).",
+          "attention (expiring within 30 days or already expired). Archived vehicles (no longer owned) " +
+          "are left out.",
         inputSchema: { attentionOnly: z.boolean().optional() },
       },
       async ({ attentionOnly }) => textResult(await queryVehicles(attentionOnly)),
@@ -169,7 +170,7 @@ export async function createMcpServer() {
         title: "List properties",
         description:
           "List properties with rental status, the current tenant/weekly rent if rented, " +
-          "and the most recent valuation.",
+          "and the most recent valuation. Archived properties (no longer owned) are left out.",
       },
       async () => textResult(await queryProperties()),
     );
