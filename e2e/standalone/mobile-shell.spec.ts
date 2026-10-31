@@ -435,9 +435,9 @@ test.beforeEach(async ({ page }) => {
       const sql = statement.trim();
       // Tenancy edits and deletes land in the rows, so a resync of local
       // Reminders sees them (#388); a deleted contract goes too (#455), and
-      // so does archiving a Vehicle or Property (#355).
+      // so does archiving a Vehicle or Property (#355); a saved contract's link (#456).
       const rowUpdate = /^UPDATE (rental_agreements|contracts|vehicles|properties) SET (.+) WHERE id = \?$/i.exec(sql);
-      if (rowUpdate && (rowUpdate[1] !== "contracts" || /deleted_at = \?/.test(rowUpdate[2]))) {
+      if (rowUpdate && (rowUpdate[1] !== "contracts" || /deleted_at = \?|vehicle_id = \?/.test(rowUpdate[2]))) {
         const table = rowUpdate[1];
         const id = values[values.length - 1];
         const columns = [...rowUpdate[2].matchAll(/(\w+) = \?/g)].map((m) => m[1]);
@@ -449,6 +449,18 @@ test.beforeEach(async ({ page }) => {
           });
           if (row.deleted_at) rowsByTable[table] = rows.filter((candidate) => candidate !== row);
         }
+      }
+      // A saved contract lands in the rows, so the next render reads back what the form wrote (#456).
+      const contractInsert = /^INSERT INTO contracts \(([^)]+)\) VALUES \(([^)]+)\)$/i.exec(sql);
+      if (contractInsert) {
+        const columns = contractInsert[1].split(",").map((column) => column.trim());
+        const placeholders = contractInsert[2].split(",").map((placeholder) => placeholder.trim());
+        let next = 0;
+        const row: Record<string, unknown> = {};
+        columns.forEach((column, index) => {
+          row[column] = placeholders[index] === "?" ? values[next++] : Number(placeholders[index]);
+        });
+        (rowsByTable.contracts as Record<string, unknown>[]).push(row);
       }
       if (/^(UPDATE|DELETE FROM|INSERT( OR REPLACE)? INTO) documents\b/i.test(sql)) applyDocumentStatement(sql, values);
       if (/INSERT OR REPLACE INTO local_profile/i.test(statement)) {
@@ -503,7 +515,7 @@ test.beforeEach(async ({ page }) => {
       throw new Error(`Mock: unhandled documents statement: ${sql}`);
     }
 
-    (window as Window & { Capacitor?: unknown; __hearthStandaloneTest?: unknown }).__hearthStandaloneTest = { sqliteRuns, scheduledNotifications, fileWrites, fileDeletes };
+    (window as Window & { Capacitor?: unknown; __hearthStandaloneTest?: unknown }).__hearthStandaloneTest = { sqliteRuns, scheduledNotifications, fileWrites, fileDeletes, rowsByTable };
     (window as Window & { Capacitor?: unknown; __hearthStandaloneTest?: unknown }).Capacitor = {
       getPlatform: () => "ios",
       Plugins: {
@@ -1039,6 +1051,76 @@ test("standalone vehicle service-due date feeds the detail page, calendar and re
   await expect(
     page.locator(".record-card").filter({ hasText: "Family Car" }).filter({ hasText: "Service" }),
   ).toHaveCount(1);
+});
+
+// #456 - the Category used to be free text; a saved value that isn't a Category survives an edit.
+test("standalone contract form keeps a saved Category that isn't in the list (#456)", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "Contracts" }).click();
+  await page.getByRole("button", { name: /Broadband Plan/ }).click();
+  await page.locator('button[data-form-type="contracts"][data-id]').first().click();
+  await expect(page.locator('select[name="category"]')).toHaveValue("UTILITIES");
+});
+
+// #456 - a Contract that Covers a Vehicle supplies its insurance date, as on the web.
+test("standalone Add insurance opens the contract form linked to the vehicle, and a Covering Contract supplies the date (#456)", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-record-type="vehicles"]').click();
+  await page.getByRole("button", { name: /Family Car/ }).click();
+  // With no covering Contract the typed-in date stays, with its hint.
+  await expect(page.getByText(/Add the policy as a contract to track cost and documents/).first()).toBeVisible();
+
+  await page.getByRole("button", { name: "Add insurance" }).click();
+  await expect(page.locator('select[name="category"]')).toHaveValue("CAR_INSURANCE");
+  await expect(page.locator('select[name="vehicleId"]')).toHaveValue("vehicle-1");
+  await page.locator('input[name="title"]').fill("Allianz policy");
+  await page.locator('input[name="provider"]').fill("Allianz");
+  await page.locator('input[name="endDate"]').fill("2099-09-09");
+  await page.locator('form[data-save-type="contracts"]').getByRole("button", { name: "Save" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Saved");
+  const insert = (await sqliteRuns(page)).find((run) => run.statement.startsWith("INSERT INTO contracts"));
+  expect(insert?.values).toContain("CAR_INSURANCE");
+  expect(insert?.values).toContain("vehicle-1");
+
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-record-type="vehicles"]').click();
+  await page.getByRole("button", { name: /Family Car/ }).click();
+  await expect(page.getByText(/From Allianz policy/).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add insurance" })).toHaveCount(0);
+
+  // The Vehicle has no Reminder of its own for insurance: the Contract's stands in.
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="reminders"]').click();
+  await expect(
+    page.locator(".record-card").filter({ hasText: "Family Car" }).filter({ hasText: "Insurance" }),
+  ).toHaveCount(0);
+  await expect(
+    page.locator(".record-card").filter({ hasText: "Family Car" }).filter({ hasText: "Rego" }),
+  ).toHaveCount(1);
+});
+
+// #487 review - an ended fixed-term policy is a lapse: the Vehicle is Overdue from its end date.
+test("standalone a Vehicle whose fixed-term Covering Contract has ended needs attention (#487)", async ({ page }) => {
+  await page.addInitScript(() => {
+    const rows = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest.rowsByTable;
+    const updated_at = "2099-01-01T00:00:00.000Z";
+    rows.vehicles.push(
+      { id: "vehicle-8", label: "Running Ute", reminder_days_before: "30,14,7,1", created_at: updated_at, updated_at },
+      { id: "vehicle-9", label: "Lapsed Ute", reminder_days_before: "30,14,7,1", created_at: updated_at, updated_at },
+    );
+    const policy = { category: "CAR_INSURANCE", provider: "Allianz", status: "ACTIVE", renewal_type: "FIXED_TERM", currency: "AUD", reminder_days_before: "30,14,7,1", created_at: updated_at, updated_at };
+    rows.contracts.push(
+      { ...policy, id: "contract-running", title: "Running policy", vehicle_id: "vehicle-8", end_date: "2099-12-01" },
+      { ...policy, id: "contract-lapsed", title: "Lapsed policy", vehicle_id: "vehicle-9", end_date: "2099-09-01" },
+    );
+  });
+  await page.clock.setFixedTime(new Date("2099-09-06T12:00:00"));
+  await reloadStandalone(page);
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-record-type="vehicles"]').click();
+  await page.getByRole("button", { name: "Needs attention" }).click();
+  const card = (text: string) => page.locator(".record-card").filter({ hasText: text });
+  await expect(card("Lapsed Ute")).toHaveCount(1);
+  await expect(card("Running Ute")).toHaveCount(0);
 });
 
 test("standalone schedules a local Reminder for a tenancy's lease end (#388)", async ({ page }) => {

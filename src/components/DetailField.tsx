@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Copy, Check } from "lucide-react";
 
 // #210 — shared detail field row, replacing the byte-identical `Detail`
@@ -13,12 +14,15 @@ export function DetailField({
   value,
   copyable = false,
   note,
+  noteHref,
 }: {
   label: string;
   value: string;
   copyable?: boolean;
   /** A short muted line under the value, such as a Contract's cost change (#353). */
   note?: string;
+  /** Makes the note a link, such as a derived date's "From … policy →" (#456). */
+  noteHref?: string;
 }) {
   const [copied, setCopied] = useState(false);
   const isEmpty = value === "—" || value.trim() === "";
@@ -44,7 +48,23 @@ export function DetailField({
           </button>
         )}
       </dd>
-      {note && <dd className="text-xs text-muted">{note}</dd>}
+      {note && (
+        <dd className="text-xs text-muted">
+          {noteHref ? (
+            <Link href={noteHref} className="inline-flex min-h-11 items-center text-accent hover:underline">
+              {note.endsWith(" →") ? (
+                <>
+                  {note.slice(0, -2)} <span aria-hidden="true">&nbsp;→</span>
+                </>
+              ) : (
+                note
+              )}
+            </Link>
+          ) : (
+            note
+          )}
+        </dd>
+      )}
     </div>
   );
 }

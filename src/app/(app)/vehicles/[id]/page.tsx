@@ -29,7 +29,8 @@ import { VEHICLE_ITEM_TYPE_LABELS, formatCurrency, formatDate } from "@/lib/util
 import { getUserPreferences } from "@/lib/userPreferences";
 import { getHouseholdMemberCount } from "@/lib/household";
 import { getDueContext } from "@/lib/appSettings";
-import { vehicleDue } from "@/lib/dueRecords";
+import { vehicleDue, vehicleDueRecord } from "@/lib/dueRecords";
+import { withVehicleCovers } from "@/lib/covers";
 import { DetailStatusBanner } from "@/components/DetailStatusBanner";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
@@ -72,10 +73,27 @@ export default async function VehicleDetailPage({
   ]);
   if (!vehicle || vehicle.deletedAt) notFound();
 
+  // #456 - a date a Covering Contract supplies shows as that Contract's end
+  // date and is the Contract's to remind about, so the Vehicle has no
+  // Reminder health or Due row of its own for it.
+  const withCovers = withVehicleCovers({ ...vehicle, contracts: linkedContracts });
+  const coverFor = (field: "regoExpiry" | "insuranceExpiry") => withCovers.covers.find((c) => c.field === field);
+  const regoCover = coverFor("regoExpiry");
+  const insuranceCover = coverFor("insuranceExpiry");
+  const dueRow = vehicleDueRecord({ ...vehicle, contracts: linkedContracts });
+  // The hint for a typed-in date no Contract Covers: said once, naming the
+  // right thing for each date, and a link to the pre-linked form for writers.
+  const hintFor = (field: "regoExpiry" | "insuranceExpiry") =>
+    withCovers.coveredFields.includes(field) || !vehicle[field] ? null : field;
+  const hintInsurance = hintFor("insuranceExpiry");
+  const hintRego = hintFor("regoExpiry");
+  const newContract = (category: string) => `/contracts/new?vehicleId=${vehicle.id}&category=${category}`;
+
   const healthFor = (field: "regoExpiry" | "insuranceExpiry" | "nextServiceDue", date: Date | null) =>
-    // An Archived Vehicle has no Reminders to report on (#355).
-    date && !vehicle.archivedAt
-      ? getReminderHealth({ ownerType: "VEHICLE", ownerId: vehicle.id, field, record: { kind: "vehicle", ...vehicle } })
+    // An Archived Vehicle has no Reminders to report on (#355); a Covered date
+    // is the Contract's to remind about (#456).
+    date && !vehicle.archivedAt && !withCovers.coveredFields.includes(field)
+      ? getReminderHealth({ ownerType: "VEHICLE", ownerId: vehicle.id, field, record: dueRow })
       : null;
   const [regoHealth, insuranceHealth, serviceHealth] = await Promise.all([
     healthFor("regoExpiry", vehicle.regoExpiry),
@@ -161,7 +179,7 @@ export default async function VehicleDetailPage({
       {/* #384 — one row per Due entry (rego, insurance, service), each with
           its own state from the Due policy. An Archived Vehicle has none. */}
       <DetailStatusBanner
-        entries={vehicleDue(vehicle, due)}
+        entries={vehicleDue({ ...vehicle, contracts: linkedContracts }, due)}
         hasDocuments
         documentsHref={`/vehicles/${vehicle.id}`}
         editHref={`/vehicles/${vehicle.id}/edit`}
@@ -176,13 +194,20 @@ export default async function VehicleDetailPage({
           {vehicle.licensePlate && (
             <Detail label="Licence plate" value={vehicle.licensePlate} copyable />
           )}
-          {vehicle.regoExpiry && (
-            <Detail label="Rego expiry" value={formatDate(vehicle.regoExpiry, dateFormat)} />
+          {withCovers.regoExpiry && (
+            <Detail
+              label="Rego expiry"
+              value={formatDate(withCovers.regoExpiry, dateFormat)}
+              note={regoCover ? `From ${regoCover.contract.title} →` : undefined}
+              noteHref={regoCover ? `/contracts/${regoCover.contract.id}` : undefined}
+            />
           )}
-          {vehicle.insuranceExpiry && (
+          {withCovers.insuranceExpiry && (
             <Detail
               label="Insurance expiry"
-              value={formatDate(vehicle.insuranceExpiry, dateFormat)}
+              value={formatDate(withCovers.insuranceExpiry, dateFormat)}
+              note={insuranceCover ? `From ${insuranceCover.contract.title} →` : undefined}
+              noteHref={insuranceCover ? `/contracts/${insuranceCover.contract.id}` : undefined}
             />
           )}
           {vehicle.nextServiceDue && (
@@ -191,6 +216,32 @@ export default async function VehicleDetailPage({
           {vehicle.vin && <Detail label="VIN" value={vehicle.vin} copyable />}
           {vehicle.colour && <Detail label="Colour" value={vehicle.colour} />}
         </dl>
+        {(hintInsurance || hintRego) && (
+          <p className="mt-4 text-xs text-muted">
+            Add{" "}
+            {hintInsurance && (canWrite ? (
+              <Link href={newContract("CAR_INSURANCE")} className="text-accent hover:underline">
+                the insurance policy
+              </Link>
+            ) : (
+              "the insurance policy"
+            ))}
+            {hintInsurance && hintRego && " or "}
+            {hintRego && (canWrite ? (
+              <Link href={newContract("REGISTRATION")} className="text-accent hover:underline">
+                the registration
+              </Link>
+            ) : (
+              "the registration"
+            ))}{" "}
+            as a contract to track cost and documents.
+          </p>
+        )}
+        {withCovers.covers.some((c) => c.count > 1) && (
+          <p className="mt-2 text-xs text-muted">
+            More than one contract covers the same date: the one ending last sets it, and the others keep their own reminders.
+          </p>
+        )}
         {vehicle.notes && (
           <p className="mt-4 whitespace-pre-wrap text-sm text-foreground">{vehicle.notes}</p>
         )}
@@ -225,13 +276,35 @@ export default async function VehicleDetailPage({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-medium">Contracts and warranties linked to this vehicle</h2>
           {canWrite && (
-            <Link
-              href={`/contracts/new?vehicleId=${vehicle.id}`}
-              className="flex items-center gap-2 whitespace-nowrap rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
-            >
-              <Plus size={16} />
-              Add contract
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* #456 - shortcuts for the two things a contract can Cover; each
+                  goes away once a Covering Contract is in place. */}
+              {!insuranceCover && (
+                <Link
+                  href={`/contracts/new?vehicleId=${vehicle.id}&category=CAR_INSURANCE`}
+                  className="flex items-center gap-2 whitespace-nowrap rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+                >
+                  <Plus size={16} />
+                  Add insurance
+                </Link>
+              )}
+              {!regoCover && (
+                <Link
+                  href={`/contracts/new?vehicleId=${vehicle.id}&category=REGISTRATION`}
+                  className="flex items-center gap-2 whitespace-nowrap rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+                >
+                  <Plus size={16} />
+                  Add registration
+                </Link>
+              )}
+              <Link
+                href={`/contracts/new?vehicleId=${vehicle.id}`}
+                className="flex items-center gap-2 whitespace-nowrap rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+              >
+                <Plus size={16} />
+                Add contract
+              </Link>
+            </div>
           )}
         </div>
         {linkedContracts.length === 0 ? (

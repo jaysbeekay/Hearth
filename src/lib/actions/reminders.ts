@@ -5,6 +5,8 @@ import { isSmtpConfigured, isNtfyConfigured, getReminderConfig, getHouseholdToda
 import { sendReminderEmail, sendTestEmail } from "@/lib/notifications/email";
 import { sendNtfyReminder, sendTestNtfy } from "@/lib/notifications/ntfy";
 import { prisma } from "@/lib/prisma";
+import { COVERING_CONTRACTS } from "@/lib/covers";
+import { vehicleDueRecord } from "@/lib/dueRecords";
 import { getCurrentTenancy } from "@/lib/tenancies";
 import { env, isAppUrlConfigured } from "@/lib/env";
 import type { ReminderInput, TestPreview, VehicleReminderField } from "@/lib/notifications/reminderContent";
@@ -99,10 +101,16 @@ async function reminderForTarget(
     };
   }
   if (target.kind !== "vehicle") return null;
-  const v = await prisma.vehicle.findFirst({ where: { id: target.id, deletedAt: null } });
+  const v = await prisma.vehicle.findFirst({
+    where: { id: target.id, deletedAt: null },
+    include: { contracts: COVERING_CONTRACTS },
+  });
+  // The raw date is read before the preview only to skip a Vehicle with no date
+  // of its own. It is harmless for a Covered field: the Reminder plan drops that
+  // entry, so `preview` finds nothing and returns null, and the date is never sent.
   const date = v?.[target.field];
   if (!v || !date) return null;
-  const p = await preview("VEHICLE", v.id, { kind: "vehicle", ...v }, target.field);
+  const p = await preview("VEHICLE", v.id, vehicleDueRecord(v), target.field);
   if (!p) return null;
   return { kind: "vehicle", id: v.id, title: v.label, vehicleField: target.field, endDate: date, ...testFields(p) };
 }

@@ -1012,6 +1012,64 @@ function hasDocument(type, id) {
   return docsFor(ownerTypeForRecordType(type), id).length > 0;
 }
 
+// #456 - Covers, hand-ported from src/lib/covers.ts. A Contract linked to a
+// Vehicle, in a Covering Category, not cancelled, trashed or awaiting review,
+// and with an end date, supplies the Vehicle's rego or insurance date. With several, the one
+// ending last wins, then the one entered last. The Vehicle's own dates are
+// never changed, so cancelling the Contract brings the manual date back.
+const COVERED_VEHICLE_FIELDS = new Map([
+  ["CAR_INSURANCE", "insurance_expiry"],
+  ["REGISTRATION", "rego_expiry"],
+]);
+
+function vehicleCovers(vehicleId) {
+  const winners = new Map();
+  for (const contract of cache.contracts) {
+    const field = COVERED_VEHICLE_FIELDS.get(contract.category);
+    if (contract.vehicle_id !== vehicleId || !field || contract.deleted_at || contract.status === "CANCELLED" || Number(contract.extraction_pending ?? 0) === 1 || !contract.end_date) continue;
+    const current = winners.get(field);
+    const order = current
+      ? String(contract.end_date).slice(0, 10).localeCompare(String(current.end_date).slice(0, 10)) ||
+        String(contract.created_at ?? "").localeCompare(String(current.created_at ?? "")) ||
+        String(contract.id).localeCompare(String(current.id))
+      : 1;
+    if (order > 0) winners.set(field, contract);
+  }
+  return winners;
+}
+
+// The Vehicle's own dates with the Covered ones left out: those are the
+// Contract's to remind about, so the Vehicle has no Due entry for them.
+// The date the Vehicle shows for a field: the Covering Contract's end date, else its own.
+function vehicleDerivedDate(row, field) {
+  return vehicleCovers(row.id).get(field)?.end_date ?? row[field];
+}
+
+// A detail line for a rego or insurance date: where a Covered date comes from,
+// or the hint to add the policy as a Contract when it was typed in by hand.
+function vehicleDateLine(row, field) {
+  const cover = vehicleCovers(row.id).get(field);
+  const date = readableDate(vehicleDerivedDate(row, field));
+  if (cover) return `${date} · From ${cover.title}`;
+  const thing = field === "rego_expiry" ? "registration" : "policy";
+  return row[field] ? `${date} · Add the ${thing} as a contract to track cost and documents` : date;
+}
+
+// #487 review — a fixed-term Covering Contract just ends (never Due), so once
+// its end date has passed the Vehicle is uncovered and its date is Overdue
+// from that day, as in the web's Due policy (fixedTermCoverEnds).
+function coverEnded(cover) {
+  if (!cover || cover.renewal_type !== "FIXED_TERM") return false;
+  const days = daysUntil(cover.end_date);
+  return days != null && days < 0;
+}
+
+function vehicleOwnDates(row) {
+  const own = { ...row };
+  for (const [field, cover] of vehicleCovers(row.id)) own[field] = coverEnded(cover) ? cover.end_date : null;
+  return own;
+}
+
 function attentionForRecord(type, row) {
   if (["contracts", "products"].includes(type) && Number(row.extraction_pending ?? 0) === 1) {
     // #412 — Needs review is Housekeeping: a neutral badge, as in the web app.
@@ -1031,9 +1089,10 @@ function attentionForRecord(type, row) {
   }
   if (type === "vehicles") {
     if (isArchived(row)) return null;
-    const rego = daysUntil(row.rego_expiry);
-    const insurance = daysUntil(row.insurance_expiry);
-    const service = daysUntil(row.next_service_due);
+    const own = vehicleOwnDates(row);
+    const rego = daysUntil(own.rego_expiry);
+    const insurance = daysUntil(own.insurance_expiry);
+    const service = daysUntil(own.next_service_due);
     const urgent = [
       rego != null && rego <= 30 ? ["Rego", rego] : null,
       insurance != null && insurance <= 30 ? ["Insurance", insurance] : null,
@@ -1546,9 +1605,10 @@ function calendarEvents() {
   for (const row of cache.contracts) add(row.end_date, "Contract ends", recordTitle("contracts", row), "contracts", row.id);
   for (const row of cache.products) add(row.warranty_end_date, "Warranty ends", recordTitle("products", row), "products", row.id);
   for (const row of activeRows(cache.vehicles)) {
-    add(row.rego_expiry, "Rego expiry", recordTitle("vehicles", row), "vehicles", row.id);
-    add(row.insurance_expiry, "Insurance expiry", recordTitle("vehicles", row), "vehicles", row.id);
-    add(row.next_service_due, "Service due", recordTitle("vehicles", row), "vehicles", row.id);
+    const own = vehicleOwnDates(row);
+    add(own.rego_expiry, "Rego expiry", recordTitle("vehicles", row), "vehicles", row.id);
+    add(own.insurance_expiry, "Insurance expiry", recordTitle("vehicles", row), "vehicles", row.id);
+    add(own.next_service_due, "Service due", recordTitle("vehicles", row), "vehicles", row.id);
   }
   for (const row of cache.trips) add(row.start_date, "Trip starts", recordTitle("trips", row), "trips", row.id);
   for (const row of cache.tripSegments) add(row.start_date, typeLabel(row.type), recordTitle("tripSegments", row), "tripSegments", row.id);
@@ -1630,11 +1690,7 @@ function reminderTargets() {
   return [
     ...cache.contracts.map((row) => reminderTarget("contracts", row, "Contract", row.end_date, row.reminder_days_before)),
     ...cache.products.map((row) => reminderTarget("products", row, "Warranty", row.warranty_end_date, row.reminder_days_before)),
-    ...activeRows(cache.vehicles).flatMap((row) => [
-      reminderTarget("vehicles", row, "Rego", row.rego_expiry, row.reminder_days_before),
-      reminderTarget("vehicles", row, "Insurance", row.insurance_expiry, row.reminder_days_before),
-      reminderTarget("vehicles", row, "Service", row.next_service_due, row.reminder_days_before),
-    ]),
+    ...activeRows(cache.vehicles).flatMap((row) => vehicleReminderTargets("vehicles", row)),
     ...leaseReminderTargets(),
   ].sort((a, b) => {
     const aDate = a.health.sortDate ?? "9999-12-31";
@@ -1662,6 +1718,24 @@ function currentTenancyFor(propertyId) {
         String(row.created_at ?? "").localeCompare(String(current.created_at ?? ""));
       return order > 0 ? row : current;
     }, null);
+}
+
+// A Vehicle's rego, insurance and service Reminders, leaving out a date a
+// Covering Contract supplies (#456): that Contract's own Reminder stands in.
+function vehicleReminderTargets(type, row) {
+  const covered = vehicleCovers(row.id);
+  // A Covered date has no Reminder of its own, unless its fixed-term Contract
+  // has ended: then the Vehicle reminds from the Contract's end date.
+  const own = (field, kind) => {
+    const cover = covered.get(field);
+    if (!cover) return reminderTarget(type, row, kind, row[field], row.reminder_days_before);
+    return coverEnded(cover) ? reminderTarget(type, row, kind, cover.end_date, row.reminder_days_before) : null;
+  };
+  return [
+    own("rego_expiry", "Rego"),
+    own("insurance_expiry", "Insurance"),
+    reminderTarget(type, row, "Service", row.next_service_due, row.reminder_days_before),
+  ].filter(Boolean);
 }
 
 function leaseReminderTargets() {
@@ -2366,7 +2440,7 @@ function recordMeta(type, row) {
     return [row.manufacturer, row.model, row.warranty_end_date ? `Warranty ${readableDate(row.warranty_end_date)}` : null, money(row.price, row.currency)].filter(Boolean).join(" · ");
   }
   if (type === "vehicles") {
-    return [[row.make, row.model].filter(Boolean).join(" "), row.license_plate, row.rego_expiry ? `Rego ${readableDate(row.rego_expiry)}` : null].filter(Boolean).join(" · ");
+    return [[row.make, row.model].filter(Boolean).join(" "), row.license_plate, vehicleDerivedDate(row, "rego_expiry") ? `Rego ${readableDate(vehicleDerivedDate(row, "rego_expiry"))}` : null].filter(Boolean).join(" · ");
   }
   if (type === "vehicleItems") {
     return [row.type, row.provider, readableDate(row.date), money(row.cost, row.currency)].filter(Boolean).join(" · ");
@@ -2443,6 +2517,7 @@ function renderDetail() {
       ${renderRecordReminderHealth(type, row)}
     </section>
     ${type === "contracts" ? renderPreviousTerms(row.id) : ""}
+    ${type === "vehicles" ? renderVehicleContracts(row) : ""}
     ${type === "vehicles" ? renderChildRecords("Service records", "vehicleItems", cache.vehicleItems.filter((item) => item.vehicle_id === row.id), row.id, "No service records", "Track services, repairs and roadworthies here.") : ""}
     ${type === "properties" ? renderPropertyRentalSummary(row.id) : ""}
     ${type === "properties" ? renderChildRecords("Warranties", "products", cache.products.filter((item) => item.property_id === row.id), row.id, "No warranties linked", "Register a warranty to this home so it shows up here.") : ""}
@@ -2564,8 +2639,8 @@ function renderDetailRows(type, row) {
       ["Colour", row.colour],
       ["Plate", row.license_plate],
       ["VIN", row.vin],
-      ["Rego expiry", readableDate(row.rego_expiry)],
-      ["Insurance", readableDate(row.insurance_expiry)],
+      ["Rego expiry", vehicleDateLine(row, "rego_expiry")],
+      ["Insurance", vehicleDateLine(row, "insurance_expiry")],
       ["Next service due", readableDate(row.next_service_due)],
       ["Reminder thresholds", row.reminder_days_before || "30,14,7,1"],
       ["Notes", row.notes],
@@ -2700,11 +2775,7 @@ function renderRecordReminderHealth(type, row) {
       ? [reminderTarget(type, row, "Contract", row.end_date, row.reminder_days_before)]
       : type === "products"
         ? [reminderTarget(type, row, "Warranty", row.warranty_end_date, row.reminder_days_before)]
-        : [
-            reminderTarget(type, row, "Rego", row.rego_expiry, row.reminder_days_before),
-            reminderTarget(type, row, "Insurance", row.insurance_expiry, row.reminder_days_before),
-            reminderTarget(type, row, "Service", row.next_service_due, row.reminder_days_before),
-          ];
+        : vehicleReminderTargets(type, row);
   return `
     <div class="subsection">
       <h3>Reminder health</h3>
@@ -2737,6 +2808,30 @@ function renderLinkedInventoryItems(productId) {
       </div>
       <div class="list">
         ${items.length === 0 ? empty("No inventory items linked", "Pick this warranty from an inventory item's form to link it here.") : items.map((row) => renderRecordCard("inventoryItems", row)).join("")}
+      </div>
+    </section>
+  `;
+}
+
+// #456 - the Vehicle's linked Contracts, with shortcuts that open the Contract
+// form linked to it. A shortcut goes once a Covering Contract is in place.
+function renderVehicleContracts(vehicle) {
+  const covered = vehicleCovers(vehicle.id);
+  const linked = cache.contracts.filter((contract) => contract.vehicle_id === vehicle.id);
+  const shortcut = (label, category) =>
+    `<button data-form-type="contracts" data-parent-id="${escapeAttr(vehicle.id)}" data-default-category="${escapeAttr(category)}">${escapeHtml(label)}</button>`;
+  return `
+    <section class="card form-card">
+      <div class="section-title">
+        <h2>Contracts linked to this vehicle</h2>
+      </div>
+      <div class="actions">
+        ${covered.has("insurance_expiry") ? "" : shortcut("Add insurance", "CAR_INSURANCE")}
+        ${covered.has("rego_expiry") ? "" : shortcut("Add registration", "REGISTRATION")}
+        <button data-form-type="contracts" data-parent-id="${escapeAttr(vehicle.id)}">Add contract</button>
+      </div>
+      <div class="list">
+        ${linked.length === 0 ? empty("No contracts linked", "Add the insurance or registration as a contract to track its cost and documents.") : linked.map((row) => renderRecordCard("contracts", row)).join("")}
       </div>
     </section>
   `;
@@ -3086,6 +3181,24 @@ function renderForm() {
   `;
 }
 
+// Contract Categories, as on the web (src/lib/validation/contract.ts). CAR_INSURANCE
+// and REGISTRATION Cover a linked Vehicle's insurance and rego dates (#456).
+const CONTRACT_CATEGORIES = ["RENTAL", "CAR_INSURANCE", "REGISTRATION", "HOME_INSURANCE", "STRATA_INSURANCE", "HEALTH_INSURANCE", "LIFE_INSURANCE", "UTILITY", "TELECOM", "SUBSCRIPTION", "LOAN", "WARRANTY", "OTHER"];
+
+// A Covered date shows read-only with its Contract; the manual date still
+// rides along in a hidden field so saving keeps it for when the Contract stops Covering.
+function vehicleDateField(label, name, column, row) {
+  const cover = row ? vehicleCovers(row.id).get(column) : null;
+  if (!cover) return `<label>${escapeHtml(label)}<input name="${name}" type="date" value="${escapeAttr(dateInputValue(row?.[column]))}" /></label>`;
+  return `<div><span>${escapeHtml(label)}</span><input name="${name}" type="hidden" value="${escapeAttr(dateInputValue(row[column]))}" /><p class="muted">${escapeHtml(readableDate(cover.end_date))} · From ${escapeHtml(cover.title)}</p></div>`;
+}
+
+// The Categories, plus a saved value that isn't one of them (the field used to
+// be free text), so editing never rewrites it to the first option.
+function categoryChoices(current) {
+  return current && !CONTRACT_CATEGORIES.includes(current) ? [...CONTRACT_CATEGORIES, current] : CONTRACT_CATEGORIES;
+}
+
 function formFields(type, row) {
   if (type === "contracts") {
     return `
@@ -3093,7 +3206,7 @@ function formFields(type, row) {
         <label>Title<input name="title" value="${escapeAttr(row?.title)}" required /></label>
         <label>Provider<input name="provider" value="${escapeAttr(row?.provider)}" required /></label>
         <label>Contract number<input name="contractNumber" value="${escapeAttr(row?.contract_number)}" /></label>
-        <label>Category<input name="category" value="${escapeAttr(row?.category ?? "OTHER")}" /></label>
+        <label>Category<select name="category">${options(categoryChoices(row?.category), row?.category ?? state.form?.defaultCategory ?? "OTHER")}</select></label>
         <label>Status<select name="status">${options(["ACTIVE", "CANCELLED", "EXPIRED"], row?.status ?? "ACTIVE")}</select></label>
         <label>Start date<input name="startDate" type="date" value="${escapeAttr(dateInputValue(row?.start_date))}" /></label>
         <label>End date<input name="endDate" type="date" value="${escapeAttr(dateInputValue(row?.end_date))}" /></label>
@@ -3101,6 +3214,7 @@ function formFields(type, row) {
         <label>Billing<select name="billingFrequency">${options(["", "WEEKLY", "FORTNIGHTLY", "MONTHLY", "QUARTERLY", "ANNUALLY", "ONE_OFF"], row?.billing_frequency ?? "")}</select></label>
         <label>Reminder thresholds (days before)<input name="reminderDaysBefore" inputmode="numeric" value="${escapeAttr(row?.reminder_days_before ?? "30,14,7,1")}" placeholder="30,14,7,1" /></label>
         <label class="checkbox-row"><input name="needsReview" type="checkbox" ${Number(row?.extraction_pending ?? 0) === 1 ? "checked" : ""} /> Needs review — hold reminders until confirmed</label>
+        ${moduleEnabled("vehicles") ? `<label>Linked vehicle<select name="vehicleId"><option value="">Not linked</option>${cache.vehicles.map((vehicle) => `<option value="${escapeAttr(vehicle.id)}" ${vehicle.id === (row ? row.vehicle_id : state.form?.parentId) ? "selected" : ""}>${escapeHtml(recordTitle("vehicles", vehicle))}</option>`).join("")}</select></label>` : ""}
         <label>Contact email<input name="contactEmail" type="email" value="${escapeAttr(row?.contact_email)}" /></label>
         <label>Notes<textarea name="notes">${escapeHtml(row?.notes)}</textarea></label>
       </div>
@@ -3136,8 +3250,8 @@ function formFields(type, row) {
         <label>Colour<input name="colour" value="${escapeAttr(row?.colour)}" /></label>
         <label>Plate<input name="licensePlate" value="${escapeAttr(row?.license_plate)}" /></label>
         <label>VIN<input name="vin" value="${escapeAttr(row?.vin)}" /></label>
-        <label>Rego expiry<input name="regoExpiry" type="date" value="${escapeAttr(dateInputValue(row?.rego_expiry))}" /></label>
-        <label>Insurance expiry<input name="insuranceExpiry" type="date" value="${escapeAttr(dateInputValue(row?.insurance_expiry))}" /></label>
+        ${vehicleDateField("Rego expiry", "regoExpiry", "rego_expiry", row)}
+        ${vehicleDateField("Insurance expiry", "insuranceExpiry", "insurance_expiry", row)}
         <label>Next service due<input name="nextServiceDue" type="date" value="${escapeAttr(dateInputValue(row?.next_service_due))}" /></label>
         <label>Reminder thresholds (days before)<input name="reminderDaysBefore" inputmode="numeric" value="${escapeAttr(row?.reminder_days_before ?? "30,14,7,1")}" placeholder="30,14,7,1" /></label>
         <label>Notes<textarea name="notes">${escapeHtml(row?.notes)}</textarea></label>
@@ -3420,17 +3534,19 @@ async function saveContract(form) {
     reminderDaysOrDefault(fieldValue(form, "reminderDaysBefore")),
     extractionPending,
     extractionConfirmedAt,
+    // Without the select (Vehicles hidden) the saved link is kept.
+    form.elements.namedItem("vehicleId") ? valueOrNull(fieldValue(form, "vehicleId")) : existing?.vehicle_id ?? null,
     nowIso(),
   ];
   if (exists) {
     await run(
-      "UPDATE contracts SET title = ?, category = ?, provider = ?, contract_number = ?, start_date = ?, end_date = ?, cost = ?, billing_frequency = ?, status = ?, contact_email = ?, notes = ?, reminder_days_before = ?, extraction_pending = ?, extraction_confirmed_at = ?, updated_at = ?, version = version + 1 WHERE id = ?",
+      "UPDATE contracts SET title = ?, category = ?, provider = ?, contract_number = ?, start_date = ?, end_date = ?, cost = ?, billing_frequency = ?, status = ?, contact_email = ?, notes = ?, reminder_days_before = ?, extraction_pending = ?, extraction_confirmed_at = ?, vehicle_id = ?, updated_at = ?, version = version + 1 WHERE id = ?",
       [...values, id],
     );
   } else {
     await run(
-      "INSERT INTO contracts (id, title, category, provider, contract_number, start_date, end_date, cost, currency, billing_frequency, status, contact_email, notes, reminder_days_before, extraction_pending, extraction_confirmed_at, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)",
-      [id, ...values.slice(0, 7), defaultCurrency(), ...values.slice(7, 14), values[14], values[14]],
+      "INSERT INTO contracts (id, title, category, provider, contract_number, start_date, end_date, cost, currency, billing_frequency, status, contact_email, notes, reminder_days_before, extraction_pending, extraction_confirmed_at, vehicle_id, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)",
+      [id, ...values.slice(0, 7), defaultCurrency(), ...values.slice(7, 15), values[15], values[15]],
     );
   }
   await maybeStoreFormFile(form, "contract", id);
@@ -4693,12 +4809,12 @@ function routeTo(route) {
   render().catch((error) => showStandaloneStatus(error.message || "Could not open screen."));
 }
 
-function openForm(type, id = "", parentId = "") {
+function openForm(type, id = "", parentId = "", defaultCategory = "") {
   if (!recordTypeEnabled(type)) {
     showStandaloneStatus(`${typeLabel(type)} is hidden. Show it again from Settings first.`);
     return;
   }
-  state.form = { type, id: id || null, parentId: parentId || null };
+  state.form = { type, id: id || null, parentId: parentId || null, defaultCategory: defaultCategory || null };
   state.detailBack = null;
   state.backTo = state.route === "detail" ? "detail" : state.route;
   state.route = "form";
@@ -4834,7 +4950,7 @@ mobileView.addEventListener("click", async (event) => {
     return;
   }
   if (button.dataset.formType) {
-    openForm(button.dataset.formType, button.dataset.id, button.dataset.parentId);
+    openForm(button.dataset.formType, button.dataset.id, button.dataset.parentId, button.dataset.defaultCategory);
     return;
   }
   if (button.dataset.openRecord) {

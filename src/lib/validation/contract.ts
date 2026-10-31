@@ -4,6 +4,7 @@ import { reminderDaysBeforeField } from "@/lib/validation/reminderThresholds";
 export const CONTRACT_CATEGORIES = [
   "RENTAL",
   "CAR_INSURANCE",
+  "REGISTRATION",
   "HOME_INSURANCE",
   "STRATA_INSURANCE",
   "HEALTH_INSURANCE",

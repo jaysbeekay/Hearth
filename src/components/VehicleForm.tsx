@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { VehicleModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
@@ -22,12 +23,42 @@ function toDateInputValue(date: Date | null | undefined) {
   return new Date(date).toISOString().slice(0, 10);
 }
 
+/** A date a Covering Contract supplies (#456), for the edit form to show read-only. */
+export interface FormCover {
+  field: "regoExpiry" | "insuranceExpiry";
+  contractId: string;
+  title: string;
+  /** The Contract's end date, already formatted for the viewer. */
+  dateLabel: string;
+}
+
+// #456 - a Covered date is the Contract's to change. The manual date still
+// rides along in a hidden field, so saving the form keeps it for when the
+// Contract no longer Covers.
+function CoveredDate({ name, label, cover, manual }: { name: string; label: string; cover: FormCover; manual: string }) {
+  return (
+    <div className="space-y-1 text-sm" role="group" aria-labelledby={`${name}-label`}>
+      <span id={`${name}-label`} className="block font-medium">
+        {label}
+      </span>
+      <input type="hidden" name={name} value={manual} />
+      <p>{cover.dateLabel}</p>
+      <Link href={`/contracts/${cover.contractId}`} className="inline-flex min-h-11 items-center text-xs text-accent hover:underline">
+        From {cover.title}
+        <span aria-hidden="true">&nbsp;→</span>
+      </Link>
+    </div>
+  );
+}
+
 export function VehicleForm({
   action,
   vehicle,
+  covers = [],
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   vehicle?: VehicleModel;
+  covers?: FormCover[];
 }) {
   const offlineAwareAction = makeOfflineAwareAction(
     action,
@@ -42,6 +73,8 @@ export function VehicleForm({
   );
 
   const [state, formAction] = useActionState<ActionState, FormData>(offlineAwareAction, null);
+  const regoCover = covers.find((c) => c.field === "regoExpiry");
+  const insuranceCover = covers.find((c) => c.field === "insuranceExpiry");
 
   const router = useRouter();
   const pendingOpId = useSearchParams().get("pendingOpId");
@@ -151,25 +184,43 @@ export function VehicleForm({
           />
         </Field>
 
-        <Field label="Rego expiry" htmlFor="regoExpiry">
-          <DateInput
-            id="regoExpiry"
+        {regoCover ? (
+          <CoveredDate
             name="regoExpiry"
-            defaultValue={effectiveValues?.regoExpiry ?? toDateInputValue(vehicle?.regoExpiry)}
-            className={inputClass}
+            label="Rego expiry"
+            cover={regoCover}
+            manual={effectiveValues?.regoExpiry ?? toDateInputValue(vehicle?.regoExpiry)}
           />
-        </Field>
+        ) : (
+          <Field label="Rego expiry" htmlFor="regoExpiry">
+            <DateInput
+              id="regoExpiry"
+              name="regoExpiry"
+              defaultValue={effectiveValues?.regoExpiry ?? toDateInputValue(vehicle?.regoExpiry)}
+              className={inputClass}
+            />
+          </Field>
+        )}
 
-        <Field label="Insurance expiry" htmlFor="insuranceExpiry">
-          <DateInput
-            id="insuranceExpiry"
+        {insuranceCover ? (
+          <CoveredDate
             name="insuranceExpiry"
-            defaultValue={
-            effectiveValues?.insuranceExpiry ?? toDateInputValue(vehicle?.insuranceExpiry)
-            }
-            className={inputClass}
+            label="Insurance expiry"
+            cover={insuranceCover}
+            manual={effectiveValues?.insuranceExpiry ?? toDateInputValue(vehicle?.insuranceExpiry)}
           />
-        </Field>
+        ) : (
+          <Field label="Insurance expiry" htmlFor="insuranceExpiry">
+            <DateInput
+              id="insuranceExpiry"
+              name="insuranceExpiry"
+              defaultValue={
+                effectiveValues?.insuranceExpiry ?? toDateInputValue(vehicle?.insuranceExpiry)
+              }
+              className={inputClass}
+            />
+          </Field>
+        )}
 
         <Field label="Next service due" htmlFor="nextServiceDue">
           <DateInput

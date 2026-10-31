@@ -47,6 +47,19 @@ test.describe.serial("contracts and warranties can link to a property", () => {
     await expect(page.getByText("Property-Linked Insurance")).toBeVisible();
   });
 
+  // #456 - "Add insurance" opens the contract form already linked to the property.
+  test("Add insurance on a property opens the contract form pre-linked", async ({ page }) => {
+    await page.goto("/home");
+    await page.locator("a", { hasText: "Linking Test Property" }).first().click();
+    await page.waitForURL(/\/home\/[^/]+$/);
+    const propertyId = new URL(page.url()).pathname.split("/").pop()!;
+
+    await page.getByRole("link", { name: "Add insurance" }).click();
+    await page.waitForURL(/\/contracts\/new\?/);
+    await expect(page.locator("#category")).toHaveValue("HOME_INSURANCE");
+    await expect(page.getByLabel("Linked to")).toHaveValue(`property:${propertyId}`);
+  });
+
   test("a contract not linked to any property doesn't appear on the property's detail page", async ({
     page,
   }) => {
