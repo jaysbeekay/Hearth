@@ -854,6 +854,13 @@ threshold.
 See [`PRIVACY.md`](PRIVACY.md) for what data the app handles and where it
 goes for each optional integration.
 
+## Mobile app: standalone unlock
+
+Standalone mode in the iOS/Android shell is a one-time purchase handled by
+RevenueCat; connected mode is free. Store products, the RevenueCat project,
+where the public SDK keys go, sandbox testing and key rotation are covered in
+[`docs/mobile/revenuecat.md`](docs/mobile/revenuecat.md).
+
 ## Releasing
 
 Releases follow [Semantic Versioning](https://semver.org/), starting at
