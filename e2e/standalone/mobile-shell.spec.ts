@@ -466,6 +466,18 @@ test.beforeEach(async ({ page }) => {
 
     function applyDocumentStatement(sql: string, values: unknown[]) {
       const documents = (rowsByTable.documents ?? []) as Record<string, unknown>[];
+      // The purge's two statements act only while the row is still in Trash.
+      const guardedRelink = /^UPDATE documents SET supersedes_id = \?, version = version \+ 1 WHERE supersedes_id = \? AND EXISTS \(SELECT 1 FROM documents WHERE id = \? AND deleted_at IS NOT NULL\)$/i.test(sql);
+      if (guardedRelink) {
+        if (documents.some((row) => row.id === values[2] && row.deleted_at)) {
+          for (const row of documents.filter((candidate) => candidate.supersedes_id === values[1])) row.supersedes_id = values[0];
+        }
+        return;
+      }
+      if (/^DELETE FROM documents WHERE id = \? AND deleted_at IS NOT NULL$/i.test(sql)) {
+        rowsByTable.documents = documents.filter((row) => !(row.id === values[0] && row.deleted_at));
+        return;
+      }
       const update = /^UPDATE documents SET (.+) WHERE (id|supersedes_id) = \?$/i.exec(sql);
       if (update) {
         let next = 0;
@@ -546,6 +558,8 @@ test.beforeEach(async ({ page }) => {
           },
           readFile: async () => ({ data: "JVBERi0=" }),
           deleteFile: async (args: { directory?: string; path?: string }) => {
+            const delay = Number(localStorage.getItem("hearth-test-delete-file-delay") ?? 0);
+            if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
             const failure = localStorage.getItem("hearth-test-delete-file-error");
             if (failure === "missing") throw new Error("File does not exist");
             if (failure === "other") throw new Error("Disk error");
@@ -1235,7 +1249,7 @@ async function shellTestState(page: ShellPage) {
 }
 
 type Run = { statement: string; values: unknown[] };
-const deletedDocuments = (runs: Run[]) => runs.filter((run) => run.statement === "DELETE FROM documents WHERE id = ?").map((run) => String(run.values[0]));
+const deletedDocuments = (runs: Run[]) => runs.filter((run) => run.statement === "DELETE FROM documents WHERE id = ? AND deleted_at IS NOT NULL").map((run) => String(run.values[0]));
 
 // The saved Document rows, as the mock holds them after the statements.
 async function savedDocuments(page: ShellPage) {
@@ -1476,12 +1490,12 @@ test("standalone purge keeps the row when the file can't be deleted, and retries
 // Delete permanently.
 async function openRecentlyDeleted(page: ShellPage) {
   await page.locator(".bottom-nav").getByRole("button", { name: "Documents" }).click();
-  await page.getByRole("button", { name: "Recently deleted" }).click();
-  await expect(page.locator("#view-title")).toHaveText("Recently deleted");
+  await page.getByRole("button", { name: "Recently deleted documents" }).click();
+  await expect(page.locator("#view-title")).toHaveText("Recently deleted documents");
 }
 
 function trashRows(page: ShellPage) {
-  return page.locator("section[aria-label='Recently deleted Documents'] .record-card");
+  return page.locator("section[aria-label='Recently deleted documents'] .record-card");
 }
 
 test("standalone Recently deleted is empty when Trash has nothing (#488)", async ({ page }) => {
@@ -1505,7 +1519,7 @@ test("standalone Recently deleted lists Trash and restores a Document (#488)", a
   await expect(rows.first()).toContainText(/Deleted \d{4}-\d{2}-\d{2}/);
   expect((await rows.getByRole("heading").allTextContents()).sort()).toEqual(["insurance.pdf", "lease-v3.pdf"]);
   await expect(rows.filter({ hasText: "lease-v3.pdf" })).toContainText("Contract · Broadband Plan");
-  await expect(page.getByRole("button", { name: "Delete lease-v3.pdf permanently" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Delete permanently, lease-v3.pdf" })).toBeVisible();
 
   await page.getByRole("button", { name: "Restore insurance.pdf" }).click();
   await expect(page.locator("#standalone-status")).toContainText("Document restored.");
@@ -1530,7 +1544,7 @@ test("standalone Recently deleted orders newest first and counts days left (#488
   await expect(rows.last()).toContainText("2 days left");
 });
 
-test("standalone Recently deleted refuses to restore under a deleted record (#488)", async ({ page }) => {
+test("standalone Recently deleted offers only Delete permanently under a deleted record (#488)", async ({ page }) => {
   await withDocumentVersions(page, "1");
   await openBroadbandPlan(page);
   await documentCard(page, "lease-v3.pdf").getByRole("button", { name: "Delete" }).click();
@@ -1540,10 +1554,10 @@ test("standalone Recently deleted refuses to restore under a deleted record (#48
 
   await openRecentlyDeleted(page);
   // Kept 30 days with the record, and listed as such.
-  await expect(trashRows(page).filter({ hasText: "lease-v3.pdf" })).toContainText("record deleted");
-  await page.getByRole("button", { name: "Restore lease-v3.pdf" }).click();
-  await expect(page.locator("#standalone-status")).toContainText("the record it belonged to was deleted");
-  await expect(page.getByRole("heading", { name: "lease-v3.pdf" })).toBeVisible();
+  await expect(trashRows(page).filter({ hasText: "lease-v3.pdf" })).toContainText("Its record was deleted");
+  // The shell can't bring the record back, so there is no Restore to tap.
+  await expect(page.getByRole("button", { name: "Restore lease-v3.pdf" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Delete permanently, lease-v3.pdf" })).toBeVisible();
   const state = await shellTestState(page);
   expect(state.runs.some((run) => run.statement.includes("deleted_at = NULL"))).toBe(false);
 });
@@ -1555,7 +1569,7 @@ test("standalone Recently deleted: Delete permanently removes the row and file a
 
   // Cancel changes nothing.
   page.once("dialog", (dialog) => void dialog.dismiss());
-  await row.getByRole("button", { name: "Delete lease-v2.pdf permanently" }).click();
+  await row.getByRole("button", { name: "Delete permanently, lease-v2.pdf" }).click();
   await expect(row).toBeVisible();
   expect(deletedDocuments((await shellTestState(page)).runs)).toEqual([]);
 
@@ -1564,7 +1578,7 @@ test("standalone Recently deleted: Delete permanently removes the row and file a
     message = dialog.message();
     void dialog.accept();
   });
-  await row.getByRole("button", { name: "Delete lease-v2.pdf permanently" }).click();
+  await row.getByRole("button", { name: "Delete permanently, lease-v2.pdf" }).click();
   await expect(page.locator("#standalone-status")).toContainText("Deleted permanently.");
   expect(message).toContain("lease-v2.pdf");
   await expect(page.getByRole("heading", { name: "Nothing recently deleted" })).toBeVisible();
@@ -1580,7 +1594,7 @@ test("standalone Recently deleted keeps the row when the file can't be deleted (
   await withDocumentVersions(page, "middle", { deleteFileError: "other" });
   await openRecentlyDeleted(page);
   page.once("dialog", (dialog) => void dialog.accept());
-  await page.getByRole("button", { name: "Delete lease-v2.pdf permanently" }).click();
+  await page.getByRole("button", { name: "Delete permanently, lease-v2.pdf" }).click();
   await expect(page.locator("#standalone-status")).not.toContainText("Deleted permanently.");
   await expect(page.locator("#standalone-status")).not.toBeHidden();
   await expect(page.getByRole("heading", { name: "lease-v2.pdf" })).toBeVisible();
@@ -1610,10 +1624,151 @@ test("standalone Recently deleted restores a middle version without splitting th
 
 test("standalone Recently deleted is reachable from More and Settings (#488)", async ({ page }) => {
   await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
-  await page.getByRole("button", { name: /Recently deleted/ }).click();
+  await page.getByRole("button", { name: /Recently deleted documents/ }).click();
   await expect(page.getByRole("heading", { name: "Nothing recently deleted" })).toBeVisible();
   await page.getByRole("button", { name: "Back" }).click();
   await page.getByRole("button", { name: /^Settings/ }).click();
-  await page.getByRole("button", { name: "Open recently deleted" }).click();
+  await page.getByRole("button", { name: "Open recently deleted documents" }).click();
   await expect(page.getByRole("heading", { name: "Nothing recently deleted" })).toBeVisible();
+});
+
+const statusActions = (page: ShellPage) => page.locator("#standalone-status .status-action");
+
+test("standalone Recently deleted never carries a stale Undo on its messages (#488)", async ({ page }) => {
+  await withDocumentVersions(page, "1");
+  await openBroadbandPlan(page);
+  await documentCard(page, "lease-v3.pdf").getByRole("button", { name: "Delete" }).click();
+  await documentCard(page, "lease-v2.pdf").getByRole("button", { name: "Delete" }).click();
+  await expect(statusActions(page)).toHaveText("Undo (2)");
+
+  // Entering the screen drops the toast and its Undos.
+  await openRecentlyDeleted(page);
+  await expect(page.locator("#standalone-status")).toBeHidden();
+
+  await page.getByRole("button", { name: "Restore lease-v2.pdf" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Document restored.");
+  await expect(statusActions(page)).toHaveCount(0);
+
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("button", { name: "Delete permanently, lease-v3.pdf" }).click();
+  await expect(page.locator("#standalone-status")).toHaveText("Deleted permanently.");
+  await expect(statusActions(page)).toHaveCount(0);
+});
+
+test("standalone Recently deleted ignores a double tap on Restore and on Delete permanently (#488)", async ({ page }) => {
+  await withDocumentVersions(page, "many", { now: "2099-01-30T00:00:00.000Z" });
+  await openRecentlyDeleted(page);
+  await page.getByRole("button", { name: "Restore trash-24.pdf" }).evaluate((button: HTMLElement) => {
+    button.click();
+    button.click();
+  });
+  await expect(page.locator("#standalone-status")).toContainText("Document restored.");
+  let state = await shellTestState(page);
+  expect(state.runs.filter((run) => run.statement.includes("deleted_at = NULL") && run.values.includes("trash-24"))).toHaveLength(1);
+
+  let dialogs = 0;
+  page.on("dialog", (dialog) => {
+    dialogs += 1;
+    void dialog.accept();
+  });
+  await page.getByRole("button", { name: "Delete permanently, trash-23.pdf" }).evaluate((button: HTMLElement) => {
+    button.click();
+    button.click();
+  });
+  await expect(page.locator("#standalone-status")).toHaveText("Deleted permanently.");
+  state = await shellTestState(page);
+  expect(dialogs).toBe(1);
+  expect(deletedDocuments(state.runs)).toEqual(["trash-23"]);
+});
+
+test("standalone a Restore during a permanent delete never deletes a live row (#488)", async ({ page }) => {
+  await page.evaluate(() => localStorage.setItem("hearth-test-delete-file-delay", "800"));
+  await withDocumentVersions(page, "middle");
+  await openRecentlyDeleted(page);
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("button", { name: "Delete permanently, lease-v2.pdf" }).click();
+  // The file is still being deleted: the buttons are off, and a Restore that
+  // gets through anyway (the Undo toast calls the same function) does nothing.
+  await expect(page.getByRole("button", { name: "Delete permanently, lease-v2.pdf" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Restore lease-v2.pdf" })).toBeDisabled();
+  await page.evaluate(() => (window as unknown as { restoreDocument: (id: string, fromList: boolean) => Promise<void> }).restoreDocument("version-2", true));
+  await expect(page.locator("#standalone-status")).toHaveText("Deleted permanently.");
+  const state = await shellTestState(page);
+  expect(state.runs.some((run) => run.statement.includes("deleted_at = NULL"))).toBe(false);
+  expect(deletedDocuments(state.runs)).toEqual(["version-2"]);
+  const saved = await savedDocuments(page);
+  expect(saved.map((row) => row.id).sort()).toEqual(["document-1", "version-1", "version-3"]);
+  expect(saved.find((row) => row.id === "version-3")?.supersedes_id).toBe("version-1");
+});
+
+test("standalone the purge statements leave a row that is no longer in Trash alone (#488)", async ({ page }) => {
+  await withDocumentVersions(page, "middle");
+  // A Restore that landed after the purge read the row: the purge's two
+  // statements must leave the live row and its chain alone.
+  const result = await page.evaluate(async () => {
+    type Sqlite = {
+      run: (a: { statement: string; values: unknown[] }) => Promise<unknown>;
+      executeSet: (a: { database: string; transaction: boolean; set: { statement: string; values: unknown[] }[] }) => Promise<unknown>;
+      query: (a: { statement: string }) => Promise<{ values: Record<string, unknown>[] }>;
+    };
+    const sqlite = (window as unknown as { Capacitor: { Plugins: { CapacitorSQLite: Sqlite } } }).Capacitor.Plugins.CapacitorSQLite;
+    await sqlite.run({ statement: "UPDATE documents SET deleted_at = NULL, version = version + 1 WHERE id = ?", values: ["version-2"] });
+    await (window as unknown as { purgeDocument: (id: string) => Promise<unknown> }).purgeDocument("version-2");
+    return (await sqlite.query({ statement: "SELECT * FROM documents" })).values.map((row) => [row.id, row.supersedes_id]);
+  });
+  // purgeDocument re-reads the row, finds it live and does nothing.
+  expect(result).toContainEqual(["version-2", "version-1"]);
+  expect(result).toContainEqual(["version-3", "version-2"]);
+});
+
+test("standalone Recently deleted says so when a row is already gone (#488)", async ({ page }) => {
+  await withDocumentVersions(page, "middle");
+  await openRecentlyDeleted(page);
+  await page.evaluate(async () => {
+    const sqlite = (window as unknown as { Capacitor: { Plugins: { CapacitorSQLite: { run: (a: { statement: string; values: unknown[] }) => Promise<unknown> } } } }).Capacitor.Plugins.CapacitorSQLite;
+    await sqlite.run({ statement: "DELETE FROM documents WHERE id = ?", values: ["version-2"] });
+  });
+  await page.getByRole("button", { name: "Restore lease-v2.pdf" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Already restored or removed");
+  await expect(page.getByRole("heading", { name: "Nothing recently deleted" })).toBeVisible();
+});
+
+test("standalone Recently deleted says so when Delete permanently finds the row gone (#488)", async ({ page }) => {
+  await withDocumentVersions(page, "middle");
+  await openRecentlyDeleted(page);
+  await page.evaluate(async () => {
+    const sqlite = (window as unknown as { Capacitor: { Plugins: { CapacitorSQLite: { run: (a: { statement: string; values: unknown[] }) => Promise<unknown> } } } }).Capacitor.Plugins.CapacitorSQLite;
+    await sqlite.run({ statement: "DELETE FROM documents WHERE id = ?", values: ["version-2"] });
+  });
+  await page.getByRole("button", { name: "Delete permanently, lease-v2.pdf" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Already restored or removed");
+  await expect(page.getByRole("heading", { name: "Nothing recently deleted" })).toBeVisible();
+});
+
+test("standalone Recently deleted shows 30 days left when the clock is behind the data (#488)", async ({ page }) => {
+  await withDocumentVersions(page, "many", { now: "2098-01-01T00:00:00.000Z" });
+  await openRecentlyDeleted(page);
+  await expect(trashRows(page)).toHaveCount(25);
+  await expect(trashRows(page).first()).toContainText("30 days left");
+});
+
+test("standalone Recently deleted says Will be deleted soon at zero days left (#488)", async ({ page }) => {
+  // fresh-trash is the newest entry, so a launch purge keeps it, but at this
+  // clock its 30 days are up.
+  await withDocumentVersions(page, "expired", { now: "2099-03-01T00:00:00.000Z" });
+  await openRecentlyDeleted(page);
+  const row = trashRows(page).filter({ hasText: "fresh-trash.pdf" });
+  await expect(row).toContainText("Will be deleted soon");
+  await expect(row).not.toContainText("Expires today");
+});
+
+test("standalone Recently deleted buttons are 44px targets (#488)", async ({ page }) => {
+  await withDocumentVersions(page, "middle");
+  await page.locator(".bottom-nav").getByRole("button", { name: "Documents" }).click();
+  const entry = page.getByRole("button", { name: "Recently deleted documents" });
+  expect((await entry.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+  await entry.click();
+  for (const name of ["Restore lease-v2.pdf", "Delete permanently, lease-v2.pdf"]) {
+    expect((await page.getByRole("button", { name }).boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+  }
 });
