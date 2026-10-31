@@ -31,6 +31,8 @@ export interface VehicleDueRow {
   insuranceExpiry: DateInput;
   nextServiceDue: DateInput;
   reminderDaysBefore?: string | null;
+  /** #355 — an Archived Vehicle has no Due entries. */
+  archivedAt?: DateInput;
 }
 
 export interface TenancyDueRow {
@@ -67,6 +69,7 @@ export function vehicleDue(row: VehicleDueRow, ctx: DueContext): DueEntry[] {
       insuranceExpiry: row.insuranceExpiry,
       nextServiceDue: row.nextServiceDue,
       reminderDaysBefore: row.reminderDaysBefore,
+      archivedAt: row.archivedAt,
     },
     ctx,
   );

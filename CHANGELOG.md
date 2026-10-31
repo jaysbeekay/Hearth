@@ -47,6 +47,25 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Archive a Vehicle or Property you no longer have (#355).** Archive (in
+  the record's More actions menu, with Undo) marks a Vehicle as sold or a
+  Property as sold or its lease ended; Restore on the record's page puts it
+  back. It is not Trash: the record stays, with its Service or Maintenance
+  records, Tenancies and Documents, in an "Archived" section at the foot of
+  its list, and Search still finds it, marked Archived. An Archived Vehicle
+  has no Due entries, so no Reminders, and an Archived Property's current
+  Tenancy no longer reminds about its lease end. Both leave Needs
+  attention, Upcoming, the iCal feed, the dashboard counts, `whats_due` and
+  the Assistant's and MCP's vehicle and property lists, and an Archived
+  Vehicle is never "missing key details". An Archived Property's valuation
+  no longer counts toward net worth. They're also left out of the pickers
+  for linking new Contracts, Warranties and Inbox Documents. Contracts
+  linked to an Archived Vehicle or Property keep their own Reminders, since
+  a Contract is its own Due source. Items follow after #380. The standalone
+  mobile shell has the same Archive and Restore, an Archived filter chip, and
+  stops local Reminders for archived records (standalone schema version 11:
+  `archived_at` on vehicles and properties; older backups import as not
+  archived).
 - **Health check endpoint and hosting notes (#477).** `GET /api/health`
   answers `200 {"status":"ok"}` when the app can read its database file, and
   `503 {"status":"unavailable"}` when it can't. The result is reused for 5

@@ -25,7 +25,9 @@ const RENTED_PROPERTY_SELECT = {
 async function currentTenanciesWhere(where: Prisma.PropertyWhereInput): Promise<CurrentTenancy[]> {
   if (!(await isModuleEnabled("HOME"))) return [];
   const properties = await prisma.property.findMany({
-    where: { ...where, deletedAt: null, isRented: true },
+    // Neither in Trash nor Archived (#355): the household no longer has
+    // an Archived Property, so its lease end isn't Due and gets no Reminders.
+    where: { ...where, deletedAt: null, archivedAt: null, isRented: true },
     select: RENTED_PROPERTY_SELECT,
   });
   return properties.flatMap((property) => {

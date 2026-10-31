@@ -137,7 +137,7 @@ export async function getCalendarEvents(
 
   if (enabledModules.has("VEHICLES")) {
     const vehicles = await prisma.vehicle.findMany({
-      where: { deletedAt: null },
+      where: { deletedAt: null, archivedAt: null },
       include: {
         items: { where: { deletedAt: null, date: { gte: fromDate } }, select: { id: true, title: true, date: true } },
       },
@@ -195,11 +195,11 @@ export async function getCalendarEvents(
   if (enabledModules.has("HOME")) {
     const [homeItems, properties] = await Promise.all([
       prisma.homeItem.findMany({
-        where: { deletedAt: null, date: { gte: fromDate }, property: { deletedAt: null } },
+        where: { deletedAt: null, date: { gte: fromDate }, property: { deletedAt: null, archivedAt: null } },
         include: { property: { select: { id: true, label: true } } },
       }),
       prisma.property.findMany({
-        where: { deletedAt: null, isRented: true },
+        where: { deletedAt: null, archivedAt: null, isRented: true },
         select: {
           id: true,
           label: true,

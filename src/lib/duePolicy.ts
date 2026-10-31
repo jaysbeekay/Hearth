@@ -112,6 +112,12 @@ export type DueRecord =
        * entry here, since the Contract's own entries stand in for them.
        */
       coveredFields?: VehicleDueField[];
+      /**
+       * Set once the household no longer has the Vehicle (Archived, #355):
+       * it has no Due entries, so no Reminders, and drops out of Needs
+       * attention, Upcoming and iCal. Any non-null value counts.
+       */
+      archivedAt?: DateInput;
     }
   | { kind: "tenancy"; leaseEnd: DateInput; reminderDaysBefore?: string | null };
 
@@ -383,6 +389,7 @@ const VEHICLE_FIELDS: {
 ];
 
 function vehicleEntries(record: Extract<DueRecord, { kind: "vehicle" }>, ctx: DueContext): DueEntry[] {
+  if (record.archivedAt != null) return [];
   const window = dueSoonWindow(record.reminderDaysBefore, ctx.defaultReminderDays);
   const entries: DueEntry[] = [];
   for (const { field, due, passed } of VEHICLE_FIELDS) {

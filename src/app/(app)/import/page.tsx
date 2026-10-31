@@ -17,10 +17,10 @@ export default async function ImportPage() {
 
   const [properties, vehicles] = await Promise.all([
     enabledModules.has("HOME")
-      ? prisma.property.findMany({ where: { deletedAt: null }, select: { id: true, label: true } })
+      ? prisma.property.findMany({ where: { deletedAt: null, archivedAt: null }, select: { id: true, label: true } })
       : [],
     enabledModules.has("VEHICLES")
-      ? prisma.vehicle.findMany({ where: { deletedAt: null }, select: { id: true, label: true } })
+      ? prisma.vehicle.findMany({ where: { deletedAt: null, archivedAt: null }, select: { id: true, label: true } })
       : [],
   ]);
 

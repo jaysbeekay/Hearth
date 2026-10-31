@@ -17,7 +17,7 @@ export default async function NewProductPage() {
     isBarcodeLookupConfigured(),
   ]);
   const properties = enabledModules.has("HOME")
-    ? await prisma.property.findMany({ select: { id: true, label: true }, orderBy: { label: "asc" } })
+    ? await prisma.property.findMany({ where: { deletedAt: null, archivedAt: null }, select: { id: true, label: true }, orderBy: { label: "asc" } })
     : [];
 
   return (

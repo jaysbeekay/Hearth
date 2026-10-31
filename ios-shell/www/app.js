@@ -42,7 +42,7 @@ const BACKUP_ROOT = "hearth-backups";
 const REMINDER_CHANNEL_ID = "hearth-standalone-reminders";
 const REMINDER_HOUR = 9;
 // Bump with every ensureStandaloneSchema change; backups record it too.
-const STANDALONE_SCHEMA_VERSION = 10;
+const STANDALONE_SCHEMA_VERSION = 11;
 const MAX_IMPORTED_TRADES = 5000;
 const ALLOWED_MIME_TYPES = new Set([
   "application/pdf",
@@ -157,6 +157,7 @@ CREATE TABLE IF NOT EXISTS vehicles (
   next_service_due TEXT,
   reminder_days_before TEXT DEFAULT '30,14,7,1',
   notes TEXT,
+  archived_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   deleted_at TEXT,
@@ -190,6 +191,7 @@ CREATE TABLE IF NOT EXISTS properties (
   occupancy_status TEXT NOT NULL DEFAULT 'OWNER_OCCUPIED',
   estimated_value REAL,
   currency TEXT NOT NULL DEFAULT 'AUD',
+  archived_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   deleted_at TEXT,
@@ -439,9 +441,9 @@ const BACKUP_TABLES = [
   { key: "contracts", table: "contracts", columns: ["id", "title", "category", "provider", "contract_number", "start_date", "end_date", "renewal_type", "notice_period_days", "cost", "currency", "billing_frequency", "status", "contact_name", "contact_phone", "contact_email", "notes", "reminder_days_before", "is_tax_deductible", "extraction_pending", "extraction_confirmed_at", "property_id", "vehicle_id", "created_at", "updated_at", "deleted_at", "version"] },
   { key: "contractTerms", table: "contract_terms", columns: ["id", "contract_id", "start_date", "end_date", "cost", "currency", "billing_frequency", "document_id", "created_at"] },
   { key: "products", table: "products", columns: ["id", "description", "manufacturer", "model", "vendor", "serial_number", "barcode", "purchase_date", "warranty_end_date", "price", "currency", "notes", "reminder_days_before", "extraction_pending", "extraction_confirmed_at", "property_id", "created_at", "updated_at", "deleted_at", "version"] },
-  { key: "vehicles", table: "vehicles", columns: ["id", "label", "make", "model", "year", "colour", "license_plate", "vin", "rego_expiry", "insurance_expiry", "next_service_due", "reminder_days_before", "notes", "created_at", "updated_at", "deleted_at", "version"] },
+  { key: "vehicles", table: "vehicles", columns: ["id", "label", "make", "model", "year", "colour", "license_plate", "vin", "rego_expiry", "insurance_expiry", "next_service_due", "reminder_days_before", "notes", "archived_at", "created_at", "updated_at", "deleted_at", "version"] },
   { key: "vehicleItems", table: "vehicle_items", columns: ["id", "vehicle_id", "type", "title", "provider", "date", "cost", "currency", "notes", "deleted_at", "created_at", "updated_at", "version"] },
-  { key: "properties", table: "properties", columns: ["id", "label", "street", "suburb", "state", "postcode", "country", "notes", "is_rented", "occupancy_status", "estimated_value", "currency", "created_at", "updated_at", "deleted_at", "version"] },
+  { key: "properties", table: "properties", columns: ["id", "label", "street", "suburb", "state", "postcode", "country", "notes", "is_rented", "occupancy_status", "estimated_value", "currency", "archived_at", "created_at", "updated_at", "deleted_at", "version"] },
   { key: "homeItems", table: "home_items", columns: ["id", "property_id", "type", "title", "provider", "date", "cost", "currency", "is_tax_deductible", "notes", "created_at", "updated_at", "deleted_at", "version"] },
   { key: "rentalAgreements", table: "rental_agreements", columns: ["id", "property_id", "contract_id", "tenant_name", "weekly_rent", "management_fee_percent", "lease_start", "lease_end", "bond_amount", "currency", "notes", "reminder_days_before", "created_at", "updated_at", "deleted_at", "version"] },
   { key: "rentalStatements", table: "rental_statements", columns: ["id", "property_id", "period_start", "period_end", "statement_date", "gross_rent", "management_fee", "other_deductions", "net_amount", "currency", "notes", "created_at", "updated_at", "deleted_at", "version"] },
@@ -458,6 +460,18 @@ const BACKUP_TABLES = [
 
 function isSecondaryRoute(route) {
   return ["more", "search", "spend", "calendar", "reminders", "import", "assistant", "settings", "help"].includes(route);
+}
+
+// #355 — Archived: the household no longer has this Vehicle or Property (sold,
+// or its lease ended). Set deliberately, never by a date passing. An Archived
+// record keeps its Documents and history but has no Due entries or
+// Reminders, and leaves Needs attention, Upcoming and the dashboard counts.
+function isArchived(row) {
+  return row?.archived_at != null && row.archived_at !== "";
+}
+
+function activeRows(rows) {
+  return rows.filter((row) => !isArchived(row));
 }
 
 function emptyCache() {
@@ -603,6 +617,9 @@ async function ensureStandaloneSchema() {
   await ensureColumn("inventory_items", "warranty_extended", "INTEGER NOT NULL DEFAULT 0");
   // #388 — a Tenancy's own Reminder thresholds for its lease end; null means the default.
   await ensureColumn("rental_agreements", "reminder_days_before", "TEXT");
+  // #355 — Archived: a Vehicle or Property the household no longer has.
+  await ensureColumn("vehicles", "archived_at", "TEXT");
+  await ensureColumn("properties", "archived_at", "TEXT");
   await run("INSERT OR REPLACE INTO schema_metadata (key, value) VALUES ('standalone_schema_version', ?)", [String(STANDALONE_SCHEMA_VERSION)]);
 }
 
@@ -970,6 +987,7 @@ function attentionForRecord(type, row) {
     if (days <= 30) return { tone: "warning", label: "Warranty", meta: `Ends in ${days} days` };
   }
   if (type === "vehicles") {
+    if (isArchived(row)) return null;
     const rego = daysUntil(row.rego_expiry);
     const insurance = daysUntil(row.insurance_expiry);
     const service = daysUntil(row.next_service_due);
@@ -999,8 +1017,13 @@ function buildAttentionItems() {
   const rows = [
     ...cache.contracts.map((row) => ({ type: "contracts", row })),
     ...cache.products.map((row) => ({ type: "products", row })),
-    ...(moduleEnabled("vehicles") ? cache.vehicles.map((row) => ({ type: "vehicles", row })) : []),
-    ...(moduleEnabled("properties") ? cache.rentalAgreements.map((row) => ({ type: "rentalAgreements", row })) : []),
+    ...(moduleEnabled("vehicles") ? activeRows(cache.vehicles).map((row) => ({ type: "vehicles", row })) : []),
+    // A Tenancy's lease end stops being Due once its Property is Archived (#355).
+    ...(moduleEnabled("properties")
+      ? cache.rentalAgreements
+          .filter((row) => !isArchived(cache.properties.find((property) => property.id === row.property_id)))
+          .map((row) => ({ type: "rentalAgreements", row }))
+      : []),
     ...(moduleEnabled("trips") ? cache.trips.map((row) => ({ type: "trips", row })) : []),
   ];
   return rows
@@ -1291,7 +1314,7 @@ function renderDashboard() {
   const attention = buildAttentionItems();
   const monthlySpend = activeContracts.reduce((sum, row) => sum + monthlyEquivalent(Number(row.cost), row.billing_frequency), 0);
   const inventoryValue = moduleEnabled("inventoryItems") ? cache.inventoryItems.reduce((sum, row) => sum + (Number(row.purchase_price) || 0), 0) : 0;
-  const propertyValue = moduleEnabled("properties") ? cache.properties.reduce((sum, row) => sum + (Number(row.estimated_value) || 0), 0) : 0;
+  const propertyValue = moduleEnabled("properties") ? activeRows(cache.properties).reduce((sum, row) => sum + (Number(row.estimated_value) || 0), 0) : 0;
   const holdingsValue = moduleEnabled("portfolios") ? cache.holdings.reduce((sum, row) => sum + holdingValue(row), 0) : 0;
   // #440: the web Wealth page lists net worth as parts — Shares, ETFs and
   // crypto / Property / Items — each shown only when its module is on, and
@@ -1300,7 +1323,7 @@ function renderDashboard() {
   const netWorthTotal = holdingsValue + propertyValue + inventoryValue;
   const contractsMissingInfo = activeContracts.filter((row) => missingInfo("contracts", row)).length;
   const productsMissingInfo = cache.products.filter((row) => missingInfo("products", row)).length;
-  const vehiclesMissingInfo = moduleEnabled("vehicles") ? cache.vehicles.filter((row) => missingInfo("vehicles", row)).length : 0;
+  const vehiclesMissingInfo = moduleEnabled("vehicles") ? activeRows(cache.vehicles).filter((row) => missingInfo("vehicles", row)).length : 0;
   return `
     <section class="hero-card">
       <p class="kicker">Today</p>
@@ -1311,9 +1334,9 @@ function renderDashboard() {
     <section class="grid-2">
       ${statCard("Active contracts", activeContracts.length, "records", "contracts")}
       ${statCard("Warranties tracked", cache.products.length, "records", "products")}
-      ${moduleEnabled("vehicles") ? statCard("Vehicles", cache.vehicles.length, "records", "vehicles") : ""}
+      ${moduleEnabled("vehicles") ? statCard("Vehicles", activeRows(cache.vehicles).length, "records", "vehicles") : ""}
       ${statCard("Documents", cache.documents.length + cache.inboxDocuments.length, "documents")}
-      ${moduleEnabled("properties") ? statCard("Properties", cache.properties.length, "records", "properties") : ""}
+      ${moduleEnabled("properties") ? statCard("Properties", activeRows(cache.properties).length, "records", "properties") : ""}
       ${moduleEnabled("inventoryItems") ? statCard("Inventory", cache.inventoryItems.length, "records", "inventoryItems") : ""}
       ${moduleEnabled("trips") ? statCard("Trips", cache.trips.length, "records", "trips") : ""}
       ${moduleEnabled("portfolios") ? statCard("Portfolios", cache.portfolios.length, "records", "portfolios") : ""}
@@ -1477,7 +1500,7 @@ function calendarEvents() {
   };
   for (const row of cache.contracts) add(row.end_date, "Contract ends", recordTitle("contracts", row), "contracts", row.id);
   for (const row of cache.products) add(row.warranty_end_date, "Warranty ends", recordTitle("products", row), "products", row.id);
-  for (const row of cache.vehicles) {
+  for (const row of activeRows(cache.vehicles)) {
     add(row.rego_expiry, "Rego expiry", recordTitle("vehicles", row), "vehicles", row.id);
     add(row.insurance_expiry, "Insurance expiry", recordTitle("vehicles", row), "vehicles", row.id);
     add(row.next_service_due, "Service due", recordTitle("vehicles", row), "vehicles", row.id);
@@ -1562,7 +1585,7 @@ function reminderTargets() {
   return [
     ...cache.contracts.map((row) => reminderTarget("contracts", row, "Contract", row.end_date, row.reminder_days_before)),
     ...cache.products.map((row) => reminderTarget("products", row, "Warranty", row.warranty_end_date, row.reminder_days_before)),
-    ...cache.vehicles.flatMap((row) => [
+    ...activeRows(cache.vehicles).flatMap((row) => [
       reminderTarget("vehicles", row, "Rego", row.rego_expiry, row.reminder_days_before),
       reminderTarget("vehicles", row, "Insurance", row.insurance_expiry, row.reminder_days_before),
       reminderTarget("vehicles", row, "Service", row.next_service_due, row.reminder_days_before),
@@ -1598,7 +1621,7 @@ function currentTenancyFor(propertyId) {
 
 function leaseReminderTargets() {
   if (!moduleEnabled("properties")) return [];
-  return cache.properties
+  return activeRows(cache.properties)
     .filter((property) => Number(property.is_rented ?? 0) === 1)
     .flatMap((property) => {
       const tenancy = currentTenancyFor(property.id);
@@ -2207,6 +2230,7 @@ function renderRecords() {
       ${filterChip("attention", "Needs attention")}
       ${filterChip("missing-docs", "Missing document")}
       ${filterChip("missing-info", "Missing key details")}
+      ${canArchive(state.recordType) ? filterChip("archived", "Archived") : ""}
     </section>
     <section id="record-results" class="list">
       ${rows.length === 0 ? empty("No matching records", "Add a record or adjust the search/filter.") : rows.map((row) => renderRecordCard(state.recordType, row)).join("")}
@@ -2227,6 +2251,8 @@ function filteredRecords() {
   return cache[state.recordType].filter((row) => {
     if (!recordTypeEnabled(state.recordType)) return false;
     if (queryText && !recordSearchText(state.recordType, row).includes(queryText)) return false;
+    // Archived Vehicles and Properties are listed under their own filter (#355).
+    if (canArchive(state.recordType) && isArchived(row) !== (state.recordFilter === "archived")) return false;
     if (state.recordFilter === "attention" && !attentionForRecord(state.recordType, row)) return false;
     if (state.recordFilter === "missing-docs" && hasDocument(state.recordType, row.id)) return false;
     if (state.recordFilter === "missing-info" && !missingInfo(state.recordType, row)) return false;
@@ -2241,6 +2267,8 @@ function filteredRecords() {
 // never missing anything. Contract number is not a key detail.
 function missingInfo(type, row) {
   const blank = (value) => value == null || value === "";
+  // Archived records are never missing anything (#355).
+  if (isArchived(row)) return false;
   if (type === "contracts") {
     if (row.status === "CANCELLED") return false;
     return (blank(row.end_date) && row.renewal_type !== "AUTO_RENEW") || (!blank(row.cost) && blank(row.billing_frequency));
@@ -2276,6 +2304,7 @@ function renderRecordCard(type, row) {
     <button class="record-card" data-open-record="${escapeAttr(type)}" data-id="${escapeAttr(row.id)}">
       <div class="badge-row">
         ${attention ? `<span class="badge ${escapeAttr(attention.tone === "neutral" ? "" : attention.tone)}">${escapeHtml(attention.label)}</span>` : ""}
+        ${isArchived(row) ? '<span class="badge">Archived</span>' : ""}
         <span class="badge">${docCount} doc${docCount === 1 ? "" : "s"}</span>
       </div>
       <h3>${escapeHtml(recordTitle(type, row))}</h3>
@@ -2361,8 +2390,10 @@ function renderDetail() {
       <div class="actions">
         <button data-form-type="${escapeAttr(type)}" data-id="${escapeAttr(id)}">Edit</button>
         ${type === "contracts" && canRenewContract(row) ? `<button data-form-type="contractRenewal" data-id="${escapeAttr(id)}">Renew</button>` : ""}
+        ${canArchive(type) ? `<button class="secondary" data-archive-record="${escapeAttr(type)}" data-archived="${isArchived(row) ? "0" : "1"}" data-id="${escapeAttr(id)}">${isArchived(row) ? "Restore" : "Archive"}</button>` : ""}
         <button class="danger" data-delete-record="${escapeAttr(type)}" data-id="${escapeAttr(id)}">Delete</button>
       </div>
+      ${isArchived(row) ? `<p class="card-meta">Archived on ${escapeHtml(readableDate(row.archived_at))}. It no longer reminds you or shows in Needs attention.</p>` : ""}
       <div class="detail-grid">${renderDetailRows(type, row)}</div>
       ${renderRecordReminderHealth(type, row)}
     </section>
@@ -2618,6 +2649,7 @@ function isCopyableDetail(label) {
 
 function renderRecordReminderHealth(type, row) {
   if (!["contracts", "products", "vehicles"].includes(type)) return "";
+  if (isArchived(row)) return "";
   const targets =
     type === "contracts"
       ? [reminderTarget(type, row, "Contract", row.end_date, row.reminder_days_before)]
@@ -2850,9 +2882,9 @@ function filingTargets() {
   return [
     ...cache.contracts.map((row) => filingTarget("contract", row.id, "Contract", recordTitle("contracts", row))),
     ...cache.products.map((row) => filingTarget("product", row.id, "Warranty", recordTitle("products", row))),
-    ...(moduleEnabled("vehicles") ? cache.vehicles.map((row) => filingTarget("vehicle", row.id, "Vehicle", recordTitle("vehicles", row))) : []),
+    ...(moduleEnabled("vehicles") ? activeRows(cache.vehicles).map((row) => filingTarget("vehicle", row.id, "Vehicle", recordTitle("vehicles", row))) : []),
     ...(moduleEnabled("vehicles") ? cache.vehicleItems.map((row) => filingTarget("vehicle_item", row.id, "Service record", recordTitle("vehicleItems", row))) : []),
-    ...(moduleEnabled("properties") ? cache.properties.map((row) => filingTarget("property", row.id, "Property", recordTitle("properties", row))) : []),
+    ...(moduleEnabled("properties") ? activeRows(cache.properties).map((row) => filingTarget("property", row.id, "Property", recordTitle("properties", row))) : []),
     ...(moduleEnabled("properties") ? cache.homeItems.map((row) => filingTarget("home_item", row.id, "Maintenance record", recordTitle("homeItems", row))) : []),
     ...(moduleEnabled("properties") ? cache.rentalAgreements.map((row) => filingTarget("rental_agreement", row.id, "Tenancy", recordTitle("rentalAgreements", row))) : []),
     ...(moduleEnabled("properties") ? cache.rentalStatements.map((row) => filingTarget("rental_statement", row.id, "Rental statement", recordTitle("rentalStatements", row))) : []),
@@ -3194,7 +3226,7 @@ function propertyPickerOrHint(propertyId) {
 function propertyOptions(selected) {
   return [
     `<option value="" ${selected ? "" : "selected"}>Not linked</option>`,
-    ...cache.properties.map((property) => `<option value="${escapeAttr(property.id)}" ${property.id === selected ? "selected" : ""}>${escapeHtml(recordTitle("properties", property))}</option>`),
+    ...cache.properties.filter((property) => !isArchived(property) || property.id === selected).map((property) => `<option value="${escapeAttr(property.id)}" ${property.id === selected ? "selected" : ""}>${escapeHtml(recordTitle("properties", property))}</option>`),
   ].join("");
 }
 
@@ -3964,6 +3996,28 @@ async function deleteRecord(type, id) {
   await render();
 }
 
+function canArchive(type) {
+  return type === "vehicles" || type === "properties";
+}
+
+// #355 — Archive or restore a Vehicle or Property. Not a delete: the record,
+// its Documents and its history stay; it just stops being Due, so local
+// Reminders are rescheduled without it.
+async function setRecordArchived(type, id, archived) {
+  if (!canArchive(type)) return;
+  const row = getRecord(type, id);
+  if (!row || isArchived(row) === archived) return;
+  const now = nowIso();
+  const table = type === "vehicles" ? "vehicles" : "properties";
+  await run(`UPDATE ${table} SET archived_at = ?, updated_at = ?, version = version + 1 WHERE id = ?`, [archived ? now : null, now, id]);
+  await loadData();
+  if (state.localRemindersEnabled) {
+    await syncLocalReminders(false).catch((error) => showStandaloneStatus(error.message || "Saved, but reminders could not be rescheduled."));
+  }
+  showStandaloneStatus(archived ? "Archived." : "Restored.", true);
+  await render();
+}
+
 async function softDeleteRecord(type, id) {
   const ownerType = ownerTypeForRecordType(type);
   const docs = docsFor(ownerType, id);
@@ -4586,6 +4640,10 @@ mobileView.addEventListener("click", async (event) => {
     state.detailBack = previous === "detail" && previousDetail ? previousDetail : null;
     state.backTo = previous === "search" ? "search" : previous === "detail" && previousDetail ? "detail" : "records";
     await render();
+    return;
+  }
+  if (button.dataset.archiveRecord) {
+    await setRecordArchived(button.dataset.archiveRecord, button.dataset.id, button.dataset.archived === "1");
     return;
   }
   if (button.dataset.deleteRecord) {

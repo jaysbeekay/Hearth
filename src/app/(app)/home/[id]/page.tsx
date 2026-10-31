@@ -5,7 +5,16 @@ import type { LucideIcon } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { addDocumentAction } from "@/lib/actions/documents";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
-import { deleteProperty, deleteHomeItem, restoreProperty, restoreHomeItem } from "@/lib/actions/home";
+import {
+  archiveProperty,
+  deleteProperty,
+  deleteHomeItem,
+  restoreProperty,
+  restoreHomeItem,
+  unarchiveProperty,
+} from "@/lib/actions/home";
+import { ArchiveButton } from "@/components/ArchiveButton";
+import { ArchivedNotice } from "@/components/ArchivedNotice";
 import { createPropertyValuation, deletePropertyValuation, restorePropertyValuation } from "@/lib/actions/wealth";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailField as Detail } from "@/components/DetailField";
@@ -88,8 +97,11 @@ export default async function PropertyDetailPage({
   const tenancy = currentTenancy(property);
   // #388 — the lease end gets Reminders like any other Due entry; the card
   // reads the same Reminder schedule the scheduler sends from.
-  const leaseReminderHealth = tenancy?.leaseEnd
-    ? await getReminderHealth({ ownerType: "TENANCY", ownerId: tenancy.id, record: { kind: "tenancy", ...tenancy } })
+  // An Archived Property's lease end is no longer Due and gets no Reminders
+  // (#355), so it shows neither a banner nor a Reminder card.
+  const dueTenancy = property.archivedAt ? null : tenancy;
+  const leaseReminderHealth = dueTenancy?.leaseEnd
+    ? await getReminderHealth({ ownerType: "TENANCY", ownerId: dueTenancy.id, record: { kind: "tenancy", ...dueTenancy } })
     : null;
 
   const latestValuation = property.valuations[0] ?? null;
@@ -134,6 +146,15 @@ export default async function PropertyDetailPage({
                 Edit
               </Link>
               <DetailOverflowMenu>
+                {!property.archivedAt && (
+                  <ArchiveButton
+                    mode="archive"
+                    noun="property"
+                    action={archiveProperty.bind(null, property.id)}
+                    undo={unarchiveProperty.bind(null, property.id)}
+                    className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-hover"
+                  />
+                )}
                 <ConfirmForm
                   action={deleteProperty.bind(null, property.id)}
                   undo={{ action: restoreProperty.bind(null, property.id), href: `/home/${property.id}` }}
@@ -150,12 +171,25 @@ export default async function PropertyDetailPage({
         </div>
       </div>
 
-      {tenancy && (
+      {property.archivedAt && (
+        <ArchivedNotice archivedAt={property.archivedAt} dateFormat={dateFormat} what="lease end">
+          {canWrite && (
+            <ArchiveButton
+              mode="restore"
+              noun="property"
+              action={unarchiveProperty.bind(null, property.id)}
+              className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+            />
+          )}
+        </ArchivedNotice>
+      )}
+
+      {dueTenancy && (
         <DetailStatusBanner
-          entries={tenancyDue(tenancy, due)}
+          entries={tenancyDue(dueTenancy, due)}
           hasDocuments
           documentsHref={`/home/${property.id}/rental`}
-          editHref={`/home/${property.id}/rental/agreements/${tenancy.id}/edit`}
+          editHref={`/home/${property.id}/rental/agreements/${dueTenancy.id}/edit`}
           renewLabel="Update tenancy"
           newEndDateLabel="Set the new lease end"
           newEndDateMessage="Lease ended."
@@ -408,12 +442,12 @@ export default async function PropertyDetailPage({
         </div>
       )}
 
-      {tenancy && leaseReminderHealth && (
+      {dueTenancy && leaseReminderHealth && (
         <ReminderHealthCard
           title="Lease reminders"
           health={leaseReminderHealth}
           dateFormat={dateFormat}
-          testTarget={{ kind: "tenancy", id: tenancy.id }}
+          testTarget={{ kind: "tenancy", id: dueTenancy.id }}
         />
       )}
 
