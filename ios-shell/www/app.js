@@ -1512,20 +1512,31 @@ function renderCalendar() {
   `;
 }
 
+// #476 — only a Due entry (Contract, Warranty, Vehicle) is ever Overdue or
+// Due soon, as in the web app's statusTone. A Trip or Trip segment date is a
+// plain neutral date, and Upcoming shows nothing before today for it (#402).
+// A past Due entry stays for 30 days, as Overdue, only when it really is: a
+// manual-renewal Contract still ACTIVE, or a Vehicle date. An Ended
+// fixed-term or auto-renewing Contract and a Lapsed Warranty are not.
 function calendarEvents() {
   const events = [];
-  const add = (date, label, title, type, id, tone = "neutral") => {
+  const add = (date, label, title, type, id, due = null) => {
     if (!date) return;
     const days = daysUntil(date);
     if (days == null || days < -30) return;
+    if (days < 0 && due !== "overdue") return;
+    const tone = due == null ? "neutral" : days < 0 ? "danger" : days <= 30 ? "warning" : "neutral";
     events.push({ date: String(date).slice(0, 10), label, title, type, id, days, tone });
   };
-  for (const row of cache.contracts) add(row.end_date, "Contract ends", recordTitle("contracts", row), "contracts", row.id);
-  for (const row of cache.products) add(row.warranty_end_date, "Warranty ends", recordTitle("products", row), "products", row.id);
+  for (const row of cache.contracts) {
+    const due = row.status === "ACTIVE" && row.renewal_type === "MANUAL_RENEWAL" ? "overdue" : "due";
+    add(row.end_date, "Contract ends", recordTitle("contracts", row), "contracts", row.id, due);
+  }
+  for (const row of cache.products) add(row.warranty_end_date, "Warranty ends", recordTitle("products", row), "products", row.id, "due");
   for (const row of cache.vehicles) {
-    add(row.rego_expiry, "Rego expiry", recordTitle("vehicles", row), "vehicles", row.id);
-    add(row.insurance_expiry, "Insurance expiry", recordTitle("vehicles", row), "vehicles", row.id);
-    add(row.next_service_due, "Service due", recordTitle("vehicles", row), "vehicles", row.id);
+    add(row.rego_expiry, "Rego expiry", recordTitle("vehicles", row), "vehicles", row.id, "overdue");
+    add(row.insurance_expiry, "Insurance expiry", recordTitle("vehicles", row), "vehicles", row.id, "overdue");
+    add(row.next_service_due, "Service due", recordTitle("vehicles", row), "vehicles", row.id, "overdue");
   }
   for (const row of cache.trips) add(row.start_date, "Trip starts", recordTitle("trips", row), "trips", row.id);
   for (const row of cache.tripSegments) add(row.start_date, typeLabel(row.type), recordTitle("tripSegments", row), "tripSegments", row.id);
@@ -1533,7 +1544,7 @@ function calendarEvents() {
 }
 
 function renderCalendarEvent(event) {
-  const badgeTone = event.days < 0 ? "danger" : event.days <= 30 ? "warning" : "";
+  const badgeTone = event.tone === "neutral" ? "" : event.tone;
   const relative = event.days < 0 ? `${Math.abs(event.days)}d overdue` : event.days === 0 ? "Today" : `In ${event.days}d`;
   return `
     <button class="record-card ${badgeTone === "danger" ? "danger-card" : badgeTone === "warning" ? "warning-card" : ""}" data-open-record="${escapeAttr(event.type)}" data-id="${escapeAttr(event.id)}">

@@ -502,7 +502,7 @@ test.beforeEach(async ({ page }) => {
       throw new Error(`Mock: unhandled documents statement: ${sql}`);
     }
 
-    (window as Window & { Capacitor?: unknown; __hearthStandaloneTest?: unknown }).__hearthStandaloneTest = { sqliteRuns, scheduledNotifications, fileWrites, fileDeletes };
+    (window as Window & { Capacitor?: unknown; __hearthStandaloneTest?: unknown }).__hearthStandaloneTest = { sqliteRuns, scheduledNotifications, fileWrites, fileDeletes, rowsByTable };
     (window as Window & { Capacitor?: unknown; __hearthStandaloneTest?: unknown }).Capacitor = {
       getPlatform: () => "ios",
       Plugins: {
@@ -1013,6 +1013,45 @@ test("standalone inventory item links to a warranty, and the warranty lists it b
   await page.getByRole("button", { name: /Laptop/ }).click();
   await expect(page.getByRole("heading", { name: "Linked inventory" })).toBeVisible();
   await expect(page.locator(".list").getByRole("button", { name: /Camera/ })).toBeVisible();
+});
+
+test("standalone Upcoming colours only Due dates, never a Trip date (#476)", async ({ page }) => {
+  // The fixtures are dated 2099: fix the clock so Japan Holiday started 5 days ago.
+  await page.addInitScript(() => {
+    const rows = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest.rowsByTable;
+    rows.trips.push({ id: "trip-2", title: "Bali Escape", destination: "Bali", start_date: "2099-09-09", end_date: "2099-09-16", updated_at: "2099-01-01T00:00:00.000Z" });
+    rows.contracts.push(
+      { id: "contract-2", title: "Gym Membership", category: "OTHER", status: "ACTIVE", renewal_type: "MANUAL_RENEWAL", end_date: "2099-09-01", cost: 20, currency: "AUD", billing_frequency: "MONTHLY", reminder_days_before: "30,14,7,1", updated_at: "2099-01-01T00:00:00.000Z" },
+      { id: "contract-3", title: "Fixed Hire", category: "OTHER", status: "ACTIVE", renewal_type: "FIXED_TERM", end_date: "2099-09-01", cost: 20, currency: "AUD", billing_frequency: "MONTHLY", reminder_days_before: "30,14,7,1", updated_at: "2099-01-01T00:00:00.000Z" },
+    );
+  });
+  await page.clock.setFixedTime(new Date("2099-09-06T12:00:00"));
+  await reloadStandalone(page);
+
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="calendar"]').click();
+
+  // A Trip that started 5 days ago is not shown (the web Upcoming has no history).
+  await expect(page.locator(".record-card").filter({ hasText: "Japan Holiday" })).toHaveCount(0);
+  await expect(page.locator(".record-card").filter({ hasText: "Flight to Tokyo" })).toHaveCount(0);
+  // An Ended fixed-term Contract is not Overdue.
+  await expect(page.locator(".record-card").filter({ hasText: "Fixed Hire" })).toHaveCount(0);
+
+  // A Trip starting in 3 days is a neutral date, not Due soon.
+  const soon = page.locator(".record-card").filter({ hasText: "Bali Escape" });
+  await expect(soon).toContainText("In 3d");
+  await expect(soon).not.toHaveClass(/warning-card|danger-card/);
+  await expect(soon.locator(".badge").first()).not.toHaveClass(/warning|danger/);
+
+  // A manual-renewal Contract past its end date is still Overdue.
+  const overdue = page.locator(".record-card").filter({ hasText: "Gym Membership" });
+  await expect(overdue).toContainText("5d overdue");
+  await expect(overdue).toHaveClass(/danger-card/);
+
+  // No Reminder card or count is made for a Trip.
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="reminders"]').click();
+  await expect(page.locator(".record-card").filter({ hasText: /Bali Escape|Japan Holiday/ })).toHaveCount(0);
 });
 
 test("standalone vehicle service-due date feeds the detail page, calendar and reminders", async ({ page }) => {
