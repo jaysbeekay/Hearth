@@ -35,15 +35,17 @@ export interface FormCover {
 // #456 - a Covered date is the Contract's to change. The manual date still
 // rides along in a hidden field, so saving the form keeps it for when the
 // Contract no longer Covers.
-function CoveredDate({ name, cover, manual }: { name: string; cover: FormCover; manual: string }) {
+function CoveredDate({ name, label, cover, manual }: { name: string; label: string; cover: FormCover; manual: string }) {
   return (
-    <div className="text-sm">
+    <div className="space-y-1 text-sm" role="group" aria-labelledby={`${name}-label`}>
+      <span id={`${name}-label`} className="block font-medium">
+        {label}
+      </span>
       <input type="hidden" name={name} value={manual} />
-      <p id={name} className="font-medium">
-        {cover.dateLabel}
-      </p>
-      <Link href={`/contracts/${cover.contractId}`} className="text-xs text-accent hover:underline">
-        From {cover.title} →
+      <p>{cover.dateLabel}</p>
+      <Link href={`/contracts/${cover.contractId}`} className="inline-flex min-h-11 items-center text-xs text-accent hover:underline">
+        From {cover.title}
+        <span aria-hidden="true">&nbsp;→</span>
       </Link>
     </div>
   );
@@ -182,31 +184,33 @@ export function VehicleForm({
           />
         </Field>
 
-        <Field label="Rego expiry" htmlFor="regoExpiry">
-          {regoCover ? (
-            <CoveredDate
-              name="regoExpiry"
-              cover={regoCover}
-              manual={effectiveValues?.regoExpiry ?? toDateInputValue(vehicle?.regoExpiry)}
-            />
-          ) : (
+        {regoCover ? (
+          <CoveredDate
+            name="regoExpiry"
+            label="Rego expiry"
+            cover={regoCover}
+            manual={effectiveValues?.regoExpiry ?? toDateInputValue(vehicle?.regoExpiry)}
+          />
+        ) : (
+          <Field label="Rego expiry" htmlFor="regoExpiry">
             <DateInput
               id="regoExpiry"
               name="regoExpiry"
               defaultValue={effectiveValues?.regoExpiry ?? toDateInputValue(vehicle?.regoExpiry)}
               className={inputClass}
             />
-          )}
-        </Field>
+          </Field>
+        )}
 
-        <Field label="Insurance expiry" htmlFor="insuranceExpiry">
-          {insuranceCover ? (
-            <CoveredDate
-              name="insuranceExpiry"
-              cover={insuranceCover}
-              manual={effectiveValues?.insuranceExpiry ?? toDateInputValue(vehicle?.insuranceExpiry)}
-            />
-          ) : (
+        {insuranceCover ? (
+          <CoveredDate
+            name="insuranceExpiry"
+            label="Insurance expiry"
+            cover={insuranceCover}
+            manual={effectiveValues?.insuranceExpiry ?? toDateInputValue(vehicle?.insuranceExpiry)}
+          />
+        ) : (
+          <Field label="Insurance expiry" htmlFor="insuranceExpiry">
             <DateInput
               id="insuranceExpiry"
               name="insuranceExpiry"
@@ -215,8 +219,8 @@ export function VehicleForm({
               }
               className={inputClass}
             />
-          )}
-        </Field>
+          </Field>
+        )}
 
         <Field label="Next service due" htmlFor="nextServiceDue">
           <DateInput

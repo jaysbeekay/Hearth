@@ -7,11 +7,12 @@
 //   - linked to the Vehicle (`vehicleId`),
 //   - in a Covering Category: CAR_INSURANCE covers `insuranceExpiry`,
 //     REGISTRATION covers `regoExpiry`,
-//   - not Cancelled and not in Trash, and
+//   - not Cancelled, not in Trash and not awaiting review (an unconfirmed
+//     extraction must not take over a date the household typed in), and
 //   - has an end date (without one it supplies nothing, so the manual date stays).
 // When several Contracts Cover the same field, the one ending last wins (a
 // renewal added before the old policy ran out); ties go to the one entered
-// last. When the Covering Contract is cancelled, trashed, unlinked,
+// last, and the others keep their own Reminders. When the Covering Contract is cancelled, trashed, unlinked,
 // re-categorised or loses its end date, the Vehicle's own manual date takes
 // over again: nothing is ever written to the Vehicle, so nothing is lost.
 //
@@ -19,7 +20,7 @@
 // it. The standalone shell keeps a hand-ported copy (ios-shell/www/app.js).
 
 import type { ContractCategory } from "@/generated/prisma/enums";
-import type { VehicleDueField } from "@/lib/duePolicy";
+import { calendarDayOf, type CalendarDay, type VehicleDueField } from "@/lib/duePolicy";
 
 type CoverableField = Extract<VehicleDueField, "regoExpiry" | "insuranceExpiry">;
 
@@ -43,6 +44,8 @@ export interface CoveringContractRow {
   provider: string;
   category: string;
   status: string;
+  /** Still awaiting review of its extracted details. */
+  extractionPending: boolean;
   endDate: Date | null;
   createdAt: Date;
   deletedAt: Date | null;
@@ -57,6 +60,7 @@ export const COVERING_CONTRACTS = {
   where: {
     deletedAt: null,
     status: { not: "CANCELLED" as const },
+    extractionPending: false,
     endDate: { not: null },
     category: { in: COVERING_CATEGORIES },
   },
@@ -66,6 +70,7 @@ export const COVERING_CONTRACTS = {
     provider: true,
     category: true,
     status: true,
+    extractionPending: true,
     endDate: true,
     createdAt: true,
     deletedAt: true,
@@ -78,6 +83,8 @@ export interface VehicleCover {
   contract: { id: string; title: string; provider: string };
   /** The Contract's end date: the Vehicle's date while it Covers. */
   date: Date;
+  /** How many Contracts Cover this date; the latest-ending one is `contract`. */
+  count: number;
 }
 
 /** Whether a linked Contract Covers its Vehicle's date (see the rule above). */
@@ -85,6 +92,7 @@ export function isCovering(contract: CoveringContractRow): boolean {
   return (
     contract.deletedAt == null &&
     contract.status !== "CANCELLED" &&
+    !contract.extractionPending &&
     contract.endDate != null &&
     COVERED_FIELD.has(contract.category)
   );
@@ -102,9 +110,11 @@ function compareCovers(a: CoveringContractRow, b: CoveringContractRow): number {
 /** The covers a Vehicle's linked Contracts give it: at most one per date. */
 export function vehicleCovers(contracts: CoveringContractRow[]): VehicleCover[] {
   const winners = new Map<CoverableField, CoveringContractRow>();
+  const counts = new Map<CoverableField, number>();
   for (const contract of contracts) {
     if (!isCovering(contract)) continue;
     const field = coveredFieldOf(contract.category)!;
+    counts.set(field, (counts.get(field) ?? 0) + 1);
     const current = winners.get(field);
     if (!current || compareCovers(contract, current) > 0) winners.set(field, contract);
   }
@@ -112,6 +122,7 @@ export function vehicleCovers(contracts: CoveringContractRow[]): VehicleCover[] 
     field,
     contract: { id: c.id, title: c.title, provider: c.provider },
     date: c.endDate!,
+    count: counts.get(field) ?? 1,
   }));
 }
 
@@ -137,4 +148,31 @@ export function withVehicleCovers<
     covers,
     coveredFields: coveredFieldsOf(covers),
   };
+}
+
+const FIELD_NOUN = new Map<CoverableField, string>([
+  ["regoExpiry", "rego"],
+  ["insuranceExpiry", "insurance"],
+]);
+
+/**
+ * What to tell someone when a Contract stops Covering a date: the Vehicle's
+ * own date applies again, which may be out of date or already past. `formatted`
+ * is the manual date in the viewer's format.
+ */
+export function resumedDateMessage(
+  field: CoverableField,
+  manual: Date | null,
+  today: CalendarDay,
+  formatted: string | null,
+): string {
+  const noun = FIELD_NOUN.get(field) ?? "date";
+  const day = calendarDayOf(manual);
+  if (!day || !formatted) {
+    return `The vehicle has no ${noun} date of its own, so it has no ${noun} reminder until you add one.`;
+  }
+  const tail = day < today
+    ? "That date has already passed, so it will show as overdue until you update it."
+    : "Update it if it's out of date.";
+  return `The vehicle's own ${noun} date, ${formatted}, will apply again. ${tail}`;
 }

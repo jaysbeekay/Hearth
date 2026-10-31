@@ -436,7 +436,7 @@ test.beforeEach(async ({ page }) => {
       // Tenancy edits and deletes land in the rows, so a resync of local
       // Reminders sees them (#388); a deleted contract goes too (#455).
       const rowUpdate = /^UPDATE (rental_agreements|contracts) SET (.+) WHERE id = \?$/i.exec(sql);
-      if (rowUpdate && (rowUpdate[1] === "rental_agreements" || /deleted_at = \?/.test(rowUpdate[2]))) {
+      if (rowUpdate && (rowUpdate[1] === "rental_agreements" || /deleted_at = \?|vehicle_id = \?/.test(rowUpdate[2]))) {
         const table = rowUpdate[1];
         const id = values[values.length - 1];
         const columns = [...rowUpdate[2].matchAll(/(\w+) = \?/g)].map((m) => m[1]);
@@ -448,6 +448,18 @@ test.beforeEach(async ({ page }) => {
           });
           if (row.deleted_at) rowsByTable[table] = rows.filter((candidate) => candidate !== row);
         }
+      }
+      // A saved contract lands in the rows, so the next render reads back what the form wrote (#456).
+      const contractInsert = /^INSERT INTO contracts \(([^)]+)\) VALUES \(([^)]+)\)$/i.exec(sql);
+      if (contractInsert) {
+        const columns = contractInsert[1].split(",").map((column) => column.trim());
+        const placeholders = contractInsert[2].split(",").map((placeholder) => placeholder.trim());
+        let next = 0;
+        const row: Record<string, unknown> = {};
+        columns.forEach((column, index) => {
+          row[column] = placeholders[index] === "?" ? values[next++] : Number(placeholders[index]);
+        });
+        (rowsByTable.contracts as Record<string, unknown>[]).push(row);
       }
       if (/^(UPDATE|DELETE FROM|INSERT( OR REPLACE)? INTO) documents\b/i.test(sql)) applyDocumentStatement(sql, values);
       if (/INSERT OR REPLACE INTO local_profile/i.test(statement)) {
@@ -1028,6 +1040,14 @@ test("standalone vehicle service-due date feeds the detail page, calendar and re
   ).toHaveCount(1);
 });
 
+// #456 - the Category used to be free text; a saved value that isn't a Category survives an edit.
+test("standalone contract form keeps a saved Category that isn't in the list (#456)", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "Contracts" }).click();
+  await page.getByRole("button", { name: /Broadband Plan/ }).click();
+  await page.locator('button[data-form-type="contracts"][data-id]').first().click();
+  await expect(page.locator('select[name="category"]')).toHaveValue("UTILITIES");
+});
+
 // #456 - a Contract that Covers a Vehicle supplies its insurance date, as on the web.
 test("standalone Add insurance opens the contract form linked to the vehicle, and a Covering Contract supplies the date (#456)", async ({ page }) => {
   await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
@@ -1048,22 +1068,6 @@ test("standalone Add insurance opens the contract form linked to the vehicle, an
   expect(insert?.values).toContain("CAR_INSURANCE");
   expect(insert?.values).toContain("vehicle-1");
 
-  // What that save writes, so the shell's cache sees the Covering Contract.
-  await page.evaluate(async () => {
-    const test = (window as Window & { __hearthStandaloneTest?: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest!;
-    test.rowsByTable.contracts.push({
-      id: "contract-cover",
-      title: "Allianz policy",
-      category: "CAR_INSURANCE",
-      provider: "Allianz",
-      end_date: "2099-09-09",
-      status: "ACTIVE",
-      vehicle_id: "vehicle-1",
-      reminder_days_before: "30,14,7,1",
-      updated_at: "2099-01-01T00:00:00.000Z",
-    });
-    await (window as unknown as { loadData: () => Promise<void> }).loadData();
-  });
   await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
   await page.locator('#mobile-view button[data-record-type="vehicles"]').click();
   await page.getByRole("button", { name: /Family Car/ }).click();

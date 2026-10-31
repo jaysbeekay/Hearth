@@ -74,7 +74,7 @@ The general relationship between a Contract or Item and the Vehicle or Property 
 _Avoid_: Attached to, belongs to
 
 **Covers**:
-The narrower case of Linked to where the Contract's end date is the linked Vehicle, Property or Item's expiry, as with insurance, registration or recurring-billed device cover. The covered thing shows that end date and has no expiry or Reminders of its own.
+The narrower case of Linked to where the Contract's end date is the linked Vehicle, Property or Item's expiry, as with insurance, registration or recurring-billed device cover. The covered thing shows that end date and has no expiry or Reminders of its own. A Contract Covers only while it is not Cancelled, not in Trash, not awaiting review and has an end date; when several Cover the same date the one ending last sets it and the others keep their own Reminders. When a Contract stops Covering, the thing's own manual date applies again, which may be out of date or already past, so the Contract page says which date resumes and links to edit it.
 
 **Tenancy**:
 A Property the household lets out to a tenant, with its rent, bond and lease dates. It is income, not a Contract: rent the household pays is a Contract with Category Rental instead.

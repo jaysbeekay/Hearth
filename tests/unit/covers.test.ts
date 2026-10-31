@@ -47,6 +47,7 @@ function row(over: Partial<CoveringContractRow> = {}): CoveringContractRow {
     provider: "Allianz",
     category: "CAR_INSURANCE",
     status: "ACTIVE",
+    extractionPending: false,
     endDate: day("2027-03-01"),
     createdAt: new Date(2026, 0, n),
     deletedAt: null,
@@ -68,6 +69,7 @@ describe("what Covers a Vehicle", () => {
     expect(isCovering(row({ status: "CANCELLED" }))).toBe(false);
     expect(isCovering(row({ deletedAt: new Date() }))).toBe(false);
     expect(isCovering(row({ endDate: null }))).toBe(false);
+    expect(isCovering(row({ extractionPending: true }))).toBe(false);
     expect(isCovering(row({ category: "UTILITY" }))).toBe(false);
   });
 

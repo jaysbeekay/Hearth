@@ -185,7 +185,7 @@ test.describe.serial("Vehicles module", () => {
       await page.waitForURL(/\/vehicles\/(?!new$)[^/]+$/);
 
       await expect(page.getByText("Insurance expiry")).toBeVisible();
-      await expect(page.getByText("Add the policy as a contract to track cost and documents")).toBeVisible();
+      await expect(page.getByText("Add the insurance policy as a contract to track cost and documents.")).toBeVisible();
       await expect(page.getByRole("heading", { name: "Insurance reminder" })).toBeVisible();
     });
 
@@ -207,18 +207,21 @@ test.describe.serial("Vehicles module", () => {
 
     test("the Vehicle shows the date as derived, read-only, with one Reminder stream", async ({ page }) => {
       await page.goto(`/vehicles/${vehicleId}`);
-      await expect(page.getByRole("link", { name: `From ${policyTitle} →` })).toHaveAttribute(
+      await expect(page.getByRole("link", { name: `From ${policyTitle}` })).toHaveAttribute(
         "href",
         `/contracts/${policyId}`,
       );
-      await expect(page.getByText("Add the policy as a contract to track cost and documents")).toHaveCount(0);
+      await expect(page.getByText("Add the insurance policy as a contract to track cost and documents.")).toHaveCount(0);
       // The Contract's Reminders replace the Vehicle's own for this date.
       await expect(page.getByRole("heading", { name: "Insurance reminder" })).toHaveCount(0);
       await expect(page.getByRole("link", { name: "Add insurance" })).toHaveCount(0);
 
+      await page.goto(`/contracts/${policyId}`);
+      await expect(page.getByText("Covers its insurance date")).toBeVisible();
+
       await page.goto(`/vehicles/${vehicleId}/edit`);
       await expect(page.locator("input#insuranceExpiry")).toHaveCount(0);
-      await expect(page.getByRole("link", { name: `From ${policyTitle} →` })).toBeVisible();
+      await expect(page.getByRole("link", { name: `From ${policyTitle}` })).toBeVisible();
     });
 
     test("saving the Vehicle keeps its manual date for when the Contract is cancelled", async ({ page }) => {
@@ -229,11 +232,13 @@ test.describe.serial("Vehicles module", () => {
       await page.goto(`/contracts/${policyId}/edit`);
       await page.selectOption("#status", "CANCELLED");
       await page.locator("main button[type=submit]").click();
-      await page.waitForURL(new RegExp(`/contracts/${policyId}$`));
+      await page.waitForURL(new RegExp(`/contracts/${policyId}(\\?.*)?$`));
+      // The Contract page says which of the Vehicle's own dates applies again.
+      await expect(page.getByText("will apply again")).toBeVisible();
 
       await page.goto(`/vehicles/${vehicleId}`);
-      await expect(page.getByRole("link", { name: `From ${policyTitle} →` })).toHaveCount(0);
-      await expect(page.getByText("Add the policy as a contract to track cost and documents")).toBeVisible();
+      await expect(page.getByRole("link", { name: `From ${policyTitle}` })).toHaveCount(0);
+      await expect(page.getByText("Add the insurance policy as a contract to track cost and documents.")).toBeVisible();
       await expect(page.getByRole("heading", { name: "Insurance reminder" })).toBeVisible();
       await expect(page.getByRole("link", { name: "Add insurance" })).toBeVisible();
     });
@@ -250,7 +255,7 @@ test.describe.serial("Vehicles module", () => {
 
       await page.goto(`/vehicles/${vehicleId}`);
       await expect(page.getByText("Rego expiry")).toBeVisible();
-      await expect(page.getByRole("link", { name: "From Covers E2E Rego →" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "From Covers E2E Rego" })).toBeVisible();
     });
   });
 

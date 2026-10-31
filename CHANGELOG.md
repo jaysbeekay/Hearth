@@ -67,6 +67,14 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   them), calendar feeds leave the Vehicle's duplicate event out, and the
   standalone shell follows the same rules, with a Category picker, a vehicle
   link on its contract form and the same shortcuts. No schema migration.
+  A Contract awaiting review never Covers, so an unconfirmed extraction can't
+  replace a typed-in date. When a Contract is cancelled, unlinked or
+  re-categorised, its page says which of the Vehicle's own dates applies
+  again (and when it has already passed). Contract pages and cards say
+  Covers the Vehicle, search finds registration Contracts for rego and
+  registration, the vehicle records export gains the effective and own
+  rego and insurance dates, and the Assistant's needs-attention vehicle list
+  now uses the same Due policy as What's due.
 
 - **Licence: AGPL-3.0-only.** Hearth now has a `LICENSE` file (the GNU Affero
   General Public License v3.0), a `license` field in `package.json`, and an

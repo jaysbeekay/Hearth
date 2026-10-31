@@ -108,11 +108,14 @@ export async function queryVehicles(attentionOnly?: boolean) {
       insuranceExpiry: true,
       nextServiceDue: true,
       notes: true,
+      reminderDaysBefore: true,
       contracts: COVERING_CONTRACTS,
     },
   });
+  const ctx = await getDueContext();
   // #456 - a Covering Contract supplies the rego or insurance date, so these
   // tools report the same date the Vehicle page does, and which Contract.
+  const dueIds = new Set(vehicles.filter((raw) => vehicleDue(raw, ctx).some(isDue)).map((v) => v.id));
   const withDays = vehicles.map((raw) => {
     const { covers, regoExpiry, insuranceExpiry, nextServiceDue, ...v } = withVehicleCovers(raw);
     const coveredBy = (field: "regoExpiry" | "insuranceExpiry") => {
@@ -120,6 +123,7 @@ export async function queryVehicles(attentionOnly?: boolean) {
       return cover ? { contractId: cover.contract.id, title: cover.contract.title } : null;
     };
     return {
+      needsAttention: dueIds.has(v.id),
       id: v.id,
       label: v.label,
       make: v.make,
@@ -138,10 +142,9 @@ export async function queryVehicles(attentionOnly?: boolean) {
     };
   });
   if (!attentionOnly) return withDays;
-  const needsAttention = (days: number | null) => days != null && days <= 30;
-  return withDays.filter(
-    (v) => needsAttention(v.daysUntilRegoExpiry) || needsAttention(v.daysUntilInsuranceExpiry),
-  );
+  // The same Due policy whatsDue and Needs attention use: a date that has passed
+  // or is inside the Vehicle's window, and never a Covered date (the Contract's to report).
+  return withDays.filter((v) => v.needsAttention);
 }
 
 export async function queryProperties() {
