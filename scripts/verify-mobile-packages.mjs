@@ -302,9 +302,13 @@ for (const marker of [
   assertIncludes(iosICloudPlugin, marker, "iOS iCloud backup plugin");
 }
 const iosEntitlements = text(join(root, "ios/App/App/App.entitlements"));
-assertIncludes(iosEntitlements, "<string>iCloud.com.hearthapp.app</string>", "iOS entitlements");
-assertIncludes(iosEntitlements, "<string>CloudDocuments</string>", "iOS entitlements");
-assertIncludes(text(join(root, "ios/App/App/Info.plist")), "<key>iCloud.com.hearthapp.app</key>", "iOS Info.plist NSUbiquitousContainers");
+for (const marker of ["com.apple.developer.icloud-container-identifiers", "com.apple.developer.icloud-services", "CloudDocuments", "iCloud.com.hearthapp.app"]) {
+  assertIncludes(iosEntitlements, marker, "iOS entitlements");
+}
+const iosInfoPlist = text(join(root, "ios/App/App/Info.plist"));
+for (const marker of ["NSUbiquitousContainers", "iCloud.com.hearthapp.app"]) {
+  assertIncludes(iosInfoPlist, marker, "iOS Info.plist");
+}
 assertIncludes(text(join(root, "ios/App/App.xcodeproj/project.pbxproj")), "CODE_SIGN_ENTITLEMENTS = App/App.entitlements;", "iOS project");
 
 const privacyManifest = text(join(root, "ios/App/App/PrivacyInfo.xcprivacy"));

@@ -66,15 +66,21 @@
     }
   }
 
+  // WebCrypto failures surface as a plain DOMException; each async step below
+  // turns them into a message the restore/export screen can show.
   async function deriveKey(password, salt, iterations) {
-    const material = await subtle().importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveKey"]);
-    return subtle().deriveKey(
-      { name: "PBKDF2", hash: "SHA-256", salt, iterations },
-      material,
-      { name: "AES-GCM", length: 256 },
-      false,
-      ["encrypt", "decrypt"],
-    );
+    try {
+      const material = await subtle().importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveKey"]);
+      return await subtle().deriveKey(
+        { name: "PBKDF2", hash: "SHA-256", salt, iterations },
+        material,
+        { name: "AES-GCM", length: 256 },
+        false,
+        ["encrypt", "decrypt"],
+      );
+    } catch (error) {
+      throw new Error(`Could not prepare backup encryption: ${error?.message ?? error}`);
+    }
   }
 
   function aad(headerLine, index) {
@@ -102,9 +108,14 @@
       if (ended) throw new Error("Backup already finished.");
       index += 1;
       const iv = globalThis.crypto.getRandomValues(new Uint8Array(IV_BYTES));
-      const ciphertext = new Uint8Array(
-        await subtle().encrypt({ name: "AES-GCM", iv, additionalData: aad(headerLine, index) }, key, encoder.encode(JSON.stringify(record))),
-      );
+      let ciphertext;
+      try {
+        ciphertext = new Uint8Array(
+          await subtle().encrypt({ name: "AES-GCM", iv, additionalData: aad(headerLine, index) }, key, encoder.encode(JSON.stringify(record))),
+        );
+      } catch (error) {
+        throw new Error(`Could not encrypt the backup: ${error?.message ?? error}`);
+      }
       const framed = new Uint8Array(IV_BYTES + ciphertext.length);
       framed.set(iv, 0);
       framed.set(ciphertext, IV_BYTES);
@@ -208,7 +219,13 @@
   async function* readLines(source, sliceBytes = 4 * 1024 * 1024) {
     let carry = "";
     for (let offset = 0; offset < source.size; offset += sliceBytes) {
-      const text = carry + (await source.readSlice(offset, Math.min(offset + sliceBytes, source.size)));
+      let slice;
+      try {
+        slice = await source.readSlice(offset, Math.min(offset + sliceBytes, source.size));
+      } catch (error) {
+        throw new Error(`Could not read the backup file: ${error?.message ?? error}`);
+      }
+      const text = carry + slice;
       const lines = text.split("\n");
       carry = lines.pop() ?? "";
       for (const line of lines) if (line.length > 0) yield line;
