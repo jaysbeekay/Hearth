@@ -49,7 +49,7 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 - iOS release pipeline: `ios-testflight.yml` builds, signs and uploads the
   Capacitor shell to TestFlight on every `v*` tag, setting the app version
-  from the tag and a unique build number from the run. Setup and required
+  from the tag and a UTC-timestamp build number. Setup and required
   secrets are in `docs/deployment/ios-testflight.md`.
 - **Archive a Vehicle or Property you no longer have (#355).** Archive (in
   the record's More actions menu, with Undo) marks a Vehicle as sold or a

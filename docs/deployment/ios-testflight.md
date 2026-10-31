@@ -12,9 +12,10 @@ App Store distribution and uploads it to TestFlight.
 | Manual run against a branch | Yes | Only if **Upload to TestFlight** is ticked |
 
 A tag created by running `release.yml` from the Actions tab does not trigger
-push workflows (GitHub doesn't fire them for refs its own token creates), so in
-that case run this workflow manually against the new tag, as with
-`docker-publish.yml`.
+push workflows (GitHub doesn't fire them for refs its own token creates). Until
+`release.yml` dispatches this workflow itself, run it manually against the new
+tag (Actions → Build iOS and upload to TestFlight → Run workflow, "Use
+workflow from" = the tag) after a dispatched release.
 
 The signed IPA is also kept as a workflow artifact for 30 days. It is not
 attached to the public GitHub Release: an App Store–signed IPA can't be
@@ -30,10 +31,24 @@ workflow stamps the App target's Release configuration at build time only:
   (`v0.20.0-rc.1` → `0.20.0`), because Apple accepts at most three
   dot-separated integers. On a manual run against a branch it comes from
   `package.json`.
-- **Build** (`CFBundleVersion`, `CURRENT_PROJECT_VERSION`):
-  `<run number>.<run attempt>`, e.g. `57.1`. It always increases, so re-running
-  a failed upload or re-cutting a tag never collides with a build App Store
-  Connect has already seen.
+- **Build** (`CFBundleVersion`, `CURRENT_PROJECT_VERSION`): a UTC timestamp,
+  `<YYYYMMDD>.<HHMMSS>` with the time's leading zeros dropped, e.g.
+  `20261031.140501` or `20261031.90501`. It only ever increases, so re-running
+  a failed upload, moving or re-cutting a tag, or a manual run never collides
+  with or sorts below a build App Store Connect has already seen. A build
+  uploaded by hand from Xcode with a small number (e.g. `1`) sorts below these
+  and doesn't conflict, but don't hand-upload a build number above today's
+  timestamp.
+
+### Pre-release tags
+
+Every `v*` tag is uploaded as a new build of its base version:
+`v0.20.0-rc.1`, `v0.20.0-rc.2` and `v0.20.0` all become builds of 0.20.0, in
+that order. That is how TestFlight is meant to be used: testers get each
+candidate, and you submit the build from the final tag for App Store review.
+Once a version has been released on the App Store, App Store Connect rejects
+further uploads of it, so a late `-rc` of an already-released version fails at
+the upload step. Bump the version instead.
 
 ## Signing
 
@@ -48,7 +63,9 @@ imported into a temporary keychain that is deleted at the end of the job.
 
 Add these under **Settings → Secrets and variables → Actions → New repository
 secret** in `jaysbeekay/Hearth`. Never paste their values into issues, PRs or
-chat. The workflow fails early with a list of missing names if any are absent.
+chat. The workflow fails before doing any work if any are absent, and fails
+right after importing them if the certificate doesn't match the profile, the
+profile has expired, or the profile is missing an entitlement the app declares.
 
 | Secret | What it is |
 | --- | --- |
@@ -102,6 +119,12 @@ whenever the certificate is renewed (yearly) and update both secrets.
 4. `base64 -i AuthKey_XXXXXXXXXX.p8 | pbcopy` into `ASC_API_KEY_P8_BASE64`.
 
 ## Before the first upload
+
+- **Prove the pipeline once.** After adding the secrets and merging, run the
+  workflow manually from `main` with **Upload to TestFlight** ticked. That
+  exercises the macOS runner, archive, signing, export, upload and App Store
+  Connect processing end to end with the `package.json` version, without
+  cutting a tag. Don't rely on the first real release tag to find problems.
 
 - The app record for `com.hearthapp.app` must exist in App Store Connect (My
   Apps → **+** → New App). Uploads to a bundle ID with no app record fail.

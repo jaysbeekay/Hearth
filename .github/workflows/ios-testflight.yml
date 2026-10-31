@@ -28,7 +28,7 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 45
     env:
-      HAS_SIGNING: ${{ secrets.IOS_DIST_CERT_P12_BASE64 != '' && secrets.IOS_PROVISIONING_PROFILE_BASE64 != '' }}
+      HAS_SIGNING: ${{ secrets.IOS_DIST_CERT_P12_BASE64 != '' && secrets.IOS_DIST_CERT_PASSWORD != '' && secrets.IOS_PROVISIONING_PROFILE_BASE64 != '' }}
       HAS_ASC_KEY: ${{ secrets.ASC_API_KEY_P8_BASE64 != '' && secrets.ASC_API_KEY_ID != '' && secrets.ASC_API_ISSUER_ID != '' }}
       SHOULD_UPLOAD: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.upload == true }}
       TEAM_ID: NANJZZ9DQR
@@ -51,49 +51,6 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Set up Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 22
-
-      - name: Show Xcode version
-        run: xcodebuild -version
-
-      - name: Install dependencies
-        run: npm ci
-
-      # Copies ios-shell/www into ios/App/App/public (gitignored) and
-      # regenerates CapApp-SPM's plugin list.
-      - name: Sync Capacitor iOS project
-        run: npx cap sync ios
-
-      - name: Resolve version and build number
-        id: version
-        run: |
-          # CFBundleShortVersionString comes from the tag (vX.Y.Z), or from
-          # package.json on a manual run against a branch. Apple only accepts
-          # up to three dot-separated integers, so a pre-release suffix such
-          # as -rc.1 is dropped.
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            RAW="${GITHUB_REF_NAME#v}"
-          else
-            RAW="$(node -p "require('./package.json').version")"
-          fi
-          VERSION="${RAW%%-*}"
-          VERSION="${VERSION%%+*}"
-          if ! [[ "$VERSION" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]]; then
-            echo "::error::'$RAW' does not give a valid iOS marketing version." >&2
-            exit 1
-          fi
-          # CFBundleVersion must be unique per marketing version and never go
-          # backwards. The workflow run number satisfies both and survives a
-          # re-tag or a re-run of a failed upload (run_attempt is folded in so
-          # a re-run doesn't reuse a number App Store Connect already saw).
-          BUILD="${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "build=$BUILD" >> "$GITHUB_OUTPUT"
-          echo "Marketing version $VERSION, build $BUILD"
 
       - name: Install distribution certificate and provisioning profile
         id: signing
@@ -130,6 +87,38 @@ jobs:
             exit 1
           fi
 
+          # Catch certificate/profile/entitlement mismatches here rather than
+          # deep inside xcodebuild: the profile must be unexpired, must embed
+          # the imported certificate, and must grant every entitlement key the
+          # app declares (e.g. iCloud containers from App.entitlements).
+          export IDENTITIES="$(security find-identity -v -p codesigning "$KEYCHAIN")"
+          echo "$IDENTITIES"
+          python3 - "$RUNNER_TEMP/profile.plist" "ios/App/App/App.entitlements" <<'PY'
+          import datetime, hashlib, os, plistlib, sys
+          profile = plistlib.load(open(sys.argv[1], "rb"))
+          errors = []
+          if profile["ExpirationDate"].replace(tzinfo=None) <= datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None):
+              errors.append(f"profile expired on {profile['ExpirationDate']:%Y-%m-%d}")
+          ids = os.environ["IDENTITIES"].upper()
+          certs = [hashlib.sha1(c).hexdigest().upper() for c in profile["DeveloperCertificates"]]
+          if not any(c in ids for c in certs):
+              errors.append("the .p12 certificate is not one of the profile's certificates; regenerate the profile with this certificate")
+          granted = profile["Entitlements"]
+          if os.path.exists(sys.argv[2]):
+              wanted = plistlib.load(open(sys.argv[2], "rb"))
+              for key, value in wanted.items():
+                  if key not in granted:
+                      errors.append(f"profile lacks entitlement {key}")
+                  elif isinstance(value, list):
+                      have = granted[key] if isinstance(granted[key], list) else [granted[key]]
+                      for item in value:
+                          if item not in have and "*" not in have:
+                              errors.append(f"profile's {key} does not include {item}")
+          for e in errors:
+              print(f"::error::{e}")
+          sys.exit(1 if errors else 0)
+          PY
+
           PROFILES_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
           mkdir -p "$PROFILES_DIR"
           cp "$RUNNER_TEMP/dist.mobileprovision" "$PROFILES_DIR/$PROFILE_UUID.mobileprovision"
@@ -137,6 +126,52 @@ jobs:
           echo "keychain=$KEYCHAIN" >> "$GITHUB_OUTPUT"
           echo "profile_uuid=$PROFILE_UUID" >> "$GITHUB_OUTPUT"
           echo "Installed profile '$PROFILE_NAME' ($PROFILE_UUID)"
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Copies ios-shell/www into ios/App/App/public (gitignored) and
+      # regenerates CapApp-SPM's plugin list.
+      - name: Sync Capacitor iOS project
+        run: npx cap sync ios
+
+      - name: Resolve version and build number
+        id: version
+        run: |
+          # CFBundleShortVersionString comes from the tag (vX.Y.Z), or from
+          # package.json on a manual run against a branch. Apple only accepts
+          # up to three dot-separated integers, so a pre-release suffix such
+          # as -rc.1 is dropped.
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            RAW="${GITHUB_REF_NAME#v}"
+          else
+            RAW="$(node -p "require('./package.json').version")"
+          fi
+          VERSION="${RAW%%-*}"
+          VERSION="${VERSION%%+*}"
+          if ! [[ "$VERSION" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]]; then
+            echo "::error::'$RAW' does not give a valid iOS marketing version." >&2
+            exit 1
+          fi
+          # CFBundleVersion must be unique per marketing version and higher
+          # than any build already uploaded for it. A UTC timestamp,
+          # <YYYYMMDD>.<HHMMSS without leading zeros>, keeps increasing across
+          # re-runs, re-tags, workflow renames and any other pipeline that
+          # uses the same scheme, without querying App Store Connect. Both
+          # components stay well under 2^31.
+          TS="$(date -u +%Y%m%d%H%M%S)"
+          BUILD="${TS:0:8}.$((10#${TS:8:6}))"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "build=$BUILD" >> "$GITHUB_OUTPUT"
+          echo "Marketing version $VERSION, build $BUILD"
 
       # The committed project uses automatic signing with "Apple Development"
       # for local work. For CI, switch only the App target's Release
