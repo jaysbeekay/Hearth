@@ -27,11 +27,17 @@ jobs:
 
     steps:
 
+      # Event values reach the shell through env, never as expressions inside
+      # run:, so no comment or title text can be spliced into a command.
       - name: Log trigger
+        env:
+          LOGIN: ${{ github.event.comment.user.login }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.issue.number }}
         run: |
-          echo "Triggered by: ${{ github.event.comment.user.login }}"
-          echo "Repo: ${{ github.repository }}"
-          echo "Issue/PR: ${{ github.event.issue.number }}"
+          echo "Triggered by: $LOGIN"
+          echo "Repo: $REPO"
+          echo "Issue/PR: $NUMBER"
 
       # Acknowledge the request straight away with a 👀 reaction on the
       # @codebot comment. continue-on-error so a failed reaction can never
@@ -40,9 +46,11 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          COMMENT_ID: ${{ github.event.comment.id }}
         run: |
           gh api -X POST \
-            "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" \
+            "repos/$REPO/issues/comments/$COMMENT_ID/reactions" \
             -f content=eyes
 
       - name: Build curated payload
@@ -78,6 +86,8 @@ jobs:
       - name: Sign and send curated event to Hermes
         env:
           CODEBOT_SECRET: ${{ secrets.CODEBOT_SECRET }}
+          AI_WEBHOOK_URL: ${{ secrets.AI_WEBHOOK_URL }}
+          COMMENT_ID: ${{ github.event.comment.id }}
         run: |
           # payload.json was written with printf (no trailing newline) so the
           # bytes we hash below are byte-for-byte identical to what curl sends.
@@ -98,6 +108,6 @@ jobs:
             -H "Content-Type: application/json" \
             -H "X-Webhook-Signature-V2: $SIGNATURE" \
             -H "X-Webhook-Timestamp: $TIMESTAMP" \
-            -H "X-Request-ID: codebot-${{ github.event.comment.id }}" \
+            -H "X-Request-ID: codebot-$COMMENT_ID" \
             --data-binary @payload.json \
-            "${{ secrets.AI_WEBHOOK_URL }}"
+            "$AI_WEBHOOK_URL"
