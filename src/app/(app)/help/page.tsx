@@ -3,13 +3,13 @@ import { buttonClass } from "@/lib/buttonStyles";
 import { FAQ_SECTIONS, splitFaqAnswer } from "@/lib/help/faq";
 import { FOOTER_NAV } from "@/components/nav-items";
 import { cardClass } from "@/lib/ui";
-import { Card } from "@/components/ui";
+import { Card, PageShell } from "@/components/ui";
 
 export const metadata: Metadata = { title: FOOTER_NAV.help.label };
 
 export default function HelpPage() {
   return (
-    <div className="max-w-3xl space-y-10">
+    <PageShell width="list">
       <div>
         <h1 className="text-2xl font-medium">{FOOTER_NAV.help.label}</h1>
         <p className="mt-1 text-sm text-muted">
@@ -30,7 +30,7 @@ export default function HelpPage() {
 
       {FAQ_SECTIONS.map((section) => (
         <div key={section.heading} className="space-y-4">
-          <h2 className="border-b border-border pb-2 text-sm font-medium text-muted">
+          <h2 className="mb-3 font-medium">
             {section.heading}
           </h2>
           <div className="space-y-2">
@@ -75,6 +75,6 @@ export default function HelpPage() {
           Report a bug or suggestion
         </a>
       </Card>
-    </div>
+    </PageShell>
   );
 }

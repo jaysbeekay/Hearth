@@ -20,7 +20,7 @@ import { MODULE_REGISTRY } from "@/lib/modules/registry";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
-import { Card } from "@/components/ui";
+import { Card, PageShell } from "@/components/ui";
 import { buttonClass } from "@/lib/buttonStyles";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.household.label };
@@ -54,7 +54,7 @@ export default async function HouseholdSettingsPage() {
   const notificationsConfigured = smtpConfigured || ntfyConfigured;
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <PageShell width="form">
       <BackLink {...settingsBackLink(SETTINGS_ROUTES.household)} />
       <div>
         <h1 className="text-2xl font-medium">{SETTINGS_ROUTES.household.label}</h1>
@@ -126,6 +126,6 @@ export default async function HouseholdSettingsPage() {
           choices={householdTimeZoneChoices(householdTimeZone)}
         />
       </Card>
-    </div>
+    </PageShell>
   );
 }

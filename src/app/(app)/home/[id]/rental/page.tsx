@@ -24,7 +24,7 @@ import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { buttonClass } from "@/lib/buttonStyles";
-import { EmptyState, Card, Pill } from "@/components/ui";
+import { EmptyState, Card, Pill, PageShell } from "@/components/ui";
 
 function reconcile(
   periodStart: Date | null,
@@ -117,7 +117,7 @@ export default async function RentalOverviewPage({
   );
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="detail">
       <div>
         <BackLink href={`/home/${property.id}`} label={property.label} />
       </div>
@@ -149,7 +149,7 @@ export default async function RentalOverviewPage({
           {canWrite && (
             <Link
               href={`/home/${property.id}/rental/agreements/new`}
-              className={buttonClass("primary", { className: "mt-4" })}
+              className={buttonClass("secondary", { className: "mt-4" })}
             >
               <Plus size={16} />
               Add tenancy
@@ -166,7 +166,7 @@ export default async function RentalOverviewPage({
             {canWrite && (
               <Link
                 href={`/home/${property.id}/rental/agreements/new`}
-                className={buttonClass("primary")}
+                className={buttonClass("secondary")}
               >
                 <Plus size={16} />
                 New tenancy
@@ -323,7 +323,7 @@ export default async function RentalOverviewPage({
             {canWrite && (
               <Link
                 href={`/home/${property.id}/rental/statements/new`}
-                className={buttonClass("primary")}
+                className={buttonClass("secondary")}
               >
                 <Plus size={16} />
                 Add statement
@@ -463,7 +463,7 @@ export default async function RentalOverviewPage({
           )}
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }
 

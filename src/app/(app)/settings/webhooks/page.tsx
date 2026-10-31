@@ -8,7 +8,7 @@ import { formatTimestamp } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
-import { Card } from "@/components/ui";
+import { Card, PageShell } from "@/components/ui";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.webhooks.label };
 
@@ -29,7 +29,7 @@ export default async function WebhooksPage() {
   ]);
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <PageShell width="form">
       <BackLink {...settingsBackLink(SETTINGS_ROUTES.webhooks)} />
       <h1 className="text-2xl font-medium">{SETTINGS_ROUTES.webhooks.label}</h1>
       <p className="text-sm text-muted">
@@ -97,6 +97,6 @@ export default async function WebhooksPage() {
           </ul>
         )}
       </Card>
-    </div>
+    </PageShell>
   );
 }

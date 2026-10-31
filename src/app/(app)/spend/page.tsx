@@ -12,7 +12,7 @@ import {
 import { buildMonthlyTimeline, buildYearlyTimeline, buildCategoryBreakdown, monthlySpend } from "@/lib/spend";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { refreshFxRates, getFxRateMap, convertAmount } from "@/lib/fx";
-import { Card } from "@/components/ui";
+import { Card, PageShell } from "@/components/ui";
 
 export const metadata: Metadata = { title: "Spending" };
 
@@ -120,7 +120,7 @@ export default async function SpendPage({
   const maxTotal = Math.max(...timeline.map((b) => b.total), 1);
 
   return (
-    <div className="max-w-3xl space-y-8">
+    <PageShell width="list">
       <h1 className="text-2xl font-medium">Spending</h1>
 
       {hasUnconverted && (
@@ -215,7 +215,7 @@ export default async function SpendPage({
       {/* Category breakdown */}
       {categoryBreakdown.length > 0 && (
         <Card as="section">
-          <h2 className="mb-4 font-medium">Recurring cost by category</h2>
+          <h2 className="mb-3 font-medium">Recurring cost by category</h2>
           <div className="space-y-2">
             {categoryBreakdown.map((bucket) => {
               const pct = categoryTotal > 0 ? (bucket.monthlyTotal / categoryTotal) * 100 : 0;
@@ -288,6 +288,6 @@ export default async function SpendPage({
           </div>
         </Card>
       )}
-    </div>
+    </PageShell>
   );
 }

@@ -12,7 +12,7 @@ import { formatTimestamp, ROLE_LABELS } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
-import { Card } from "@/components/ui";
+import { Card, PageShell } from "@/components/ui";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.users.label };
 
@@ -29,7 +29,7 @@ export default async function ManageUsersPage() {
   ]);
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <PageShell width="form">
       <BackLink {...settingsBackLink(SETTINGS_ROUTES.users)} />
       <h1 className="text-2xl font-medium">{SETTINGS_ROUTES.users.label}</h1>
 
@@ -68,6 +68,6 @@ export default async function ManageUsersPage() {
         <h2 className="mb-3 font-medium">Add a household member</h2>
         <CreateUserForm smtpConfigured={smtpConfigured} />
       </Card>
-    </div>
+    </PageShell>
   );
 }

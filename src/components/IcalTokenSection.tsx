@@ -45,7 +45,7 @@ export function IcalTokenSection({ hasToken, appUrl, embedded }: Props) {
 
   return (
     <section className={embedded ? undefined : cardClass()}>
-      <h2 id={embedded ? "calendar-feed-heading" : undefined} className="mb-1 font-medium">
+      <h2 id={embedded ? "calendar-feed-heading" : undefined} className="mb-3 font-medium">
         Calendar feed
       </h2>
       <p className="mb-3 text-sm text-muted">
@@ -87,7 +87,7 @@ export function IcalTokenSection({ hasToken, appUrl, embedded }: Props) {
       <div className="space-y-2">
         <div className="flex flex-wrap gap-2">
           <form action={genAction}>
-            <SubmitButton pendingText="Generating…">
+            <SubmitButton variant="secondary" pendingText="Generating…">
               {active ? "Generate new URL" : "Create calendar feed"}
             </SubmitButton>
           </form>

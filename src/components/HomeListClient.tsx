@@ -12,7 +12,7 @@ import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
 import { useCanWrite } from "@/components/CanWriteProvider";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
-import { Card, EmptyState } from "@/components/ui";
+import { Card, EmptyState, PageShell } from "@/components/ui";
 
 type PropertyWithCount = PropertyModel & { _count: { items: number } };
 
@@ -47,7 +47,7 @@ export function HomeListClient({ properties, archivedProperties = [], taxDeducti
   }, [router]);
 
   return (
-    <div className="space-y-6">
+    <PageShell width="list">
       <ListPageHeader
         title={MODULE_REGISTRY.HOME.label}
         exportPath="/api/export/home"
@@ -109,6 +109,6 @@ export function HomeListClient({ properties, archivedProperties = [], taxDeducti
           </div>
         </details>
       )}
-    </div>
+    </PageShell>
   );
 }

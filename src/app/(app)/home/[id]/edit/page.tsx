@@ -6,7 +6,7 @@ import { PropertyForm } from "@/components/PropertyForm";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
-import { Card } from "@/components/ui";
+import { Card, PageShell } from "@/components/ui";
 
 export default async function EditPropertyPage({
   params,
@@ -23,7 +23,7 @@ export default async function EditPropertyPage({
   const boundAction = updateProperty.bind(null, property.id);
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="form">
       <BackLink href={`/home/${property.id}`} label={property.label} />
       <div>
         <h1 className="text-2xl font-medium">Edit property</h1>
@@ -32,6 +32,6 @@ export default async function EditPropertyPage({
       <Card>
         <PropertyForm action={boundAction} property={property} />
       </Card>
-    </div>
+    </PageShell>
   );
 }

@@ -7,7 +7,7 @@ import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { getReminderConfig } from "@/lib/appSettings";
-import { Card } from "@/components/ui";
+import { Card, PageShell } from "@/components/ui";
 
 export default async function EditRentalAgreementPage({
   params,
@@ -28,7 +28,7 @@ export default async function EditRentalAgreementPage({
   const { defaultDays } = await getReminderConfig();
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="form">
       <div>
         <BackLink href={`/home/${property.id}/rental`} label="Tenancy" />
       </div>
@@ -45,6 +45,6 @@ export default async function EditRentalAgreementPage({
       <Card>
         <RentalAgreementForm action={boundAction} agreement={agreement} defaultReminderDays={defaultDays} />
       </Card>
-    </div>
+    </PageShell>
   );
 }

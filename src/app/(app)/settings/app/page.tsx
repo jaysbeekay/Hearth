@@ -39,7 +39,7 @@ import { getHouseholdReminderHealth } from "@/lib/notifications/health";
 import type { AiProviderId } from "@/lib/ai/types";
 import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
-import { Card } from "@/components/ui";
+import { Card, PageShell } from "@/components/ui";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.app.label };
 
@@ -49,7 +49,7 @@ export const metadata: Metadata = { title: SETTINGS_ROUTES.app.label };
 // the long scroll easier to navigate.
 function CategoryHeading({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="border-b border-border pb-2 text-sm font-medium text-muted">
+    <h2 className="mb-3 font-medium">
       {children}
     </h2>
   );
@@ -102,7 +102,7 @@ export default async function AppSettingsPage() {
   ]);
 
   return (
-    <div className="max-w-2xl space-y-10">
+    <PageShell width="form">
       <div>
         <BackLink {...settingsBackLink(SETTINGS_ROUTES.app)} />
         <h1 className="text-2xl font-medium">{SETTINGS_ROUTES.app.label}</h1>
@@ -282,6 +282,6 @@ export default async function AppSettingsPage() {
           appUrlConfigured={isAppUrlConfigured()}
         />
       </div>
-    </div>
+    </PageShell>
   );
 }

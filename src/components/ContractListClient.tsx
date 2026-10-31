@@ -30,7 +30,7 @@ import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
 import { chipClass } from "@/lib/ui";
-import { EmptyState } from "@/components/ui";
+import { EmptyState, PageShell } from "@/components/ui";
 
 const STATUS_LABELS: Record<string, string> = { ACTIVE: "Active", CANCELLED: "Cancelled" };
 
@@ -133,7 +133,7 @@ export function ContractListClient({
   ];
 
   return (
-    <div className="space-y-6">
+    <PageShell width="list">
       <ListPageHeader
         title="Contracts"
         exportPath="/api/export/contracts"
@@ -262,7 +262,7 @@ export function ContractListClient({
             </p>
             {!filtered && canWrite && (
               <div className="flex flex-wrap items-center justify-center gap-2">
-                <Link href="/contracts/new" className={buttonClass("primary")}>
+                <Link href="/contracts/new" className={buttonClass("secondary")}>
                   <Plus size={16} />
                   Add contract
                 </Link>
@@ -315,6 +315,6 @@ export function ContractListClient({
           )}
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

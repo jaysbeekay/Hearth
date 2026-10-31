@@ -215,7 +215,7 @@ export function TotpSection({ enabled }: { enabled: boolean }) {
         type="button"
         disabled={pending}
         onClick={startSetup}
-        className={buttonClass("primary")}
+        className={buttonClass("secondary")}
       >
         {pending ? "Starting…" : "Enable two-factor authentication"}
       </button>

@@ -56,13 +56,13 @@ export function OnboardingChecklist({
       </button>
 
       <div className="space-y-1">
-        <h2 className="text-base font-medium">Add your first document</h2>
+        <h2 className="font-medium">Add your first document</h2>
         <p className="mx-auto max-w-md text-sm text-muted">
           Drop in a PDF and Hearth fills in the details for you — review and save in seconds.
         </p>
       </div>
       <div className="flex flex-wrap items-center justify-center gap-2">
-        <Link href="/import" className={buttonClass("primary")}>
+        <Link href="/import" className={buttonClass("secondary")}>
           <FileUp size={16} />
           Upload a document
         </Link>

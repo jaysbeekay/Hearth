@@ -89,7 +89,7 @@ export function SmtpForm({
         ) : (
           <span />
         )}
-        <SubmitButton>Save email settings</SubmitButton>
+        <SubmitButton variant="secondary">Save email settings</SubmitButton>
       </div>
     </form>
   );
@@ -152,7 +152,7 @@ export function EmailIngestForm({
         ) : (
           <span />
         )}
-        <SubmitButton>Save email ingestion settings</SubmitButton>
+        <SubmitButton variant="secondary">Save email ingestion settings</SubmitButton>
       </div>
     </form>
   );
@@ -193,7 +193,7 @@ export function NtfyForm({
         ) : (
           <span />
         )}
-        <SubmitButton>Save ntfy settings</SubmitButton>
+        <SubmitButton variant="secondary">Save ntfy settings</SubmitButton>
       </div>
     </form>
   );
@@ -231,7 +231,7 @@ export function OllamaForm({
         ) : (
           <span />
         )}
-        <SubmitButton>Save Ollama settings</SubmitButton>
+        <SubmitButton variant="secondary">Save Ollama settings</SubmitButton>
       </div>
     </form>
   );
@@ -262,7 +262,7 @@ export function BarcodeForm({
       </div>
       <FormMessage error={state?.error} success={state?.success} />
       <div className="flex justify-end">
-        <SubmitButton>Save barcode settings</SubmitButton>
+        <SubmitButton variant="secondary">Save barcode settings</SubmitButton>
       </div>
     </form>
   );
@@ -384,7 +384,7 @@ export function BackupDestinationForm({
 
       <FormMessage error={state?.error} success={state?.success} />
       <div className="flex justify-end">
-        <SubmitButton>Save backup destination</SubmitButton>
+        <SubmitButton variant="secondary">Save backup destination</SubmitButton>
       </div>
     </form>
   );
@@ -426,7 +426,7 @@ export function ScheduleForm({
       </p>
       <FormMessage error={state?.error} success={state?.success} />
       <div className="flex justify-end">
-        <SubmitButton>Save schedule settings</SubmitButton>
+        <SubmitButton variant="secondary">Save schedule settings</SubmitButton>
       </div>
     </form>
   );
@@ -473,7 +473,7 @@ export function HouseholdTimeZoneForm({
       </Field>
       <FormMessage error={state?.error} success={state?.success} />
       <div className="flex justify-end">
-        <SubmitButton>Save timezone</SubmitButton>
+        <SubmitButton variant="secondary">Save timezone</SubmitButton>
       </div>
     </form>
   );
@@ -500,7 +500,7 @@ export function AviationStackForm({
       </Field>
       <FormMessage error={state?.error} success={state?.success} />
       <div className="flex justify-end">
-        <SubmitButton>Save</SubmitButton>
+        <SubmitButton variant="secondary">Save</SubmitButton>
       </div>
     </form>
   );

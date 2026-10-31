@@ -9,6 +9,7 @@ import { DocumentsTabs, DocumentsUploadActions } from "@/components/DocumentsTab
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { PageShell } from "@/components/ui";
 
 export const metadata: Metadata = { title: "Inbox" };
 
@@ -89,7 +90,7 @@ export default async function InboxPage({
   }
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="list">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-medium">Documents</h1>
@@ -144,6 +145,6 @@ export default async function InboxPage({
           )}
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

@@ -20,7 +20,7 @@ import {
   type ListFilters,
 } from "@/lib/recordFilters";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
-import { EmptyState } from "@/components/ui";
+import { EmptyState, PageShell } from "@/components/ui";
 
 type VehicleWithCount = VehicleModel & { _count: { items: number } };
 
@@ -55,7 +55,7 @@ export function VehicleListClient({ vehicles, archivedVehicles = [], filters, co
   }, [router]);
 
   return (
-    <div className="space-y-6">
+    <PageShell width="list">
       <ListPageHeader
         title={MODULE_REGISTRY.VEHICLES.label}
         exportPath="/api/export/vehicles"
@@ -140,6 +140,6 @@ export function VehicleListClient({ vehicles, archivedVehicles = [], filters, co
           </div>
         </details>
       )}
-    </div>
+    </PageShell>
   );
 }

@@ -173,7 +173,7 @@ export function SignOutButton({
         labelledBy="signout-unsynced-title"
         describedBy="signout-unsynced-text"
       >
-        <h2 id="signout-unsynced-title" className="text-base font-medium">
+        <h2 id="signout-unsynced-title" className="font-medium">
           {unknown ? "Couldn't check for unsynced changes" : "Unsynced changes"}
         </h2>
         <p id="signout-unsynced-text" className="mt-2 text-sm text-foreground">

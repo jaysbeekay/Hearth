@@ -7,6 +7,7 @@ import { InventoryItemForm } from "@/components/InventoryItemForm";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { PageShell } from "@/components/ui";
 
 export const metadata: Metadata = { title: "Add Item" };
 
@@ -21,7 +22,7 @@ export default async function NewInventoryItemPage() {
   });
 
   return (
-    <div className="max-w-xl space-y-6">
+    <PageShell width="form">
       <div>
         <BackLink href="/inventory" label="Inventory" />
       </div>
@@ -37,6 +38,6 @@ export default async function NewInventoryItemPage() {
         </p>
       </div>
       <InventoryItemForm action={createInventoryItem} products={products} />
-    </div>
+    </PageShell>
   );
 }

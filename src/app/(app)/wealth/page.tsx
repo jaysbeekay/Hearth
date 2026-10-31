@@ -14,7 +14,7 @@ import type { ModuleKey } from "@/lib/modules/registry";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { buttonClass } from "@/lib/buttonStyles";
-import { Banner, Card, EmptyState } from "@/components/ui";
+import { Banner, Card, EmptyState, PageShell } from "@/components/ui";
 
 export const metadata: Metadata = { title: "Wealth" };
 
@@ -55,7 +55,7 @@ export default async function WealthPage() {
   }
 
   return (
-    <div className="max-w-4xl space-y-8">
+    <PageShell width="list">
       <ListPageHeader title="Wealth" exportPath="/api/export/wealth" action={headerAction} />
 
       {data.propertyStale && enabledModules.has("HOME") && (
@@ -141,6 +141,6 @@ export default async function WealthPage() {
           )}
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

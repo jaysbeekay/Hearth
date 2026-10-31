@@ -20,7 +20,7 @@ import { formatTimestamp, humanFileSize } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
-import { Card } from "@/components/ui";
+import { Card, PageShell } from "@/components/ui";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.backups.label };
 
@@ -57,7 +57,7 @@ export default async function BackupsPage() {
   ]);
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <PageShell width="form">
       <BackLink {...settingsBackLink(SETTINGS_ROUTES.backups)} />
       <h1 className="text-2xl font-medium">{SETTINGS_ROUTES.backups.label}</h1>
 
@@ -151,6 +151,6 @@ export default async function BackupsPage() {
           </ul>
         )}
       </Card>
-    </div>
+    </PageShell>
   );
 }

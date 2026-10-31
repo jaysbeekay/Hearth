@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { buttonClass } from "@/lib/buttonStyles";
+import { PageShell } from "@/components/ui";
 
 export default function RootError({
   error,
@@ -12,7 +13,7 @@ export default function RootError({
 }) {
   return (
     <div className="flex flex-1 items-center justify-center px-4 py-12">
-      <div className="w-full max-w-sm space-y-6 text-center">
+      <PageShell width="auth" className="text-center">
         <div className="flex flex-col items-center gap-2">
           <h1 className="text-2xl font-medium">Something went wrong</h1>
           <p className="text-sm text-muted">
@@ -34,7 +35,7 @@ export default function RootError({
             Back to Hearth
           </Link>
         </div>
-      </div>
+      </PageShell>
     </div>
   );
 }

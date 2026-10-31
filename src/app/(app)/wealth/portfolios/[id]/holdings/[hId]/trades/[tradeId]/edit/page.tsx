@@ -8,7 +8,7 @@ import { isCryptoHolding } from "@/lib/priceSource";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
-import { Card } from "@/components/ui";
+import { Card, PageShell } from "@/components/ui";
 
 export const metadata: Metadata = { title: "Edit Trade" };
 
@@ -37,7 +37,7 @@ export default async function EditTradePage({
   const action = updateTrade.bind(null, holdingId, tradeId);
 
   return (
-    <div className="max-w-xl space-y-6">
+    <PageShell width="form">
       <div>
         <BackLink href={`/wealth/portfolios/${portfolioId}/holdings/${holdingId}`} label={trade.holding.ticker} />
         <h1 className="mt-1 text-2xl font-medium">Edit trade</h1>
@@ -45,6 +45,6 @@ export default async function EditTradePage({
       <Card>
         <TradeForm action={action} trade={trade} ticker={trade.holding.ticker} lookUpMarketPrice={!isCryptoHolding(trade.holding)} defaultCurrency={trade.holding.portfolio.currency} />
       </Card>
-    </div>
+    </PageShell>
   );
 }

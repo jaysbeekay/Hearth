@@ -31,7 +31,7 @@ export default async function AssistantPage({
     const isAdmin = session.user.role === "ADMIN";
     return (
       <EmptyState className="flex flex-col items-center justify-center gap-3">
-        <h1 className="text-base font-medium">Assistant not configured</h1>
+        <h1 className="text-2xl font-medium">Assistant not configured</h1>
         <p className="max-w-sm text-sm text-muted">
           {isAdmin
             ? "Bring your own AI provider key to enable an assistant that can answer questions about your household's contracts, warranties, trips, vehicles, properties, inventory, and wealth."

@@ -47,7 +47,7 @@ import { BackLink } from "@/components/BackLink";
 import { ReminderHealthCard } from "@/components/ReminderHealthCard";
 import { getReminderHealth } from "@/lib/notifications/health";
 import { buttonClass } from "@/lib/buttonStyles";
-import { Pill, Card, EmptyState, Banner } from "@/components/ui";
+import { Pill, Card, EmptyState, Banner, PageShell } from "@/components/ui";
 
 const ITEM_ICONS: Record<string, LucideIcon> = {
   MAINTENANCE: Wrench,
@@ -121,7 +121,7 @@ export default async function PropertyDetailPage({
   });
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="detail">
       <div>
         <BackLink href="/home" label="Properties" />
       </div>
@@ -213,7 +213,7 @@ export default async function PropertyDetailPage({
 
       {property.notes && (
         <Card>
-          <h2 className="mb-2 font-medium">Notes</h2>
+          <h2 className="mb-3 font-medium">Notes</h2>
           <p className="whitespace-pre-wrap text-sm text-foreground">{property.notes}</p>
         </Card>
       )}
@@ -224,7 +224,7 @@ export default async function PropertyDetailPage({
           {canWrite && (
             <Link
               href={`/home/${property.id}/items/new`}
-              className={buttonClass("primary", { className: "whitespace-nowrap" })}
+              className={buttonClass("secondary", { className: "whitespace-nowrap" })}
             >
               <Plus size={16} />
               Add maintenance record
@@ -463,6 +463,6 @@ export default async function PropertyDetailPage({
         updatedAt={property.updatedAt}
         memberCount={memberCount}
       />
-    </div>
+    </PageShell>
   );
 }

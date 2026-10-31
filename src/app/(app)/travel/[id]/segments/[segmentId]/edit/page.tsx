@@ -6,7 +6,7 @@ import { TripSegmentForm } from "@/components/TripSegmentForm";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
-import { Card } from "@/components/ui";
+import { Card, PageShell } from "@/components/ui";
 
 export default async function EditTripSegmentPage({
   params,
@@ -26,7 +26,7 @@ export default async function EditTripSegmentPage({
   const boundAction = updateTripSegment.bind(null, id, segmentId);
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="form">
       <BackLink href={`/travel/${id}`} label={segment.trip.title} />
       <div>
         <h1 className="text-2xl font-medium">Edit segment</h1>
@@ -35,6 +35,6 @@ export default async function EditTripSegmentPage({
       <Card>
         <TripSegmentForm action={boundAction} segment={segment} />
       </Card>
-    </div>
+    </PageShell>
   );
 }

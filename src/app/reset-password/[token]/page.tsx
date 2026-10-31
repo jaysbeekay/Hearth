@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { hashToken } from "@/lib/crypto";
 import { ResetPasswordForm } from "@/components/ResetPasswordForm";
 import { Card } from "@/components/ui";
+import { PageShell } from "@/components/ui";
 
 export const metadata: Metadata = { title: "Reset password" };
 export const dynamic = "force-dynamic";
@@ -27,7 +28,7 @@ export default async function ResetPasswordPage({
 
   return (
     <div className="flex flex-1 items-center justify-center px-4 py-12">
-      <div className="w-full max-w-sm space-y-6">
+      <PageShell width="auth">
         <div className="flex flex-col items-center gap-2 text-center">
           <h1 className="text-2xl font-medium">Choose a new password</h1>
           {!valid && (
@@ -48,7 +49,7 @@ export default async function ResetPasswordPage({
             </Link>
           </p>
         )}
-      </div>
+      </PageShell>
     </div>
   );
 }

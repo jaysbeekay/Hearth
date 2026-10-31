@@ -35,7 +35,7 @@ import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { buttonClass } from "@/lib/buttonStyles";
-import { Card, EmptyState } from "@/components/ui";
+import { Card, EmptyState, PageShell } from "@/components/ui";
 
 const ITEM_ICONS: Record<string, LucideIcon> = {
   SERVICE: Wrench,
@@ -97,7 +97,7 @@ export default async function VehicleDetailPage({
   });
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="detail">
       <div>
         <BackLink href="/vehicles" label="Vehicles" />
       </div>
@@ -255,7 +255,7 @@ export default async function VehicleDetailPage({
           {canWrite && (
             <Link
               href={`/vehicles/${vehicle.id}/items/new`}
-              className={buttonClass("primary")}
+              className={buttonClass("secondary")}
             >
               <Plus size={16} />
               Add service record
@@ -349,6 +349,6 @@ export default async function VehicleDetailPage({
         updatedAt={vehicle.updatedAt}
         memberCount={memberCount}
       />
-    </div>
+    </PageShell>
   );
 }

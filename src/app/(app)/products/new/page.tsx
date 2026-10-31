@@ -8,7 +8,7 @@ import { isBarcodeLookupConfigured } from "@/lib/appSettings";
 import { BackLink } from "@/components/BackLink";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
-import { Card } from "@/components/ui";
+import { Card, PageShell } from "@/components/ui";
 
 export default async function NewProductPage() {
   redirectIfReadOnly(await auth(), "/products");
@@ -22,7 +22,7 @@ export default async function NewProductPage() {
     : [];
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="form">
       <BackLink href="/products" label="Warranties" />
       <div>
         <h1 className="text-2xl font-medium">Add a warranty</h1>
@@ -57,6 +57,6 @@ export default async function NewProductPage() {
           barcodeLookupEnabled={barcodeLookupEnabled}
         />
       </Card>
-    </div>
+    </PageShell>
   );
 }

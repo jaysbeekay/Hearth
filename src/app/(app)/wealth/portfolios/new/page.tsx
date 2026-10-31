@@ -6,7 +6,7 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
-import { Card } from "@/components/ui";
+import { Card, PageShell } from "@/components/ui";
 
 export const metadata: Metadata = { title: "New Portfolio" };
 
@@ -16,7 +16,7 @@ export default async function NewPortfolioPage() {
   const { preferredCurrency } = await getUserPreferences();
 
   return (
-    <div className="max-w-xl space-y-6">
+    <PageShell width="form">
       <div>
         <BackLink href="/wealth" label="Wealth" />
         <h1 className="mt-1 text-2xl font-medium">New portfolio</h1>
@@ -24,6 +24,6 @@ export default async function NewPortfolioPage() {
       <Card>
         <PortfolioForm action={createPortfolio} defaultCurrency={preferredCurrency} />
       </Card>
-    </div>
+    </PageShell>
   );
 }

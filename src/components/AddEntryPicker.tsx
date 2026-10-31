@@ -82,7 +82,7 @@ export function AddEntryPicker({ enabledModules }: { enabledModules: string[] })
         panelClassName={overlayClass("w-full max-w-md p-4")}
       >
         <div className="mb-3 flex items-center justify-between">
-          <h2 id={titleId} className="text-base font-medium">
+          <h2 id={titleId} className="font-medium">
             What are you adding?
           </h2>
           <button

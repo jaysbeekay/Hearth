@@ -6,7 +6,7 @@ import { PasskeyItem } from "@/components/PasskeyItem";
 import { PasskeyRegisterButton } from "@/components/PasskeyRegisterButton";
 import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
-import { Card } from "@/components/ui";
+import { Card, PageShell } from "@/components/ui";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.passkeys.label };
 
@@ -23,7 +23,7 @@ export default async function PasskeysPage() {
   });
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <PageShell width="form">
       <BackLink {...settingsBackLink(SETTINGS_ROUTES.passkeys)} />
       <div>
         <h1 className="text-2xl font-medium">{SETTINGS_ROUTES.passkeys.label}</h1>
@@ -60,6 +60,6 @@ export default async function PasskeysPage() {
         </p>
         <PasskeyRegisterButton />
       </Card>
-    </div>
+    </PageShell>
   );
 }

@@ -7,7 +7,7 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
-import { Card } from "@/components/ui";
+import { Card, PageShell } from "@/components/ui";
 
 export default async function NewRentalStatementPage({
   params,
@@ -27,7 +27,7 @@ export default async function NewRentalStatementPage({
   const boundAction = createRentalStatement.bind(null, property.id);
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="form">
       <div>
         <BackLink href={`/home/${property.id}/rental`} label="Tenancy" />
       </div>
@@ -48,6 +48,6 @@ export default async function NewRentalStatementPage({
           defaultCurrency={preferredCurrency}
         />
       </Card>
-    </div>
+    </PageShell>
   );
 }

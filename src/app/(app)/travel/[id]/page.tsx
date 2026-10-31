@@ -29,7 +29,7 @@ import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { buttonClass } from "@/lib/buttonStyles";
-import { Card, EmptyState, Pill } from "@/components/ui";
+import { Card, EmptyState, Pill, PageShell } from "@/components/ui";
 import { cardClass } from "@/lib/ui";
 
 const SEGMENT_ICONS: Record<string, LucideIcon> = {
@@ -120,7 +120,7 @@ export default async function TripDetailPage({
     : segments;
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="detail">
       <div>
         <BackLink href="/travel" label="Travel" />
       </div>
@@ -164,7 +164,7 @@ export default async function TripDetailPage({
 
       {trip.notes && (
         <Card>
-          <h2 className="mb-2 font-medium">Notes</h2>
+          <h2 className="mb-3 font-medium">Notes</h2>
           <p className="whitespace-pre-wrap text-sm text-foreground">{trip.notes}</p>
         </Card>
       )}
@@ -175,7 +175,7 @@ export default async function TripDetailPage({
           {canWrite && (
             <Link
               href={`/travel/${trip.id}/segments/new`}
-              className={buttonClass("primary")}
+              className={buttonClass("secondary")}
             >
               <Plus size={16} />
               Add segment
@@ -370,7 +370,7 @@ export default async function TripDetailPage({
         updatedAt={trip.updatedAt}
         memberCount={memberCount}
       />
-    </div>
+    </PageShell>
   );
 }
 

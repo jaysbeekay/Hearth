@@ -26,7 +26,7 @@ import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
 import { chipClass } from "@/lib/ui";
-import { EmptyState } from "@/components/ui";
+import { EmptyState, PageShell } from "@/components/ui";
 
 const CHIPS: { chip: ToggleableFilter; label: string; onlyWhenActive?: boolean }[] = [
   { chip: "dueSoon", label: "Due soon" },
@@ -123,7 +123,7 @@ export function ProductListClient({
   ];
 
   return (
-    <div className="space-y-6">
+    <PageShell width="list">
       <ListPageHeader
         title="Warranties"
         exportPath="/api/export/products"
@@ -206,7 +206,7 @@ export function ProductListClient({
             </p>
             {!filtered && canWrite && (
               <div className="flex flex-wrap items-center justify-center gap-2">
-                <Link href="/products/new" className={buttonClass("primary")}>
+                <Link href="/products/new" className={buttonClass("secondary")}>
                   <Plus size={16} />
                   Add warranty
                 </Link>
@@ -237,7 +237,7 @@ export function ProductListClient({
         <section className="space-y-3 border-t border-border pt-6">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-base font-medium">Inventory items</h2>
+              <h2 className="font-medium">Inventory items</h2>
               <p className="text-sm text-muted">Household purchases and valuables catalogued separately from warranties.</p>
             </div>
             {canWrite && (
@@ -265,6 +265,6 @@ export function ProductListClient({
           )}
         </section>
       )}
-    </div>
+    </PageShell>
   );
 }

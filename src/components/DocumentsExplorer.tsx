@@ -85,7 +85,7 @@ export function DocumentsExplorer({
     return (
       <EmptyState className="flex flex-col items-center gap-3">
         <p className="text-sm text-muted">No documents uploaded yet.</p>
-        <Link href="/import" className={buttonClass("primary")}>
+        <Link href="/import" className={buttonClass("secondary")}>
           <Upload size={16} />
           Upload a document
         </Link>

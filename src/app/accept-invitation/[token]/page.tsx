@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { hashToken } from "@/lib/crypto";
 import { AcceptInvitationForm } from "@/components/AcceptInvitationForm";
 import { Card } from "@/components/ui";
+import { PageShell } from "@/components/ui";
 
 export const metadata: Metadata = { title: "Accept invitation" };
 export const dynamic = "force-dynamic";
@@ -34,7 +35,7 @@ export default async function AcceptInvitationPage({
 
   return (
     <div className="flex flex-1 items-center justify-center px-4 py-12">
-      <div className="w-full max-w-sm space-y-6">
+      <PageShell width="auth">
         <div className="flex flex-col items-center gap-2 text-center">
           <h1 className="text-2xl font-medium">Welcome to Hearth</h1>
           {!valid && (
@@ -55,7 +56,7 @@ export default async function AcceptInvitationPage({
             </Link>
           </p>
         )}
-      </div>
+      </PageShell>
     </div>
   );
 }

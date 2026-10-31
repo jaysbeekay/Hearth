@@ -4,14 +4,14 @@ import { VehicleForm } from "@/components/VehicleForm";
 import { BackLink } from "@/components/BackLink";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
-import { Card } from "@/components/ui";
+import { Card, PageShell } from "@/components/ui";
 
 export default async function NewVehiclePage() {
   await requireModuleEnabled("VEHICLES");
   redirectIfReadOnly(await auth(), "/vehicles");
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="form">
       <BackLink href="/vehicles" label="Vehicles" />
       <div>
         <h1 className="text-2xl font-medium">Add a vehicle</h1>
@@ -22,6 +22,6 @@ export default async function NewVehiclePage() {
       <Card>
         <VehicleForm action={createVehicle} />
       </Card>
-    </div>
+    </PageShell>
   );
 }

@@ -7,7 +7,7 @@ import { HoldingForm } from "@/components/HoldingForm";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
-import { Card } from "@/components/ui";
+import { Card, PageShell } from "@/components/ui";
 
 export const metadata: Metadata = { title: "Add Holding" };
 
@@ -26,7 +26,7 @@ export default async function NewHoldingPage({
   const action = createHolding.bind(null, id);
 
   return (
-    <div className="max-w-xl space-y-6">
+    <PageShell width="form">
       <div>
         <BackLink href={`/wealth/portfolios/${id}`} label={portfolio.name} />
         <h1 className="mt-1 text-2xl font-medium">Add holding</h1>
@@ -34,6 +34,6 @@ export default async function NewHoldingPage({
       <Card>
         <HoldingForm action={action} portfolioId={id} />
       </Card>
-    </div>
+    </PageShell>
   );
 }

@@ -23,7 +23,7 @@ import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { buttonClass } from "@/lib/buttonStyles";
 import { cardClass } from "@/lib/ui";
-import { Card, EmptyState, Pill } from "@/components/ui";
+import { Card, EmptyState, Pill, PageShell } from "@/components/ui";
 
 export const metadata: Metadata = { title: "Holding" };
 
@@ -275,7 +275,7 @@ export default async function HoldingPage({
   const tradesDesc = [...holding.trades].sort((a, b) => b.date.getTime() - a.date.getTime());
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="detail">
       <div>
         <BackLink href={`/wealth/portfolios/${portfolioId}`} label={holding.portfolio.name} />
         <div className="mt-1 flex items-start justify-between gap-4">
@@ -376,7 +376,7 @@ export default async function HoldingPage({
       {/* Performance chart */}
       {chartPoints.length >= 2 && (
         <Card as="section">
-          <h2 className="mb-4 font-medium">Performance since first purchase</h2>
+          <h2 className="mb-3 font-medium">Performance since first purchase</h2>
           <PerformanceChart points={chartPoints} currency={currency} dateFormat={dateFormat} region={region} />
           {chartStartsLate && (
             <p className="mt-2 text-xs text-muted">Chart shows prices from {formatDate(chartPoints[0].date, dateFormat)}.</p>
@@ -394,7 +394,7 @@ export default async function HoldingPage({
           {canWrite && (
             <Link
               href={`/wealth/portfolios/${portfolioId}/holdings/${holdingId}/trades/new`}
-              className={buttonClass("primary")}
+              className={buttonClass("secondary")}
             >
               <Plus size={16} />
               Add trade
@@ -494,6 +494,6 @@ export default async function HoldingPage({
           </div>
         )}
       </section>
-    </div>
+    </PageShell>
   );
 }
