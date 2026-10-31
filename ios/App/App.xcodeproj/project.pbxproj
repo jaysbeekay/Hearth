@@ -18,6 +18,7 @@
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		6F2E9B4B1E4B4BB39A6ECA11 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 6F2E9B4A1E4B4BB39A6ECA11 /* PrivacyInfo.xcprivacy */; };
 		91B01115B2F075138361265C /* ServerConfigPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5686AD7220282059CB7347F5 /* ServerConfigPlugin.swift */; };
+		F2E1D0C9B8A7F6E5D4C3B2A1 /* HearthScanPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A7B8C9D0E1F2 /* HearthScanPlugin.swift */; };
 		F1A7F22C6D96410880980A0C /* ClientCertManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C172A7CBF64699B175530DEF /* ClientCertManager.swift */; };
 /* End PBXBuildFile section */
 
@@ -32,6 +33,7 @@
 		504EC3131FED79650016851F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
 		5686AD7220282059CB7347F5 /* ServerConfigPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerConfigPlugin.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6A7B8C9D0E1F2 /* HearthScanPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HearthScanPlugin.swift; sourceTree = "<group>"; };
 		6F2E9B4A1E4B4BB39A6ECA11 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
 		C172A7CBF64699B175530DEF /* ClientCertManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientCertManager.swift; sourceTree = "<group>"; };
@@ -74,6 +76,7 @@
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				F3B468D7E3D20CDD89FA65AE /* MainViewController.swift */,
 				5686AD7220282059CB7347F5 /* ServerConfigPlugin.swift */,
+				A1B2C3D4E5F6A7B8C9D0E1F2 /* HearthScanPlugin.swift */,
 				C172A7CBF64699B175530DEF /* ClientCertManager.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
@@ -171,6 +174,7 @@
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				0D5DA4EBCA37853F27E64125 /* MainViewController.swift in Sources */,
 				91B01115B2F075138361265C /* ServerConfigPlugin.swift in Sources */,
+				F2E1D0C9B8A7F6E5D4C3B2A1 /* HearthScanPlugin.swift in Sources */,
 				F1A7F22C6D96410880980A0C /* ClientCertManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

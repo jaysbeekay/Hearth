@@ -570,6 +570,27 @@ test.beforeEach(async ({ page }) => {
           },
           getPending: async () => ({ notifications: [] }),
         },
+        // On-device scanning/OCR (HearthScanPlugin), only for the tests that
+        // ask (withHearthScan): without it the shell hides Scan and Read text.
+        ...(localStorage.getItem("hearth-test-hearth-scan") !== "1" ? {} : {
+          HearthScan: {
+            isAvailable: async () => ({ scanner: true, textRecognition: true }),
+            scanDocument: async () => ({
+              cancelled: false,
+              pdf: btoa("%PDF-1.7\n% scanned on device\n"),
+              pageCount: 2,
+              text: [
+                "Acme Insurance Ltd",
+                "Policy number: POL-12345",
+                "Start date: 01/07/2099",
+                "Expiry date: 30/06/2100",
+                "Annual premium $1,234.50",
+                "claims@acme.example",
+              ].join("\n"),
+            }),
+            recognizeText: async ({ mimeType }: { mimeType: string }) => ({ text: `Recognised ${mimeType} text` }),
+          },
+        }),
         ServerConfig: {
           getServerUrl: async () => ({ url: "" }),
           importClientCertificate: async () => ({ label: "Test certificate" }),
@@ -1539,4 +1560,89 @@ test("standalone purge keeps the row when the file can't be deleted, and retries
   await page.evaluate(() => localStorage.setItem("hearth-test-delete-file-error", "missing"));
   await reloadStandalone(page);
   await expect.poll(async () => deletedDocuments((await shellTestState(page)).runs)).toEqual(["version-3", "version-2"]);
+});
+
+async function withHearthScan(page: import("@playwright/test").Page) {
+  await page.evaluate(() => localStorage.setItem("hearth-test-hearth-scan", "1"));
+  await page.reload();
+  await page.getByRole("button", { name: "Use on this device" }).click();
+  await expect(page.locator("#standalone-screen")).toBeVisible();
+}
+
+function standaloneRuns(page: import("@playwright/test").Page) {
+  return page.evaluate(() => {
+    return (window as Window & { __hearthStandaloneTest?: { sqliteRuns: { statement: string; values: unknown[] }[] } }).__hearthStandaloneTest?.sqliteRuns ?? [];
+  });
+}
+
+test("standalone hides on-device scanning when the native plugin is absent", async ({ page }) => {
+  await page.getByRole("button", { name: "Contract", exact: true }).click();
+  await expect(page.locator("form[data-save-type='contracts'] input[name='file']")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Scan with camera" })).toHaveCount(0);
+});
+
+test("standalone scan fills an empty contract form, holds it for review, and stores the text", async ({ page }) => {
+  await withHearthScan(page);
+  await page.getByRole("button", { name: "Contract", exact: true }).click();
+  const form = page.locator("form[data-save-type='contracts']");
+  await form.getByRole("button", { name: "Scan with camera" }).click();
+
+  await expect(page.locator("#standalone-status")).toContainText("Filled 7 fields from the scan");
+  await expect(form.locator("[data-scan-summary]")).toHaveText("Scanned 2 pages. It's attached when you save.");
+  await expect(form.locator("input[name='provider']")).toHaveValue("Acme Insurance Ltd");
+  await expect(form.locator("input[name='contractNumber']")).toHaveValue("POL-12345");
+  await expect(form.locator("input[name='startDate']")).toHaveValue("2099-07-01");
+  await expect(form.locator("input[name='endDate']")).toHaveValue("2100-06-30");
+  await expect(form.locator("input[name='cost']")).toHaveValue("1234.50");
+  await expect(form.locator("select[name='billingFrequency']")).toHaveValue("ANNUALLY");
+  await expect(form.locator("input[name='contactEmail']")).toHaveValue("claims@acme.example");
+  await expect(form.locator("input[name='needsReview']")).toBeChecked();
+
+  await form.locator("input[name='title']").fill("Home insurance");
+  await form.getByRole("button", { name: "Save" }).click();
+
+  await expect.poll(async () => (await standaloneRuns(page)).some((run) =>
+    run.statement.startsWith("INSERT INTO documents") &&
+    run.values.includes("application/pdf") &&
+    run.values.some((value) => typeof value === "string" && value.startsWith("Scan ") && value.endsWith(".pdf")) &&
+    run.values.some((value) => typeof value === "string" && value.includes("Policy number: POL-12345")),
+  )).toBe(true);
+});
+
+test("standalone scan never overwrites what the person already typed", async ({ page }) => {
+  await withHearthScan(page);
+  await page.getByRole("button", { name: "Contract", exact: true }).click();
+  const form = page.locator("form[data-save-type='contracts']");
+  await form.locator("input[name='provider']").fill("My Insurer");
+  await form.getByRole("button", { name: "Scan with camera" }).click();
+
+  await expect(page.locator("#standalone-status")).toContainText("Filled 6 fields from the scan");
+  await expect(form.locator("input[name='provider']")).toHaveValue("My Insurer");
+});
+
+test("standalone inbox import reads a document's text on the device", async ({ page }) => {
+  await withHearthScan(page);
+  await page.locator(".bottom-nav").getByRole("button", { name: "Documents" }).click();
+  await page.locator('form[data-import-inbox-form] input[type="file"]').setInputFiles({
+    name: "photo.png",
+    mimeType: "image/png",
+    buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]),
+  });
+  await page.locator("form[data-import-inbox-form]").getByRole("button", { name: "Upload document" }).click();
+
+  await expect(page.locator("#standalone-status")).toContainText("Document imported");
+  const runs = await standaloneRuns(page);
+  expect(runs.some((run) => run.statement.startsWith("INSERT INTO inbox_documents") && run.values.includes("photo.png") && run.values.includes("Recognised image/png text"))).toBe(true);
+});
+
+test("standalone Read text backfills a stored document so search can find it", async ({ page }) => {
+  await withHearthScan(page);
+  await page.locator(".bottom-nav").getByRole("button", { name: "Documents" }).click();
+  const card = page.locator(".record-card", { hasText: "insurance.pdf" });
+  await card.getByRole("button", { name: "Read text" }).click();
+
+  await expect(page.locator("#standalone-status")).toContainText("Text read");
+  const runs = await standaloneRuns(page);
+  expect(runs.some((run) => run.statement.startsWith("UPDATE documents SET extracted_text = ?") && run.values[0] === "Recognised application/pdf text" && run.values[1] === "document-1")).toBe(true);
+  await expect(page.locator(".record-card", { hasText: "insurance.pdf" }).getByRole("button", { name: "Read text" })).toHaveCount(0);
 });
