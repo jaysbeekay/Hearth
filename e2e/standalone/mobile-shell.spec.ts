@@ -1098,6 +1098,31 @@ test("standalone Add insurance opens the contract form linked to the vehicle, an
   ).toHaveCount(1);
 });
 
+// #487 review - an ended fixed-term policy is a lapse: the Vehicle is Overdue from its end date.
+test("standalone a Vehicle whose fixed-term Covering Contract has ended needs attention (#487)", async ({ page }) => {
+  await page.addInitScript(() => {
+    const rows = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest.rowsByTable;
+    const updated_at = "2099-01-01T00:00:00.000Z";
+    rows.vehicles.push(
+      { id: "vehicle-8", label: "Running Ute", reminder_days_before: "30,14,7,1", created_at: updated_at, updated_at },
+      { id: "vehicle-9", label: "Lapsed Ute", reminder_days_before: "30,14,7,1", created_at: updated_at, updated_at },
+    );
+    const policy = { category: "CAR_INSURANCE", provider: "Allianz", status: "ACTIVE", renewal_type: "FIXED_TERM", currency: "AUD", reminder_days_before: "30,14,7,1", created_at: updated_at, updated_at };
+    rows.contracts.push(
+      { ...policy, id: "contract-running", title: "Running policy", vehicle_id: "vehicle-8", end_date: "2099-12-01" },
+      { ...policy, id: "contract-lapsed", title: "Lapsed policy", vehicle_id: "vehicle-9", end_date: "2099-09-01" },
+    );
+  });
+  await page.clock.setFixedTime(new Date("2099-09-06T12:00:00"));
+  await reloadStandalone(page);
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-record-type="vehicles"]').click();
+  await page.getByRole("button", { name: "Needs attention" }).click();
+  const card = (text: string) => page.locator(".record-card").filter({ hasText: text });
+  await expect(card("Lapsed Ute")).toHaveCount(1);
+  await expect(card("Running Ute")).toHaveCount(0);
+});
+
 test("standalone schedules a local Reminder for a tenancy's lease end (#388)", async ({ page }) => {
   await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
   await page.locator('#mobile-view button[data-nav="reminders"]').click();

@@ -108,15 +108,36 @@ describe("changes to a Covering Contract", () => {
     expect(await derived(v.id)).toEqual(day("2027-11-24"));
   });
 
-  it("covers with the Contract's own state when it is auto-renewing or fixed-term and past its end date", async () => {
+  it("covers with the Contract's own state when it is auto-renewing past its end date", async () => {
     const v = await vehicleWith({ insuranceExpiry: day("2026-12-01") });
     const c = await policy(v.id, { renewalType: "AUTO_RENEW", endDate: day("2026-10-01") });
     expect(await entryFields(v.id)).not.toContain("insuranceExpiry");
     expect(contractDue(c, ctx).map((e) => e.state)).toEqual(["needs-new-end-date"]);
+  });
 
-    const fixed = await db.prisma.contract.update({ where: { id: c.id }, data: { renewalType: "FIXED_TERM" } });
+  // #487 review: an ended fixed-term policy is a lapse, not a silent date.
+  it("makes the Vehicle's date Overdue from a fixed-term Contract's end date once it has ended", async () => {
+    // The household's own date is later, so it can't be what raises it.
+    const v = await vehicleWith({ insuranceExpiry: day("2026-12-01") });
+    const c = await policy(v.id, { renewalType: "FIXED_TERM", endDate: day("2026-10-01") });
+    expect(contractDue(c, ctx).map((e) => e.state)).toEqual(["ended"]);
+    const entries = vehicleDue(await vehicleRow(v.id), ctx).filter((e) => e.field === "insuranceExpiry");
+    expect(entries.map((e) => [e.state, e.date, e.daysLeft])).toEqual([["overdue", "2026-10-01", -23]]);
+    expect(await derived(v.id)).toEqual(day("2026-10-01"));
+  });
+
+  it("keeps a fixed-term Contract's date silent on the Vehicle while it is still running", async () => {
+    const v = await vehicleWith({ insuranceExpiry: day("2026-01-01") });
+    await policy(v.id, { renewalType: "FIXED_TERM", endDate: day("2026-11-01") });
     expect(await entryFields(v.id)).not.toContain("insuranceExpiry");
-    expect(contractDue(fixed, ctx).map((e) => e.state)).toEqual(["ended"]);
+  });
+
+  it("lets a later renewal take over from an ended fixed-term Contract", async () => {
+    const v = await vehicleWith();
+    await policy(v.id, { renewalType: "FIXED_TERM", endDate: day("2026-10-01") });
+    await policy(v.id, { title: "Renewal", renewalType: "FIXED_TERM", endDate: day("2027-10-01") });
+    expect(await entryFields(v.id)).not.toContain("insuranceExpiry");
+    expect(await derived(v.id)).toEqual(day("2027-10-01"));
   });
 });
 
@@ -193,7 +214,8 @@ describe("queryVehicles(attentionOnly) and whatsDue", () => {
       .filter((d) => d.kind === "vehicle")
       .map((d) => d.id);
     expect(new Set(attention)).toEqual(new Set(due));
-    expect(attention).toEqual([plain.id]);
+    // The ended fixed-term policy has lapsed, so that Vehicle is Overdue too.
+    expect(new Set(attention)).toEqual(new Set([fixed.id, plain.id]));
   });
 });
 
