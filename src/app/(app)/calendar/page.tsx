@@ -9,6 +9,7 @@ import { calendarKindLabel, getCalendarEvents } from "@/lib/calendarEvents";
 import { getDueContext } from "@/lib/appSettings";
 import { addDays, type CalendarDay } from "@/lib/duePolicy";
 import { formatDate } from "@/lib/utils";
+import { longMonthName, shortMonthName } from "@/lib/dateParts";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { ExpiryBadge } from "@/components/ExpiryBadge";
 import { CalendarSubscribeButton } from "@/components/CalendarSubscribeButton";
@@ -22,16 +23,17 @@ export const metadata: Metadata = { title: "Upcoming" };
 const HORIZONS = [30, 60, 90] as const;
 const DEFAULT_HORIZON = 30;
 
-// Calendar days are UTC dates (the Due policy's input contract), so they're
-// formatted in UTC to stay on the same day everywhere.
-function dayDate(day: CalendarDay): Date {
-  return new Date(`${day}T00:00:00.000Z`);
+// Month names are English whatever the Region, from the shared month table
+// rather than the runtime's locale data (#422). Keys are "YYYY-MM".
+
+/** "October 2026". */
+function monthLabel(key: string) {
+  return `${longMonthName(Number(key.slice(5, 7)))} ${key.slice(0, 4)}`;
 }
 
-/** "October 2026", in sentence case whatever the locale's own casing. */
-function monthLabel(key: string, region: string) {
-  const label = dayDate(`${key}-01`).toLocaleDateString(region, { month: "long", year: "numeric", timeZone: "UTC" });
-  return label.charAt(0).toLocaleUpperCase(region) + label.slice(1);
+/** "Oct", for a calendar day. */
+function dayMonth(day: CalendarDay) {
+  return shortMonthName(Number(day.slice(5, 7)));
 }
 
 export default async function CalendarPage({
@@ -42,7 +44,7 @@ export default async function CalendarPage({
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const [enabledModules, { dateFormat, region }, { horizon: horizonParam }, user] = await Promise.all([
+  const [enabledModules, { dateFormat }, { horizon: horizonParam }, user] = await Promise.all([
     getEnabledModuleKeys(),
     getUserPreferences(),
     searchParams,
@@ -105,7 +107,7 @@ export default async function CalendarPage({
         months.map(([key, monthEvents]) => (
           <section key={key}>
             <h2 className="mb-3 text-sm font-semibold text-muted">
-              {monthLabel(key, region)}
+              {monthLabel(key)}
             </h2>
             <div className="space-y-2">
               {monthEvents.map((event) => (
@@ -116,7 +118,7 @@ export default async function CalendarPage({
                 >
                   <div className="mt-0.5 w-10 shrink-0 text-center">
                     <p className="text-xs text-muted">
-                      {dayDate(event.date).toLocaleDateString(region, { month: "short", timeZone: "UTC" })}
+                      {dayMonth(event.date)}
                     </p>
                     <p className="text-lg font-semibold leading-none">{Number(event.date.slice(8, 10))}</p>
                   </div>

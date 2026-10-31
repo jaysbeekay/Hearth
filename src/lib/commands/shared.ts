@@ -58,7 +58,24 @@ export async function updateUnlessStale(
   if (count === 0) throw new StaleEditError();
 }
 
-// ── Trash rules for writes (#428) ───────────────────────────────────────────
+/**
+ * The stale check up front, for a command that loads the record and then
+ * checks other things (its links) before the write: a stale edit is
+ * reported as stale rather than as whatever those checks refuse. Run it in
+ * the same transaction as the write; the guarded write still re-checks.
+ */
+export function assertNotStale(
+  record: { updatedAt: Date },
+  baseUpdatedAt: string | Date | null | undefined,
+): void {
+  if (!baseUpdatedAt) return;
+  const base = baseUpdatedAt instanceof Date ? baseUpdatedAt : new Date(baseUpdatedAt);
+  if (Number.isNaN(base.getTime()) || base.getTime() !== record.updatedAt.getTime()) {
+    throw new StaleEditError();
+  }
+}
+
+// ── Trash rules for writes (#428)───────────────────────────────────────────
 //
 // A record in Trash is read-only until it's restored, and so is everything
 // under it: a create or update under a parent in Trash, or an update to a
@@ -67,35 +84,101 @@ export async function updateUnlessStale(
 // that a child can't be restored while its parent is still in Trash.
 // Offline sync reports each of these as a failed operation with the same
 // message.
+//
+// The check and the write mustn't be separate steps another request can
+// slip a move to Trash between. An update puts the rule in its guarded
+// write's where clause (updateLiveUnlessStale). A create or restore runs
+// its check and its write in one prisma.$transaction, using only `tx`
+// inside it: the libsql adapter runs one transaction at a time, so a query
+// on the global `prisma` there would wait on the transaction it's in.
 
-// A row that may be in Trash.
+/** A row from a table with a Trash (a `deletedAt` column). */
 export interface Trashable {
-  deletedAt?: Date | null;
+  deletedAt: Date | null;
 }
 
-// Any row: one from a table with no Trash (no deletedAt column) counts as
-// live, so the helpers below work on it now and check it once it gains one.
-function isInTrash(record: object): boolean {
-  return "deletedAt" in record && record.deletedAt != null;
+/**
+ * A row from a table with no Trash yet (no `deletedAt` column). A row that
+ * has one doesn't type-check as this, so when a table gains a Trash (#427)
+ * every requireExisting / findExistingParent call on it fails to compile
+ * until it moves to requireLive / findLiveParent, rather than silently
+ * letting writes through to a trashed record.
+ */
+export type NoTrash = object & { deletedAt?: never };
+
+/**
+ * Whether the record exists and isn't in Trash. For a caller that reports
+ * its own message instead of throwing (links.ts). The record must carry its
+ * `deletedAt`: select it.
+ */
+export function isLive(record: Trashable | null | undefined): boolean {
+  return record != null && record.deletedAt == null;
 }
 
 /** The record if it exists and isn't in Trash; otherwise `what` not found. */
-export function requireLive<T extends object>(record: T | null | undefined, what: string): T {
-  if (!record || isInTrash(record)) throw new RecordNotFoundError(what);
+export function requireLive<T extends Trashable>(record: T | null | undefined, what: string): T {
+  if (!record || !isLive(record)) throw new RecordNotFoundError(what);
   return record;
 }
 
 /**
- * Looks up a parent for a write under it (or a record for a write to it),
- * refusing one that's missing or in Trash as `what` not found. `what` is the
- * record the caller is writing, so an update to a Service record under a
- * trashed Vehicle reads "Service record not found".
+ * The record if it exists; otherwise `what` not found. Only for tables with
+ * no Trash (see NoTrash); a row from a table with one goes to requireLive.
  */
-export async function findLiveParent<T extends object>(
+export function requireExisting<T extends NoTrash>(record: T | null | undefined, what: string): T {
+  if (!record) throw new RecordNotFoundError(what);
+  return record;
+}
+
+/**
+ * Loads a record for a write to it or under it, refusing one that's missing
+ * or in Trash as `what` not found. Despite the name it isn't only for
+ * parents: the same call loads the record a write is to (a Vehicle for its
+ * own update). `what` is the record the caller is writing, so an update to
+ * a Service record under a trashed Vehicle reads "Service record not found".
+ */
+export async function findLiveParent<T extends Trashable>(
   lookup: PromiseLike<T | null>,
   what: string,
 ): Promise<T> {
   return requireLive(await lookup, what);
+}
+
+/** findLiveParent for a table with no Trash: refuses only a missing record. */
+export async function findExistingParent<T extends NoTrash>(
+  lookup: PromiseLike<T | null>,
+  what: string,
+): Promise<T> {
+  return requireExisting(await lookup, what);
+}
+
+/**
+ * updateUnlessStale for a write that must only land on a live record under
+ * a live parent. `write` carries the Trash rules in its where clause
+ * (`deletedAt: null`, `vehicle: { deletedAt: null }`, ...) as well as the
+ * record's scope, so a move to Trash between the caller's checks and the
+ * write can't slip through: the write just matches nothing. Nothing is
+ * checked before the write; when it matches nothing, `recheck` loads the
+ * record (and its parent) and throws the not-found if either is missing,
+ * out of scope or in Trash. If they're all live, the record changed under
+ * the edit, which is a StaleEditError; with no baseUpdatedAt there's no
+ * stale check, and a write that matched nothing (an empty patch on a table
+ * with no updatedAt) is left as a no-op.
+ */
+export async function updateLiveUnlessStale(
+  baseUpdatedAt: string | Date | null | undefined,
+  write: (guard: { updatedAt?: Date }) => Promise<{ count: number }>,
+  recheck: () => Promise<unknown>,
+): Promise<void> {
+  const base = baseUpdatedAt ? new Date(baseUpdatedAt) : null;
+  if (base && Number.isNaN(base.getTime())) {
+    await recheck();
+    throw new StaleEditError();
+  }
+  const { count } = await write(base ? { updatedAt: base } : {});
+  if (count > 0) return;
+  await recheck();
+  if (base) throw new StaleEditError();
 }
 
 /** A restore refused because the record's parent is still in Trash. */

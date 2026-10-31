@@ -1,9 +1,10 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { removeOwnerDocumentFiles } from "@/lib/commands/documents";
+import { clearNotificationLogs } from "@/lib/notifications/logs";
 import { assertModuleEnabled } from "@/lib/modules/enablement";
 import {
-  updateUnlessStale,
+  updateLiveUnlessStale,
   findLiveParent,
   requireLive,
   assertParentRestored,
@@ -18,6 +19,7 @@ import type {
   RentalStatementInput,
 } from "@/lib/validation/home";
 import type { PropertyValuationInput } from "@/lib/validation/wealth";
+import type { Prisma } from "@/generated/prisma/client";
 
 // Record commands for the Property module (#390, ADR 0003): Properties,
 // Maintenance records (`homeItem`), Tenancies (`rentalAgreement`), Rental
@@ -26,17 +28,19 @@ import type { PropertyValuationInput } from "@/lib/validation/wealth";
 // retention. Callers own sign-in, role checks and Zod parsing; these own
 // the HOME module gate, the write, file cleanup and revalidation.
 //
-// Only Properties and Maintenance records have a Trash (a `deletedAt`
-// column). A Tenancy, a Rental statement and a Property valuation are
-// deleted for good straight away, as they always have been. A Tenancy has
-// no `updatedAt` column, so its updates take no stale-edit check.
+// Every one of them has a Trash (a `deletedAt` column): Properties and
+// Maintenance records since #287, Tenancies, Rental statements and Property
+// valuations since #427. Deleting moves the record to Trash; permanent
+// delete (from Trash, or the 30-day purge) removes the row and its files.
 //
 // A record in Trash is read-only until it's restored: a create or update
-// under a Property in Trash, or to a Maintenance record in Trash, is
+// under a Property in Trash, or to a record that's itself in Trash, is
 // refused as not found, as the pages already 404 them. Delete, restore and
-// permanent delete still work on it, but a Maintenance record can't be
-// restored while its Property is still in Trash (#428, the rules in
-// shared.ts).
+// permanent delete still work on it, but a record under a Property can't
+// be restored while its Property is still in Trash (#428, the rules in
+// shared.ts). Updates carry that rule in their guarded write; creates and
+// restores check and write in one transaction, so a move to Trash can't
+// land in between.
 //
 // No Property-module record has Reminders yet, so nothing here touches the
 // sent-Reminder log (Tenancy Reminders are #388).
@@ -47,16 +51,25 @@ function revalidatePropertyLists() {
   revalidatePath("/home");
 }
 
+// The global client, or a transaction's `tx` (which must then be used for
+// every query inside it).
+type Db = Prisma.TransactionClient;
+
+function loadProperty(id: string, db: Db = prisma) {
+  return db.property.findUnique({ where: { id } });
+}
+
+// For delete, restore and the row an update returns: Trash or not.
 async function findProperty(id: string) {
-  const property = await prisma.property.findUnique({ where: { id } });
+  const property = await loadProperty(id);
   if (!property) throw new RecordNotFoundError("Property");
   return property;
 }
 
 // For writes to a Property or under it, as `what`: one in Trash counts as
 // not found.
-function findLiveProperty(id: string, what = "Property") {
-  return findLiveParent(prisma.property.findUnique({ where: { id } }), what);
+function findLiveProperty(id: string, what = "Property", db: Db = prisma) {
+  return findLiveParent(loadProperty(id, db), what);
 }
 
 export async function createPropertyCommand(input: PropertyInput, actorId: string) {
@@ -76,9 +89,14 @@ export async function updatePropertyCommand(
   options: UpdateOptions = {},
 ) {
   await assertModuleEnabled("HOME");
-  await findLiveProperty(id);
-  await updateUnlessStale(options.baseUpdatedAt, (guard) =>
-    prisma.property.updateMany({ where: { id, ...guard }, data: { ...patch, updatedById: actorId } }),
+  await updateLiveUnlessStale(
+    options.baseUpdatedAt,
+    (guard) =>
+      prisma.property.updateMany({
+        where: { id, deletedAt: null, ...guard },
+        data: { ...patch, updatedById: actorId },
+      }),
+    () => findLiveProperty(id),
   );
   revalidatePropertyLists();
   revalidatePath(`/home/${id}`);
@@ -88,10 +106,52 @@ export async function updatePropertyCommand(
 // Turns rental tracking (the Rental tab) on or off for a Property.
 export async function setPropertyRentedCommand(id: string, isRented: boolean, actorId: string) {
   await assertModuleEnabled("HOME");
-  await findLiveProperty(id);
-  await prisma.property.update({ where: { id }, data: { isRented, updatedById: actorId } });
+  await updateLiveUnlessStale(
+    undefined,
+    () => prisma.property.updateMany({ where: { id, deletedAt: null }, data: { isRented, updatedById: actorId } }),
+    () => findLiveProperty(id),
+  );
   revalidatePath(`/home/${id}`);
   revalidatePath(`/home/${id}/rental`);
+}
+
+// #355 — Archive: the household no longer has the Property (sold, or its
+// lease ended). Not Trash: it stays where it is, viewable, with its
+// Maintenance records, Tenancies and Documents, but its Tenancy's lease end
+// stops being Due and stops getting Reminders (src/lib/tenancies.ts).
+// Archiving an already Archived one keeps its original date. A Property in
+// Trash is read-only, so it can't be archived or unarchived until restored.
+// Contracts linked to it are untouched: a Contract is its own Due source.
+export async function archivePropertyCommand(id: string, actorId: string, options: UpdateOptions = {}) {
+  await assertModuleEnabled("HOME");
+  await updateLiveUnlessStale(
+    options.baseUpdatedAt,
+    (guard) =>
+      prisma.property.updateMany({
+        where: { id, deletedAt: null, archivedAt: null, ...guard },
+        data: { archivedAt: new Date(), updatedById: actorId },
+      }),
+    () => findLiveProperty(id),
+  );
+  revalidatePropertyLists();
+  revalidatePath(`/home/${id}`);
+  return findProperty(id);
+}
+
+export async function unarchivePropertyCommand(id: string, actorId: string, options: UpdateOptions = {}) {
+  await assertModuleEnabled("HOME");
+  await updateLiveUnlessStale(
+    options.baseUpdatedAt,
+    (guard) =>
+      prisma.property.updateMany({
+        where: { id, deletedAt: null, archivedAt: { not: null }, ...guard },
+        data: { archivedAt: null, updatedById: actorId },
+      }),
+    () => findLiveProperty(id),
+  );
+  revalidatePropertyLists();
+  revalidatePath(`/home/${id}`);
+  return findProperty(id);
 }
 
 // #287 — soft delete: moves the Property to Trash. Everything under it stays
@@ -127,7 +187,11 @@ export async function permanentlyDeletePropertyCommand(id: string) {
 export async function purgeProperty(id: string) {
   const existing = await prisma.property.findUnique({
     where: { id },
-    include: { items: { select: { id: true } }, rentalStatements: { select: { id: true } } },
+    include: {
+      items: { select: { id: true } },
+      rentalAgreements: { select: { id: true } },
+      rentalStatements: { select: { id: true } },
+    },
   });
   if (!existing) throw new RecordNotFoundError("Property");
   // The row delete cascades to Maintenance records, Tenancies, Rental
@@ -135,6 +199,11 @@ export async function purgeProperty(id: string) {
   // Products are unlinked, not deleted). The files on disk aren't FK-linked,
   // so they're removed straight after.
   await prisma.property.delete({ where: { id } });
+  // The sent-Reminder log isn't FK-linked either (#388).
+  const tenancyIds = existing.rentalAgreements.map((agreement) => agreement.id);
+  if (tenancyIds.length > 0) {
+    await prisma.notificationLog.deleteMany({ where: { ownerType: "TENANCY", ownerId: { in: tenancyIds } } });
+  }
   for (const item of existing.items) {
     await removeOwnerDocumentFiles("HOME_ITEM", item.id);
   }
@@ -154,18 +223,29 @@ function inScope(record: { propertyId: string } | null, scope: PropertyScope) {
   return record !== null && (scope.propertyId === undefined || record.propertyId === scope.propertyId);
 }
 
+// Restoring a record under a Property: refused while the Property is still
+// in Trash. Runs inside the restore's transaction.
+async function assertPropertyRestored(propertyId: string, db: Db) {
+  assertParentRestored(
+    await db.property.findUnique({ where: { id: propertyId }, select: { deletedAt: true } }),
+    "Property",
+  );
+}
+
 // ── Maintenance record (HomeItem) ───────────────────────────────────────────
 
-async function findMaintenanceRecord(id: string, scope: PropertyScope = {}) {
-  const item = await prisma.homeItem.findUnique({ where: { id } });
+async function findMaintenanceRecord(id: string, scope: PropertyScope = {}, db: Db = prisma) {
+  const item = await db.homeItem.findUnique({ where: { id } });
   if (!item || !inScope(item, scope)) throw new RecordNotFoundError("Maintenance record");
   return item;
 }
 
 export async function createMaintenanceRecordCommand(propertyId: string, input: HomeItemInput) {
   await assertModuleEnabled("HOME");
-  await findLiveProperty(propertyId);
-  const item = await prisma.homeItem.create({ data: { ...input, propertyId } });
+  const item = await prisma.$transaction(async (tx) => {
+    await findLiveProperty(propertyId, "Property", tx);
+    return tx.homeItem.create({ data: { ...input, propertyId } });
+  });
   revalidatePath(`/home/${propertyId}`);
   return item;
 }
@@ -177,13 +257,21 @@ export async function updateMaintenanceRecordCommand(
   options: UpdateOptions & PropertyScope = {},
 ) {
   await assertModuleEnabled("HOME");
-  const existing = requireLive(await findMaintenanceRecord(id, options), "Maintenance record");
-  await findLiveProperty(existing.propertyId, "Maintenance record");
-  await updateUnlessStale(options.baseUpdatedAt, (guard) =>
-    prisma.homeItem.updateMany({ where: { id, ...guard }, data: patch }),
+  await updateLiveUnlessStale(
+    options.baseUpdatedAt,
+    (guard) =>
+      prisma.homeItem.updateMany({
+        where: { id, propertyId: options.propertyId, deletedAt: null, property: { deletedAt: null }, ...guard },
+        data: patch,
+      }),
+    async () => {
+      const existing = requireLive(await findMaintenanceRecord(id, options), "Maintenance record");
+      await findLiveProperty(existing.propertyId, "Maintenance record");
+    },
   );
-  revalidatePath(`/home/${existing.propertyId}`);
-  return findMaintenanceRecord(id);
+  const item = await findMaintenanceRecord(id);
+  revalidatePath(`/home/${item.propertyId}`);
+  return item;
 }
 
 export async function deleteMaintenanceRecordCommand(id: string, scope: PropertyScope = {}) {
@@ -196,12 +284,12 @@ export async function deleteMaintenanceRecordCommand(id: string, scope: Property
 
 export async function restoreMaintenanceRecordCommand(id: string) {
   await assertModuleEnabled("HOME");
-  const existing = await findMaintenanceRecord(id);
-  assertParentRestored(
-    await prisma.property.findUnique({ where: { id: existing.propertyId }, select: { deletedAt: true } }),
-    "Property",
-  );
-  await prisma.homeItem.update({ where: { id }, data: { deletedAt: null } });
+  const existing = await prisma.$transaction(async (tx) => {
+    const item = await findMaintenanceRecord(id, {}, tx);
+    await assertPropertyRestored(item.propertyId, tx);
+    await tx.homeItem.update({ where: { id }, data: { deletedAt: null } });
+    return item;
+  });
   revalidatePath(`/home/${existing.propertyId}`);
   revalidatePath("/settings/trash");
 }
@@ -227,7 +315,7 @@ export async function purgeMaintenanceRecord(id: string) {
 // Why a Contract can't be linked to a Tenancy. Its own error, not a
 // RecordNotFoundError, so a caller can tell "that Contract" apart from
 // "this Tenancy" not being found.
-export type TenancyContractProblem = "not-found" | "wrong-category" | "already-linked";
+export type TenancyContractProblem = "not-found" | "wrong-category" | "already-linked" | "linked-in-trash";
 
 function tenancyContractMessage(problem: TenancyContractProblem) {
   switch (problem) {
@@ -237,6 +325,8 @@ function tenancyContractMessage(problem: TenancyContractProblem) {
       return "Only Rental-category contracts can be linked.";
     case "already-linked":
       return "That contract is already linked to another tenancy.";
+    case "linked-in-trash":
+      return "That contract is linked to a tenancy in Trash. Restore it or delete it permanently.";
   }
 }
 
@@ -258,50 +348,76 @@ function revalidateRental(propertyId: string) {
   revalidatePath(`/home/${propertyId}/rental`);
 }
 
-async function findTenancy(id: string, scope: PropertyScope = {}) {
-  const agreement = await prisma.rentalAgreement.findUnique({ where: { id } });
+// For delete, restore and the row an update returns: Trash or not.
+async function findTenancy(id: string, scope: PropertyScope = {}, db: Db = prisma) {
+  const agreement = await db.rentalAgreement.findUnique({ where: { id } });
   if (!agreement || !inScope(agreement, scope)) throw new RecordNotFoundError("Tenancy");
   return agreement;
 }
 
 // Adding a Tenancy also turns rental tracking on for its Property.
+//
+// A new Tenancy usually replaces the current one (currentTenancy in
+// dueRecords.ts). The old one's sent-Reminder rows (ownerType TENANCY, its
+// id) stay until it's permanently deleted. That's harmless: only the
+// current Tenancy gets Reminders, the rows are keyed by the old Tenancy's id
+// so they never count for the new one, and should the old one become
+// current again its rows only match a lease end they were really sent for
+// (ADR 0003).
 export async function createTenancyCommand(propertyId: string, input: RentalAgreementInput, actorId: string) {
   await assertModuleEnabled("HOME");
-  await findLiveProperty(propertyId);
-  const [agreement] = await prisma.$transaction([
-    prisma.rentalAgreement.create({ data: { ...input, propertyId } }),
-    prisma.property.update({ where: { id: propertyId }, data: { isRented: true, updatedById: actorId } }),
-  ]);
+  const agreement = await prisma.$transaction(async (tx) => {
+    await findLiveProperty(propertyId, "Property", tx);
+    const created = await tx.rentalAgreement.create({ data: { ...input, propertyId } });
+    await tx.property.update({ where: { id: propertyId }, data: { isRented: true, updatedById: actorId } });
+    return created;
+  });
   revalidateRental(propertyId);
   return agreement;
 }
 
-// Partial patch, as for updatePropertyCommand. No stale-edit check: the
-// table has no updatedAt to compare against.
+// The Tenancy if it and its Property are live; otherwise "Tenancy" not found.
+async function findLiveTenancy(id: string, scope: PropertyScope = {}) {
+  const existing = requireLive(await findTenancy(id, scope), "Tenancy");
+  await findLiveProperty(existing.propertyId, "Tenancy");
+  return existing;
+}
+
+// Partial patch, as for updatePropertyCommand. With a baseUpdatedAt (an
+// offline edit), an edit that landed since is refused as stale (#427 gave
+// the table its updatedAt).
 export async function updateTenancyCommand(
   id: string,
   patch: ClearablePatch<RentalAgreementInput>,
-  scope: PropertyScope = {},
+  options: UpdateOptions & PropertyScope = {},
 ) {
   await assertModuleEnabled("HOME");
-  const existing = await findTenancy(id, scope);
-  await findLiveProperty(existing.propertyId, "Tenancy");
-  const agreement = await prisma.rentalAgreement.update({ where: { id }, data: patch });
-  revalidateRental(existing.propertyId);
+  await updateLiveUnlessStale(
+    options.baseUpdatedAt,
+    (guard) =>
+      prisma.rentalAgreement.updateMany({
+        where: { id, propertyId: options.propertyId, deletedAt: null, property: { deletedAt: null }, ...guard },
+        data: patch,
+      }),
+    () => findLiveTenancy(id, options),
+  );
+  const agreement = await findTenancy(id);
+  revalidateRental(agreement.propertyId);
   return agreement;
 }
 
 // Links the Tenancy to a Rental-category Contract, or unlinks it (null). A
 // Contract in Trash counts as not found, and one already linked to another
-// Tenancy is refused: a Contract links to one Tenancy at most.
+// Tenancy is refused: a Contract links to one Tenancy at most. A Tenancy in
+// Trash keeps its link (so restoring it brings the link back), so its
+// Contract still counts as linked until the Tenancy is deleted for good.
 export async function linkTenancyContractCommand(
   id: string,
   contractId: string | null,
   scope: PropertyScope = {},
 ) {
   await assertModuleEnabled("HOME");
-  const existing = await findTenancy(id, scope);
-  await findLiveProperty(existing.propertyId, "Tenancy");
+  const existing = await findLiveTenancy(id, scope);
   if (contractId !== null) {
     const contract = await prisma.contract.findUnique({
       where: { id: contractId },
@@ -311,12 +427,20 @@ export async function linkTenancyContractCommand(
     if (contract.category !== "RENTAL") throw new TenancyContractLinkError("wrong-category");
     const other = await prisma.rentalAgreement.findFirst({
       where: { contractId, id: { not: id } },
-      select: { id: true },
+      select: { id: true, deletedAt: true },
     });
-    if (other) throw new TenancyContractLinkError("already-linked");
+    if (other) throw new TenancyContractLinkError(other.deletedAt ? "linked-in-trash" : "already-linked");
   }
   try {
-    await prisma.rentalAgreement.update({ where: { id }, data: { contractId } });
+    await updateLiveUnlessStale(
+      undefined,
+      () =>
+        prisma.rentalAgreement.updateMany({
+          where: { id, deletedAt: null, property: { deletedAt: null } },
+          data: { contractId },
+        }),
+      () => findLiveTenancy(id),
+    );
   } catch (error) {
     if (isUniqueViolation(error)) throw new TenancyContractLinkError("already-linked");
     throw error;
@@ -327,28 +451,69 @@ export async function linkTenancyContractCommand(
   if (contractId) revalidatePath(`/contracts/${contractId}`);
 }
 
-// A Tenancy has no Trash: this deletes it for good. A linked Contract is
-// left alone (the link is on the Tenancy's side).
-export async function permanentlyDeleteTenancyCommand(id: string, scope: PropertyScope = {}) {
+function revalidateTenancy(tenancy: { propertyId: string; contractId: string | null }) {
+  revalidateRental(tenancy.propertyId);
+  revalidatePath("/dashboard");
+  // Upcoming shows the current Tenancy's lease end.
+  revalidatePath("/calendar");
+  if (tenancy.contractId) revalidatePath(`/contracts/${tenancy.contractId}`);
+  revalidatePath("/settings/trash");
+}
+
+// #427 — soft delete: moves the Tenancy to Trash, keeping its Contract link
+// so a restore brings it back as it was. Already in Trash is a no-op, so a
+// replayed offline delete doesn't restart its 30 days.
+export async function deleteTenancyCommand(id: string, scope: PropertyScope = {}) {
   await assertModuleEnabled("HOME");
   const existing = await findTenancy(id, scope);
+  if (!existing.deletedAt) {
+    await prisma.rentalAgreement.update({ where: { id }, data: { deletedAt: new Date() } });
+  }
+  revalidateTenancy(existing);
+}
+
+export async function restoreTenancyCommand(id: string) {
+  await assertModuleEnabled("HOME");
+  const existing = await prisma.$transaction(async (tx) => {
+    const agreement = await findTenancy(id, {}, tx);
+    await assertPropertyRestored(agreement.propertyId, tx);
+    await tx.rentalAgreement.update({ where: { id }, data: { deletedAt: null } });
+    return agreement;
+  });
+  revalidateTenancy(existing);
+}
+
+export async function permanentlyDeleteTenancyCommand(id: string) {
+  await assertModuleEnabled("HOME");
+  revalidateTenancy(await purgeTenancy(id));
+}
+
+// See purgeProperty: for Trash retention only. A Tenancy has no Documents,
+// so there are no files to remove, but its sent-Reminder log goes with it
+// (#388; NotificationLog is polymorphic, so no cascade). A linked Contract
+// is left alone (the link is on the Tenancy's side).
+export async function purgeTenancy(id: string) {
+  const existing = await findTenancy(id);
   await prisma.rentalAgreement.delete({ where: { id } });
-  revalidateRental(existing.propertyId);
-  if (existing.contractId) revalidatePath(`/contracts/${existing.contractId}`);
+  await clearNotificationLogs("TENANCY", id);
+  return existing;
 }
 
 // ── Rental statement ────────────────────────────────────────────────────────
 
-async function findRentalStatement(id: string, scope: PropertyScope = {}) {
-  const statement = await prisma.rentalStatement.findUnique({ where: { id } });
+// For delete, restore and the row an update returns: Trash or not.
+async function findRentalStatement(id: string, scope: PropertyScope = {}, db: Db = prisma) {
+  const statement = await db.rentalStatement.findUnique({ where: { id } });
   if (!statement || !inScope(statement, scope)) throw new RecordNotFoundError("Rental statement");
   return statement;
 }
 
 export async function createRentalStatementCommand(propertyId: string, input: RentalStatementInput) {
   await assertModuleEnabled("HOME");
-  await findLiveProperty(propertyId);
-  const statement = await prisma.rentalStatement.create({ data: { ...input, propertyId } });
+  const statement = await prisma.$transaction(async (tx) => {
+    await findLiveProperty(propertyId, "Property", tx);
+    return tx.rentalStatement.create({ data: { ...input, propertyId } });
+  });
   revalidatePath(`/home/${propertyId}/rental`);
   return statement;
 }
@@ -360,43 +525,127 @@ export async function updateRentalStatementCommand(
   options: UpdateOptions & PropertyScope = {},
 ) {
   await assertModuleEnabled("HOME");
-  const existing = await findRentalStatement(id, options);
-  await findLiveProperty(existing.propertyId, "Rental statement");
-  await updateUnlessStale(options.baseUpdatedAt, (guard) =>
-    prisma.rentalStatement.updateMany({ where: { id, ...guard }, data: patch }),
+  await updateLiveUnlessStale(
+    options.baseUpdatedAt,
+    (guard) =>
+      prisma.rentalStatement.updateMany({
+        where: { id, propertyId: options.propertyId, deletedAt: null, property: { deletedAt: null }, ...guard },
+        data: patch,
+      }),
+    async () => {
+      const existing = requireLive(await findRentalStatement(id, options), "Rental statement");
+      await findLiveProperty(existing.propertyId, "Rental statement");
+    },
   );
-  revalidatePath(`/home/${existing.propertyId}/rental`);
-  return findRentalStatement(id);
+  const statement = await findRentalStatement(id);
+  revalidatePath(`/home/${statement.propertyId}/rental`);
+  return statement;
 }
 
-// A Rental statement has no Trash: this deletes it and its files for good.
-export async function permanentlyDeleteRentalStatementCommand(id: string, scope: PropertyScope = {}) {
+function revalidateStatement(propertyId: string) {
+  revalidatePath(`/home/${propertyId}/rental`);
+  revalidatePath("/settings/trash");
+}
+
+// #427 — soft delete: moves the statement to Trash. Its Documents and their
+// files stay as they are (each keeps its own Trash state), so a restore
+// brings it back as it was. Already in Trash is a no-op.
+export async function deleteRentalStatementCommand(id: string, scope: PropertyScope = {}) {
   await assertModuleEnabled("HOME");
   const existing = await findRentalStatement(id, scope);
-  // Cascades to the statement's Document rows; then the files go.
+  if (!existing.deletedAt) {
+    await prisma.rentalStatement.update({ where: { id }, data: { deletedAt: new Date() } });
+  }
+  revalidateStatement(existing.propertyId);
+}
+
+export async function restoreRentalStatementCommand(id: string) {
+  await assertModuleEnabled("HOME");
+  const existing = await prisma.$transaction(async (tx) => {
+    const statement = await findRentalStatement(id, {}, tx);
+    await assertPropertyRestored(statement.propertyId, tx);
+    await tx.rentalStatement.update({ where: { id }, data: { deletedAt: null } });
+    return statement;
+  });
+  revalidateStatement(existing.propertyId);
+}
+
+export async function permanentlyDeleteRentalStatementCommand(id: string) {
+  await assertModuleEnabled("HOME");
+  const { propertyId } = await purgeRentalStatement(id);
+  revalidateStatement(propertyId);
+}
+
+// See purgeProperty: for Trash retention only.
+export async function purgeRentalStatement(id: string) {
+  const existing = await findRentalStatement(id);
+  // Cascades to the statement's Document rows (Trash ones included); then
+  // the files go.
   await prisma.rentalStatement.delete({ where: { id } });
   await removeOwnerDocumentFiles("RENTAL_STATEMENT", id);
-  revalidatePath(`/home/${existing.propertyId}/rental`);
+  return { propertyId: existing.propertyId };
 }
 
 // ── Property valuation ──────────────────────────────────────────────────────
-// Create and delete only: a valuation is never edited, a new one is added.
-// Valuations feed net worth, so /wealth is revalidated too.
+// Never edited (a new one is added instead), but it goes to Trash like the
+// rest (#427). Valuations feed net worth, so /wealth is revalidated too; one
+// in Trash doesn't count towards it.
 
 export async function createPropertyValuationCommand(propertyId: string, input: PropertyValuationInput) {
   await assertModuleEnabled("HOME");
-  await findLiveProperty(propertyId);
-  const valuation = await prisma.propertyValuation.create({ data: { ...input, propertyId } });
+  const valuation = await prisma.$transaction(async (tx) => {
+    await findLiveProperty(propertyId, "Property", tx);
+    return tx.propertyValuation.create({ data: { ...input, propertyId } });
+  });
   revalidatePath(`/home/${propertyId}`);
   revalidatePath("/wealth");
   return valuation;
 }
 
+async function findPropertyValuation(id: string, scope: PropertyScope = {}, db: Db = prisma) {
+  const valuation = await db.propertyValuation.findUnique({ where: { id } });
+  if (!valuation || !inScope(valuation, scope)) throw new RecordNotFoundError("Valuation");
+  return valuation;
+}
+
+function revalidateValuation(propertyId: string) {
+  revalidatePath(`/home/${propertyId}`);
+  revalidatePath("/home");
+  revalidatePath("/wealth");
+  revalidatePath("/settings/trash");
+}
+
+// #427 — soft delete: moves the valuation to Trash. Already in Trash is a
+// no-op.
 export async function deletePropertyValuationCommand(id: string, scope: PropertyScope = {}) {
   await assertModuleEnabled("HOME");
-  const valuation = await prisma.propertyValuation.findUnique({ where: { id } });
-  if (!valuation || !inScope(valuation, scope)) throw new RecordNotFoundError("Valuation");
+  const valuation = await findPropertyValuation(id, scope);
+  if (!valuation.deletedAt) {
+    await prisma.propertyValuation.update({ where: { id }, data: { deletedAt: new Date() } });
+  }
+  revalidateValuation(valuation.propertyId);
+}
+
+export async function restorePropertyValuationCommand(id: string) {
+  await assertModuleEnabled("HOME");
+  const existing = await prisma.$transaction(async (tx) => {
+    const valuation = await findPropertyValuation(id, {}, tx);
+    await assertPropertyRestored(valuation.propertyId, tx);
+    await tx.propertyValuation.update({ where: { id }, data: { deletedAt: null } });
+    return valuation;
+  });
+  revalidateValuation(existing.propertyId);
+}
+
+export async function permanentlyDeletePropertyValuationCommand(id: string) {
+  await assertModuleEnabled("HOME");
+  const { propertyId } = await purgePropertyValuation(id);
+  revalidateValuation(propertyId);
+}
+
+// See purgeProperty: for Trash retention only. A valuation has no files.
+export async function purgePropertyValuation(id: string) {
+  const existing = await findPropertyValuation(id);
   await prisma.propertyValuation.delete({ where: { id } });
-  revalidatePath(`/home/${valuation.propertyId}`);
-  revalidatePath("/wealth");
+  return { propertyId: existing.propertyId };
 }

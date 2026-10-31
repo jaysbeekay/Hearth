@@ -32,16 +32,18 @@ test("crossing a reminder threshold delivers a webhook notification", async ({ p
     await page.getByRole("button", { name: "Add webhook" }).click();
     await expect(page.locator("body")).toContainText("E2E Test Webhook was added.");
 
-    // Expiring today crosses every configured threshold (default
-    // 30/14/7/1 days) at once, which the dedup logic in thresholds.ts
-    // collapses into a single catch-up notification per channel. An
-    // already-*past* endDate wouldn't fire at all — the scheduler only
-    // reminds ahead of expiry (remaining >= 0), not after it.
-    const today = new Date().toISOString().slice(0, 10);
+    // Expiring tomorrow (UTC) crosses every configured threshold (default
+    // 30/14/7/1 days) at once, which the Reminder schedule collapses into a
+    // single catch-up notification per channel. An already-*past* endDate
+    // wouldn't fire at all — the scheduler only reminds ahead of expiry
+    // (remaining >= 0), not after it. Tomorrow rather than today: the
+    // household day follows the server's zone, which east of UTC can
+    // already be tomorrow, making "today in UTC" yesterday.
+    const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
     await page.goto("/contracts/new");
     await page.locator("#title").fill("Webhook Notification Test Contract");
     await page.locator("#provider").fill("Test Provider");
-    await page.locator("#endDate").fill(today);
+    await page.locator("#endDate").fill(tomorrow);
     await page.locator("main button[type=submit]").click();
     await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
     const contractPageUrl = page.url();
@@ -90,4 +92,82 @@ test("the webhooks settings page lists configured endpoints", async ({ page }) =
   await page.goto("/settings/webhooks");
   await expect(page.getByRole("heading", { name: "Webhooks", exact: true })).toBeVisible();
   await expect(page.locator("body")).toContainText("E2E Test Webhook");
+});
+
+// #388 — a rented Property's current Tenancy gets Reminders for its lease
+// end, delivered like any other, linking to the Property.
+test("a tenancy's lease end delivers a tenancy.expiring webhook and shows on the property", async ({
+  page,
+  request,
+}) => {
+  const bodies: string[] = [];
+  const server = http.createServer((req, res) => {
+    const chunks: Buffer[] = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", () => {
+      bodies.push(Buffer.concat(chunks).toString("utf8"));
+      res.writeHead(200).end("OK");
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address() as AddressInfo;
+
+  try {
+    await page.goto("/settings/webhooks");
+    await page.locator("#name").fill("E2E Lease Webhook");
+    await page.locator("#url").fill(`http://127.0.0.1:${port}/lease`);
+    await page.getByRole("button", { name: "Add webhook" }).click();
+    await expect(page.locator("body")).toContainText("E2E Lease Webhook was added.");
+
+    await page.goto("/home/new");
+    await page.locator("#label").fill("Lease Reminder Flat");
+    await page.locator("main button[type=submit]").click();
+    await page.waitForURL(/\/home\/(?!new$)[^/]+$/);
+    const propertyUrl = page.url();
+
+    // Inside the 14-day threshold: one catch-up Reminder.
+    const leaseEnd = new Date(Date.now() + 10 * 86_400_000).toISOString().slice(0, 10);
+    await page.goto(`${propertyUrl}/rental/agreements/new`);
+    await page.locator("#weeklyRent").fill("600");
+    await page.locator("#tenantName").fill("Sam Lee");
+    await page.locator("#leaseEnd").fill(leaseEnd);
+    // The thresholds are validated like a Contract's.
+    await page.locator("#reminderDaysBefore").fill("soon");
+    await page.locator("main button[type=submit]").click();
+    await expect(page.locator("body")).toContainText("Use a comma-separated list of non-negative numbers");
+    // Blank means the household default.
+    await page.locator("#reminderDaysBefore").fill("");
+    await page.locator("main button[type=submit]").click();
+    await page.waitForURL(/\/rental$/);
+
+    const cronResponse = await request.post(`${BASE_URL}/api/cron`, {
+      headers: { "x-cron-secret": "e2e-cron-secret" },
+    });
+    expect(cronResponse.ok()).toBe(true);
+
+    const leasePayload = () =>
+      bodies.map((body) => JSON.parse(body)).find((payload) => payload.event === "tenancy.expiring");
+    await expect.poll(() => leasePayload() != null, { timeout: 10_000 }).toBe(true);
+    const payload = leasePayload();
+    expect(payload).toMatchObject({
+      kind: "tenancy",
+      title: "Lease Reminder Flat",
+      endDate: leaseEnd,
+      url: propertyUrl,
+    });
+    // The tenant's name never leaves the household by webhook.
+    expect(payload).not.toHaveProperty("detail");
+    expect(payload.daysRemaining).toBeGreaterThanOrEqual(9);
+    expect(payload.daysRemaining).toBeLessThanOrEqual(11);
+
+    await page.goto(propertyUrl);
+    const card = page.locator("div.rounded-xl", { has: page.getByRole("heading", { name: "Lease reminders" }) });
+    await expect(card).toBeVisible();
+    await expect(card).toContainText("1d, 7d, 14d, 30d");
+    // The delivery attempt is on the card. (The first test's endpoint is
+    // gone, so the webhook channel reports a failure alongside this send.)
+    await expect(card).toContainText(/\(webhook\)|via webhook/);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
 });

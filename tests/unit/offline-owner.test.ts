@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   canQueueOffline,
   clearOfflineOwner,
@@ -6,9 +6,12 @@ import {
   isOwnedBy,
   isUserDataCache,
   isValidSessionMarker,
+  OfflineStorageTimeoutError,
   ownerScopedCacheKey,
-  partitionByOwner,
   setOfflineOwner,
+  stuckSyncing,
+  unownedToAdopt,
+  withTimeout,
 } from "@/lib/offlineOwner";
 import type { SerwistPlugin } from "serwist";
 import { createSessionCachePlugin } from "@/lib/swSessionPlugin";
@@ -47,35 +50,78 @@ describe("offline owner", () => {
   });
 });
 
-describe("partitionByOwner", () => {
-  const entries = [
-    { id: "1", ownerId: "alice" },
-    { id: "2", ownerId: "bob" },
-    { id: "3" },
-    { id: "4", ownerId: "alice" },
-  ];
-  const ids = (list: { id: string }[]) => list.map((e) => e.id);
+describe("pre-upgrade (unowned) entries", () => {
+  const entries = [{ id: "1", ownerId: "alice" }, { id: "2" }, { id: "3", ownerId: "bob" }, { id: "4" }];
 
-  it("keeps the user's own entries and purges everyone else's", () => {
-    const { keep, purge, adopt } = partitionByOwner(entries, "alice", false);
-    expect(ids(keep)).toEqual(["1", "4"]);
-    expect(ids(purge)).toEqual(["2", "3"]);
-    expect(adopt).toEqual([]);
+  it("are adopted by the first member who can write", () => {
+    expect(unownedToAdopt(entries, alice).map((e) => e.id)).toEqual(["2", "4"]);
   });
 
-  it("adopts unowned entries only on the first claim after the upgrade", () => {
-    const { keep, purge, adopt } = partitionByOwner(entries, "alice", true);
-    expect(ids(keep)).toEqual(["1", "4"]);
-    expect(ids(purge)).toEqual(["2"]);
-    expect(ids(adopt)).toEqual(["3"]);
-  });
-
-  it("purges a previous user's whole queue when a different user signs in", () => {
-    const { keep, purge } = partitionByOwner(entries, "bob", false);
-    expect(ids(keep)).toEqual(["2"]);
-    expect(ids(purge)).toEqual(["1", "3", "4"]);
+  it("are never adopted by a read-only member (purged instead)", () => {
+    expect(unownedToAdopt(entries, reader)).toEqual([]);
   });
 });
+
+describe("writes stuck mid-sync", () => {
+  it("are the signed-in user's 'syncing' ops, to put back to pending", () => {
+    const ops = [
+      { id: "1", ownerId: "alice", status: "syncing" },
+      { id: "2", ownerId: "alice", status: "pending" },
+      { id: "3", ownerId: "bob", status: "syncing" },
+      { id: "4", ownerId: "alice", status: "failed" },
+    ];
+    expect(stuckSyncing(ops, "alice").map((op) => op.id)).toEqual(["1"]);
+  });
+});
+
+describe("withTimeout", () => {
+  it("passes a result through", async () => {
+    await expect(withTimeout(Promise.resolve(3), 50)).resolves.toBe(3);
+  });
+
+  it("rejects when the work stalls, instead of hanging", async () => {
+    await expect(withTimeout(new Promise(() => {}), 10)).rejects.toBeInstanceOf(OfflineStorageTimeoutError);
+  });
+
+  it("passes a failure through", async () => {
+    await expect(withTimeout(Promise.reject(new Error("blocked")), 50)).rejects.toThrow("blocked");
+  });
+});
+
+describe("the production service worker's caches", () => {
+  const original = process.env.NODE_ENV;
+  afterEach(() => {
+    vi.stubEnv("NODE_ENV", original ?? "test");
+    vi.resetModules();
+  });
+
+  it("has the session plugin on every cache that holds signed-in content", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.resetModules();
+    const { defaultCache } = await import("@serwist/next/worker");
+    const { Strategy } = await import("serwist");
+    const { scopeRuntimeCaching } = await import("@/lib/swSessionPlugin");
+    const plugin = createSessionCachePlugin(async () => null);
+
+    const scoped = scopeRuntimeCaching(defaultCache, plugin);
+    const strategies = scoped.map((e) => e.handler).filter((h): h is InstanceType<typeof Strategy> => h instanceof Strategy);
+    const names = new Set(strategies.map((s) => s.cacheName));
+
+    // The cache names this app clears and scopes are the ones serwist uses.
+    for (const name of ["pages", "pages-rsc", "pages-rsc-prefetch", "apis", "others"]) {
+      expect(names.has(name), name).toBe(true);
+    }
+    for (const strategy of strategies) {
+      expect(strategy.plugins.includes(plugin), strategy.cacheName).toBe(isUserDataCache(strategy.cacheName));
+    }
+    // Running it twice doesn't add the plugin twice.
+    scopeRuntimeCaching(defaultCache, plugin);
+    for (const strategy of strategies) {
+      expect(strategy.plugins.filter((p) => p === plugin).length).toBeLessThanOrEqual(1);
+    }
+  });
+});
+
 
 describe("service worker session scoping", () => {
   it("clears only the caches that hold signed-in content", () => {

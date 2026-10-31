@@ -26,7 +26,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // only pass the enabled module keys down and let Sidebar/BottomNav build
   // their own nav item list (with icons) on the client.
   // The Inbox badge count refreshes with this layout (after a server action, router.refresh() or a full load), not live.
-  const [enabledModulesSet, chatConfig, { dateFormat, region, displayTimeZone }, inboxCount] = await Promise.all([
+  const [enabledModulesSet, chatConfig, { dateFormat, displayTimeZone }, inboxCount] = await Promise.all([
     getEnabledModuleKeys(),
     getChatConfig(),
     getUserPreferences(),
@@ -36,7 +36,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const chatConfigured = isChatConfigured(chatConfig);
 
   return (
-    <DateFormatProvider dateFormat={dateFormat} region={region} timeZone={displayTimeZone}>
+    <DateFormatProvider dateFormat={dateFormat} timeZone={displayTimeZone}>
     <CanWriteProvider canWrite={canWrite(session)}>
     <div className="flex min-h-screen">
       <a href="#main" className="sr-only-focusable">

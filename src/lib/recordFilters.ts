@@ -300,20 +300,21 @@ export function contractFilterWheres(filters: ListFilters): Prisma.ContractWhere
 
 // --- Vehicles ---------------------------------------------------------------
 
-export type VehicleRuleRow = { deletedAt: Date | null; vin: string | null; licensePlate: string | null };
+export type VehicleRuleRow = { deletedAt: Date | null; archivedAt: Date | null; vin: string | null; licensePlate: string | null };
 
 export type VehicleMissingPart = "No VIN or plate";
 
 export function vehicleMissingParts(row: VehicleRuleRow): VehicleMissingPart[] {
-  if (row.deletedAt != null) return [];
+  // Archived records are never missing anything (GLOSSARY.md, #355).
+  if (row.deletedAt != null || row.archivedAt != null) return [];
   return row.vin == null && row.licensePlate == null ? ["No VIN or plate"] : [];
 }
 
-export const VEHICLE_MISSING_SELECT = { deletedAt: true, vin: true, licensePlate: true } as const satisfies Prisma.VehicleSelect;
+export const VEHICLE_MISSING_SELECT = { deletedAt: true, archivedAt: true, vin: true, licensePlate: true } as const satisfies Prisma.VehicleSelect;
 
 export const vehicleRules = {
   missingDetails: {
-    where: { deletedAt: null, vin: null, licensePlate: null },
+    where: { deletedAt: null, archivedAt: null, vin: null, licensePlate: null },
     matches: (row) => vehicleMissingParts(row).length > 0,
   } satisfies RecordRule<Prisma.VehicleWhereInput, VehicleRuleRow>,
 };

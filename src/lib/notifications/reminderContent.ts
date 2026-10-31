@@ -3,16 +3,25 @@
 // record. Pure — no I/O — so it's unit-tested directly
 // (tests/unit/reminderContent.test.ts).
 
-export type ReminderKind = "contract" | "warranty" | "vehicle";
+export type ReminderKind = "contract" | "warranty" | "vehicle" | "tenancy";
 export type VehicleReminderField = "regoExpiry" | "insuranceExpiry" | "nextServiceDue";
 
 export interface ReminderInput {
   kind: ReminderKind;
   id: string;
-  /** Contract title, warranty description, or vehicle label. */
+  /** Contract title, warranty description, vehicle label, or a Tenancy's Property label. */
   title: string;
-  /** Provider / manufacturer; omitted for vehicles. */
+  /**
+   * Provider / manufacturer, or a Tenancy's tenant; omitted for vehicles. A
+   * tenant's name is someone outside the household, so it goes in email
+   * only, never to ntfy or a webhook (#388).
+   */
   detail?: string;
+  /**
+   * Tenancy only (#388): the Property the Reminder links to. A Tenancy has
+   * no page of its own, so its Reminder opens its Property.
+   */
+  propertyId?: string;
   /** Which date a vehicle reminder is about. Required when kind is "vehicle". */
   vehicleField?: VehicleReminderField;
   /** Days until the date this reminder is about — the notice deadline when `notice` is set. */
@@ -52,11 +61,18 @@ function testNoteText(input: ReminderInput): string {
   return `This is a test of the reminder Hearth sends for this record. The real one goes out ${when}.`;
 }
 
-const RECORD_PATH: Record<ReminderKind, string> = {
-  contract: "contracts",
-  warranty: "products",
-  vehicle: "vehicles",
-};
+function recordPath(kind: ReminderKind): string {
+  switch (kind) {
+    case "contract":
+      return "contracts";
+    case "warranty":
+      return "products";
+    case "vehicle":
+      return "vehicles";
+    case "tenancy":
+      return "home";
+  }
+}
 
 const VEHICLE_SUBJECT: Record<VehicleReminderField, { noun: string; verb: string }> = {
   regoExpiry: { noun: "registration", verb: "expires" },
@@ -70,7 +86,12 @@ export function reminderRecordUrl(
   id: string,
 ): string | null {
   if (!appUrl) return null;
-  return `${appUrl.replace(/\/+$/, "")}/${RECORD_PATH[kind]}/${encodeURIComponent(id)}`;
+  return `${appUrl.replace(/\/+$/, "")}/${recordPath(kind)}/${encodeURIComponent(id)}`;
+}
+
+/** The link back to the record a Reminder is about: a Tenancy's opens its Property. */
+function inputUrl(input: ReminderInput): string | null {
+  return reminderRecordUrl(input.appUrl, input.kind, input.kind === "tenancy" ? (input.propertyId ?? input.id) : input.id);
 }
 
 /**
@@ -100,6 +121,7 @@ function inDays(days: number): string {
 
 function subjectParts(input: ReminderInput): { noun: string; verb: string } {
   if (input.kind === "vehicle") return VEHICLE_SUBJECT[input.vehicleField ?? "regoExpiry"];
+  if (input.kind === "tenancy") return { noun: "lease", verb: "ends" };
   return { noun: input.kind, verb: "expires" };
 }
 
@@ -118,11 +140,15 @@ function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
-/** "Your contract "X" (Allianz) expires" / "The registration for "Car" expires". */
+/**
+ * "Your contract "X" (Allianz) expires" / "The registration for "Car" expires"
+ * / "The lease for "Flat" (Sam Lee) ends".
+ */
 function sentenceStart(input: ReminderInput, quote: (s: string) => string): string {
   const { noun, verb } = subjectParts(input);
   if (input.kind === "vehicle") return `The ${noun} for ${quote(input.title)} ${verb}`;
   const detail = input.detail?.trim();
+  if (input.kind === "tenancy") return `The ${noun} for ${quote(input.title)}${detail ? ` (${detail})` : ""} ${verb}`;
   return `Your ${noun} ${quote(input.title)}${detail ? ` (${detail})` : ""} ${verb}`;
 }
 
@@ -142,12 +168,15 @@ export function buildReminderEmail(input: ReminderInput): { subject: string; tex
   const endDate = formatReminderDate(input.endDate, input.dateFormat);
   const date = input.notice ? formatReminderDate(input.notice.cancelBy, input.dateFormat) : endDate;
   const when = inDays(input.daysRemaining);
-  const url = reminderRecordUrl(input.appUrl, input.kind, input.id);
+  const url = inputUrl(input);
 
+  const test = input.test ? "[Test] " : "";
   const subject = oneLine(
     input.notice
-      ? `${input.test ? "[Test] " : ""}Reminder: notice deadline for "${input.title}" ${noun} ${when}`
-      : `${input.test ? "[Test] " : ""}Reminder: "${input.title}" ${noun} ${verb} ${when}`,
+      ? `${test}Reminder: notice deadline for "${input.title}" ${noun} ${when}`
+      : input.kind === "tenancy"
+        ? `${test}Reminder: lease for "${input.title}" ${verb} ${when}`
+        : `${test}Reminder: "${input.title}" ${noun} ${verb} ${when}`,
   );
 
   const testNote = input.test ? `${testNoteText(input)}\n\n` : "";
@@ -174,18 +203,27 @@ export function buildReminderEmail(input: ReminderInput): { subject: string; tex
   return { subject, text, html };
 }
 
+/** What may leave the household: a Tenancy's tenant stays out of ntfy and webhooks (#388). */
+function shareable(input: ReminderInput): ReminderInput {
+  return input.kind === "tenancy" ? { ...input, detail: undefined } : input;
+}
+
 /** ntfy publish headers + body. Click/Actions make the notification open the record. */
-export function buildNtfyReminder(input: ReminderInput): { headers: Record<string, string>; body: string } {
+export function buildNtfyReminder(fullInput: ReminderInput): { headers: Record<string, string>; body: string } {
+  const input = shareable(fullInput);
   const { noun, verb } = subjectParts(input);
   const endDate = formatReminderDate(input.endDate, input.dateFormat);
   const when = inDays(input.daysRemaining);
-  const url = reminderRecordUrl(input.appUrl, input.kind, input.id);
+  const url = inputUrl(input);
+  const test = input.test ? "[Test] " : "";
 
   const headers: Record<string, string> = {
     Title: oneLine(
       input.notice
-        ? `${input.test ? "[Test] " : ""}${input.title}: notice deadline ${when}`
-        : `${input.test ? "[Test] " : ""}${input.title}: ${noun} ${verb} ${when}`,
+        ? `${test}${input.title}: notice deadline ${when}`
+        : input.kind === "tenancy"
+          ? `${test}Lease for ${input.title} ${verb} ${when}`
+          : `${test}${input.title}: ${noun} ${verb} ${when}`,
     ),
     Priority: input.daysRemaining <= 7 ? "high" : "default",
     Tags: "warning,calendar",
@@ -208,8 +246,10 @@ export function buildReminderWebhookBody(input: ReminderInput): Record<string, u
     kind: input.kind,
     id: input.id,
     title: input.title,
-    detail: input.detail ?? "",
+    // A Tenancy's payload carries no tenant name (shareable).
+    ...(input.kind === "tenancy" ? {} : { detail: input.detail ?? "" }),
     ...(input.kind === "vehicle" ? { field: input.vehicleField } : {}),
+    ...(input.kind === "tenancy" ? { propertyId: input.propertyId ?? null } : {}),
     daysRemaining: input.daysRemaining,
     endDate: input.endDate.toISOString().slice(0, 10),
     ...(input.kind === "contract"
@@ -218,6 +258,6 @@ export function buildReminderWebhookBody(input: ReminderInput): Record<string, u
           noticePeriodDays: input.notice?.noticePeriodDays ?? null,
         }
       : {}),
-    url: reminderRecordUrl(input.appUrl, input.kind, input.id),
+    url: inputUrl(input),
   };
 }

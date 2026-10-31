@@ -31,10 +31,17 @@ export interface VehicleDueRow {
   insuranceExpiry: DateInput;
   nextServiceDue: DateInput;
   reminderDaysBefore?: string | null;
+  /**
+   * #355 — an Archived Vehicle has no Due entries. Required, not optional,
+   * so a query that forgets to select it fails to type-check instead of
+   * quietly bringing a sold Vehicle's dates back.
+   */
+  archivedAt: DateInput;
 }
 
 export interface TenancyDueRow {
   leaseEnd: DateInput;
+  reminderDaysBefore?: string | null;
 }
 
 export function contractDue(row: ContractDueRow, ctx: DueContext): DueEntry[] {
@@ -66,13 +73,14 @@ export function vehicleDue(row: VehicleDueRow, ctx: DueContext): DueEntry[] {
       insuranceExpiry: row.insuranceExpiry,
       nextServiceDue: row.nextServiceDue,
       reminderDaysBefore: row.reminderDaysBefore,
+      archivedAt: row.archivedAt,
     },
     ctx,
   );
 }
 
 export function tenancyDue(row: TenancyDueRow, ctx: DueContext): DueEntry[] {
-  return dueEntries({ kind: "tenancy", leaseEnd: row.leaseEnd }, ctx);
+  return dueEntries({ kind: "tenancy", leaseEnd: row.leaseEnd, reminderDaysBefore: row.reminderDaysBefore }, ctx);
 }
 
 /**
@@ -92,31 +100,7 @@ export function bannerEntries(entries: DueEntry[]): DueEntry[] {
   return entries.filter((entry) => isDue(entry) || entry.state === "needs-new-end-date");
 }
 
-export type DueTone = "danger" | "warning" | "neutral" | "success";
-
-/**
- * The colour a state's pill or banner takes, with the existing tokens.
- * Overdue is danger and due soon is warning; the states that need no
- * action by a date (Ended, Lapsed, waiting on a new end date) are neutral.
- * A date outside its due-soon window keeps today's success tint until #412
- * replaces this with the full state-to-tone mapping.
- */
-export function dueTone(state: DueState): DueTone {
-  switch (state) {
-    case "overdue":
-      return "danger";
-    case "due-soon":
-      return "warning";
-    case "later":
-      return "success";
-    case "ended":
-    case "lapsed":
-    case "needs-new-end-date":
-      return "neutral";
-  }
-}
-
-type TenancyAgreement = { leaseStart: Date | null; leaseEnd: Date | null; createdAt: Date };
+type TenancyAgreement = { leaseStart: Date | null; leaseEnd: Date | null; createdAt: Date; deletedAt: Date | null };
 
 // Missing dates sort before any real one.
 const time = (date: Date | null) => (date ? date.getTime() : Number.NEGATIVE_INFINITY);
@@ -135,14 +119,22 @@ function compareLeases(a: TenancyAgreement, b: TenancyAgreement): number {
  * tracking is on. Most recent means the latest lease start, then the latest
  * lease end, and only then the latest entered, so back-entering an old
  * lease never displaces the running one. Older agreements are history, so
- * their lease ends are never Due.
+ * their lease ends are never Due. An Archived Property (the household no
+ * longer has it) has none either.
  */
 export function currentTenancy<T extends TenancyAgreement>(property: {
   isRented: boolean;
+  /** Required so no caller can forget it: an Archived Property has no current Tenancy (#355). */
+  archivedAt: Date | null;
   rentalAgreements: T[];
 }): T | null {
-  if (!property.isRented || property.rentalAgreements.length === 0) return null;
-  return property.rentalAgreements.reduce((current, a) => (compareLeases(a, current) > 0 ? a : current));
+  if (property.archivedAt != null) return null;
+  // A Tenancy in Trash is never current (#427), whether or not the caller's
+  // query already left it out: its lease end isn't Due, on Upcoming or
+  // iCal, and gets no Reminders.
+  const live = property.rentalAgreements.filter((a) => a.deletedAt == null);
+  if (!property.isRented || live.length === 0) return null;
+  return live.reduce((current, a) => (compareLeases(a, current) > 0 ? a : current));
 }
 
 /** The rental agreement fields `currentTenancy` and the Due policy need, for a Prisma `select`. */
@@ -151,5 +143,17 @@ export const TENANCY_AGREEMENT_SELECT = {
   tenantName: true,
   leaseStart: true,
   leaseEnd: true,
+  reminderDaysBefore: true,
   createdAt: true,
+  deletedAt: true,
+} as const;
+
+/**
+ * A Property's `rentalAgreements` relation for currentTenancy: the Tenancies
+ * not in Trash, with the fields it needs. Every caller uses this, so none
+ * can forget the Trash filter (currentTenancy also skips any in Trash).
+ */
+export const LIVE_TENANCY_AGREEMENTS = {
+  where: { deletedAt: null },
+  select: TENANCY_AGREEMENT_SELECT,
 } as const;

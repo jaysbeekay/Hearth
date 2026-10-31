@@ -59,11 +59,13 @@ type AttentionContract = Pick<Contract, "id" | "title" | "provider"> &
 export function buildContractAttentionItems(contracts: AttentionContract[], ctx: DueContext): AttentionItem[] {
   const items: AttentionItem[] = [];
   for (const contract of contracts) {
+    // #353 — renewing adds the next Term and keeps this one as history; the
+    // edit form would overwrite it.
+    const renewHref = `/contracts/${contract.id}/renew`;
     for (const entry of contractDue(contract, ctx)) {
       if (entry.state === "needs-new-end-date") {
         // An auto-renewing Contract past its end date carried on into its
-        // next Term: tidying, not a deadline.
-        const href = `/contracts/${contract.id}/edit`;
+        // next Term: tidying, not a deadline. Adding that Term is a renewal.
         items.push({
           id: `new-end-date-${contract.id}`,
           kind: "contract",
@@ -71,8 +73,8 @@ export function buildContractAttentionItems(contracts: AttentionContract[], ctx:
           title: contract.title,
           subtitle: "Renewed automatically, so its end date has passed.",
           entry,
-        href: `/contracts/${contract.id}`,
-          action: { label: "Set the new end date", href },
+          href: `/contracts/${contract.id}`,
+          action: { label: "Set the new end date", href: renewHref },
         });
         continue;
       }
@@ -85,14 +87,18 @@ export function buildContractAttentionItems(contracts: AttentionContract[], ctx:
         subtitle: contract.provider,
         entry,
         href: `/contracts/${contract.id}`,
-        // The detail page's expiry banner is where renewing or cancelling
-        // actually happens; the edit form isn't a renewal (#353). A
-        // fixed-term Contract is meant to end, so there's nothing to renew:
-        // like an expiring Warranty, its row is to know about.
+        // An end date opens the Renew form (#353), and an Expired Contract
+        // also offers Cancel beside it (canMarkCancelled). A notice deadline
+        // is a choice between letting it renew and cancelling, so it opens
+        // the detail page, whose banner has both. A fixed-term Contract is
+        // meant to end, so there's nothing to renew: like an expiring
+        // Warranty, its row is to know about.
         action:
           contract.renewalType === "FIXED_TERM"
             ? undefined
-            : { label: "Renew or cancel", href: `/contracts/${contract.id}` },
+            : entry.field === "endDate"
+              ? { label: "Renew", href: renewHref }
+              : { label: "Renew or cancel", href: `/contracts/${contract.id}` },
         noDocument: contract._count.documents === 0,
         canMarkCancelled: entry.state === "overdue",
       });
@@ -133,7 +139,7 @@ const VEHICLE_ACTIONS = new Map<string, string>([
   ["nextServiceDue", "Book service"],
 ]);
 
-type AttentionVehicle = Pick<Vehicle, "id" | "label" | "regoExpiry" | "insuranceExpiry" | "nextServiceDue" | "reminderDaysBefore">;
+type AttentionVehicle = Pick<Vehicle, "id" | "label" | "regoExpiry" | "insuranceExpiry" | "nextServiceDue" | "reminderDaysBefore" | "archivedAt">;
 
 /** One row per Due entry: a Vehicle's rego, insurance and service are separate dates, each with its own state. */
 export function buildVehicleAttentionItems(vehicles: AttentionVehicle[], ctx: DueContext): AttentionItem[] {
@@ -161,6 +167,8 @@ export interface AttentionTenancy {
   agreementId: string;
   tenantName: string | null;
   leaseEnd: Date | null;
+  /** Its own Reminder thresholds, which set its due-soon window (#388). */
+  reminderDaysBefore?: string | null;
 }
 
 /**
@@ -252,7 +260,7 @@ export function buildExtractionReviewItems(
 }
 
 export interface FailedReminderLog {
-  ownerType: "CONTRACT" | "PRODUCT" | "VEHICLE";
+  ownerType: "CONTRACT" | "PRODUCT" | "VEHICLE" | "TENANCY";
   ownerId: string;
   error: string | null;
 }
@@ -268,10 +276,12 @@ export function buildReminderFailureItems(
   contracts: Contract[],
   products: Product[],
   vehicles: Vehicle[],
+  tenancies: AttentionTenancy[] = [],
 ): AttentionItem[] {
   const contractMap = new Map(contracts.map((c) => [c.id, c]));
   const productMap = new Map(products.map((p) => [p.id, p]));
   const vehicleMap = new Map(vehicles.map((v) => [v.id, v]));
+  const tenancyMap = new Map(tenancies.map((t) => [t.agreementId, t]));
   const seenOwners = new Set<string>();
   const items: AttentionItem[] = [];
 
@@ -305,6 +315,20 @@ export function buildReminderFailureItems(
         subtitle: `Reminder delivery failed${suffix}`,
         href: `/products/${product.id}`,
         action: { label: "View", href: `/products/${product.id}` },
+        badge: "Reminder failed",
+      });
+    } else if (log.ownerType === "TENANCY") {
+      // #388 — a lease-end Reminder; a Tenancy shows on its Property's page.
+      const tenancy = tenancyMap.get(log.ownerId);
+      if (!tenancy) continue;
+      items.push({
+        id: `failed-tenancy-${tenancy.agreementId}`,
+        kind: "property",
+        group: "housekeeping",
+        title: tenancy.propertyLabel,
+        subtitle: `Lease reminder delivery failed${suffix}`,
+        href: `/home/${tenancy.propertyId}`,
+        action: { label: "View", href: `/home/${tenancy.propertyId}` },
         badge: "Reminder failed",
       });
     } else {

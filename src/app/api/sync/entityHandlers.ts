@@ -35,6 +35,7 @@ import {
   deleteTripCommand,
   createTripSegmentCommand,
   updateTripSegmentCommand,
+  deleteTripSegmentCommand,
 } from "@/lib/commands/trips";
 import {
   createPropertyCommand,
@@ -44,9 +45,12 @@ import {
   updateMaintenanceRecordCommand,
   createTenancyCommand,
   updateTenancyCommand,
+  deleteTenancyCommand,
   createRentalStatementCommand,
   updateRentalStatementCommand,
+  deleteRentalStatementCommand,
   createPropertyValuationCommand,
+  deletePropertyValuationCommand,
 } from "@/lib/commands/home";
 import {
   createPortfolioCommand,
@@ -56,8 +60,10 @@ import {
   updateHoldingCommand,
   createTradeCommand,
   updateTradeCommand,
+  deleteTradeCommand,
 } from "@/lib/commands/wealth";
-import { updateUnlessStale } from "@/lib/commands/shared";
+import { updateInventoryItemCommand } from "@/lib/commands/inventory";
+import { RecordNotFoundError } from "@/lib/commands/shared";
 import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
 import {
   formToContractInput,
@@ -277,6 +283,10 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
         baseUpdatedAt: ctx.baseUpdatedAt,
       });
     },
+    // #427 — soft-delete, matching deleteTripSegment in actions/trips.ts.
+    remove: async (id, ctx) => {
+      await deleteTripSegmentCommand(id, { tripId: ctx.parentId });
+    },
     saveFile: async (segmentId, file) => {
       validateFile(file);
       await addDocumentCommand("TRIP_SEGMENT", segmentId, { file });
@@ -321,8 +331,6 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     },
   }),
 
-  // RentalAgreement (Tenancy) has no `updatedAt` column, so its updates take
-  // no stale-edit check.
   rentalAgreement: defineEntity({
     schema: rentalAgreementSchema,
     input: formToRentalAgreementInput,
@@ -332,7 +340,14 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       return { id: agreement.id };
     },
     update: async (id, data, ctx) => {
-      await updateTenancyCommand(id, data, { propertyId: requireParentId(ctx) });
+      await updateTenancyCommand(id, data, {
+        propertyId: requireParentId(ctx),
+        baseUpdatedAt: ctx.baseUpdatedAt,
+      });
+    },
+    // #427 — soft-delete, matching deleteRentalAgreement in actions/home.ts.
+    remove: async (id, ctx) => {
+      await deleteTenancyCommand(id, { propertyId: ctx.parentId });
     },
   }),
 
@@ -350,13 +365,17 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
         baseUpdatedAt: ctx.baseUpdatedAt,
       });
     },
+    // #427 — soft-delete, matching deleteRentalStatement in actions/home.ts.
+    remove: async (id, ctx) => {
+      await deleteRentalStatementCommand(id, { propertyId: ctx.parentId });
+    },
     saveFile: async (statementId, file) => {
       validateFile(file);
       await addDocumentCommand("RENTAL_STATEMENT", statementId, { file });
     },
   }),
 
-  // ── Inventory (per-user ownership) ─────────────────────────────────────────
+  // ── Inventory (household-shared) ───────────────────────────────────────────
   inventoryItem: defineEntity({
     schema: inventoryItemSchema,
     input: formToInventoryItemInput,
@@ -371,21 +390,12 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       return { id: item.id };
     },
     update: async (id, data, ctx) => {
-      const existing = await prisma.inventoryItem.findUnique({ where: { id } });
-      if (!existing) throw new Error("Item not found");
-      await prisma.$transaction(async (tx) => {
-        await updateUnlessStale(ctx.baseUpdatedAt, (guard) =>
-          tx.inventoryItem.updateMany({ where: { id, ...guard }, data }),
-        );
-        await syncLegacyInventory(tx, id, existing.warrantyProductId);
-      });
-      revalidatePath("/inventory");
-      revalidatePath(`/inventory/${id}`);
+      await updateInventoryItemCommand(id, data, ctx.userId, { baseUpdatedAt: ctx.baseUpdatedAt });
     },
     // #287 — soft-delete, matching deleteInventoryItem in actions/inventory.ts.
     remove: async (id) => {
       const existing = await prisma.inventoryItem.findUnique({ where: { id } });
-      if (!existing) throw new Error("Item not found");
+      if (!existing) throw new RecordNotFoundError("Inventory item");
       await prisma.$transaction(async (tx) => {
         await tx.inventoryItem.update({ where: { id }, data: { deletedAt: new Date() } });
         await syncLegacyInventory(tx, id);
@@ -444,6 +454,10 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     update: async (id, data, ctx) => {
       await updateTradeCommand(id, data, { holdingId: requireParentId(ctx), baseUpdatedAt: ctx.baseUpdatedAt });
     },
+    // #427 — soft-delete, matching deleteTrade in actions/wealth.ts.
+    remove: async (id, ctx) => {
+      await deleteTradeCommand(id, { holdingId: ctx.parentId });
+    },
     saveFile: async (tradeId, file) => {
       validateFile(file);
       await addDocumentCommand("TRADE", tradeId, { file });
@@ -459,6 +473,10 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     create: async (data, ctx) => {
       const valuation = await createPropertyValuationCommand(requireParentId(ctx), data);
       return { id: valuation.id };
+    },
+    // #427 — soft-delete, matching deletePropertyValuation in actions/wealth.ts.
+    remove: async (id, ctx) => {
+      await deletePropertyValuationCommand(id, { propertyId: ctx.parentId });
     },
   }),
 

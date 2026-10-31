@@ -108,6 +108,7 @@ export default async function SettingsPage() {
             dateFormat={user.dateFormat}
             preferredCurrency={user.preferredCurrency}
             timezone={user.timezone}
+            householdTimeZone={householdTimeZone}
             region={user.region}
           />
           <p className="mt-4 text-xs text-muted">

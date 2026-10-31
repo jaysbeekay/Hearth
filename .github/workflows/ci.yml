@@ -1,0 +1,122 @@
+# The checks every change to main must pass. Each job is a required status
+# check in the `main` ruleset, under the job name — renaming a job means
+# updating the ruleset too, or every merge blocks on a check that never runs.
+
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: ./.github/actions/setup
+      - run: npx tsc --noEmit
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: ./.github/actions/setup
+      - run: npm run lint
+
+  unit:
+    runs-on: ubuntu-latest
+    env:
+      HAS_CODACY: ${{ secrets.CODACY_PROJECT_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: ./.github/actions/setup
+
+      # Fails if coverage drops below the floor in vitest.config.ts.
+      - name: Unit tests with coverage
+        run: npm run test:coverage
+
+      - name: Coverage summary
+        if: ${{ always() && hashFiles('coverage/coverage-summary.json') != '' }}
+        run: |
+          node -e '
+            const t = require("./coverage/coverage-summary.json").total;
+            const row = (k) => `| ${k} | ${t[k].pct}% | ${t[k].covered}/${t[k].total} |`;
+            console.log(["### Unit test coverage", "", "| | % | Covered |", "|---|---|---|",
+              ...["lines", "statements", "functions", "branches"].map(row)].join("\n"));
+          ' >> "$GITHUB_STEP_SUMMARY"
+
+      # Codacy shows coverage on each PR and over time. Skipped until the
+      # CODACY_PROJECT_TOKEN secret is set (Codacy → Repository → Settings →
+      # Integrations → Project API token).
+      - name: Upload coverage to Codacy
+        if: ${{ env.HAS_CODACY == 'true' && hashFiles('coverage/lcov.info') != '' }}
+        env:
+          CODACY_PROJECT_TOKEN: ${{ secrets.CODACY_PROJECT_TOKEN }}
+        run: bash <(curl -Ls https://coverage.codacy.com/get.sh) report -r coverage/lcov.info
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: ./.github/actions/setup
+      - run: npm run build
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: ./.github/actions/setup
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      # The document text-extraction pipeline (src/lib/documents/
+      # textExtraction.ts) shells out to pdftotext/pdftoppm (poppler-utils)
+      # and tesseract. The production image installs them, but this job runs
+      # `next dev` on the bare runner. A missing binary doesn't error —
+      # extraction collapses to "" by design — so every extraction-dependent
+      # assertion would silently see "" (see 30-camera-inbox-review.spec.ts).
+      - name: Install poppler-utils and tesseract-ocr
+        run: sudo apt-get update && sudo apt-get install -y poppler-utils tesseract-ocr
+
+      - name: Run e2e suite
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  # The Capacitor shell's standalone mode (ios-shell/www/app.js), driven in
+  # Chromium with mocked native plugins.
+  standalone:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: ./.github/actions/setup
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run standalone suite
+        run: npm run test:standalone
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: standalone-report
+          path: playwright-report/
+          retention-days: 7

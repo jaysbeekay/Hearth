@@ -32,6 +32,7 @@ export default defineConfig({
       ENCRYPTION_KEY,
       APP_URL: BASE_URL,
       CRON_SECRET: "e2e-cron-secret",
+      MCP_TOKEN: "e2e-mcp-token",
       PORT: String(PORT),
     },
   },

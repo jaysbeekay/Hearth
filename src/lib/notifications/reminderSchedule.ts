@@ -50,8 +50,8 @@ export interface ChannelSchedule {
 
 export type ReminderSchedule = Record<ReminderChannel, ChannelSchedule>;
 
-/** Records that can have Reminders. Tenancy Reminders come with #388. */
-export type ReminderRecord = Exclude<DueRecord, { kind: "tenancy" }>;
+/** Records that can have Reminders: every Due record, a Tenancy's lease end included (#388). */
+export type ReminderRecord = DueRecord;
 
 const NOTHING: ChannelSchedule = { sendNow: null, nextReminderOn: null };
 
@@ -245,7 +245,7 @@ export function isCurrentLogRow(row: Pick<SentLogRow, "field" | "dueDate">, entr
 }
 
 /** A household's records by log owner type and id. */
-export type ReminderRecordsByOwner = Record<"CONTRACT" | "PRODUCT" | "VEHICLE", Map<string, ReminderRecord>>;
+export type ReminderRecordsByOwner = Record<"CONTRACT" | "PRODUCT" | "VEHICLE" | "TENANCY", Map<string, ReminderRecord>>;
 
 /** The parts of a log row that decide whether a failure is still live. */
 export interface FailureLogRow {

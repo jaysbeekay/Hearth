@@ -23,6 +23,9 @@ import {
   permanentlyDeleteTripSegmentCommand,
   saveTripSegmentFlightData,
 } from "@/lib/commands/trips";
+import { refreshFlightStatus } from "@/lib/integrations/flightStatus";
+import { computeSegmentDistance } from "@/lib/integrations/flightDistance";
+import { documentStoreFor } from "@/lib/storage";
 import {
   createPropertyCommand,
   deletePropertyCommand,
@@ -31,11 +34,19 @@ import {
   updateMaintenanceRecordCommand,
   deleteMaintenanceRecordCommand,
   restoreMaintenanceRecordCommand,
+  createTenancyCommand,
+  updateTenancyCommand,
 } from "@/lib/commands/home";
-import { addDocumentCommand, deleteDocumentCommand, restoreDocumentCommand } from "@/lib/commands/documents";
+import {
+  addDocumentCommand,
+  deleteDocumentCommand,
+  restoreDocumentCommand,
+  setDocumentImportantCommand,
+} from "@/lib/commands/documents";
 import {
   findLiveParent,
   requireLive,
+  requireExisting,
   assertParentRestored,
   ParentInTrashError,
   RecordNotFoundError,
@@ -43,7 +54,7 @@ import {
 } from "@/lib/commands/shared";
 import { restoreVehicleItem } from "@/lib/actions/vehicles";
 import { restoreHomeItem } from "@/lib/actions/home";
-import { restoreDocumentAction } from "@/lib/actions/documents";
+import { restoreDocumentAction, setDocumentImportantAction } from "@/lib/actions/documents";
 import { homeItemSchema, propertySchema } from "@/lib/validation/home";
 import { auth } from "@/lib/auth";
 
@@ -54,6 +65,11 @@ import { auth } from "@/lib/auth";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
+// A configured AviationStack key, so the flight lookups get as far as the API.
+vi.mock("@/lib/appSettings", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/appSettings")>()),
+  getAviationStackConfig: vi.fn(async () => ({ apiKey: "test-key" })),
+}));
 
 const db = setupTestDb();
 
@@ -79,8 +95,8 @@ describe("shared Trash helpers", () => {
     expect(() => requireLive(null, "Vehicle")).toThrow("Vehicle not found");
     expect(() => requireLive({ deletedAt: new Date() }, "Vehicle")).toThrow(RecordNotFoundError);
     expect(requireLive({ deletedAt: null, id: "a" }, "Vehicle").id).toBe("a");
-    // A table with no deletedAt column (Portfolios, Holdings) counts as live.
-    expect(requireLive({ id: "b" }, "Holding").id).toBe("b");
+    // A table with no Trash (Portfolios, Holdings) goes through requireExisting.
+    expect(requireExisting({ id: "b" }, "Holding").id).toBe("b");
     await expect(findLiveParent(Promise.resolve({ deletedAt: new Date() }), "Segment")).rejects.toThrow(
       "Segment not found",
     );
@@ -207,6 +223,31 @@ describe("Trips under Trash", () => {
   });
 });
 
+describe("flight lookups under a trashed Trip", () => {
+  it("don't call AviationStack for a segment of a Trip in Trash", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 500 }));
+    try {
+      const trip = await createTripCommand({ title: "Japan" }, actorId);
+      const segment = await createTripSegmentCommand(trip.id, {
+        ...flight,
+        flightNumber: "QF25",
+        departureIata: "SYD",
+        arrivalIata: "NRT",
+      });
+      await deleteTripCommand(trip.id);
+      await refreshFlightStatus(segment.id);
+      await computeSegmentDistance(segment.id);
+      expect(fetchSpy).not.toHaveBeenCalled();
+
+      await restoreTripCommand(trip.id);
+      await refreshFlightStatus(segment.id);
+      expect(fetchSpy).toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+});
+
 describe("Properties under Trash", () => {
   it("won't restore a Maintenance record while its Property is in Trash", async () => {
     const property = await createPropertyCommand(propertySchema.parse({ label: "Beach house" }), actorId);
@@ -256,6 +297,29 @@ describe("Documents under Trash", () => {
     await addDocumentCommand("TRIP_SEGMENT", segment.id, { file: pdf() });
     expect(await db.prisma.vehicleItemDocument.count()).toBe(1);
     expect(await db.prisma.tripSegmentDocument.count()).toBe(1);
+  });
+
+  it("won't star a Document while its record or that record's parent is in Trash", async () => {
+    const vehicle = await createVehicleCommand({ label: "Car" }, actorId);
+    const item = await createServiceRecordCommand(vehicle.id, service);
+    const doc = await addDocumentCommand("VEHICLE_ITEM", item.id, { file: pdf() });
+    const starred = async () =>
+      (await db.prisma.vehicleItemDocument.findUniqueOrThrow({ where: { id: doc.id } })).isImportant;
+
+    await deleteVehicleCommand(vehicle.id);
+    await expect(setDocumentImportantCommand("VEHICLE_ITEM", doc.id, true)).rejects.toThrow("Document not found");
+    expect(await setDocumentImportantAction("VEHICLE_ITEM", doc.id, true)).toEqual({ error: "Document not found." });
+    await restoreVehicleCommand(vehicle.id);
+
+    await deleteServiceRecordCommand(item.id);
+    await expect(setDocumentImportantCommand("VEHICLE_ITEM", doc.id, true)).rejects.toBeInstanceOf(
+      RecordNotFoundError,
+    );
+    expect(await starred()).toBe(false);
+
+    await restoreServiceRecordCommand(item.id);
+    await setDocumentImportantCommand("VEHICLE_ITEM", doc.id, true);
+    expect(await starred()).toBe(true);
   });
 
   it("won't restore a Document while its record's parent is in Trash, naming the outermost one", async () => {
@@ -350,5 +414,66 @@ describe("sync replay under a trashed parent", () => {
     ]);
     expect(retried.results.every((r) => r.success)).toBe(true);
     expect(await db.prisma.vehicleItem.count()).toBe(2);
+  });
+});
+
+// The Trash check and the write can't be split by another request moving
+// the parent to Trash in between: an update's guarded write carries the
+// rule itself, and a Document insert checks and writes in one transaction.
+describe("a parent moved to Trash during the write", () => {
+  it("refuses a Service record update whose Vehicle is trashed just before the write", async () => {
+    const vehicle = await createVehicleCommand({ label: "Car" }, actorId);
+    const item = await createServiceRecordCommand(vehicle.id, service);
+    const delegate = db.prisma.vehicleItem;
+    const updateMany = delegate.updateMany.bind(delegate);
+    const spy = vi.spyOn(delegate, "updateMany").mockImplementationOnce((async (args: Parameters<typeof updateMany>[0]) => {
+      await db.prisma.vehicle.update({ where: { id: vehicle.id }, data: { deletedAt: new Date() } });
+      return updateMany(args);
+    }) as never);
+
+    await expect(
+      updateServiceRecordCommand(item.id, { title: "Late" }, { baseUpdatedAt: item.updatedAt }),
+    ).rejects.toThrow("Service record not found");
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect((await db.prisma.vehicleItem.findUniqueOrThrow({ where: { id: item.id } })).title).toBe(service.title);
+  });
+
+  it("refuses a Trip update when the Trip is trashed just before the write", async () => {
+    const trip = await createTripCommand({ title: "Japan" }, actorId);
+    const delegate = db.prisma.trip;
+    const updateMany = delegate.updateMany.bind(delegate);
+    vi.spyOn(delegate, "updateMany").mockImplementationOnce((async (args: Parameters<typeof updateMany>[0]) => {
+      await db.prisma.trip.update({ where: { id: trip.id }, data: { deletedAt: new Date() } });
+      return updateMany(args);
+    }) as never);
+
+    await expect(updateTripCommand(trip.id, { destination: "Tokyo" }, actorId)).rejects.toThrow("Trip not found");
+    expect((await db.prisma.trip.findUniqueOrThrow({ where: { id: trip.id } })).destination).toBeNull();
+  });
+
+  it("refuses a Document whose record is trashed while its file is saved, and removes the file", async () => {
+    const vehicle = await createVehicleCommand({ label: "Car" }, actorId);
+    const item = await createServiceRecordCommand(vehicle.id, service);
+    const store = documentStoreFor("VEHICLE_ITEM");
+    const save = store.save.bind(store);
+    vi.spyOn(store, "save").mockImplementationOnce(async (ownerId, file) => {
+      const saved = await save(ownerId, file);
+      await db.prisma.vehicle.update({ where: { id: vehicle.id }, data: { deletedAt: new Date() } });
+      return saved;
+    });
+    const remove = vi.spyOn(store, "remove");
+
+    await expect(addDocumentCommand("VEHICLE_ITEM", item.id, { file: pdf() })).rejects.toThrow(
+      "Service record not found",
+    );
+    expect(await db.prisma.vehicleItemDocument.count()).toBe(0);
+    expect(remove).toHaveBeenCalledTimes(1);
+    remove.mockRestore();
+  });
+
+  it("still updates a Tenancy with an empty patch", async () => {
+    const property = await createPropertyCommand(propertySchema.parse({ label: "Flat" }), actorId);
+    const tenancy = await createTenancyCommand(property.id, { tenantName: "Sam", weeklyRent: 500, currency: "AUD" }, actorId);
+    await expect(updateTenancyCommand(tenancy.id, {})).resolves.toMatchObject({ id: tenancy.id });
   });
 });

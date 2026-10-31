@@ -15,7 +15,7 @@
 // Labels (#422): each entry carries `labelParts`, the label as a key and its
 // parameters, and `label`, those parts in the plain default format the
 // shared cases pin. Screens render `labelParts` in the viewer's date format
-// and region (dueLabel.ts); this module never reads Preferences.
+// (dueLabel.ts); this module never reads Preferences.
 //
 // Input contract:
 // - Date fields (end dates, rego expiry and so on) are calendar dates
@@ -31,7 +31,10 @@
 // - Reminder thresholds and notice periods must be whole days; anything
 //   else is unusable and ignored.
 
+import { isValidTimeZone, isoDay, resolveTimeZone, shortMonthName, zonedDayParts } from "@/lib/dateParts";
 import { parseThresholds } from "@/lib/notifications/thresholds";
+
+export { isValidTimeZone, resolveTimeZone, shortMonthName };
 
 /** A calendar day as `YYYY-MM-DD`. */
 export type CalendarDay = string;
@@ -52,8 +55,11 @@ export interface DueEntry {
   state: DueState;
   /**
    * The badge text in the plain default format ("Cancel by 3 Nov"), as the
-   * shared cases pin it. Screens show `labelParts` in the viewer's date
-   * format and region instead (#422, src/lib/dueLabel.ts).
+   * shared cases pin it (and the standalone shell renders).
+   *
+   * @deprecated for display: screens must render `<DueLabelText entry={…} />`
+   * (or `formatDueLabel`), which reads the viewer's date format; this text
+   * ignores it (#422, src/lib/dueLabel.ts). Kept for the shared cases.
    */
   label: string;
   /** What the label says, as a key and its parameters, for a renderer to format. */
@@ -106,8 +112,14 @@ export type DueRecord =
        * entry here, since the Contract's own entries stand in for them.
        */
       coveredFields?: VehicleDueField[];
+      /**
+       * Set once the household no longer has the Vehicle (Archived, #355):
+       * it has no Due entries, so no Reminders, and drops out of Needs
+       * attention, Upcoming and iCal. Any non-null value counts.
+       */
+      archivedAt?: DateInput;
     }
-  | { kind: "tenancy"; leaseEnd: DateInput };
+  | { kind: "tenancy"; leaseEnd: DateInput; reminderDaysBefore?: string | null };
 
 export interface DueContext {
   today: CalendarDay;
@@ -116,24 +128,8 @@ export interface DueContext {
 }
 
 const DAY_MS = 86_400_000;
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 // ─── Household day ────────────────────────────────────────────────────────────
-
-export function isValidTimeZone(timeZone: string | null | undefined): timeZone is string {
-  if (!timeZone) return false;
-  try {
-    new Intl.DateTimeFormat("en-US", { timeZone });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/** The first valid IANA zone among the candidates, else UTC. */
-export function resolveTimeZone(...candidates: (string | null | undefined)[]): string {
-  return candidates.find(isValidTimeZone) ?? "UTC";
-}
 
 /**
  * The server's own zone, used until an admin picks a household timezone:
@@ -153,14 +149,7 @@ export function householdDay(now: Date, timeZone: string): CalendarDay {
   if (!(now instanceof Date) || Number.isNaN(now.getTime())) {
     throw new Error(`householdDay needs a valid Date for "now", got ${String(now)}`);
   }
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: resolveTimeZone(timeZone),
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(now);
-  const part = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
-  return `${part("year")}-${part("month")}-${part("day")}`;
+  return isoDay(zonedDayParts(now, timeZone));
 }
 
 // ─── Calendar-day arithmetic ──────────────────────────────────────────────────
@@ -221,17 +210,14 @@ export function daysBetween(from: CalendarDay, to: CalendarDay): number {
 
 // ─── Labels ───────────────────────────────────────────────────────────────────
 
-/** How a label's dates and day counts read. */
+/**
+ * How a label's dates read. Day counts are always plain digits ("1234 days
+ * ago"), so a label never depends on the runtime's locale data and the
+ * server and browser render the same text.
+ */
 export interface DueLabelFormat {
   /** A calendar day, given the household's today (to leave out the current year). */
   date: (day: CalendarDay, today: CalendarDay) => string;
-  /** A day count. */
-  count: (n: number) => string;
-}
-
-/** The month's short English name, 1-based ("Nov" for 11). */
-export function shortMonthName(month: number): string {
-  return MONTHS[month - 1] ?? "";
 }
 
 /** "3 Nov", or "3 Nov 2027" when it isn't this year. */
@@ -242,7 +228,7 @@ export function formatDueDate(day: CalendarDay, today: CalendarDay): string {
 }
 
 /** The plain default format, which the shared cases (and the standalone shell) pin. */
-export const PLAIN_DUE_LABEL_FORMAT: DueLabelFormat = { date: formatDueDate, count: String };
+export const PLAIN_DUE_LABEL_FORMAT: DueLabelFormat = { date: formatDueDate };
 
 type DatedLabelKey = Extract<DueLabel, { date: CalendarDay }>["key"];
 
@@ -273,10 +259,10 @@ function upcomingVerb(key: DatedLabelKey): string {
 
 /**
  * A Due label's text in `format`: the plain default, unless a renderer
- * passes the viewer's date format and region (src/lib/dueLabel.ts).
+ * passes the viewer's date format (src/lib/dueLabel.ts).
  */
 export function renderDueLabel(label: DueLabel, format: DueLabelFormat = PLAIN_DUE_LABEL_FORMAT): string {
-  const ago = (days: number) => (days === 1 ? "yesterday" : `${format.count(days)} days ago`);
+  const ago = (days: number) => (days === 1 ? "yesterday" : `${days} days ago`);
   switch (label.key) {
     case "expiredAgo":
       return `Expired ${ago(label.days)}`;
@@ -285,7 +271,7 @@ export function renderDueLabel(label: DueLabel, format: DueLabelFormat = PLAIN_D
     case "insuranceExpiredAgo":
       return `Insurance expired ${ago(label.days)}`;
     case "serviceOverdue":
-      return `Service overdue by ${format.count(label.days)} ${label.days === 1 ? "day" : "days"}`;
+      return `Service overdue by ${label.days} ${label.days === 1 ? "day" : "days"}`;
     case "needsNewEndDate":
       return "Needs new end date";
     case "leaseEnded":
@@ -403,6 +389,11 @@ const VEHICLE_FIELDS: {
 ];
 
 function vehicleEntries(record: Extract<DueRecord, { kind: "vehicle" }>, ctx: DueContext): DueEntry[] {
+  // #355 — an Archived Vehicle has no entries. Whatever builds a vehicle
+  // DueRecord from a row (vehicleDue in dueRecords.ts, and the Covers
+  // builder #456/#487 adds, `vehicleDueRecord(row)`) must pass `archivedAt`
+  // through, or a sold Vehicle's dates come back.
+  if (record.archivedAt != null) return [];
   const window = dueSoonWindow(record.reminderDaysBefore, ctx.defaultReminderDays);
   const entries: DueEntry[] = [];
   for (const { field, due, passed } of VEHICLE_FIELDS) {
@@ -427,8 +418,8 @@ function tenancyEntries(record: Extract<DueRecord, { kind: "tenancy" }>, ctx: Du
     // Like an auto-renewing Contract, it needs its new date: Housekeeping, not Due.
     return [makeEntry("leaseEnd", end, daysLeft, "needs-new-end-date", { key: "leaseEnded" })];
   }
-  // A Tenancy has no Reminder thresholds of its own, so the household default sets its window.
-  const window = dueSoonWindow(null, ctx.defaultReminderDays);
+  // Its own Reminder thresholds set its window, else the household default's (#388).
+  const window = dueSoonWindow(record.reminderDaysBefore, ctx.defaultReminderDays);
   return [upcoming("leaseEnd", end, daysLeft, window, "leaseEnds", ctx.today)];
 }
 

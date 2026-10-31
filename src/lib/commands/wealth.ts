@@ -6,7 +6,9 @@ import { fetchHistoricalPrice } from "@/lib/prices";
 import { isCryptoHolding } from "@/lib/priceSource";
 import {
   updateUnlessStale,
-  findLiveParent,
+  updateLiveUnlessStale,
+  findExistingParent,
+  requireExisting,
   requireLive,
   RecordNotFoundError,
   type UpdateOptions,
@@ -24,13 +26,19 @@ import { Prisma, type Holding } from "@/generated/prisma/client";
 // Cost basis isn't stored: it's worked out from a Holding's Trades on every
 // view (src/lib/wealth.ts), so nothing here recomputes or caches it.
 //
-// None of these three has a Trash (no `deletedAt` column; Trades get one in
-// #427), so every delete is permanent and takes the Trade Documents' files
-// with it. A child write still checks its parent first (#428): a Holding
-// needs its Portfolio and a Trade its Holding. They go through the shared
-// Trash rules (findLiveParent / requireLive in shared.ts): with no Trash,
-// "live" means "still exists", and once a table gains a deletedAt the same
-// calls refuse a write to or under a record in Trash with no change here.
+// Only Trades have a Trash (#427). Deleting a Trade moves it to Trash, and
+// a Trade in Trash leaves the Holding's units, cost basis and every Wealth
+// total until it's restored; permanent delete (from Trash, or the 30-day
+// purge) removes the row and its Documents' files. Portfolios and Holdings
+// have no Trash: deleting one is permanent and takes every Trade under it
+// (Trash ones included) and their files with it.
+//
+// A child write still checks its parent first (#428): a Holding needs its
+// Portfolio and a Trade its Holding. For Portfolios and Holdings, with no
+// Trash, that's findExistingParent / requireExisting in shared.ts ("still
+// exists"). A Trade in Trash is read-only until it's restored: an update to
+// it is refused as not found (requireLive, and `deletedAt: null` in the
+// guarded write).
 
 export class DuplicateHoldingError extends Error {
   constructor(ticker: string) {
@@ -64,7 +72,7 @@ function revalidateHolding(portfolioId: string, holdingId: string) {
 
 // For a write to a Portfolio or under it, as `what`.
 function findLivePortfolio(id: string, what = "Portfolio") {
-  return findLiveParent(prisma.portfolio.findUnique({ where: { id } }), what);
+  return findExistingParent(prisma.portfolio.findUnique({ where: { id } }), what);
 }
 
 // Portfolios record their creator only (there's no updatedById column), so
@@ -132,7 +140,7 @@ async function findHolding(id: string, scope: HoldingScope = {}) {
 
 // A Holding that's still there under a Portfolio that's still there.
 async function findLiveHolding(id: string, scope: HoldingScope = {}) {
-  const holding = requireLive(await findHolding(id, scope), "Holding");
+  const holding = requireExisting(await findHolding(id, scope), "Holding");
   await findLivePortfolio(holding.portfolioId, "Holding");
   return holding;
 }
@@ -241,13 +249,14 @@ function backfillMarketPrice(tradeId: string, holding: Pick<Holding, "ticker" | 
 // keeps the Trade's updatedAt as it was: that's what an offline edit's
 // stale check compares against, and a looked-up price isn't an edit. The
 // write is guarded on that same updatedAt, so a user edit landing between
-// the read and the write wins and nothing is written. Returns whether the
-// price was saved.
+// the read and the write wins and nothing is written. A Trade in Trash is
+// read-only (#427), so nothing is saved for one. Returns whether the price
+// was saved.
 export async function saveTradeMarketPrice(id: string, marketPriceOnDate: number): Promise<boolean> {
-  const current = await prisma.trade.findUnique({ where: { id }, select: { updatedAt: true } });
-  if (!current) return false;
+  const current = await prisma.trade.findUnique({ where: { id }, select: { updatedAt: true, deletedAt: true } });
+  if (!current || current.deletedAt) return false;
   const { count } = await prisma.trade.updateMany({
-    where: { id, updatedAt: current.updatedAt },
+    where: { id, updatedAt: current.updatedAt, deletedAt: null },
     data: { marketPriceOnDate, updatedAt: current.updatedAt },
   });
   return count > 0;
@@ -275,24 +284,68 @@ export async function updateTradeCommand(
   await assertModuleEnabled("WEALTH");
   const existing = requireLive(await findTrade(id, options), "Trade");
   const holding = await findLiveHolding(existing.holdingId);
-  await updateUnlessStale(options.baseUpdatedAt, (guard) =>
-    prisma.trade.updateMany({ where: { id, ...guard }, data: patch }),
+  // The Trade can't move Holding, so only its own Trash state can change
+  // under the edit: the guarded write refuses one moved to Trash since.
+  await updateLiveUnlessStale(
+    options.baseUpdatedAt,
+    (guard) => prisma.trade.updateMany({ where: { id, deletedAt: null, ...guard }, data: patch }),
+    async () => requireLive(await findTrade(id, options), "Trade"),
   );
   revalidateHolding(holding.portfolioId, holding.id);
   return { ...(await findTrade(id)), portfolioId: holding.portfolioId };
 }
 
-// Trades have no Trash yet (#427): deleting one is permanent and takes its
-// Documents and their files with it.
-export async function permanentlyDeleteTradeCommand(id: string, scope: TradeScope = {}) {
+// #427 — soft delete: moves the Trade to Trash. Its Documents and their
+// files stay as they are (each keeps its own Trash state), so
+// restoreTradeCommand brings it back as it was. Already in Trash is a
+// no-op, so a replayed offline delete doesn't restart its 30 days. Returns
+// where the Trade lives, for the caller's redirect.
+export async function deleteTradeCommand(id: string, scope: TradeScope = {}) {
   await assertModuleEnabled("WEALTH");
   const existing = await findTrade(id, scope);
   const holding = await findHolding(existing.holdingId);
-  // Cascades to the Trade's Document rows; then the files go.
+  if (!existing.deletedAt) {
+    await prisma.trade.update({ where: { id }, data: { deletedAt: new Date() } });
+  }
+  revalidateTrade(holding);
+  return { holdingId: holding.id, portfolioId: holding.portfolioId };
+}
+
+// Holdings and Portfolios have no Trash, so there's no parent to restore
+// first: a Trade whose Holding is gone was deleted with it.
+export async function restoreTradeCommand(id: string) {
+  await assertModuleEnabled("WEALTH");
+  const existing = await findTrade(id);
+  const holding = await findHolding(existing.holdingId);
+  await prisma.trade.update({ where: { id }, data: { deletedAt: null } });
+  revalidateTrade(holding);
+  return { holdingId: holding.id, portfolioId: holding.portfolioId };
+}
+
+export async function permanentlyDeleteTradeCommand(id: string) {
+  await assertModuleEnabled("WEALTH");
+  const holding = await purgeTrade(id);
+  revalidateTrade(holding);
+  return { holdingId: holding.id, portfolioId: holding.portfolioId };
+}
+
+// The row-and-files part of a permanent delete, with no module gate and no
+// revalidation. Only for Trash retention (src/lib/trash.ts), which runs from
+// a page render and from the scheduler, and purges whether or not the
+// module is on. Returns the Trade's Holding.
+export async function purgeTrade(id: string) {
+  const existing = await findTrade(id);
+  const holding = await findHolding(existing.holdingId);
+  // Cascades to the Trade's Document rows (Trash ones included); then the
+  // files go.
   await prisma.trade.delete({ where: { id } });
   await removeOwnerDocumentFiles("TRADE", id);
+  return holding;
+}
+
+function revalidateTrade(holding: { id: string; portfolioId: string }) {
   revalidateHolding(holding.portfolioId, holding.id);
-  return { holdingId: holding.id, portfolioId: holding.portfolioId };
+  revalidatePath("/settings/trash");
 }
 
 // ── CSV import ──────────────────────────────────────────────────────────────
@@ -300,7 +353,8 @@ export async function permanentlyDeleteTradeCommand(id: string, scope: TradeScop
 // Imports rows already validated against importedTradesSchema. Each row's
 // ticker finds or creates its Holding in the Portfolio (a new one with the
 // row's inferred asset class, CRYPTO or SHARE, #404); a row with an unreadable date, or one matching an existing Trade
-// on the same Holding (date, type, units and price), is skipped.
+// on the same Holding (date, type, units and price), is skipped. A row
+// matching only a Trade in Trash restores that Trade.
 export async function importTradesCommand(portfolioId: string, rows: ImportedTrade[]) {
   await assertModuleEnabled("WEALTH");
   await findLivePortfolio(portfolioId);
@@ -320,12 +374,20 @@ export async function importTradesCommand(portfolioId: string, rows: ImportedTra
       update: {},
     });
 
-    const duplicate = await prisma.trade.findFirst({
+    // A live match is a duplicate. A match in Trash is restored rather than
+    // imported again, so restoring it from Trash later can't double it
+    // (#427).
+    const matches = await prisma.trade.findMany({
       where: { holdingId: holding.id, date, type: row.type, units: row.units, pricePerUnit: row.pricePerUnit },
-      select: { id: true },
+      select: { id: true, deletedAt: true },
     });
-    if (duplicate) {
+    if (matches.some((match) => match.deletedAt === null)) {
       skipped++;
+      continue;
+    }
+    if (matches.length > 0) {
+      await prisma.trade.update({ where: { id: matches[0].id }, data: { deletedAt: null } });
+      imported++;
       continue;
     }
 

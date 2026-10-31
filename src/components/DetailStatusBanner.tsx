@@ -2,15 +2,10 @@ import Link from "next/link";
 import { AlertTriangle, AlertCircle, CalendarClock, Upload, RotateCw } from "lucide-react";
 import { TestConnectionButton } from "@/components/TestConnectionButton";
 import { WriteOnly } from "@/components/CanWriteProvider";
-import { bannerEntries, dueTone, type DueEntry, type DueTone } from "@/lib/dueRecords";
+import { bannerEntries, type DueEntry } from "@/lib/dueRecords";
+import { statusBannerClass, statusTone } from "@/lib/statusTone";
 import type { ActionState } from "@/lib/actions/auth";
-import { DayCount, DueLabelText } from "@/components/DueLabelText";
-
-const TONE_CLASS = new Map<DueTone, string>([
-  ["danger", "border-danger/30 bg-danger/10 text-danger"],
-  ["warning", "border-warning/30 bg-warning/10 text-warning"],
-  ["neutral", "border-border bg-muted/10 text-foreground"],
-]);
+import { DueLabelText } from "@/components/DueLabelText";
 
 const actionClass =
   "inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium hover:bg-hover-surface";
@@ -23,7 +18,7 @@ function Message({ entry, newEndDateMessage }: { entry: DueEntry; newEndDateMess
   if (entry.state !== "needs-new-end-date" && entry.daysLeft > 0) {
     return (
       <>
-        <DueLabelText entry={entry} /> — <DayCount days={entry.daysLeft} /> day{entry.daysLeft === 1 ? "" : "s"} left.
+        <DueLabelText entry={entry} /> — {entry.daysLeft} day{entry.daysLeft === 1 ? "" : "s"} left.
       </>
     );
   }
@@ -38,8 +33,9 @@ function Message({ entry, newEndDateMessage }: { entry: DueEntry; newEndDateMess
 // the record's Due entries that needs acting on (#176), so the next step
 // (renew, upload the missing document, or set the new end date) is visible
 // right away. #384 — the entries, their states and labels come from the
-// Due policy: danger once overdue, warning while due soon, neutral for a
-// date that has passed and needs a new one (Housekeeping). Later, Ended and
+// Due policy, and their colour from statusTone (#412): danger once overdue,
+// warning while due soon, neutral for a date that has passed and needs a
+// new one (Housekeeping) and for Needs review. Later, Ended and
 // Lapsed entries show only as the badge. The needsReview row (#200) is
 // independent of dates, so both render side by side when both apply.
 export function DetailStatusBanner({
@@ -47,6 +43,8 @@ export function DetailStatusBanner({
   hasDocuments,
   documentsHref,
   editHref,
+  renewHref = editHref,
+  newEndDateHref = editHref,
   renewLabel,
   secondaryAction,
   newEndDateLabel = "Set the new end date",
@@ -58,6 +56,10 @@ export function DetailStatusBanner({
   hasDocuments: boolean;
   documentsHref: string;
   editHref: string;
+  /** Where Renew goes, when it isn't the edit form — a Contract's Renew form (#353). */
+  renewHref?: string;
+  /** Where the new-end-date action goes, when it isn't the edit form. */
+  newEndDateHref?: string;
   /** The renew action on a Due row; absent when there's nothing to renew, such as a fixed-term Contract. */
   renewLabel?: string;
   /** Shown beside Renew/Upload on a Due row — e.g. contract "Mark as cancelled" (#370). */
@@ -80,7 +82,7 @@ export function DetailStatusBanner({
         return (
           <div
             key={entry.field}
-            className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3 ${TONE_CLASS.get(dueTone(entry.state))}`}
+            className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3 ${statusBannerClass(statusTone(entry.state))}`}
           >
             <p className="flex items-center gap-2 text-sm font-medium">
               <Icon size={16} className="shrink-0" aria-hidden />
@@ -92,7 +94,7 @@ export function DetailStatusBanner({
             <WriteOnly>
               <div className="flex flex-wrap items-center gap-2">
                 {housekeeping ? (
-                  <Link href={editHref} className={actionClass}>
+                  <Link href={newEndDateHref} className={actionClass}>
                     <CalendarClock size={14} />
                     {newEndDateLabel}
                   </Link>
@@ -100,7 +102,7 @@ export function DetailStatusBanner({
                   <>
                     {secondaryAction}
                     {!renewLabel ? null : hasDocuments ? (
-                      <Link href={editHref} className={actionClass}>
+                      <Link href={renewHref} className={actionClass}>
                         <RotateCw size={14} />
                         {renewLabel}
                       </Link>
@@ -118,7 +120,9 @@ export function DetailStatusBanner({
         );
       })}
       {needsReview && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-muted/10 p-3 text-foreground">
+        <div
+          className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3 ${statusBannerClass(statusTone("needs-review"))}`}
+        >
           <p className="flex items-center gap-2 text-sm font-medium">
             <AlertCircle size={16} className="shrink-0" aria-hidden />
             Needs review — some details were filled in automatically and haven&apos;t been confirmed

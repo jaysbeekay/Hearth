@@ -35,11 +35,9 @@ const SORT_LABELS: Record<SortKey, string> = {
 
 export function DocumentsExplorer({
   docs,
-  dateFormat,
   emptyMessage,
 }: {
   docs: DocRow[];
-  dateFormat?: string;
   /** Shown when a type filter has no matches; null means no documents exist at all. */
   emptyMessage: string | null;
 }) {
@@ -172,7 +170,7 @@ export function DocumentsExplorer({
                       </DocumentLink>
                     </td>
                     <td className="px-4 py-2">
-                      <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
+                      <span className="rounded-full bg-muted/10 px-2 py-0.5 text-xs font-medium text-muted">
                         {doc.category ? DOCUMENT_CATEGORY_LABELS[doc.category as DocumentCategory] ?? doc.category : "Uncategorised"}
                       </span>
                       <span className="ml-2 rounded-full bg-muted/10 px-2 py-0.5 text-xs font-medium text-muted">
@@ -185,7 +183,7 @@ export function DocumentsExplorer({
                       </Link>
                     </td>
                     <td className="whitespace-nowrap px-4 py-2 text-muted">
-                      <Timestamp value={doc.uploadedAt} dateFormat={dateFormat} />
+                      <Timestamp value={doc.uploadedAt} />
                     </td>
                     <td className="whitespace-nowrap px-4 py-2 text-right text-muted">
                       {humanFileSize(doc.size)}
@@ -245,7 +243,7 @@ export function DocumentsExplorer({
                   <Link href={doc.parentHref} className="text-accent hover:underline">
                     {doc.parentTitle}
                   </Link>
-                  <span><Timestamp value={doc.uploadedAt} dateFormat={dateFormat} /></span>
+                  <span><Timestamp value={doc.uploadedAt} /></span>
                   <span>{humanFileSize(doc.size)}</span>
                 </div>
               </div>

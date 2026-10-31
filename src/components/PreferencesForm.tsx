@@ -3,7 +3,12 @@
 import { useActionState } from "react";
 import { updateUserPreferences, type ActionState } from "@/lib/actions/auth";
 import { DATE_FORMAT_OPTIONS, DATE_FORMAT_LABELS, REGION_OPTIONS, REGION_LABELS } from "@/lib/utils";
-import { TIMEZONE_OPTIONS } from "@/lib/timezones";
+import {
+  EXPLICIT_UTC_TIME_ZONE,
+  HOUSEHOLD_DEFAULT_USER_TIME_ZONE,
+  USER_TIMEZONE_OPTIONS,
+  userTimeZoneChoice,
+} from "@/lib/timezones";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 import { FormMessage } from "@/components/FormMessage";
@@ -13,13 +18,20 @@ export function PreferencesForm({
   dateFormat,
   preferredCurrency,
   timezone,
+  householdTimeZone,
   region,
 }: {
   dateFormat: string;
   preferredCurrency: string;
   timezone: string;
+  householdTimeZone: string;
   region: string;
 }) {
+  const timeZoneLabel = (tz: string) => {
+    if (tz === HOUSEHOLD_DEFAULT_USER_TIME_ZONE) return `Household default (${householdTimeZone})`;
+    return tz === EXPLICIT_UTC_TIME_ZONE ? "UTC" : tz;
+  };
+
   const [state, formAction] = useActionState<ActionState, FormData>(updateUserPreferences, null);
 
   return (
@@ -52,10 +64,10 @@ export function PreferencesForm({
           Timezone
         </label>
         <SelectWrapper>
-          <select id="timezone" name="timezone" defaultValue={timezone} className={selectClass}>
-            {TIMEZONE_OPTIONS.map((tz) => (
+          <select id="timezone" name="timezone" defaultValue={userTimeZoneChoice(timezone)} className={selectClass}>
+            {USER_TIMEZONE_OPTIONS.map((tz) => (
               <option key={tz} value={tz}>
-                {tz}
+                {timeZoneLabel(tz)}
               </option>
             ))}
           </select>

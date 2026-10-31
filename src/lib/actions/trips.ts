@@ -16,9 +16,11 @@ import {
   permanentlyDeleteTripCommand,
   createTripSegmentCommand,
   updateTripSegmentCommand,
+  deleteTripSegmentCommand,
+  restoreTripSegmentCommand,
   permanentlyDeleteTripSegmentCommand,
 } from "@/lib/commands/trips";
-import { RecordNotFoundError, StaleEditError } from "@/lib/commands/shared";
+import { RecordNotFoundError, RecordValidationError, StaleEditError } from "@/lib/commands/shared";
 import { formDataToStringValues } from "@/lib/form-state";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import type { ActionState } from "@/lib/actions/auth";
@@ -60,7 +62,9 @@ async function requireUser() {
 // ModuleDisabledError can't reach here.)
 function commandError(error: unknown, notFound: string): ActionState {
   if (error instanceof RecordNotFoundError) return { error: notFound };
-  if (error instanceof StaleEditError) return { error: error.message };
+  // RecordValidationError: a segment restore refused while its Trip is in
+  // Trash.
+  if (error instanceof StaleEditError || error instanceof RecordValidationError) return { error: error.message };
   throw error;
 }
 
@@ -200,15 +204,35 @@ export async function updateTripSegment(
   redirect(`/travel/${tripId}`);
 }
 
-// Permanent: segments have no Trash of their own (see the command).
+// #427 — moves the segment to Trash.
 export async function deleteTripSegment(tripId: string, segmentId: string): Promise<ActionState> {
   await requireUser();
   try {
-    await permanentlyDeleteTripSegmentCommand(segmentId, { tripId });
+    await deleteTripSegmentCommand(segmentId, { tripId });
   } catch (error) {
     return commandError(error, "Segment not found.");
   }
-  return { success: "Segment removed." };
+  return { success: "Segment moved to Trash." };
+}
+
+export async function restoreTripSegment(segmentId: string): Promise<ActionState> {
+  await requireUser();
+  try {
+    await restoreTripSegmentCommand(segmentId);
+  } catch (error) {
+    return commandError(error, "Segment not found.");
+  }
+  return { success: "Restored." };
+}
+
+export async function permanentlyDeleteTripSegment(segmentId: string): Promise<ActionState> {
+  await requireUser();
+  try {
+    await permanentlyDeleteTripSegmentCommand(segmentId);
+  } catch (error) {
+    return commandError(error, "Segment not found.");
+  }
+  return { success: "Deleted permanently." };
 }
 
 export async function refreshFlightStatusAction(
@@ -218,7 +242,7 @@ export async function refreshFlightStatusAction(
   await requireUser();
 
   const segment = await prisma.tripSegment.findUnique({ where: { id: segmentId } });
-  if (!segment || segment.tripId !== tripId) return { error: "Segment not found." };
+  if (!segment || segment.deletedAt || segment.tripId !== tripId) return { error: "Segment not found." };
   if (segment.type !== "FLIGHT") return { error: "Not a flight segment." };
   if (!segment.flightNumber) return { error: "No flight number set." };
 

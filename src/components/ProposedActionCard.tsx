@@ -7,7 +7,8 @@ import {
   updateContractFromAssistant,
 } from "@/lib/actions/contracts";
 import { createProductFromAssistant, updateProductFromAssistant } from "@/lib/actions/products";
-import { formatDate } from "@/lib/utils";
+import { formatDate, type DateFormat } from "@/lib/utils";
+import { useDateFormat } from "@/components/DateFormatProvider";
 
 export interface ProposedAction {
   id: string;
@@ -59,11 +60,16 @@ const FIELD_LABELS: Record<string, string> = {
 // The SSE turns Dates into ISO strings; show these as calendar dates.
 const DATE_FIELDS = new Set(["startDate", "endDate", "purchaseDate", "warrantyEndDate"]);
 
-function formatValue(key: string, value: unknown, displayValues: Map<string, string>): string {
+function formatValue(
+  key: string,
+  value: unknown,
+  displayValues: Map<string, string>,
+  dateFormat: DateFormat,
+): string {
   const display = displayValues.get(key);
   if (display !== undefined) return display;
-  if (value instanceof Date) return formatDate(value);
-  if (DATE_FIELDS.has(key) && typeof value === "string") return formatDate(value);
+  if (value instanceof Date) return formatDate(value, dateFormat);
+  if (DATE_FIELDS.has(key) && typeof value === "string") return formatDate(value, dateFormat);
   if (typeof value === "boolean") return value ? "Yes" : "No";
   return String(value);
 }
@@ -81,6 +87,7 @@ export function ProposedActionCard({
   action: ProposedAction;
   onResolved: (result: { success: boolean; message: string }) => void;
 }) {
+  const dateFormat = useDateFormat();
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resolved, setResolved] = useState(false);
@@ -142,7 +149,7 @@ export function ProposedActionCard({
         {entries.map(([key, value]) => (
           <div key={key} className="flex gap-1">
             <dt className="shrink-0 font-medium">{FIELD_LABELS[key] ?? key}:</dt>
-            <dd className="truncate">{formatValue(key, value, displayValues)}</dd>
+            <dd className="truncate">{formatValue(key, value, displayValues, dateFormat)}</dd>
           </div>
         ))}
       </dl>

@@ -4,7 +4,7 @@ import { removeOwnerDocumentFiles } from "@/lib/commands/documents";
 import { clearNotificationLogs } from "@/lib/notifications/logs";
 import { assertModuleEnabled } from "@/lib/modules/enablement";
 import {
-  updateUnlessStale,
+  updateLiveUnlessStale,
   findLiveParent,
   requireLive,
   assertParentRestored,
@@ -13,6 +13,7 @@ import {
 } from "@/lib/commands/shared";
 import type { ClearablePatch } from "@/lib/validation/fullFormUpdate";
 import type { VehicleInput, VehicleItemInput } from "@/lib/validation/vehicles";
+import type { Prisma } from "@/generated/prisma/client";
 
 // Record commands for Vehicles and Service records (#389, ADR 0003). Every
 // write to `vehicle` / `vehicleItem` goes through here: server actions, the
@@ -23,7 +24,9 @@ import type { VehicleInput, VehicleItemInput } from "@/lib/validation/vehicles";
 // A Vehicle in Trash is read-only until it's restored, and so are its
 // Service records (#428, the rules in shared.ts): an update to it, or a
 // create or update under it, is refused as not found, and a Service record
-// can't be restored while its Vehicle is still in Trash.
+// can't be restored while its Vehicle is still in Trash. Updates carry that
+// rule in their guarded write; creates and restores check and write in one
+// transaction, so a move to Trash can't land in between.
 //
 // Per ADR 0003, a date change (rego, insurance, next service) does not clear
 // the sent-Reminder log. clearNotificationLogs is only for permanent delete.
@@ -35,16 +38,25 @@ function revalidateVehicleLists() {
   revalidatePath("/dashboard");
 }
 
+// The global client, or a transaction's `tx` (which must then be used for
+// every query inside it).
+type Db = Prisma.TransactionClient;
+
+function loadVehicle(id: string, db: Db = prisma) {
+  return db.vehicle.findUnique({ where: { id } });
+}
+
+// For delete, restore and the row an update returns: Trash or not.
 async function findVehicle(id: string) {
-  const vehicle = await prisma.vehicle.findUnique({ where: { id } });
+  const vehicle = await loadVehicle(id);
   if (!vehicle) throw new RecordNotFoundError("Vehicle");
   return vehicle;
 }
 
 // For a write to a Vehicle or under it, as `what`: one in Trash counts as
 // not found.
-function findLiveVehicle(id: string, what = "Vehicle") {
-  return findLiveParent(prisma.vehicle.findUnique({ where: { id } }), what);
+function findLiveVehicle(id: string, what = "Vehicle", db: Db = prisma) {
+  return findLiveParent(loadVehicle(id, db), what);
 }
 
 export async function createVehicleCommand(input: VehicleInput, actorId: string) {
@@ -64,9 +76,53 @@ export async function updateVehicleCommand(
   options: UpdateOptions = {},
 ) {
   await assertModuleEnabled("VEHICLES");
-  await findLiveVehicle(id);
-  await updateUnlessStale(options.baseUpdatedAt, (guard) =>
-    prisma.vehicle.updateMany({ where: { id, ...guard }, data: { ...patch, updatedById: actorId } }),
+  await updateLiveUnlessStale(
+    options.baseUpdatedAt,
+    (guard) =>
+      prisma.vehicle.updateMany({
+        where: { id, deletedAt: null, ...guard },
+        data: { ...patch, updatedById: actorId },
+      }),
+    () => findLiveVehicle(id),
+  );
+  revalidateVehicleLists();
+  revalidatePath(`/vehicles/${id}`);
+  return findVehicle(id);
+}
+
+// #355 — Archive: the household no longer has the Vehicle (sold). Not Trash:
+// the Vehicle stays where it is, viewable, with its Service records and
+// Documents, but stops being Due and stops getting Reminders. Set
+// deliberately, cleared by unarchiveVehicleCommand. A Vehicle in Trash is
+// read-only, so it can't be archived or unarchived until it's restored;
+// archiving an already Archived one keeps its original date. Contracts
+// linked to it are untouched: a Contract is its own Due source.
+export async function archiveVehicleCommand(id: string, actorId: string, options: UpdateOptions = {}) {
+  await assertModuleEnabled("VEHICLES");
+  await updateLiveUnlessStale(
+    options.baseUpdatedAt,
+    (guard) =>
+      prisma.vehicle.updateMany({
+        where: { id, deletedAt: null, archivedAt: null, ...guard },
+        data: { archivedAt: new Date(), updatedById: actorId },
+      }),
+    () => findLiveVehicle(id),
+  );
+  revalidateVehicleLists();
+  revalidatePath(`/vehicles/${id}`);
+  return findVehicle(id);
+}
+
+export async function unarchiveVehicleCommand(id: string, actorId: string, options: UpdateOptions = {}) {
+  await assertModuleEnabled("VEHICLES");
+  await updateLiveUnlessStale(
+    options.baseUpdatedAt,
+    (guard) =>
+      prisma.vehicle.updateMany({
+        where: { id, deletedAt: null, archivedAt: { not: null }, ...guard },
+        data: { archivedAt: null, updatedById: actorId },
+      }),
+    () => findLiveVehicle(id),
   );
   revalidateVehicleLists();
   revalidatePath(`/vehicles/${id}`);
@@ -129,8 +185,8 @@ export interface ServiceRecordScope {
   vehicleId?: string;
 }
 
-async function findServiceRecord(id: string, scope: ServiceRecordScope = {}) {
-  const item = await prisma.vehicleItem.findUnique({ where: { id } });
+async function findServiceRecord(id: string, scope: ServiceRecordScope = {}, db: Db = prisma) {
+  const item = await db.vehicleItem.findUnique({ where: { id } });
   if (!item || (scope.vehicleId !== undefined && item.vehicleId !== scope.vehicleId)) {
     throw new RecordNotFoundError("Service record");
   }
@@ -139,8 +195,10 @@ async function findServiceRecord(id: string, scope: ServiceRecordScope = {}) {
 
 export async function createServiceRecordCommand(vehicleId: string, input: VehicleItemInput) {
   await assertModuleEnabled("VEHICLES");
-  await findLiveVehicle(vehicleId);
-  const item = await prisma.vehicleItem.create({ data: { ...input, vehicleId } });
+  const item = await prisma.$transaction(async (tx) => {
+    await findLiveVehicle(vehicleId, "Vehicle", tx);
+    return tx.vehicleItem.create({ data: { ...input, vehicleId } });
+  });
   revalidatePath(`/vehicles/${vehicleId}`);
   return item;
 }
@@ -152,13 +210,21 @@ export async function updateServiceRecordCommand(
   options: UpdateOptions & ServiceRecordScope = {},
 ) {
   await assertModuleEnabled("VEHICLES");
-  const existing = requireLive(await findServiceRecord(id, options), "Service record");
-  await findLiveVehicle(existing.vehicleId, "Service record");
-  await updateUnlessStale(options.baseUpdatedAt, (guard) =>
-    prisma.vehicleItem.updateMany({ where: { id, ...guard }, data: patch }),
+  await updateLiveUnlessStale(
+    options.baseUpdatedAt,
+    (guard) =>
+      prisma.vehicleItem.updateMany({
+        where: { id, vehicleId: options.vehicleId, deletedAt: null, vehicle: { deletedAt: null }, ...guard },
+        data: patch,
+      }),
+    async () => {
+      const existing = requireLive(await findServiceRecord(id, options), "Service record");
+      await findLiveVehicle(existing.vehicleId, "Service record");
+    },
   );
-  revalidatePath(`/vehicles/${existing.vehicleId}`);
-  return findServiceRecord(id);
+  const item = await findServiceRecord(id);
+  revalidatePath(`/vehicles/${item.vehicleId}`);
+  return item;
 }
 
 export async function deleteServiceRecordCommand(id: string, scope: ServiceRecordScope = {}) {
@@ -171,12 +237,15 @@ export async function deleteServiceRecordCommand(id: string, scope: ServiceRecor
 
 export async function restoreServiceRecordCommand(id: string) {
   await assertModuleEnabled("VEHICLES");
-  const existing = await findServiceRecord(id);
-  assertParentRestored(
-    await prisma.vehicle.findUnique({ where: { id: existing.vehicleId }, select: { deletedAt: true } }),
-    "Vehicle",
-  );
-  await prisma.vehicleItem.update({ where: { id }, data: { deletedAt: null } });
+  const existing = await prisma.$transaction(async (tx) => {
+    const item = await findServiceRecord(id, {}, tx);
+    assertParentRestored(
+      await tx.vehicle.findUnique({ where: { id: item.vehicleId }, select: { deletedAt: true } }),
+      "Vehicle",
+    );
+    await tx.vehicleItem.update({ where: { id }, data: { deletedAt: null } });
+    return item;
+  });
   revalidatePath(`/vehicles/${existing.vehicleId}`);
   revalidatePath("/settings/trash");
 }

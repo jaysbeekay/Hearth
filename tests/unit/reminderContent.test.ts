@@ -207,3 +207,55 @@ describe("notice-period reminders (#351)", () => {
     });
   });
 });
+
+describe("Tenancy lease-end Reminders (#388)", () => {
+  const lease: ReminderInput = {
+    kind: "tenancy",
+    id: "t1",
+    propertyId: "p1",
+    title: "Beach Flat",
+    detail: "Sam Lee",
+    daysRemaining: 30,
+    endDate: END,
+    dateFormat: "DD/MM/YYYY",
+    appUrl: "https://hearth.example",
+  };
+
+  it("emails about the lease ending, linking to the Property", () => {
+    const email = buildReminderEmail(lease);
+    expect(email.subject).toBe('Reminder: lease for "Beach Flat" ends in 30 days');
+    expect(email.text).toContain('The lease for "Beach Flat" (Sam Lee) ends on 20 October 2026 (in 30 days).');
+    expect(email.text).toContain("https://hearth.example/home/p1");
+    expect(email.html).toContain('href="https://hearth.example/home/p1"');
+  });
+
+  it("leaves the tenant out when there isn't one", () => {
+    expect(buildReminderEmail({ ...lease, detail: "" }).text).toContain('The lease for "Beach Flat" ends on');
+  });
+
+  it("pushes by ntfy without the tenant's name, opening the Property", () => {
+    const ntfy = buildNtfyReminder(lease);
+    expect(ntfy.headers.Title).toBe("Lease for Beach Flat ends in 30 days");
+    expect(ntfy.headers.Click).toBe("https://hearth.example/home/p1");
+    expect(ntfy.body).toBe('The lease for "Beach Flat" ends on 20 October 2026.');
+    expect(JSON.stringify(ntfy)).not.toContain("Sam Lee");
+    expect(buildNtfyReminder({ ...lease, test: true }).headers.Title).toBe("[Test] Lease for Beach Flat ends in 30 days");
+  });
+
+  it("sends a tenancy.expiring webhook with the Tenancy and its Property, and no tenant name", () => {
+    expect(buildReminderWebhookBody(lease)).toEqual({
+      event: "tenancy.expiring",
+      kind: "tenancy",
+      id: "t1",
+      title: "Beach Flat",
+      propertyId: "p1",
+      daysRemaining: 30,
+      endDate: "2026-10-20",
+      url: "https://hearth.example/home/p1",
+    });
+  });
+
+  it("links a Tenancy to the Property's page", () => {
+    expect(reminderRecordUrl("https://h.example", "tenancy", "p1")).toBe("https://h.example/home/p1");
+  });
+});

@@ -8,8 +8,40 @@ export const FILES_STORE = "pending-files";
 export const DOCUMENTS_STORE = "offline-documents";
 export const META_STORE = "meta";
 
-export function getDb() {
-  return openDB(DB_NAME, 5, {
+const DB_VERSION = 5;
+
+type HearthDb = Awaited<ReturnType<typeof openHearthDb>>;
+let connection: Promise<HearthDb> | null = null;
+
+// One shared connection per tab. A connection left open blocks another
+// tab's upgrade to a newer version (#424 review), so it closes itself when
+// asked and the next call reopens; a failed or terminated open is dropped
+// so the next call retries instead of reusing the failure.
+export function getDb(): Promise<HearthDb> {
+  if (!connection) {
+    const opening = openHearthDb(() => {
+      if (connection === opening) connection = null;
+    });
+    connection = opening;
+    opening.catch(() => {
+      if (connection === opening) connection = null;
+    });
+  }
+  return connection;
+}
+
+function openHearthDb(onClosed: () => void) {
+  const opened = openDB(DB_NAME, DB_VERSION, {
+    blocking() {
+      onClosed();
+      opened.then((db) => db.close()).catch(() => {});
+    },
+    // Another tab still holds an older version open; it is asked to close
+    // (its `blocking` above). Callers that can't wait put a timeout on it.
+    blocked() {},
+    terminated() {
+      onClosed();
+    },
     upgrade(db, oldVersion) {
       if (oldVersion < 1) {
         db.createObjectStore(PAGES_STORE);
@@ -37,6 +69,7 @@ export function getDb() {
       }
     },
   });
+  return opened;
 }
 
 // #424 — keyed by the signed-in user, so one user's cached lists are never

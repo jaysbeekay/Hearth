@@ -3,7 +3,7 @@
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --background: #f7f4ee;
   --foreground: #061b31;
-  --muted: #6e6455;
+  --muted: #5f5649;
   --surface: #fffdf9;
   --surface-raised: #ffffff;
   --border: #e9e1d2;
@@ -13,8 +13,9 @@
   --warning: #a16000;
   --warning-soft: #fff4d8;
   --success: #0b7a36;
-  --danger: #d91552;
-  --danger-soft: rgba(217, 21, 82, 0.1);
+  --danger: #a8103f;
+  --danger-soft: rgba(168, 16, 63, 0.1);
+  --muted-soft: rgba(95, 86, 73, 0.1);
   --shadow: 0 16px 42px rgba(6, 27, 49, 0.08);
 }
 
@@ -22,7 +23,7 @@
   :root {
     --background: #161746;
     --foreground: #eef0fa;
-    --muted: #b3ac9f;
+    --muted: #c8c1b4;
     --surface: #202359;
     --surface-raised: #272a68;
     --border: #39334a;
@@ -30,10 +31,11 @@
     --accent-soft: rgba(163, 145, 255, 0.15);
     --accent-foreground: #161746;
     --warning: #ffd36b;
-    --warning-soft: rgba(255, 211, 107, 0.12);
+    --warning-soft: rgba(255, 211, 107, 0.1);
     --success: #15be53;
-    --danger: #ff5d8e;
-    --danger-soft: rgba(255, 93, 142, 0.14);
+    --danger: #ffa6c0;
+    --danger-soft: rgba(255, 166, 192, 0.1);
+    --muted-soft: rgba(200, 193, 180, 0.1);
     --shadow: 0 16px 42px rgba(0, 0, 0, 0.24);
   }
 }
@@ -436,13 +438,16 @@ button {
   gap: 6px;
 }
 
+/* #412 — a badge is neutral unless it marks something Overdue (danger) or
+   Due soon (warning); tests/unit/shell-badge-contrast.test.ts keeps each
+   tone's text >= 4.5:1 on its tint in both themes. */
 .badge {
   display: inline-flex;
   align-items: center;
   min-height: 24px;
   border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--muted-soft);
+  color: var(--muted);
   padding: 3px 8px;
   font-weight: 700;
 }
@@ -580,4 +585,11 @@ button {
   .mobile-view {
     padding-inline: 24px;
   }
+}
+
+/* Undo button in the status toast: the default button's 44px height, and its
+   accent colours (white on #533afd light, #161746 on #a391ff dark) clear 4.5:1
+   and 3:1 against the toast's surface in both themes. */
+.status-action {
+  margin-left: 8px;
 }

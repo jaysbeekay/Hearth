@@ -4,7 +4,6 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PasskeyItem } from "@/components/PasskeyItem";
 import { PasskeyRegisterButton } from "@/components/PasskeyRegisterButton";
-import { getUserPreferences } from "@/lib/userPreferences";
 import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
 
@@ -17,13 +16,10 @@ export default async function PasskeysPage() {
   // is deleted, which the proxy won't have caught for an in-flight request.
   if (!session?.user) redirect("/login");
 
-  const [passkeys, { dateFormat }] = await Promise.all([
-    prisma.passkeyCredential.findMany({
-      where: { userId: session.user.id },
-      orderBy: { createdAt: "asc" },
-    }),
-    getUserPreferences(),
-  ]);
+  const passkeys = await prisma.passkeyCredential.findMany({
+    where: { userId: session.user.id },
+    orderBy: { createdAt: "asc" },
+  });
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -50,7 +46,6 @@ export default async function PasskeysPage() {
                 nickname={pk.nickname}
                 createdAt={pk.createdAt}
                 lastUsedAt={pk.lastUsedAt}
-                dateFormat={dateFormat}
               />
             ))}
           </ul>

@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
-import { getUserPreferences } from "@/lib/userPreferences";
 import { DocumentsExplorer, type DocRow } from "@/components/DocumentsExplorer";
 import { DocumentsTabs, DocumentsUploadActions } from "@/components/DocumentsTabs";
 import { documentsEmptyMessage } from "@/lib/documents/emptyMessage";
@@ -377,10 +376,7 @@ export default async function DocumentsPage({
   const showAll = view === "all";
   const page = Math.max(0, Number(pageParam) || 0);
 
-  const [enabledModules, { dateFormat }] = await Promise.all([
-    getEnabledModuleKeys(),
-    getUserPreferences(),
-  ]);
+  const enabledModules = await getEnabledModuleKeys();
 
   const filedSources = buildSources(enabledModules);
   const activeSources = showAll ? [...filedSources, INBOX_SOURCE] : filedSources;
@@ -458,7 +454,6 @@ export default async function DocumentsPage({
 
       <DocumentsExplorer
         docs={docs}
-        dateFormat={dateFormat}
         emptyMessage={emptyMessage}
       />
 

@@ -36,7 +36,6 @@ import { AiSettingsForm } from "@/components/AiSettingsForm";
 import { ChatSettingsForm } from "@/components/ChatSettingsForm";
 import { HouseholdReminderHealthCard } from "@/components/HouseholdReminderHealthCard";
 import { getHouseholdReminderHealth } from "@/lib/notifications/health";
-import { getUserPreferences } from "@/lib/userPreferences";
 import type { AiProviderId } from "@/lib/ai/types";
 import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
@@ -79,7 +78,6 @@ export default async function AppSettingsPage() {
     chatApiKeyIsSet,
     emailIngestPasswordIsSet,
     reminderHealth,
-    { dateFormat },
   ] = await Promise.all([
     getSmtpConfig(),
     getNtfyConfig(),
@@ -100,7 +98,6 @@ export default async function AppSettingsPage() {
     isAppSettingSet("chat.apiKey"),
     isAppSettingSet("emailIngest.password"),
     getHouseholdReminderHealth(),
-    getUserPreferences(),
   ]);
 
   return (
@@ -281,7 +278,6 @@ export default async function AppSettingsPage() {
 
         <HouseholdReminderHealthCard
           health={reminderHealth}
-          dateFormat={dateFormat}
           appUrlConfigured={isAppUrlConfigured()}
         />
       </div>

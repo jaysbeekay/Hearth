@@ -27,7 +27,7 @@ export function ImportantToggle({
   // star on an important Document and nothing on the rest.
   if (!canWrite) {
     return isImportant ? (
-      <span className="p-2 text-warning" role="img" aria-label={`${label} is marked important`}>
+      <span className="inline-flex h-11 w-11 items-center justify-center text-warning" role="img" aria-label={`${label} is marked important`}>
         <Star size={16} fill="currentColor" aria-hidden />
       </span>
     ) : null;
@@ -51,7 +51,7 @@ export function ImportantToggle({
         });
       }}
       className={cn(
-        "rounded-md p-2 hover:bg-hover",
+        "inline-flex h-11 w-11 items-center justify-center rounded-md hover:bg-hover",
         optimistic ? "text-warning" : "text-muted",
       )}
     >

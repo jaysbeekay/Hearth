@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { reminderDaysBeforeField } from "@/lib/validation/reminderThresholds";
 
 export const CONTRACT_CATEGORIES = [
   "RENTAL",
@@ -59,22 +60,7 @@ export const contractBaseSchema = z.object({
     z.string().trim().email().max(200).optional(),
   ),
   notes: z.preprocess(emptyToUndefined, z.string().trim().max(5000).optional()),
-  reminderDaysBefore: z.preprocess(
-    emptyToUndefined,
-    z
-      .string()
-      .trim()
-      .max(100)
-      .refine(
-        (val) =>
-          val.split(",").every((part) => {
-            const n = Number(part.trim());
-            return part.trim() !== "" && Number.isFinite(n) && n >= 0;
-          }),
-        "Use a comma-separated list of non-negative numbers, e.g. 30,14,7,1",
-      )
-      .optional(),
-  ),
+  reminderDaysBefore: reminderDaysBeforeField,
   isTaxDeductible: z.boolean().default(false),
   propertyId: z.preprocess(emptyToUndefined, z.string().trim().max(100).optional()),
   vehicleId: z.preprocess(emptyToUndefined, z.string().trim().max(100).optional()),
@@ -95,3 +81,16 @@ export const contractSchema = contractBaseSchema.refine(contractDatesInOrder, co
 export const contractPatchSchema = contractBaseSchema.partial().refine(contractDatesInOrder, contractDateOrderIssue);
 
 export type ContractInput = z.infer<typeof contractSchema>;
+
+// #353 — the Renew form: the next Term's dates and cost. The end date is the
+// point of renewing, so it's required; a blank start date or cost clears it.
+// Currency, billing frequency and everything else carry over unchanged.
+export const contractRenewalSchema = z
+  .object({
+    startDate: contractBaseSchema.shape.startDate,
+    endDate: z.preprocess(emptyToUndefined, z.coerce.date({ error: "Enter the new end date." })),
+    cost: contractBaseSchema.shape.cost,
+  })
+  .refine(contractDatesInOrder, contractDateOrderIssue);
+
+export type ContractRenewalInput = z.infer<typeof contractRenewalSchema>;

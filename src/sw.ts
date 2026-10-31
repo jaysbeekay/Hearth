@@ -1,7 +1,7 @@
 import { defaultCache } from "@serwist/next/worker";
-import { Serwist, Strategy, type RuntimeCaching } from "serwist";
-import { isUserDataCache, SESSION_CACHE, SESSION_MARKER_PATH } from "@/lib/offlineOwner";
-import { createSessionCachePlugin } from "@/lib/swSessionPlugin";
+import { Serwist } from "serwist";
+import { SESSION_CACHE, SESSION_MARKER_PATH } from "@/lib/offlineOwner";
+import { createSessionCachePlugin, scopeRuntimeCaching } from "@/lib/swSessionPlugin";
 
 declare const self: typeof globalThis & {
   __SW_MANIFEST: (string | { url: string; revision: string | null })[];
@@ -19,13 +19,7 @@ const sessionPlugin = createSessionCachePlugin(readSessionMarker);
 
 // Scope every cache that can hold signed-in content to the current session
 // (see swSessionPlugin.ts); static asset caches are left as they are.
-const runtimeCaching: RuntimeCaching[] = defaultCache.map((entry) => {
-  const { handler } = entry;
-  if (handler instanceof Strategy && isUserDataCache(handler.cacheName)) {
-    handler.plugins.push(sessionPlugin);
-  }
-  return entry;
-});
+const runtimeCaching = scopeRuntimeCaching(defaultCache, sessionPlugin);
 
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,

@@ -96,7 +96,7 @@ export function ProductListClient({
     {
       label: "due soon",
       value: counts.dueSoon ?? 0,
-      tone: "warning" as const,
+      status: "due-soon" as const,
       onClick: () => {
         toggleFilter("dueSoon");
       },
@@ -104,6 +104,7 @@ export function ProductListClient({
     {
       label: "lapsed",
       value: counts.lapsed ?? 0,
+      status: "lapsed" as const,
       onClick: () => {
         toggleFilter("lapsed");
       },
@@ -111,7 +112,7 @@ export function ProductListClient({
     {
       label: "needs review",
       value: counts.review ?? 0,
-      tone: "warning" as const,
+      status: "needs-review" as const,
       onClick: () => {
         toggleFilter("review");
       },

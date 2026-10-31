@@ -38,33 +38,26 @@ export function canQueueOffline(owner: OfflineOwner | null): boolean {
   return !!owner && owner.canWrite;
 }
 
-export interface OwnerPartition<T> {
-  /** Already the current user's. */
-  keep: T[];
-  /** Another user's, or unowned when there's nothing to adopt: delete these. */
-  purge: T[];
-  /** Unowned and stored before #424, to stamp with the current user's id. */
-  adopt: T[];
+/**
+ * Queued writes stored before #424 carry no owner. The first member who can
+ * write to load the app adopts them, so those unsynced changes go to whoever
+ * is using the device (almost always the same person, mid-session) rather
+ * than being lost. A read-only member never adopts them; they're purged
+ * instead. Only queued writes are ever adopted: unowned offline Documents
+ * and cached lists are just copies of server data, so they're purged.
+ */
+export function unownedToAdopt<T extends { ownerId?: string }>(entries: T[], owner: OfflineOwner): T[] {
+  return canQueueOffline(owner) ? entries.filter((entry) => !entry.ownerId) : [];
 }
 
 /**
- * Splits stored entries by owner. Entries written before #424 carry no owner;
- * `adoptUnowned` is true only the first time a user claims this device's data
- * after the upgrade, so those unsynced writes go to whoever is signed in then
- * (almost always the same person, mid-session) rather than being lost.
+ * The signed-in user's writes left marked "syncing" by a sync that never
+ * finished (the tab closed or crashed mid-request). Put back to "pending" so
+ * they're counted and resent; /api/sync's per-operation receipts make a
+ * resend of one that did reach the server a no-op.
  */
-export function partitionByOwner<T extends { ownerId?: string }>(
-  entries: T[],
-  userId: string,
-  adoptUnowned: boolean,
-): OwnerPartition<T> {
-  const result: OwnerPartition<T> = { keep: [], purge: [], adopt: [] };
-  for (const entry of entries) {
-    if (entry.ownerId === userId) result.keep.push(entry);
-    else if (!entry.ownerId && adoptUnowned) result.adopt.push(entry);
-    else result.purge.push(entry);
-  }
-  return result;
+export function stuckSyncing<T extends { ownerId?: string; status: string }>(ops: T[], userId: string): T[] {
+  return ops.filter((op) => op.ownerId === userId && op.status === "syncing");
 }
 
 // --- Service worker side -------------------------------------------------
@@ -118,4 +111,28 @@ export function ownerScopedCacheKey(url: string, userId: string): string {
   const scoped = new URL(url);
   scoped.searchParams.set(OWNER_PARAM, userId);
   return scoped.toString();
+}
+
+export class OfflineStorageTimeoutError extends Error {}
+
+/**
+ * Rejects if `work` hasn't settled within `ms`. IndexedDB can stall (another
+ * tab holding an old version open), and sign-out mustn't hang on it.
+ */
+export function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new OfflineStorageTimeoutError("Timed out reading this device's offline data."));
+    }, ms);
+    work.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        reject(error instanceof Error ? error : new Error(String(error)));
+      },
+    );
+  });
 }

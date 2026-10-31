@@ -17,6 +17,7 @@ import { addDocumentCommand, purgeDocument, supersedeDocumentCommand } from "@/l
 import { documentCommandError } from "@/lib/documents/commandErrors";
 import { createContractCommand } from "@/lib/commands/contracts";
 import { createProductCommand } from "@/lib/commands/products";
+import { RecordValidationError } from "@/lib/commands/shared";
 import { extractionFieldsFromForm } from "@/lib/documents/extractionConfirmation";
 import { saveExtractionReviewFieldsFromForm } from "@/lib/documents/extractionReview";
 import { parseDocumentCategory } from "@/lib/documents/categories";
@@ -65,7 +66,14 @@ export async function importContract(formData: FormData): Promise<ImportResult> 
     if (rejection) return { error: rejection };
   }
 
-  const contract = await createContractCommand(parsed.data, user.id, extractionFieldsFromForm(formData));
+  let contract;
+  try {
+    contract = await createContractCommand(parsed.data, user.id, extractionFieldsFromForm(formData));
+  } catch (error) {
+    // A link to a Property or Vehicle that's missing or in Trash (#447).
+    if (error instanceof RecordValidationError) return { error: error.message };
+    throw error;
+  }
   await saveExtractionReviewFieldsFromForm("CONTRACT", contract.id, formData);
 
   if (file instanceof File && file.size > 0) {
@@ -90,7 +98,14 @@ export async function importProduct(formData: FormData): Promise<ImportResult> {
     if (rejection) return { error: rejection };
   }
 
-  const product = await createProductCommand(parsed.data, user.id, extractionFieldsFromForm(formData));
+  let product;
+  try {
+    product = await createProductCommand(parsed.data, user.id, extractionFieldsFromForm(formData));
+  } catch (error) {
+    // A link to a Property or Vehicle that's missing or in Trash (#447).
+    if (error instanceof RecordValidationError) return { error: error.message };
+    throw error;
+  }
   await saveExtractionReviewFieldsFromForm("PRODUCT", product.id, formData);
 
   if (file instanceof File && file.size > 0) {

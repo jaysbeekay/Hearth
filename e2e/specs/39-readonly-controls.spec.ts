@@ -209,7 +209,7 @@ test.describe("read-only member (#400)", () => {
     await uploadFirst(page, `ro-repair-${stamp}.pdf`);
     await page.locator('input[name="value"]').fill("750000");
     await page.getByRole("button", { name: "Save valuation" }).click();
-    await expect(page.getByRole("button", { name: /^Remove valuation/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Move valuation from .* to Trash$/ })).toBeVisible();
     await page.goto(`/home/${ids.property}/rental/agreements/new`);
     await page.locator("#weeklyRent").fill("500");
     await page.locator("#tenantName").fill("RO Tenant");
@@ -389,6 +389,22 @@ test.describe("read-only member (#400)", () => {
     await expect(main.getByRole("button", { name: "Subscribe in your calendar" })).toBeVisible();
 
     await page.context().close();
+  });
+
+  test("an Archived Vehicle and Property show a read-only member the notice but no Archive or Restore (#355)", async ({ browser }) => {
+    const now = new Date().toISOString();
+    await db.execute({ sql: "UPDATE vehicles SET archivedAt = ? WHERE id = ?", args: [now, ids.vehicle] });
+    await db.execute({ sql: "UPDATE properties SET archivedAt = ? WHERE id = ?", args: [now, ids.property] });
+    const page = await signIn(browser, RO_EMAIL, RO_PASSWORD);
+    const main = page.locator("main");
+    for (const path of [`/vehicles/${ids.vehicle}`, `/home/${ids.property}`]) {
+      await expectNoWriteControls(page, path);
+      await expect(main.getByTestId("archived-notice"), path).toBeVisible();
+      await expect(main.getByRole("button", { name: /^(Archive|Restore)$/ }), path).toHaveCount(0);
+    }
+    await page.context().close();
+    await db.execute({ sql: "UPDATE vehicles SET archivedAt = NULL WHERE id = ?", args: [ids.vehicle] });
+    await db.execute({ sql: "UPDATE properties SET archivedAt = NULL WHERE id = ?", args: [ids.property] });
   });
 
   test("every create, edit and import page redirects a read-only member", async ({ browser }) => {

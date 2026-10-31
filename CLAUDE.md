@@ -146,7 +146,8 @@ past `BACKUP_RETENTION_COUNT`. Also triggerable from Settings (admin) or `POST /
 
 **MCP server** (`src/lib/mcp/server.ts`, mounted at `/api/mcp`): read-only tools
 (`list_contracts`, `get_contract`, `search_contracts`, `upcoming_renewals`,
-`spend_summary`) for LLM agents to query contract data. Gated on `MCP_TOKEN`
+`spend_summary`, `whats_due`) for LLM agents to query household data. The queries live in
+`src/lib/domainQueries.ts`, shared with the Assistant's read tools. Gated on `MCP_TOKEN`
 (`Authorization: Bearer` — endpoint 404s if unset, same pattern as `CRON_SECRET`). Never
 add a write tool here or return credentials/raw document bytes.
 

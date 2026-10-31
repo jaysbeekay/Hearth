@@ -18,9 +18,115 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   GHSA-xhq7-xmqj-769h, GHSA-333x-w4r6-6crp). The remaining low-severity
   `npm audit` entries all trace to `@simplewebauthn/server` 9.x and are
   tracked in #376.
+- **Signing out clears this device's offline data (#424).** Sign out now
+  deletes the service worker's cached pages and data (and serwist's record
+  of their URLs), the offline write queue and offline Documents, then does
+  a full page load to the sign-in page, so Back can't show the previous
+  user's pages and the next person to use a shared browser can't see or
+  replay any of it. If changes are still waiting to sync, including ones a
+  sync is sending right now or left mid-sync by a closed tab, it first
+  waits for that sync and asks: Sync now (signs out only once they've
+  synced), Discard and sign out, or Cancel. Signing out while offline is
+  refused, and if the server can't be reached anyway, the tab stays signed
+  in with offline use working, rather than half signed out. Other open
+  tabs reload, and Escape on a phone closes just the prompt, not the More
+  sheet behind it. When a session ends without Sign out (a password change, an
+  expiry), the sign-in page drops offline Documents and cached lists too,
+  keeping only the write queue for that user's return. Offline data is
+  also tied to the user who stored it: a different user signing in never
+  sees the last user's queued changes or downloads and purges them,
+  `/api/sync` refuses a change queued by another account, a read-only
+  member can't queue changes offline (one made read-only is told their
+  queued changes can't be saved, and can discard them), and the service worker serves no
+  cached signed-in page once nobody is signed in or the session has
+  expired. Changes queued before this release carry no owner: the first
+  member who can write to sign in takes them on (a read-only member's
+  sign-in purges them instead), and offline Documents and cached lists
+  from before it are purged. If someone other than the person who queued
+  them is that first writer, they'll sync under that member's account.
 
 ### Added
 
+- **Archive a Vehicle or Property you no longer have (#355).** Archive (in
+  the record's More actions menu, with Undo) marks a Vehicle as sold or a
+  Property as sold or its lease ended; Restore on the record's page puts it
+  back. It is not Trash: the record stays, with its Service or Maintenance
+  records, Tenancies and Documents, in an "Archived" section at the foot of
+  its list, and Search still finds it, marked Archived. An Archived Vehicle
+  has no Due entries, so no Reminders, and an Archived Property's current
+  Tenancy no longer reminds about its lease end. Both leave Needs
+  attention, Upcoming, the iCal feed, the dashboard counts, `whats_due` and
+  the Assistant's and MCP's vehicle and property lists, and an Archived
+  Vehicle is never "missing key details". An Archived Property's valuation
+  no longer counts toward net worth. They're also left out of the pickers
+  for linking new Contracts and Warranties, but stay in the Inbox and Import
+  filing pickers, labelled "(archived)", for late paperwork. The vehicle and
+  home CSV exports gain an Archived column, and an Archived record's page
+  lists the active Contracts still linked to it. Contracts
+  linked to an Archived Vehicle or Property keep their own Reminders, since
+  a Contract is its own Due source. Items follow after #380. The standalone
+  mobile shell has the same Archive and Restore, an Archived filter chip, and
+  stops local Reminders for archived records (standalone schema version 11:
+  `archived_at` on vehicles and properties; older backups import as not
+  archived).
+- **Licence: AGPL-3.0-only.** Hearth now has a `LICENSE` file (the GNU Affero
+  General Public License v3.0), a `license` field in `package.json`, and an
+  updated README "License" section. This is the licence a managed host such
+  as PikaPods needs before it can list the app.
+
+- **Health check endpoint and hosting notes (#477).** `GET /api/health`
+  answers `200 {"status":"ok"}` when the app can read its database file, and
+  `503 {"status":"unavailable"}` when it can't. The result is reused for 5
+  seconds. It needs no login and returns nothing else, so managed hosts such
+  as PikaPods and Render, and uptime monitors, can use it. Docker Compose users
+  can add a `healthcheck` that runs
+  `wget -qO- http://localhost:3000/api/health`; the image itself doesn't
+  define one. README gains a "Deploy" section listing what any Docker host
+  needs (image, port `3000`, volume at `/app/data`, health check, env vars),
+  and fixes the container's database path in Quick start
+  (`/app/data/app.db`, not `/data/app.db`). `docs/deployment/one-click.md`
+  assesses PikaPods (go once Hearth has a licence and the owner applies),
+  Render (go) and Vercel (still no-go; `vercel.json` keeps deploys off), with
+  costs, data custody and security notes. Follow-ups: #478–#482.
+
+- **Deploy to Render (#477).** A `render.yaml` Blueprint and a README button
+  set up Hearth on the household's own Render account. It runs the published
+  Docker image (needs the first release after v0.19.2, or later) on a 2 GB
+  instance with a 1 GB persistent disk at `/app/data`, and health-checks
+  `/api/health`. Render generates `AUTH_SECRET`, `ENCRYPTION_KEY` and
+  `SETUP_TOKEN`, and asks for `TZ`. It costs about $25/month, or about $7 on
+  the 512 MB instance for households that rarely scan documents (Render's
+  October 2026 prices). The free tier can't keep data.
+
+- **Renew a Contract.** Renew on a Contract's page, its Due banner and
+  Needs attention opens a short form for the next Term: new start and end
+  dates and cost, pre-filled from the current Term (it starts the day after
+  the current end date and lasts as long; an auto-renewing Contract that's
+  several Terms late skips ahead to the Term running now), plus an optional
+  Document that's scanned to fill in the dates. The form warns when the new
+  end date has already passed, and asks which Document was the paperwork
+  for the Term being kept when there's more than one. Saving keeps the
+  current Term's dates, cost and Document under a new **Previous terms**
+  section instead of overwriting them, and the cost shows how it compares
+  with the prior Term ("+12% vs prior term"). Reminders restart for the new
+  end date and the Contract leaves Needs attention. An auto-renewing
+  Contract past its end date gets its new end date the same way. Fixed-term
+  Contracts and Contracts with no end date don't offer Renew. Renewing goes
+  through the Contract command, and `get_contract` (MCP and the Assistant)
+  lists previous terms. The standalone app has the same Renew form and
+  history (#353).
+- **Reminders for a tenancy's lease end.** The current tenancy of a rented
+  property now gets Reminders before its lease ends, linking to the
+  property: an email headed `Reminder: lease for "Beach Flat" ends in 30
+  days`, an ntfy push titled `Lease for Beach Flat ends in 30 days`, and a
+  webhook. The tenant's name is only in the email; ntfy and webhooks leave
+  it out. It uses the household default thresholds unless the tenancy
+  sets its own: the tenancy form has a new "Reminder thresholds" field,
+  which also sets how early the lease end shows as Due. The property page
+  has a "Lease reminders" health card, a failed lease Reminder shows on the
+  dashboard and in Settings' reminder roll-up, and webhooks get a new
+  `tenancy.expiring` event (see README → Webhooks). The standalone app
+  schedules a local notification for the lease end too (#388).
 - **Household timezone.** Admins pick any timezone in Settings → Household
   & System; until then it follows the server's `TZ`, else the server's own
   zone, else UTC. Reminders and due dates will count days in it, so every
@@ -87,6 +193,109 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- **An empty `APP_URL` now counts as unset (#477)**, so links fall back to
+  `http://localhost:3000` instead of being built from an empty string. On
+  Render, an unset `APP_URL` uses the service's own `RENDER_EXTERNAL_URL`.
+  An explicit `APP_URL` still wins.
+
+- **Public paths match whole path segments (#477).** The routes that need no
+  login (`/login`, `/setup`, `/api/cron`, `/api/health` and the rest) now
+  match the exact path or a sub-path, not any path that merely starts with
+  the same letters. A future route such as `/api/health-admin` or `/setupx`
+  can't become public by accident.
+
+- **Colour only for Overdue and Due soon.** One mapping,
+  `statusTone` in `src/lib/statusTone.ts`, now sets the colour of every
+  status pill and banner: Overdue is red, Due soon is amber, and Ended,
+  Lapsed, Cancelled, Needs review, needs a new end date and other
+  Housekeeping are a grey pill. A date outside its due-soon window is plain
+  grey text with no pill, so a far-off "Expires 31 Dec" is no longer green.
+  Needs review is grey everywhere (it was amber on the dashboard and the
+  list counts). Other Housekeeping is grey too: Missing key details,
+  "Not configured" reminders and backups, stale property valuations, and
+  changes waiting to sync. So are Tax deductible, the current Tenancy and
+  Trade types. A flight is coloured only when it's cancelled, has an
+  incident or is diverted. Document types, asset classes and the "Latest"
+  version tag are grey rather than blue. The standalone shell matches:
+  its plain badge is grey rather than purple, Needs review, Held, setup
+  states (No date, No thresholds, Invalid date), Important, Hidden and Off
+  are grey, and a record whose reminders can't run counts only as Missing
+  setup, not also as Due soon. Its red, grey and tints are adjusted so
+  badge and card text is at least 4.5:1 in both themes (#412).
+
+- **One Document list (#397).** Every record's Documents use the same list:
+  Contracts, Warranties, Maintenance records, Service records, Inventory
+  items, Trip segments, Rental statements and Trades. Each Document shows
+  its Document type, a star, a preview for PDFs and images, and Move to
+  Trash with Undo, and re-uploads are grouped under the latest version.
+  Trip segment, Rental statement, Maintenance record, Service record,
+  Inventory and Trade Documents gain the star, type and version history;
+  Contract Documents gain the preview. Trade Documents are no longer drawn
+  as chips on the holding page. The seven per-record list components are
+  replaced by `src/components/DocumentList.tsx`. A version in Trash no
+  longer splits its Document in two: the list follows the chain past it,
+  including when a new version is filed on top of one in Trash. Older
+  versions show their own preview and type, and a star they still have
+  (a new version doesn't inherit it), so it can be removed. The row's
+  buttons are 44px touch targets. HEIC photos are no longer previewed or
+  thumbnailed, since most browsers can't show them, and an unrecognised
+  stored type shows no pill instead of the raw value.
+- **One set of Contract queries for MCP and the Assistant, plus `whats_due`
+  (#394).** Both now call the same queries in `src/lib/domainQueries.ts`,
+  so they return the same answer:
+  - **Contract shape (breaking for MCP clients).** Every Contract tool
+    returns contacts and `isTaxDeductible` alike, plus `due` (the Due
+    policy's entries: field, date, daysLeft, state, label) and a top-level
+    `state`. `startDate` and `endDate` are now calendar days
+    (`YYYY-MM-DD`) instead of UTC-midnight timestamps; `createdAt` and
+    `updatedAt` stay timestamps. The old day-count fields are gone (see
+    Removed), with no deprecation period.
+  - **`upcoming_renewals`** lists Contracts with a notice deadline or end
+    date within N days (default 30), soonest first, so the Assistant now
+    counts to the notice deadline too (#351). Expired Contracts are
+    included as overdue, and an entry in state `later` is not Due (outside
+    its due-soon window, or an auto-renewing Contract's renewal date).
+    Ended, Cancelled and auto-renewing ones waiting on their new end date
+    are left out.
+  - **`spend_summary`** converts to one currency the way the dashboard and
+    Spending page do, so its total matches "about $X a month". It takes an
+    optional ISO 4217 `currency` (default: your preferred currency in the
+    Assistant, the first admin's over MCP; a household currency setting is
+    #453), may fetch current exchange rates, and lists
+    `unconvertedCurrencies` instead of adding them as-is. `byCategory`
+    now leaves out categories with no monthly spend (one-off charges, or
+    a currency with no rate) instead of listing them at 0.
+  - **New read-only `whats_due` tool** on both: every Due entry (due soon
+    or overdue) within N days across Contracts, Warranties and, when
+    enabled, Vehicle dates and Tenancy lease ends, the same entries Needs
+    attention lists as Due.
+  - The Assistant also gets `get_contract`, and both share their Contract
+    tool descriptions, now in the glossary's terms. `get_contract` no
+    longer lists trashed documents.
+- **CI split into separate required checks.** `.github/workflows/ci.yml` replaces
+  `e2e.yml` with one job per check: `typecheck`, `lint`, `unit`, `build`, `e2e`
+  and `standalone`. A failing lint step no longer shows up as an "e2e" failure.
+  `next build` now runs on every PR (before, only the Docker Scout image build
+  ran it), and the standalone shell suite now runs in CI. `main` has a
+  ruleset that requires these checks, plus Docker Scout, CodeQL and Codacy,
+  before a merge, and blocks force-pushes and deletion.
+- **Unit test coverage.** `npm run test:coverage` (Vitest + v8) reports
+  coverage. CI posts a summary on every run, fails if coverage drops below the
+  floor in `vitest.config.ts` (30% lines today), and uploads it to Codacy
+  once the `CODACY_PROJECT_TOKEN` secret is set.
+- **Dependabot version updates.** A weekly npm and GitHub Actions schedule,
+  with minor and patch bumps grouped. Major bumps of `@simplewebauthn/*` and
+  `next-auth` are held back: bumping one alone broke `main` (#443, reverted
+  in #459), and #376 upgrades them together.
+
+- **Standalone shell wealth parity (#440).** The offline shell's dashboard now
+  lists net worth the way the web Wealth page does (#404): a Net worth total
+  with its parts beneath — Shares, ETFs and crypto, Property and Items, each
+  shown only when its module is on — and the listed parts add up to the
+  total. Its generic CSV trade import reads the optional Asset Class and
+  Exchange columns and creates a CRYPTO holding when either says Crypto
+  (case-insensitive); a row with neither stays SHARE, and the class is never
+  guessed from the ticker.
 - **One navigation on phones (#407, #369).** The bottom bar and its More
   sheet are now the only way around on a phone; the menu button and
   edge-swipe drawer are gone (the desktop sidebar is unchanged). More lists
@@ -206,6 +415,23 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   Documents of every kind, and those three kinds now keep the Document
   type chosen on upload. An offline Document delete also goes to Trash
   when it syncs (it used to delete the file outright) (#396).
+- **Trip segments, Rental statements, Trades, Tenancies and Property
+  valuations go to Trash.** Deleting one now says "Moved to Trash" with
+  Undo instead of deleting it for good; its Documents stay with it, and it
+  can be restored from Settings → Trash (once the Trip or Property it's
+  under is restored) or deleted permanently there, which removes its files
+  too. The 30-day Trash purge covers them. While one is in Trash it's
+  read-only and left out of the Trip, Rental and Holding pages, Upcoming,
+  the calendar feed, exports, search and the Documents page, and a Trade or
+  valuation in Trash no longer counts towards holdings, cost basis or net
+  worth. A Tenancy in Trash gets no lease-end Reminders, and the 30-day
+  purge clears its sent-Reminder log. A CSV import row that matches a
+  Trade in Trash restores that Trade rather than adding a second one. A
+  Contract still linked to a Tenancy in Trash shows as unavailable in the
+  link list, and linking it says why. Offline deletes of all five sync to
+  Trash, and a Tenancy edit made offline is now refused if someone else
+  changed it first. Maintenance records in Trash no longer show in search
+  either (#427).
 - Search, the Documents page and the dashboard's Document counts leave out
   Documents in Trash, and Documents whose record is in Trash. A Document
   can only be deleted permanently from Trash, and a Restore or Delete in
@@ -333,6 +559,11 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Removed
 
+- **MCP and Assistant Contract day-count fields (#394, breaking for MCP
+  clients).** `daysUntilEnd`, `cancelBy`, `daysUntilCancelBy` and
+  `daysUntilDeadline` are gone from every Contract tool, with no
+  deprecation period; read the `due` entries and `state` instead.
+- `src/lib/contractTiming.ts`: Contracts use the Due policy (#394).
 - The mobile navigation drawer (`MobileNavDrawer`), its menu button and
   its left-edge swipe; the bottom bar's More sheet replaces it (#407).
 - Search's "Missing reminder" and "Missing link" filters. A blank Reminder
@@ -345,6 +576,48 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **Standalone shell: deleting a Document moves it to Trash with an Undo
+  (#455).** Delete no longer asks first and removes the file at once. The
+  Document goes to Trash with an Undo (several deletes keep several Undos),
+  and its file is deleted only when the Trash entry is purged, together with
+  its row. Entries stay in Trash for 30 days; deleting a record also puts its
+  Documents in Trash for 30 days, and its confirm says so. Purging runs at
+  launch, at most 20 entries at a time, and distrusts the device clock: it
+  does nothing if the clock is more than a day behind the newest saved
+  timestamp, and a clock that jumped ahead can't expire anything newer than
+  that. A file that can't be deleted keeps its row for the next launch.
+  Deleting the latest version now makes the previous version the latest
+  again instead of hiding the whole Document, a version in Trash in the
+  middle of a chain no longer splits it, and a new version is filed on top
+  of the newest one, in Trash or not. Undo won't restore a Document whose
+  record was deleted. Privacy: standalone backups still include Documents
+  in Trash, with their files, so a restore from a backup can bring them
+  back; they leave backups when purged. The latest version is worked out
+  from the version chain, so backups from earlier builds import cleanly and
+  Documents they had hidden show again. No schema change.
+
+- **An Inventory item in Trash can't be edited (#446).** Saving an edit form
+  left open while the item was moved to Trash, or replaying an offline edit
+  to it, now fails with "Item not found." instead of changing the trashed
+  item. Updates go through a new Inventory record command
+  (`src/lib/commands/inventory.ts`) with the same Trash rule and stale-edit
+  check as the other modules. A new warranty link must be to a Warranty that
+  isn't in Trash; a link the item already has is kept.
+- **Contracts and Warranties can't be linked to a Property or Vehicle in
+  Trash (#447).** The link check now runs inside the Contract and Product
+  commands, in the write's transaction, so every caller gets it: the forms,
+  import, the Assistant and offline sync replays, which skipped it before.
+  A link the record already has is kept when the rest of it is edited, even
+  if that Property or Vehicle has since gone to Trash, and the Assistant's
+  update proposals follow the same rule. A refused link on an edit form
+  keeps what was entered. An offline edit that's both stale and links a
+  trashed record is reported as stale.
+- **Day counts a day short on servers west of UTC (#394).** `daysUntil`
+  read stored dates (UTC midnight) in the server's local time, so MCP and
+  the Assistant's warranty and vehicle day counts came out a day short west
+  of UTC. It now reads the date's UTC day and counts from the household's
+  day. `contractTiming`, which had the same bug, is removed: Contracts use
+  the Due policy.
 - **Wealth: net worth adds up, and crypto is priced from CoinGecko (#404).**
   The Wealth page shows the total above a plain list of every part of it
   (shares/ETFs/crypto, Property, Items), so the figures always sum to the
@@ -404,31 +677,26 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   proposals are unchanged. The card also shows dates as calendar dates and a
   linked Property or Vehicle by name, and the Assistant can no longer link a
   record to a Property or Vehicle while that module is off.
-- **Signing out clears this device's offline data (#424).** Sign out now
-  deletes the service worker's cached pages and data, the offline write
-  queue and offline Documents, so the next person to use a shared browser
-  can't see or replay any of it. If changes are still waiting to sync, it
-  first asks: Sync now (signs out only once they've synced), Discard and
-  sign out, or Cancel. Offline data is also tied to the user who stored it:
-  a different user signing in, even after a session that ended without a
-  sign-out, never sees the last user's queued changes or downloads and
-  purges them, `/api/sync` refuses a change queued by another account, a
-  read-only member can't queue changes offline, and the service worker
-  serves no cached signed-in page once nobody is signed in or the session
-  has expired.
 - **Due labels and dates follow your date format, and stay on their day
   (#422).** Badges and banners such as "Cancel by 4 Nov" now read in the
   Date format chosen in Settings → Preferences ("Cancel by Nov 4" for
-  MM/DD/YYYY, "Cancel by 2026-11-04" for YYYY-MM-DD), with day counts in
-  the Region's number style, on the lists, dashboard, Needs attention,
-  Upcoming and detail pages. The Due policy now returns each label as a key
-  and its parameters, and the screen formats it; its plain labels, and the
-  shared Due cases, are unchanged. Calendar dates (end dates, expiries,
-  purchase dates and so on) are stored at UTC midnight and now always read
-  as that day: on a server or browser west of UTC, a 1 Dec end date could
-  show as 30 Nov. Moments in time, such as when a document was uploaded or
-  a Reminder sent, show in your own timezone, or the household's until you
-  pick one.
+  MM/DD/YYYY, "Cancel by 2026-11-04" for YYYY-MM-DD) on the lists,
+  dashboard, Needs attention, Upcoming, detail pages and the Assistant's
+  confirmation card. The Due policy now returns each label as a key and its
+  parameters, and the screen formats it; its plain labels, and the shared
+  Due cases, are unchanged. Calendar dates (end dates, expiries, purchase
+  dates and so on) are stored at UTC midnight and now always read as that
+  day: on a server or browser west of UTC, a 1 Dec end date could show as
+  30 Nov. The same goes for the financial-year totals and the Spend
+  timeline's month and year bars. Dates are built from one English month
+  table rather than the runtime's locale data, so the server and the
+  browser always render the same text, badges and date fields agree
+  ("Sep", never "Sept"), month names stay English on Upcoming whatever the
+  Region, and day counts are plain digits. Moments in time, such as when a
+  document was uploaded or a Reminder sent, show in your own timezone.
+  Preferences' timezone now starts with "Household default"; a member who
+  never picked one (stored as "UTC", the old default) follows the
+  household's timezone, and choosing UTC itself is now honoured.
 - **Records in Trash stay read-only, and so does everything under them
   (#428).** An offline edit replayed after the record was trashed on another
   device could add a Service record to a Vehicle in Trash, or a segment to a
@@ -438,11 +706,16 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   failed change), as Properties already were. Restoring a Service record,
   Maintenance record or Document while what it belongs to is still in Trash
   says "Restore the vehicle first." (or the trip, or the property), and a
-  Document can't be added under a record in Trash. Flight-status lookups
-  skip segments of a Trip in Trash. Deleting, restoring and permanently
-  deleting from Trash work as before. One shared rule in
-  `src/lib/commands/shared.ts` now backs the Vehicle, Trip, Property, Wealth
-  and Document commands.
+  Document can't be added, or starred, under a record in Trash. Flight-status
+  and flight-distance lookups skip segments of a Trip in Trash without
+  calling AviationStack. The Trash check and the write can no longer be
+  split by a move to Trash from another request: updates carry the rule in
+  their guarded write, and creates, restores and Document writes check and
+  write in one transaction (a refused Document's saved file is removed).
+  Deleting, restoring and permanently deleting from Trash work as before.
+  One shared rule in `src/lib/commands/shared.ts` now backs the Vehicle,
+  Trip, Property, Wealth and Document commands and the Property/Vehicle
+  link check.
 - **Adding a Holding no longer hangs the app (#432).** Its price-history
   backfill wrote one row at a time from four parallel workers, and the
   database connection serialises every query, so other requests (session

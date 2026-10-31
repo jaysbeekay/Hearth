@@ -5,14 +5,15 @@ import { prisma } from "@/lib/prisma";
 import { TripCard } from "@/components/TripCard";
 import { AddEntryPicker } from "@/components/AddEntryPicker";
 import { OnboardingChecklist } from "@/components/OnboardingChecklist";
-import { monthlyEquivalent, formatCurrency } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
+import { monthlySpend } from "@/lib/spend";
 import { getUserPreferences } from "@/lib/userPreferences";
-import { refreshFxRates, getFxRateMap, convertAmount } from "@/lib/fx";
+import { refreshFxRates, getFxRateMap } from "@/lib/fx";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { auth } from "@/lib/auth";
 import { isSmtpConfigured, isNtfyConfigured, getDueContext } from "@/lib/appSettings";
 import { addDays, calendarDayOf } from "@/lib/duePolicy";
-import { currentTenancy, TENANCY_AGREEMENT_SELECT } from "@/lib/dueRecords";
+import { currentTenancy, LIVE_TENANCY_AGREEMENTS } from "@/lib/dueRecords";
 import { getCurrentReminderFailures } from "@/lib/notifications/logs";
 import { getDocumentStats } from "@/lib/documents/stats";
 import {
@@ -58,23 +59,24 @@ export default async function DashboardPage() {
         include: { _count: { select: { documents: { where: { deletedAt: null } } } } },
       }),
       enabledModules.has("VEHICLES")
-        ? prisma.vehicle.findMany({ where: { deletedAt: null }, orderBy: { createdAt: "desc" } })
+        ? prisma.vehicle.findMany({ where: { deletedAt: null, archivedAt: null }, orderBy: { createdAt: "desc" } })
         : [],
       enabledModules.has("TRAVEL")
         ? prisma.trip.findMany({
             where: { deletedAt: null },
             orderBy: { startDate: "asc" },
-            include: { _count: { select: { segments: true } } },
+            include: { _count: { select: { segments: { where: { deletedAt: null } } } } },
           })
         : [],
       enabledModules.has("HOME")
         ? prisma.property.findMany({
-            where: { deletedAt: null, isRented: true },
+            where: { deletedAt: null, archivedAt: null, isRented: true },
             select: {
               id: true,
               label: true,
               isRented: true,
-              rentalAgreements: { select: TENANCY_AGREEMENT_SELECT },
+              archivedAt: true,
+              rentalAgreements: LIVE_TENANCY_AGREEMENTS,
             },
           })
         : [],
@@ -93,6 +95,12 @@ export default async function DashboardPage() {
       CONTRACT: new Map(contracts.map((c) => [c.id, { kind: "contract" as const, ...c }])),
       PRODUCT: new Map(products.map((p) => [p.id, { kind: "warranty" as const, ...p }])),
       VEHICLE: new Map(vehicles.map((v) => [v.id, { kind: "vehicle" as const, ...v }])),
+      TENANCY: new Map(
+        properties.flatMap((property) => {
+          const tenancy = currentTenancy(property);
+          return tenancy ? [[tenancy.id, { kind: "tenancy" as const, ...tenancy }] as const] : [];
+        }),
+      ),
     },
     due,
   );
@@ -104,19 +112,11 @@ export default async function DashboardPage() {
   await refreshFxRates(fxPairs);
   const rateMap = await getFxRateMap(fxPairs);
 
-  const unconvertedCurrencies = new Set<string>();
-  const monthlySpend = active.reduce((sum, c) => {
-    if (c.cost == null) return sum;
-    const converted = convertAmount(c.cost, c.currency, preferredCurrency, rateMap);
-    if (converted == null) {
-      unconvertedCurrencies.add(c.currency);
-      return sum;
-    }
-    return sum + monthlyEquivalent(converted, c.billingFrequency);
-  }, 0);
-  if (unconvertedCurrencies.size > 0) {
+  // The same figure spend_summary gives MCP and the Assistant (#394).
+  const { total: monthlySpendTotal, unconvertedCurrencies } = monthlySpend(active, preferredCurrency, rateMap);
+  if (unconvertedCurrencies.length > 0) {
     console.warn(
-      `[dashboard] Monthly spend excludes contracts billed in ${[...unconvertedCurrencies].join(", ")} — FX rate(s) to ${preferredCurrency} unavailable.`,
+      `[dashboard] Monthly spend excludes contracts billed in ${unconvertedCurrencies.join(", ")} — FX rate(s) to ${preferredCurrency} unavailable.`,
     );
   }
 
@@ -136,7 +136,16 @@ export default async function DashboardPage() {
   const tenancies = properties.flatMap((property) => {
     const tenancy = currentTenancy(property);
     return tenancy
-      ? [{ propertyId: property.id, propertyLabel: property.label, agreementId: tenancy.id, tenantName: tenancy.tenantName, leaseEnd: tenancy.leaseEnd }]
+      ? [
+          {
+            propertyId: property.id,
+            propertyLabel: property.label,
+            agreementId: tenancy.id,
+            tenantName: tenancy.tenantName,
+            leaseEnd: tenancy.leaseEnd,
+            reminderDaysBefore: tenancy.reminderDaysBefore,
+          },
+        ]
       : [];
   });
   const attention = groupAttentionItems([
@@ -144,7 +153,7 @@ export default async function DashboardPage() {
     ...buildWarrantyAttentionItems(products, due),
     ...(enabledModules.has("VEHICLES") ? buildVehicleAttentionItems(vehicles, due) : []),
     ...buildTenancyAttentionItems(tenancies, due),
-    ...buildReminderFailureItems(currentFailedReminderLogs, contracts, products, vehicles),
+    ...buildReminderFailureItems(currentFailedReminderLogs, contracts, products, vehicles, tenancies),
     ...buildExtractionReviewItems(contracts, products),
     ...buildInboxItem(documentStats.inboxCount),
     ...buildMissingDetailsItems(missingDetails),
@@ -209,10 +218,10 @@ export default async function DashboardPage() {
           </Link>
           {" · "}
           <Link href="/spend" className="text-foreground hover:underline">
-            about {formatCurrency(monthlySpend, preferredCurrency, undefined, region)} a month
+            about {formatCurrency(monthlySpendTotal, preferredCurrency, undefined, region)} a month
           </Link>
-          {unconvertedCurrencies.size > 0 && (
-            <> (excludes {[...unconvertedCurrencies].join(", ")}: no exchange rate right now)</>
+          {unconvertedCurrencies.length > 0 && (
+            <> (excludes {unconvertedCurrencies.join(", ")}: no exchange rate right now)</>
           )}
         </p>
       )}
