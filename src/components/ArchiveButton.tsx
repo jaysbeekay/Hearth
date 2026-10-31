@@ -4,8 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Archive, ArchiveRestore } from "lucide-react";
 import { showToast } from "@/components/Toast";
+import type { ActionState } from "@/lib/actions/auth";
 
-type Result = { error?: string; success?: string } | null | void;
+type Result = ActionState;
 
 // #355 — Archive and Restore for a Vehicle or Property the household no
 // longer has. Archive isn't Trash, so there's no confirm dialog: it changes
@@ -72,7 +73,9 @@ export function ArchiveButton({
 
   const Icon = mode === "archive" ? Archive : ArchiveRestore;
   return (
-    <button type="button" disabled={pending} onClick={run} className={className}>
+    <button type="button" disabled={pending} onClick={() => {
+        run().catch(() => undefined);
+      }} className={className}>
       <Icon size={16} />
       {mode === "archive" ? "Archive" : "Restore"}
     </button>
