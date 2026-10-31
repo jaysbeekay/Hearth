@@ -890,10 +890,53 @@ captures the functionality that shipped in it.
 both `latest` and `vx.y.z`, whenever a `vx.y.z` git tag is pushed — it does
 **not** run on an ordinary push to `main`, so `:latest` only ever moves on a
 real release. A tag created via `release.yml`'s manual dispatch (rather
-than a `git push` of the tag) doesn't trigger this workflow automatically —
+than a `git push` of the tag) doesn't trigger tag-push workflows by itself —
 GitHub Actions doesn't fire push-triggered workflows for refs created by its
-own token — so also run `docker-publish.yml` manually against the new tag
-in that case.
+own token (this is why v0.19.2 had no Docker image or Android build). So in
+that case `release.yml` dispatches `docker-publish.yml` and
+`android-build.yml` against the new tag itself (it has `actions: write` for
+this). Pushing the tag locally needs no extra step.
+
+Either way, `release.yml`'s `artifacts` job then waits for both builds to
+finish and checks that the signed `app-release.apk`/`app-release.aab` are
+attached to the Release and that `jaysbeekay/hearth:vx.y.z` is on Docker Hub.
+A green release run means the artifacts were published; if a build fails, the
+release run fails too and its summary links the failed run.
+
+`release.yml` only runs from `main` (manual dispatch) or a pushed `v*` tag,
+and validates the version as `x.y.z` (optionally `-suffix`).
+
+`android-build.yml` signs **only tag runs** (`refs/tags/v*`) and only if the
+signing secrets exist; it then attaches the signed APK/AAB to the release. A
+tag run with no signing secrets fails on purpose rather than publish an
+unsigned build. Any other ref (a branch dispatch, for instance) builds
+**unsigned** artifacts, named `hearth-release-apk-unsigned` /
+`hearth-release-aab-unsigned`, kept for 7 days. Docker `latest` only moves
+when the tag is the highest stable release.
+
+**Re-running an old tag does not pick up fixes.** A workflow run on a tag uses
+that tag's own copy of the workflow files, so re-running a release whose
+workflows were broken (such as v0.19.2) fails the same way. Cut a new patch
+release (v0.19.3) instead.
+
+`android-check.yml` runs the Gradle/R8 release build on pull requests that
+touch Android inputs (and weekly, opening an issue if it fails), so breakage
+shows up before release.
+
+**One-time owner setup for the `release` environment.** The signing and
+Docker Hub jobs run in a GitHub environment named `release` on tag runs:
+
+1. Settings -> Environments -> New environment: `release`.
+2. Deployment branches and tags -> Selected branches and tags -> add a tag
+   rule `v*`, so only release tags can read its secrets.
+3. Move `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
+   `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `DOCKERHUB_USERNAME` and
+   `DOCKERHUB_TOKEN` into the environment's secrets.
+4. Delete the repository-level copies of those secrets.
+
+Until step 4 the jobs keep working from repo-level secrets. Once done, a
+manual `docker-publish.yml` dispatch from `main` can no longer log in to
+Docker Hub; run it against a tag.
 
 ## License
 

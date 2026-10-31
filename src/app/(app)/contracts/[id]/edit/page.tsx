@@ -8,6 +8,7 @@ import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/ui/PageShell";
+import { propertyLinkTargets, vehicleLinkTargets } from "@/lib/linkTargets";
 
 export default async function EditContractPage({
   params,
@@ -23,12 +24,10 @@ export default async function EditContractPage({
   ]);
   if (!contract || contract.deletedAt) notFound();
 
-  const properties = homeEnabled
-    ? await prisma.property.findMany({ select: { id: true, label: true }, orderBy: { label: "asc" } })
-    : [];
-  const vehicles = vehiclesEnabled
-    ? await prisma.vehicle.findMany({ select: { id: true, label: true }, orderBy: { label: "asc" } })
-    : [];
+  const [properties, vehicles] = await Promise.all([
+    homeEnabled ? propertyLinkTargets(contract.propertyId) : [],
+    vehiclesEnabled ? vehicleLinkTargets(contract.vehicleId) : [],
+  ]);
 
   const boundAction = updateContract.bind(null, contract.id);
 

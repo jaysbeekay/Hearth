@@ -8,6 +8,7 @@ import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/ui/PageShell";
+import { propertyLinkTargets } from "@/lib/linkTargets";
 
 export default async function EditProductPage({
   params,
@@ -22,9 +23,7 @@ export default async function EditProductPage({
   ]);
   if (!product || product.deletedAt) notFound();
 
-  const properties = homeEnabled
-    ? await prisma.property.findMany({ select: { id: true, label: true }, orderBy: { label: "asc" } })
-    : [];
+  const properties = homeEnabled ? await propertyLinkTargets(product.propertyId) : [];
 
   const boundAction = updateProduct.bind(null, product.id);
 
