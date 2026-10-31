@@ -212,7 +212,7 @@ export async function deleteTripSegment(tripId: string, segmentId: string): Prom
   } catch (error) {
     return commandError(error, "Segment not found.");
   }
-  return { success: "Segment moved to Trash." };
+  return { success: "Segment deleted." };
 }
 
 export async function restoreTripSegment(segmentId: string): Promise<ActionState> {
