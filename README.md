@@ -885,12 +885,12 @@ real release. A tag created via `release.yml`'s manual dispatch (rather
 than a `git push` of the tag) doesn't trigger tag-push workflows by itself —
 GitHub Actions doesn't fire push-triggered workflows for refs created by its
 own token (this is why v0.19.2 had no Docker image or Android build). So in
-that case `release.yml` dispatches `docker-publish.yml` and
-`android-build.yml` against the new tag itself (it has `actions: write` for
+that case `release.yml` dispatches `docker-publish.yml`,
+`android-build.yml` and `ios-testflight.yml` against the new tag itself (it has `actions: write` for
 this). Pushing the tag locally needs no extra step.
 
-Either way, `release.yml`'s `artifacts` job then waits for both builds to
-finish and checks that the signed `app-release.apk`/`app-release.aab` are
+Either way, `release.yml`'s `artifacts` job then waits for all three builds
+to finish and checks that the signed `app-release.apk`/`app-release.aab` are
 attached to the Release and that `jaysbeekay/hearth:vx.y.z` is on Docker Hub.
 A green release run means the artifacts were published; if a build fails, the
 release run fails too and its summary links the failed run.
@@ -923,12 +923,20 @@ Docker Hub jobs run in a GitHub environment named `release` on tag runs:
    rule `v*`, so only release tags can read its secrets.
 3. Move `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
    `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `DOCKERHUB_USERNAME` and
-   `DOCKERHUB_TOKEN` into the environment's secrets.
+   `DOCKERHUB_TOKEN` into the environment's secrets, along with the iOS
+   signing and App Store Connect secrets once the first iOS proof run (from
+   `main`) has passed — see the iOS doc below.
 4. Delete the repository-level copies of those secrets.
 
 Until step 4 the jobs keep working from repo-level secrets. Once done, a
 manual `docker-publish.yml` dispatch from `main` can no longer log in to
 Docker Hub; run it against a tag.
+
+`ios-testflight.yml` signs the Capacitor shell and uploads it to TestFlight
+on every `vx.y.z` tag, with the version taken from the tag; a green run means
+App Store Connect accepted the upload (processing then takes a few minutes).
+See [`docs/deployment/ios-testflight.md`](./docs/deployment/ios-testflight.md)
+for the signing and App Store Connect secrets it needs.
 
 ## License
 
