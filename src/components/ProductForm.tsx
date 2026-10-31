@@ -138,16 +138,17 @@ export function ProductForm({
       const res = await fetch("/api/products/extract", { method: "POST", body });
       if (!res.ok) throw new Error("Extraction failed");
 
-      const { fields, source } = (await res.json()) as {
+      const { fields, source, textUnavailable } = (await res.json()) as {
         fields: ExtractedFields;
         source: "byok" | "heuristic" | "llm" | "none";
+        textUnavailable?: boolean;
       };
       const filledCount = Object.keys(fields).length;
       if (filledCount > 0) {
         applyExtractedFields(fields);
         setExtractionUsed(true);
       }
-      setScanMessage(extractionMessage(source, filledCount));
+      setScanMessage(extractionMessage(source, filledCount, textUnavailable));
     } catch {
       setScanMessage("Couldn't scan this invoice. You can still attach it and fill in fields manually.");
     } finally {

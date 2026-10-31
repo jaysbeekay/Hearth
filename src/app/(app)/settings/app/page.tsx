@@ -12,7 +12,10 @@ import {
   getEmailIngestConfig,
   getAppSetting,
   isAppSettingSet,
+  isOllamaConfigured,
 } from "@/lib/appSettings";
+import { getExtractionCapabilities } from "@/lib/documents/textExtraction";
+import { ExtractionCapabilitiesCard } from "@/components/ExtractionCapabilitiesCard";
 import {
   saveSmtpSettings,
   saveNtfySettings,
@@ -81,6 +84,8 @@ export default async function AppSettingsPage() {
     chatApiKeyIsSet,
     emailIngestPasswordIsSet,
     reminderHealth,
+    extractionCapabilities,
+    ollamaConfigured,
   ] = await Promise.all([
     getSmtpConfig(),
     getNtfyConfig(),
@@ -101,6 +106,8 @@ export default async function AppSettingsPage() {
     isAppSettingSet("chat.apiKey"),
     isAppSettingSet("emailIngest.password"),
     getHouseholdReminderHealth(),
+    getExtractionCapabilities(),
+    isOllamaConfigured(),
   ]);
 
   return (
@@ -153,6 +160,20 @@ export default async function AppSettingsPage() {
 
       <div className="space-y-4">
         <CategoryHeading>AI and privacy</CategoryHeading>
+        <Card as="section" className="space-y-4">
+          <div>
+            <h3 className="font-medium">Document text extraction</h3>
+            <p className="text-xs text-muted mt-0.5">
+              Local tools this server uses to read uploaded documents before any AI is involved
+            </p>
+          </div>
+          <ExtractionCapabilitiesCard
+            capabilities={extractionCapabilities}
+            aiKeySet={aiApiKeyIsSet && Boolean(aiProvider)}
+            ollamaConfigured={ollamaConfigured}
+          />
+        </Card>
+
         <Card as="section" className="space-y-4">
           <div>
             <h3 className="font-medium">Local AI (Ollama)</h3>

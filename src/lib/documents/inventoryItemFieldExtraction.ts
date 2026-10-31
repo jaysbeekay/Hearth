@@ -122,7 +122,8 @@ export async function extractInventoryItemFields(
     }
   }
 
-  if (await isOllamaConfigured()) {
+  // Ollama only sees extracted text, so skip it when stage 1 produced none.
+  if (text.trim() && (await isOllamaConfigured())) {
     const llm = await llmExtract(text);
     if (llm && countFound(llm) > 0) {
       return { fields: { ...heuristic, ...llm }, source: "llm" };

@@ -46,12 +46,12 @@ describe("link targets on the edit forms", () => {
     await db.prisma.property.create({ data: { label: "Another old flat", createdById, deletedAt: new Date() } });
     expect(await propertyLinkTargets(trashedHome.id)).toEqual([
       { id: liveHome.id, label: "Beach house" },
-      { id: trashedHome.id, label: "Old flat (in Trash)" },
+      { id: trashedHome.id, label: "Old flat (deleted)" },
       { id: archivedHome.id, label: "Sold unit" },
     ]);
     expect(await vehicleLinkTargets(trashedCar.id)).toEqual([
       { id: liveCar.id, label: "Hatchback" },
-      { id: trashedCar.id, label: "Ute (in Trash)" },
+      { id: trashedCar.id, label: "Ute (deleted)" },
     ]);
   });
 });
