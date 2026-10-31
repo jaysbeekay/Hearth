@@ -47,6 +47,19 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Standalone shell: Recently deleted documents (#488).** More, Settings and
+  Documents now open a "Recently deleted documents" list of Documents in
+  Trash, newest first, with the record each belonged to, the date it was
+  deleted and the days left before it is removed for good. Each has Restore,
+  which puts the Document back in its version chain, and Delete permanently,
+  which asks first and removes the file and row together by the same purge the
+  30-day cleanup uses (matching Settings, Trash on the web). A Document whose
+  record was deleted is listed for its 30 days with only Delete permanently,
+  since the shell can't bring the record back. Only one restore or delete runs
+  at a time, so a Restore can't race a permanent delete. Restore refuses a
+  Document whose file is gone (it stays in Trash), and a permanent delete
+  keeps a file that another Document row still uses.
+
 - **Archive a Vehicle or Property you no longer have (#355).** Archive (in
   the record's More actions menu, with Undo) marks a Vehicle as sold or a
   Property as sold or its lease ended; Restore on the record's page puts it

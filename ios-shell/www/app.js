@@ -459,7 +459,7 @@ const BACKUP_TABLES = [
 ];
 
 function isSecondaryRoute(route) {
-  return ["more", "search", "spend", "calendar", "reminders", "import", "assistant", "settings", "help"].includes(route);
+  return ["more", "search", "spend", "calendar", "reminders", "import", "assistant", "settings", "help", "trash"].includes(route);
 }
 
 // #355 — Archived: the household no longer has this Vehicle or Property (sold,
@@ -1313,12 +1313,13 @@ async function render() {
     assistant: "Assistant",
     settings: "Settings",
     help: "Help",
+    trash: "Recently deleted documents",
     detail: "Details",
     form: state.form?.type === "contractRenewal" ? "Renew contract" : state.form?.id ? "Edit record" : "Add record",
   };
   viewTitle.textContent = titleMap[route] ?? "Hearth";
   viewKicker.textContent = route === "dashboard" ? "Standalone" : "Private local records";
-  const canGoBack = ["detail", "form", "search", "more", "spend", "calendar", "reminders", "import", "assistant", "settings", "help"].includes(route);
+  const canGoBack = ["detail", "form", "search", "more", "spend", "calendar", "reminders", "import", "assistant", "settings", "help", "trash"].includes(route);
   backButton.classList.toggle("is-hidden", !canGoBack);
   backButton.toggleAttribute("aria-hidden", !canGoBack);
   backButton.disabled = !canGoBack;
@@ -1345,6 +1346,7 @@ async function render() {
   if (route === "assistant") mobileView.innerHTML = renderAssistant();
   if (route === "settings") mobileView.innerHTML = renderSettings();
   if (route === "help") mobileView.innerHTML = renderHelp();
+  if (route === "trash") mobileView.innerHTML = renderTrash(await query("SELECT * FROM documents WHERE deleted_at IS NOT NULL"));
   if (route === "detail") mobileView.innerHTML = renderDetail();
   if (route === "form") mobileView.innerHTML = renderForm();
   mobileView.focus({ preventScroll: true });
@@ -1438,6 +1440,7 @@ function renderMore() {
     { title: "Reminders", copy: "Thresholds and reminder health for expiry-based records.", nav: "reminders" },
     { title: "Import", copy: "Upload documents into the standalone inbox.", nav: "import" },
     { title: "Assistant", copy: "Search-style local assistant for records on this phone.", nav: "assistant" },
+    { title: "Recently deleted documents", copy: "Restore Documents from Trash.", nav: "trash" },
     { title: "Settings", copy: "Mode, storage, modules and standalone limitations.", nav: "settings" },
     { title: "Help", copy: "Mobile guidance, privacy model, import limits and connected-mode notes.", nav: "help" },
   ];
@@ -2085,6 +2088,13 @@ function renderSettings() {
       </div>
       <div class="list compact-list">
         ${OPTIONAL_MODULES.map(renderModuleSetting).join("")}
+      </div>
+    </section>
+    <section class="card form-card">
+      <h2>Recently deleted documents</h2>
+      <p class="muted">Deleted Documents stay on this phone for ${TRASH_RETENTION_DAYS} days, and can be restored until then.</p>
+      <div class="actions">
+        <button data-nav="trash">Open recently deleted documents</button>
       </div>
     </section>
     <section class="card form-card">
@@ -2760,6 +2770,9 @@ function renderDocuments() {
   const docs = filteredDocuments();
   const inboxDocs = filteredInboxDocuments();
   return `
+    <section class="actions actions-wrap">
+      <button data-nav="trash">Recently deleted documents</button>
+    </section>
     ${renderInboxImportSection()}
     <section class="chips" aria-label="Document filters">
       ${documentChip("all", "All")}
@@ -4204,17 +4217,117 @@ async function deleteDocument(id) {
   await render();
 }
 
-async function restoreDocument(id) {
-  const [doc] = await query("SELECT owner_type, owner_id, filename FROM documents WHERE id = ? AND deleted_at IS NOT NULL", [id]);
-  if (!doc) return;
-  // A live Document under a deleted record would be unreachable.
-  if (!getRecord(recordTypeForOwnerType(doc.owner_type), doc.owner_id)) {
-    throw new Error(`Can't restore "${doc.filename}": the record it belonged to was deleted.`);
-  }
-  await run("UPDATE documents SET deleted_at = NULL, version = version + 1 WHERE id = ?", [id]);
-  await syncDocumentHeads(doc.owner_type, doc.owner_id);
-  showStandaloneStatus("Document restored.", true);
+// Recently deleted (#488): Documents in Trash, newest first. A Document whose
+// record was deleted is listed too, as it is kept for the same 30 days, but it
+// can't be restored until the record is (restoreDocument refuses). The days
+// left are clamped so a clock behind the data can't promise more than 30.
+function trashDaysLeft(doc) {
+  const expires = Date.parse(doc.deleted_at) + TRASH_RETENTION_DAYS * DAY_MS;
+  const days = Math.ceil((expires - Date.now()) / DAY_MS);
+  return Number.isFinite(days) ? Math.min(TRASH_RETENTION_DAYS, Math.max(0, days)) : TRASH_RETENTION_DAYS;
+}
+
+function renderTrash(trashed) {
+  const docs = [...trashed].sort((a, b) => String(b.deleted_at).localeCompare(String(a.deleted_at)));
+  return `
+    <section>
+      <p class="muted">Deleted Documents are kept for ${TRASH_RETENTION_DAYS} days, then deleted for good. One whose record was also deleted can't be restored here, only deleted.</p>
+    </section>
+    <section class="list" aria-label="Recently deleted documents">
+      ${docs.length === 0 ? empty("Nothing recently deleted", `Documents you delete are kept here for ${TRASH_RETENTION_DAYS} days.`) : docs.map(renderTrashedDocument).join("")}
+    </section>
+  `;
+}
+
+function renderTrashedDocument(doc) {
+  const owner = getRecord(recordTypeForOwnerType(doc.owner_type), doc.owner_id);
+  const days = trashDaysLeft(doc);
+  const name = escapeAttr(doc.filename);
+  // The shell can't bring a deleted record back, so its Documents can only go.
+  return `
+    <article class="record-card">
+      <h3>${escapeHtml(doc.filename)}</h3>
+      <p class="card-meta">${owner ? escapeHtml(ownerLabel(doc)) : `${escapeHtml(typeLabel(doc.owner_type))} · Its record was deleted`}</p>
+      <p class="card-meta">Deleted ${escapeHtml(readableDate(doc.deleted_at) ?? "")} · ${days === 0 ? "Will be deleted soon" : `${days} day${days === 1 ? "" : "s"} left`}</p>
+      <div class="actions actions-wrap">
+        ${owner ? `<button data-restore-document="${escapeAttr(doc.id)}" aria-label="Restore ${name}">Restore</button>` : ""}
+        <button class="danger" data-purge-document="${escapeAttr(doc.id)}" aria-label="Delete permanently, ${name}">Delete permanently</button>
+      </div>
+    </article>
+  `;
+}
+
+// One restore or permanent delete at a time. A Restore tapped while a purge is
+// deleting the file would otherwise race it, so taps are ignored and the
+// buttons disabled until it finishes.
+let trashBusy = false;
+
+function setTrashBusy(busy) {
+  trashBusy = busy;
+  mobileView.querySelectorAll("[data-restore-document], [data-purge-document]").forEach((button) => {
+    button.disabled = busy;
+  });
+}
+
+async function showStaleTrashRow() {
+  hideStandaloneStatus();
+  showStandaloneStatus("Already restored or removed.");
   await render();
+}
+
+async function purgeTrashedDocument(id) {
+  if (trashBusy) return;
+  setTrashBusy(true);
+  try {
+    const [doc] = await query("SELECT owner_type, owner_id, filename FROM documents WHERE id = ? AND deleted_at IS NOT NULL", [id]);
+    if (!doc) {
+      await showStaleTrashRow();
+      return;
+    }
+    if (!window.confirm(`Permanently delete "${doc.filename}"? This is the only copy of it on this phone. Its file is removed and it can't be undone.`)) return;
+    // The same purge the 30-day cleanup uses: file and row together, chain relinked.
+    if (!(await purgeDocument(id))) {
+      await showStaleTrashRow();
+      return;
+    }
+    await syncDocumentHeads(doc.owner_type, doc.owner_id);
+    hideStandaloneStatus();
+    showStandaloneStatus("Deleted permanently.", true);
+    await render();
+  } finally {
+    setTrashBusy(false);
+  }
+}
+
+// `fromList`: tapped on the Recently deleted screen, not from an Undo toast.
+// Then no earlier Undo is left on the result, and a row that's gone says so.
+async function restoreDocument(id, fromList = false) {
+  if (trashBusy) return;
+  setTrashBusy(true);
+  try {
+    const [doc] = await query("SELECT owner_type, owner_id, filename, storage_key FROM documents WHERE id = ? AND deleted_at IS NOT NULL", [id]);
+    if (!doc) {
+      if (fromList || state.route === "trash") await showStaleTrashRow();
+      return;
+    }
+    // A live Document under a deleted record would be unreachable.
+    if (!getRecord(recordTypeForOwnerType(doc.owner_type), doc.owner_id)) {
+      throw new Error(`Can't restore "${doc.filename}": the record it belonged to was deleted.`);
+    }
+    // Never bring back a row whose bytes are gone (e.g. the app was killed
+    // between a purge deleting the file and deleting the row): it would be a
+    // live Document that can't be opened. It stays in Trash and is purged.
+    if (!(await storedFileExists(doc.storage_key))) {
+      throw new Error(`Can't restore "${doc.filename}": its file is no longer on this phone.`);
+    }
+    await run("UPDATE documents SET deleted_at = NULL, version = version + 1 WHERE id = ?", [id]);
+    await syncDocumentHeads(doc.owner_type, doc.owner_id);
+    if (fromList) hideStandaloneStatus();
+    showStandaloneStatus("Document restored.", true);
+    await render();
+  } finally {
+    setTrashBusy(false);
+  }
 }
 
 // is_head is kept in step for older builds that still read it; this build
@@ -4242,21 +4355,41 @@ async function deleteStoredFile(storageKey) {
   }
 }
 
+// Whether a stored file is still there. Only a definite "not found" counts as
+// missing; anything else (or no stat on this platform) is treated as present
+// so a transient error never blocks a Restore.
+async function storedFileExists(storageKey) {
+  if (!Filesystem?.stat || !storageKey) return true;
+  try {
+    await Filesystem.stat({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${storageKey}` });
+    return true;
+  } catch (error) {
+    return !/not.?found|does not exist|no such file|enoent/i.test(String(error?.message ?? error));
+  }
+}
+
 // Deletes a Trash entry's file and row together. It re-reads the row, so the
 // chain is relinked from what is saved now, not from a list read earlier.
+// Order: file first, then the row in one transaction. If the app dies in
+// between, the row is still in Trash with no file: Restore refuses it
+// (storedFileExists) and the next purge removes it (a missing file is fine).
 async function purgeDocument(id) {
   const [doc] = await query("SELECT * FROM documents WHERE id = ? AND deleted_at IS NOT NULL", [id]);
   if (!doc) return null;
-  // A file an Inbox entry still points at stays.
+  // A file an Inbox entry or any other Document row (another version, a
+  // duplicate import) still points at stays: only this row goes.
   const inbox = await query("SELECT id FROM inbox_documents WHERE storage_key = ? AND deleted_at IS NULL LIMIT 1", [doc.storage_key]);
-  if (inbox.length === 0) await deleteStoredFile(doc.storage_key);
+  const shared = await query("SELECT id FROM documents WHERE storage_key = ? AND id <> ? LIMIT 1", [doc.storage_key, doc.id]);
+  if (inbox.length === 0 && shared.length === 0) await deleteStoredFile(doc.storage_key);
   // The next version now follows this one's older version, so the chain stays whole.
   await SQLite.executeSet({
     database: DB,
     transaction: true,
     set: [
-      { statement: "UPDATE documents SET supersedes_id = ?, version = version + 1 WHERE supersedes_id = ?", values: [doc.supersedes_id ?? null, doc.id] },
-      { statement: "DELETE FROM documents WHERE id = ?", values: [doc.id] },
+      // Both only act while the row is still in Trash, so a Restore that got
+      // in first leaves the live row and its chain alone.
+      { statement: "UPDATE documents SET supersedes_id = ?, version = version + 1 WHERE supersedes_id = ? AND EXISTS (SELECT 1 FROM documents WHERE id = ? AND deleted_at IS NOT NULL)", values: [doc.supersedes_id ?? null, doc.id, doc.id] },
+      { statement: "DELETE FROM documents WHERE id = ? AND deleted_at IS NOT NULL", values: [doc.id] },
     ],
   });
   return doc;
@@ -4689,7 +4822,8 @@ function routeTo(route) {
   state.detail = null;
   state.detailBack = null;
   state.form = null;
-  state.backTo = isSecondaryRoute(route) ? (previousRoute === "more" ? "more" : "dashboard") : null;
+  if (route === "trash") hideStandaloneStatus();
+  state.backTo = isSecondaryRoute(route) ? (previousRoute === "more" || (route === "trash" && ["documents", "settings"].includes(previousRoute)) ? previousRoute : "dashboard") : null;
   render().catch((error) => showStandaloneStatus(error.message || "Could not open screen."));
 }
 
@@ -4866,6 +5000,20 @@ mobileView.addEventListener("click", async (event) => {
   }
   if (button.dataset.openInboxDocument) {
     await openInboxDocument(button.dataset.openInboxDocument).catch((error) => showStandaloneStatus(error.message || "Could not open document."));
+    return;
+  }
+  if (button.dataset.restoreDocument) {
+    await restoreDocument(button.dataset.restoreDocument, true).catch((error) => {
+      hideStandaloneStatus();
+      showStandaloneStatus(error?.message || "Could not restore.");
+    });
+    return;
+  }
+  if (button.dataset.purgeDocument) {
+    await purgeTrashedDocument(button.dataset.purgeDocument).catch((error) => {
+      hideStandaloneStatus();
+      showStandaloneStatus(error?.message || "Could not delete.");
+    });
     return;
   }
   if (button.dataset.deleteDocument) {
