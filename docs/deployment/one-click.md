@@ -9,7 +9,7 @@ relying on a number here.
 
 | Target | Recommendation | In one line |
 |---|---|---|
-| **PikaPods** | **Go with changes** | It runs the published Docker image with a persistent volume, which is exactly what Hearth already is, so no code changes are required. This PR adds a health endpoint and documents the volume and env vars. The blocker is a licence: PikaPods lists apps with "a license that allows self-hosting", and Hearth has none. Choosing one, and applying, are for the owner. |
+| **PikaPods** | **Go with changes** | It runs the published Docker image with a persistent volume, which is exactly what Hearth already is, so no code changes are required. This PR adds a health endpoint and documents the volume and env vars. Hearth is now AGPL-3.0, which allows self-hosting, so the licence is no longer a blocker. Applying is for the owner. |
 | **Render** | **Go** (Blueprint and button added in this PR) | A paid web service with a persistent disk runs the same Docker image unchanged, at about $25.25/month on the default 2 GB instance, or about $7.25 on 512 MB for households that rarely scan documents. Prices are from Render's pricing page; check it before relying on them. The free tier is out: it can't have a disk and sleeps after 15 minutes. With a disk there's one instance and a short outage on each deploy, which is fine for a household. |
 | **Vercel** | **No-go** for now | Every one of Hearth's runtime assumptions breaks on serverless. Making it work is four separate pieces of work and a different data-custody story. `git.deploymentEnabled: false` stays. |
 
@@ -62,7 +62,7 @@ against each one:
 |---|---|
 | A web application using "one HTTPS port only" | Yes: port 3000, plain HTTP behind their TLS proxy. |
 | "an official (or semi-official) Docker image available" | Yes: `jaysbeekay/hearth` on Docker Hub, published per release tag. |
-| "a license that allows self-hosting" | **No, not yet.** There's no `LICENSE` file, and README says "Private/personal project — no license specified." Without a licence, nobody else has the right to run the code, PikaPods included. The owner must choose one first. |
+| "a license that allows self-hosting" | **Yes.** Hearth is licensed AGPL-3.0-only (see `LICENSE`), which allows anyone to run it. |
 | Not heavy on CPU or bandwidth by design | Yes: one household. OCR is bursty but short. |
 | No risk of abuse or affecting other pods (proxies, VPNs) | Yes. |
 | Actively developed, with security issues addressed | Yes. |
@@ -337,7 +337,7 @@ is what Docker, PikaPods and Render give you.
 | Host's own backups | Best effort, plus optional encrypted Restic | Daily disk snapshots, kept 7 days | Turso PITR (1–10 days); Blob none stated |
 | Moving out | SFTP the `data/` folder | SCP / magic-wormhole the `data/` folder | Export from two services, convert the database |
 | Updates | PikaPods rolls out stable releases | Household clicks "Deploy latest reference" | The button copies the repo into the household's account; upstream releases need a manual sync |
-| Who must act | Owner: licence + application | Owner: cut a release; then the README button | Not viable yet |
+| Who must act | Owner: application | Owner: cut a release; then the README button | Not viable yet |
 
 All three hosts can technically read the household's data, as any host can.
 Hearth's own encrypted backups to the household's S3 or SFTP storage are the
@@ -389,12 +389,10 @@ Only the repository owner can do these:
    Render's health check gets a 404 and the deploy fails. After that release,
    a test deploy from the README button confirms the end-to-end flow. That
    needs a Render account and costs a few cents for a short test.
-2. **Choose a licence.** PikaPods requires "a license that allows
-   self-hosting", and Hearth currently has none. Add a `LICENSE` file and
-   update README's "License" section. Which licence is the owner's call. Note
-   that PikaPods is a paid hosting service, so the choice also decides
-   whether PikaPods (or any other host) may run Hearth commercially, and on
-   what terms.
+2. **Licence: done.** Hearth is AGPL-3.0-only. Note for the PikaPods
+   conversation: the AGPL allows a paid host to run Hearth, but a host that
+   modifies it must publish those changes. Running the published image
+   unmodified needs nothing further.
 3. **Apply to PikaPods.** Suggest Hearth on PikaPods' feedback page and email
    `hello@pikapods.com`. Send the image name, port `3000`, volume `/app/data`,
    health check `/api/health`, and the env-var table above. Ask them to
