@@ -4231,7 +4231,7 @@ function renderTrash(trashed) {
   const docs = [...trashed].sort((a, b) => String(b.deleted_at).localeCompare(String(a.deleted_at)));
   return `
     <section>
-      <p class="muted">Deleted Documents are kept for ${TRASH_RETENTION_DAYS} days, then deleted for good.</p>
+      <p class="muted">Deleted Documents are kept for ${TRASH_RETENTION_DAYS} days, then deleted for good. One whose record was also deleted can't be restored here, only deleted.</p>
     </section>
     <section class="list" aria-label="Recently deleted documents">
       ${docs.length === 0 ? empty("Nothing recently deleted", `Documents you delete are kept here for ${TRASH_RETENTION_DAYS} days.`) : docs.map(renderTrashedDocument).join("")}
@@ -4305,7 +4305,7 @@ async function restoreDocument(id, fromList = false) {
   if (trashBusy) return;
   setTrashBusy(true);
   try {
-    const [doc] = await query("SELECT owner_type, owner_id, filename FROM documents WHERE id = ? AND deleted_at IS NOT NULL", [id]);
+    const [doc] = await query("SELECT owner_type, owner_id, filename, storage_key FROM documents WHERE id = ? AND deleted_at IS NOT NULL", [id]);
     if (!doc) {
       if (fromList || state.route === "trash") await showStaleTrashRow();
       return;
@@ -4313,6 +4313,12 @@ async function restoreDocument(id, fromList = false) {
     // A live Document under a deleted record would be unreachable.
     if (!getRecord(recordTypeForOwnerType(doc.owner_type), doc.owner_id)) {
       throw new Error(`Can't restore "${doc.filename}": the record it belonged to was deleted.`);
+    }
+    // Never bring back a row whose bytes are gone (e.g. the app was killed
+    // between a purge deleting the file and deleting the row): it would be a
+    // live Document that can't be opened. It stays in Trash and is purged.
+    if (!(await storedFileExists(doc.storage_key))) {
+      throw new Error(`Can't restore "${doc.filename}": its file is no longer on this phone.`);
     }
     await run("UPDATE documents SET deleted_at = NULL, version = version + 1 WHERE id = ?", [id]);
     await syncDocumentHeads(doc.owner_type, doc.owner_id);
@@ -4349,14 +4355,32 @@ async function deleteStoredFile(storageKey) {
   }
 }
 
+// Whether a stored file is still there. Only a definite "not found" counts as
+// missing; anything else (or no stat on this platform) is treated as present
+// so a transient error never blocks a Restore.
+async function storedFileExists(storageKey) {
+  if (!Filesystem?.stat || !storageKey) return true;
+  try {
+    await Filesystem.stat({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${storageKey}` });
+    return true;
+  } catch (error) {
+    return !/not.?found|does not exist|no such file|enoent/i.test(String(error?.message ?? error));
+  }
+}
+
 // Deletes a Trash entry's file and row together. It re-reads the row, so the
 // chain is relinked from what is saved now, not from a list read earlier.
+// Order: file first, then the row in one transaction. If the app dies in
+// between, the row is still in Trash with no file: Restore refuses it
+// (storedFileExists) and the next purge removes it (a missing file is fine).
 async function purgeDocument(id) {
   const [doc] = await query("SELECT * FROM documents WHERE id = ? AND deleted_at IS NOT NULL", [id]);
   if (!doc) return null;
-  // A file an Inbox entry still points at stays.
+  // A file an Inbox entry or any other Document row (another version, a
+  // duplicate import) still points at stays: only this row goes.
   const inbox = await query("SELECT id FROM inbox_documents WHERE storage_key = ? AND deleted_at IS NULL LIMIT 1", [doc.storage_key]);
-  if (inbox.length === 0) await deleteStoredFile(doc.storage_key);
+  const shared = await query("SELECT id FROM documents WHERE storage_key = ? AND id <> ? LIMIT 1", [doc.storage_key, doc.id]);
+  if (inbox.length === 0 && shared.length === 0) await deleteStoredFile(doc.storage_key);
   // The next version now follows this one's older version, so the chain stays whole.
   await SQLite.executeSet({
     database: DB,

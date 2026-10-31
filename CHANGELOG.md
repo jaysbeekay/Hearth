@@ -56,7 +56,9 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   30-day cleanup uses (matching Settings, Trash on the web). A Document whose
   record was deleted is listed for its 30 days with only Delete permanently,
   since the shell can't bring the record back. Only one restore or delete runs
-  at a time, so a Restore can't race a permanent delete.
+  at a time, so a Restore can't race a permanent delete. Restore refuses a
+  Document whose file is gone (it stays in Trash), and a permanent delete
+  keeps a file that another Document row still uses.
 
 - **Archive a Vehicle or Property you no longer have (#355).** Archive (in
   the record's More actions menu, with Undo) marks a Vehicle as sold or a

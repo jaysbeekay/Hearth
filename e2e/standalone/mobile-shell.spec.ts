@@ -328,6 +328,14 @@ test.beforeEach(async ({ page }) => {
           version("version-3", "version-2", "2099-01-03T00:00:00.000Z", { is_head: 1 }),
         ];
       }
+      if (mode === "shared") {
+        // A trashed version whose file a live duplicate import still uses.
+        return [
+          version("version-1", null, "2099-01-01T00:00:00.000Z", { is_head: 1 }),
+          version("version-2", null, "2099-01-02T00:00:00.000Z", { deleted_at: "2099-01-04T00:00:00.000Z" }),
+          { ...base, id: "copy-of-2", filename: "lease-copy.pdf", storage_key: "lease-v2.pdf", supersedes_id: null, is_head: 1, uploaded_at: "2099-01-03T00:00:00.000Z" },
+        ];
+      }
       if (mode === "expired") {
         return [
           version("version-1", null, "2099-01-01T00:00:00.000Z"),
@@ -558,6 +566,13 @@ test.beforeEach(async ({ page }) => {
             return {};
           },
           readFile: async () => ({ data: "JVBERi0=" }),
+          // "hearth-test-missing-files": comma-separated storage keys whose
+          // file is gone (e.g. the app died mid-purge).
+          stat: async (args: { path?: string }) => {
+            const missing = (localStorage.getItem("hearth-test-missing-files") ?? "").split(",").filter(Boolean);
+            if (missing.some((key) => args.path?.endsWith(`/${key}`))) throw new Error("File does not exist");
+            return { type: "file", size: 1024 };
+          },
           deleteFile: async (args: { directory?: string; path?: string }) => {
             const delay = Number(localStorage.getItem("hearth-test-delete-file-delay") ?? 0);
             if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
@@ -1181,10 +1196,7 @@ async function sqliteRuns(page: import("@playwright/test").Page): Promise<Sqlite
 
 // Reloads the shell with Broadband Plan's documents seeded (see the mock).
 async function withContractDocuments(page: import("@playwright/test").Page) {
-  await page.evaluate(() => localStorage.setItem("hearth-test-contract-documents", "1"));
-  await page.reload();
-  await page.getByRole("button", { name: "Use on this device" }).click();
-  await expect(page.locator("#standalone-screen")).toBeVisible();
+  await reloadWithTestFlags(page, { "hearth-test-contract-documents": "1" });
 }
 
 async function openBroadbandRenewal(page: import("@playwright/test").Page) {
@@ -1284,21 +1296,52 @@ test("standalone Previous terms opens the prior Term's document (#353)", async (
 // the Trash entry is purged, and the chain survives a trashed version.
 type ShellPage = import("@playwright/test").Page;
 
-async function reloadStandalone(page: ShellPage) {
+async function reloadOnce(page: ShellPage) {
   await page.reload();
   await page.getByRole("button", { name: "Use on this device" }).click();
   await expect(page.locator("#standalone-screen")).toBeVisible();
 }
 
+// The mock reads its "hearth-test-*" fixture flags from localStorage while
+// the page starts. Chromium sometimes drops file:// localStorage across a
+// reload (seen ~1 reload in 6: the reloaded page has none of the flags, so it
+// starts with the default fixtures and the assertion that follows fails or
+// times out, as in #496's CI). So every reload re-sets the flags this test
+// has asked for, checks the reloaded page really has them, and redoes both if
+// not; it fails loudly rather than run against the wrong fixtures.
+const testFlags = new WeakMap<ShellPage, Record<string, string>>();
+
+async function reloadStandalone(page: ShellPage) {
+  const flags = testFlags.get(page) ?? {};
+  const keys = Object.keys(flags);
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
+    if (keys.length > 0) {
+      await page.evaluate((entries) => {
+        for (const [key, value] of Object.entries(entries)) localStorage.setItem(key, value);
+      }, flags);
+    }
+    await reloadOnce(page);
+    if (keys.length === 0) return;
+    const seen = await page.evaluate((names) => names.map((key) => localStorage.getItem(key)), keys);
+    if (seen.every((value, i) => value === flags[keys[i]])) return;
+  }
+  throw new Error(`Test flags did not survive the reload: ${JSON.stringify(flags)}`);
+}
+
+async function reloadWithTestFlags(page: ShellPage, flags: Record<string, string>) {
+  testFlags.set(page, { ...(testFlags.get(page) ?? {}), ...flags });
+  await reloadStandalone(page);
+}
+
 // `now` fixes the device clock before the reload, for the purge tests (the
 // fixtures are dated 2099, so with the real clock nothing is ever purged).
-async function withDocumentVersions(page: ShellPage, mode: string, options: { now?: string; deleteFileError?: string } = {}) {
-  await page.evaluate(([value, error]) => {
-    localStorage.setItem("hearth-test-doc-versions", value);
-    if (error) localStorage.setItem("hearth-test-delete-file-error", error);
-  }, [mode, options.deleteFileError ?? ""] as const);
+async function withDocumentVersions(page: ShellPage, mode: string, options: { now?: string; deleteFileError?: string; deleteFileDelay?: string } = {}) {
   if (options.now) await page.clock.setFixedTime(new Date(options.now));
-  await reloadStandalone(page);
+  await reloadWithTestFlags(page, {
+    "hearth-test-doc-versions": mode,
+    ...(options.deleteFileError ? { "hearth-test-delete-file-error": options.deleteFileError } : {}),
+    ...(options.deleteFileDelay ? { "hearth-test-delete-file-delay": options.deleteFileDelay } : {}),
+  });
 }
 
 async function openBroadbandPlan(page: ShellPage) {
@@ -1550,8 +1593,7 @@ test("standalone purge keeps the row when the file can't be deleted, and retries
   expect((await savedDocuments(page)).map((row) => row.id)).toEqual(expect.arrayContaining(["version-2", "version-3"]));
 
   // A file that is already gone is fine: the rows go.
-  await page.evaluate(() => localStorage.setItem("hearth-test-delete-file-error", "missing"));
-  await reloadStandalone(page);
+  await reloadWithTestFlags(page, { "hearth-test-delete-file-error": "missing" });
   await expect.poll(async () => deletedDocuments((await shellTestState(page)).runs)).toEqual(["version-3", "version-2"]);
 });
 
@@ -1691,6 +1733,38 @@ test("standalone Recently deleted restores a middle version without splitting th
   expect(state.runs.some((run) => /INTO documents/i.test(run.statement))).toBe(false);
 });
 
+test("standalone Restore refuses a Document whose file is gone, so no live row points at missing bytes (#488)", async ({ page }) => {
+  await withDocumentVersions(page, "middle");
+  await reloadWithTestFlags(page, { "hearth-test-missing-files": "lease-v2.pdf" });
+  await openRecentlyDeleted(page);
+  await page.getByRole("button", { name: "Restore lease-v2.pdf" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("its file is no longer on this phone");
+  expect((await savedDocuments(page)).find((row) => row.id === "version-2")?.deleted_at).toBeTruthy();
+  await expect(trashRows(page).filter({ hasText: "lease-v2.pdf" })).toHaveCount(1);
+  // It can still be deleted for good; the missing file is fine.
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("button", { name: "Delete permanently, lease-v2.pdf" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Deleted permanently.");
+  expect((await savedDocuments(page)).some((row) => row.id === "version-2")).toBe(false);
+});
+
+test("standalone Delete permanently keeps a file another Document still uses (#488)", async ({ page }) => {
+  await withDocumentVersions(page, "shared");
+  await openRecentlyDeleted(page);
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("button", { name: "Delete permanently, lease-v2.pdf" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Deleted permanently.");
+  const saved = await savedDocuments(page);
+  expect(saved.some((row) => row.id === "version-2")).toBe(false);
+  expect(saved.find((row) => row.id === "copy-of-2")?.deleted_at ?? null).toBeNull();
+  expect((await shellTestState(page)).fileDeletes).toEqual([]);
+});
+
+test("standalone Recently deleted says a Document under a deleted record can't be restored (#488)", async ({ page }) => {
+  await openRecentlyDeleted(page);
+  await expect(page.locator("#mobile-view")).toContainText("can't be restored here, only deleted");
+});
+
 test("standalone Recently deleted is reachable from More and Settings (#488)", async ({ page }) => {
   await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
   await page.getByRole("button", { name: /Recently deleted documents/ }).click();
@@ -1751,8 +1825,7 @@ test("standalone Recently deleted ignores a double tap on Restore and on Delete 
 });
 
 test("standalone a Restore during a permanent delete never deletes a live row (#488)", async ({ page }) => {
-  await page.evaluate(() => localStorage.setItem("hearth-test-delete-file-delay", "800"));
-  await withDocumentVersions(page, "middle");
+  await withDocumentVersions(page, "middle", { deleteFileDelay: "800" });
   await openRecentlyDeleted(page);
   page.once("dialog", (dialog) => void dialog.accept());
   await page.getByRole("button", { name: "Delete permanently, lease-v2.pdf" }).click();
