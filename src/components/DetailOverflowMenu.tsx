@@ -95,7 +95,7 @@ export function DetailOverflowMenu({
                   type="button"
                   onClick={() => setOpen(false)}
                   aria-label="Close"
-                  className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-hover"
+                  className={buttonClass("quiet", { icon: true })}
                 >
                   <X size={20} />
                 </button>

@@ -21,13 +21,16 @@ import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
 import { Card } from "@/components/ui/Card";
+import { cardClass } from "@/lib/ui";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.household.label };
 
 // min-h-11 (44px) keeps these comfortably tappable on mobile even though
 // they're plain text links, not buttons.
-const quickLinkClass =
-  "flex min-h-11 items-center justify-between gap-3 rounded-lg border border-border px-3 text-sm font-medium hover:bg-hover";
+const quickLinkClass = cardClass(
+  { padding: "none", interactive: true },
+  "flex min-h-11 items-center justify-between gap-3 px-3 text-sm font-medium",
+);
 
 export default async function HouseholdSettingsPage() {
   const session = await auth();

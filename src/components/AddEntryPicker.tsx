@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Plus, FileText, Package, Boxes, Home as HomeIcon, Files, X } from "lucide-react";
 import { Dialog } from "@/components/Dialog";
 import { useCanWrite } from "@/components/CanWriteProvider";
-import { buttonClass, dialogPanelClass } from "@/lib/ui";
+import { buttonClass, dialogPanelClass, cardClass } from "@/lib/ui";
 
 interface Option {
   label: string;
@@ -88,7 +88,7 @@ export function AddEntryPicker({ enabledModules }: { enabledModules: string[] })
             type="button"
             onClick={() => setOpen(false)}
             aria-label="Close"
-            className="flex size-11 items-center justify-center rounded-lg text-muted hover:bg-hover"
+            className={buttonClass("quiet", { icon: true }, "text-muted")}
           >
             <X size={16} />
           </button>
@@ -99,7 +99,7 @@ export function AddEntryPicker({ enabledModules }: { enabledModules: string[] })
               key={option.href}
               href={option.href}
               onClick={() => setOpen(false)}
-              className="flex items-start gap-3 rounded-lg border border-border p-3 hover:border-accent/50 hover:bg-accent/5"
+              className={cardClass({ interactive: true }, "flex items-start gap-3")}
             >
               <option.icon size={16} className="mt-0.5 shrink-0 text-accent" />
               <div className="min-w-0">

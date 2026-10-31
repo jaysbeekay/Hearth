@@ -3,9 +3,9 @@
 import { useState, useTransition } from "react";
 import type { ActionState } from "@/lib/actions/auth";
 import { FormMessage } from "@/components/FormMessage";
+import { buttonClass } from "@/lib/ui";
 
-const testButtonClass =
-  "rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-hover disabled:opacity-60 disabled:cursor-not-allowed";
+const testButtonClass = buttonClass("secondary");
 
 // Uses a plain button (not a nested <form>) since this is meant to render
 // inside another section's save <form> — nested forms are invalid HTML and

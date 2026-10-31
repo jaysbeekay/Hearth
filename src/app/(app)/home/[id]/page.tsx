@@ -155,7 +155,7 @@ export default async function PropertyDetailPage({
                     noun="property"
                     action={archiveProperty.bind(null, property.id)}
                     undo={unarchiveProperty.bind(null, property.id)}
-                    className="flex min-h-11 w-full items-center gap-2 px-4 py-2 text-sm hover:bg-hover"
+                    className={menuItemClass()}
                   />
                 )}
                 <ConfirmForm

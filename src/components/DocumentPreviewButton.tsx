@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Eye } from "lucide-react";
 import { DocumentPreviewModal, isPreviewable } from "@/components/DocumentPreviewModal";
+import { buttonClass } from "@/lib/ui";
 
 // The Document list's preview (#397): the button and its modal, so the list
 // itself can stay a server component. Nothing for a file the browser can't
@@ -26,7 +27,7 @@ export function DocumentPreviewButton({
           setOpen(true);
         }}
         aria-label={`Preview ${filename}`}
-        className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-muted hover:bg-hover"
+        className={buttonClass("quiet", { icon: true }, "text-muted")}
       >
         <Eye size={16} />
       </button>

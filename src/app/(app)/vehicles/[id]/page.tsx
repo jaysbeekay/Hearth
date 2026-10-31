@@ -123,7 +123,7 @@ export default async function VehicleDetailPage({
                     noun="vehicle"
                     action={archiveVehicle.bind(null, vehicle.id)}
                     undo={unarchiveVehicle.bind(null, vehicle.id)}
-                    className="flex min-h-11 w-full items-center gap-2 px-4 py-2 text-sm hover:bg-hover"
+                    className={menuItemClass()}
                   />
                 )}
                 <ConfirmForm

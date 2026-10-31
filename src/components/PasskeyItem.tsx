@@ -7,6 +7,7 @@ import type { ActionState } from "@/lib/actions/auth";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { FormMessage } from "@/components/FormMessage";
 import { Timestamp } from "@/components/Timestamp";
+import { buttonClass } from "@/lib/ui";
 
 export function PasskeyItem({
   credentialId,
@@ -43,7 +44,7 @@ export function PasskeyItem({
         confirmText={`Remove "${nickname ?? "this passkey"}"? You won't be able to sign in with it anymore.`}
         actionLabel="Remove passkey"
         ariaLabel={`Remove passkey ${nickname ?? ""}`}
-        className="rounded-lg p-2 text-muted hover:text-danger"
+        className={buttonClass("quiet", { icon: true }, "text-muted hover:text-danger")}
       >
         <Trash2 size={16} />
       </ConfirmForm>

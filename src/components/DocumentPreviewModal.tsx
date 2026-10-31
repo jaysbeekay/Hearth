@@ -5,7 +5,7 @@ import { X } from "lucide-react";
 import { getOfflineDocument } from "@/lib/offlineDocuments";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { isBrowserViewableImage } from "@/lib/documents/documentList";
-import { overlayClass } from "@/lib/ui";
+import { overlayClass, buttonClass } from "@/lib/ui";
 
 export interface PreviewableDoc {
   filename: string;
@@ -86,7 +86,7 @@ export function DocumentPreviewModal({
             type="button"
             onClick={onClose}
             aria-label="Close preview"
-            className="shrink-0 rounded-lg p-1 text-muted hover:bg-hover"
+            className={buttonClass("quiet", { icon: true }, "shrink-0 text-muted")}
           >
             <X size={16} />
           </button>

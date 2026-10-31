@@ -11,9 +11,7 @@ import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { ConfirmForm } from "@/components/ConfirmForm";
-
-const buttonClass =
-  "rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-hover";
+import { buttonClass } from "@/lib/ui";
 
 export function WebhookActions({
   endpointId,
@@ -37,12 +35,12 @@ export function WebhookActions({
     <div className="flex flex-col items-end gap-2">
       <div className="flex items-center gap-2">
         <form action={testAction}>
-          <SubmitButton variant="secondary" className={buttonClass}>
+          <SubmitButton variant="secondary">
             Send test
           </SubmitButton>
         </form>
         <form action={toggleAction}>
-          <SubmitButton variant="secondary" className={buttonClass}>
+          <SubmitButton variant="secondary">
             {enabled ? "Disable" : "Enable"}
           </SubmitButton>
         </form>
@@ -51,7 +49,7 @@ export function WebhookActions({
           confirmText={`Remove the "${name}" webhook?`}
           actionLabel="Remove webhook"
           ariaLabel={`Remove webhook ${name}`}
-          className="rounded-lg p-2 text-muted hover:text-danger"
+          className={buttonClass("quiet", { icon: true }, "text-muted hover:text-danger")}
         >
           <Trash2 size={16} />
         </ConfirmForm>

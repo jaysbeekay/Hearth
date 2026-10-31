@@ -29,7 +29,7 @@ import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
-import { buttonClass, menuItemClass, emptyStateClass } from "@/lib/ui";
+import { buttonClass, menuItemClass, emptyStateClass, cardClass } from "@/lib/ui";
 import { Pill } from "@/components/ui/Pill";
 
 const SEGMENT_ICONS: Record<string, LucideIcon> = {
@@ -266,7 +266,7 @@ export default async function TripDetailPage({
                   </dl>
 
                   {segment.type === "FLIGHT" && segment.flightStatus && (
-                    <div className="mt-4 rounded-lg border border-border p-3 space-y-3">
+                    <div className={cardClass({}, "mt-4 space-y-3")}>
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <Pill tone={flightStatusTone(segment.flightStatus)}>
@@ -326,7 +326,7 @@ export default async function TripDetailPage({
                   )}
 
                   {segment.type === "FLIGHT" && segment.flightNumber && !segment.flightStatus && (
-                    <div className="mt-4 flex items-center justify-between rounded-lg border border-border p-3">
+                    <div className={cardClass({}, "mt-4 flex items-center justify-between")}>
                       <p className="text-xs text-muted">No flight status data yet.</p>
                       {canWrite && (
                         <FlightRefreshForm

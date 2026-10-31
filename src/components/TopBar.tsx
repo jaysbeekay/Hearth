@@ -1,5 +1,6 @@
 import { Flame, Search } from "lucide-react";
 import { openGlobalSearch } from "@/components/GlobalSearch";
+import { buttonClass } from "@/lib/ui";
 
 // Phones only. Navigation lives in the bottom bar and its More sheet (#407),
 // so this bar carries just the name and Search.
@@ -15,7 +16,7 @@ export function TopBar() {
           type="button"
           onClick={openGlobalSearch}
           aria-label="Search"
-          className="flex h-11 w-11 items-center justify-center rounded-full text-muted hover:bg-hover"
+          className={buttonClass("quiet", { icon: true }, "text-muted")}
         >
           <Search size={20} />
         </button>

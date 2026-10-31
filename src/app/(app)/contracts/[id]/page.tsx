@@ -37,7 +37,7 @@ import { getHouseholdMemberCount } from "@/lib/household";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { Card } from "@/components/ui/Card";
-import { buttonClass, menuItemClass } from "@/lib/ui";
+import { buttonClass, menuItemClass, cardClass } from "@/lib/ui";
 
 export default async function ContractDetailPage({
   params,
@@ -149,7 +149,7 @@ export default async function ContractDetailPage({
                 {canRenew && (
                   <Link
                     href={renewHref}
-                    className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-hover sm:hidden"
+                    className={menuItemClass({}, "sm:hidden")}
                   >
                     <RotateCw size={16} />
                     Renew
@@ -160,7 +160,7 @@ export default async function ContractDetailPage({
                   confirmText={statusConfirmText}
                   actionLabel={statusLabel}
                   ariaLabel={cancelled ? "Mark contract as active" : "Mark contract as cancelled"}
-                  className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-hover"
+                  className={menuItemClass()}
                 >
                   {cancelled ? <RotateCcw size={16} /> : <Ban size={16} />}
                   {statusLabel}
@@ -287,7 +287,7 @@ export default async function ContractDetailPage({
             {contract.property && (
               <Link
                 href={`/home/${contract.property.id}`}
-                className="flex items-center gap-3 rounded-lg border border-border p-3 hover:bg-hover"
+                className={cardClass({ interactive: true }, "flex items-center gap-3")}
               >
                 <Home size={16} className="text-muted" />
                 <span>
@@ -299,7 +299,7 @@ export default async function ContractDetailPage({
             {contract.vehicle && (
               <Link
                 href={`/vehicles/${contract.vehicle.id}`}
-                className="flex items-center gap-3 rounded-lg border border-border p-3 hover:bg-hover"
+                className={cardClass({ interactive: true }, "flex items-center gap-3")}
               >
                 <Car size={16} className="text-muted" />
                 <span>

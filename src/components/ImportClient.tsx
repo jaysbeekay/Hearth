@@ -395,7 +395,7 @@ export function ImportClient({
                           type="button"
                           onClick={() => removeRow(row.id)}
                           aria-label={`Remove ${row.file.name} from queue`}
-                          className="rounded p-1 text-muted hover:text-danger"
+                          className={buttonClass("quiet", { icon: true }, "text-muted hover:text-danger")}
                         >
                           <X size={16} />
                         </button>

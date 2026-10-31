@@ -13,6 +13,7 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
 import { Card } from "@/components/ui/Card";
+import { buttonClass } from "@/lib/ui";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.users.label };
 
@@ -53,7 +54,7 @@ export default async function ManageUsersPage() {
                     confirmText={`Remove ${user.name} from the household? Their records and documents stay with the household.`}
                     actionLabel={`Remove ${user.name}`}
                     ariaLabel={`Remove ${user.name} from the household`}
-                    className="rounded-lg p-2 text-muted hover:text-danger"
+                    className={buttonClass("quiet", { icon: true }, "text-muted hover:text-danger")}
                   >
                     <Trash2 size={16} />
                   </ConfirmForm>

@@ -45,7 +45,7 @@ export function OnboardingChecklist({
         type="button"
         aria-label="Dismiss getting-started checklist"
         onClick={dismiss}
-        className="absolute right-1 top-1 flex size-11 items-center justify-center rounded-lg text-muted hover:bg-hover"
+        className={buttonClass("quiet", { icon: true }, "absolute right-2 top-2 text-muted")}
       >
         <X size={16} />
       </button>

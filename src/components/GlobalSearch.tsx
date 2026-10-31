@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Search, X, Loader2 } from "lucide-react";
 import type { SearchResult } from "@/app/api/search/route";
 import { toggleListFilter, writeListFilters, type ToggleableFilter } from "@/lib/recordFilters";
-import { overlayClass, chipClass } from "@/lib/ui";
+import { overlayClass, chipClass, buttonClass } from "@/lib/ui";
 
 const OPEN_EVENT = "hearth:open-search";
 
@@ -191,7 +191,7 @@ export function GlobalSearch() {
               }
             }}
             aria-label="Close search"
-            className="shrink-0 rounded-lg p-1 text-muted hover:bg-hover"
+            className={buttonClass("quiet", { icon: true }, "shrink-0 text-muted")}
           >
             <X size={16} />
           </button>

@@ -196,7 +196,7 @@ export function DocumentsExplorer({
                           type="button"
                           onClick={() => setPreview(doc)}
                           aria-label={`Preview ${doc.filename}`}
-                          className="rounded-lg p-1 text-muted hover:bg-hover"
+                          className={buttonClass("quiet", { icon: true }, "text-muted")}
                         >
                           <Eye size={16} />
                         </button>
@@ -230,7 +230,7 @@ export function DocumentsExplorer({
                       type="button"
                       onClick={() => setPreview(doc)}
                       aria-label={`Preview ${doc.filename}`}
-                      className="shrink-0 rounded-lg p-1 text-muted hover:bg-hover"
+                      className={buttonClass("quiet", { icon: true }, "shrink-0 text-muted")}
                     >
                       <Eye size={16} />
                     </button>

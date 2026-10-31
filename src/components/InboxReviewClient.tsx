@@ -594,7 +594,7 @@ export function InboxReviewClient({
                   type="button"
                   onClick={() => discard(doc)}
                   aria-label={`Discard ${doc.filename}`}
-                  className="rounded p-1 text-muted hover:text-danger"
+                  className={buttonClass("quiet", { icon: true }, "text-muted hover:text-danger")}
                 >
                   <X size={16} />
                 </button>

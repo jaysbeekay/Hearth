@@ -33,7 +33,7 @@ import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
-import { buttonClass, menuItemClass } from "@/lib/ui";
+import { buttonClass, menuItemClass, cardClass } from "@/lib/ui";
 
 export default async function ProductDetailPage({
   params,
@@ -180,7 +180,7 @@ export default async function ProductDetailPage({
             {product.property && (
               <Link
                 href={`/home/${product.property.id}`}
-                className="flex items-center gap-3 rounded-lg border border-border p-3 hover:bg-hover"
+                className={cardClass({ interactive: true }, "flex items-center gap-3")}
               >
                 <Home size={16} className="text-muted" />
                 <span>
@@ -193,7 +193,7 @@ export default async function ProductDetailPage({
               <Link
                 key={invItem.id}
                 href={`/inventory/${invItem.id}`}
-                className="flex items-center gap-3 rounded-lg border border-border p-3 hover:bg-hover"
+                className={cardClass({ interactive: true }, "flex items-center gap-3")}
               >
                 <Package size={16} className="text-muted" />
                 <span>

@@ -8,6 +8,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { inputClass } from "@/components/SelectWrapper";
 import { isAiExtractionSource, type ExtractionSource } from "@/lib/autoFillHighlight";
 import { useCanWrite } from "@/components/CanWriteProvider";
+import { bannerClass } from "@/lib/ui";
 
 export interface ReviewFieldSpec {
   fieldName: string;
@@ -68,7 +69,7 @@ export function ExtractionReviewPanel({
   const canWrite = useCanWrite();
   if (!canWrite) {
     return (
-      <div className="space-y-3 rounded-lg border border-border bg-muted/10 p-4 md:p-6">
+      <div className={bannerClass("neutral", "space-y-3")}>
         <p className="flex items-center gap-2 text-sm font-medium text-foreground">
           <AlertCircle size={16} className="shrink-0" aria-hidden />
           Needs review — {fields.length} field{fields.length === 1 ? "" : "s"} were filled in
@@ -101,7 +102,7 @@ export function ExtractionReviewPanel({
   return (
     <form
       action={formAction}
-      className="space-y-3 rounded-lg border border-border bg-muted/10 p-4 md:p-6"
+      className={bannerClass("neutral", "space-y-3")}
     >
       <p className="flex items-center gap-2 text-sm font-medium text-foreground">
         <AlertCircle size={16} className="shrink-0" aria-hidden />
