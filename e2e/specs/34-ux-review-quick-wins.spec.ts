@@ -53,7 +53,7 @@ test("#371: deleting a contract from its page can be undone", async ({ page }) =
 
   await page.getByRole("button", { name: "More actions" }).click();
   await page.getByRole("dialog", { name: "More actions" }).getByRole("button", { name: "Delete" }).first().click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "Move to Trash" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
   await page.waitForURL(/\/contracts$/);
 
   await page.getByRole("status").getByRole("button", { name: "Undo" }).click();

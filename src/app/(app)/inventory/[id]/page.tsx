@@ -85,7 +85,7 @@ export default async function InventoryItemPage({
                 <ConfirmForm
                   action={deleteInventoryItem.bind(null, id)}
                   undo={{ action: restoreInventoryItem.bind(null, id), href: `/inventory/${id}` }}
-                  confirmText="Move this item to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash."
+                  confirmText="Delete this item? Its documents are kept, and you can restore it within 30 days from Settings → Recently deleted."
                   className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
                   offline={{ entity: "inventoryItem", entityId: id, label: `Delete item: ${item.label}` }}
                 >

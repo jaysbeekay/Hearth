@@ -332,7 +332,7 @@ describe("the Assistant's actions", () => {
     await setModuleEnabled("HOME", true);
     expect(await updateContractFromAssistant(contract.id, { ...contractData, propertyId: "nope" })).toEqual({
       success: false,
-      error: "That property doesn't exist or is in Trash.",
+      error: "That property doesn't exist or has been deleted.",
     });
     await setModuleEnabled("VEHICLES", true);
     const vehicle = await db.prisma.vehicle.create({
@@ -340,15 +340,15 @@ describe("the Assistant's actions", () => {
     });
     expect(await createContractFromAssistant({ ...contractData, vehicleId: vehicle.id })).toEqual({
       success: false,
-      error: "That vehicle doesn't exist or is in Trash.",
+      error: "That vehicle doesn't exist or has been deleted.",
     });
     expect(await createProductFromAssistant({ description: "TV", propertyId: "nope" })).toEqual({
       success: false,
-      error: "That property doesn't exist or is in Trash.",
+      error: "That property doesn't exist or has been deleted.",
     });
     expect(await updateProductFromAssistant((await newProduct()).id, { description: "TV", propertyId: "nope" })).toEqual({
       success: false,
-      error: "That property doesn't exist or is in Trash.",
+      error: "That property doesn't exist or has been deleted.",
     });
     expect((await db.prisma.contract.findUniqueOrThrow({ where: { id: contract.id } })).propertyId).toBeNull();
   });

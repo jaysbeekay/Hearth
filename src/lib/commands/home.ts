@@ -326,7 +326,7 @@ function tenancyContractMessage(problem: TenancyContractProblem) {
     case "already-linked":
       return "That contract is already linked to another tenancy.";
     case "linked-in-trash":
-      return "That contract is linked to a tenancy in Trash. Restore it or delete it permanently.";
+      return "That contract is linked to a deleted tenancy. Restore the tenancy from Recently deleted, or delete it permanently.";
   }
 }
 
