@@ -5,6 +5,7 @@ import { constants } from "node:fs";
 import path from "node:path";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaLibSql } from "@prisma/adapter-libsql";
+import { assertDisposableTargets } from "./itemStageGuard";
 
 async function main() {
   const [databasePath, uploadsPath] = process.argv.slice(2);
@@ -14,6 +15,7 @@ async function main() {
   if (!(await stat(databasePath).catch(() => null))?.isFile() || !(await stat(uploadsPath).catch(() => null))?.isDirectory()) {
     throw new Error("Pass an existing database file and uploads directory copy");
   }
+  assertDisposableTargets([databasePath, uploadsPath]);
   const prisma = new PrismaClient({ adapter: new PrismaLibSql({ url: `file:${databasePath}` }) });
   let copied = 0;
   let versionLinks = 0;
