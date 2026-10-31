@@ -194,9 +194,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 ### Changed
 
 - "Trash" is now called "Recently deleted" everywhere it's shown: the Settings
-  section and page, delete confirmations, toasts and error messages, and the
-  standalone mobile shell. The confirm button on a restorable delete now says
-  "Delete" (was "Move to Trash") and the toast says "Moved to Recently deleted." (still with Undo), so it reads differently from "Delete permanently".
+  section and page, delete confirmations, toasts and error messages. The
+  confirm button on a restorable delete now says "Delete" (was "Move to
+  Trash") and the toast says "Moved to Recently deleted." (still with Undo),
+  so it reads differently from "Delete permanently". The standalone mobile
+  shell, which has no Recently deleted page, no longer names one: a deleted
+  Document says "deleted." with Undo, and its record's delete confirmation says
+  the documents are kept for 30 days.
   The `/settings/trash` route and internal names are unchanged.
 
 - **An empty `APP_URL` now counts as unset (#477)**, so links fall back to

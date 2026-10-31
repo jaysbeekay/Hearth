@@ -4099,7 +4099,7 @@ async function maybeStoreFormFile(form, ownerType, id) {
 async function deleteRecord(type, id) {
   const row = getRecord(type, id);
   if (!row) return;
-  const confirmed = window.confirm(`Delete "${recordTitle(type, row)}"? Its documents stay in Recently deleted for ${TRASH_RETENTION_DAYS} days, then their files are deleted.`);
+  const confirmed = window.confirm(`Delete "${recordTitle(type, row)}"? Its documents are kept for ${TRASH_RETENTION_DAYS} days, then their files are deleted.`);
   if (!confirmed) return;
   await softDeleteRecord(type, id);
   if (state.localRemindersEnabled && REMINDER_RECORD_TYPES.includes(type)) {
@@ -4200,7 +4200,7 @@ async function deleteDocument(id) {
   if (!doc) return;
   await trashDocument(id);
   await syncDocumentHeads(doc.owner_type, doc.owner_id);
-  showStandaloneStatus(`"${doc.filename}" moved to Recently deleted.`, true, { run: () => restoreDocument(id) });
+  showStandaloneStatus(`"${doc.filename}" deleted.`, true, { run: () => restoreDocument(id) });
   await render();
 }
 
