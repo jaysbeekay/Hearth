@@ -164,6 +164,14 @@ export function chipClass(active: boolean, className?: string) {
   );
 }
 
+/**
+ * A secondary-shaped button that carries a status tone (a summary count of
+ * Overdue records that filters the list to them).
+ */
+export function toneButtonClass(tone: BannerTone, className?: string) {
+  return cn(BUTTON_BASE, "border", BANNER_TONE[tone], className);
+}
+
 /** A row inside a popover menu (Export, the overflow menu). */
 export function menuItemClass({ destructive = false }: { destructive?: boolean } = {}, className?: string) {
   return cn(

@@ -298,7 +298,7 @@ export default async function HoldingPage({
                   action={deleteHolding.bind(null, portfolioId, holdingId)}
                   confirmText={`Delete ${holding.ticker} and all its trades? This cannot be undone.`}
                   actionLabel={`Delete ${holding.ticker}`}
-                  className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
+                  className={buttonClass("secondary", { destructive: true })}
                 >
                   <Trash2 size={16} />
                   Delete
@@ -466,7 +466,7 @@ export default async function HoldingPage({
                             }}
                             confirmText="Move this trade to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash."
                             ariaLabel={`Delete trade from ${formatDate(trade.date, dateFormat)}`}
-                            className="rounded-lg border border-border p-2 text-danger hover:bg-danger/10"
+                            className={buttonClass("secondary", { icon: true, destructive: true })}
                           >
                             <Trash2 size={16} />
                           </ConfirmForm>

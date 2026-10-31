@@ -99,7 +99,7 @@ function AttentionList({ items, canWrite }: { items: AttentionItem[]; canWrite: 
                     confirmText="Mark this contract as cancelled? This just changes its status — it won't delete the contract or its documents."
                     actionLabel="Mark as cancelled"
                     ariaLabel={`Mark ${item.title} as cancelled`}
-                    className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted hover:bg-hover"
+                    className={buttonClass("secondary")}
                   >
                     <Ban size={16} />
                     Cancel

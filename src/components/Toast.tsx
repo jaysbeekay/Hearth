@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, XCircle, Info, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { buttonClass } from "@/lib/ui";
 
 const TOAST_EVENT = "hearth:toast";
 type ToastVariant = "success" | "error" | "info";
@@ -95,7 +96,7 @@ export function ToastContainer() {
                   dismiss(toast.id);
                   toast.action!.onClick();
                 }}
-                className="shrink-0 rounded-lg px-2 py-1 font-medium text-accent hover:bg-accent/10"
+                className={buttonClass("quiet", {}, "text-accent")}
               >
                 {toast.action.label}
               </button>

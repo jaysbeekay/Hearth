@@ -10,6 +10,7 @@ import { documentFileHref } from "@/lib/documents/kinds";
 import { LIVE_DOCUMENT_WHERE as LIVE } from "@/lib/documents/liveDocuments";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { chipClass } from "@/lib/ui";
 
 export const metadata: Metadata = { title: "Documents" };
 
@@ -27,14 +28,6 @@ const PAGE_SIZE = 20;
 // contribution, which can't happen with real DB-level pagination but no
 // longer risks loading thousands of rows either.
 const PER_TABLE_CAP = 100;
-
-function chipClass(active: boolean) {
-  return `rounded-full border px-3 py-1 text-xs font-medium ${
-    active
-      ? "border-accent bg-accent/10 text-accent"
-      : "border-border text-muted hover:border-accent/50"
-  }`;
-}
 
 interface TypeSource {
   type: string;

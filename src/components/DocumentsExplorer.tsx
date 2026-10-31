@@ -237,9 +237,7 @@ export function DocumentsExplorer({
                   )}
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
-                  <span className="rounded-full bg-muted/10 px-2 py-0.5 font-medium text-muted">
-                    {doc.type}
-                  </span>
+                  <Pill>{doc.type}</Pill>
                   <span>{doc.category ? DOCUMENT_CATEGORY_LABELS[doc.category as DocumentCategory] ?? doc.category : "Uncategorised"}</span>
                   <Link href={doc.parentHref} className="text-accent hover:underline">
                     {doc.parentTitle}

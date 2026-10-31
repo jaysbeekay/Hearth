@@ -13,6 +13,7 @@ import { buildMonthlyTimeline, buildYearlyTimeline, buildCategoryBreakdown, mont
 import { getUserPreferences } from "@/lib/userPreferences";
 import { refreshFxRates, getFxRateMap, convertAmount } from "@/lib/fx";
 import { Card } from "@/components/ui/Card";
+import { chipClass } from "@/lib/ui";
 
 export const metadata: Metadata = { title: "Spending" };
 
@@ -160,20 +161,16 @@ export default async function SpendPage({
           <h2 className="font-medium">
             Recurring cost — {view === "yearly" ? "last 5 years" : "last 12 months"}
           </h2>
-          <div className="flex rounded-lg border border-border p-0.5 text-xs">
+          <div className="flex gap-2">
             <Link
               href="/spend?view=monthly"
-              className={`rounded-lg px-2.5 py-1 font-medium ${
-                view === "monthly" ? "bg-accent/10 text-accent" : "text-muted hover:text-foreground"
-              }`}
+              className={chipClass(view === "monthly")}
             >
               Monthly
             </Link>
             <Link
               href="/spend?view=yearly"
-              className={`rounded-lg px-2.5 py-1 font-medium ${
-                view === "yearly" ? "bg-accent/10 text-accent" : "text-muted hover:text-foreground"
-              }`}
+              className={chipClass(view === "yearly")}
             >
               Yearly
             </Link>

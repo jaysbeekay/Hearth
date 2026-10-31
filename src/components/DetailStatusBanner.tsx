@@ -3,10 +3,10 @@ import { AlertTriangle, AlertCircle, CalendarClock, Upload, RotateCw } from "luc
 import { TestConnectionButton } from "@/components/TestConnectionButton";
 import { WriteOnly } from "@/components/CanWriteProvider";
 import { bannerEntries, type DueEntry } from "@/lib/dueRecords";
-import { statusBannerClass, statusTone } from "@/lib/statusTone";
+import { statusTone } from "@/lib/statusTone";
 import type { ActionState } from "@/lib/actions/auth";
 import { DueLabelText } from "@/components/DueLabelText";
-import { buttonClass } from "@/lib/ui";
+import { buttonClass, bannerClass } from "@/lib/ui";
 
 const actionClass = buttonClass("secondary");
 
@@ -82,7 +82,7 @@ export function DetailStatusBanner({
         return (
           <div
             key={entry.field}
-            className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3 ${statusBannerClass(statusTone(entry.state))}`}
+            className={bannerClass(statusTone(entry.state), "flex flex-wrap items-center justify-between gap-3")}
           >
             <p className="flex items-center gap-2 text-sm font-medium">
               <Icon size={16} className="shrink-0" aria-hidden />
@@ -121,7 +121,7 @@ export function DetailStatusBanner({
       })}
       {needsReview && (
         <div
-          className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3 ${statusBannerClass(statusTone("needs-review"))}`}
+          className={bannerClass(statusTone("needs-review"), "flex flex-wrap items-center justify-between gap-3")}
         >
           <p className="flex items-center gap-2 text-sm font-medium">
             <AlertCircle size={16} className="shrink-0" aria-hidden />

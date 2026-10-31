@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Search, X, Loader2 } from "lucide-react";
 import type { SearchResult } from "@/app/api/search/route";
 import { toggleListFilter, writeListFilters, type ToggleableFilter } from "@/lib/recordFilters";
-import { overlayClass } from "@/lib/ui";
+import { overlayClass, chipClass } from "@/lib/ui";
 
 const OPEN_EVENT = "hearth:open-search";
 
@@ -217,11 +217,7 @@ export function GlobalSearch() {
                   closeButtonRef.current?.focus();
                 }
               }}
-              className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
-                filter === f.value
-                  ? "border-accent bg-accent/10 text-accent"
-                  : "border-border text-muted hover:bg-hover"
-              }`}
+              className={chipClass(filter === f.value)}
             >
               {f.label}
             </button>

@@ -9,7 +9,7 @@ import { showToast } from "@/components/Toast";
 import { LinkedToField } from "@/components/LinkedToField";
 import { extractionMessage } from "@/lib/autoFillHighlight";
 import { cn } from "@/lib/utils";
-import { buttonClass } from "@/lib/ui";
+import { buttonClass, pillClass } from "@/lib/ui";
 import { Card } from "@/components/ui/Card";
 
 const INVENTORY_CATEGORY_LABELS: Record<string, string> = {
@@ -749,7 +749,7 @@ function RowField({
             {/* #290: a colour tint/ring alone doesn't reach a screen reader
                 or a colour-blind reviewer — this badge and the sr-only text
                 that follows it do. */}
-            <span aria-hidden="true" className="rounded bg-accent/10 px-1 py-0.5 text-xs font-medium text-accent">
+            <span aria-hidden="true" className={pillClass("accent")}>
               Auto
             </span>
             <span className="sr-only">(auto-filled from document — review before saving)</span>

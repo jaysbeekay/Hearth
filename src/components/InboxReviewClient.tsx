@@ -18,7 +18,7 @@ import { LinkedToField } from "@/components/LinkedToField";
 import { extractionMessage, isAiExtractionSource } from "@/lib/autoFillHighlight";
 import { Card } from "@/components/ui/Card";
 import { Banner } from "@/components/ui/Banner";
-import { buttonClass, chipClass, emptyStateClass } from "@/lib/ui";
+import { buttonClass, chipClass, emptyStateClass, pillClass } from "@/lib/ui";
 
 export type InboxDocumentStatus =
   | "NEEDS_CLASSIFICATION"
@@ -272,9 +272,7 @@ function RowField({
                 that follows it do. */}
             <span
               aria-hidden="true"
-              className={`rounded px-1 py-0.5 text-xs font-medium ${
-                isAi ? "bg-muted/10 text-muted" : "bg-accent/10 text-accent"
-              }`}
+              className={pillClass(isAi ? "neutral" : "accent")}
             >
               Auto
             </span>

@@ -22,7 +22,7 @@ import { RecordMeta } from "@/components/RecordMeta";
 import { TRIP_SEGMENT_TYPE_LABELS, formatCurrency, formatDate, formatTimestamp, formatDistance } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { getHouseholdMemberCount } from "@/lib/household";
-import { shouldAutoRefresh, FLIGHT_STATUS_LABELS, flightStatusColour, refreshFlightStatus } from "@/lib/integrations/flightStatus";
+import { shouldAutoRefresh, FLIGHT_STATUS_LABELS, flightStatusTone, refreshFlightStatus } from "@/lib/integrations/flightStatus";
 import { computeSegmentDistance } from "@/lib/integrations/flightDistance";
 import { FlightRefreshForm } from "@/components/FlightRefreshForm";
 import { auth } from "@/lib/auth";
@@ -30,6 +30,7 @@ import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
 import { buttonClass, menuItemClass, emptyStateClass } from "@/lib/ui";
+import { Pill } from "@/components/ui/Pill";
 
 const SEGMENT_ICONS: Record<string, LucideIcon> = {
   FLIGHT: Plane,
@@ -227,7 +228,7 @@ export default async function TripDetailPage({
                               label: `Delete segment: ${segment.title}`,
                             }}
                             confirmText={`Move "${segment.title}" to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash.`}
-                            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
+                            className={buttonClass("secondary", { destructive: true })}
                           >
                             <Trash2 size={16} />
                             Delete
@@ -268,11 +269,9 @@ export default async function TripDetailPage({
                     <div className="mt-4 rounded-lg border border-border p-3 space-y-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
-                          <span
-                            className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${flightStatusColour(segment.flightStatus)}`}
-                          >
+                          <Pill tone={flightStatusTone(segment.flightStatus)}>
                             {FLIGHT_STATUS_LABELS[segment.flightStatus] ?? segment.flightStatus}
-                          </span>
+                          </Pill>
                           {segment.flightStatusAt && (
                             <span className="text-xs text-muted">
                               Updated {formatTimestamp(segment.flightStatusAt, dateFormat, displayTimeZone)}

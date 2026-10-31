@@ -57,7 +57,7 @@ import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
 import { Card } from "@/components/ui/Card";
-import { emptyStateClass } from "@/lib/ui";
+import { emptyStateClass, buttonClass } from "@/lib/ui";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.trash.label };
 
@@ -196,7 +196,7 @@ export default async function TrashPage() {
                       confirmText={`Permanently delete "${entry.label}"? This removes it and its documents for everyone in the household — it can't be undone.`}
                       actionLabel="Delete permanently"
                       successMessage="Deleted permanently."
-                      className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
+                      className={buttonClass("secondary", { destructive: true })}
                     >
                       <Trash2 size={16} className="mr-1.5" />
                       Delete permanently

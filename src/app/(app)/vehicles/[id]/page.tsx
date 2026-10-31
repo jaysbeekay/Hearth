@@ -154,7 +154,7 @@ export default async function VehicleDetailPage({
               mode="restore"
               noun="vehicle"
               action={unarchiveVehicle.bind(null, vehicle.id)}
-              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+              className={buttonClass("secondary")}
             />
           )}
         </ArchivedNotice>
@@ -302,7 +302,7 @@ export default async function VehicleDetailPage({
                             action={deleteVehicleItem.bind(null, vehicle.id, item.id)}
                             undo={{ action: restoreVehicleItem.bind(null, item.id) }}
                             confirmText={`Move "${item.title}" to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash.`}
-                            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
+                            className={buttonClass("secondary", { destructive: true })}
                           >
                             <Trash2 size={16} />
                             Delete

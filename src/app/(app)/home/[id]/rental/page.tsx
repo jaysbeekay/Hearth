@@ -134,7 +134,7 @@ export default async function RentalOverviewPage({
                 action={setPropertyRented.bind(null, property.id, false)}
                 confirmText="Stop tracking a tenancy for this property? Past tenancies and statements will be kept."
                 actionLabel="Stop tracking tenancy"
-                className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-muted hover:bg-hover"
+                className={buttonClass("secondary")}
               >
                 Stop tracking tenancy
               </ConfirmForm>
@@ -222,7 +222,7 @@ export default async function RentalOverviewPage({
                               label: `Delete tenancy: ${ag.tenantName ?? property.label}`,
                             }}
                             confirmText="Move this tenancy to Trash? Statements are not affected, and you can restore it within 30 days from Settings → Trash."
-                            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
+                            className={buttonClass("secondary", { destructive: true })}
                           >
                             <Trash2 size={16} />
                             Delete
@@ -391,7 +391,7 @@ export default async function RentalOverviewPage({
                                 label: `Delete statement: ${formatDate(stmt.statementDate ?? stmt.periodEnd, dateFormat)}`,
                               }}
                               confirmText="Move this statement to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash."
-                              className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
+                              className={buttonClass("secondary", { destructive: true })}
                             >
                               <Trash2 size={16} />
                               Delete

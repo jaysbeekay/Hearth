@@ -186,7 +186,7 @@ export default async function PropertyDetailPage({
               mode="restore"
               noun="property"
               action={unarchiveProperty.bind(null, property.id)}
-              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+              className={buttonClass("secondary")}
             />
           )}
         </ArchivedNotice>
@@ -280,7 +280,7 @@ export default async function PropertyDetailPage({
                             action={deleteHomeItem.bind(null, property.id, item.id)}
                             undo={{ action: restoreHomeItem.bind(null, item.id) }}
                             confirmText={`Move "${item.title}" to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash.`}
-                            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
+                            className={buttonClass("secondary", { destructive: true })}
                           >
                             <Trash2 size={16} />
                             Delete
@@ -390,7 +390,7 @@ export default async function PropertyDetailPage({
                     }}
                     confirmText="Move this valuation to Trash? You can restore it within 30 days from Settings → Trash."
                     ariaLabel={`Move valuation from ${formatDate(v.valuedAt, dateFormat)} to Trash`}
-                    className="rounded-lg border border-border p-2 text-danger hover:bg-danger/10"
+                    className={buttonClass("secondary", { icon: true, destructive: true })}
                   >
                     <Trash2 size={16} />
                   </ConfirmForm>

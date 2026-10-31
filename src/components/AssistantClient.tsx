@@ -9,7 +9,7 @@ import { ChatComposer } from "@/components/ChatComposer";
 import { readSseStream } from "@/lib/ai/chat/streamParsing";
 import type { ProposedAction } from "@/components/ProposedActionCard";
 import { Card } from "@/components/ui/Card";
-import { sheetClass } from "@/lib/ui";
+import { sheetClass, buttonClass } from "@/lib/ui";
 
 type ChatStreamEvent =
   | { type: "delta"; text: string }
@@ -174,7 +174,7 @@ export function AssistantClient({
           <button
             type="button"
             onClick={() => setThreadsOpen(true)}
-            className="flex h-11 items-center gap-2 rounded-lg px-2 text-sm font-medium hover:bg-hover"
+            className={buttonClass("quiet")}
           >
             <MessagesSquare size={16} />
             Chats
