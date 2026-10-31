@@ -15,6 +15,7 @@ test.beforeEach(async ({ page }) => {
     const sqliteRuns: { statement: string; values: unknown[]; transaction?: boolean }[] = [];
     const scheduledNotifications: unknown[] = [];
     const fileWrites: { directory?: string; path?: string; data?: string }[] = [];
+    const fileDeletes: { directory?: string; path?: string }[] = [];
     const rowsByTable: Record<string, unknown[]> = {
       local_profile: [
         {
@@ -251,6 +252,41 @@ test.beforeEach(async ({ page }) => {
           is_head: 1,
           uploaded_at: "2099-01-01T00:00:00.000Z",
         },
+        // #455 — a three-version Document on Broadband Plan (v1 <- v2 <- v3),
+        // with the middle version already in Trash for "middle", and an
+        // expired Trash entry for "expired".
+        ...(["1", "middle", "expired"].includes(localStorage.getItem("hearth-test-doc-versions") ?? "") ? [
+          ["version-1", "lease-v1.pdf", null, "2099-01-01T00:00:00.000Z"],
+          ["version-2", "lease-v2.pdf", "version-1", "2099-01-02T00:00:00.000Z"],
+          ["version-3", "lease-v3.pdf", "version-2", "2099-01-03T00:00:00.000Z"],
+        ].map(([id, filename, supersedesId, uploadedAt]) => ({
+          id,
+          owner_type: "contract",
+          owner_id: "contract-1",
+          filename,
+          storage_key: filename,
+          mime_type: "application/pdf",
+          size: 1024,
+          important: 0,
+          supersedes_id: supersedesId,
+          is_head: id === "version-3" ? 1 : 0,
+          uploaded_at: uploadedAt,
+          deleted_at: id === "version-2" && localStorage.getItem("hearth-test-doc-versions") === "middle" ? "2099-01-04T00:00:00.000Z" : null,
+        })) : []),
+        ...(localStorage.getItem("hearth-test-doc-versions") !== "expired" ? [] : [{
+          id: "old-trash",
+          owner_type: "contract",
+          owner_id: "contract-1",
+          filename: "old-trash.pdf",
+          storage_key: "old-trash.pdf",
+          mime_type: "application/pdf",
+          size: 1024,
+          important: 0,
+          supersedes_id: null,
+          is_head: 1,
+          uploaded_at: "2000-01-01T00:00:00.000Z",
+          deleted_at: "2000-01-02T00:00:00.000Z",
+        }]),
         // #353 — Broadband Plan's paperwork: the prior Term's (linked to
         // term-1), the current policy, and a newer receipt. Only for the
         // tests that ask (withContractDocuments), since the document tests
@@ -304,6 +340,14 @@ test.beforeEach(async ({ page }) => {
       if (!match) return [];
       const table = match[1];
       const rows = rowsByTable[table] ?? [];
+      if (table === "documents") {
+        const documents = rows as { id?: string; deleted_at?: string | null; storage_key?: string }[];
+        if (/deleted_at IS NOT NULL AND deleted_at < \?/i.test(statement)) return documents.filter((row) => row.deleted_at && row.deleted_at < String(values[0]));
+        if (/deleted_at IS NOT NULL/i.test(statement)) return documents.filter((row) => row.deleted_at);
+        if (/deleted_at IS NULL/i.test(statement)) return documents.filter((row) => !row.deleted_at);
+        if (/storage_key = \? AND id <> \?/i.test(statement)) return documents.filter((row) => row.storage_key === values[0] && row.id !== values[1]);
+        if (/WHERE id = \?/i.test(statement)) return documents.filter((row) => row.id === values[0]);
+      }
       if (table === "holdings" && /portfolio_id\s*=\s*\?/i.test(statement) && /ticker\s*=\s*\?/i.test(statement)) {
         const [portfolioId, ticker] = values;
         return rows.filter((row) => {
@@ -321,7 +365,7 @@ test.beforeEach(async ({ page }) => {
       return rows;
     }
 
-    (window as Window & { Capacitor?: unknown; __hearthStandaloneTest?: unknown }).__hearthStandaloneTest = { sqliteRuns, scheduledNotifications, fileWrites };
+    (window as Window & { Capacitor?: unknown; __hearthStandaloneTest?: unknown }).__hearthStandaloneTest = { sqliteRuns, scheduledNotifications, fileWrites, fileDeletes };
     (window as Window & { Capacitor?: unknown; __hearthStandaloneTest?: unknown }).Capacitor = {
       getPlatform: () => "ios",
       Plugins: {
@@ -345,6 +389,27 @@ test.beforeEach(async ({ page }) => {
                 });
                 if (row.deleted_at) rowsByTable.rental_agreements = rows.filter((candidate) => candidate !== row);
               }
+            }
+            // Document updates and deletes land in the rows, so Trash, Undo and
+            // the version chain can be followed across renders (#455).
+            const documentUpdate = /^UPDATE documents SET (.+) WHERE (\w+) = \?$/i.exec(statement.trim());
+            if (documentUpdate) {
+              const documents = (rowsByTable.documents ?? []) as Record<string, unknown>[];
+              const whereValue = values[values.length - 1];
+              let next = 0;
+              const assignments = documentUpdate[1].split(", ").map((part) => {
+                const [column, expression] = part.split(" = ");
+                if (expression === "?") return [column, values[next++]] as const;
+                if (expression === "NULL") return [column, null] as const;
+                if (/^\d+$/.test(expression)) return [column, Number(expression)] as const;
+                return null;
+              });
+              for (const row of documents.filter((candidate) => candidate[documentUpdate[2]] === whereValue)) {
+                for (const assignment of assignments) if (assignment) row[assignment[0]] = assignment[1];
+              }
+            }
+            if (/^DELETE FROM documents WHERE id = \?$/i.test(statement.trim())) {
+              rowsByTable.documents = ((rowsByTable.documents ?? []) as { id?: string }[]).filter((row) => row.id !== values[0]);
             }
             if (/INSERT OR REPLACE INTO local_profile/i.test(statement)) {
               rowsByTable.local_profile = [
@@ -387,7 +452,10 @@ test.beforeEach(async ({ page }) => {
             return {};
           },
           readFile: async () => ({ data: "JVBERi0=" }),
-          deleteFile: async () => ({}),
+          deleteFile: async (args: { directory?: string; path?: string }) => {
+            fileDeletes.push(args);
+            return {};
+          },
         },
         LocalNotifications: {
           checkPermissions: async () => ({ display: "granted" }),
@@ -1031,4 +1099,89 @@ test("standalone Previous terms opens the prior Term's document (#353)", async (
   const popup = page.waitForEvent("popup");
   await page.getByRole("button", { name: "Open broadband-2097.pdf" }).click();
   await popup;
+});
+
+// #455 — Document delete moves to Trash with an Undo, the file goes only when
+// the Trash entry is purged, and the chain survives a trashed version.
+async function withDocumentVersions(page: import("@playwright/test").Page, mode: "1" | "middle" | "expired") {
+  await page.evaluate((value) => localStorage.setItem("hearth-test-doc-versions", value), mode);
+  await page.reload();
+  await page.getByRole("button", { name: "Use on this device" }).click();
+  await expect(page.locator("#standalone-screen")).toBeVisible();
+}
+
+async function openBroadbandPlan(page: import("@playwright/test").Page) {
+  await page.locator(".bottom-nav").getByRole("button", { name: "Contracts" }).click();
+  await page.getByRole("button", { name: /Broadband Plan/ }).click();
+}
+
+async function shellTestState(page: import("@playwright/test").Page) {
+  return page.evaluate(() => {
+    const hook = (window as Window & { __hearthStandaloneTest?: { sqliteRuns: { statement: string; values: unknown[] }[]; fileDeletes: { path?: string }[] } }).__hearthStandaloneTest;
+    return { runs: hook?.sqliteRuns ?? [], fileDeletes: hook?.fileDeletes ?? [] };
+  });
+}
+
+test("standalone Delete moves a Document to Trash with an Undo and keeps its file (#455)", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "Documents" }).click();
+  const card = page.locator(".record-card").filter({ hasText: "insurance.pdf" });
+  await expect(card).toBeVisible();
+  await card.getByRole("button", { name: "Delete" }).click();
+
+  await expect(page.locator("#standalone-status")).toContainText('"insurance.pdf" moved to Trash.');
+  await expect(card).toHaveCount(0);
+  let state = await shellTestState(page);
+  expect(state.runs.some((run) => run.statement.startsWith("UPDATE documents SET deleted_at = ?") && run.values.includes("document-1"))).toBe(true);
+  expect(state.fileDeletes).toEqual([]);
+
+  await page.locator("#standalone-status").getByRole("button", { name: "Undo" }).click();
+  await expect(page.locator(".record-card").filter({ hasText: "insurance.pdf" })).toBeVisible();
+  state = await shellTestState(page);
+  expect(state.runs.some((run) => run.statement.includes("deleted_at = NULL") && run.values.includes("document-1"))).toBe(true);
+  expect(state.fileDeletes).toEqual([]);
+});
+
+test("standalone deleting the latest version makes the previous one the latest again (#455)", async ({ page }) => {
+  await withDocumentVersions(page, "1");
+  await openBroadbandPlan(page);
+  const latest = page.locator(".record-card").filter({ has: page.getByRole("heading", { name: "lease-v3.pdf" }) });
+  await expect(latest.getByText("3 versions")).toBeVisible();
+  await latest.getByRole("button", { name: "Delete" }).click();
+
+  // v2 is the latest now, with v1 under it; the Document isn't hidden.
+  const v2 = page.locator(".record-card").filter({ has: page.getByRole("heading", { name: "lease-v2.pdf" }) });
+  await expect(v2.getByText("2 versions")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "lease-v3.pdf" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "lease-v1.pdf" })).toHaveCount(0);
+  expect((await shellTestState(page)).fileDeletes).toEqual([]);
+
+  await page.locator("#standalone-status").getByRole("button", { name: "Undo" }).click();
+  const back = page.locator(".record-card").filter({ has: page.getByRole("heading", { name: "lease-v3.pdf" }) });
+  await expect(back.getByText("3 versions")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "lease-v2.pdf" })).toHaveCount(0);
+});
+
+test("standalone trashed middle version doesn't split the Document (#455)", async ({ page }) => {
+  await withDocumentVersions(page, "middle");
+  await openBroadbandPlan(page);
+  // v1 <- v2 (Trash) <- v3: one Document, v3 latest with v1 under it.
+  const latest = page.locator(".record-card").filter({ has: page.getByRole("heading", { name: "lease-v3.pdf" }) });
+  await expect(latest.getByText("2 versions")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "lease-v1.pdf" })).toHaveCount(0);
+
+  // Deleting v3 leaves v1 the latest (v2 stays in Trash), not hidden.
+  await latest.getByRole("button", { name: "Delete" }).click();
+  await expect(page.getByRole("heading", { name: "lease-v1.pdf" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "lease-v3.pdf" })).toHaveCount(0);
+});
+
+test("standalone purges Trash past retention: the file and row go together, the chain is relinked (#455)", async ({ page }) => {
+  await withDocumentVersions(page, "expired");
+  await page.locator(".bottom-nav").getByRole("button", { name: "Documents" }).click();
+  await expect(page.locator(".record-card").filter({ hasText: "insurance.pdf" })).toBeVisible();
+  const state = await shellTestState(page);
+  expect(state.fileDeletes.map((call) => call.path)).toEqual([expect.stringContaining("old-trash.pdf")]);
+  expect(state.runs.some((run) => run.statement === "DELETE FROM documents WHERE id = ?" && run.values.includes("old-trash"))).toBe(true);
+  // version-2 isn't past retention (trashed in 2099), so it stays.
+  expect(state.runs.some((run) => run.statement === "DELETE FROM documents WHERE id = ?" && run.values.includes("version-2"))).toBe(false);
 });

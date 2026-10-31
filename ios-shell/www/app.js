@@ -490,13 +490,33 @@ function showStatus(node, message, ok = false) {
   node.classList.toggle("ok", ok);
 }
 
-function showStandaloneStatus(message, ok = false) {
+let standaloneStatusTimer = null;
+
+// `action` ({ label, run }) adds a button to the toast, kept up longer, for
+// an Undo (#455).
+function showStandaloneStatus(message, ok = false, action = null) {
   showStatus(standaloneStatus, message, ok);
-  window.setTimeout(() => {
-    standaloneStatus.hidden = true;
-    standaloneStatus.textContent = "";
-    standaloneStatus.classList.remove("ok");
-  }, 3600);
+  if (action) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "status-action";
+    button.textContent = action.label;
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      hideStandaloneStatus();
+      await action.run();
+    });
+    standaloneStatus.append(" ", button);
+  }
+  window.clearTimeout(standaloneStatusTimer);
+  standaloneStatusTimer = window.setTimeout(hideStandaloneStatus, action ? 8000 : 3600);
+}
+
+function hideStandaloneStatus() {
+  window.clearTimeout(standaloneStatusTimer);
+  standaloneStatus.hidden = true;
+  standaloneStatus.textContent = "";
+  standaloneStatus.classList.remove("ok");
 }
 
 function show(screen) {
@@ -661,6 +681,7 @@ async function loadData() {
     trades,
     documents,
     inboxDocuments,
+    trashedDocLinks,
     reminderLogs,
   ] = await Promise.all([
     query("SELECT * FROM local_profile WHERE id = 'local' LIMIT 1"),
@@ -681,6 +702,7 @@ async function loadData() {
     query("SELECT * FROM trades WHERE deleted_at IS NULL ORDER BY trade_date DESC, updated_at DESC"),
     query("SELECT * FROM documents WHERE deleted_at IS NULL ORDER BY uploaded_at DESC"),
     query("SELECT * FROM inbox_documents WHERE deleted_at IS NULL ORDER BY uploaded_at DESC"),
+    query("SELECT id, owner_type, owner_id, supersedes_id FROM documents WHERE deleted_at IS NOT NULL"),
     query("SELECT * FROM reminder_delivery_logs ORDER BY sent_at DESC LIMIT 200"),
   ]);
   cache = {
@@ -702,6 +724,7 @@ async function loadData() {
     trades,
     documents,
     inboxDocuments,
+    trashedDocLinks,
     reminderLogs,
   };
 }
@@ -1225,7 +1248,13 @@ async function autoConnectIfSaved() {
   navigateToConnectedServer(normalizedUrl);
 }
 
+let trashPurged = false;
+
 async function render() {
+  if (!trashPurged) {
+    trashPurged = true;
+    await purgeExpiredTrashedDocuments().catch(() => undefined);
+  }
   await loadData();
   if (!recordTypeEnabled(state.recordType)) {
     state.recordType = "contracts";
@@ -2349,7 +2378,7 @@ function renderDetail() {
   const row = getRecord(type, id);
   if (!row) return empty("Record not found", "It may have been removed.");
   const ownerType = ownerTypeForRecordType(type);
-  const docs = docsFor(ownerType, id).filter((doc) => Number(doc.is_head ?? 1) !== 0);
+  const docs = latestDocuments(docsFor(ownerType, id));
   return `
     <section class="hero-card">
       <p class="kicker">${escapeHtml(typeLabel(type))}</p>
@@ -2714,8 +2743,7 @@ function documentChip(filter, label) {
 }
 
 function filteredDocuments() {
-  return cache.documents
-    .filter((doc) => Number(doc.is_head ?? 1) !== 0)
+  return latestDocuments(cache.documents)
     .filter((doc) => recordTypeEnabled(recordTypeForOwnerType(doc.owner_type)))
     .filter((doc) => {
       if (state.documentFilter === "all") return true;
@@ -2814,17 +2842,71 @@ function inboxStatus(doc) {
 
 function duplicateMatchesForInbox(doc) {
   if (!doc.sha256 || doc.status !== "POSSIBLE_DUPLICATE") return [];
-  return cache.documents.filter((item) => item.sha256 === doc.sha256 && Number(item.is_head ?? 1) !== 0);
+  return latestDocuments(cache.documents.filter((item) => item.sha256 === doc.sha256));
 }
 
+// A Document's versions are chained through supersedes_id. Versions in Trash
+// aren't listed, but the chain is followed through them, so trashing one
+// doesn't split a Document in two (#455, as on the web). The latest version
+// is derived from the chain rather than read from is_head.
+function documentSupersedesLinks() {
+  const links = new Map();
+  for (const link of cache.trashedDocLinks ?? []) links.set(link.id, link.supersedes_id ?? null);
+  for (const doc of cache.documents) links.set(doc.id, doc.supersedes_id ?? null);
+  return links;
+}
+
+function documentSuccessors() {
+  const successors = new Map();
+  for (const [id, older] of documentSupersedesLinks()) {
+    if (older) successors.set(older, id);
+  }
+  return successors;
+}
+
+function hasLiveSuccessor(id, successors, live) {
+  const seen = new Set([id]);
+  let cursor = successors.get(id);
+  while (cursor && !seen.has(cursor)) {
+    if (live.has(cursor)) return true;
+    seen.add(cursor);
+    cursor = successors.get(cursor);
+  }
+  return false;
+}
+
+// Of the given live Documents, the ones with no newer live version.
+function latestDocuments(docs) {
+  const successors = documentSuccessors();
+  const live = new Set(cache.documents.map((item) => item.id));
+  return docs.filter((doc) => !hasLiveSuccessor(doc.id, successors, live));
+}
+
+// The newest version of a chain, trashed or not: a new version is filed on top
+// of it, so it never competes with a trashed version for the same place.
+function documentChainTipId(id) {
+  const successors = documentSuccessors();
+  const seen = new Set([id]);
+  let cursor = id;
+  while (successors.has(cursor) && !seen.has(successors.get(cursor))) {
+    cursor = successors.get(cursor);
+    seen.add(cursor);
+  }
+  return cursor;
+}
+
+// The live versions of a Document, newest first, starting at `doc`.
 function documentVersionChain(doc) {
-  const chain = [];
-  let current = doc;
-  const seen = new Set();
-  while (current && !seen.has(current.id)) {
-    chain.push(current);
-    seen.add(current.id);
-    current = current.supersedes_id ? cache.documents.find((item) => item.id === current.supersedes_id) : null;
+  const links = documentSupersedesLinks();
+  const live = new Map(cache.documents.map((item) => [item.id, item]));
+  const chain = [doc];
+  const seen = new Set([doc.id]);
+  let cursor = links.get(doc.id) ?? null;
+  while (cursor && !seen.has(cursor)) {
+    const older = live.get(cursor);
+    if (older) chain.push(older);
+    seen.add(cursor);
+    cursor = links.get(cursor) ?? null;
   }
   return chain;
 }
@@ -3967,7 +4049,7 @@ async function deleteRecord(type, id) {
 async function softDeleteRecord(type, id) {
   const ownerType = ownerTypeForRecordType(type);
   const docs = docsFor(ownerType, id);
-  for (const doc of docs) await deleteDocument(doc.id, false);
+  for (const doc of docs) await trashDocument(doc.id);
   const table = {
     contracts: "contracts",
     products: "products",
@@ -4017,17 +4099,65 @@ async function softDeleteRecord(type, id) {
   }
 }
 
-async function deleteDocument(id, rerender = true) {
+const TRASH_RETENTION_DAYS = 30;
+
+// Moves a Document to Trash. Its file and row stay until it's purged (#455).
+async function trashDocument(id) {
+  await run("UPDATE documents SET deleted_at = ?, version = version + 1 WHERE id = ?", [nowIso(), id]);
+}
+
+async function deleteDocument(id) {
   const doc = cache.documents.find((item) => item.id === id);
   if (!doc) return;
-  const confirmed = !rerender || window.confirm(`Delete "${doc.filename}" from this device?`);
-  if (!confirmed) return;
-  await Filesystem?.deleteFile({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${doc.storage_key}` }).catch(() => undefined);
-  await run("UPDATE documents SET deleted_at = ?, version = version + 1 WHERE id = ?", [nowIso(), id]);
-  if (rerender) {
-    showStandaloneStatus("Document deleted.", true);
-    await render();
+  await trashDocument(id);
+  await syncDocumentHeads(doc.owner_type, doc.owner_id);
+  showStandaloneStatus(`"${doc.filename}" moved to Trash.`, true, {
+    label: "Undo",
+    run: () => restoreDocument(id),
+  });
+  await render();
+}
+
+async function restoreDocument(id) {
+  const [doc] = await query("SELECT owner_type, owner_id FROM documents WHERE id = ?", [id]);
+  if (!doc) return;
+  await run("UPDATE documents SET deleted_at = NULL, version = version + 1 WHERE id = ?", [id]);
+  await syncDocumentHeads(doc.owner_type, doc.owner_id);
+  showStandaloneStatus("Document restored.", true);
+  await render();
+}
+
+// is_head is kept in step for older builds that still read it; this build
+// works the latest version out from the chain.
+async function syncDocumentHeads(ownerType, ownerId) {
+  await loadData();
+  const owned = docsFor(ownerType, ownerId);
+  const latestIds = new Set(latestDocuments(owned).map((doc) => doc.id));
+  for (const doc of owned) {
+    const expected = latestIds.has(doc.id) ? 1 : 0;
+    if (Number(doc.is_head ?? 1) !== expected) {
+      await run("UPDATE documents SET is_head = ? WHERE id = ?", [expected, doc.id]);
+    }
   }
+  await loadData();
+}
+
+// Deletes a Document's row and its file together. Only for Documents already
+// in Trash and past retention. The next version is relinked to this one's
+// older version so the chain stays whole.
+async function purgeDocument(doc) {
+  await run("UPDATE documents SET supersedes_id = ?, version = version + 1 WHERE supersedes_id = ?", [doc.supersedes_id ?? null, doc.id]);
+  const sharing = await query("SELECT id FROM documents WHERE storage_key = ? AND id <> ? LIMIT 1", [doc.storage_key, doc.id]);
+  if (sharing.length === 0) {
+    await Filesystem?.deleteFile({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${doc.storage_key}` }).catch(() => undefined);
+  }
+  await run("DELETE FROM documents WHERE id = ?", [doc.id]);
+}
+
+async function purgeExpiredTrashedDocuments() {
+  const cutoff = new Date(Date.now() - TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const expired = await query("SELECT * FROM documents WHERE deleted_at IS NOT NULL AND deleted_at < ?", [cutoff]);
+  for (const doc of expired) await purgeDocument(doc);
 }
 
 async function deleteInboxDocument(id, rerender = true) {
@@ -4054,7 +4184,7 @@ async function fileInboxDocument(form) {
   }
   await run(
     "INSERT INTO documents (id, owner_type, owner_id, filename, storage_key, mime_type, size, kind, extracted_text, sha256, important, supersedes_id, is_head, uploaded_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 1, ?, 1)",
-    [localId("document"), ownerType, ownerId, doc.filename, doc.storage_key, doc.mime_type, doc.size, doc.target_type, doc.extracted_text, doc.sha256, matchingHead?.id ?? null, nowIso()],
+    [localId("document"), ownerType, ownerId, doc.filename, doc.storage_key, doc.mime_type, doc.size, doc.target_type, doc.extracted_text, doc.sha256, matchingHead ? documentChainTipId(matchingHead.id) : null, nowIso()],
   );
   await run("UPDATE inbox_documents SET deleted_at = ?, version = version + 1 WHERE id = ?", [nowIso(), doc.id]);
 }

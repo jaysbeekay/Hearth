@@ -586,3 +586,9 @@ button {
     padding-inline: 24px;
   }
 }
+
+.status-action {
+  min-height: 32px;
+  margin-left: 8px;
+  padding: 4px 12px;
+}

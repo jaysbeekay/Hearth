@@ -549,6 +549,16 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **Standalone shell: deleting a Document moves it to Trash with an Undo
+  (#455).** Delete no longer asks first and removes the file at once. The
+  Document goes to Trash with an Undo, and its file is deleted only when the
+  Trash entry is purged after 30 days, together with its row. Deleting the
+  latest version now makes the previous version the latest again instead of
+  hiding the whole Document, and a version in Trash in the middle of a
+  chain no longer splits it; a new version is filed on top of the newest
+  one, in Trash or not. The latest version is worked out from the version
+  chain, so backups from earlier builds import cleanly and Documents they
+  had hidden show again. No schema change.
 - **An Inventory item in Trash can't be edited (#446).** Saving an edit form
   left open while the item was moved to Trash, or replaying an offline edit
   to it, now fails with "Item not found." instead of changing the trashed
