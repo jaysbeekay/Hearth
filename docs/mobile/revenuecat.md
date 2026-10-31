@@ -94,7 +94,50 @@ Entitlements belong to the RevenueCat project, so keep the same project
 whenever possible: moving to a new one means existing buyers must restore
 purchases against the new project.
 
-## Before going live
+## Credentials: what goes where
 
-Standalone users' data lives only on their device, so the standalone backup
-question (#226) should be settled before the paid unlock ships.
+| Credential | Where it lives | Never in |
+| --- | --- | --- |
+| Public SDK keys (`appl_…`, `goog_…`) | `ios-shell/www/app.js` (committed) | n/a, they're public |
+| App Store In-App Purchase Key (`.p8`) | RevenueCat dashboard only | repo, shell, CI secrets or artefacts |
+| Google Play service account JSON | RevenueCat dashboard only | repo, shell, CI secrets or artefacts |
+| RevenueCat secret API keys (`sk_…`) | not needed by Hearth | anywhere in this project |
+
+Before committing new keys, check that this returns nothing:
+
+```bash
+git grep -nE 'sk_|BEGIN PRIVATE KEY|"type": "service_account"' -- ios-shell ios android
+```
+
+## Release checklist
+
+Don't sell the unlock until every row below has passed on a real device on
+both platforms. Record the results (date, build number, device, pass/fail)
+on #399 so the release has evidence, not just this document.
+
+**Configuration**
+- [ ] `app.js` has the real `appl_`/`goog_` keys and no `REPLACE` placeholders.
+- [ ] Each key belongs to the right app (iOS key ↔ App Store app, Android key ↔ Play app) in the same RevenueCat project.
+- [ ] Entitlement `standalone_mode` is attached to `standalone_unlock` in both apps.
+- [ ] The current offering contains `standalone_unlock`, and the paywall shows the store's live price.
+
+**Purchase and ownership** (sandbox, then repeat the first two in production via TestFlight or Play internal testing)
+
+| Scenario | Expected |
+| --- | --- |
+| Fresh install, buy | Unlocks; standalone mode opens |
+| Cancel the purchase sheet | Stays locked, no error loop, can retry |
+| Purchase fails (e.g. card declined in sandbox) | Stays locked with an error message |
+| Already owned, tap Buy | Store reports already owned; Restore unlocks |
+| Delete and reinstall, Restore purchases | Unlocks |
+| New device, same store account, Restore | Unlocks |
+| Different store account on the same device, Restore | Stays locked |
+| Sandbox purchase, then a production build | Sandbox purchase doesn't carry over |
+| Unlocked, then airplane mode and relaunch | Still opens (SDK-cached entitlement) |
+| No network on first paywall open | "Could not load purchase details", no crash, recovers when online |
+| Refund issued in the store | Entitlement goes inactive after RevenueCat syncs; the app locks once the SDK refreshes customer info online |
+
+**Dependencies**
+- [ ] Standalone backup/restore is production-safe (#226, #500), because a paying user's data then lives only on the device.
+- [ ] Native distribution builds are production-safe (#497, #499).
+- [ ] `npm run test:standalone` and `npm run test:mobile-packages` pass on the release build.
