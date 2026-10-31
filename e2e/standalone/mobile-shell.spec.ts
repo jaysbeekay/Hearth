@@ -1031,6 +1031,19 @@ test("standalone Upcoming has no history and colours only Due dates, never a Tri
     rows.trip_segments.push(
       { id: "trip-segment-2", trip_id: "trip-1", type: "ACCOMMODATION", title: "Tokyo Hotel", start_date: "2099-09-05", end_date: "2099-09-13", currency: "AUD", updated_at },
       { id: "trip-segment-3", trip_id: "trip-1", type: "FLIGHT", title: "Flight to Bali", start_date: "2099-09-09", currency: "AUD", updated_at },
+      // Began yesterday and ends today: still in progress.
+      { id: "trip-segment-4", trip_id: "trip-1", type: "CAR_RENTAL", title: "Kyoto Car", start_date: "2099-09-05", end_date: "2099-09-06", currency: "AUD", updated_at },
+      // Began yesterday with no end date: over.
+      { id: "trip-segment-5", trip_id: "trip-1", type: "ACTIVITY", title: "Sumo Tickets", start_date: "2099-09-05", currency: "AUD", updated_at },
+    );
+    // Due-soon parity with the web Due policy (window = largest Reminder threshold).
+    const soon = { ...contract, end_date: "2099-09-16", renewal_type: "MANUAL_RENEWAL" };
+    rows.contracts.push(
+      { ...soon, id: "contract-5", title: "Due Insurance" },
+      { ...soon, id: "contract-6", title: "Cancelled Phone", status: "CANCELLED" },
+      { ...soon, id: "contract-7", title: "Renewing Music", renewal_type: "AUTO_RENEW" },
+      { ...soon, id: "contract-8", title: "Short Window Plan", reminder_days_before: "7,1" },
+      { ...soon, id: "contract-9", title: "Unreviewed Scan", extraction_pending: 1 },
     );
   });
   await page.clock.setFixedTime(new Date("2099-09-06T12:00:00"));
@@ -1047,11 +1060,27 @@ test("standalone Upcoming has no history and colours only Due dates, never a Tri
     await expect(card(gone)).toHaveCount(0);
   }
 
-  // A stay that began yesterday and ends next week is still ahead: shown from today, neutral.
+  // A stay that began yesterday and ends next week is still ahead: it sorts
+  // at today but says In progress and keeps its real start date. Neutral.
   const stay = card("Tokyo Hotel");
-  await expect(stay).toContainText("Today");
-  await expect(stay).toContainText("2099-09-06");
+  await expect(stay).toContainText("In progress");
+  await expect(stay).toContainText("Since 2099-09-05");
   await expect(stay).not.toHaveClass(/warning-card|danger-card/);
+  await expect(card("Kyoto Car")).toContainText("In progress");
+  await expect(card("Sumo Tickets")).toHaveCount(0);
+
+  // In-progress segments come first, in a stable order, before later dates.
+  const titles = await page.locator(".record-card h3").allTextContents();
+  expect(titles.indexOf("Tokyo Hotel")).toBeLessThan(titles.indexOf("Flight to Bali"));
+  expect(titles.indexOf("Kyoto Car")).toBeLessThan(titles.indexOf("Flight to Bali"));
+
+  // Due soon only for an eligible Due entry inside its own Reminder window.
+  await expect(card("Due Insurance")).toHaveClass(/warning-card/);
+  await expect(card("Cancelled Phone")).toHaveCount(0);
+  for (const neutral of ["Renewing Music", "Short Window Plan", "Unreviewed Scan"]) {
+    await expect(card(neutral)).toContainText("In 10d");
+    await expect(card(neutral)).not.toHaveClass(/warning-card|danger-card/);
+  }
 
   // A segment starting in 3 days is a neutral date, not Due soon.
   const soon = card("Flight to Bali");
@@ -1072,6 +1101,34 @@ test("standalone Upcoming has no history and colours only Due dates, never a Tri
   await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
   await page.locator('#mobile-view button[data-nav="reminders"]').click();
   await expect(card("Japan Holiday")).toHaveCount(0);
+});
+
+test.describe("standalone Upcoming across a DST change and a dense itinerary (#476)", () => {
+  // Sydney's clocks go forward at 02:00 on Sunday 2099-10-04 (a 23-hour day).
+  test.use({ timezoneId: "Australia/Sydney" });
+
+  test("counts whole days across DST and says when the list is capped", async ({ page }) => {
+    await page.addInitScript(() => {
+      const rows = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest.rowsByTable;
+      const updated_at = "2099-01-01T00:00:00.000Z";
+      rows.trip_segments.push({ id: "dst-1", trip_id: "trip-1", type: "FLIGHT", title: "Across DST", start_date: "2099-10-05", currency: "AUD", updated_at });
+      for (let i = 0; i < 85; i += 1) {
+        rows.trip_segments.push({ id: `dense-${String(i).padStart(2, "0")}`, trip_id: "trip-1", type: "ACTIVITY", title: `Dense ${String(i).padStart(2, "0")}`, start_date: "2099-10-10", currency: "AUD", updated_at });
+      }
+    });
+    // Just before midnight, the night before the change.
+    await page.clock.setFixedTime(new Date("2099-10-03T23:30:00+10:00"));
+    await reloadStandalone(page);
+    await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+    await page.locator('#mobile-view button[data-nav="calendar"]').click();
+
+    await expect(page.locator(".record-card").filter({ hasText: "Across DST" })).toContainText("In 2d");
+    await expect(page.locator(".record-card")).toHaveCount(80);
+    await expect(page.locator(".calendar-more")).toContainText(/Showing the next 80 of \d+ dates/);
+    // Same-day entries keep a stable order (label, then title).
+    const dense = (await page.locator(".record-card h3").allTextContents()).filter((t) => t.startsWith("Dense"));
+    expect(dense).toEqual([...dense].sort());
+  });
 });
 
 test("standalone vehicle service-due date feeds the detail page, calendar and reminders", async ({ page }) => {
