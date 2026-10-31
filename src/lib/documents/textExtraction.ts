@@ -30,6 +30,85 @@ async function acquireExtractionSlot(): Promise<() => void> {
   };
 }
 
+// #480 — stage 1 shells out to poppler (pdftotext, pdftoppm) and tesseract.
+// The Docker image installs them, but a bare-metal `npm run start` or a
+// serverless runtime may not have them. A missing binary used to look the
+// same as a blank document, so detect it (lazily, cached per process) and
+// report it instead of silently returning empty text.
+export const EXTRACTION_BINARIES = ["pdftotext", "pdftoppm", "tesseract"] as const;
+export type ExtractionBinary = (typeof EXTRACTION_BINARIES)[number];
+
+const PROBE_ARGS: Record<ExtractionBinary, string[]> = {
+  pdftotext: ["-v"],
+  pdftoppm: ["-v"],
+  tesseract: ["--version"],
+};
+const PROBE_TIMEOUT_MS = 5_000;
+
+const binaryAvailability = new Map<ExtractionBinary, Promise<boolean>>();
+
+function isMissingBinaryError(error: unknown): boolean {
+  return (error as NodeJS.ErrnoException | null)?.code === "ENOENT";
+}
+
+// Only ENOENT means "not installed". Old poppler builds exit non-zero for
+// `-v`, and a timeout or other failure still means the binary exists.
+function isBinaryAvailable(binary: ExtractionBinary): Promise<boolean> {
+  let cached = binaryAvailability.get(binary);
+  if (!cached) {
+    cached = execFileAsync(binary, PROBE_ARGS[binary], { timeout: PROBE_TIMEOUT_MS }).then(
+      () => true,
+      (error: unknown) => !isMissingBinaryError(error),
+    );
+    binaryAvailability.set(binary, cached);
+  }
+  return cached;
+}
+
+// A real call that fails with ENOENT (e.g. the binary was removed after the
+// probe) updates the cache so later uploads skip it straight away.
+function noteFailure(binary: ExtractionBinary, error: unknown) {
+  if (isMissingBinaryError(error)) binaryAvailability.set(binary, Promise.resolve(false));
+}
+
+export interface ExtractionCapabilities {
+  binaries: Record<ExtractionBinary, boolean>;
+  /** Text-layer PDFs (pdftotext). */
+  pdfText: boolean;
+  /** Scanned PDFs (pdftoppm + tesseract). */
+  pdfOcr: boolean;
+  /** Photos and image scans (tesseract). */
+  imageOcr: boolean;
+}
+
+export async function getExtractionCapabilities(): Promise<ExtractionCapabilities> {
+  const results = await Promise.all(EXTRACTION_BINARIES.map((b) => isBinaryAvailable(b)));
+  const binaries = Object.fromEntries(
+    EXTRACTION_BINARIES.map((b, i) => [b, results[i]]),
+  ) as Record<ExtractionBinary, boolean>;
+  return {
+    binaries,
+    pdfText: binaries.pdftotext,
+    pdfOcr: binaries.pdftoppm && binaries.tesseract,
+    imageOcr: binaries.tesseract,
+  };
+}
+
+/** True when this server has no stage-1 tool that could read this file type. */
+export async function isTextExtractionUnavailableFor(mimeType: string): Promise<boolean> {
+  if (mimeType === "application/pdf") {
+    const caps = await getExtractionCapabilities();
+    return !caps.pdfText && !caps.pdfOcr;
+  }
+  if (mimeType.startsWith("image/")) return !(await isBinaryAvailable("tesseract"));
+  return false;
+}
+
+/** Test-only: forget cached probe results. */
+export function resetExtractionCapabilitiesCache() {
+  binaryAvailability.clear();
+}
+
 async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
   const dir = await mkdtemp(path.join(tmpdir(), "doc-extract-"));
   try {
@@ -40,11 +119,16 @@ async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
 }
 
 async function ocrImage(filePath: string): Promise<string> {
-  const { stdout } = await execFileAsync("tesseract", [filePath, "stdout"], {
-    timeout: COMMAND_TIMEOUT_MS,
-    maxBuffer: MAX_BUFFER_BYTES,
-  });
-  return stdout;
+  try {
+    const { stdout } = await execFileAsync("tesseract", [filePath, "stdout"], {
+      timeout: COMMAND_TIMEOUT_MS,
+      maxBuffer: MAX_BUFFER_BYTES,
+    });
+    return stdout;
+  } catch (error) {
+    noteFailure("tesseract", error);
+    throw error;
+  }
 }
 
 async function extractPdfTextLayer(filePath: string): Promise<string> {
@@ -54,7 +138,8 @@ async function extractPdfTextLayer(filePath: string): Promise<string> {
       maxBuffer: MAX_BUFFER_BYTES,
     });
     return stdout;
-  } catch {
+  } catch (error) {
+    noteFailure("pdftotext", error);
     return "";
   }
 }
@@ -67,7 +152,8 @@ async function ocrPdf(filePath: string, dir: string): Promise<string> {
       ["-png", "-r", "200", "-f", "1", "-l", String(MAX_OCR_PAGES), filePath, prefix],
       { timeout: COMMAND_TIMEOUT_MS, maxBuffer: MAX_BUFFER_BYTES },
     );
-  } catch {
+  } catch (error) {
+    noteFailure("pdftoppm", error);
     return "";
   }
 
@@ -84,33 +170,65 @@ async function ocrPdf(filePath: string, dir: string): Promise<string> {
   return texts.join("\n");
 }
 
+export interface TextExtractionResult {
+  text: string;
+  /**
+   * True when the tools this file type needs aren't installed on the server,
+   * so stage 1 couldn't run at all (as opposed to running and finding
+   * nothing). Callers still try the cloud AI / Ollama fallbacks, and use this
+   * to tell the household why nothing was auto-filled.
+   */
+  unavailable: boolean;
+}
+
 // Word documents are attached as-is without OCR/auto-fill: .docx is a zip of
 // XML and .doc a legacy binary format, neither of which tesseract/poppler read.
-export async function extractText(buffer: Buffer, mimeType: string): Promise<string> {
-  return withTempDir(async (dir) => {
-    if (mimeType === "application/pdf") {
+export async function extractTextDetailed(
+  buffer: Buffer,
+  mimeType: string,
+): Promise<TextExtractionResult> {
+  if (mimeType === "application/pdf") {
+    const caps = await getExtractionCapabilities();
+    if (!caps.pdfText && !caps.pdfOcr) return { text: "", unavailable: true };
+
+    return withTempDir(async (dir) => {
       const inputPath = path.join(dir, "input.pdf");
       await writeFile(inputPath, buffer);
 
-      const textLayer = await extractPdfTextLayer(inputPath);
-      if (textLayer.trim().length >= MIN_TEXT_LAYER_LENGTH) return textLayer;
+      if (caps.pdfText) {
+        const textLayer = await extractPdfTextLayer(inputPath);
+        if (textLayer.trim().length >= MIN_TEXT_LAYER_LENGTH) {
+          return { text: textLayer, unavailable: false };
+        }
+      }
 
-      return ocrPdf(inputPath, dir);
-    }
+      // No usable text layer: this is (or may be) a scan, which needs OCR.
+      if (!caps.pdfOcr) return { text: "", unavailable: true };
+      const text = await ocrPdf(inputPath, dir);
+      return { text, unavailable: !(await getExtractionCapabilities()).pdfOcr && !text };
+    });
+  }
 
-    if (mimeType.startsWith("image/")) {
+  if (mimeType.startsWith("image/")) {
+    if (!(await isBinaryAvailable("tesseract"))) return { text: "", unavailable: true };
+
+    return withTempDir(async (dir) => {
       const ext = mimeType.split("/")[1] ?? "img";
       const inputPath = path.join(dir, `input.${ext}`);
       await writeFile(inputPath, buffer);
       try {
-        return await ocrImage(inputPath);
-      } catch {
-        return "";
+        return { text: await ocrImage(inputPath), unavailable: false };
+      } catch (error) {
+        return { text: "", unavailable: isMissingBinaryError(error) };
       }
-    }
+    });
+  }
 
-    return "";
-  });
+  return { text: "", unavailable: false };
+}
+
+export async function extractText(buffer: Buffer, mimeType: string): Promise<string> {
+  return (await extractTextDetailed(buffer, mimeType)).text;
 }
 
 const MAX_SEARCHABLE_TEXT_LENGTH = 20_000;

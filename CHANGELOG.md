@@ -47,6 +47,16 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Document scanning copes without pdftotext or tesseract (#480).** On a
+  server without poppler-utils or tesseract-ocr (bare-metal `npm run start`,
+  serverless), the missing tools are detected once and stage 1 is skipped:
+  uploads go straight to the household's cloud AI key, or attach unparsed
+  with a message saying text extraction isn't available on this server,
+  instead of reading like a blank document. Ollama, which only sees
+  extracted text, is no longer called with empty text. Settings → System
+  settings shows which local extraction tools are installed. Docker installs,
+  which ship the tools, behave as before.
+
 - **Archive a Vehicle or Property you no longer have (#355).** Archive (in
   the record's More actions menu, with Undo) marks a Vehicle as sold or a
   Property as sold or its lease ended; Restore on the record's page puts it
