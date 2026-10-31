@@ -3,6 +3,7 @@ import type { VehicleModel } from "@/generated/prisma/models";
 import { formatDate } from "@/lib/utils";
 import { isDue } from "@/lib/duePolicy";
 import { ExpiryBadge } from "@/components/ExpiryBadge";
+import { StatusPill } from "@/components/StatusPill";
 import { vehicleDue, type DueContext } from "@/lib/dueRecords";
 import { withVehicleCovers, type CoveringContractRow } from "@/lib/covers";
 
@@ -43,6 +44,8 @@ export function VehicleCard({
           {dueNow.map((entry) => (
             <ExpiryBadge key={entry.field} entry={entry} />
           ))}
+          {/* #355 — an Archived Vehicle has no Due entries; it says so instead. */}
+          {vehicle.archivedAt && <StatusPill status="archived">Archived</StatusPill>}
         </div>
 
         {vehicle._count != null && (

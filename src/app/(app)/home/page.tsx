@@ -11,19 +11,26 @@ export const metadata: Metadata = { title: MODULE_REGISTRY.HOME.label };
 export default async function HomePage() {
   await requireModuleEnabled("HOME");
 
-  const [properties, taxDeductibleItems, { region }] = await Promise.all([
-    prisma.property.findMany({
-      where: { deletedAt: null },
-      include: {
-        _count: {
-          select: {
-            items: true,
-            contracts: { where: { deletedAt: null } },
-            products: { where: { deletedAt: null } },
-          },
-        },
+  const propertyCounts = {
+    _count: {
+      select: {
+        items: true,
+        contracts: { where: { deletedAt: null } },
+        products: { where: { deletedAt: null } },
       },
+    },
+  };
+  const [properties, archivedProperties, taxDeductibleItems, { region }] = await Promise.all([
+    prisma.property.findMany({
+      where: { deletedAt: null, archivedAt: null },
+      include: propertyCounts,
       orderBy: { createdAt: "desc" },
+    }),
+    // #355 — Archived Properties (sold, or the lease ended) stay on their own list below the rest.
+    prisma.property.findMany({
+      where: { deletedAt: null, archivedAt: { not: null } },
+      include: propertyCounts,
+      orderBy: { archivedAt: "desc" },
     }),
     prisma.homeItem.findMany({
       where: { isTaxDeductible: true, property: { deletedAt: null } },
@@ -36,6 +43,7 @@ export default async function HomePage() {
   return (
     <HomeListClient
       properties={properties}
+      archivedProperties={archivedProperties}
       taxDeductibleSummary={taxDeductibleSummary}
       region={region}
     />

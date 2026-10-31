@@ -104,6 +104,7 @@ describe("a Vehicle with a Covering Contract", () => {
     insuranceExpiry: day("2026-10-30"),
     nextServiceDue: day("2026-11-10"),
     reminderDaysBefore: null,
+    archivedAt: null,
   };
 
   it("shows the Contract's end date and keeps the manual one in the row", () => {

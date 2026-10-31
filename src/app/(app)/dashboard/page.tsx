@@ -61,7 +61,7 @@ export default async function DashboardPage() {
       }),
       enabledModules.has("VEHICLES")
         ? prisma.vehicle.findMany({
-            where: { deletedAt: null },
+            where: { deletedAt: null, archivedAt: null },
             include: { contracts: COVERING_CONTRACTS },
             orderBy: { createdAt: "desc" },
           })
@@ -75,11 +75,12 @@ export default async function DashboardPage() {
         : [],
       enabledModules.has("HOME")
         ? prisma.property.findMany({
-            where: { deletedAt: null, isRented: true },
+            where: { deletedAt: null, archivedAt: null, isRented: true },
             select: {
               id: true,
               label: true,
               isRented: true,
+              archivedAt: true,
               rentalAgreements: LIVE_TENANCY_AGREEMENTS,
             },
           })

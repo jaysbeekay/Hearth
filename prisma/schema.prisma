@@ -823,6 +823,10 @@ model Property {
   // #287 — soft-delete: set instead of removing the row so the record
   // (and its files) can be restored within the trash window.
   deletedAt   DateTime?
+  // #355 — Archived: the household no longer has it (sold, or its lease
+  // ended). Set deliberately, never by a date passing. Unlike Trash it
+  // keeps the record in place and viewable; it just stops being Due.
+  archivedAt  DateTime?
   updatedBy   User?     @relation("PropertyUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   items            HomeItem[]
@@ -986,6 +990,8 @@ model Vehicle {
   // #287 — soft-delete: set instead of removing the row so the record
   // (and its files) can be restored within the trash window.
   deletedAt   DateTime?
+  // #355 — Archived: the household no longer has it (sold). See Property.
+  archivedAt  DateTime?
   updatedBy   User?     @relation("VehicleUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 
   items     VehicleItem[]

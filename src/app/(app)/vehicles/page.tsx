@@ -23,14 +23,21 @@ export default async function VehiclesPage({
   const { missingDetails } = parseListFilters(await searchParams);
   const filters = { missingDetails };
 
-  const [vehicles, missingDetailsCount, { dateFormat }, session, due] = await Promise.all([
+  const vehicleCounts = {
+    _count: { select: { items: true, contracts: { where: { deletedAt: null } } } },
+    contracts: COVERING_CONTRACTS,
+  };
+  const [vehicles, archivedVehicles, missingDetailsCount, { dateFormat }, session, due] = await Promise.all([
     prisma.vehicle.findMany({
-      where: { deletedAt: null, AND: vehicleFilterWheres(filters) },
-      include: {
-        _count: { select: { items: true, contracts: { where: { deletedAt: null } } } },
-        contracts: COVERING_CONTRACTS,
-      },
+      where: { deletedAt: null, archivedAt: null, AND: vehicleFilterWheres(filters) },
+      include: vehicleCounts,
       orderBy: { createdAt: "desc" },
+    }),
+    // #355 — Archived Vehicles (sold) stay on their own list below the rest.
+    prisma.vehicle.findMany({
+      where: { deletedAt: null, archivedAt: { not: null } },
+      include: vehicleCounts,
+      orderBy: { archivedAt: "desc" },
     }),
     prisma.vehicle.count({ where: vehicleRules.missingDetails.where }),
     getUserPreferences(),
@@ -41,6 +48,7 @@ export default async function VehiclesPage({
   return (
     <VehicleListClient
       vehicles={vehicles}
+      archivedVehicles={archivedVehicles}
       filters={filters}
       counts={{ missingDetails: missingDetailsCount }}
       due={due}

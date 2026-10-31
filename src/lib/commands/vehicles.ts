@@ -90,6 +90,45 @@ export async function updateVehicleCommand(
   return findVehicle(id);
 }
 
+// #355 — Archive: the household no longer has the Vehicle (sold). Not Trash:
+// the Vehicle stays where it is, viewable, with its Service records and
+// Documents, but stops being Due and stops getting Reminders. Set
+// deliberately, cleared by unarchiveVehicleCommand. A Vehicle in Trash is
+// read-only, so it can't be archived or unarchived until it's restored;
+// archiving an already Archived one keeps its original date. Contracts
+// linked to it are untouched: a Contract is its own Due source.
+export async function archiveVehicleCommand(id: string, actorId: string, options: UpdateOptions = {}) {
+  await assertModuleEnabled("VEHICLES");
+  await updateLiveUnlessStale(
+    options.baseUpdatedAt,
+    (guard) =>
+      prisma.vehicle.updateMany({
+        where: { id, deletedAt: null, archivedAt: null, ...guard },
+        data: { archivedAt: new Date(), updatedById: actorId },
+      }),
+    () => findLiveVehicle(id),
+  );
+  revalidateVehicleLists();
+  revalidatePath(`/vehicles/${id}`);
+  return findVehicle(id);
+}
+
+export async function unarchiveVehicleCommand(id: string, actorId: string, options: UpdateOptions = {}) {
+  await assertModuleEnabled("VEHICLES");
+  await updateLiveUnlessStale(
+    options.baseUpdatedAt,
+    (guard) =>
+      prisma.vehicle.updateMany({
+        where: { id, deletedAt: null, archivedAt: { not: null }, ...guard },
+        data: { archivedAt: null, updatedById: actorId },
+      }),
+    () => findLiveVehicle(id),
+  );
+  revalidateVehicleLists();
+  revalidatePath(`/vehicles/${id}`);
+  return findVehicle(id);
+}
+
 // #287 — soft delete: moves the Vehicle to Trash. Its Service records and
 // their files stay intact so restoreVehicleCommand brings it back as it was.
 export async function deleteVehicleCommand(id: string) {

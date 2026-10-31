@@ -46,6 +46,7 @@ export const WARRANTY_DUE_SELECT = {
 
 export const VEHICLE_DUE_SELECT = {
   deletedAt: true,
+  archivedAt: true,
   regoExpiry: true,
   insuranceExpiry: true,
   nextServiceDue: true,
@@ -105,7 +106,7 @@ export function vehicleDueFilter(due: DueFilter, ctx: DueContext) {
   const state = selectedState("vehicle", due);
   const range = state ? dateRange(state, dayStart(ctx.today)) : null;
   const where: Prisma.VehicleWhereInput = range
-    ? { deletedAt: null, OR: [{ regoExpiry: range }, { insuranceExpiry: range }, { nextServiceDue: range }] }
+    ? { deletedAt: null, archivedAt: null, OR: [{ regoExpiry: range }, { insuranceExpiry: range }, { nextServiceDue: range }] }
     : NO_ROWS;
   const matches = (row: VehicleDueRow & Live) =>
     state != null && row.deletedAt == null && hasState(vehicleDue(row, ctx), state);
