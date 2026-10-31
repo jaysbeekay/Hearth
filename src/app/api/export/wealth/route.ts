@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     prisma.portfolio.findMany({
       include: {
         holdings: {
-          include: { trades: { orderBy: { date: "asc" } } },
+          include: { trades: { where: { deletedAt: null }, orderBy: { date: "asc" } } },
         },
       },
       orderBy: { name: "asc" },

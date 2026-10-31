@@ -41,6 +41,8 @@ const FILE_ROOT = "standalone-documents";
 const BACKUP_ROOT = "hearth-backups";
 const REMINDER_CHANNEL_ID = "hearth-standalone-reminders";
 const REMINDER_HOUR = 9;
+// Bump with every ensureStandaloneSchema change; backups record it too.
+const STANDALONE_SCHEMA_VERSION = 11;
 const MAX_IMPORTED_TRADES = 5000;
 const ALLOWED_MIME_TYPES = new Set([
   "application/pdf",
@@ -155,6 +157,7 @@ CREATE TABLE IF NOT EXISTS vehicles (
   next_service_due TEXT,
   reminder_days_before TEXT DEFAULT '30,14,7,1',
   notes TEXT,
+  archived_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   deleted_at TEXT,
@@ -188,6 +191,7 @@ CREATE TABLE IF NOT EXISTS properties (
   occupancy_status TEXT NOT NULL DEFAULT 'OWNER_OCCUPIED',
   estimated_value REAL,
   currency TEXT NOT NULL DEFAULT 'AUD',
+  archived_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   deleted_at TEXT,
@@ -221,6 +225,7 @@ CREATE TABLE IF NOT EXISTS rental_agreements (
   bond_amount REAL,
   currency TEXT NOT NULL DEFAULT 'AUD',
   notes TEXT,
+  reminder_days_before TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   deleted_at TEXT,
@@ -369,6 +374,17 @@ CREATE TABLE IF NOT EXISTS documents (
   deleted_at TEXT,
   version INTEGER NOT NULL DEFAULT 1
 );
+CREATE TABLE IF NOT EXISTS contract_terms (
+  id TEXT PRIMARY KEY,
+  contract_id TEXT NOT NULL,
+  start_date TEXT,
+  end_date TEXT,
+  cost REAL,
+  currency TEXT NOT NULL DEFAULT 'AUD',
+  billing_frequency TEXT,
+  document_id TEXT,
+  created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS reminder_delivery_logs (
   id TEXT PRIMARY KEY,
   owner_type TEXT NOT NULL,
@@ -384,7 +400,7 @@ CREATE TABLE IF NOT EXISTS schema_metadata (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
-INSERT OR REPLACE INTO schema_metadata (key, value) VALUES ('standalone_schema_version', '8');
+INSERT OR REPLACE INTO schema_metadata (key, value) VALUES ('standalone_schema_version', '${STANDALONE_SCHEMA_VERSION}');
 `;
 
 const $ = (id) => document.getElementById(id);
@@ -423,12 +439,13 @@ let cache = emptyCache();
 const BACKUP_TABLES = [
   { key: "profile", table: "local_profile", columns: ["id", "display_name", "default_currency", "created_at", "updated_at", "version"] },
   { key: "contracts", table: "contracts", columns: ["id", "title", "category", "provider", "contract_number", "start_date", "end_date", "renewal_type", "notice_period_days", "cost", "currency", "billing_frequency", "status", "contact_name", "contact_phone", "contact_email", "notes", "reminder_days_before", "is_tax_deductible", "extraction_pending", "extraction_confirmed_at", "property_id", "vehicle_id", "created_at", "updated_at", "deleted_at", "version"] },
+  { key: "contractTerms", table: "contract_terms", columns: ["id", "contract_id", "start_date", "end_date", "cost", "currency", "billing_frequency", "document_id", "created_at"] },
   { key: "products", table: "products", columns: ["id", "description", "manufacturer", "model", "vendor", "serial_number", "barcode", "purchase_date", "warranty_end_date", "price", "currency", "notes", "reminder_days_before", "extraction_pending", "extraction_confirmed_at", "property_id", "created_at", "updated_at", "deleted_at", "version"] },
-  { key: "vehicles", table: "vehicles", columns: ["id", "label", "make", "model", "year", "colour", "license_plate", "vin", "rego_expiry", "insurance_expiry", "next_service_due", "reminder_days_before", "notes", "created_at", "updated_at", "deleted_at", "version"] },
+  { key: "vehicles", table: "vehicles", columns: ["id", "label", "make", "model", "year", "colour", "license_plate", "vin", "rego_expiry", "insurance_expiry", "next_service_due", "reminder_days_before", "notes", "archived_at", "created_at", "updated_at", "deleted_at", "version"] },
   { key: "vehicleItems", table: "vehicle_items", columns: ["id", "vehicle_id", "type", "title", "provider", "date", "cost", "currency", "notes", "deleted_at", "created_at", "updated_at", "version"] },
-  { key: "properties", table: "properties", columns: ["id", "label", "street", "suburb", "state", "postcode", "country", "notes", "is_rented", "occupancy_status", "estimated_value", "currency", "created_at", "updated_at", "deleted_at", "version"] },
+  { key: "properties", table: "properties", columns: ["id", "label", "street", "suburb", "state", "postcode", "country", "notes", "is_rented", "occupancy_status", "estimated_value", "currency", "archived_at", "created_at", "updated_at", "deleted_at", "version"] },
   { key: "homeItems", table: "home_items", columns: ["id", "property_id", "type", "title", "provider", "date", "cost", "currency", "is_tax_deductible", "notes", "created_at", "updated_at", "deleted_at", "version"] },
-  { key: "rentalAgreements", table: "rental_agreements", columns: ["id", "property_id", "contract_id", "tenant_name", "weekly_rent", "management_fee_percent", "lease_start", "lease_end", "bond_amount", "currency", "notes", "created_at", "updated_at", "deleted_at", "version"] },
+  { key: "rentalAgreements", table: "rental_agreements", columns: ["id", "property_id", "contract_id", "tenant_name", "weekly_rent", "management_fee_percent", "lease_start", "lease_end", "bond_amount", "currency", "notes", "reminder_days_before", "created_at", "updated_at", "deleted_at", "version"] },
   { key: "rentalStatements", table: "rental_statements", columns: ["id", "property_id", "period_start", "period_end", "statement_date", "gross_rent", "management_fee", "other_deductions", "net_amount", "currency", "notes", "created_at", "updated_at", "deleted_at", "version"] },
   { key: "inventoryItems", table: "inventory_items", columns: ["id", "label", "category", "brand", "model", "serial_number", "purchase_date", "purchase_price", "currency", "location", "warranty_product_id", "warranty_registered", "warranty_extended", "notes", "created_at", "updated_at", "deleted_at", "version"] },
   { key: "trips", table: "trips", columns: ["id", "title", "destination", "start_date", "end_date", "notes", "created_at", "updated_at", "deleted_at", "version"] },
@@ -445,10 +462,23 @@ function isSecondaryRoute(route) {
   return ["more", "search", "spend", "calendar", "reminders", "import", "assistant", "settings", "help"].includes(route);
 }
 
+// #355 — Archived: the household no longer has this Vehicle or Property (sold,
+// or its lease ended). Set deliberately, never by a date passing. An Archived
+// record keeps its Documents and history but has no Due entries or
+// Reminders, and leaves Needs attention, Upcoming and the dashboard counts.
+function isArchived(row) {
+  return row?.archived_at != null && row.archived_at !== "";
+}
+
+function activeRows(rows) {
+  return rows.filter((row) => !isArchived(row));
+}
+
 function emptyCache() {
   return {
     profile: null,
     contracts: [],
+    contractTerms: [],
     products: [],
     vehicles: [],
     vehicleItems: [],
@@ -474,14 +504,54 @@ function showStatus(node, message, ok = false) {
   node.classList.toggle("ok", ok);
 }
 
-function showStandaloneStatus(message, ok = false) {
+let standaloneStatusTimer = null;
+// Undo actions still on offer (#455). A second delete, or any other status
+// message, keeps the earlier Undo: the button always undoes the latest one.
+const pendingUndos = [];
+const STATUS_MS = 3600;
+const UNDO_STATUS_MS = 10000;
+
+// `action` ({ run }) puts an Undo button on the toast.
+function showStandaloneStatus(message, ok = false, action = null) {
+  if (action) pendingUndos.push(action);
   showStatus(standaloneStatus, message, ok);
-  window.setTimeout(() => {
-    standaloneStatus.hidden = true;
-    standaloneStatus.textContent = "";
-    standaloneStatus.classList.remove("ok");
-  }, 3600);
+  if (pendingUndos.length > 0) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "status-action";
+    button.textContent = pendingUndos.length > 1 ? `Undo (${pendingUndos.length})` : "Undo";
+    button.addEventListener("click", undoLatestAction);
+    standaloneStatus.append(" ", button);
+  }
+  scheduleStandaloneStatusHide();
 }
+
+function scheduleStandaloneStatusHide() {
+  window.clearTimeout(standaloneStatusTimer);
+  standaloneStatusTimer = window.setTimeout(hideStandaloneStatus, pendingUndos.length > 0 ? UNDO_STATUS_MS : STATUS_MS);
+}
+
+function hideStandaloneStatus() {
+  window.clearTimeout(standaloneStatusTimer);
+  pendingUndos.length = 0;
+  standaloneStatus.hidden = true;
+  standaloneStatus.textContent = "";
+  standaloneStatus.classList.remove("ok");
+}
+
+async function undoLatestAction() {
+  const action = pendingUndos.pop();
+  if (!action) return;
+  try {
+    await action.run();
+  } catch (error) {
+    showStandaloneStatus(error?.message || "Could not undo.");
+  }
+}
+
+// The toast stays up while its button has focus.
+standaloneStatus.addEventListener("focusin", () => window.clearTimeout(standaloneStatusTimer));
+standaloneStatus.addEventListener("focusout", scheduleStandaloneStatusHide);
 
 function show(screen) {
   modeScreen.hidden = screen !== "mode";
@@ -585,7 +655,12 @@ async function ensureStandaloneSchema() {
   await ensureColumn("inventory_items", "warranty_product_id", "TEXT");
   await ensureColumn("inventory_items", "warranty_registered", "INTEGER NOT NULL DEFAULT 0");
   await ensureColumn("inventory_items", "warranty_extended", "INTEGER NOT NULL DEFAULT 0");
-  await run("INSERT OR REPLACE INTO schema_metadata (key, value) VALUES ('standalone_schema_version', '8')");
+  // #388 — a Tenancy's own Reminder thresholds for its lease end; null means the default.
+  await ensureColumn("rental_agreements", "reminder_days_before", "TEXT");
+  // #355 — Archived: a Vehicle or Property the household no longer has.
+  await ensureColumn("vehicles", "archived_at", "TEXT");
+  await ensureColumn("properties", "archived_at", "TEXT");
+  await run("INSERT OR REPLACE INTO schema_metadata (key, value) VALUES ('standalone_schema_version', ?)", [String(STANDALONE_SCHEMA_VERSION)]);
 }
 
 async function ensureColumn(table, column, definition) {
@@ -627,6 +702,7 @@ async function loadData() {
   const [
     profileRows,
     contracts,
+    contractTerms,
     products,
     vehicles,
     vehicleItems,
@@ -642,10 +718,12 @@ async function loadData() {
     trades,
     documents,
     inboxDocuments,
+    trashedDocLinks,
     reminderLogs,
   ] = await Promise.all([
     query("SELECT * FROM local_profile WHERE id = 'local' LIMIT 1"),
     query("SELECT * FROM contracts WHERE deleted_at IS NULL ORDER BY updated_at DESC"),
+    query("SELECT * FROM contract_terms ORDER BY created_at DESC"),
     query("SELECT * FROM products WHERE deleted_at IS NULL ORDER BY updated_at DESC"),
     query("SELECT * FROM vehicles WHERE deleted_at IS NULL ORDER BY updated_at DESC"),
     query("SELECT * FROM vehicle_items WHERE deleted_at IS NULL ORDER BY updated_at DESC"),
@@ -661,11 +739,13 @@ async function loadData() {
     query("SELECT * FROM trades WHERE deleted_at IS NULL ORDER BY trade_date DESC, updated_at DESC"),
     query("SELECT * FROM documents WHERE deleted_at IS NULL ORDER BY uploaded_at DESC"),
     query("SELECT * FROM inbox_documents WHERE deleted_at IS NULL ORDER BY uploaded_at DESC"),
+    query("SELECT id, owner_type, owner_id, supersedes_id FROM documents WHERE deleted_at IS NOT NULL"),
     query("SELECT * FROM reminder_delivery_logs ORDER BY sent_at DESC LIMIT 200"),
   ]);
   cache = {
     profile: profileRows[0] ?? { id: "local", display_name: "Hearth standalone", default_currency: "AUD" },
     contracts,
+    contractTerms,
     products,
     vehicles,
     vehicleItems,
@@ -681,6 +761,7 @@ async function loadData() {
     trades,
     documents,
     inboxDocuments,
+    trashedDocLinks,
     reminderLogs,
   };
 }
@@ -710,6 +791,10 @@ async function loadStandaloneModuleSettings() {
 
 async function saveStandaloneModuleSettings() {
   await prefSet(STANDALONE_MODULES_KEY, JSON.stringify(state.enabledStandaloneModules));
+  // Turning a module off (or on) changes which records get Reminders.
+  if (state.localRemindersEnabled) {
+    await syncLocalReminders(false).catch((error) => showStandaloneStatus(error.message || "Saved, but reminders could not be rescheduled."));
+  }
 }
 
 function moduleEnabled(moduleKey) {
@@ -749,6 +834,17 @@ function reminderDaysOrDefault(value) {
   const days = parseReminderDays(value);
   if (days.length === 0) return "30,14,7,1";
   return days.join(",");
+}
+
+// A Tenancy's thresholds (#388), normalised, or null when blank (the
+// default applies) or when they don't parse: every part must be a whole
+// number of days. saveRentalAgreement refuses the unparseable case.
+function reminderDaysOrNull(value) {
+  const text = String(value ?? "").trim();
+  if (!text) return null;
+  const parts = text.split(",").map((part) => part.trim());
+  const valid = parts.every((part) => /^\d+$/.test(part) && Number(part) <= 3650);
+  return valid ? parseReminderDays(text).join(",") : null;
 }
 
 function dateInputValue(value) {
@@ -918,7 +1014,8 @@ function hasDocument(type, id) {
 
 function attentionForRecord(type, row) {
   if (["contracts", "products"].includes(type) && Number(row.extraction_pending ?? 0) === 1) {
-    return { tone: "warning", label: "Needs review", meta: "Confirm details before reminders run" };
+    // #412 — Needs review is Housekeeping: a neutral badge, as in the web app.
+    return { tone: "neutral", label: "Needs review", meta: "Confirm details before reminders run" };
   }
   if (type === "contracts") {
     const days = daysUntil(row.end_date);
@@ -933,6 +1030,7 @@ function attentionForRecord(type, row) {
     if (days <= 30) return { tone: "warning", label: "Warranty", meta: `Ends in ${days} days` };
   }
   if (type === "vehicles") {
+    if (isArchived(row)) return null;
     const rego = daysUntil(row.rego_expiry);
     const insurance = daysUntil(row.insurance_expiry);
     const service = daysUntil(row.next_service_due);
@@ -962,8 +1060,13 @@ function buildAttentionItems() {
   const rows = [
     ...cache.contracts.map((row) => ({ type: "contracts", row })),
     ...cache.products.map((row) => ({ type: "products", row })),
-    ...(moduleEnabled("vehicles") ? cache.vehicles.map((row) => ({ type: "vehicles", row })) : []),
-    ...(moduleEnabled("properties") ? cache.rentalAgreements.map((row) => ({ type: "rentalAgreements", row })) : []),
+    ...(moduleEnabled("vehicles") ? activeRows(cache.vehicles).map((row) => ({ type: "vehicles", row })) : []),
+    // A Tenancy's lease end stops being Due once its Property is Archived (#355).
+    ...(moduleEnabled("properties")
+      ? cache.rentalAgreements
+          .filter((row) => !isArchived(cache.properties.find((property) => property.id === row.property_id)))
+          .map((row) => ({ type: "rentalAgreements", row }))
+      : []),
     ...(moduleEnabled("trips") ? cache.trips.map((row) => ({ type: "trips", row })) : []),
   ];
   return rows
@@ -1155,6 +1258,8 @@ async function enterStandaloneApp() {
   show("standalone");
   await prefSet(MODE_KEY, "standalone");
   await initDb();
+  // A failure leaves the Trash as it was; the next launch tries again.
+  await purgeExpiredTrashedDocuments().catch(() => undefined);
   await loadStandaloneModuleSettings();
   await loadReminderDeliveryState();
   await render();
@@ -1209,7 +1314,7 @@ async function render() {
     settings: "Settings",
     help: "Help",
     detail: "Details",
-    form: state.form?.id ? "Edit record" : "Add record",
+    form: state.form?.type === "contractRenewal" ? "Renew contract" : state.form?.id ? "Edit record" : "Add record",
   };
   viewTitle.textContent = titleMap[route] ?? "Hearth";
   viewKicker.textContent = route === "dashboard" ? "Standalone" : "Private local records";
@@ -1254,11 +1359,16 @@ function renderDashboard() {
   const attention = buildAttentionItems();
   const monthlySpend = activeContracts.reduce((sum, row) => sum + monthlyEquivalent(Number(row.cost), row.billing_frequency), 0);
   const inventoryValue = moduleEnabled("inventoryItems") ? cache.inventoryItems.reduce((sum, row) => sum + (Number(row.purchase_price) || 0), 0) : 0;
-  const propertyValue = moduleEnabled("properties") ? cache.properties.reduce((sum, row) => sum + (Number(row.estimated_value) || 0), 0) : 0;
+  const propertyValue = moduleEnabled("properties") ? activeRows(cache.properties).reduce((sum, row) => sum + (Number(row.estimated_value) || 0), 0) : 0;
   const holdingsValue = moduleEnabled("portfolios") ? cache.holdings.reduce((sum, row) => sum + holdingValue(row), 0) : 0;
+  // #440: the web Wealth page lists net worth as parts — Shares, ETFs and
+  // crypto / Property / Items — each shown only when its module is on, and
+  // the total is their sum. Each value above is already 0 when its module is
+  // off, so adding the three matches exactly the parts the tiles list.
+  const netWorthTotal = holdingsValue + propertyValue + inventoryValue;
   const contractsMissingInfo = activeContracts.filter((row) => missingInfo("contracts", row)).length;
   const productsMissingInfo = cache.products.filter((row) => missingInfo("products", row)).length;
-  const vehiclesMissingInfo = moduleEnabled("vehicles") ? cache.vehicles.filter((row) => missingInfo("vehicles", row)).length : 0;
+  const vehiclesMissingInfo = moduleEnabled("vehicles") ? activeRows(cache.vehicles).filter((row) => missingInfo("vehicles", row)).length : 0;
   return `
     <section class="hero-card">
       <p class="kicker">Today</p>
@@ -1269,9 +1379,9 @@ function renderDashboard() {
     <section class="grid-2">
       ${statCard("Active contracts", activeContracts.length, "records", "contracts")}
       ${statCard("Warranties tracked", cache.products.length, "records", "products")}
-      ${moduleEnabled("vehicles") ? statCard("Vehicles", cache.vehicles.length, "records", "vehicles") : ""}
+      ${moduleEnabled("vehicles") ? statCard("Vehicles", activeRows(cache.vehicles).length, "records", "vehicles") : ""}
       ${statCard("Documents", cache.documents.length + cache.inboxDocuments.length, "documents")}
-      ${moduleEnabled("properties") ? statCard("Properties", cache.properties.length, "records", "properties") : ""}
+      ${moduleEnabled("properties") ? statCard("Properties", activeRows(cache.properties).length, "records", "properties") : ""}
       ${moduleEnabled("inventoryItems") ? statCard("Inventory", cache.inventoryItems.length, "records", "inventoryItems") : ""}
       ${moduleEnabled("trips") ? statCard("Trips", cache.trips.length, "records", "trips") : ""}
       ${moduleEnabled("portfolios") ? statCard("Portfolios", cache.portfolios.length, "records", "portfolios") : ""}
@@ -1283,8 +1393,10 @@ function renderDashboard() {
     <section class="grid-2">
       ${miniCard("Est. monthly cost", money(monthlySpend, defaultCurrency()) ?? `${defaultCurrency()} 0`, "Private local estimate")}
       ${miniCard("Needs review", String(docsNeedingReview.length), "Documents without extracted text")}
-      ${moduleEnabled("properties") || moduleEnabled("inventoryItems") ? miniCard("Home + inventory", money(propertyValue + inventoryValue, defaultCurrency()) ?? `${defaultCurrency()} 0`, "Local asset estimate") : ""}
-      ${moduleEnabled("portfolios") ? miniCard("Portfolio value", money(holdingsValue, defaultCurrency()) ?? `${defaultCurrency()} 0`, "Trade-derived holdings") : ""}
+      ${(moduleEnabled("portfolios") || moduleEnabled("properties") || moduleEnabled("inventoryItems")) ? miniCard("Net worth", money(netWorthTotal, defaultCurrency()) ?? `${defaultCurrency()} 0`, "Sum of the parts below") : ""}
+      ${moduleEnabled("portfolios") ? miniCard("Shares, ETFs and crypto", money(holdingsValue, defaultCurrency()) ?? `${defaultCurrency()} 0`, "Trade-derived holdings") : ""}
+      ${moduleEnabled("properties") ? miniCard("Property", money(propertyValue, defaultCurrency()) ?? `${defaultCurrency()} 0`, "Local estimate") : ""}
+      ${moduleEnabled("inventoryItems") ? miniCard("Items", money(inventoryValue, defaultCurrency()) ?? `${defaultCurrency()} 0`, "Purchase-price estimate") : ""}
     </section>
 
     <section>
@@ -1433,7 +1545,7 @@ function calendarEvents() {
   };
   for (const row of cache.contracts) add(row.end_date, "Contract ends", recordTitle("contracts", row), "contracts", row.id);
   for (const row of cache.products) add(row.warranty_end_date, "Warranty ends", recordTitle("products", row), "products", row.id);
-  for (const row of cache.vehicles) {
+  for (const row of activeRows(cache.vehicles)) {
     add(row.rego_expiry, "Rego expiry", recordTitle("vehicles", row), "vehicles", row.id);
     add(row.insurance_expiry, "Insurance expiry", recordTitle("vehicles", row), "vehicles", row.id);
     add(row.next_service_due, "Service due", recordTitle("vehicles", row), "vehicles", row.id);
@@ -1461,7 +1573,9 @@ function renderCalendarEvent(event) {
 function renderReminders() {
   const targets = reminderTargets();
   const ready = targets.filter((target) => target.health.enabled && target.health.nextReminderDate);
-  const dueSoon = targets.filter((target) => ["danger", "warning"].includes(target.health.tone));
+  // #412 — only a record whose reminders can run counts as due soon or
+  // overdue; one missing its date or thresholds is "Missing setup" instead.
+  const dueSoon = targets.filter((target) => target.health.enabled && ["danger", "warning"].includes(target.health.tone));
   const missing = targets.filter((target) => !target.health.enabled);
   const scheduleable = reminderNotifications().length;
   return `
@@ -1473,7 +1587,7 @@ function renderReminders() {
     <section class="card form-card">
       <div class="section-title">
         <h2>Device reminders</h2>
-        <span class="badge ${state.localRemindersEnabled ? "" : "warning"}">${state.localRemindersEnabled ? "On" : "Off"}</span>
+        <span class="badge">${state.localRemindersEnabled ? "On" : "Off"}</span>
       </div>
       <div class="detail-grid">
         ${detailLine("Pending notifications", state.pendingNotificationCount == null ? "—" : String(state.pendingNotificationCount))}
@@ -1492,7 +1606,7 @@ function renderReminders() {
       ${miniCard("Delivery", "Local view only", "No server sharing")}
     </section>
     <section class="list">
-      ${targets.length === 0 ? empty("No reminder-capable records", "Add contracts, products, or vehicles with expiry dates to build this view.") : targets.map(renderReminderCard).join("")}
+      ${targets.length === 0 ? empty("No reminder-capable records", "Add contracts, products, vehicles or tenancies with expiry dates to build this view.") : targets.map(renderReminderCard).join("")}
     </section>
   `;
 }
@@ -1500,12 +1614,12 @@ function renderReminders() {
 function renderReminderCard(target) {
   const { health } = target;
   return `
-    <button class="record-card ${health.tone === "danger" ? "danger-card" : health.tone === "warning" ? "warning-card" : ""}" data-open-record="${escapeAttr(target.type)}" data-id="${escapeAttr(target.row.id)}">
+    <button class="record-card ${health.tone === "danger" ? "danger-card" : health.tone === "warning" ? "warning-card" : ""}" data-open-record="${escapeAttr(target.open?.type ?? target.type)}" data-id="${escapeAttr(target.open?.id ?? target.row.id)}">
       <div class="badge-row">
         <span class="badge ${escapeAttr(health.tone === "neutral" ? "" : health.tone)}">${escapeHtml(health.label)}</span>
         <span class="badge">${escapeHtml(target.kind)}</span>
       </div>
-      <h3>${escapeHtml(recordTitle(target.type, target.row))}</h3>
+      <h3>${escapeHtml(target.title ?? recordTitle(target.type, target.row))}</h3>
       <p class="card-meta">${escapeHtml(health.summary)}</p>
       <p class="card-meta">${escapeHtml(reminderDeliverySummary(health))}</p>
     </button>
@@ -1516,16 +1630,61 @@ function reminderTargets() {
   return [
     ...cache.contracts.map((row) => reminderTarget("contracts", row, "Contract", row.end_date, row.reminder_days_before)),
     ...cache.products.map((row) => reminderTarget("products", row, "Warranty", row.warranty_end_date, row.reminder_days_before)),
-    ...cache.vehicles.flatMap((row) => [
+    ...activeRows(cache.vehicles).flatMap((row) => [
       reminderTarget("vehicles", row, "Rego", row.rego_expiry, row.reminder_days_before),
       reminderTarget("vehicles", row, "Insurance", row.insurance_expiry, row.reminder_days_before),
       reminderTarget("vehicles", row, "Service", row.next_service_due, row.reminder_days_before),
     ]),
+    ...leaseReminderTargets(),
   ].sort((a, b) => {
     const aDate = a.health.sortDate ?? "9999-12-31";
     const bDate = b.health.sortDate ?? "9999-12-31";
     return aDate.localeCompare(bDate);
   });
+}
+
+// Record types whose save or delete changes the scheduled local Reminders.
+// A Property's rental tracking and its Tenancies decide the lease-end ones (#388).
+const REMINDER_RECORD_TYPES = ["contracts", "products", "vehicles", "properties", "rentalAgreements"];
+
+// #388 — a rented Property's current Tenancy gets Reminders for its lease
+// end, as on the web: the latest lease start, then the latest lease end, then
+// the latest entered. Older leases are history.
+function currentTenancyFor(propertyId) {
+  const stamp = (value) => (value ? String(value).slice(0, 10) : "");
+  return cache.rentalAgreements
+    .filter((row) => row.property_id === propertyId)
+    .reduce((current, row) => {
+      if (!current) return row;
+      const order =
+        stamp(row.lease_start).localeCompare(stamp(current.lease_start)) ||
+        stamp(row.lease_end).localeCompare(stamp(current.lease_end)) ||
+        String(row.created_at ?? "").localeCompare(String(current.created_at ?? ""));
+      return order > 0 ? row : current;
+    }, null);
+}
+
+function leaseReminderTargets() {
+  if (!moduleEnabled("properties")) return [];
+  return activeRows(cache.properties)
+    .filter((property) => Number(property.is_rented ?? 0) === 1)
+    .flatMap((property) => {
+      const tenancy = currentTenancyFor(property.id);
+      if (!tenancy?.lease_end) return [];
+      const target = reminderTarget("rentalAgreements", tenancy, "Lease", tenancy.lease_end, tenancy.reminder_days_before);
+      // A Tenancy opens on its Property, and past its lease end it needs a new one rather than a Reminder.
+      const ended = (daysUntil(tenancy.lease_end) ?? 0) < 0;
+      return [
+        {
+          ...target,
+          title: recordTitle("properties", property),
+          open: { type: "properties", id: property.id },
+          health: ended
+            ? { ...target.health, enabled: false, tone: "neutral", label: "Lease ended", summary: "Set the new lease end.", nextReminderDate: null }
+            : target.health,
+        },
+      ];
+    });
 }
 
 function reminderTarget(type, row, kind, dueDate, thresholds) {
@@ -1534,7 +1693,7 @@ function reminderTarget(type, row, kind, dueDate, thresholds) {
   const health = heldForReview
     ? {
         enabled: false,
-        tone: "warning",
+        tone: "neutral",
         label: "Held",
         summary: "Details need review; reminders are held until confirmed.",
         nextReminderDate: null,
@@ -1560,6 +1719,7 @@ function reminderFieldForKind(kind) {
   if (kind === "Rego") return "regoExpiry";
   if (kind === "Insurance") return "insuranceExpiry";
   if (kind === "Service") return "nextServiceDue";
+  if (kind === "Lease") return "leaseEnd";
   return "";
 }
 
@@ -1571,6 +1731,7 @@ function ownerTypeForReminderType(type) {
   if (type === "contracts") return "CONTRACT";
   if (type === "products") return "PRODUCT";
   if (type === "vehicles") return "VEHICLE";
+  if (type === "rentalAgreements") return "TENANCY";
   return type.toUpperCase();
 }
 
@@ -1591,10 +1752,10 @@ function reminderDeliverySummary(health) {
 
 function reminderHealth(dueDate, thresholdsText) {
   const thresholds = parseReminderDays(thresholdsText);
-  if (!dueDate) return { enabled: false, tone: "warning", label: "No date", summary: "Add a target date before reminders can be planned.", nextReminderDate: null, sortDate: null };
-  if (thresholds.length === 0) return { enabled: false, tone: "warning", label: "No thresholds", summary: "Add comma-separated reminder days, for example 30,14,7,1.", nextReminderDate: null, sortDate: String(dueDate).slice(0, 10) };
+  if (!dueDate) return { enabled: false, tone: "neutral", label: "No date", summary: "Add a target date before reminders can be planned.", nextReminderDate: null, sortDate: null };
+  if (thresholds.length === 0) return { enabled: false, tone: "neutral", label: "No thresholds", summary: "Add comma-separated reminder days, for example 30,14,7,1.", nextReminderDate: null, sortDate: String(dueDate).slice(0, 10) };
   const days = daysUntil(dueDate);
-  if (days == null) return { enabled: false, tone: "warning", label: "Invalid date", summary: "The saved date could not be read.", nextReminderDate: null, sortDate: null };
+  if (days == null) return { enabled: false, tone: "neutral", label: "Invalid date", summary: "The saved date could not be read.", nextReminderDate: null, sortDate: null };
   const dueLabel = readableDate(dueDate);
   if (days < 0) return { enabled: true, tone: "danger", label: "Overdue", summary: `Due ${dueLabel}; thresholds ${thresholds.join(", ")} days.`, nextReminderDate: null, sortDate: dueLabel };
   const nextThreshold = thresholds.find((threshold) => threshold <= days);
@@ -1634,6 +1795,7 @@ function reminderNotifications() {
 
 function reminderNotificationPlans(target) {
   if (!target.health.enabled || !target.dueDate) return [];
+  const title = target.title ?? recordTitle(target.type, target.row);
   return parseReminderDays(target.row.reminder_days_before)
     .map((threshold) => {
       const reminderDate = addDaysIso(target.dueDate, -threshold);
@@ -1641,8 +1803,11 @@ function reminderNotificationPlans(target) {
       if (!at) return null;
       return {
         id: notificationId(`${target.type}:${target.row.id}:${target.kind}:${reminderDate}:${threshold}`),
-        title: `Hearth reminder: ${recordTitle(target.type, target.row)}`,
-        body: `${target.kind} is due ${readableDate(target.dueDate)} (${threshold} days to go).`,
+        title: `Hearth reminder: ${title}`,
+        body:
+          target.kind === "Lease"
+            ? `Lease for ${title} ends ${readableDate(target.dueDate)} (${threshold} days to go).`
+            : `${target.kind} is due ${readableDate(target.dueDate)} (${threshold} days to go).`,
         schedule: { at },
         channelId: REMINDER_CHANNEL_ID,
         extra: {
@@ -1688,7 +1853,7 @@ async function ensureReminderChannel() {
   await LocalNotifications.createChannel({
     id: REMINDER_CHANNEL_ID,
     name: "Hearth reminders",
-    description: "Standalone reminders for contracts, warranties, registration and insurance.",
+    description: "Standalone reminders for contracts, warranties, registration, insurance and lease ends.",
     importance: 4,
     visibility: 1,
   }).catch(() => undefined);
@@ -1958,7 +2123,7 @@ function renderModuleSetting(module) {
   return `
     <article class="record-card module-setting-card">
       <div class="badge-row">
-        <span class="badge ${enabled ? "" : "warning"}">${enabled ? "Shown" : "Hidden"}</span>
+        <span class="badge">${enabled ? "Shown" : "Hidden"}</span>
         <span class="badge">${count} record${count === 1 ? "" : "s"}</span>
       </div>
       <h3>${escapeHtml(module.title)}</h3>
@@ -1998,7 +2163,7 @@ async function buildStandaloneBackup() {
   return {
     kind: "hearth-standalone-backup",
     version: 1,
-    schemaVersion: 7,
+    schemaVersion: STANDALONE_SCHEMA_VERSION,
     exportedAt: nowIso(),
     tables,
   };
@@ -2084,8 +2249,8 @@ function miniCard(title, value, meta) {
 
 function renderAttentionCard(item) {
   return `
-    <button class="record-card ${item.attention.tone === "danger" ? "danger-card" : "warning-card"}" data-open-record="${escapeAttr(item.type)}" data-id="${escapeAttr(item.row.id)}">
-      <span class="badge ${escapeAttr(item.attention.tone)}">${escapeHtml(item.attention.label)}</span>
+    <button class="record-card ${item.attention.tone === "danger" ? "danger-card" : item.attention.tone === "warning" ? "warning-card" : ""}" data-open-record="${escapeAttr(item.type)}" data-id="${escapeAttr(item.row.id)}">
+      <span class="badge ${escapeAttr(item.attention.tone === "neutral" ? "" : item.attention.tone)}">${escapeHtml(item.attention.label)}</span>
       <h3>${escapeHtml(recordTitle(item.type, item.row))}</h3>
       <p class="card-meta">${escapeHtml(item.attention.meta)}</p>
     </button>
@@ -2110,6 +2275,7 @@ function renderRecords() {
       ${filterChip("attention", "Needs attention")}
       ${filterChip("missing-docs", "Missing document")}
       ${filterChip("missing-info", "Missing key details")}
+      ${canArchive(state.recordType) ? filterChip("archived", "Archived") : ""}
     </section>
     <section id="record-results" class="list">
       ${rows.length === 0 ? empty("No matching records", "Add a record or adjust the search/filter.") : rows.map((row) => renderRecordCard(state.recordType, row)).join("")}
@@ -2130,6 +2296,8 @@ function filteredRecords() {
   return cache[state.recordType].filter((row) => {
     if (!recordTypeEnabled(state.recordType)) return false;
     if (queryText && !recordSearchText(state.recordType, row).includes(queryText)) return false;
+    // Archived Vehicles and Properties are listed under their own filter (#355).
+    if (canArchive(state.recordType) && isArchived(row) !== (state.recordFilter === "archived")) return false;
     if (state.recordFilter === "attention" && !attentionForRecord(state.recordType, row)) return false;
     if (state.recordFilter === "missing-docs" && hasDocument(state.recordType, row.id)) return false;
     if (state.recordFilter === "missing-info" && !missingInfo(state.recordType, row)) return false;
@@ -2144,6 +2312,8 @@ function filteredRecords() {
 // never missing anything. Contract number is not a key detail.
 function missingInfo(type, row) {
   const blank = (value) => value == null || value === "";
+  // Archived records are never missing anything (#355).
+  if (isArchived(row)) return false;
   if (type === "contracts") {
     if (row.status === "CANCELLED") return false;
     return (blank(row.end_date) && row.renewal_type !== "AUTO_RENEW") || (!blank(row.cost) && blank(row.billing_frequency));
@@ -2178,7 +2348,8 @@ function renderRecordCard(type, row) {
   return `
     <button class="record-card" data-open-record="${escapeAttr(type)}" data-id="${escapeAttr(row.id)}">
       <div class="badge-row">
-        ${attention ? `<span class="badge ${escapeAttr(attention.tone)}">${escapeHtml(attention.label)}</span>` : ""}
+        ${attention ? `<span class="badge ${escapeAttr(attention.tone === "neutral" ? "" : attention.tone)}">${escapeHtml(attention.label)}</span>` : ""}
+        ${isArchived(row) ? '<span class="badge">Archived</span>' : ""}
         <span class="badge">${docCount} doc${docCount === 1 ? "" : "s"}</span>
       </div>
       <h3>${escapeHtml(recordTitle(type, row))}</h3>
@@ -2252,7 +2423,7 @@ function renderDetail() {
   const row = getRecord(type, id);
   if (!row) return empty("Record not found", "It may have been removed.");
   const ownerType = ownerTypeForRecordType(type);
-  const docs = docsFor(ownerType, id).filter((doc) => Number(doc.is_head ?? 1) !== 0);
+  const docs = latestDocuments(docsFor(ownerType, id));
   return `
     <section class="hero-card">
       <p class="kicker">${escapeHtml(typeLabel(type))}</p>
@@ -2263,11 +2434,15 @@ function renderDetail() {
     <section class="card form-card">
       <div class="actions">
         <button data-form-type="${escapeAttr(type)}" data-id="${escapeAttr(id)}">Edit</button>
+        ${type === "contracts" && canRenewContract(row) ? `<button data-form-type="contractRenewal" data-id="${escapeAttr(id)}">Renew</button>` : ""}
+        ${canArchive(type) ? `<button class="secondary" data-archive-record="${escapeAttr(type)}" data-archived="${isArchived(row) ? "0" : "1"}" data-id="${escapeAttr(id)}">${isArchived(row) ? "Restore" : "Archive"}</button>` : ""}
         <button class="danger" data-delete-record="${escapeAttr(type)}" data-id="${escapeAttr(id)}">Delete</button>
       </div>
+      ${isArchived(row) ? `<p class="card-meta">Archived on ${escapeHtml(readableDate(row.archived_at))}. It no longer reminds you or shows in Needs attention.</p>` : ""}
       <div class="detail-grid">${renderDetailRows(type, row)}</div>
       ${renderRecordReminderHealth(type, row)}
     </section>
+    ${type === "contracts" ? renderPreviousTerms(row.id) : ""}
     ${type === "vehicles" ? renderChildRecords("Service records", "vehicleItems", cache.vehicleItems.filter((item) => item.vehicle_id === row.id), row.id, "No service records", "Track services, repairs and roadworthies here.") : ""}
     ${type === "properties" ? renderPropertyRentalSummary(row.id) : ""}
     ${type === "properties" ? renderChildRecords("Warranties", "products", cache.products.filter((item) => item.property_id === row.id), row.id, "No warranties linked", "Register a warranty to this home so it shows up here.") : ""}
@@ -2322,9 +2497,9 @@ function renderPropertyRentalSummary(propertyId) {
 function renderNeedsReviewBanner(type, row) {
   if (!["contracts", "products"].includes(type) || Number(row.extraction_pending ?? 0) !== 1) return "";
   return `
-    <section class="record-card warning-card">
+    <section class="record-card">
       <div class="badge-row">
-        <span class="badge warning">Needs review</span>
+        <span class="badge">Needs review</span>
         <span class="badge">Reminders held</span>
       </div>
       <h3>Confirm details before reminders run</h3>
@@ -2363,7 +2538,7 @@ function renderDetailRows(type, row) {
       ["Start", readableDate(row.start_date)],
       ["End", readableDate(row.end_date)],
       ["Reminder thresholds", row.reminder_days_before || "30,14,7,1"],
-      ["Cost", money(row.cost, row.currency)],
+      ["Cost", [money(row.cost, row.currency), contractCostChangeText(row)].filter(Boolean).join(" · ") || null],
       ["Billing", row.billing_frequency],
       ["Contact", [row.contact_name, row.contact_email, row.contact_phone].filter(Boolean).join(" · ")],
       ["Notes", row.notes],
@@ -2519,6 +2694,7 @@ function isCopyableDetail(label) {
 
 function renderRecordReminderHealth(type, row) {
   if (!["contracts", "products", "vehicles"].includes(type)) return "";
+  if (isArchived(row)) return "";
   const targets =
     type === "contracts"
       ? [reminderTarget(type, row, "Contract", row.end_date, row.reminder_days_before)]
@@ -2615,8 +2791,7 @@ function documentChip(filter, label) {
 }
 
 function filteredDocuments() {
-  return cache.documents
-    .filter((doc) => Number(doc.is_head ?? 1) !== 0)
+  return latestDocuments(cache.documents)
     .filter((doc) => recordTypeEnabled(recordTypeForOwnerType(doc.owner_type)))
     .filter((doc) => {
       if (state.documentFilter === "all") return true;
@@ -2661,7 +2836,7 @@ function renderDocumentCard(doc) {
       <div class="badge-row">
         <span class="badge">${escapeHtml(typeLabel(doc.owner_type))}</span>
         <span class="badge">${escapeHtml(bytesLabel(doc.size))}</span>
-        ${important ? '<span class="badge warning">Important</span>' : ""}
+        ${important ? '<span class="badge">Important</span>' : ""}
         ${versionCount > 1 ? `<span class="badge">${versionCount} versions</span>` : ""}
       </div>
       <h3>${escapeHtml(doc.filename)}</h3>
@@ -2715,17 +2890,82 @@ function inboxStatus(doc) {
 
 function duplicateMatchesForInbox(doc) {
   if (!doc.sha256 || doc.status !== "POSSIBLE_DUPLICATE") return [];
-  return cache.documents.filter((item) => item.sha256 === doc.sha256 && Number(item.is_head ?? 1) !== 0);
+  return latestDocuments(cache.documents.filter((item) => item.sha256 === doc.sha256));
 }
 
+// A Document's versions are chained through supersedes_id. Versions in Trash
+// aren't listed, but the chain is followed through them, so trashing one
+// doesn't split a Document in two (#455, as on the web). The latest version
+// is derived from the chain rather than read from is_head.
+function documentSupersedesLinks() {
+  const links = new Map();
+  for (const link of cache.trashedDocLinks ?? []) links.set(link.id, link.supersedes_id ?? null);
+  for (const doc of cache.documents) links.set(doc.id, doc.supersedes_id ?? null);
+  return links;
+}
+
+function documentSuccessors() {
+  const successors = new Map();
+  for (const [id, older] of documentSupersedesLinks()) {
+    if (older) successors.set(older, id);
+  }
+  return successors;
+}
+
+function hasLiveSuccessor(id, successors, live) {
+  const seen = new Set([id]);
+  let cursor = successors.get(id);
+  while (cursor && !seen.has(cursor)) {
+    if (live.has(cursor)) return true;
+    seen.add(cursor);
+    cursor = successors.get(cursor);
+  }
+  return false;
+}
+
+// Of the given live Documents, the ones with no newer live version. A live
+// Document no chain reaches (a cycle, possible through a backup import) is
+// listed on its own rather than hidden, as on the web.
+function latestDocuments(docs) {
+  const successors = documentSuccessors();
+  const live = new Set(cache.documents.map((item) => item.id));
+  const latest = cache.documents.filter((doc) => !hasLiveSuccessor(doc.id, successors, live));
+  const placed = new Set();
+  for (const doc of latest) {
+    for (const version of documentVersionChain(doc)) placed.add(version.id);
+  }
+  const listed = new Set(latest.map((doc) => doc.id));
+  for (const doc of cache.documents) {
+    if (!placed.has(doc.id)) listed.add(doc.id);
+  }
+  return docs.filter((doc) => listed.has(doc.id));
+}
+
+// The newest version of a chain, trashed or not: a new version is filed on top
+// of it, so it never competes with a trashed version for the same place.
+function documentChainTipId(id) {
+  const successors = documentSuccessors();
+  const seen = new Set([id]);
+  let cursor = id;
+  while (successors.has(cursor) && !seen.has(successors.get(cursor))) {
+    cursor = successors.get(cursor);
+    seen.add(cursor);
+  }
+  return cursor;
+}
+
+// The live versions of a Document, newest first, starting at `doc`.
 function documentVersionChain(doc) {
-  const chain = [];
-  let current = doc;
-  const seen = new Set();
-  while (current && !seen.has(current.id)) {
-    chain.push(current);
-    seen.add(current.id);
-    current = current.supersedes_id ? cache.documents.find((item) => item.id === current.supersedes_id) : null;
+  const links = documentSupersedesLinks();
+  const live = new Map(cache.documents.map((item) => [item.id, item]));
+  const chain = [doc];
+  const seen = new Set([doc.id]);
+  let cursor = links.get(doc.id) ?? null;
+  while (cursor && !seen.has(cursor)) {
+    const older = live.get(cursor);
+    if (older) chain.push(older);
+    seen.add(cursor);
+    cursor = links.get(cursor) ?? null;
   }
   return chain;
 }
@@ -2751,9 +2991,9 @@ function filingTargets() {
   return [
     ...cache.contracts.map((row) => filingTarget("contract", row.id, "Contract", recordTitle("contracts", row))),
     ...cache.products.map((row) => filingTarget("product", row.id, "Warranty", recordTitle("products", row))),
-    ...(moduleEnabled("vehicles") ? cache.vehicles.map((row) => filingTarget("vehicle", row.id, "Vehicle", recordTitle("vehicles", row))) : []),
+    ...(moduleEnabled("vehicles") ? cache.vehicles.map((row) => filingTarget("vehicle", row.id, "Vehicle", archivedTitle("vehicles", row))) : []),
     ...(moduleEnabled("vehicles") ? cache.vehicleItems.map((row) => filingTarget("vehicle_item", row.id, "Service record", recordTitle("vehicleItems", row))) : []),
-    ...(moduleEnabled("properties") ? cache.properties.map((row) => filingTarget("property", row.id, "Property", recordTitle("properties", row))) : []),
+    ...(moduleEnabled("properties") ? cache.properties.map((row) => filingTarget("property", row.id, "Property", archivedTitle("properties", row))) : []),
     ...(moduleEnabled("properties") ? cache.homeItems.map((row) => filingTarget("home_item", row.id, "Maintenance record", recordTitle("homeItems", row))) : []),
     ...(moduleEnabled("properties") ? cache.rentalAgreements.map((row) => filingTarget("rental_agreement", row.id, "Tenancy", recordTitle("rentalAgreements", row))) : []),
     ...(moduleEnabled("properties") ? cache.rentalStatements.map((row) => filingTarget("rental_statement", row.id, "Rental statement", recordTitle("rentalStatements", row))) : []),
@@ -2764,6 +3004,12 @@ function filingTargets() {
     ...(moduleEnabled("portfolios") ? cache.holdings.map((row) => filingTarget("holding", row.id, "Holding", recordTitle("holdings", row))) : []),
     ...(moduleEnabled("portfolios") ? cache.trades.map((row) => filingTarget("trade", row.id, "Trade", recordTitle("trades", row))) : []),
   ].sort((a, b) => a.label.localeCompare(b.label));
+}
+
+// Late paperwork (a sale receipt) still files to an Archived record, so it stays
+// in the picker, labelled (#355).
+function archivedTitle(type, row) {
+  return isArchived(row) ? `${recordTitle(type, row)} (archived)` : recordTitle(type, row);
 }
 
 function filingTarget(ownerType, ownerId, label, title) {
@@ -2823,6 +3069,7 @@ function renderSearchResult(result) {
 function renderForm() {
   if (!state.form) return empty("No form selected", "Choose something to add.");
   const type = state.form.type;
+  if (type === "contractRenewal") return renderContractRenewalForm(getRecord("contracts", state.form.id));
   const row = state.form.id ? getRecord(type, state.form.id) : null;
   const title = state.form.id ? `Edit ${typeLabel(type).toLowerCase()}` : `Add ${typeLabel(type).toLowerCase()}`;
   const recordTypesWithoutInlineFiles = new Set(["vehicleItems", "homeItems", "tripSegments", "holdings", "trades"]);
@@ -2950,6 +3197,7 @@ function formFields(type, row) {
         <label>Bond amount<input name="bondAmount" type="number" min="0" step="0.01" value="${escapeAttr(row?.bond_amount ?? "")}" /></label>
         <label>Currency<input name="currency" value="${escapeAttr(row?.currency ?? defaultCurrency())}" /></label>
         <label>Linked contract<select name="contractId">${contractOptions(row?.contract_id)}</select></label>
+        <label>Reminder thresholds (days before lease end)<input name="reminderDaysBefore" inputmode="numeric" value="${escapeAttr(row?.reminder_days_before ?? "")}" placeholder="30,14,7,1 (default)" /></label>
         <label>Notes<textarea name="notes">${escapeHtml(row?.notes)}</textarea></label>
       </div>
     `;
@@ -3075,7 +3323,7 @@ function contractOptions(selected) {
 // only useful once a property exists and the Home module is on — otherwise
 // show a hint instead of silently hiding the field with no explanation.
 function propertyPickerOrHint(propertyId) {
-  if (cache.properties.length > 0) {
+  if (activeRows(cache.properties).length > 0 || cache.properties.some((property) => property.id === propertyId)) {
     return `
       <label>Property<select name="propertyId">${propertyOptions(propertyId)}</select></label>
     `;
@@ -3093,7 +3341,7 @@ function propertyPickerOrHint(propertyId) {
 function propertyOptions(selected) {
   return [
     `<option value="" ${selected ? "" : "selected"}>Not linked</option>`,
-    ...cache.properties.map((property) => `<option value="${escapeAttr(property.id)}" ${property.id === selected ? "selected" : ""}>${escapeHtml(recordTitle("properties", property))}</option>`),
+    ...cache.properties.filter((property) => !isArchived(property) || property.id === selected).map((property) => `<option value="${escapeAttr(property.id)}" ${property.id === selected ? "selected" : ""}>${escapeHtml(recordTitle("properties", property))}</option>`),
   ].join("");
 }
 
@@ -3127,6 +3375,7 @@ function formFile(form) {
 
 async function saveForm(form) {
   const type = form.dataset.saveType;
+  if (type === "contractRenewal") await renewContract(form);
   if (type === "contracts") await saveContract(form);
   if (type === "products") await saveProduct(form);
   if (type === "vehicles") await saveVehicle(form);
@@ -3141,7 +3390,7 @@ async function saveForm(form) {
   if (type === "portfolios") await savePortfolio(form);
   if (type === "holdings") await saveHolding(form);
   if (type === "trades") await saveTrade(form);
-  if (state.localRemindersEnabled && ["contracts", "products", "vehicles"].includes(type)) {
+  if (state.localRemindersEnabled && (REMINDER_RECORD_TYPES.includes(type) || type === "contractRenewal")) {
     await syncLocalReminders(false).catch((error) => showStandaloneStatus(error.message || "Saved, but reminders could not be rescheduled."));
   }
   state.route = state.backTo ?? (["vehicleItems", "homeItems", "rentalAgreements", "rentalStatements", "tripSegments", "holdings", "trades"].includes(type) ? "detail" : "records");
@@ -3339,6 +3588,10 @@ async function saveRentalAgreement(form) {
   const exists = Boolean(form.dataset.id);
   const parentId = form.dataset.parentId || fieldValue(form, "propertyId") || getRecord("rentalAgreements", id)?.property_id;
   if (!parentId) throw new Error("Property is missing.");
+  const reminderDays = reminderDaysOrNull(fieldValue(form, "reminderDaysBefore"));
+  if (reminderDays == null && String(fieldValue(form, "reminderDaysBefore") ?? "").trim()) {
+    throw new Error("Reminder thresholds must be whole days, comma-separated, e.g. 30,14,7,1.");
+  }
   const values = [
     parentId,
     valueOrNull(fieldValue(form, "contractId")),
@@ -3350,12 +3603,13 @@ async function saveRentalAgreement(form) {
     numberOrNull(fieldValue(form, "bondAmount")),
     currencyOrDefault(fieldValue(form, "currency")),
     valueOrNull(fieldValue(form, "notes")),
+    reminderDays,
     nowIso(),
   ];
   if (exists) {
-    await run("UPDATE rental_agreements SET property_id = ?, contract_id = ?, tenant_name = ?, weekly_rent = ?, management_fee_percent = ?, lease_start = ?, lease_end = ?, bond_amount = ?, currency = ?, notes = ?, updated_at = ?, version = version + 1 WHERE id = ?", [...values, id]);
+    await run("UPDATE rental_agreements SET property_id = ?, contract_id = ?, tenant_name = ?, weekly_rent = ?, management_fee_percent = ?, lease_start = ?, lease_end = ?, bond_amount = ?, currency = ?, notes = ?, reminder_days_before = ?, updated_at = ?, version = version + 1 WHERE id = ?", [...values, id]);
   } else {
-    await run("INSERT INTO rental_agreements (id, property_id, contract_id, tenant_name, weekly_rent, management_fee_percent, lease_start, lease_end, bond_amount, currency, notes, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)", [id, ...values.slice(0, 10), values[10], values[10]]);
+    await run("INSERT INTO rental_agreements (id, property_id, contract_id, tenant_name, weekly_rent, management_fee_percent, lease_start, lease_end, bond_amount, currency, notes, reminder_days_before, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)", [id, ...values.slice(0, 11), values[11], values[11]]);
   }
   await maybeStoreFormFile(form, "rental_agreement", id);
   state.detail = { type: "properties", id: parentId };
@@ -3569,7 +3823,7 @@ async function importTradesFromCsv(portfolioId, file) {
     const holding = await findOrCreateHoldingForTrade(portfolioId, {
       ticker: row.ticker,
       name: null,
-      assetClass: "SHARE",
+      assetClass: row.assetClass || "SHARE",
       exchange: inferredExchange(row.ticker),
       currency: row.currency || portfolio.currency || defaultCurrency(),
     });
@@ -3694,6 +3948,12 @@ function parseTradeCsvRow(row, format) {
   if (!type) return null;
   return cleanImportedTrade({
     ticker: row["Ticker"],
+    // #440: generic format carries optional Asset Class / Exchange columns;
+    // same rule as the web import (CRYPTO in either marks a coin).
+    assetClass: inferImportedAssetClass({
+      assetClass: row["Asset Class"] ?? row["AssetClass"] ?? null,
+      exchange: row["Exchange"] ?? null,
+    }),
     type,
     date: row["Date"],
     units: row["Units"],
@@ -3711,7 +3971,9 @@ function cleanImportedTrade(row) {
   const fees = parseCsvNumber(row.fees) || 0;
   const currency = String(row.currency || defaultCurrency()).trim().toUpperCase();
   if (!ticker || !date || !row.type || !Number.isFinite(units) || units <= 0 || !Number.isFinite(pricePerUnit) || pricePerUnit < 0 || !currency) return null;
-  return { ticker, type: row.type, date, units, pricePerUnit, fees, currency };
+  // assetClass is only set by the generic format's inference (#440); broker
+  // exports leave it null and the import treats that as SHARE.
+  return { ticker, type: row.type, date, units, pricePerUnit, fees, currency, assetClass: row.assetClass ?? null };
 }
 
 function normalizeImportedTradeType(value) {
@@ -3751,6 +4013,18 @@ function isSupportedImportedTrade(row) {
 function inferredExchange(ticker) {
   if (ticker.endsWith(".AX")) return "XASX";
   return null;
+}
+
+// #440: mirrors the web app's inferImportedAssetClass (src/lib/priceSource.ts).
+// A generic-format row is crypto when its Asset Class or Exchange column says
+// so; never guessed from the ticker — BTC, ETH and SOL are also listed
+// ETFs/shares (#404 review).
+function isCryptoLabel(value) {
+  return String(value ?? "").trim().toUpperCase() === "CRYPTO";
+}
+
+function inferImportedAssetClass(row) {
+  return isCryptoLabel(row.assetClass) || isCryptoLabel(row.exchange) ? "CRYPTO" : "SHARE";
 }
 
 function normalizeTicker(value) {
@@ -3825,10 +4099,10 @@ async function maybeStoreFormFile(form, ownerType, id) {
 async function deleteRecord(type, id) {
   const row = getRecord(type, id);
   if (!row) return;
-  const confirmed = window.confirm(`Delete "${recordTitle(type, row)}" and its local documents?`);
+  const confirmed = window.confirm(`Delete "${recordTitle(type, row)}"? Its documents go to Trash for ${TRASH_RETENTION_DAYS} days, then their files are deleted.`);
   if (!confirmed) return;
   await softDeleteRecord(type, id);
-  if (state.localRemindersEnabled && ["contracts", "products", "vehicles"].includes(type)) {
+  if (state.localRemindersEnabled && REMINDER_RECORD_TYPES.includes(type)) {
     await syncLocalReminders(false).catch((error) => showStandaloneStatus(error.message || "Deleted, but reminders could not be rescheduled."));
   }
   state.route = "records";
@@ -3837,10 +4111,32 @@ async function deleteRecord(type, id) {
   await render();
 }
 
+function canArchive(type) {
+  return type === "vehicles" || type === "properties";
+}
+
+// #355 — Archive or restore a Vehicle or Property. Not a delete: the record,
+// its Documents and its history stay; it just stops being Due, so local
+// Reminders are rescheduled without it.
+async function setRecordArchived(type, id, archived) {
+  if (!canArchive(type)) return;
+  const row = getRecord(type, id);
+  if (!row || isArchived(row) === archived) return;
+  const now = nowIso();
+  const table = type === "vehicles" ? "vehicles" : "properties";
+  await run(`UPDATE ${table} SET archived_at = ?, updated_at = ?, version = version + 1 WHERE id = ?`, [archived ? now : null, now, id]);
+  await loadData();
+  if (state.localRemindersEnabled) {
+    await syncLocalReminders(false).catch((error) => showStandaloneStatus(error.message || "Saved, but reminders could not be rescheduled."));
+  }
+  showStandaloneStatus(archived ? "Archived." : "Restored.", true);
+  await render();
+}
+
 async function softDeleteRecord(type, id) {
   const ownerType = ownerTypeForRecordType(type);
   const docs = docsFor(ownerType, id);
-  for (const doc of docs) await deleteDocument(doc.id, false);
+  for (const doc of docs) await trashDocument(doc.id);
   const table = {
     contracts: "contracts",
     products: "products",
@@ -3890,16 +4186,111 @@ async function softDeleteRecord(type, id) {
   }
 }
 
-async function deleteDocument(id, rerender = true) {
+const TRASH_RETENTION_DAYS = 30;
+const DAY_MS = 24 * 60 * 60 * 1000;
+const MAX_PURGE_PER_LAUNCH = 20;
+
+// Moves a Document to Trash. Its file and row stay until it's purged (#455).
+async function trashDocument(id) {
+  await run("UPDATE documents SET deleted_at = ?, version = version + 1 WHERE id = ?", [nowIso(), id]);
+}
+
+async function deleteDocument(id) {
   const doc = cache.documents.find((item) => item.id === id);
   if (!doc) return;
-  const confirmed = !rerender || window.confirm(`Delete "${doc.filename}" from this device?`);
-  if (!confirmed) return;
-  await Filesystem?.deleteFile({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${doc.storage_key}` }).catch(() => undefined);
-  await run("UPDATE documents SET deleted_at = ?, version = version + 1 WHERE id = ?", [nowIso(), id]);
-  if (rerender) {
-    showStandaloneStatus("Document deleted.", true);
-    await render();
+  await trashDocument(id);
+  await syncDocumentHeads(doc.owner_type, doc.owner_id);
+  showStandaloneStatus(`"${doc.filename}" moved to Trash.`, true, { run: () => restoreDocument(id) });
+  await render();
+}
+
+async function restoreDocument(id) {
+  const [doc] = await query("SELECT owner_type, owner_id, filename FROM documents WHERE id = ? AND deleted_at IS NOT NULL", [id]);
+  if (!doc) return;
+  // A live Document under a deleted record would be unreachable.
+  if (!getRecord(recordTypeForOwnerType(doc.owner_type), doc.owner_id)) {
+    throw new Error(`Can't restore "${doc.filename}": the record it belonged to was deleted.`);
+  }
+  await run("UPDATE documents SET deleted_at = NULL, version = version + 1 WHERE id = ?", [id]);
+  await syncDocumentHeads(doc.owner_type, doc.owner_id);
+  showStandaloneStatus("Document restored.", true);
+  await render();
+}
+
+// is_head is kept in step for older builds that still read it; this build
+// works the latest version out from the chain.
+async function syncDocumentHeads(ownerType, ownerId) {
+  await loadData();
+  const owned = docsFor(ownerType, ownerId);
+  const latestIds = new Set(latestDocuments(owned).map((doc) => doc.id));
+  for (const doc of owned) {
+    const expected = latestIds.has(doc.id) ? 1 : 0;
+    if (Number(doc.is_head ?? 1) !== expected) {
+      await run("UPDATE documents SET is_head = ? WHERE id = ?", [expected, doc.id]);
+    }
+  }
+}
+
+// Deletes a stored file. A file that is already gone is fine; any other
+// failure throws, so the row is kept and the delete is retried.
+async function deleteStoredFile(storageKey) {
+  if (!Filesystem) return;
+  try {
+    await Filesystem.deleteFile({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${storageKey}` });
+  } catch (error) {
+    if (!/not.?found|does not exist|no such file|enoent/i.test(String(error?.message ?? error))) throw error;
+  }
+}
+
+// Deletes a Trash entry's file and row together. It re-reads the row, so the
+// chain is relinked from what is saved now, not from a list read earlier.
+async function purgeDocument(id) {
+  const [doc] = await query("SELECT * FROM documents WHERE id = ? AND deleted_at IS NOT NULL", [id]);
+  if (!doc) return null;
+  // A file an Inbox entry still points at stays.
+  const inbox = await query("SELECT id FROM inbox_documents WHERE storage_key = ? AND deleted_at IS NULL LIMIT 1", [doc.storage_key]);
+  if (inbox.length === 0) await deleteStoredFile(doc.storage_key);
+  // The next version now follows this one's older version, so the chain stays whole.
+  await SQLite.executeSet({
+    database: DB,
+    transaction: true,
+    set: [
+      { statement: "UPDATE documents SET supersedes_id = ?, version = version + 1 WHERE supersedes_id = ?", values: [doc.supersedes_id ?? null, doc.id] },
+      { statement: "DELETE FROM documents WHERE id = ?", values: [doc.id] },
+    ],
+  });
+  return doc;
+}
+
+// Purges Trash entries past TRASH_RETENTION_DAYS, at most
+// MAX_PURGE_PER_LAUNCH a launch, newest first. This is irreversible and the
+// device clock is all it has, so it distrusts the clock:
+// - A clock more than a day behind the newest timestamp in the database is
+//   wrong, so nothing is purged.
+// - Time is only trusted up to 30 days past the newest timestamp in the
+//   database (the cutoff is min(now - 30 days, newest)). A clock that jumps
+//   ahead, however far, can't expire anything saved after the newest
+//   activity; it purges only what was already older than it.
+async function purgeExpiredTrashedDocuments() {
+  const stamps = [...await query("SELECT uploaded_at, deleted_at FROM documents"), ...await query("SELECT uploaded_at, deleted_at FROM inbox_documents")]
+    .flatMap((row) => [row.uploaded_at, row.deleted_at])
+    .map((value) => Date.parse(value))
+    .filter((value) => Number.isFinite(value));
+  if (stamps.length === 0) return;
+  const newest = stamps.reduce((max, value) => Math.max(max, value), 0);
+  const now = Date.now();
+  if (now < newest - DAY_MS) return;
+  const cutoff = new Date(Math.min(now - TRASH_RETENTION_DAYS * DAY_MS, newest)).toISOString();
+  const expired = await query("SELECT * FROM documents WHERE deleted_at IS NOT NULL AND deleted_at < ? ORDER BY uploaded_at DESC LIMIT ?", [cutoff, MAX_PURGE_PER_LAUNCH]);
+  const owners = new Map();
+  try {
+    for (const entry of expired) {
+      const purged = await purgeDocument(entry.id);
+      if (purged) owners.set(`${purged.owner_type}|${purged.owner_id}`, purged);
+    }
+  } finally {
+    await loadData();
+    for (const doc of owners.values()) await syncDocumentHeads(doc.owner_type, doc.owner_id);
   }
 }
 
@@ -3927,7 +4318,7 @@ async function fileInboxDocument(form) {
   }
   await run(
     "INSERT INTO documents (id, owner_type, owner_id, filename, storage_key, mime_type, size, kind, extracted_text, sha256, important, supersedes_id, is_head, uploaded_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 1, ?, 1)",
-    [localId("document"), ownerType, ownerId, doc.filename, doc.storage_key, doc.mime_type, doc.size, doc.target_type, doc.extracted_text, doc.sha256, matchingHead?.id ?? null, nowIso()],
+    [localId("document"), ownerType, ownerId, doc.filename, doc.storage_key, doc.mime_type, doc.size, doc.target_type, doc.extracted_text, doc.sha256, matchingHead ? documentChainTipId(matchingHead.id) : null, nowIso()],
   );
   await run("UPDATE inbox_documents SET deleted_at = ?, version = version + 1 WHERE id = ?", [nowIso(), doc.id]);
 }
@@ -3980,6 +4371,242 @@ async function saveLocalProfile(form) {
   );
   showStandaloneStatus("Local profile saved.", true);
   await render();
+}
+
+// #353 — Renew, hand-ported from src/lib/contractTerms.ts and
+// renewContractCommand (src/lib/commands/contracts.ts): the current Term's
+// dates and cost are kept as a contract_terms row and the new Term's are
+// written onto the contract, in one transaction. A fixed-term Contract is
+// meant to end, a Cancelled one is reactivated first, and one with no end
+// date has no Term to continue from, so none of them offers Renew.
+function renewalRefusal(row) {
+  if (!row) return "Contract not found.";
+  if (row.status !== "ACTIVE") return "A cancelled contract can't be renewed. Mark it as active first.";
+  if (row.renewal_type === "FIXED_TERM") return "A fixed-term contract ends rather than renews.";
+  if (!validTermDay(row.end_date)) return "Set the contract's end date before renewing it.";
+  return null;
+}
+
+function canRenewContract(row) {
+  return renewalRefusal(row) === null;
+}
+
+function termDayParts(day) {
+  const [year, month, date] = String(day).slice(0, 10).split("-").map(Number);
+  return { year, month, date };
+}
+
+function termDayString(year, month, date) {
+  return `${year}-${String(month).padStart(2, "0")}-${String(date).padStart(2, "0")}`;
+}
+
+function termAddDays(day, days) {
+  const { year, month, date } = termDayParts(day);
+  const moved = new Date(Date.UTC(year, month - 1, date + days));
+  return termDayString(moved.getUTCFullYear(), moved.getUTCMonth() + 1, moved.getUTCDate());
+}
+
+function termAddMonths(day, months) {
+  const { year, month, date } = termDayParts(day);
+  const index = year * 12 + (month - 1) + months;
+  const newYear = Math.floor(index / 12);
+  const newMonth = (index % 12) + 1;
+  const lastDay = new Date(Date.UTC(newYear, newMonth, 0)).getUTCDate();
+  return termDayString(newYear, newMonth, Math.min(date, lastDay));
+}
+
+function validTermDay(value) {
+  const text = String(value ?? "").slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) && !Number.isNaN(Date.parse(`${text}T00:00:00Z`)) ? text : null;
+}
+
+// Today on this phone, as YYYY-MM-DD (daysUntil counts in the same day).
+function localTermToday() {
+  const now = new Date();
+  return termDayString(now.getFullYear(), now.getMonth() + 1, now.getDate());
+}
+
+// The next Term starts the day after the current end date and lasts as long
+// as the current one: whole months stay whole months, anything else is kept
+// in days, and with no start date a year is assumed. `rollForwardTo` (today,
+// for an auto-renewing Contract) skips whole Terms until the end date is on
+// or after that day.
+function nextTermDates(row, rollForwardTo = null) {
+  const end = validTermDay(row?.end_date);
+  if (!end) return { startDate: "", endDate: "" };
+  const nextStart = termAddDays(end, 1);
+  const start = validTermDay(row?.start_date);
+  let months = null;
+  if (!start || start > end) {
+    months = 12;
+  } else {
+    const from = termDayParts(start);
+    const to = termDayParts(nextStart);
+    const between = (to.year - from.year) * 12 + (to.month - from.month);
+    if (from.date === to.date && between > 0) months = between;
+  }
+  const lengthDays = start ? Math.round((Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86400000) : 0;
+  const term = (k) => {
+    if (months) {
+      return { startDate: termAddMonths(nextStart, months * k), endDate: termAddDays(termAddMonths(nextStart, months * (k + 1)), -1) };
+    }
+    const termStart = termAddDays(nextStart, (lengthDays + 1) * k);
+    return { startDate: termStart, endDate: termAddDays(termStart, lengthDays) };
+  };
+  let k = 0;
+  while (rollForwardTo && k < 10000 && term(k).endDate < rollForwardTo) k += 1;
+  return term(k);
+}
+
+// How much `current` costs against `previous`, as a fraction, or null when
+// they can't be compared (a missing or zero cost, another currency, or
+// another billing frequency).
+function termCostChange(current, previous) {
+  if (!current || !previous) return null;
+  if (current.cost == null || previous.cost == null || current.cost === "" || previous.cost === "") return null;
+  const now = Number(current.cost);
+  const before = Number(previous.cost);
+  if (!Number.isFinite(now) || !Number.isFinite(before) || before <= 0) return null;
+  if ((current.currency || "AUD") !== (previous.currency || "AUD")) return null;
+  if ((current.billing_frequency || null) !== (previous.billing_frequency || null)) return null;
+  return (now - before) / before;
+}
+
+function formatTermCostChange(change) {
+  const percent = Math.round(change * 100);
+  if (percent === 0) return "Same as prior term";
+  return `${percent > 0 ? "+" : "−"}${Math.abs(percent)}% vs prior term`;
+}
+
+// Newest first.
+function contractTerms(contractId) {
+  return cache.contractTerms.filter((term) => term.contract_id === contractId);
+}
+
+function contractCostChangeText(row) {
+  const change = termCostChange(row, contractTerms(row.id)[0]);
+  return change == null ? null : formatTermCostChange(change);
+}
+
+// The contract's documents no earlier Term has: what could be the paperwork
+// for the Term being kept.
+function termDocumentCandidates(contractId) {
+  const linked = new Set(contractTerms(contractId).map((term) => term.document_id).filter(Boolean));
+  return docsFor("contract", contractId)
+    .filter((doc) => !linked.has(doc.id))
+    .sort((a, b) => String(b.uploaded_at).localeCompare(String(a.uploaded_at)));
+}
+
+// Policies and agreements first, then uncategorised, then the rest; newest
+// first within each.
+function pickTermDocument(candidates) {
+  const rank = (doc) => (["POLICY", "RENTAL_AGREEMENT"].includes(doc.kind) ? 0 : !doc.kind || doc.kind === "OTHER" ? 1 : 2);
+  const [best] = [...candidates].sort((a, b) => rank(a) - rank(b) || String(b.uploaded_at).localeCompare(String(a.uploaded_at)));
+  return best?.id ?? null;
+}
+
+function renderPreviousTerms(contractId) {
+  const terms = contractTerms(contractId);
+  if (terms.length === 0) return "";
+  return `
+    <section class="card form-card">
+      <div class="section-title">
+        <h2>Previous terms</h2>
+      </div>
+      <div class="list">
+        ${terms.map((term, index) => {
+          const change = termCostChange(term, terms[index + 1]);
+          const doc = term.document_id ? cache.documents.find((item) => item.id === term.document_id) : null;
+          const meta = [
+            money(term.cost, term.currency) ?? "No cost",
+            term.billing_frequency,
+            change == null ? null : formatTermCostChange(change),
+          ].filter(Boolean).join(" · ");
+          return `
+            <article class="record-card">
+              <h3>${escapeHtml(`${readableDate(term.start_date) ?? "—"} – ${readableDate(term.end_date) ?? "—"}`)}</h3>
+              <p class="card-meta">${escapeHtml(meta)}</p>
+              ${doc ? `<div class="actions"><button data-open-document="${escapeAttr(doc.id)}">Open ${escapeHtml(doc.filename)}</button></div>` : ""}
+            </article>
+          `;
+        }).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderContractRenewalForm(row) {
+  if (!row) return empty("Record not found", "It may have been removed.");
+  const today = localTermToday();
+  const next = nextTermDates(row, row.renewal_type === "AUTO_RENEW" ? today : null);
+  const candidates = termDocumentCandidates(row.id);
+  const picked = pickTermDocument(candidates);
+  return `
+    <form class="form-card" data-save-type="contractRenewal" data-id="${escapeAttr(row.id)}">
+      <h2>Renew ${escapeHtml(recordTitle("contracts", row))}</h2>
+      <p class="muted">Current term: ${escapeHtml(readableDate(row.start_date) ?? "—")} – ${escapeHtml(readableDate(row.end_date) ?? "—")}, ${escapeHtml(money(row.cost, row.currency) ?? "no cost")}. It's kept under Previous terms once you renew.</p>
+      <div class="field-grid">
+        <label>New start date<input name="startDate" type="date" value="${escapeAttr(next.startDate)}" /></label>
+        <label>New end date<input name="endDate" type="date" value="${escapeAttr(next.endDate)}" data-today="${escapeAttr(today)}" required /></label>
+        <p class="muted" data-end-date-passed ${next.endDate && next.endDate < today ? "" : "hidden"}>This date has already passed, so the contract will still need attention after renewing.</p>
+        <label>New cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(row.cost ?? "")}" /></label>
+        ${candidates.length >= 2 ? `<label>Paperwork for the term being kept<select name="termDocumentId">
+          ${candidates.map((doc) => `<option value="${escapeAttr(doc.id)}" ${doc.id === picked ? "selected" : ""}>${escapeHtml(doc.filename)}</option>`).join("")}
+          <option value="">None</option>
+        </select></label>` : ""}
+      </div>
+      <input name="file" type="file" accept=".pdf,.doc,.docx,image/jpeg,image/png,image/webp,image/heic" />
+      <div class="actions">
+        <button type="submit">Renew</button>
+        <button type="button" class="secondary" data-cancel-form>Cancel</button>
+      </div>
+    </form>
+  `;
+}
+
+async function renewContract(form) {
+  const submit = form.querySelector('button[type="submit"]');
+  // A double tap mustn't add two Terms.
+  if (submit?.disabled) return;
+  if (submit) submit.disabled = true;
+  try {
+    const id = form.dataset.id;
+    // Re-read what's saved now, not the copy the form was drawn from.
+    const [row] = await query("SELECT id, status, renewal_type, start_date, end_date, cost, currency, billing_frequency FROM contracts WHERE id = ? AND deleted_at IS NULL", [id]);
+    const refusal = renewalRefusal(row);
+    if (refusal) throw new Error(refusal);
+    const startDate = valueOrNull(fieldValue(form, "startDate"));
+    const endDate = valueOrNull(fieldValue(form, "endDate"));
+    if (!endDate) throw new Error("Enter the new end date.");
+    if (startDate && endDate < startDate) throw new Error("End date can't be before the start date.");
+    if (endDate <= validTermDay(row.end_date)) throw new Error("The new end date must be after the current one.");
+    const candidates = termDocumentCandidates(id);
+    const chosen = form.elements.namedItem("termDocumentId");
+    let documentId = pickTermDocument(candidates);
+    if (chosen && "value" in chosen) {
+      documentId = chosen.value || null;
+      if (documentId && !candidates.some((doc) => doc.id === documentId)) throw new Error("That document can't be linked to the term being kept.");
+    }
+    const now = nowIso();
+    await SQLite.executeSet({
+      database: DB,
+      transaction: true,
+      set: [
+        {
+          statement: "INSERT INTO contract_terms (id, contract_id, start_date, end_date, cost, currency, billing_frequency, document_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          values: [localId("term"), id, row.start_date ?? null, row.end_date ?? null, row.cost ?? null, row.currency || defaultCurrency(), row.billing_frequency ?? null, documentId, now],
+        },
+        {
+          statement: "UPDATE contracts SET start_date = ?, end_date = ?, cost = ?, updated_at = ?, version = version + 1 WHERE id = ?",
+          values: [startDate, endDate, numberOrNull(fieldValue(form, "cost")), now, id],
+        },
+      ],
+    });
+    await maybeStoreFormFile(form, "contract", id);
+  } catch (error) {
+    if (submit) submit.disabled = false;
+    throw error;
+  }
 }
 
 async function confirmDetails(type, id) {
@@ -4225,6 +4852,10 @@ mobileView.addEventListener("click", async (event) => {
     await render();
     return;
   }
+  if (button.dataset.archiveRecord) {
+    await setRecordArchived(button.dataset.archiveRecord, button.dataset.id, button.dataset.archived === "1");
+    return;
+  }
   if (button.dataset.deleteRecord) {
     await deleteRecord(button.dataset.deleteRecord, button.dataset.id);
     return;
@@ -4300,6 +4931,11 @@ mobileView.addEventListener("click", async (event) => {
 });
 
 mobileView.addEventListener("input", (event) => {
+  // #353 — the Renew form warns when the new end date has already passed.
+  if (event.target.dataset?.today !== undefined) {
+    const warning = event.target.closest("form")?.querySelector("[data-end-date-passed]");
+    if (warning) warning.hidden = !(event.target.value && event.target.value < event.target.dataset.today);
+  }
   if (event.target.id === "record-search") {
     state.recordQuery = event.target.value;
     const target = $("record-results");

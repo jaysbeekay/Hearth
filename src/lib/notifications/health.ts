@@ -11,6 +11,7 @@ import {
 } from "@/lib/notifications/reminderSchedule";
 import type { DueContext, VehicleDueField } from "@/lib/duePolicy";
 import { prisma } from "@/lib/prisma";
+import { getCurrentTenancies } from "@/lib/tenancies";
 import type { NotificationOwnerType } from "@/generated/prisma/enums";
 import type { NotificationLog } from "@/generated/prisma/client";
 
@@ -41,8 +42,9 @@ type Channels = ReminderHealth["channels"];
 
 const newestFirst = (a: NotificationLog, b: NotificationLog) => b.sentAt.getTime() - a.sentAt.getTime();
 
-// The health of one entry (a Contract's or Warranty's single entry, or one
-// of a Vehicle's dates), read off the same Reminder plan the scheduler uses.
+// The health of one entry (a Contract's, Warranty's or Tenancy's single
+// entry, or one of a Vehicle's dates), read off the same Reminder plan the
+// scheduler uses.
 function summarize(
   plan: ReminderPlan,
   field: VehicleDueField | undefined,
@@ -110,7 +112,7 @@ async function loadContext(): Promise<{ ctx: DueContext; channels: Channels }> {
 
 /**
  * Computes the reminder-health block shown on contract/product/vehicle
- * detail pages (#201) — "is a reminder actually going to fire, and did the
+ * detail pages, and on a Property's page for its current Tenancy (#201, #388) — "is a reminder actually going to fire, and did the
  * last one work" rather than just "is a date set". It reads the same
  * Reminder schedule the scheduler sends from (#387), so the two agree.
  */
@@ -182,20 +184,23 @@ export async function getHouseholdReminderHealth(): Promise<HouseholdReminderHea
 
   const uncovered: UncoveredRecord[] = [];
   if (deliveryReady) {
-    const [contracts, products, vehicles] = await Promise.all([
+    const [contracts, products, vehicles, tenancies] = await Promise.all([
       prisma.contract.findMany({ where: { status: "ACTIVE", deletedAt: null, endDate: { not: null } } }),
       prisma.product.findMany({ where: { deletedAt: null, warrantyEndDate: { not: null } } }),
       prisma.vehicle.findMany({
         where: {
           deletedAt: null,
+          archivedAt: null,
           OR: [{ regoExpiry: { not: null } }, { insuranceExpiry: { not: null } }, { nextServiceDue: { not: null } }],
         },
       }),
+      getCurrentTenancies(),
     ]);
-    const [contractLogs, productLogs, vehicleLogs] = await Promise.all([
+    const [contractLogs, productLogs, vehicleLogs, tenancyLogs] = await Promise.all([
       getNotificationLogsByOwner("CONTRACT", contracts.map((c) => c.id)),
       getNotificationLogsByOwner("PRODUCT", products.map((p) => p.id)),
       getNotificationLogsByOwner("VEHICLE", vehicles.map((v) => v.id)),
+      getNotificationLogsByOwner("TENANCY", tenancies.map((t) => t.tenancy.id)),
     ]);
 
     function check(
@@ -226,6 +231,15 @@ export async function getHouseholdReminderHealth(): Promise<HouseholdReminderHea
     }
     for (const v of vehicles) {
       check("VEHICLE", { kind: "vehicle", ...v }, vehicleLogs.get(v.id) ?? [], v.label, `/vehicles/${v.id}`);
+    }
+    for (const { propertyId, propertyLabel, tenancy } of tenancies) {
+      check(
+        "TENANCY",
+        { kind: "tenancy", ...tenancy },
+        tenancyLogs.get(tenancy.id) ?? [],
+        `${propertyLabel} — Lease`,
+        `/home/${propertyId}`,
+      );
     }
   }
 

@@ -108,6 +108,18 @@ export interface DistanceSummary {
   byYear: { year: number; km: number }[];
 }
 
+/**
+ * The Travel list's distance totals: every flight segment that isn't in
+ * Trash, under a Trip that isn't either (#427).
+ */
+export async function getTravelDistanceSummary(): Promise<DistanceSummary> {
+  const segments = await prisma.tripSegment.findMany({
+    where: { type: "FLIGHT", deletedAt: null, trip: { deletedAt: null } },
+    select: { startDate: true, distanceKm: true },
+  });
+  return buildDistanceSummary(segments);
+}
+
 // #13 — grouped by the flight's own startDate (not the trip's), so a trip
 // spanning New Year's Eve splits its segments into the years they actually
 // happened in.
@@ -139,8 +151,13 @@ export function buildDistanceSummary(
  * cached — never re-fetches or re-computes once distanceKm is set.
  */
 export async function computeSegmentDistance(segmentId: string): Promise<void> {
-  const segment = await prisma.tripSegment.findUnique({ where: { id: segmentId } });
+  const segment = await prisma.tripSegment.findUnique({
+    where: { id: segmentId },
+    include: { trip: { select: { deletedAt: true } } },
+  });
   if (!segment || segment.type !== "FLIGHT") return;
+  // A segment or Trip in Trash is read-only (#428, #427): skip the lookups too.
+  if (segment.deletedAt || segment.trip.deletedAt) return;
   if (segment.distanceKm != null) return;
   if (!segment.departureIata || !segment.arrivalIata) return;
 

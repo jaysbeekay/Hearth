@@ -5,12 +5,22 @@ import type { LucideIcon } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { addDocumentAction } from "@/lib/actions/documents";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
-import { deleteVehicle, deleteVehicleItem, restoreVehicle, restoreVehicleItem } from "@/lib/actions/vehicles";
+import {
+  archiveVehicle,
+  deleteVehicle,
+  deleteVehicleItem,
+  restoreVehicle,
+  restoreVehicleItem,
+  unarchiveVehicle,
+} from "@/lib/actions/vehicles";
+import { ArchiveButton } from "@/components/ArchiveButton";
+import { ArchivedNotice } from "@/components/ArchivedNotice";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailField as Detail } from "@/components/DetailField";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
-import { VehicleItemDocumentList } from "@/components/VehicleItemDocumentList";
+import { DocumentList } from "@/components/DocumentList";
+import { getTrashedVersionLinks } from "@/lib/documents/trashedVersionLinks";
 import { RecordMeta } from "@/components/RecordMeta";
 import { ContractCard } from "@/components/ContractCard";
 import { ReminderHealthCard } from "@/components/ReminderHealthCard";
@@ -63,7 +73,8 @@ export default async function VehicleDetailPage({
   if (!vehicle || vehicle.deletedAt) notFound();
 
   const healthFor = (field: "regoExpiry" | "insuranceExpiry" | "nextServiceDue", date: Date | null) =>
-    date
+    // An Archived Vehicle has no Reminders to report on (#355).
+    date && !vehicle.archivedAt
       ? getReminderHealth({ ownerType: "VEHICLE", ownerId: vehicle.id, field, record: { kind: "vehicle", ...vehicle } })
       : null;
   const [regoHealth, insuranceHealth, serviceHealth] = await Promise.all([
@@ -72,6 +83,10 @@ export default async function VehicleDetailPage({
     healthFor("nextServiceDue", vehicle.nextServiceDue),
   ]);
 
+  const trashedLinks = await getTrashedVersionLinks(
+    "VEHICLE_ITEM",
+    vehicle.items.map((i) => i.id),
+  );
   const items = [...vehicle.items].sort((a, b) => {
     if (!a.date && !b.date) return 0;
     if (!a.date) return 1;
@@ -100,6 +115,15 @@ export default async function VehicleDetailPage({
                 Edit
               </Link>
               <DetailOverflowMenu>
+                {!vehicle.archivedAt && (
+                  <ArchiveButton
+                    mode="archive"
+                    noun="vehicle"
+                    action={archiveVehicle.bind(null, vehicle.id)}
+                    undo={unarchiveVehicle.bind(null, vehicle.id)}
+                    className="flex min-h-11 w-full items-center gap-2 px-4 py-2 text-sm hover:bg-hover"
+                  />
+                )}
                 <ConfirmForm
                   action={deleteVehicle.bind(null, vehicle.id)}
                   undo={{ action: restoreVehicle.bind(null, vehicle.id), href: `/vehicles/${vehicle.id}` }}
@@ -116,8 +140,26 @@ export default async function VehicleDetailPage({
         </div>
       </div>
 
+      {vehicle.archivedAt && (
+        <ArchivedNotice
+          archivedAt={vehicle.archivedAt}
+          dateFormat={dateFormat}
+          effect="Reminders and Needs attention no longer include its rego, insurance or service dates."
+          activeContracts={linkedContracts.filter((c) => c.status === "ACTIVE")}
+        >
+          {canWrite && (
+            <ArchiveButton
+              mode="restore"
+              noun="vehicle"
+              action={unarchiveVehicle.bind(null, vehicle.id)}
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+            />
+          )}
+        </ArchivedNotice>
+      )}
+
       {/* #384 — one row per Due entry (rego, insurance, service), each with
-          its own state from the Due policy. */}
+          its own state from the Due policy. An Archived Vehicle has none. */}
       <DetailStatusBanner
         entries={vehicleDue(vehicle, due)}
         hasDocuments
@@ -285,7 +327,7 @@ export default async function VehicleDetailPage({
 
                   <div className="mt-4 border-t border-border pt-4">
                     <h3 className="mb-2 text-sm font-medium">Documents</h3>
-                    <VehicleItemDocumentList documents={item.documents} dateFormat={dateFormat} />
+                    <DocumentList kind="VEHICLE_ITEM" ownerId={item.id} documents={item.documents} trashedLinks={trashedLinks.get(item.id)} />
                     {canWrite && (
                       <div className="mt-3">
                         <DocumentUploadForm action={addDocumentAction.bind(null, "VEHICLE_ITEM", item.id)} />
@@ -304,7 +346,6 @@ export default async function VehicleDetailPage({
         updatedByName={vehicle.updatedBy?.name}
         createdAt={vehicle.createdAt}
         updatedAt={vehicle.updatedAt}
-        dateFormat={dateFormat}
         memberCount={memberCount}
       />
     </div>

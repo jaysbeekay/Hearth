@@ -1,17 +1,12 @@
-import { cn } from "@/lib/utils";
 import { DueLabelText } from "@/components/DueLabelText";
-import { dueTone, type DueEntry, type DueTone } from "@/lib/dueRecords";
-
-const TONE_CLASS = new Map<DueTone, string>([
-  ["danger", "bg-danger/10 text-danger"],
-  ["warning", "bg-warning/10 text-warning"],
-  ["success", "bg-success/10 text-success"],
-  ["neutral", "bg-muted/10 text-muted"],
-]);
+import { StatusPill } from "@/components/StatusPill";
+import type { DueEntry } from "@/lib/dueRecords";
 
 // #384 — renders a Due entry's state and label, both from the Due policy
 // (ADR 0002). It decides nothing itself. #422 — the label reads in the
-// viewer's date format and region.
+// viewer's date format and region. #412 — its colour comes from
+// statusTone: a pill only for Overdue, Due soon and the neutral states; a
+// date outside its due-soon window is plain text.
 export function ExpiryBadge({
   entry,
   cancelled,
@@ -23,15 +18,11 @@ export function ExpiryBadge({
   /** What a record with no dated entry reads, such as "No end date". */
   empty?: string;
 }) {
-  const tone = cancelled || !entry ? "neutral" : dueTone(entry.state);
+  if (cancelled) return <StatusPill status="cancelled">Cancelled</StatusPill>;
+  if (!entry) return <StatusPill status="no-date">{empty}</StatusPill>;
   return (
-    <span
-      className={cn(
-        "inline-flex shrink-0 items-center whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-medium",
-        TONE_CLASS.get(tone),
-      )}
-    >
-      {cancelled ? "Cancelled" : entry ? <DueLabelText entry={entry} /> : empty}
-    </span>
+    <StatusPill status={entry.state}>
+      <DueLabelText entry={entry} />
+    </StatusPill>
   );
 }

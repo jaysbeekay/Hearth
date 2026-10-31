@@ -26,6 +26,7 @@ export default async function EditTradePage({
   });
   if (
     !trade ||
+    trade.deletedAt ||
     trade.holdingId !== holdingId ||
     trade.holding.portfolioId !== portfolioId
   ) {

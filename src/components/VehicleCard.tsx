@@ -2,23 +2,9 @@ import Link from "next/link";
 import type { VehicleModel } from "@/generated/prisma/models";
 import { formatDate } from "@/lib/utils";
 import { isDue } from "@/lib/duePolicy";
-import { DueLabelText } from "@/components/DueLabelText";
-import { vehicleDue, type DueContext, type DueEntry } from "@/lib/dueRecords";
-
-// #384 — one pill per Due entry (rego, insurance, service), each with its
-// own state and label from the Due policy: danger once overdue, warning
-// while due soon.
-function DuePill({ entry }: { entry: DueEntry }) {
-  return (
-    <span
-      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-        entry.state === "overdue" ? "bg-danger/10 text-danger" : "bg-warning/10 text-warning"
-      }`}
-    >
-      <DueLabelText entry={entry} />
-    </span>
-  );
-}
+import { ExpiryBadge } from "@/components/ExpiryBadge";
+import { StatusPill } from "@/components/StatusPill";
+import { vehicleDue, type DueContext } from "@/lib/dueRecords";
 
 export function VehicleCard({
   vehicle,
@@ -50,9 +36,13 @@ export function VehicleCard({
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap gap-2">
+          {/* #384 — one pill per Due entry (rego, insurance, service), each
+              with its own state, label and tone from the Due policy (#412). */}
           {dueNow.map((entry) => (
-            <DuePill key={entry.field} entry={entry} />
+            <ExpiryBadge key={entry.field} entry={entry} />
           ))}
+          {/* #355 — an Archived Vehicle has no Due entries; it says so instead. */}
+          {vehicle.archivedAt && <StatusPill status="archived">Archived</StatusPill>}
         </div>
 
         {vehicle._count != null && (
@@ -65,7 +55,7 @@ export function VehicleCard({
       </div>
 
       {missing && missing.length > 0 && (
-        <p className="mt-1 text-xs font-medium text-warning">{missing.join(" · ")}</p>
+        <p className="mt-1 text-xs font-medium text-muted">{missing.join(" · ")}</p>
       )}
 
       {(vehicle.regoExpiry || vehicle.insuranceExpiry || vehicle.nextServiceDue) && (

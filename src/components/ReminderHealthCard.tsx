@@ -95,7 +95,7 @@ export function ReminderHealthCard({
               </>
             ) : (
               <>
-                <AlertTriangle size={14} className="text-warning" aria-hidden />
+                <AlertTriangle size={14} className="text-muted" aria-hidden />
                 Not configured
               </>
             )}
@@ -107,7 +107,7 @@ export function ReminderHealthCard({
             {health.lastSent
               ? (
                   <>
-                    <Timestamp value={health.lastSent.sentAt} dateFormat={dateFormat} /> (
+                    <Timestamp value={health.lastSent.sentAt} /> (
                     {channelLabel(health.lastSent.channel)})
                   </>
                 )
@@ -118,7 +118,7 @@ export function ReminderHealthCard({
           <div className="col-span-2 min-w-0 md:col-span-3">
             <dt className="text-xs text-danger">Last failure</dt>
             <dd className="text-sm font-medium text-danger">
-              <Timestamp value={health.lastFailure.sentAt} dateFormat={dateFormat} /> via{" "}
+              <Timestamp value={health.lastFailure.sentAt} /> via{" "}
               {channelLabel(health.lastFailure.channel)}
               {health.lastFailure.error ? ` — ${health.lastFailure.error}` : ""}
             </dd>

@@ -11,6 +11,8 @@ import {
   purgeTrip,
   createTripSegmentCommand,
   updateTripSegmentCommand,
+  deleteTripSegmentCommand,
+  restoreTripSegmentCommand,
   permanentlyDeleteTripSegmentCommand,
   saveTripSegmentFlightData,
 } from "@/lib/commands/trips";
@@ -197,6 +199,8 @@ describe("Trip commands", () => {
       () => permanentlyDeleteTripCommand(trip.id),
       () => createTripSegmentCommand(trip.id, { type: "ACTIVITY", title: "Louvre", currency: "EUR" }),
       () => updateTripSegmentCommand(segment.id, { title: "Renamed" }),
+      () => deleteTripSegmentCommand(segment.id),
+      () => restoreTripSegmentCommand(segment.id),
       () => permanentlyDeleteTripSegmentCommand(segment.id),
     ];
     for (const write of writes) {
@@ -244,7 +248,7 @@ describe("Trip segment commands", () => {
       updateTripSegmentCommand(segment.id, { title: "x" }, { tripId: otherTrip.id }),
     ).rejects.toBeInstanceOf(RecordNotFoundError);
     await expect(
-      permanentlyDeleteTripSegmentCommand(segment.id, { tripId: otherTrip.id }),
+      deleteTripSegmentCommand(segment.id, { tripId: otherTrip.id }),
     ).rejects.toBeInstanceOf(RecordNotFoundError);
     expect(await db.prisma.tripSegment.findUnique({ where: { id: segment.id } })).not.toBeNull();
   });
@@ -293,12 +297,68 @@ describe("Trip segment commands", () => {
     expect((await db.prisma.tripSegment.findUniqueOrThrow({ where: { id: segment.id } })).title).toBe("SYD → HND");
   });
 
-  // Segments have no Trash (no deletedAt): their delete is permanent.
+  // #427 — delete moves the segment to Trash; its Documents and files stay.
+  it("moves the segment to Trash and restores it with its Documents", async () => {
+    const segment = await createTripSegmentCommand(tripId, flight);
+    const dir = await attachFile(segment.id);
+
+    await deleteTripSegmentCommand(segment.id, { tripId });
+    const trashed = await db.prisma.tripSegment.findUniqueOrThrow({ where: { id: segment.id } });
+    expect(trashed.deletedAt).toBeInstanceOf(Date);
+    expect(await db.prisma.tripSegmentDocument.count({ where: { deletedAt: null } })).toBe(1);
+    expect(await exists(dir)).toBe(true);
+    expect(revalidatePath).toHaveBeenCalledWith("/settings/trash");
+
+    // A replayed delete doesn't restart its 30 days.
+    await deleteTripSegmentCommand(segment.id);
+    expect((await db.prisma.tripSegment.findUniqueOrThrow({ where: { id: segment.id } })).deletedAt).toEqual(
+      trashed.deletedAt,
+    );
+
+    // Read-only while in Trash.
+    await expect(updateTripSegmentCommand(segment.id, { title: "x" })).rejects.toBeInstanceOf(RecordNotFoundError);
+
+    await restoreTripSegmentCommand(segment.id);
+    expect((await db.prisma.tripSegment.findUniqueOrThrow({ where: { id: segment.id } })).deletedAt).toBeNull();
+    await updateTripSegmentCommand(segment.id, { title: "SYD → HND" });
+    expect((await db.prisma.tripSegment.findUniqueOrThrow({ where: { id: segment.id } })).title).toBe("SYD → HND");
+  });
+
+  it("won't restore a segment while its Trip is in Trash", async () => {
+    const segment = await createTripSegmentCommand(tripId, flight);
+    await deleteTripSegmentCommand(segment.id);
+    await deleteTripCommand(tripId);
+    await expect(restoreTripSegmentCommand(segment.id)).rejects.toThrow("Restore the trip first.");
+    await restoreTripCommand(tripId);
+    await restoreTripSegmentCommand(segment.id);
+    expect((await db.prisma.tripSegment.findUniqueOrThrow({ where: { id: segment.id } })).deletedAt).toBeNull();
+  });
+
+  it("purges a segment 30 days after it went to Trash, files and all", async () => {
+    const kept = await createTripSegmentCommand(tripId, flight);
+    const expiring = await createTripSegmentCommand(tripId, { ...flight, title: "NRT → SYD" });
+    const keptDir = await attachFile(kept.id);
+    const expiringDir = await attachFile(expiring.id);
+    await deleteTripSegmentCommand(kept.id);
+    await db.prisma.tripSegment.update({
+      where: { id: expiring.id },
+      data: { deletedAt: new Date(Date.now() - (TRASH_RETENTION_DAYS + 1) * 24 * 60 * 60 * 1000) },
+    });
+
+    await purgeExpiredTrash();
+
+    expect(await db.prisma.tripSegment.findUnique({ where: { id: expiring.id } })).toBeNull();
+    expect(await exists(expiringDir)).toBe(false);
+    expect(await db.prisma.tripSegment.findUnique({ where: { id: kept.id } })).not.toBeNull();
+    expect(await exists(keptDir)).toBe(true);
+  });
+
   it("permanently deletes the segment with its Documents and files, keeping the Trip", async () => {
     const segment = await createTripSegmentCommand(tripId, flight);
     const dir = await attachFile(segment.id);
 
-    await permanentlyDeleteTripSegmentCommand(segment.id, { tripId });
+    await deleteTripSegmentCommand(segment.id, { tripId });
+    await permanentlyDeleteTripSegmentCommand(segment.id);
 
     expect(await db.prisma.tripSegment.findUnique({ where: { id: segment.id } })).toBeNull();
     expect(await db.prisma.tripSegmentDocument.count()).toBe(0);

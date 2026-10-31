@@ -4,6 +4,7 @@ import { AlertCircle, Ban, Car, FileText, BellOff, Home, Inbox } from "lucide-re
 import { setContractStatus } from "@/lib/actions/contracts";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { ExpiryBadge } from "@/components/ExpiryBadge";
+import { StatusPill } from "@/components/StatusPill";
 import { DismissibleRow } from "@/components/DismissibleRow";
 import type { AttentionItem } from "@/lib/needsAttention";
 
@@ -87,15 +88,16 @@ function AttentionList({ items, canWrite }: { items: AttentionItem[]; canWrite: 
 
             {item.entry && <ExpiryBadge entry={item.entry} />}
             {item.noDocument && (
-              <span className="inline-flex items-center rounded-md bg-muted/10 px-2.5 py-1 text-xs font-medium text-muted">
-                No document
-              </span>
+              <StatusPill status="housekeeping">No document</StatusPill>
             )}
             {item.badge && (
-              <span className="inline-flex items-center gap-1 rounded-md bg-warning/10 px-2.5 py-1 text-xs font-medium text-warning">
-                <AlertCircle size={12} />
+              // #412 — Housekeeping (Needs review, Not configured, Reminder
+              // failed) is neutral, as on the detail banner: colour is kept
+              // for Overdue and Due soon.
+              <StatusPill status={item.badge === "Needs review" ? "needs-review" : "housekeeping"}>
+                <AlertCircle size={12} aria-hidden />
                 {item.badge}
-              </span>
+              </StatusPill>
             )}
 
             {canWrite && (

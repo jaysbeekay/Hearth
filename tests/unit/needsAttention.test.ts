@@ -3,6 +3,7 @@ import {
   buildContractAttentionItems,
   buildInboxItem,
   buildMissingDetailsItems,
+  buildReminderFailureItems,
   buildReminderNudgeItem,
   buildTenancyAttentionItems,
   buildVehicleAttentionItems,
@@ -124,8 +125,17 @@ describe("Due rows follow the Due policy (#384)", () => {
     const [item] = buildContractAttentionItems([contract("auto", -3, { renewalType: "AUTO_RENEW" })], ctx);
     expect(item.group).toBe("housekeeping");
     expect(item.entry?.state).toBe("needs-new-end-date");
-    expect(item.action?.label).toBe("Set the new end date");
+    expect(item.action).toEqual({ label: "Set the new end date", href: "/contracts/auto/renew" });
     expect(item.canMarkCancelled).toBeUndefined();
+  });
+
+  it("an end date opens the Renew form, a notice deadline the detail page (#353)", () => {
+    const [ending] = buildContractAttentionItems([contract("c", 5)], ctx);
+    expect(ending.entry?.field).toBe("endDate");
+    expect(ending.action).toEqual({ label: "Renew", href: "/contracts/c/renew" });
+    const [notice] = buildContractAttentionItems([contract("n", 10, { noticePeriodDays: 7 })], ctx);
+    expect(notice.entry?.field).toBe("noticeDeadline");
+    expect(notice.action).toEqual({ label: "Renew or cancel", href: "/contracts/n" });
   });
 
   it("a fixed-term Contract ending soon is Due but offers nothing to renew", () => {
@@ -163,6 +173,7 @@ describe("Due rows follow the Due policy (#384)", () => {
         {
           id: "v",
           label: "Car",
+          archivedAt: null,
           regoExpiry: inDays(-2),
           insuranceExpiry: inDays(90),
           nextServiceDue: inDays(5),
@@ -191,6 +202,36 @@ describe("Due rows follow the Due policy (#384)", () => {
       ["lease-ended-ended", "housekeeping"],
     ]);
     expect(items[1].entry?.label).toBe("Lease ended — set the new lease end");
+  });
+
+  it("a Tenancy's own Reminder thresholds set its due-soon window (#388)", () => {
+    const lease = { propertyId: "p", propertyLabel: "Flat", agreementId: "a", tenantName: null, leaseEnd: inDays(50) };
+    expect(buildTenancyAttentionItems([lease], ctx)).toEqual([]);
+    expect(buildTenancyAttentionItems([{ ...lease, reminderDaysBefore: "60,30" }], ctx).map((i) => i.group)).toEqual([
+      "due",
+    ]);
+  });
+});
+
+describe("Reminder failure rows", () => {
+  it("a failed lease Reminder links to its Property (#388)", () => {
+    const lease = { propertyId: "p1", propertyLabel: "Flat", agreementId: "t1", tenantName: null, leaseEnd: inDays(10) };
+    const items = buildReminderFailureItems(
+      [{ ownerType: "TENANCY", ownerId: "t1", error: "HTTP 500" }],
+      [],
+      [],
+      [],
+      [lease],
+    );
+    expect(items).toEqual([
+      expect.objectContaining({
+        id: "failed-tenancy-t1",
+        title: "Flat",
+        subtitle: "Lease reminder delivery failed: HTTP 500",
+        href: "/home/p1",
+        badge: "Reminder failed",
+      }),
+    ]);
   });
 });
 

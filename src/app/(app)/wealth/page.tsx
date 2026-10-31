@@ -57,7 +57,7 @@ export default async function WealthPage() {
       <ListPageHeader title="Wealth" exportPath="/api/export/wealth" action={headerAction} />
 
       {data.propertyStale && enabledModules.has("HOME") && (
-        <div className="flex items-start gap-3 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
+        <div className="flex items-start gap-3 rounded-xl border border-border bg-muted/10 px-4 py-3 text-sm text-foreground">
           <AlertTriangle size={16} className="mt-0.5 shrink-0" />
           <span>One or more properties don&apos;t have a valuation in the last 12 months. <Link href="/home" className="underline">Update property valuations</Link> for a more accurate net worth.</span>
         </div>

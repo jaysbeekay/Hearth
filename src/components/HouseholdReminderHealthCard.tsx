@@ -18,11 +18,9 @@ function channelSummary(channels: HouseholdReminderHealth["channels"]) {
 // reminder, without opening each one individually.
 export function HouseholdReminderHealthCard({
   health,
-  dateFormat,
   appUrlConfigured = true,
 }: {
   health: HouseholdReminderHealth;
-  dateFormat?: string | null;
   /** #352 — without APP_URL, reminders can't link back to the record. */
   appUrlConfigured?: boolean;
 }) {
@@ -53,7 +51,7 @@ export function HouseholdReminderHealthCard({
               </>
             ) : (
               <>
-                <AlertTriangle size={14} className="text-warning" aria-hidden />
+                <AlertTriangle size={14} className="text-muted" aria-hidden />
                 Not configured
               </>
             )}
@@ -62,7 +60,7 @@ export function HouseholdReminderHealthCard({
         <div className="min-w-0">
           <dt className="text-xs text-muted">Last activity</dt>
           <dd className="text-sm font-medium">
-            {health.lastActivityAt ? <Timestamp value={health.lastActivityAt} dateFormat={dateFormat} /> : "Never"}
+            {health.lastActivityAt ? <Timestamp value={health.lastActivityAt} /> : "Never"}
           </dd>
         </div>
         <div className="min-w-0">
@@ -78,7 +76,7 @@ export function HouseholdReminderHealthCard({
       </dl>
 
       {health.deliveryReady && !appUrlConfigured && (
-        <p className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
+        <p className="flex items-start gap-2 rounded-lg border border-border bg-muted/10 p-3 text-sm text-foreground">
           <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden />
           Reminders can&apos;t link to the record they&apos;re about until the server&apos;s
           APP_URL is set to the address you open Hearth on.
@@ -86,7 +84,7 @@ export function HouseholdReminderHealthCard({
       )}
 
       {!health.deliveryReady ? (
-        <p className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
+        <p className="flex items-start gap-2 rounded-lg border border-border bg-muted/10 p-3 text-sm text-foreground">
           <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden />
           No delivery channel configured — every record that comes due has no working reminder
           coverage until email, ntfy, or a webhook is set up above.

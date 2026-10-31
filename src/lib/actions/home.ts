@@ -14,6 +14,8 @@ import {
   setPropertyRentedCommand,
   deletePropertyCommand,
   restorePropertyCommand,
+  archivePropertyCommand,
+  unarchivePropertyCommand,
   permanentlyDeletePropertyCommand,
   createMaintenanceRecordCommand,
   updateMaintenanceRecordCommand,
@@ -23,9 +25,13 @@ import {
   createTenancyCommand,
   updateTenancyCommand,
   linkTenancyContractCommand,
+  deleteTenancyCommand,
+  restoreTenancyCommand,
   permanentlyDeleteTenancyCommand,
   createRentalStatementCommand,
   updateRentalStatementCommand,
+  deleteRentalStatementCommand,
+  restoreRentalStatementCommand,
   permanentlyDeleteRentalStatementCommand,
   TenancyContractLinkError,
 } from "@/lib/commands/home";
@@ -56,6 +62,7 @@ const RENTAL_AGREEMENT_FORM_FIELDS = [
   "bondAmount",
   "currency",
   "notes",
+  "reminderDaysBefore",
 ];
 
 const RENTAL_STATEMENT_FORM_FIELDS = [
@@ -171,6 +178,27 @@ export async function restoreProperty(propertyId: string): Promise<ActionState> 
   await requireUser();
   try {
     await restorePropertyCommand(propertyId);
+  } catch (error) {
+    return commandError(error, "Property not found.");
+  }
+  return { success: "Restored." };
+}
+
+// #355 — Archive / unarchive: see archivePropertyCommand.
+export async function archiveProperty(propertyId: string): Promise<ActionState> {
+  const user = await requireUser();
+  try {
+    await archivePropertyCommand(propertyId, user.id);
+  } catch (error) {
+    return commandError(error, "Property not found.");
+  }
+  return { success: "Archived." };
+}
+
+export async function unarchiveProperty(propertyId: string): Promise<ActionState> {
+  const user = await requireUser();
+  try {
+    await unarchivePropertyCommand(propertyId, user.id);
   } catch (error) {
     return commandError(error, "Property not found.");
   }
@@ -338,11 +366,31 @@ export async function deleteRentalAgreement(
 ): Promise<ActionState> {
   await requireUser();
   try {
-    await permanentlyDeleteTenancyCommand(agreementId, { propertyId });
+    await deleteTenancyCommand(agreementId, { propertyId });
   } catch (error) {
     return commandError(error, "Tenancy not found.");
   }
-  return { success: "Tenancy removed." };
+  return { success: "Tenancy moved to Trash." };
+}
+
+export async function restoreRentalAgreement(agreementId: string): Promise<ActionState> {
+  await requireUser();
+  try {
+    await restoreTenancyCommand(agreementId);
+  } catch (error) {
+    return commandError(error, "Tenancy not found.");
+  }
+  return { success: "Restored." };
+}
+
+export async function permanentlyDeleteRentalAgreement(agreementId: string): Promise<ActionState> {
+  await requireUser();
+  try {
+    await permanentlyDeleteTenancyCommand(agreementId);
+  } catch (error) {
+    return commandError(error, "Tenancy not found.");
+  }
+  return { success: "Deleted permanently." };
 }
 
 // Links (or, with a blank contractId, unlinks) a Tenancy's Contract and says
@@ -460,9 +508,29 @@ export async function deleteRentalStatement(
 ): Promise<ActionState> {
   await requireUser();
   try {
-    await permanentlyDeleteRentalStatementCommand(statementId, { propertyId });
+    await deleteRentalStatementCommand(statementId, { propertyId });
   } catch (error) {
     return commandError(error, "Statement not found.");
   }
-  return { success: "Statement removed." };
+  return { success: "Statement moved to Trash." };
+}
+
+export async function restoreRentalStatement(statementId: string): Promise<ActionState> {
+  await requireUser();
+  try {
+    await restoreRentalStatementCommand(statementId);
+  } catch (error) {
+    return commandError(error, "Statement not found.");
+  }
+  return { success: "Restored." };
+}
+
+export async function permanentlyDeleteRentalStatement(statementId: string): Promise<ActionState> {
+  await requireUser();
+  try {
+    await permanentlyDeleteRentalStatementCommand(statementId);
+  } catch (error) {
+    return commandError(error, "Statement not found.");
+  }
+  return { success: "Deleted permanently." };
 }

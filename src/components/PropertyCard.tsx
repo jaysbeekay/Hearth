@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { PropertyModel } from "@/generated/prisma/models";
 import { formatPropertyAddress } from "@/lib/utils";
+import { StatusPill } from "@/components/StatusPill";
 
 export function PropertyCard({
   property,
@@ -22,6 +23,11 @@ export function PropertyCard({
           {formatPropertyAddress(property) || "No address set"}
         </p>
         <p className="truncate font-medium">{property.label}</p>
+        {property.archivedAt && (
+          <div className="mt-2">
+            <StatusPill status="archived">Archived</StatusPill>
+          </div>
+        )}
       </div>
 
       {property._count != null && (

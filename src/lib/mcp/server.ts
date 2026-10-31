@@ -1,77 +1,43 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { prisma } from "@/lib/prisma";
 import { CONTRACT_CATEGORIES, CONTRACT_STATUSES } from "@/lib/validation/contract";
-import { CATEGORY_LABELS, daysUntil, monthlyEquivalent } from "@/lib/utils";
 import {
+  DEFAULT_DUE_HORIZON_DAYS,
+  TOOL_DESCRIPTIONS,
+  currencyCodeSchema,
+  defaultSpendCurrency,
+  getContract,
+  queryContracts,
   queryInventoryItems,
   queryProducts,
   queryProperties,
   queryTrips,
   queryVehicles,
+  searchContracts,
+  spendSummary,
+  upcomingRenewals,
+  whatsDue,
 } from "@/lib/domainQueries";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { getNetWorth } from "@/lib/wealth";
-import { contractTiming } from "@/lib/contractTiming";
 
-const CONTRACT_SELECT = {
-  id: true,
-  title: true,
-  category: true,
-  provider: true,
-  contractNumber: true,
-  startDate: true,
-  endDate: true,
-  renewalType: true,
-  noticePeriodDays: true,
-  cost: true,
-  currency: true,
-  billingFrequency: true,
-  status: true,
-  contactName: true,
-  contactPhone: true,
-  contactEmail: true,
-  notes: true,
-  createdAt: true,
-  updatedAt: true,
-};
-
-interface ContractRow {
-  startDate: Date | null;
-  endDate: Date | null;
-  cost: number | null;
-  billingFrequency: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-  [key: string]: unknown;
-}
-
-function serializeContract<T extends ContractRow>(contract: T) {
-  const timing = contractTiming({
-    endDate: contract.endDate,
-    noticePeriodDays: (contract.noticePeriodDays as number | null | undefined) ?? null,
-    renewalType: String(contract.renewalType ?? ""),
-  });
-  return {
-    ...contract,
-    startDate: contract.startDate?.toISOString() ?? null,
-    endDate: contract.endDate?.toISOString() ?? null,
-    createdAt: contract.createdAt.toISOString(),
-    updatedAt: contract.updatedAt.toISOString(),
-    daysUntilEnd: daysUntil(contract.endDate),
-    // #351 — the last day to give notice (null when none applies) and the
-    // count that actually matters: to that deadline while it's ahead.
-    cancelBy: timing.cancelBy?.toISOString() ?? null,
-    daysUntilCancelBy: timing.cancelByDays,
-    daysUntilDeadline: timing.days,
-    estimatedMonthlySpend:
-      Math.round(monthlyEquivalent(contract.cost, contract.billingFrequency) * 100) / 100,
-  };
-}
+// Every tool here is read-only: a thin wrapper over src/lib/domainQueries.ts,
+// which the Assistant's read tools share (#394). Never add a write tool, and
+// never return credentials or document file contents.
 
 function textResult(data: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
 }
+
+const withinDaysInput = {
+  withinDays: z
+    .number()
+    .int()
+    .positive()
+    .max(3650)
+    .optional()
+    .describe(`Horizon in days. Defaults to ${DEFAULT_DUE_HORIZON_DAYS}.`),
+};
 
 export async function createMcpServer() {
   const enabledModules = await getEnabledModuleKeys();
@@ -81,13 +47,13 @@ export async function createMcpServer() {
     {
       capabilities: { tools: {} },
       instructions:
-        "Read-only tools over a household's tracked contracts (rentals, insurance, " +
-        "subscriptions, loans, etc), products/warranties, and — depending on which " +
-        "optional modules this household has enabled — travel, vehicles, home/" +
-        "properties, inventory, and net worth. These never modify data and never " +
-        "expose account credentials or uploaded document contents. Only tools for " +
-        "enabled modules are listed; if a household disables a module later, the " +
-        "corresponding tool disappears on the next connection.",
+        "Read-only tools over a household's Contracts (insurance, phone plans, leases, loans, " +
+        "subscriptions and so on), Items' Warranties, what's Due, and — depending on which " +
+        "optional modules this household has enabled — travel, vehicles, home/properties, " +
+        "inventory, and net worth. These never modify data and never expose account " +
+        "credentials or uploaded document contents. Only tools for enabled modules are " +
+        "listed; if a household disables a module later, the corresponding tool disappears " +
+        "on the next connection.",
     },
   );
 
@@ -95,132 +61,67 @@ export async function createMcpServer() {
     "list_contracts",
     {
       title: "List contracts",
-      description: "List contracts, optionally filtered by status and/or category.",
+      description: TOOL_DESCRIPTIONS.listContracts,
       inputSchema: {
         status: z.enum(CONTRACT_STATUSES).optional(),
         category: z.enum(CONTRACT_CATEGORIES).optional(),
       },
     },
-    async ({ status, category }) => {
-      const contracts = await prisma.contract.findMany({
-        where: { deletedAt: null, ...(status && { status }), ...(category && { category }) },
-        select: CONTRACT_SELECT,
-        orderBy: { endDate: "asc" },
-      });
-      return textResult(contracts.map(serializeContract));
-    },
+    async ({ status, category }) => textResult(await queryContracts({ status, category })),
   );
 
   server.registerTool(
     "get_contract",
     {
       title: "Get contract",
-      description:
-        "Get full details for one contract by id, including attached document metadata " +
-        "(filenames only, not file contents).",
+      description: TOOL_DESCRIPTIONS.getContract,
       inputSchema: { id: z.string().min(1) },
     },
-    async ({ id }) => {
-      const contract = await prisma.contract.findUnique({
-        where: { id, deletedAt: null },
-        select: {
-          ...CONTRACT_SELECT,
-          documents: {
-            select: { id: true, filename: true, mimeType: true, size: true, uploadedAt: true },
-          },
-        },
-      });
-      if (!contract) return textResult({ error: `No contract with id "${id}"` });
-      return textResult({
-        ...serializeContract(contract),
-        documents: contract.documents.map((doc) => ({
-          ...doc,
-          uploadedAt: doc.uploadedAt.toISOString(),
-        })),
-      });
-    },
+    async ({ id }) => textResult((await getContract(id)) ?? { error: `No contract with id "${id}"` }),
   );
 
   server.registerTool(
     "search_contracts",
     {
       title: "Search contracts",
-      description: "Case-insensitive search across title, provider, contract number, and notes.",
+      description: TOOL_DESCRIPTIONS.searchContracts,
       inputSchema: { query: z.string().min(1) },
     },
-    async ({ query }) => {
-      const contracts = await prisma.contract.findMany({
-        where: {
-          deletedAt: null,
-          OR: [
-            { title: { contains: query } },
-            { provider: { contains: query } },
-            { contractNumber: { contains: query } },
-            { notes: { contains: query } },
-          ],
-        },
-        select: CONTRACT_SELECT,
-        orderBy: { endDate: "asc" },
-      });
-      return textResult(contracts.map(serializeContract));
-    },
+    async ({ query }) => textResult(await searchContracts(query)),
   );
 
   server.registerTool(
     "upcoming_renewals",
     {
       title: "Upcoming renewals",
-      description:
-        "Active contracts whose next deadline is within N days (default 30), soonest first. The deadline is the last day to give notice (cancelBy) while that is ahead, otherwise the end date.",
-      inputSchema: { withinDays: z.number().int().positive().max(3650).optional() },
+      description: TOOL_DESCRIPTIONS.upcomingRenewals,
+      inputSchema: withinDaysInput,
     },
-    async ({ withinDays }) => {
-      const horizon = withinDays ?? 30;
-      const contracts = await prisma.contract.findMany({
-        where: { status: "ACTIVE", endDate: { not: null }, deletedAt: null },
-        select: CONTRACT_SELECT,
-      });
-      const upcoming = contracts
-        .map(serializeContract)
-        .filter((c) => c.daysUntilDeadline != null && c.daysUntilDeadline >= 0 && c.daysUntilDeadline <= horizon)
-        .sort((a, b) => (a.daysUntilDeadline as number) - (b.daysUntilDeadline as number));
-      return textResult(upcoming);
-    },
+    async ({ withinDays }) => textResult(await upcomingRenewals(withinDays)),
   );
 
   server.registerTool(
     "spend_summary",
     {
       title: "Spend summary",
-      description:
-        "Estimated total and per-category monthly spend across active contracts " +
-        "(one-off charges excluded, figures are summed as-is regardless of currency).",
+      description: TOOL_DESCRIPTIONS.spendSummary,
+      inputSchema: {
+        currency: currencyCodeSchema
+          .optional()
+          .describe("ISO 4217 currency code to convert to, such as AUD. Defaults to the first admin's preferred currency."),
+      },
     },
-    async () => {
-      const active = await prisma.contract.findMany({
-        where: { status: "ACTIVE", deletedAt: null },
-        select: { category: true, cost: true, billingFrequency: true },
-      });
+    async ({ currency }) => textResult(await spendSummary(currency ?? (await defaultSpendCurrency()))),
+  );
 
-      let total = 0;
-      const byCategory: Record<string, number> = {};
-      for (const contract of active) {
-        const monthly = monthlyEquivalent(contract.cost, contract.billingFrequency);
-        total += monthly;
-        const label = CATEGORY_LABELS[contract.category] ?? contract.category;
-        byCategory[label] = (byCategory[label] ?? 0) + monthly;
-      }
-
-      return textResult({
-        estimatedMonthlySpendTotal: Math.round(total * 100) / 100,
-        byCategory: Object.fromEntries(
-          Object.entries(byCategory).map(([label, amount]) => [
-            label,
-            Math.round(amount * 100) / 100,
-          ]),
-        ),
-      });
+  server.registerTool(
+    "whats_due",
+    {
+      title: "What's due",
+      description: TOOL_DESCRIPTIONS.whatsDue,
+      inputSchema: withinDaysInput,
     },
+    async ({ withinDays }) => textResult(await whatsDue(enabledModules, withinDays)),
   );
 
   server.registerTool(
@@ -254,7 +155,8 @@ export async function createMcpServer() {
         title: "List vehicles",
         description:
           "List vehicles with registration/insurance expiry, optionally only ones needing " +
-          "attention (expiring within 30 days or already expired).",
+          "attention (expiring within 30 days or already expired). Archived vehicles (no longer owned) " +
+          "are left out.",
         inputSchema: { attentionOnly: z.boolean().optional() },
       },
       async ({ attentionOnly }) => textResult(await queryVehicles(attentionOnly)),
@@ -268,7 +170,7 @@ export async function createMcpServer() {
         title: "List properties",
         description:
           "List properties with rental status, the current tenant/weekly rent if rented, " +
-          "and the most recent valuation.",
+          "and the most recent valuation. Archived properties (no longer owned) are left out.",
       },
       async () => textResult(await queryProperties()),
     );

@@ -12,6 +12,7 @@ import { queueDocumentExtraction } from "@/lib/documents/queueExtraction";
 import { getDocumentVersionChain } from "@/lib/documents/documentQueries";
 import { DOCUMENT_KIND_MODULE, OWNED_DOCUMENT_KINDS, type OwnedDocumentKind } from "@/lib/documents/kinds";
 import { ProductDocumentKind } from "@/generated/prisma/enums";
+import type { Prisma } from "@/generated/prisma/client";
 import { syncLegacyDocument, removeStagedLegacyDocument } from "@/lib/items/syncLegacyDocument";
 
 async function mirrorStagedDocument(kind: OwnedDocumentKind, id: string) {
@@ -31,7 +32,8 @@ async function mirrorStagedDocument(kind: OwnedDocumentKind, id: string) {
 // A Document follows the Trash rules in shared.ts (#428): one can't be added
 // (or a new version filed) under a record in Trash, or under one whose
 // parent is in Trash, and one in Trash can't be restored while its record
-// or that record's parent still is.
+// or that record's parent still is. Each of those checks runs in one
+// transaction with its write, so a move to Trash can't land in between.
 
 /** One Document row, whichever table it lives in. */
 /** A permanent delete was asked for a Document that isn't in Trash. */
@@ -92,6 +94,10 @@ function ownerInTrash(owner: OwnerInfo) {
   return owner.chain.some((link) => !!link.deletedAt);
 }
 
+// The global client, or a transaction's `tx` (which must then be used for
+// every query inside it).
+type Db = Prisma.TransactionClient;
+
 // Each of the 8 Prisma delegates has its own generated arg/return types,
 // which can't be unified without restating them all here; the same tradeoff
 // documentQueries.ts makes. Only the columns every table shares are used.
@@ -101,8 +107,8 @@ type Delegate = any;
 interface KindConfig {
   ownerField: string;
   ownerLabel: string;
-  delegate: () => Delegate;
-  loadOwner: (ownerId: string) => Promise<OwnerInfo | null>;
+  delegate: (db: Db) => Delegate;
+  loadOwner: (ownerId: string, db: Db) => Promise<OwnerInfo | null>;
   // Extra columns for a new row, and what to do once it exists.
   createData?: (input: AddDocumentInput) => Record<string, unknown>;
   afterCreate?: (doc: DocumentRecord, input: AddDocumentInput) => Promise<void>;
@@ -112,9 +118,9 @@ const KINDS: Record<OwnedDocumentKind, KindConfig> = {
   CONTRACT: {
     ownerField: "contractId",
     ownerLabel: "Contract",
-    delegate: () => prisma.document,
-    loadOwner: async (id) => {
-      const c = await prisma.contract.findUnique({ where: { id }, select: { deletedAt: true } });
+    delegate: (db) => db.document,
+    loadOwner: async (id, db) => {
+      const c = await db.contract.findUnique({ where: { id }, select: { deletedAt: true } });
       return c && { paths: [`/contracts/${id}`], chain: [{ label: "Contract", deletedAt: c.deletedAt }] };
     },
     createData: (input) =>
@@ -135,9 +141,9 @@ const KINDS: Record<OwnedDocumentKind, KindConfig> = {
   PRODUCT: {
     ownerField: "productId",
     ownerLabel: "Warranty",
-    delegate: () => prisma.productDocument,
-    loadOwner: async (id) => {
-      const p = await prisma.product.findUnique({ where: { id }, select: { deletedAt: true } });
+    delegate: (db) => db.productDocument,
+    loadOwner: async (id, db) => {
+      const p = await db.product.findUnique({ where: { id }, select: { deletedAt: true } });
       return p && { paths: [`/products/${id}`], chain: [{ label: "Warranty", deletedAt: p.deletedAt }] };
     },
     // Only invoices carry meaningful text; plain product photos skip OCR.
@@ -162,36 +168,49 @@ const KINDS: Record<OwnedDocumentKind, KindConfig> = {
   TRIP_SEGMENT: {
     ownerField: "tripSegmentId",
     ownerLabel: "Segment",
-    delegate: () => prisma.tripSegmentDocument,
-    loadOwner: async (id) => {
-      const s = await prisma.tripSegment.findUnique({
+    delegate: (db) => db.tripSegmentDocument,
+    loadOwner: async (id, db) => {
+      const s = await db.tripSegment.findUnique({
         where: { id },
-        select: { tripId: true, trip: { select: { deletedAt: true } } },
+        select: { tripId: true, deletedAt: true, trip: { select: { deletedAt: true } } },
       });
-      // Segments have no Trash of their own; their Trip does.
-      return s && { paths: [`/travel/${s.tripId}`], chain: [{ label: "Trip", deletedAt: s.trip.deletedAt }] };
+      return (
+        s && {
+          paths: [`/travel/${s.tripId}`],
+          chain: [
+            { label: "Trip", deletedAt: s.trip.deletedAt },
+            { label: "Segment", deletedAt: s.deletedAt },
+          ],
+        }
+      );
     },
   },
   RENTAL_STATEMENT: {
     ownerField: "rentalStatementId",
     ownerLabel: "Statement",
-    delegate: () => prisma.rentalStatementDocument,
-    loadOwner: async (id) => {
-      const s = await prisma.rentalStatement.findUnique({
+    delegate: (db) => db.rentalStatementDocument,
+    loadOwner: async (id, db) => {
+      const s = await db.rentalStatement.findUnique({
         where: { id },
-        select: { propertyId: true, property: { select: { deletedAt: true } } },
+        select: { propertyId: true, deletedAt: true, property: { select: { deletedAt: true } } },
       });
       return (
-        s && { paths: [`/home/${s.propertyId}/rental`], chain: [{ label: "Property", deletedAt: s.property.deletedAt }] }
+        s && {
+          paths: [`/home/${s.propertyId}/rental`],
+          chain: [
+            { label: "Property", deletedAt: s.property.deletedAt },
+            { label: "Rental statement", deletedAt: s.deletedAt },
+          ],
+        }
       );
     },
   },
   HOME_ITEM: {
     ownerField: "homeItemId",
     ownerLabel: "Maintenance record",
-    delegate: () => prisma.homeItemDocument,
-    loadOwner: async (id) => {
-      const i = await prisma.homeItem.findUnique({
+    delegate: (db) => db.homeItemDocument,
+    loadOwner: async (id, db) => {
+      const i = await db.homeItem.findUnique({
         where: { id },
         select: { propertyId: true, deletedAt: true, property: { select: { deletedAt: true } } },
       });
@@ -209,9 +228,9 @@ const KINDS: Record<OwnedDocumentKind, KindConfig> = {
   VEHICLE_ITEM: {
     ownerField: "vehicleItemId",
     ownerLabel: "Service record",
-    delegate: () => prisma.vehicleItemDocument,
-    loadOwner: async (id) => {
-      const i = await prisma.vehicleItem.findUnique({
+    delegate: (db) => db.vehicleItemDocument,
+    loadOwner: async (id, db) => {
+      const i = await db.vehicleItem.findUnique({
         where: { id },
         select: { vehicleId: true, deletedAt: true, vehicle: { select: { deletedAt: true } } },
       });
@@ -229,23 +248,28 @@ const KINDS: Record<OwnedDocumentKind, KindConfig> = {
   INVENTORY_ITEM: {
     ownerField: "inventoryItemId",
     ownerLabel: "Item",
-    delegate: () => prisma.inventoryItemDocument,
-    loadOwner: async (id) => {
-      const i = await prisma.inventoryItem.findUnique({ where: { id }, select: { deletedAt: true } });
+    delegate: (db) => db.inventoryItemDocument,
+    loadOwner: async (id, db) => {
+      const i = await db.inventoryItem.findUnique({ where: { id }, select: { deletedAt: true } });
       return i && { paths: [`/inventory/${id}`], chain: [{ label: "Inventory item", deletedAt: i.deletedAt }] };
     },
   },
   TRADE: {
     ownerField: "tradeId",
     ownerLabel: "Trade",
-    delegate: () => prisma.tradeDocument,
-    // Portfolios, Holdings and Trades have no Trash.
-    loadOwner: async (id) => {
-      const t = await prisma.trade.findUnique({
+    delegate: (db) => db.tradeDocument,
+    // Only the Trade has a Trash (#427); Portfolios and Holdings don't.
+    loadOwner: async (id, db) => {
+      const t = await db.trade.findUnique({
         where: { id },
-        select: { holdingId: true, holding: { select: { portfolioId: true } } },
+        select: { holdingId: true, deletedAt: true, holding: { select: { portfolioId: true } } },
       });
-      return t && { paths: [`/wealth/portfolios/${t.holding.portfolioId}/holdings/${t.holdingId}`], chain: [] };
+      return (
+        t && {
+          paths: [`/wealth/portfolios/${t.holding.portfolioId}/holdings/${t.holdingId}`],
+          chain: [{ label: "Trade", deletedAt: t.deletedAt }],
+        }
+      );
     },
   },
 };
@@ -297,7 +321,7 @@ function revalidate(paths: string[]) {
 }
 
 async function ownerPaths(kind: OwnedDocumentKind, ownerId: string): Promise<string[]> {
-  return (await KINDS[kind].loadOwner(ownerId))?.paths ?? [];
+  return (await KINDS[kind].loadOwner(ownerId, prisma))?.paths ?? [];
 }
 
 export interface DocumentScope {
@@ -309,8 +333,12 @@ export interface DocumentScope {
 // ── Reads ───────────────────────────────────────────────────────────────────
 
 /** A Document of a known kind, or null. No module gate: callers decide. */
-export async function findDocument(kind: OwnedDocumentKind, id: string): Promise<DocumentRecord | null> {
-  const row = await KINDS[kind].delegate().findUnique({ where: { id }, select: rowSelect(kind) });
+export async function findDocument(
+  kind: OwnedDocumentKind,
+  id: string,
+  db: Db = prisma,
+): Promise<DocumentRecord | null> {
+  const row = await KINDS[kind].delegate(db).findUnique({ where: { id }, select: rowSelect(kind) });
   return row ? toRecord(kind, row) : null;
 }
 
@@ -325,12 +353,12 @@ export async function findDocumentAnyKind(id: string): Promise<DocumentRecord | 
 
 /** Whether the record a Document is attached to (or that record's parent) is in Trash. */
 export async function isDocumentOwnerInTrash(doc: DocumentRecord): Promise<boolean> {
-  const owner = await KINDS[doc.kind].loadOwner(doc.ownerId);
+  const owner = await KINDS[doc.kind].loadOwner(doc.ownerId, prisma);
   return !owner || ownerInTrash(owner);
 }
 
-async function requireDocument(kind: OwnedDocumentKind, id: string, scope: DocumentScope = {}) {
-  const doc = await findDocument(kind, id);
+async function requireDocument(kind: OwnedDocumentKind, id: string, scope: DocumentScope = {}, db: Db = prisma) {
+  const doc = await findDocument(kind, id, db);
   if (!doc || (scope.ownerId !== undefined && doc.ownerId !== scope.ownerId)) {
     throw new RecordNotFoundError("Document");
   }
@@ -339,6 +367,15 @@ async function requireDocument(kind: OwnedDocumentKind, id: string, scope: Docum
 
 // ── Writes ──────────────────────────────────────────────────────────────────
 
+// The owner, if it and every record above it is live; otherwise `what` not
+// found. An owner in Trash, or under a parent in Trash, counts as not found.
+async function requireLiveOwner(config: KindConfig, ownerId: string, db: Db, what: string): Promise<OwnerInfo> {
+  const owner = await config.loadOwner(ownerId, db);
+  if (!owner) throw new RecordNotFoundError(what);
+  for (const link of owner.chain) requireLive(link, what);
+  return owner;
+}
+
 async function insertDocument(
   kind: OwnedDocumentKind,
   ownerId: string,
@@ -346,33 +383,41 @@ async function insertDocument(
   supersedesId: string | null,
 ): Promise<DocumentRecord> {
   const config = KINDS[kind];
-  const owner = await config.loadOwner(ownerId);
-  if (!owner) throw new RecordNotFoundError(config.ownerLabel);
-  // An owner in Trash, or under a parent in Trash, counts as not found.
-  for (const link of owner.chain) requireLive(link, config.ownerLabel);
+  // Checked again with the write below; this one only saves writing a file
+  // that would be refused.
+  await requireLiveOwner(config, ownerId, prisma, config.ownerLabel);
 
   // Throws UploadRejectedError for an empty, oversized or mislabelled file.
   const store = documentStoreFor(kind);
   const { storedName, size, sha256, mimeType } = await store.save(ownerId, input.file);
   let doc: DocumentRecord;
+  let owner: OwnerInfo;
   try {
-    const row = await config.delegate().create({
-      data: {
-        [config.ownerField]: ownerId,
-        filename: (input.filename ?? input.file.name).slice(0, 255),
-        storedName,
-        mimeType,
-        size,
-        sha256,
-        category: input.category ?? null,
-        supersedesId,
-        ...config.createData?.(input),
-      },
-      select: rowSelect(kind),
+    // The owner check and the row in one transaction, so the owner can't go
+    // to Trash in between.
+    const created = await prisma.$transaction(async (tx) => {
+      const liveOwner = await requireLiveOwner(config, ownerId, tx, config.ownerLabel);
+      const row = await config.delegate(tx).create({
+        data: {
+          [config.ownerField]: ownerId,
+          filename: (input.filename ?? input.file.name).slice(0, 255),
+          storedName,
+          mimeType,
+          size,
+          sha256,
+          category: input.category ?? null,
+          supersedesId,
+          ...config.createData?.(input),
+        },
+        select: rowSelect(kind),
+      });
+      return { doc: toRecord(kind, row), owner: liveOwner };
     });
-    doc = toRecord(kind, row);
+    doc = created.doc;
+    owner = created.owner;
   } catch (error) {
-    // Keep file and row paired: no row, so no file either.
+    // Keep file and row paired: no row (refused, or the create failed), so
+    // no file either.
     await store.remove(ownerId, storedName);
     throw error;
   }
@@ -432,7 +477,7 @@ export async function deleteDocumentCommand(kind: OwnedDocumentKind, id: string,
   await gate(kind);
   const doc = await requireDocument(kind, id, scope);
   if (doc.deletedAt) return;
-  await KINDS[kind].delegate().update({ where: { id }, data: { deletedAt: new Date() } });
+  await KINDS[kind].delegate(prisma).update({ where: { id }, data: { deletedAt: new Date() } });
   await mirrorStagedDocument(kind, id);
   revalidate(await ownerPaths(kind, doc.ownerId));
   revalidatePath("/settings/trash");
@@ -440,11 +485,15 @@ export async function deleteDocumentCommand(kind: OwnedDocumentKind, id: string,
 
 export async function restoreDocumentCommand(kind: OwnedDocumentKind, id: string) {
   await gate(kind);
-  const doc = await requireDocument(kind, id);
-  const owner = await KINDS[kind].loadOwner(doc.ownerId);
-  // Outermost first, so the message names what to restore first.
-  for (const link of owner?.chain ?? []) assertParentRestored(link, link.label);
-  await KINDS[kind].delegate().update({ where: { id }, data: { deletedAt: null } });
+  const config = KINDS[kind];
+  const owner = await prisma.$transaction(async (tx) => {
+    const doc = await requireDocument(kind, id, {}, tx);
+    const found = await config.loadOwner(doc.ownerId, tx);
+    // Outermost first, so the message names what to restore first.
+    for (const link of found?.chain ?? []) assertParentRestored(link, link.label);
+    await config.delegate(tx).update({ where: { id }, data: { deletedAt: null } });
+    return found;
+  });
   await mirrorStagedDocument(kind, id);
   revalidate(owner?.paths ?? []);
   revalidatePath("/settings/trash");
@@ -460,7 +509,10 @@ export async function permanentlyDeleteDocumentCommand(kind: OwnedDocumentKind, 
   revalidatePath("/settings/trash");
 }
 
-/** Stars or unstars a Document (isImportant). */
+/**
+ * Stars or unstars a Document (isImportant). Refused as not found while its
+ * record, or that record's parent, is in Trash (#428).
+ */
 export async function setDocumentImportantCommand(
   kind: OwnedDocumentKind,
   id: string,
@@ -468,10 +520,15 @@ export async function setDocumentImportantCommand(
   scope: DocumentScope = {},
 ) {
   await gate(kind);
-  const doc = await requireDocument(kind, id, scope);
-  await KINDS[kind].delegate().update({ where: { id }, data: { isImportant } });
+  const config = KINDS[kind];
+  const owner = await prisma.$transaction(async (tx) => {
+    const doc = await requireDocument(kind, id, scope, tx);
+    const liveOwner = await requireLiveOwner(config, doc.ownerId, tx, "Document");
+    await config.delegate(tx).update({ where: { id }, data: { isImportant } });
+    return liveOwner;
+  });
+  revalidate(owner.paths);
   await mirrorStagedDocument(kind, id);
-  revalidate(await ownerPaths(kind, doc.ownerId));
 }
 
 // The row-and-file part of a permanent delete, with no module gate and no
@@ -481,7 +538,7 @@ export async function setDocumentImportantCommand(
 // reconciliation note for why that order).
 export async function purgeDocument(kind: OwnedDocumentKind, id: string) {
   const doc = await requireDocument(kind, id);
-  await KINDS[kind].delegate().delete({ where: { id } });
+  await KINDS[kind].delegate(prisma).delete({ where: { id } });
   await documentStoreFor(kind).remove(doc.ownerId, doc.storedName);
   if (kind === "PRODUCT" || kind === "INVENTORY_ITEM") {
     try { await removeStagedLegacyDocument(kind, id); }

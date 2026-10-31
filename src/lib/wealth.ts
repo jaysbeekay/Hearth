@@ -296,14 +296,15 @@ export async function getNetWorth(enabledModules: Set<ModuleKey>): Promise<NetWo
     prisma.portfolio.findMany({
       include: {
         holdings: {
-          include: { trades: { orderBy: { date: "asc" } } },
+          include: { trades: { where: { deletedAt: null }, orderBy: { date: "asc" } } },
         },
       },
     }),
     enabledModules.has("HOME")
       ? prisma.property.findMany({
-          where: { deletedAt: null },
-          include: { valuations: { orderBy: { valuedAt: "desc" }, take: 1 } },
+          // #355 — an Archived Property isn't the household's any more.
+          where: { deletedAt: null, archivedAt: null },
+          include: { valuations: { where: { deletedAt: null }, orderBy: { valuedAt: "desc" }, take: 1 } },
         })
       : [],
     enabledModules.has("INVENTORY")

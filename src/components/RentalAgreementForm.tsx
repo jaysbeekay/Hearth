@@ -28,11 +28,14 @@ export function RentalAgreementForm({
   agreement,
   propertyId,
   defaultCurrency,
+  defaultReminderDays,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   agreement?: RentalAgreementModel;
   propertyId?: string;
   defaultCurrency?: string;
+  /** The household default Reminder thresholds, which a blank field uses (#388). */
+  defaultReminderDays?: string;
 }) {
   const offlineAwareAction = makeOfflineAwareAction(
     action,
@@ -42,6 +45,7 @@ export function RentalAgreementForm({
       operation: agreement ? "update" : "create",
       entityId: agreement?.id,
       parentId: agreement?.propertyId ?? propertyId,
+      baseUpdatedAt: agreement?.updatedAt?.toISOString(),
     }),
     { success: "Saved offline — will sync when you reconnect." },
   );
@@ -192,6 +196,22 @@ export function RentalAgreementForm({
           <CurrencySelect
             name="currency"
             defaultValue={state?.values?.currency ?? agreement?.currency ?? defaultCurrency}
+          />
+        </Field>
+
+        <Field
+          label="Reminder thresholds (days before)"
+          htmlFor="reminderDaysBefore"
+          hint={`Days before the lease end, comma-separated. Leave blank to use the household default${
+            defaultReminderDays ? ` (${defaultReminderDays})` : ""
+          }.`}
+        >
+          <input
+            id="reminderDaysBefore"
+            name="reminderDaysBefore"
+            defaultValue={state?.values?.reminderDaysBefore ?? agreement?.reminderDaysBefore ?? ""}
+            placeholder={defaultReminderDays || "30,14,7,1"}
+            className={inputClass}
           />
         </Field>
       </div>
