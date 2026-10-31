@@ -47,6 +47,20 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Scan and read documents on the phone (standalone mode).** A *Scan with
+  camera* button now sits beside every document upload in the iOS and
+  Android apps. It opens the system document camera (VisionKit on iOS, the
+  ML Kit Document Scanner on Android), saves the pages as one PDF, and reads
+  the text on the device (Apple Vision, or ML Kit text recognition). On a new
+  Contract or Warranty, the server's regex field rules, ported into the shell,
+  fill in empty fields such as provider, policy number, dates and cost, and
+  tick *Needs review* so reminders wait until someone checks them. Uploaded
+  photos and PDFs also get their text read on import, and older documents get
+  a *Read text* button, so Search finds documents by their contents. Nothing
+  leaves the phone. The Android scanner needs Google Play services; without
+  it, the file picker still works. Shell parity: new local native plugin
+  `HearthScan` (`HearthScanPlugin.swift`, `HearthScanPlugin.java`).
+
 - **Archive a Vehicle or Property you no longer have (#355).** Archive (in
   the record's More actions menu, with Undo) marks a Vehicle as sold or a
   Property as sold or its lease ended; Restore on the record's page puts it
