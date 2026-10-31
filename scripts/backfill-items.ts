@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaLibSql } from "@prisma/adapter-libsql";
 import { mergeItemSources } from "../src/lib/items/mergeSources";
+import { assertDisposableTargets } from "./itemStageGuard";
 
 async function main() {
 const argument = process.argv[2];
@@ -13,6 +14,7 @@ if (!argument || process.argv.length !== 3 || !argument.startsWith("/")) {
 }
 const file = await stat(argument).catch(() => null);
 if (!file?.isFile()) throw new Error("Pass an existing local database copy");
+assertDisposableTargets([argument]);
 
 const prisma = new PrismaClient({ adapter: new PrismaLibSql({ url: `file:${resolve(argument)}` }) });
 let merged = 0;

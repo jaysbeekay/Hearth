@@ -22,6 +22,15 @@ window against the primary database and uploads tree. Run the verifier again
 before enabling `ITEMS_PREVIEW=1`. Keep the primary paths absolute and verify
 them before running the backfills, because these scripts write their target.
 
+The two backfills refuse a path that is, or is inside, the live install's
+database or uploads directory (this shell's `DATABASE_URL`/`UPLOADS_DIR`, and
+the default `./data/app.db`, `./data/uploads` and `/app/data/...`). For the
+primary run only, after taking the fresh backup, set
+`ITEM_STAGE_PRIMARY=yes-i-have-a-fresh-backup`. To roll back, stop the app and
+restore that backup (database file and uploads tree together); the legacy
+tables and files are never modified by the backfills, so the staged tables can
+also simply be left unused.
+
 The verifier
 exits nonzero when links, Warranty ownership, Document metadata/version links,
 or copied file bytes differ. It is read-only. Review the `mergeConflictFields`
