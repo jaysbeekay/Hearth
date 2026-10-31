@@ -9,7 +9,7 @@ import { authConfig } from "@/lib/auth.config";
 import type { Role } from "@/generated/prisma/enums";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import { verifyTotpCode, consumeRecoveryCode } from "@/lib/totp";
-import { authorizePasskey } from "@/lib/passkeyAuth";
+import { authorizePasskey, challengeFromCookieHeader } from "@/lib/passkeyAuth";
 
 export class TotpRequiredSignin extends CredentialsSignin {
   code = "totp_required";
@@ -82,7 +82,8 @@ const nextAuth = NextAuth({
         assertionJSON: {},
         challenge: {},
       },
-      authorize: (credentials) => authorizePasskey(credentials),
+      authorize: (credentials, request) =>
+        authorizePasskey(credentials, challengeFromCookieHeader(request?.headers?.get("cookie"))),
     }),
 
     ...(isGithubOAuthConfigured()

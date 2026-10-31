@@ -13,7 +13,15 @@ import {
 // #376 — the passkey sign-in and registration checks, against a real database.
 // env reads APP_URL when it's first imported; pin it to the helper's origin.
 process.env.APP_URL = ORIGIN;
-const { authorizePasskey, verifyPasskeyRegistration } = await import("@/lib/passkeyAuth");
+const { authorizePasskey: authorizeWithCookie, challengeFromCookieHeader, verifyPasskeyRegistration } = await import(
+  "@/lib/passkeyAuth"
+);
+
+// The browser that asked for the challenge sends it back in the challenge
+// cookie; most tests are that browser.
+type SignIn = Parameters<typeof authorizeWithCookie>[0];
+const authorizePasskey = (input: SignIn) =>
+  authorizeWithCookie(input, typeof input?.challenge === "string" ? input.challenge : null);
 
 const db = setupTestDb();
 
@@ -117,6 +125,41 @@ describe("authorizePasskey", () => {
     expect(await authorizePasskey(signInInput(auth, challenge, { userHandle: someoneElse.id }))).toBeNull();
   });
 
+  it("refuses a challenge this browser wasn't given (relayed assertion), without using it up", async () => {
+    const auth = makeAuthenticator();
+    const user = await seedPasskey(auth);
+    const challenge = await seedChallenge("authentication");
+    const otherBrowsers = await seedChallenge("authentication");
+    const input = signInInput(auth, challenge, { counter: 1 });
+
+    expect(await authorizeWithCookie(input, null)).toBeNull();
+    expect(await authorizeWithCookie(input, otherBrowsers)).toBeNull();
+    expect(await db.prisma.passkeyChallenge.count()).toBe(2);
+    // The browser that holds the cookie still can.
+    expect((await authorizeWithCookie(input, challenge))?.id).toBe(user.id);
+  });
+
+  it("never signs one account in with another account's credential, whoever issued the challenge", async () => {
+    const mine = makeAuthenticator();
+    const theirs = makeAuthenticator();
+    const me = await seedPasskey(mine);
+    await seedPasskey(theirs);
+    const challenge = await seedChallenge("authentication");
+
+    // Their credential signs; claiming my credential id or my user handle fails.
+    const theirInput = signInInput(theirs, challenge, { userHandle: me.id });
+    expect(await authorizePasskey(theirInput)).toBeNull();
+    const challenge2 = await seedChallenge("authentication");
+    const claimMine = signInInput(theirs, challenge2);
+    expect(await authorizePasskey({ ...claimMine, credentialId: v9Row(mine, 0).credentialId })).toBeNull();
+  });
+
+  it("reads the challenge cookie from a Cookie header", () => {
+    expect(challengeFromCookieHeader("a=1; hearth-passkey-challenge=abc_-123; b=2")).toBe("abc_-123");
+    expect(challengeFromCookieHeader("a=1")).toBeNull();
+    expect(challengeFromCookieHeader(null)).toBeNull();
+  });
+
   it("refuses malformed input and unknown credentials", async () => {
     expect(await authorizePasskey(undefined)).toBeNull();
     expect(await authorizePasskey({ credentialId: "x", assertionJSON: "{", challenge: "c" })).toBeNull();
@@ -161,6 +204,18 @@ describe("verifyPasskeyRegistration", () => {
     const result = await verifyPasskeyRegistration(user.id, registrationResponse(makeAuthenticator(), othersChallenge));
     expect(result.ok).toBe(false);
     expect(await db.prisma.passkeyChallenge.count({ where: { userId: other.id } })).toBe(1);
+  });
+
+  it("lets only one of two concurrent registrations with the same challenge succeed", async () => {
+    const user = await createTestUser();
+    const challenge = await seedChallenge("registration", user.id);
+    const response = registrationResponse(makeAuthenticator(), challenge);
+    const results = await Promise.all([
+      verifyPasskeyRegistration(user.id, response),
+      verifyPasskeyRegistration(user.id, response),
+    ]);
+    expect(results.filter((r) => r.ok)).toHaveLength(1);
+    expect(await db.prisma.passkeyChallenge.count()).toBe(0);
   });
 
   it("refuses when the user has no pending challenge", async () => {

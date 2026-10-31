@@ -3,6 +3,7 @@ import { generateAuthenticationOptions } from "@simplewebauthn/server";
 import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
 import { clientAddress, consumeRateLimit } from "@/lib/rateLimit";
+import { PASSKEY_CHALLENGE_COOKIE, passkeyChallengeCookieOptions } from "@/lib/passkeyAuth";
 
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
 
@@ -38,5 +39,8 @@ export async function POST() {
     },
   });
 
-  return NextResponse.json(options);
+  // Binds this challenge to this browser (see PASSKEY_CHALLENGE_COOKIE).
+  const response = NextResponse.json(options);
+  response.cookies.set(PASSKEY_CHALLENGE_COOKIE, options.challenge, passkeyChallengeCookieOptions());
+  return response;
 }

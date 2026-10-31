@@ -23,6 +23,43 @@ function relyingParty() {
 }
 
 /**
+ * #473 review — the discoverable-credential flow issues its challenge before
+ * anyone is identified, so the signature over it is what binds it to a
+ * credential. To also bind it to the browser that asked for it, the options
+ * route sets this httpOnly, SameSite=Strict cookie to the challenge, and
+ * sign-in only accepts the challenge that browser was given: an assertion
+ * relayed into another browser or session is refused.
+ */
+export const PASSKEY_CHALLENGE_COOKIE = "hearth-passkey-challenge";
+
+export function passkeyChallengeCookieOptions() {
+  return {
+    httpOnly: true,
+    sameSite: "strict" as const,
+    secure: env.appUrl.startsWith("https:"),
+    // Covers the options route and NextAuth's /api/auth/callback/passkey.
+    path: "/api/auth",
+    maxAge: 5 * 60,
+  };
+}
+
+/** The challenge cookie's value from a request's Cookie header, if any. */
+export function challengeFromCookieHeader(cookieHeader: string | null | undefined): string | null {
+  if (!cookieHeader) return null;
+  for (const part of cookieHeader.split(";")) {
+    const [name, ...rest] = part.trim().split("=");
+    if (name === PASSKEY_CHALLENGE_COOKIE) {
+      try {
+        return decodeURIComponent(rest.join("="));
+      } catch {
+        return null;
+      }
+    }
+  }
+  return null;
+}
+
+/**
  * Atomically use up an authentication challenge. Deleting it before the
  * signature is checked means a challenge is good for exactly one attempt:
  * a failed attempt, or a concurrent replay of a successful one, can't use it
@@ -41,8 +78,18 @@ export type PasskeySignInInput = {
   challenge?: unknown;
 };
 
-/** The passkey credentials provider's authorize: the user, or null. */
-export async function authorizePasskey(input: PasskeySignInInput | undefined) {
+/**
+ * The passkey credentials provider's authorize: the user, or null. Every
+ * failure returns the same null, so a caller can't tell an unknown
+ * credential from a bad signature or a used challenge.
+ *
+ * `browserChallenge` is the challenge cookie this browser was given by the
+ * options route; the submitted challenge must be that one.
+ */
+export async function authorizePasskey(
+  input: PasskeySignInInput | undefined,
+  browserChallenge: string | null,
+) {
   if (
     typeof input?.credentialId !== "string" ||
     typeof input.assertionJSON !== "string" ||
@@ -50,6 +97,7 @@ export async function authorizePasskey(input: PasskeySignInInput | undefined) {
   ) {
     return null;
   }
+  if (!browserChallenge || browserChallenge !== input.challenge) return null;
 
   let assertion: AuthenticationResponseJSON;
   try {
@@ -134,6 +182,7 @@ export async function verifyPasskeyRegistration(
 
   const { origin, rpId } = relyingParty();
   let verification;
+  let consumed = false;
   try {
     verification = await verifyRegistrationResponse({
       response,
@@ -150,13 +199,20 @@ export async function verifyPasskeyRegistration(
     const message = err instanceof Error ? err.message : "Verification failed";
     return { ok: false, status: 400, error: message };
   } finally {
+    // Use the matched challenge up whatever the outcome. Only the request
+    // whose delete removes the row may succeed, so two parallel requests
+    // with the same challenge can't both register.
     if (matched.challenge) {
-      await prisma.passkeyChallenge.deleteMany({
+      const { count } = await prisma.passkeyChallenge.deleteMany({
         where: { userId, type: "registration", challenge: matched.challenge },
       });
+      consumed = count === 1;
     }
   }
 
+  if (!consumed) {
+    return { ok: false, status: 400, error: "Challenge not found or expired." };
+  }
   if (!verification.verified || !verification.registrationInfo) {
     return { ok: false, status: 400, error: "Verification failed." };
   }
