@@ -55,18 +55,20 @@ jobs:
         run: chmod +x gradlew
         working-directory: android
 
-      # Debug builds only on a manual run, never for a tag. A debug APK is
+      # Debug builds only on a manual run against a branch, never for a tag
+      # (release.yml dispatches this workflow against the new tag, which is a
+      # workflow_dispatch event too, so check the ref rather than the event). A debug APK is
       # signed with the universal Android debug key — anyone can modify and
       # re-sign it — and is built debuggable, so it must not be distributed
       # (#160). Kept here purely so a maintainer can dispatch a build to test
       # a change without release signing configured.
       - name: Build debug APK (manual runs only)
-        if: ${{ github.event_name == 'workflow_dispatch' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && !startsWith(github.ref, 'refs/tags/v') }}
         run: ./gradlew assembleDebug --no-daemon
         working-directory: android
 
       - name: Upload debug APK artifact (manual runs only)
-        if: ${{ github.event_name == 'workflow_dispatch' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && !startsWith(github.ref, 'refs/tags/v') }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: hearth-debug-apk
@@ -89,41 +91,45 @@ jobs:
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
 
-      - name: Build signed release APK
-        if: ${{ env.HAS_SIGNING == 'true' }}
+      # Always build the release variant, signed when secrets exist and
+      # unsigned otherwise, so R8/minification runs on every manual build too
+      # (a tag-only release build once broke for months unnoticed).
+      - name: Build release APK
         run: ./gradlew assembleRelease --no-daemon
         working-directory: android
         env:
-          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/hearth-release.jks
+          # Empty when unsigned: build.gradle only wires up signing when
+          # ANDROID_KEYSTORE_PATH is non-empty.
+          ANDROID_KEYSTORE_PATH: ${{ env.HAS_SIGNING == 'true' && format('{0}/hearth-release.jks', runner.temp) || '' }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
       - name: Upload release APK artifact
-        if: ${{ env.HAS_SIGNING == 'true' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: hearth-release-apk
-          path: android/app/build/outputs/apk/release/app-release.apk
+          # app-release.apk when signed, app-release-unsigned.apk otherwise.
+          name: ${{ env.HAS_SIGNING == 'true' && 'hearth-release-apk' || 'hearth-release-apk-unsigned' }}
+          path: android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
 
       # The Play Store requires an .aab (App Bundle), not the .apk above —
       # that one's for direct sideload / GitHub Releases only.
-      - name: Build signed release AAB (Play Store)
-        if: ${{ env.HAS_SIGNING == 'true' }}
+      - name: Build release AAB (Play Store)
         run: ./gradlew bundleRelease --no-daemon
         working-directory: android
         env:
-          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/hearth-release.jks
+          # Empty when unsigned: build.gradle only wires up signing when
+          # ANDROID_KEYSTORE_PATH is non-empty.
+          ANDROID_KEYSTORE_PATH: ${{ env.HAS_SIGNING == 'true' && format('{0}/hearth-release.jks', runner.temp) || '' }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
       - name: Upload release AAB artifact
-        if: ${{ env.HAS_SIGNING == 'true' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: hearth-release-aab
+          name: ${{ env.HAS_SIGNING == 'true' && 'hearth-release-aab' || 'hearth-release-aab-unsigned' }}
           path: android/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
 

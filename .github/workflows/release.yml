@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: write
+  actions: write # to dispatch docker-publish.yml / android-build.yml, see below
 
 jobs:
   release:
@@ -55,3 +56,18 @@ jobs:
           name: ${{ steps.tag.outputs.name }}
           body: ${{ steps.changelog.outputs.notes }}
           generate_release_notes: true
+
+      # A tag created by this workflow's own manual dispatch is made with the
+      # GITHUB_TOKEN, and GitHub deliberately doesn't fire push-triggered
+      # workflows for refs created by that token. So the tag-push workflows
+      # (docker-publish.yml, android-build.yml) never ran for v0.19.2. Dispatch
+      # them explicitly against the new tag instead. Not needed (and would
+      # double-build) when a human pushed the tag: the push event covers it.
+      - name: Dispatch tag builds (manual release only)
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          gh workflow run docker-publish.yml --ref "${{ steps.tag.outputs.name }}"
+          gh workflow run android-build.yml --ref "${{ steps.tag.outputs.name }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}

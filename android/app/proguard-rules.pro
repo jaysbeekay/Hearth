@@ -31,3 +31,31 @@
     @com.getcapacitor.PluginMethod public *;
 }
 -keep class org.apache.cordova.** { *; }
+
+# Capacitor plugins that live outside com.getcapacitor.** (Preferences,
+# Filesystem, LocalNotifications, Network, App, RevenueCat). They are loaded by
+# class name from capacitor.plugins.json and their model/receiver classes are
+# reached via reflection, manifest entries (LocalNotifications' boot/alarm
+# receivers) and JSON (de)serialisation, so keep them whole rather than rely on
+# the annotation rules above alone. The SQLite plugin is under
+# com.getcapacitor.community.** and is already covered.
+-keep class com.capacitorjs.plugins.** { *; }
+-keep class com.revenuecat.purchases.capacitor.** { *; }
+
+# Tink (pulled in by androidx.security:security-crypto, which the encrypted
+# SQLite plugin uses for its key store) reads protobuf-lite message fields by
+# reflection. Newer tink-android ships this as a consumer rule; keep it here
+# so an older transitive version can't lose it.
+-keepclassmembers class * extends com.google.crypto.tink.shaded.protobuf.GeneratedMessageLite {
+    <fields>;
+}
+
+# Tink references compile-time-only annotations (Error Prone, JSR-305) that
+# are not on the runtime classpath, so R8 reports them as missing classes and
+# fails the build. They carry no runtime behaviour; ignoring them is the
+# documented fix. Exactly the classes R8 reported (v0.19.1 run), as packages:
+#   com.google.errorprone.annotations.{CanIgnoreReturnValue,CheckReturnValue,
+#     Immutable,RestrictedApi}
+#   javax.annotation.Nullable, javax.annotation.concurrent.GuardedBy
+-dontwarn com.google.errorprone.annotations.**
+-dontwarn javax.annotation.**

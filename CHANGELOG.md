@@ -7,6 +7,28 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+### Fixed
+
+- Android release build (`android-build.yml`) failing since v0.18.0: R8 aborted
+  with missing `com.google.errorprone.annotations.*` / `javax.annotation.*`
+  classes referenced by Tink (via the encrypted-SQLite plugin). Added the
+  matching `-dontwarn` rules plus keep rules for the Capacitor/RevenueCat
+  plugin packages and Tink's protobuf fields in `proguard-rules.pro`.
+  Minification stays on.
+- Manual-dispatch releases (`release.yml`) never built the Docker image or the
+  Android APK/AAB (v0.19.2 shipped with neither), because tags created by the
+  `GITHUB_TOKEN` don't fire push-triggered workflows. `release.yml` now
+  dispatches `docker-publish.yml` and `android-build.yml` against the new tag.
+- `android-build.yml` now always builds the release variant (unsigned when
+  signing secrets are absent) so manual runs exercise R8, and no longer builds
+  the debug APK when dispatched against a tag.
+
+### Added
+
+- `android-check.yml`: path-filtered pull request check (plus a weekly run)
+  that runs `cap sync android`, `assembleDebug` and an unsigned
+  `assembleRelease` (R8) so Android-only breakage surfaces before a release.
+
 ### Security
 
 - `nodemailer` 10.0.16 → 10.2.1 and `mailparser` → 3.12.4, fixing three

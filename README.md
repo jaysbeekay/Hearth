@@ -882,10 +882,21 @@ captures the functionality that shipped in it.
 both `latest` and `vx.y.z`, whenever a `vx.y.z` git tag is pushed — it does
 **not** run on an ordinary push to `main`, so `:latest` only ever moves on a
 real release. A tag created via `release.yml`'s manual dispatch (rather
-than a `git push` of the tag) doesn't trigger this workflow automatically —
+than a `git push` of the tag) doesn't trigger tag-push workflows by itself —
 GitHub Actions doesn't fire push-triggered workflows for refs created by its
-own token — so also run `docker-publish.yml` manually against the new tag
-in that case.
+own token (this is why v0.19.2 had no Docker image or Android build). So in
+that case `release.yml` dispatches `docker-publish.yml` and
+`android-build.yml` against the new tag itself (it has `actions: write` for
+this). Pushing the tag locally needs no extra step.
+
+`android-build.yml` attaches the signed APK/AAB to the release, and needs the
+`ANDROID_KEYSTORE_*` / `ANDROID_KEY_*` secrets; without them a tagged build
+fails on purpose rather than publish an unsigned build. Manual step if a
+release's Android build ever needs redoing (e.g. v0.19.2): Actions -> Build
+Android APK/AAB -> Run workflow, choosing the release tag as the ref (not
+`main`, or nothing is attached to the release). `android-check.yml` runs the
+Gradle/R8 build on pull requests that touch Android inputs, so breakage shows
+up before release.
 
 ## License
 

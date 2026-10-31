@@ -1,0 +1,84 @@
+name: Android check
+
+# Guard for the tag-only Android release build. android-build.yml only runs on
+# a release tag, so an Android-only break (R8, a plugin bump, Gradle) used to
+# sit unnoticed until the next release (v0.18.0-v0.19.1 all failed). This runs
+# the same steps on pull requests that touch what feeds the Android build.
+#
+# Deliberately NOT a required check in the `main` ruleset (a Gradle build is
+# several minutes and depends on Google/Maven downloads), and path-filtered so
+# it doesn't run on unrelated PRs. A weekly run catches breakage from upstream
+# drift when nothing in the repo changed.
+
+on:
+  pull_request:
+    paths:
+      - "android/**"
+      - "ios-shell/**"
+      - "capacitor.config.ts"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/android-check.yml"
+      - ".github/workflows/android-build.yml"
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-debug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Sync Capacitor Android project
+        run: npx cap sync android
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+        working-directory: android
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --no-daemon
+        working-directory: android
+
+      # Unsigned release build: runs minification + R8 exactly as a release
+      # does, which is the step that broke. No secrets needed.
+      - name: Build release APK (unsigned, runs R8)
+        run: ./gradlew assembleRelease --no-daemon
+        working-directory: android
+
+      - name: Upload R8 report on failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: r8-report
+          path: android/app/build/outputs/mapping/release/
+          if-no-files-found: ignore
