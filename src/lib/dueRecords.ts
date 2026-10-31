@@ -9,7 +9,7 @@
 // Pure and free of runtime imports beyond the policy, so client components
 // (the list cards) can use it with a DueContext handed down from the server.
 
-import { coveredFieldsOf, vehicleCovers, type CoveringContractRow } from "@/lib/covers";
+import { coveredFieldsOf, fixedTermCoverEndsOf, vehicleCovers, type CoveringContractRow } from "@/lib/covers";
 import {
   dueEntries,
   isDue,
@@ -86,13 +86,15 @@ export function warrantyDue(row: WarrantyDueRow, ctx: DueContext): DueEntry[] {
  * Reminders, health and the lists all build the record here.
  */
 export function vehicleDueRecord(row: VehicleDueRow): Extract<DueRecord, { kind: "vehicle" }> {
+  const covers = vehicleCovers(row.contracts);
   return {
     kind: "vehicle",
     regoExpiry: row.regoExpiry,
     insuranceExpiry: row.insuranceExpiry,
     nextServiceDue: row.nextServiceDue,
     reminderDaysBefore: row.reminderDaysBefore,
-    coveredFields: coveredFieldsOf(vehicleCovers(row.contracts)),
+    coveredFields: coveredFieldsOf(covers),
+    fixedTermCoverEnds: fixedTermCoverEndsOf(covers),
     archivedAt: row.archivedAt,
   };
 }

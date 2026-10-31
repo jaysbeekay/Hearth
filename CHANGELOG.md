@@ -74,7 +74,10 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   Covers the Vehicle, search finds registration Contracts for rego and
   registration, the vehicle records export gains the effective and own
   rego and insurance dates, and the Assistant's needs-attention vehicle list
-  now uses the same Due policy as What's due.
+  now uses the same Due policy as What's due. A fixed-term Covering Contract
+  that has passed its end date has simply ended, so the Vehicle's date shows
+  as Overdue from that end date (web and standalone shell) instead of the
+  lapse going unannounced; a renewal entered as a new Contract takes over.
 
 - **Archive a Vehicle or Property you no longer have (#355).** Archive (in
   the record's More actions menu, with Undo) marks a Vehicle as sold or a

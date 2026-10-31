@@ -10,6 +10,12 @@
 //   - not Cancelled, not in Trash and not awaiting review (an unconfirmed
 //     extraction must not take over a date the household typed in), and
 //   - has an end date (without one it supplies nothing, so the manual date stays).
+// A fixed-term Contract that has passed its end date still supplies the date,
+// but it has simply ended (never Due), so the Vehicle's Due entry for that
+// date comes back as Overdue from the Contract's end date (`fixedTermCoverEnds`
+// in the Due policy) instead of the lapse going unannounced. An auto-renewing
+// Contract past its end carries on, and its own "needs a new end date"
+// Housekeeping stands in.
 // When several Contracts Cover the same field, the one ending last wins (a
 // renewal added before the old policy ran out); ties go to the one entered
 // last, and the others keep their own Reminders. When the Covering Contract is cancelled, trashed, unlinked,
@@ -44,6 +50,8 @@ export interface CoveringContractRow {
   provider: string;
   category: string;
   status: string;
+  /** Optional only so older fixtures type-check; COVERING_CONTRACTS selects it. */
+  renewalType?: string;
   /** Still awaiting review of its extracted details. */
   extractionPending: boolean;
   endDate: Date | null;
@@ -70,6 +78,7 @@ export const COVERING_CONTRACTS = {
     provider: true,
     category: true,
     status: true,
+    renewalType: true,
     extractionPending: true,
     endDate: true,
     createdAt: true,
@@ -85,6 +94,8 @@ export interface VehicleCover {
   date: Date;
   /** How many Contracts Cover this date; the latest-ending one is `contract`. */
   count: number;
+  /** The Covering Contract is fixed-term: it ends rather than renews. */
+  fixedTerm: boolean;
 }
 
 /** Whether a linked Contract Covers its Vehicle's date (see the rule above). */
@@ -123,12 +134,18 @@ export function vehicleCovers(contracts: CoveringContractRow[]): VehicleCover[] 
     contract: { id: c.id, title: c.title, provider: c.provider },
     date: c.endDate!,
     count: counts.get(field) ?? 1,
+    fixedTerm: c.renewalType === "FIXED_TERM",
   }));
 }
 
 /** The Vehicle dates a set of covers switches off, for the Due policy's `coveredFields`. */
 export function coveredFieldsOf(covers: VehicleCover[]): VehicleDueField[] {
   return covers.map((c) => c.field);
+}
+
+/** The end dates of fixed-term covers, for the Due policy's `fixedTermCoverEnds`. */
+export function fixedTermCoverEndsOf(covers: VehicleCover[]): Partial<Record<VehicleDueField, Date>> {
+  return Object.fromEntries(covers.filter((c) => c.fixedTerm).map((c) => [c.field, c.date]));
 }
 
 /**

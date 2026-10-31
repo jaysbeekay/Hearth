@@ -1055,9 +1055,18 @@ function vehicleDateLine(row, field) {
   return row[field] ? `${date} · Add the ${thing} as a contract to track cost and documents` : date;
 }
 
+// #487 review — a fixed-term Covering Contract just ends (never Due), so once
+// its end date has passed the Vehicle is uncovered and its date is Overdue
+// from that day, as in the web's Due policy (fixedTermCoverEnds).
+function coverEnded(cover) {
+  if (!cover || cover.renewal_type !== "FIXED_TERM") return false;
+  const days = daysUntil(cover.end_date);
+  return days != null && days < 0;
+}
+
 function vehicleOwnDates(row) {
   const own = { ...row };
-  for (const field of vehicleCovers(row.id).keys()) own[field] = null;
+  for (const [field, cover] of vehicleCovers(row.id)) own[field] = coverEnded(cover) ? cover.end_date : null;
   return own;
 }
 
@@ -1715,9 +1724,16 @@ function currentTenancyFor(propertyId) {
 // Covering Contract supplies (#456): that Contract's own Reminder stands in.
 function vehicleReminderTargets(type, row) {
   const covered = vehicleCovers(row.id);
+  // A Covered date has no Reminder of its own, unless its fixed-term Contract
+  // has ended: then the Vehicle reminds from the Contract's end date.
+  const own = (field, kind) => {
+    const cover = covered.get(field);
+    if (!cover) return reminderTarget(type, row, kind, row[field], row.reminder_days_before);
+    return coverEnded(cover) ? reminderTarget(type, row, kind, cover.end_date, row.reminder_days_before) : null;
+  };
   return [
-    covered.has("rego_expiry") ? null : reminderTarget(type, row, "Rego", row.rego_expiry, row.reminder_days_before),
-    covered.has("insurance_expiry") ? null : reminderTarget(type, row, "Insurance", row.insurance_expiry, row.reminder_days_before),
+    own("rego_expiry", "Rego"),
+    own("insurance_expiry", "Insurance"),
     reminderTarget(type, row, "Service", row.next_service_due, row.reminder_days_before),
   ].filter(Boolean);
 }
