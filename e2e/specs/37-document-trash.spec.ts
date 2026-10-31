@@ -38,12 +38,12 @@ async function uploadToSegment(page: Page, filename: string): Promise<string> {
 }
 
 async function deleteFromList(page: Page, filename: string) {
-  await page.getByRole("button", { name: `Move ${filename} to Trash` }).click();
+  await page.getByRole("button", { name: `Delete ${filename}`, exact: true }).click();
   const dialog = page.getByRole("alertdialog");
   await expect(dialog).toContainText("Move");
-  await expect(dialog).toContainText("Settings → Trash");
+  await expect(dialog).toContainText("Settings → Recently deleted");
   await expect(dialog).not.toContainText("can't be undone");
-  await dialog.getByRole("button", { name: "Move to Trash" }).click();
+  await dialog.getByRole("button", { name: "Delete", exact: true }).click();
 }
 
 test.describe.serial("Trip segment Documents go to Trash", () => {
@@ -53,7 +53,7 @@ test.describe.serial("Trip segment Documents go to Trash", () => {
 
     await deleteFromList(page, filename);
     const toast = page.getByRole("status");
-    await expect(toast).toContainText("Moved to Trash.");
+    await expect(toast).toContainText("Deleted.");
     await expect(page.locator('a[href^="/api/documents/"]', { hasText: filename })).toHaveCount(0);
 
     await toast.getByRole("button", { name: "Undo" }).click();
@@ -76,7 +76,7 @@ test.describe.serial("Trip segment Documents go to Trash", () => {
     expect(followed.headers()["content-disposition"]).toContain(filename);
 
     await deleteFromList(page, filename);
-    await expect(page.getByRole("status")).toContainText("Moved to Trash.");
+    await expect(page.getByRole("status")).toContainText("Deleted.");
     expect((await context.request.get(`/api/documents/${id}`)).status()).toBe(404);
 
     await page.goto("/settings/trash");

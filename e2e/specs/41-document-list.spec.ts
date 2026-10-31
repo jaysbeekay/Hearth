@@ -67,9 +67,9 @@ async function expectStarToggles(page: Page, filename: string) {
 }
 
 async function moveToTrash(page: Page, filename: string) {
-  await page.getByRole("button", { name: `Move ${filename} to Trash` }).click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "Move to Trash" }).click();
-  await expect(page.getByRole("status").first()).toContainText("Moved to Trash.");
+  await page.getByRole("button", { name: `Delete ${filename}`, exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(page.getByRole("status").first()).toContainText("Deleted.");
   await expect(docLink(page, filename)).toHaveCount(0);
 }
 
@@ -79,7 +79,7 @@ async function deleteFromOverflowMenu(page: Page, url: string, leavesTo: RegExp)
   // The page's own Delete, not a service record's or maintenance record's.
   const menu = page.getByRole("dialog", { name: "More actions" }).first();
   await menu.getByRole("button", { name: "Delete", exact: true }).click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "Move to Trash" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
   await page.waitForURL(leavesTo);
 }
 
@@ -115,7 +115,7 @@ test.describe.serial("The one Document list", () => {
     await expect(versions.locator('a[href^="/api/documents/"]')).toHaveCount(2);
     // Older versions aren't listed again as Documents of their own.
     await expect(docLink(page, v1)).toHaveCount(1);
-    await expect(versions.getByRole("button", { name: `Move ${v1} to Trash` })).toBeVisible();
+    await expect(versions.getByRole("button", { name: `Delete ${v1}`, exact: true })).toBeVisible();
     await expect(versions.getByRole("button", { name: `Preview ${v1}` })).toBeVisible();
     await expect(versions.locator("li", { hasText: v1 })).toContainText("Receipt");
 
@@ -251,12 +251,12 @@ test.describe.serial("The one Document list", () => {
     await expect(row.getByRole("button", { name: `Preview ${filename}` })).toBeVisible();
     await expectStarToggles(page, filename);
 
-    await rowOf(page, filename).getByRole("button", { name: `Move ${filename} to Trash` }).click();
+    await rowOf(page, filename).getByRole("button", { name: `Delete ${filename}`, exact: true }).click();
     const dialog = page.getByRole("alertdialog");
-    await expect(dialog).toContainText("Settings → Trash");
-    await dialog.getByRole("button", { name: "Move to Trash" }).click();
+    await expect(dialog).toContainText("Settings → Recently deleted");
+    await dialog.getByRole("button", { name: "Delete", exact: true }).click();
     const toast = page.getByRole("status");
-    await expect(toast).toContainText("Moved to Trash.");
+    await expect(toast).toContainText("Deleted.");
     await expect(docLink(page, filename)).toHaveCount(0);
     await toast.getByRole("button", { name: "Undo" }).click();
     await expect(docLink(page, filename)).toHaveCount(1);

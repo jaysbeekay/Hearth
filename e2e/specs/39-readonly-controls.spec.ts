@@ -209,7 +209,7 @@ test.describe("read-only member (#400)", () => {
     await uploadFirst(page, `ro-repair-${stamp}.pdf`);
     await page.locator('input[name="value"]').fill("750000");
     await page.getByRole("button", { name: "Save valuation" }).click();
-    await expect(page.getByRole("button", { name: /^Move valuation from .* to Trash$/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Delete valuation from / })).toBeVisible();
     await page.goto(`/home/${ids.property}/rental/agreements/new`);
     await page.locator("#weeklyRent").fill("500");
     await page.locator("#tenantName").fill("RO Tenant");
@@ -291,7 +291,7 @@ test.describe("read-only member (#400)", () => {
     ids.trashedProduct = lastSegment(page);
     await page.getByRole("button", { name: "More actions" }).click();
     await page.getByRole("button", { name: /^Delete$/ }).click();
-    await page.getByRole("button", { name: "Move to Trash" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
     await page.waitForURL(/\/products$/);
 
     // Positive control: the same checks do find the admin's controls.

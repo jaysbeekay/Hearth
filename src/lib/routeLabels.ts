@@ -22,7 +22,7 @@ export const SETTINGS_ROUTES = {
   app: { href: "/settings/app", label: "System settings", parent: "/settings/household" },
   passkeys: { href: "/settings/passkeys", label: "Passkeys", parent: "/settings" },
   security: { href: "/settings/security", label: "Security log", parent: "/settings" },
-  trash: { href: "/settings/trash", label: "Trash", parent: "/settings" },
+  trash: { href: "/settings/trash", label: "Recently deleted", parent: "/settings" },
 } as const satisfies Record<string, SettingsRoute>;
 
 /** BackLink props for a Settings sub-page: its parent page's href and label. */

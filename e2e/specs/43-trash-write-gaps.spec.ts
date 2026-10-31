@@ -86,7 +86,7 @@ test.describe.serial("writes to and links to records in Trash", () => {
     await page.getByLabel("Linked to").selectOption({ label: propertyLabel });
     await moveToTrash(request, "property", propertyId);
     await page.getByRole("button", { name: "Save changes" }).click();
-    await expect(page.locator("body")).toContainText("That property doesn't exist or is in Trash.");
+    await expect(page.locator("body")).toContainText("That property doesn't exist or has been deleted.");
 
     // Offline: the same edit queued and replayed after the property went to Trash.
     const opId = `e2e-trash-link-${stamp}`;
@@ -99,7 +99,7 @@ test.describe.serial("writes to and links to records in Trash", () => {
         formValues: { title, category: "OTHER", provider: "Trash Gap Insurer", renewalType: "MANUAL_RENEWAL", propertyId },
       },
     ]);
-    expect(results).toEqual([{ id: opId, success: false, error: "That property doesn't exist or is in Trash." }]);
+    expect(results).toEqual([{ id: opId, success: false, error: "That property doesn't exist or has been deleted." }]);
 
     await page.goto(`/contracts/${contractId}`);
     await expect(page.getByText(propertyLabel)).toHaveCount(0);
