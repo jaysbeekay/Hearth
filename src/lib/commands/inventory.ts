@@ -11,6 +11,7 @@ import {
 } from "@/lib/commands/shared";
 import type { ClearablePatch } from "@/lib/validation/fullFormUpdate";
 import type { InventoryItemInput } from "@/lib/validation/inventory";
+import { syncLegacyInventory } from "@/lib/items/syncLegacyItem";
 
 // Record commands for Inventory items (ADR 0003). Updates go through here,
 // from the edit form's server action and the offline sync handler (#446).
@@ -57,6 +58,8 @@ export async function updateInventoryItemCommand(
         }),
       () => findLiveParent(loadItem(), "Inventory item"),
     );
+    // #380 staging: mirror into the staged Item tables in the same transaction.
+    await syncLegacyInventory(tx, id, existing.warrantyProductId);
     return {
       item: await findLiveParent(loadItem(), "Inventory item"),
       previousWarrantyId: existing.warrantyProductId,

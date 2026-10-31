@@ -13,6 +13,13 @@ import { getDocumentVersionChain } from "@/lib/documents/documentQueries";
 import { DOCUMENT_KIND_MODULE, OWNED_DOCUMENT_KINDS, type OwnedDocumentKind } from "@/lib/documents/kinds";
 import { ProductDocumentKind } from "@/generated/prisma/enums";
 import type { Prisma } from "@/generated/prisma/client";
+import { syncLegacyDocument, removeStagedLegacyDocument } from "@/lib/items/syncLegacyDocument";
+
+async function mirrorStagedDocument(kind: OwnedDocumentKind, id: string) {
+  if (kind !== "PRODUCT" && kind !== "INVENTORY_ITEM") return;
+  try { await syncLegacyDocument(kind, id); }
+  catch (error) { console.error("[items] couldn't mirror %s Document %s", kind, id, error); }
+}
 
 // The Document command (#396, ADR 0003). Every write to a Document of any
 // kind goes through here: server actions, the offline sync handler, import,
@@ -421,6 +428,7 @@ async function insertDocument(
   } catch (error) {
     console.error(`[documents] couldn't queue text extraction for ${kind} document ${doc.id}`, error);
   }
+  await mirrorStagedDocument(kind, doc.id);
   revalidate(owner.paths);
   return doc;
 }
@@ -470,6 +478,7 @@ export async function deleteDocumentCommand(kind: OwnedDocumentKind, id: string,
   const doc = await requireDocument(kind, id, scope);
   if (doc.deletedAt) return;
   await KINDS[kind].delegate(prisma).update({ where: { id }, data: { deletedAt: new Date() } });
+  await mirrorStagedDocument(kind, id);
   revalidate(await ownerPaths(kind, doc.ownerId));
   revalidatePath("/settings/trash");
 }
@@ -485,6 +494,7 @@ export async function restoreDocumentCommand(kind: OwnedDocumentKind, id: string
     await config.delegate(tx).update({ where: { id }, data: { deletedAt: null } });
     return found;
   });
+  await mirrorStagedDocument(kind, id);
   revalidate(owner?.paths ?? []);
   revalidatePath("/settings/trash");
 }
@@ -518,6 +528,7 @@ export async function setDocumentImportantCommand(
     return liveOwner;
   });
   revalidate(owner.paths);
+  await mirrorStagedDocument(kind, id);
 }
 
 // The row-and-file part of a permanent delete, with no module gate and no
@@ -529,6 +540,10 @@ export async function purgeDocument(kind: OwnedDocumentKind, id: string) {
   const doc = await requireDocument(kind, id);
   await KINDS[kind].delegate(prisma).delete({ where: { id } });
   await documentStoreFor(kind).remove(doc.ownerId, doc.storedName);
+  if (kind === "PRODUCT" || kind === "INVENTORY_ITEM") {
+    try { await removeStagedLegacyDocument(kind, id); }
+    catch (error) { console.error("[items] couldn't remove staged %s Document %s", kind, id, error); }
+  }
   return { ownerId: doc.ownerId };
 }
 

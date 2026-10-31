@@ -36,6 +36,15 @@ function inventoryItemDir(inventoryItemId: string) {
   return path.join(path.resolve(env.uploadsDir), "inventory-items", path.basename(inventoryItemId));
 }
 
+function itemDir(itemId: string) {
+  const root = path.resolve(env.uploadsDir);
+  const dir = path.join(root, "items", path.basename(itemId));
+  // Containment guard, as in the staged-copy helper: the resolved directory
+  // must stay inside the uploads root (#445).
+  if (!dir.startsWith(root + path.sep)) throw new Error("Invalid item id");
+  return dir;
+}
+
 function inboxDir() {
   return path.join(path.resolve(env.uploadsDir), "inbox");
 }
@@ -51,6 +60,7 @@ const homeItemStore = new DocumentStore(homeItemDir);
 const vehicleItemStore = new DocumentStore(vehicleItemDir);
 const rentalStatementStore = new DocumentStore(rentalStatementDir);
 const inventoryItemStore = new DocumentStore(inventoryItemDir);
+const itemStore = new DocumentStore(itemDir);
 const inboxStore = new DocumentStore(inboxDir);
 const tradeStore = new DocumentStore(tradeDir);
 
@@ -160,6 +170,12 @@ export async function readDocument(contractId: string, storedName: string) {
 }
 export async function readProductDocument(productId: string, storedName: string) {
   return productStore.read(productId, storedName);
+}
+export async function readItemDocument(itemId: string, storedName: string) {
+  return itemStore.read(itemId, storedName);
+}
+export async function removeItemDocumentFiles(itemId: string) {
+  return itemStore.removeAll(itemId);
 }
 export async function saveInboxDocument(file: File) {
   return inboxStore.save("", file);

@@ -15,6 +15,7 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import { purgeDocument, removeOwnerDocumentFiles } from "@/lib/commands/documents";
 import { DOCUMENT_KIND_MODULE, type OwnedDocumentKind } from "@/lib/documents/kinds";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
+import { purgeLegacyInventoryStage } from "@/lib/items/syncLegacyItem";
 import type { ModuleKey } from "@/lib/modules/registry";
 
 // #287 — how long a soft-deleted record sits in Trash before it's purged for
@@ -124,8 +125,11 @@ export async function purgeExpiredTrash(): Promise<void> {
     await purgeTrip(t.id);
   }
   for (const i of inventoryItems) {
+    const documentIds = (await prisma.inventoryItemDocument.findMany({ where: { inventoryItemId: i.id }, select: { id: true } })).map((doc) => doc.id);
     await removeOwnerDocumentFiles("INVENTORY_ITEM", i.id);
     await prisma.inventoryItem.delete({ where: { id: i.id } });
+    try { await purgeLegacyInventoryStage(i.id, documentIds); }
+    catch (error) { console.error("[items] couldn't retire staged Inventory item %s", i.id, error); }
   }
 }
 

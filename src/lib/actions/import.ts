@@ -21,6 +21,7 @@ import { RecordValidationError } from "@/lib/commands/shared";
 import { extractionFieldsFromForm } from "@/lib/documents/extractionConfirmation";
 import { saveExtractionReviewFieldsFromForm } from "@/lib/documents/extractionReview";
 import { parseDocumentCategory } from "@/lib/documents/categories";
+import { syncLegacyInventory } from "@/lib/items/syncLegacyItem";
 
 function formToInventoryItemInput(formData: FormData) {
   return {
@@ -131,8 +132,10 @@ export async function importInventoryItem(formData: FormData): Promise<ImportRes
     if (rejection) return { error: rejection };
   }
 
-  const item = await prisma.inventoryItem.create({
-    data: { ...parsed.data, createdById: user.id },
+  const item = await prisma.$transaction(async (tx) => {
+    const created = await tx.inventoryItem.create({ data: { ...parsed.data, createdById: user.id } });
+    await syncLegacyInventory(tx, created.id);
+    return created;
   });
 
   if (file instanceof File && file.size > 0) {

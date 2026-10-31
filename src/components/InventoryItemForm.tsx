@@ -44,10 +44,12 @@ export function InventoryItemForm({
   action,
   item,
   products = [],
+  itemRoute = false,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   item?: InventoryItemModel;
   products?: { id: string; description: string }[];
+  itemRoute?: boolean;
 }) {
   const offlineAwareAction = makeOfflineAwareAction(
     action,
@@ -81,7 +83,7 @@ export function InventoryItemForm({
     if (!pendingOp) return;
     const { values } = serializeFormData(new FormData(e.currentTarget));
     await updateOperationFormValues(pendingOp.id, values);
-    router.push("/inventory");
+    router.push(itemRoute ? "/items" : "/inventory");
   }
 
   const categoryRef = useRef<HTMLSelectElement>(null);
