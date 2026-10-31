@@ -78,17 +78,17 @@ export function AddEntryPicker({ enabledModules }: { enabledModules: string[] })
         open={open}
         onClose={() => setOpen(false)}
         labelledBy={titleId}
-        panelClassName="w-full max-w-md rounded-xl border border-border bg-surface p-5 shadow-xl"
+        panelClassName="w-full max-w-md rounded-lg border border-border bg-surface p-5 shadow-overlay"
       >
         <div className="mb-3 flex items-center justify-between">
-          <h2 id={titleId} className="text-lg font-semibold">
+          <h2 id={titleId} className="text-base font-medium">
             What are you adding?
           </h2>
           <button
             type="button"
             onClick={() => setOpen(false)}
             aria-label="Close"
-            className="flex size-11 items-center justify-center rounded-md text-muted hover:bg-hover"
+            className="flex size-11 items-center justify-center rounded-lg text-muted hover:bg-hover"
           >
             <X size={16} />
           </button>
@@ -101,7 +101,7 @@ export function AddEntryPicker({ enabledModules }: { enabledModules: string[] })
               onClick={() => setOpen(false)}
               className="flex items-start gap-3 rounded-lg border border-border p-3 hover:border-accent/50 hover:bg-accent/5"
             >
-              <option.icon size={18} className="mt-0.5 shrink-0 text-accent" />
+              <option.icon size={16} className="mt-0.5 shrink-0 text-accent" />
               <div className="min-w-0">
                 <p className="text-sm font-medium">{option.label}</p>
                 <p className="text-xs text-muted">{option.description}</p>

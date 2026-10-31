@@ -35,14 +35,14 @@ export default async function NewRentalAgreementPage({
 
       <div>
         <p className="text-sm text-muted">{property.label}</p>
-        <h1 className="text-2xl font-semibold">New tenancy</h1>
+        <h1 className="text-2xl font-medium">New tenancy</h1>
         <p className="mt-1 text-sm text-muted">
           Record a tenancy for this property. Add a new one whenever the rent, tenant or terms
           change, so the history is kept for reconciliation.
         </p>
       </div>
 
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
         <RentalAgreementForm
           action={boundAction}
           propertyId={property.id}

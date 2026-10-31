@@ -38,9 +38,9 @@ export function DetailField({
               });
             }}
             aria-label={copied ? `Copied ${label}` : `Copy ${label}`}
-            className="shrink-0 rounded p-1 text-muted hover:bg-hover hover:text-foreground"
+            className="shrink-0 rounded-lg p-1 text-muted hover:bg-hover hover:text-foreground"
           >
-            {copied ? <Check size={13} /> : <Copy size={13} />}
+            {copied ? <Check size={16} /> : <Copy size={16} />}
           </button>
         )}
       </dd>

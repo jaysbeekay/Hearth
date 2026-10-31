@@ -13,12 +13,12 @@ export default async function NewTripPage() {
     <div className="max-w-3xl space-y-6">
       <BackLink href="/travel" label="Travel" />
       <div>
-        <h1 className="text-2xl font-semibold">Add a trip</h1>
+        <h1 className="text-2xl font-medium">Add a trip</h1>
         <p className="text-sm text-muted">
           Start an itinerary, then add flights, lodging, and activities.
         </p>
       </div>
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
         <TripForm action={createTrip} />
       </div>
     </div>

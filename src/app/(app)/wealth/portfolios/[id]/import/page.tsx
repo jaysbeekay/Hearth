@@ -25,9 +25,9 @@ export default async function ImportPage({
     <div className="max-w-3xl space-y-6">
       <div>
         <BackLink href={`/wealth/portfolios/${id}`} label={portfolio.name} />
-        <h1 className="mt-1 text-2xl font-semibold">Import trades</h1>
+        <h1 className="mt-1 text-2xl font-medium">Import trades</h1>
       </div>
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
         <WealthImportClient portfolioId={id} />
       </div>
     </div>

@@ -13,12 +13,12 @@ export default async function NewVehiclePage() {
     <div className="max-w-3xl space-y-6">
       <BackLink href="/vehicles" label="Vehicles" />
       <div>
-        <h1 className="text-2xl font-semibold">Add a vehicle</h1>
+        <h1 className="text-2xl font-medium">Add a vehicle</h1>
         <p className="text-sm text-muted">
           Track registration, insurance, and service history for this vehicle.
         </p>
       </div>
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
         <VehicleForm action={createVehicle} />
       </div>
     </div>

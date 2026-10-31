@@ -57,7 +57,7 @@ export default async function WealthPage() {
       <ListPageHeader title="Wealth" exportPath="/api/export/wealth" action={headerAction} />
 
       {data.propertyStale && enabledModules.has("HOME") && (
-        <div className="flex items-start gap-3 rounded-xl border border-border bg-muted/10 px-4 py-3 text-sm text-foreground">
+        <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/10 px-4 py-3 text-sm text-foreground">
           <AlertTriangle size={16} className="mt-0.5 shrink-0" />
           <span>One or more properties don&apos;t have a valuation in the last 12 months. <Link href="/home" className="underline">Update property valuations</Link> for a more accurate net worth.</span>
         </div>
@@ -65,11 +65,11 @@ export default async function WealthPage() {
 
       {/* Net worth: the total, then every part of it */}
       <section className="space-y-3" aria-label="Net worth">
-        <div className="rounded-xl border border-border bg-surface p-4">
+        <div className="rounded-lg border border-border bg-surface p-4">
           <p className="text-xs text-muted">Total net worth</p>
-          <p className="mt-1 text-3xl font-bold" data-testid="net-worth-total" data-value={total}>{formatCurrency(total, data.currency, undefined, region, { showCode: true })}</p>
+          <p className="mt-1 text-2xl font-medium" data-testid="net-worth-total" data-value={total}>{formatCurrency(total, data.currency, undefined, region, { showCode: true })}</p>
         </div>
-        <ul className="divide-y divide-border rounded-xl border border-border bg-surface" data-testid="net-worth-components">
+        <ul className="divide-y divide-border rounded-lg border border-border bg-surface" data-testid="net-worth-components">
           {data.components.map((c) => (
             <li key={c.key} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
               <span>{c.label}</span>
@@ -93,7 +93,7 @@ export default async function WealthPage() {
                 href={`/wealth/portfolios/${data.portfolios[0].portfolioId}/holdings/new`}
                 className="flex items-center gap-1 text-sm text-accent hover:underline"
               >
-                <Plus size={14} />
+                <Plus size={16} />
                 Add holding
               </Link>
             )}
@@ -115,7 +115,7 @@ export default async function WealthPage() {
         </section>
       ) : (
         <div className="space-y-4">
-          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
+          <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted">
             {hasPortfolios
               ? "No holdings yet. Add your first holding or import trades from a CSV."
               : "Create a portfolio to start tracking your shares and investments."}

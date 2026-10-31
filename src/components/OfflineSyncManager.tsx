@@ -134,14 +134,14 @@ export function OfflineSyncManager() {
     const changes = pendingCount === 1 ? "1 change" : `${pendingCount} changes`;
     return (
       <div className="flex items-center gap-3 border-b border-border bg-danger/10 px-4 py-2 text-sm text-danger">
-        <AlertCircle size={14} className="shrink-0" />
+        <AlertCircle size={16} className="shrink-0" />
         <span className="flex-1">
           {changes} on this device can&apos;t be saved because your account is now read-only.
         </span>
         <button
           type="button"
           onClick={() => { setConfirmDiscard(true); }}
-          className="shrink-0 rounded px-2 py-0.5 text-xs font-medium underline hover:no-underline"
+          className="shrink-0 rounded-lg px-2 py-0.5 text-xs font-medium underline hover:no-underline"
         >
           Discard
         </button>
@@ -193,12 +193,12 @@ export function OfflineSyncManager() {
       }`}
     >
       {syncState === "syncing" && (
-        <RefreshCw size={14} className="shrink-0 animate-spin" />
+        <RefreshCw size={16} className="shrink-0 animate-spin" />
       )}
-      {syncState === "done" && <CheckCircle size={14} className="shrink-0" />}
-      {syncState === "error" && <AlertCircle size={14} className="shrink-0" />}
+      {syncState === "done" && <CheckCircle size={16} className="shrink-0" />}
+      {syncState === "error" && <AlertCircle size={16} className="shrink-0" />}
       {syncState === "idle" && pendingCount > 0 && (
-        <RefreshCw size={14} className="shrink-0" />
+        <RefreshCw size={16} className="shrink-0" />
       )}
 
       <span className="flex-1">
@@ -215,7 +215,7 @@ export function OfflineSyncManager() {
       {syncState === "idle" && pendingCount > 0 && navigator?.onLine && (
         <button
           onClick={() => runSync()}
-          className="shrink-0 rounded px-2 py-0.5 text-xs font-medium underline hover:no-underline"
+          className="shrink-0 rounded-lg px-2 py-0.5 text-xs font-medium underline hover:no-underline"
         >
           Sync now
         </button>

@@ -11,7 +11,7 @@ export function SelectWrapper({ children }: { children: React.ReactNode }) {
     <div className="relative">
       {children}
       <ChevronDown
-        size={14}
+        size={16}
         aria-hidden
         className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-muted"
       />

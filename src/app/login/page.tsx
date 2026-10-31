@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { Flame } from "lucide-react";
+
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { isSmtpConfigured } from "@/lib/appSettings";
@@ -49,8 +49,7 @@ export default async function LoginPage({
     <div className="flex flex-1 items-center justify-center px-4 py-12">
       <div className="w-full max-w-sm space-y-6">
         <div className="flex flex-col items-center gap-2 text-center">
-          <Flame size={32} className="text-accent" />
-          <h1 className="text-2xl font-semibold">Welcome back</h1>
+          <h1 className="text-2xl font-medium">Welcome back</h1>
           <p className="text-sm text-muted">Sign in to Hearth.</p>
         </div>
         {passwordChanged && (
@@ -60,7 +59,7 @@ export default async function LoginPage({
           </p>
         )}
         <SignedOutCacheCleanup />
-        <div className="rounded-xl border border-border bg-surface p-6">
+        <div className="rounded-lg border border-border bg-surface p-6">
           <LoginForm
             smtpConfigured={smtpConfigured}
             githubConfigured={isGithubOAuthConfigured()}

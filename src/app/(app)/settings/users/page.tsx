@@ -30,9 +30,9 @@ export default async function ManageUsersPage() {
   return (
     <div className="max-w-2xl space-y-6">
       <BackLink {...settingsBackLink(SETTINGS_ROUTES.users)} />
-      <h1 className="text-2xl font-semibold">{SETTINGS_ROUTES.users.label}</h1>
+      <h1 className="text-2xl font-medium">{SETTINGS_ROUTES.users.label}</h1>
 
-      <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
         <ul className="divide-y divide-border">
           {users.map((user) => (
             <li key={user.id} className="flex items-center justify-between gap-3 py-3">
@@ -52,7 +52,7 @@ export default async function ManageUsersPage() {
                     confirmText={`Remove ${user.name} from the household? Their records and documents stay with the household.`}
                     actionLabel={`Remove ${user.name}`}
                     ariaLabel={`Remove ${user.name} from the household`}
-                    className="rounded-md p-2 text-muted hover:text-danger"
+                    className="rounded-lg p-2 text-muted hover:text-danger"
                   >
                     <Trash2 size={16} />
                   </ConfirmForm>
@@ -63,7 +63,7 @@ export default async function ManageUsersPage() {
         </ul>
       </section>
 
-      <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
         <h2 className="mb-3 font-medium">Add a household member</h2>
         <CreateUserForm smtpConfigured={smtpConfigured} />
       </section>

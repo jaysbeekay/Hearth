@@ -43,7 +43,7 @@ export function IcalTokenSection({ hasToken, appUrl, embedded }: Props) {
   }
 
   return (
-    <section className={embedded ? undefined : "rounded-xl border border-border bg-surface p-4 md:p-6"}>
+    <section className={embedded ? undefined : "rounded-lg border border-border bg-surface p-4 md:p-6"}>
       <h2 id={embedded ? "calendar-feed-heading" : undefined} className="mb-1 font-medium">
         Calendar feed
       </h2>

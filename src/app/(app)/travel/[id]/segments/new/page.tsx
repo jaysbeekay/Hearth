@@ -29,10 +29,10 @@ export default async function NewTripSegmentPage({
     <div className="max-w-3xl space-y-6">
       <BackLink href={`/travel/${trip.id}`} label={trip.title} />
       <div>
-        <h1 className="text-2xl font-semibold">Add a segment</h1>
+        <h1 className="text-2xl font-medium">Add a segment</h1>
         <p className="text-sm text-muted">{trip.title}</p>
       </div>
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
         <TripSegmentForm action={boundAction} tripId={trip.id} defaultCurrency={preferredCurrency} />
       </div>
     </div>

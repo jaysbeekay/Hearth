@@ -11,7 +11,7 @@ export function DocumentDeleteButton({
   documentId,
   ownerId,
   filename,
-  className = "inline-flex h-11 w-11 items-center justify-center rounded-md text-muted hover:text-danger",
+  className = "inline-flex h-11 w-11 items-center justify-center rounded-lg text-muted hover:text-danger",
   iconSize = 16,
 }: {
   kind: OwnedDocumentKind;
@@ -19,7 +19,7 @@ export function DocumentDeleteButton({
   ownerId: string;
   filename: string;
   className?: string;
-  iconSize?: number;
+  iconSize?: 16 | 20;
 }) {
   // #400 — read-only members don't get a delete they can't use.
   return (

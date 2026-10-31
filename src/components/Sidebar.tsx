@@ -36,8 +36,8 @@ export function Sidebar({
   return (
     <aside className="hidden w-60 flex-col border-r border-border bg-surface md:flex">
       <div className="flex items-center gap-2 px-6 py-5">
-        <Flame size={22} className="text-accent" />
-        <span className="text-lg font-semibold">Hearth</span>
+        <Flame size={20} className="text-accent" />
+        <span className="text-base font-medium">Hearth</span>
       </div>
 
       <div className="px-3 pb-3">
@@ -48,7 +48,7 @@ export function Sidebar({
         >
           <Search size={16} />
           <span className="flex-1 text-left">Search</span>
-          <kbd className="rounded border border-border px-1.5 py-0.5 text-[10px]">⌘K</kbd>
+          <kbd className="rounded-lg border border-border px-1.5 py-0.5 text-xs">⌘K</kbd>
         </button>
       </div>
 
@@ -66,13 +66,13 @@ export function Sidebar({
                   : "text-muted hover:bg-hover",
               )}
             >
-              <Icon size={18} />
+              <Icon size={20} />
               {label}
             </Link>
           );
         })}
 
-        <p className="mt-4 px-3 pb-1 text-xs font-semibold text-muted">
+        <p className="mt-4 px-3 pb-1 text-xs font-medium text-muted">
           Modules
         </p>
         {moduleItems.map(({ href, label, icon: Icon }) => {
@@ -88,13 +88,13 @@ export function Sidebar({
                   : "text-muted hover:bg-hover",
               )}
             >
-              <Icon size={18} />
+              <Icon size={20} />
               {label}
             </Link>
           );
         })}
 
-        <p className="mt-4 px-3 pb-1 text-xs font-semibold text-muted">
+        <p className="mt-4 px-3 pb-1 text-xs font-medium text-muted">
           Tools
         </p>
         {toolItems.map(({ href, label, icon: Icon }) => {
@@ -112,7 +112,7 @@ export function Sidebar({
                   : "text-muted hover:bg-hover",
               )}
             >
-              <Icon size={18} />
+              <Icon size={20} />
               {label}
               {documents && <InboxCountBadge count={inboxCount} className="ml-auto" />}
             </Link>
@@ -130,7 +130,7 @@ export function Sidebar({
               : "text-muted hover:bg-hover",
           )}
         >
-          <Settings size={18} />
+          <Settings size={20} />
           {FOOTER_NAV.settings.label}
         </Link>
         <Link
@@ -142,7 +142,7 @@ export function Sidebar({
               : "text-muted hover:bg-hover",
           )}
         >
-          <HelpCircle size={18} />
+          <HelpCircle size={20} />
           {FOOTER_NAV.help.label}
         </Link>
         <div className="mt-2 px-3">

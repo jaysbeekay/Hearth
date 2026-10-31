@@ -44,18 +44,18 @@ export function OnboardingChecklist({
   ];
 
   return (
-    <section className="relative space-y-4 rounded-xl border border-dashed border-accent/40 bg-accent/5 p-6 text-center md:p-10">
+    <section className="relative space-y-4 rounded-lg border border-dashed border-accent/40 bg-accent/5 p-6 text-center md:p-10">
       <button
         type="button"
         aria-label="Dismiss getting-started checklist"
         onClick={dismiss}
-        className="absolute right-1 top-1 flex size-11 items-center justify-center rounded-md text-muted hover:bg-hover"
+        className="absolute right-1 top-1 flex size-11 items-center justify-center rounded-lg text-muted hover:bg-hover"
       >
-        <X size={14} />
+        <X size={16} />
       </button>
 
       <div className="space-y-1">
-        <h2 className="text-lg font-semibold">Add your first document</h2>
+        <h2 className="text-base font-medium">Add your first document</h2>
         <p className="mx-auto max-w-md text-sm text-muted">
           Drop in a PDF and Hearth fills in the details for you — review and save in seconds.
         </p>

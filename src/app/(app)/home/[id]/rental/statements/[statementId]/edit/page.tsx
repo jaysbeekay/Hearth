@@ -32,10 +32,10 @@ export default async function EditRentalStatementPage({
 
       <div>
         <p className="text-sm text-muted">{property.label}</p>
-        <h1 className="text-2xl font-semibold">Edit statement</h1>
+        <h1 className="text-2xl font-medium">Edit statement</h1>
       </div>
 
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
         <RentalStatementForm action={boundAction} statement={statement} />
       </div>
     </div>

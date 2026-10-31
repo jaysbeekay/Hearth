@@ -16,7 +16,7 @@ export function NotificationPreferencesForm({ emailReminders }: { emailReminders
           name="emailReminders"
           type="checkbox"
           defaultChecked={emailReminders}
-          className="size-4 rounded border-border accent-accent"
+          className="size-4 rounded-lg border-border accent-accent"
         />
         <label htmlFor="emailReminders" className="text-sm">
           Email me reminders (contracts, warranties, vehicles)

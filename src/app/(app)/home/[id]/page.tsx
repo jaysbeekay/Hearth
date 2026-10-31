@@ -129,7 +129,7 @@ export default async function PropertyDetailPage({
           <p className="text-sm text-muted">
             {formatPropertyAddress(property) || "No address set"}
           </p>
-          <h1 className="text-2xl font-semibold">{property.label}</h1>
+          <h1 className="text-2xl font-medium">{property.label}</h1>
           <span className="mt-1 inline-block rounded-full bg-muted/10 px-2 py-0.5 text-xs font-medium text-muted">
             {OCCUPANCY_STATUS_LABELS[property.occupancyStatus] ?? property.occupancyStatus}
           </span>
@@ -210,7 +210,7 @@ export default async function PropertyDetailPage({
       )}
 
       {property.notes && (
-        <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+        <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-2 font-medium">Notes</h2>
           <p className="whitespace-pre-wrap text-sm text-foreground">{property.notes}</p>
         </div>
@@ -231,7 +231,7 @@ export default async function PropertyDetailPage({
         </div>
 
         {items.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
+          <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted">
             No maintenance records yet. Add maintenance, an improvement or a repair to start tracking.
           </p>
         ) : (
@@ -241,7 +241,7 @@ export default async function PropertyDetailPage({
               return (
                 <div
                   key={item.id}
-                  className="rounded-xl border border-border bg-surface p-4 md:p-6"
+                  className="rounded-lg border border-border bg-surface p-4 md:p-6"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="flex min-w-0 items-start gap-3">
@@ -331,7 +331,7 @@ export default async function PropertyDetailPage({
           )}
         </div>
         {linkedContracts.length === 0 && linkedProducts.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted">
+          <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted">
             No contracts or warranties linked yet.
           </p>
         ) : (
@@ -350,13 +350,13 @@ export default async function PropertyDetailPage({
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <TrendingUp size={18} className="text-muted" />
+            <TrendingUp size={16} className="text-muted" />
             <h2 className="font-medium">Property valuations</h2>
           </div>
         </div>
 
         {valuationStale && (
-          <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/10 p-3 text-sm text-foreground">
+          <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/10 p-3 text-sm text-foreground">
             <AlertTriangle size={16} className="shrink-0" />
             {latestValuation
               ? "Valuation is over 12 months old — consider updating."
@@ -365,7 +365,7 @@ export default async function PropertyDetailPage({
         )}
 
         {property.valuations.length > 0 && (
-          <div className="rounded-xl border border-border bg-surface divide-y divide-border">
+          <div className="rounded-lg border border-border bg-surface divide-y divide-border">
             {property.valuations.map((v) => (
               <div key={v.id} className="flex items-center justify-between gap-4 p-4">
                 <div>
@@ -389,7 +389,7 @@ export default async function PropertyDetailPage({
                     ariaLabel={`Move valuation from ${formatDate(v.valuedAt, dateFormat)} to Trash`}
                     className="rounded-lg border border-border p-2 text-danger hover:bg-danger/10"
                   >
-                    <Trash2 size={14} />
+                    <Trash2 size={16} />
                   </ConfirmForm>
                 )}
               </div>
@@ -398,7 +398,7 @@ export default async function PropertyDetailPage({
         )}
 
         {canWrite && (
-          <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+          <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
             <h3 className="mb-3 text-sm font-medium">Add valuation</h3>
             <PropertyValuationForm
               action={createPropertyValuation.bind(null, property.id)}
@@ -416,10 +416,10 @@ export default async function PropertyDetailPage({
           agreement is created, so existing tracking stays visible even if
           occupancyStatus later changes). */}
       {(property.occupancyStatus === "RENTED" || property.isRented) && (
-        <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+        <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <Home size={18} className="text-muted" />
+              <Home size={16} className="text-muted" />
               <h2 className="font-medium">Tenancy</h2>
             </div>
             {property.isRented ? (

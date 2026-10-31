@@ -48,10 +48,10 @@ export function markAutoFilled(
   badge.className = [
     "inline-block",
     "mt-1",
-    "rounded",
+    "rounded-lg",
     "px-1.5",
     "py-0.5",
-    "text-[10px]",
+    "text-xs",
     "font-medium",
     ...AUTOFILL_BADGE_CLASSES[source],
   ].join(" ");

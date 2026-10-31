@@ -38,7 +38,7 @@ export default async function EditInventoryItemPage({
       <div>
         <BackLink href={`/inventory/${id}`} label={item.label} />
       </div>
-      <h1 className="text-2xl font-semibold">Edit item</h1>
+      <h1 className="text-2xl font-medium">Edit item</h1>
       <InventoryItemForm action={updateInventoryItem.bind(null, id)} item={item} products={products} />
     </div>
   );

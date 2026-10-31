@@ -34,14 +34,14 @@ export default async function EditRentalAgreementPage({
 
       <div>
         <p className="text-sm text-muted">{property.label}</p>
-        <h1 className="text-2xl font-semibold">Edit tenancy</h1>
+        <h1 className="text-2xl font-medium">Edit tenancy</h1>
         <p className="mt-1 text-sm text-muted">
           Correct a mistake in this tenancy. To record new terms (new tenant or rent change),
           add a new tenancy instead.
         </p>
       </div>
 
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
         <RentalAgreementForm action={boundAction} agreement={agreement} defaultReminderDays={defaultDays} />
       </div>
     </div>

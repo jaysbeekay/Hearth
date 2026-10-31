@@ -42,13 +42,13 @@ export default async function SettingsPage() {
 
   return (
     <div className="max-w-4xl space-y-6">
-      <h1 className="text-2xl font-semibold">Settings</h1>
+      <h1 className="text-2xl font-medium">Settings</h1>
       <p className="text-sm text-muted">
         These settings only affect your own account, not the rest of the household.
       </p>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+        <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-3 font-medium">Profile</h2>
           <dl className="grid grid-cols-2 gap-4">
             <div className="min-w-0">
@@ -75,7 +75,7 @@ export default async function SettingsPage() {
           )}
         </section>
 
-        <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+        <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-3 font-medium">Reminders</h2>
           <p className="mb-3 text-sm text-muted">
             Reminders are sent by email{ntfyConfigured ? " and push (ntfy)" : ""}.{" "}
@@ -97,7 +97,7 @@ export default async function SettingsPage() {
           <NotificationPreferencesForm emailReminders={user.emailReminders} />
         </section>
 
-        <section className="rounded-xl border border-border bg-surface p-4 md:p-6 md:col-span-2">
+        <section className="rounded-lg border border-border bg-surface p-4 md:p-6 md:col-span-2">
           <h2 className="mb-3 font-medium">Preferences</h2>
           <p className="mb-3 text-sm text-muted">
             Localisation used throughout the app — dates, default currency for new records, your
@@ -121,7 +121,7 @@ export default async function SettingsPage() {
           </p>
         </section>
 
-        <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+        <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-3 font-medium">Security</h2>
           <div className="flex flex-col gap-1">
             <Link href={SETTINGS_ROUTES.passkeys.href} className={quickLinkClass}>
@@ -148,7 +148,7 @@ export default async function SettingsPage() {
 
         <IcalTokenSection hasToken={Boolean(user.icalTokenHash)} appUrl={appUrl} />
 
-        <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+        <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-3 font-medium">Trash</h2>
           <p className="mb-3 text-sm text-muted">
             Deleted contracts, warranties, vehicles, properties, trips, and inventory items stay
@@ -162,7 +162,7 @@ export default async function SettingsPage() {
 
         <OfflineDocumentsPanel />
 
-        <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+        <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-3 font-medium">Change password</h2>
           <ChangePasswordForm />
         </section>

@@ -176,7 +176,7 @@ export default async function DashboardPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Dashboard</h1>
+          <h1 className="text-2xl font-medium">Dashboard</h1>
           <p className="text-sm text-muted">
             What&apos;s due, what it costs, and what needs attention.
           </p>
@@ -227,13 +227,13 @@ export default async function DashboardPage() {
       )}
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold">Needs attention</h2>
+        <h2 className="text-xl font-medium">Needs attention</h2>
         <NeedsAttentionQueue due={attention.due} housekeeping={attention.housekeeping} canWrite={canWrite} />
       </section>
 
       {enabledModules.has("TRAVEL") && upcomingTrips.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-lg font-semibold">Upcoming trips</h2>
+          <h2 className="text-base font-medium">Upcoming trips</h2>
           <div className="grid gap-3 md:grid-cols-2">
             {upcomingTrips.map((trip) => (
               <TripCard key={trip.id} trip={trip} />

@@ -155,7 +155,7 @@ export default async function TrashPage() {
     <div className="max-w-2xl space-y-6">
       <BackLink {...settingsBackLink(SETTINGS_ROUTES.trash)} />
       <div>
-        <h1 className="text-2xl font-semibold">{SETTINGS_ROUTES.trash.label}</h1>
+        <h1 className="text-2xl font-medium">{SETTINGS_ROUTES.trash.label}</h1>
         <p className="text-sm text-muted">
           Deleted records stay here for {TRASH_RETENTION_DAYS} days — restore them, or delete
           permanently right away. Their documents are kept until then too.
@@ -163,11 +163,11 @@ export default async function TrashPage() {
       </div>
 
       {entries.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
+        <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted">
           Trash is empty.
         </p>
       ) : (
-        <ul className="divide-y divide-border rounded-xl border border-border bg-surface">
+        <ul className="divide-y divide-border rounded-lg border border-border bg-surface">
           {entries.map((entry) => {
             const meta = metaFor(entry);
             const Icon = meta.icon;
@@ -175,7 +175,7 @@ export default async function TrashPage() {
             return (
               <li key={`${entry.domain}-${entry.id}`} className="flex items-center justify-between gap-3 p-4">
                 <div className="flex min-w-0 items-start gap-3">
-                  <Icon size={18} className="mt-0.5 shrink-0 text-muted" />
+                  <Icon size={16} className="mt-0.5 shrink-0 text-muted" />
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{entry.label}</p>
                     <p className="truncate text-xs text-muted">
@@ -196,7 +196,7 @@ export default async function TrashPage() {
                       successMessage="Deleted permanently."
                       className="inline-flex min-h-11 items-center justify-center rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
                     >
-                      <Trash2 size={14} className="mr-1.5" />
+                      <Trash2 size={16} className="mr-1.5" />
                       Delete permanently
                     </ConfirmForm>
                   </div>

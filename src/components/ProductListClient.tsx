@@ -164,7 +164,7 @@ export function ProductListClient({
               }}
               className="flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:bg-hover"
             >
-              &quot;{q}&quot; <X size={12} />
+              &quot;{q}&quot; <X size={16} />
             </button>
           )}
           <button
@@ -196,7 +196,7 @@ export function ProductListClient({
 
       {products.length === 0 ? (
         pendingOps.length === 0 && (
-          <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border p-10 text-center">
+          <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border p-10 text-center">
             <p className="text-sm text-muted">
               {filtered
                 ? "No warranties match your search or filters."
@@ -235,7 +235,7 @@ export function ProductListClient({
         <section className="space-y-3 border-t border-border pt-6">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold">Inventory items</h2>
+              <h2 className="text-base font-medium">Inventory items</h2>
               <p className="text-sm text-muted">Household purchases and valuables catalogued separately from warranties.</p>
             </div>
             {canWrite && (
@@ -251,7 +251,7 @@ export function ProductListClient({
             )}
           </div>
           {inventoryItems.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted">
+            <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted">
               No inventory items yet.
             </p>
           ) : (

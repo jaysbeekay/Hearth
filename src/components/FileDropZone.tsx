@@ -116,9 +116,9 @@ export function FileDropZone({
             type="button"
             onClick={clearFile}
             aria-label={`Remove ${file.name}`}
-            className="shrink-0 rounded p-1 text-muted hover:text-danger"
+            className="shrink-0 rounded-lg p-1 text-muted hover:text-danger"
           >
-            <X size={14} />
+            <X size={16} />
           </button>
         </div>
       )}

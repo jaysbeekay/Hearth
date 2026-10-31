@@ -24,7 +24,7 @@ export default async function NewProductPage() {
     <div className="max-w-3xl space-y-6">
       <BackLink href="/products" label="Warranties" />
       <div>
-        <h1 className="text-2xl font-semibold">Add a warranty</h1>
+        <h1 className="text-2xl font-medium">Add a warranty</h1>
         <p className="text-sm text-muted">
           Capture the purchase details so you never miss a warranty deadline.
         </p>
@@ -47,7 +47,7 @@ export default async function NewProductPage() {
           )}
         </p>
       </div>
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
         <ProductForm
           action={createProduct}
           defaultCurrency={preferredCurrency}

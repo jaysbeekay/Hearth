@@ -35,7 +35,7 @@ function toGeminiContents(messages: ChatTurn[]) {
   });
 }
 
-// Gemini's function schema uses its own uppercase Type enum (OBJECT/STRING/
+// Gemini's function schema uses its own upper-case Type enum (OBJECT/STRING/
 // NUMBER/...), not JSON Schema's lowercase type strings, so the shared
 // ToolDefinition.inputSchema needs recursive re-casing before it's sent.
 function convertSchemaNode(node: unknown): unknown {

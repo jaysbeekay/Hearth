@@ -9,7 +9,7 @@ export default function HelpPage() {
   return (
     <div className="max-w-3xl space-y-10">
       <div>
-        <h1 className="text-2xl font-semibold">{FOOTER_NAV.help.label}</h1>
+        <h1 className="text-2xl font-medium">{FOOTER_NAV.help.label}</h1>
         <p className="mt-1 text-sm text-muted">
           Answers to common questions about using Hearth. For the full user
           manual — setup, self-hosting, and every feature in more depth —
@@ -28,14 +28,14 @@ export default function HelpPage() {
 
       {FAQ_SECTIONS.map((section) => (
         <div key={section.heading} className="space-y-4">
-          <h2 className="border-b border-border pb-2 text-sm font-semibold text-muted">
+          <h2 className="border-b border-border pb-2 text-sm font-medium text-muted">
             {section.heading}
           </h2>
           <div className="space-y-2">
             {section.entries.map((entry) => (
               <details
                 key={entry.q}
-                className="group rounded-xl border border-border bg-surface p-4 open:pb-4"
+                className="group rounded-lg border border-border bg-surface p-4 open:pb-4"
               >
                 <summary className="cursor-pointer list-none text-sm font-medium marker:content-none">
                   <span className="flex items-center justify-between gap-3">
@@ -54,7 +54,7 @@ export default function HelpPage() {
         </div>
       ))}
 
-      <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
         <div className="mb-4">
           <h2 className="font-medium">Share feedback</h2>
           <p className="mt-1 text-sm text-muted">

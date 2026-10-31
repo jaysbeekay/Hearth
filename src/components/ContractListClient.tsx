@@ -202,7 +202,7 @@ export function ContractListClient({
               onClick={() => removeFilter("q")}
               className="flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:bg-hover"
             >
-              &quot;{q}&quot; <X size={12} />
+              &quot;{q}&quot; <X size={16} />
             </button>
           )}
           {category && (
@@ -211,7 +211,7 @@ export function ContractListClient({
               onClick={() => removeFilter("category")}
               className="flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:bg-hover"
             >
-              {CATEGORY_LABELS[category] ?? category} <X size={12} />
+              {CATEGORY_LABELS[category] ?? category} <X size={16} />
             </button>
           )}
           {status && (
@@ -220,7 +220,7 @@ export function ContractListClient({
               onClick={() => removeFilter("status")}
               className="flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:bg-hover"
             >
-              {STATUS_LABELS[status] ?? status} <X size={12} />
+              {STATUS_LABELS[status] ?? status} <X size={16} />
             </button>
           )}
           <button
@@ -252,7 +252,7 @@ export function ContractListClient({
 
       {contracts.length === 0 ? (
         pendingOps.length === 0 && (
-          <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border p-10 text-center">
+          <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border p-10 text-center">
             <p className="text-sm text-muted">
               {filtered
                 ? "No contracts match your search or filters."
@@ -287,7 +287,7 @@ export function ContractListClient({
                     className="flex h-full w-full flex-col items-center justify-center gap-1 bg-danger text-xs font-medium text-danger-foreground"
                     offline={{ entity: "contract", entityId: contract.id, label: `Delete contract: ${contract.title}` }}
                   >
-                    <Trash2 size={18} />
+                    <Trash2 size={16} />
                     Delete
                   </ConfirmForm>
                 }

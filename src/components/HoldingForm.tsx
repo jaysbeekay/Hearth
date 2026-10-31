@@ -50,7 +50,7 @@ export function HoldingForm({
           required
           defaultValue={state?.values?.ticker ?? holding?.ticker ?? ""}
           placeholder="e.g. CBA.AX, AAPL, bitcoin"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm uppercase outline-none focus:border-accent"
+          className="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm outline-none focus:border-accent"
         />
         <p className="mt-1 text-xs text-muted">
           ASX: append .AX (e.g. CBA.AX) · Crypto: set the asset class to Crypto and use the CoinGecko ID (e.g. bitcoin) or symbol (e.g. BTC)

@@ -18,9 +18,9 @@ export default async function NewPortfolioPage() {
     <div className="max-w-xl space-y-6">
       <div>
         <BackLink href="/wealth" label="Wealth" />
-        <h1 className="mt-1 text-2xl font-semibold">New portfolio</h1>
+        <h1 className="mt-1 text-2xl font-medium">New portfolio</h1>
       </div>
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
         <PortfolioForm action={createPortfolio} defaultCurrency={preferredCurrency} />
       </div>
     </div>

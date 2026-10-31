@@ -8,7 +8,7 @@ export function TopBar() {
     <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-surface px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] md:hidden">
       <div className="flex items-center gap-2">
         <Flame size={20} className="text-accent" />
-        <span className="font-semibold">Hearth</span>
+        <span className="font-medium">Hearth</span>
       </div>
       <div className="flex items-center gap-1">
         <button
@@ -17,7 +17,7 @@ export function TopBar() {
           aria-label="Search"
           className="flex h-11 w-11 items-center justify-center rounded-full text-muted hover:bg-hover"
         >
-          <Search size={18} />
+          <Search size={20} />
         </button>
       </div>
     </header>

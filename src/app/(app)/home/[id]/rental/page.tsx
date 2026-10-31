@@ -123,7 +123,7 @@ export default async function RentalOverviewPage({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm text-muted">{property.label}</p>
-          <h1 className="text-2xl font-semibold">Tenancy</h1>
+          <h1 className="text-2xl font-medium">Tenancy</h1>
         </div>
         {canWrite && property.isRented && (
             <>
@@ -140,7 +140,7 @@ export default async function RentalOverviewPage({
       </div>
 
       {!property.isRented && agreements.length === 0 && (
-        <div className="rounded-xl border border-dashed border-border p-10 text-center">
+        <div className="rounded-lg border border-dashed border-border p-10 text-center">
           <p className="text-sm text-muted">
             This property has no tenancy yet.
           </p>
@@ -179,7 +179,7 @@ export default async function RentalOverviewPage({
               {agreements.map((ag, i) => (
                 <div
                   key={ag.id}
-                  className="rounded-xl border border-border bg-surface p-4 md:p-6"
+                  className="rounded-lg border border-border bg-surface p-4 md:p-6"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
@@ -247,7 +247,7 @@ export default async function RentalOverviewPage({
 
                   <div className="mt-4 border-t border-border pt-4">
                     <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-                      <Link2 size={14} className="text-muted" />
+                      <Link2 size={16} className="text-muted" />
                       Linked contract
                     </div>
                     {ag.contract ? (
@@ -331,7 +331,7 @@ export default async function RentalOverviewPage({
           </div>
 
           {statements.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
+            <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted">
               No statements yet. Upload your first rental statement to start reconciling.
             </p>
           ) : (
@@ -355,7 +355,7 @@ export default async function RentalOverviewPage({
                 return (
                   <div
                     key={stmt.id}
-                    className="rounded-xl border border-border bg-surface p-4 md:p-6"
+                    className="rounded-lg border border-border bg-surface p-4 md:p-6"
                   >
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div>
@@ -439,7 +439,7 @@ export default async function RentalOverviewPage({
 
                     <div className="mt-4 border-t border-border pt-4">
                       <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-                        <FileText size={14} className="text-muted" />
+                        <FileText size={16} className="text-muted" />
                         Documents
                       </div>
                       <DocumentList

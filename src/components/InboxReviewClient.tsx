@@ -2,7 +2,7 @@
 
 import { Timestamp } from "@/components/Timestamp";
 import { useEffect, useRef, useState } from "react";
-import { FileText, X, Loader2, AlertTriangle, Copy } from "lucide-react";
+import { X, Loader2, AlertTriangle, Copy } from "lucide-react";
 import Link from "next/link";
 import {
   classifyInboxDocument,
@@ -76,10 +76,9 @@ function ReadOnlyInboxList({ docs }: { docs: InboxDocSummary[] }) {
   return (
     <ul className="space-y-3">
       {docs.map((doc) => (
-        <li key={doc.id} className="space-y-1 rounded-xl border border-border bg-surface p-4">
+        <li key={doc.id} className="space-y-1 rounded-lg border border-border bg-surface p-4">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <a href={doc.downloadHref} className="flex min-w-0 items-center gap-2 hover:underline">
-              <FileText size={16} className="shrink-0 text-muted" />
               <span className="min-w-0 truncate text-sm font-medium">{doc.filename}</span>
             </a>
             {/* #403 — let long "via email from" addresses wrap instead of
@@ -192,8 +191,8 @@ function emptyRowState(initialType: EntityType = "CONTRACT"): RowState {
 // so a reviewer can tell pattern-matched fields from model-inferred ones
 // at a glance (#172).
 function fieldClass(autoFilled?: boolean, isAi?: boolean) {
-  if (!autoFilled) return "rounded-md border px-2 py-1.5 text-sm outline-none focus:border-accent border-border bg-background";
-  return `rounded-md border px-2 py-1.5 text-sm outline-none focus:border-accent ${
+  if (!autoFilled) return "rounded-lg border px-2 py-1.5 text-sm outline-none focus:border-accent border-border bg-background";
+  return `rounded-lg border px-2 py-1.5 text-sm outline-none focus:border-accent ${
     isAi ? "border-foreground/60 bg-foreground/5 ring-2 ring-foreground/60" : "border-accent/40 bg-accent/5 ring-1 ring-accent/40"
   }`;
 }
@@ -247,7 +246,7 @@ function FilterChip({
 }
 
 const ROW_FIELD_WRAPPER = "space-y-0.5";
-const ROW_FIELD_LABEL = "flex items-center gap-1 text-[11px] font-medium text-muted";
+const ROW_FIELD_LABEL = "flex items-center gap-1 text-xs font-medium text-muted";
 
 function RowField({
   label,
@@ -273,7 +272,7 @@ function RowField({
                 that follows it do. */}
             <span
               aria-hidden="true"
-              className={`rounded px-1 py-0.5 text-[9px] font-medium ${
+              className={`rounded-lg px-1 py-0.5 text-xs font-medium ${
                 isAi ? "bg-muted/10 text-muted" : "bg-accent/10 text-accent"
               }`}
             >
@@ -507,7 +506,7 @@ export function InboxReviewClient({
 
   if (remainingDocs.length === 0) {
     return (
-      <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
+      <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted">
         Nothing in the Inbox.
       </p>
     );
@@ -540,7 +539,7 @@ export function InboxReviewClient({
       )}
 
       {visibleDocs.length === 0 && (
-        <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted">
+        <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted">
           No documents match this filter.
         </p>
       )}
@@ -562,14 +561,13 @@ export function InboxReviewClient({
         const isDuplicatePending = doc.status === "POSSIBLE_DUPLICATE" && !keptSeparate.has(doc.id);
         const isAttaching = attaching.has(doc.id);
         return (
-          <div key={doc.id} className="rounded-xl border border-border bg-surface p-4">
+          <div key={doc.id} className="rounded-lg border border-border bg-surface p-4">
             {/* #403 — header and type select shared one flex line; at 390px
                 the shrink-0 "via email from …" metadata slid under the select.
                 Stack them below sm and let the metadata wrap instead. */}
             <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex min-w-0 flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
                 <a href={doc.downloadHref} className="flex min-w-0 items-center gap-2 hover:underline">
-                  <FileText size={16} className="shrink-0 text-muted" />
                   <span className="min-w-0 truncate text-sm font-medium">{doc.filename}</span>
                 </a>
                 <span className="min-w-0 text-xs break-words text-muted">
@@ -587,7 +585,7 @@ export function InboxReviewClient({
                     updateRow(doc.id, { type });
                     scan(doc.id, type, doc.filename);
                   }}
-                  className="rounded-md border border-border bg-background px-2 py-1 text-xs outline-none focus:border-accent"
+                  className="rounded-lg border border-border bg-background px-2 py-1 text-xs outline-none focus:border-accent"
                 >
                   <option value="CONTRACT">Contract</option>
                   <option value="PRODUCT">Warranty</option>
@@ -597,9 +595,9 @@ export function InboxReviewClient({
                   type="button"
                   onClick={() => discard(doc)}
                   aria-label={`Discard ${doc.filename}`}
-                  className="rounded p-1 text-muted hover:text-danger"
+                  className="rounded-lg p-1 text-muted hover:text-danger"
                 >
-                  <X size={14} />
+                  <X size={16} />
                 </button>
               </div>
             </div>
@@ -607,7 +605,7 @@ export function InboxReviewClient({
             {isDuplicatePending && (
               <div className="space-y-2 rounded-lg border border-warning/30 bg-warning/10 p-3">
                 <p className="flex items-center gap-1.5 text-sm font-medium text-warning">
-                  <Copy size={14} />
+                  <Copy size={16} />
                   This file looks identical to something already saved.
                 </p>
                 <ul className="space-y-1 text-sm">
@@ -628,7 +626,7 @@ export function InboxReviewClient({
                           type="button"
                           disabled={isAttaching}
                           onClick={() => attachAsVersion(doc, match)}
-                          className="rounded-md border border-border px-2 py-1 text-xs font-medium hover:bg-hover disabled:opacity-60"
+                          className="rounded-lg border border-border px-2 py-1 text-xs font-medium hover:bg-hover disabled:opacity-60"
                         >
                           {isAttaching ? "Attaching…" : "Attach as new version"}
                         </button>
@@ -640,7 +638,7 @@ export function InboxReviewClient({
                   <button
                     type="button"
                     onClick={() => keepSeparate(doc)}
-                    className="rounded-md border border-border px-2 py-1 text-xs font-medium hover:bg-hover"
+                    className="rounded-lg border border-border px-2 py-1 text-xs font-medium hover:bg-hover"
                   >
                     Keep as separate document
                   </button>
@@ -650,7 +648,7 @@ export function InboxReviewClient({
 
             {!isDuplicatePending && row.status === "scanning" && (
               <p role="status" className="flex items-center gap-2 text-sm text-muted">
-                <Loader2 size={14} className="animate-spin" /> Scanning…
+                <Loader2 size={16} className="animate-spin" /> Scanning…
               </p>
             )}
 
@@ -662,7 +660,7 @@ export function InboxReviewClient({
 
             {!isDuplicatePending && row.status !== "scanning" && missingRequired.length > 0 && (
               <p className="mb-2 flex items-center gap-1 text-xs font-medium text-warning">
-                <AlertTriangle size={12} />
+                <AlertTriangle size={16} />
                 Missing required: {missingRequired.join(", ")}
               </p>
             )}

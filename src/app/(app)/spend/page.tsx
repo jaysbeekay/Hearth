@@ -120,7 +120,7 @@ export default async function SpendPage({
 
   return (
     <div className="max-w-3xl space-y-8">
-      <h1 className="text-2xl font-semibold">Spending</h1>
+      <h1 className="text-2xl font-medium">Spending</h1>
 
       {hasUnconverted && (
         <p className="text-xs text-warning">
@@ -133,28 +133,28 @@ export default async function SpendPage({
           space, so the whole amount is one unbreakable word; wrap-anywhere
           (unlike break-words) reliably breaks it inside the narrow tile. */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <div className="min-w-0 rounded-xl border border-border bg-surface p-4">
+        <div className="min-w-0 rounded-lg border border-border bg-surface p-4">
           <p className="text-xs text-muted">Monthly recurring</p>
-          <p className="mt-1 wrap-anywhere text-xl font-semibold sm:text-2xl">
+          <p className="mt-1 wrap-anywhere text-xl font-medium sm:text-2xl">
             {formatCurrency(monthlyTotal, preferredCurrency, undefined, region, { showCode: true })}
           </p>
         </div>
-        <div className="min-w-0 rounded-xl border border-border bg-surface p-4">
+        <div className="min-w-0 rounded-lg border border-border bg-surface p-4">
           <p className="text-xs text-muted">Annual projection</p>
-          <p className="mt-1 wrap-anywhere text-xl font-semibold sm:text-2xl">
+          <p className="mt-1 wrap-anywhere text-xl font-medium sm:text-2xl">
             {formatCurrency(annualTotal, preferredCurrency, undefined, region, { showCode: true })}
           </p>
         </div>
-        <div className="min-w-0 rounded-xl border border-border bg-surface p-4">
+        <div className="min-w-0 rounded-lg border border-border bg-surface p-4">
           <p className="text-xs text-muted">Tax-deductible / mo</p>
-          <p className="mt-1 wrap-anywhere text-xl font-semibold sm:text-2xl">
+          <p className="mt-1 wrap-anywhere text-xl font-medium sm:text-2xl">
             {formatCurrency(taxDeductibleMonthly, preferredCurrency, undefined, region, { showCode: true })}
           </p>
         </div>
       </div>
 
       {/* Timeline chart */}
-      <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-medium">
             Recurring cost — {view === "yearly" ? "last 5 years" : "last 12 months"}
@@ -162,7 +162,7 @@ export default async function SpendPage({
           <div className="flex rounded-lg border border-border p-0.5 text-xs">
             <Link
               href="/spend?view=monthly"
-              className={`rounded-md px-2.5 py-1 font-medium ${
+              className={`rounded-lg px-2.5 py-1 font-medium ${
                 view === "monthly" ? "bg-accent/10 text-accent" : "text-muted hover:text-foreground"
               }`}
             >
@@ -170,7 +170,7 @@ export default async function SpendPage({
             </Link>
             <Link
               href="/spend?view=yearly"
-              className={`rounded-md px-2.5 py-1 font-medium ${
+              className={`rounded-lg px-2.5 py-1 font-medium ${
                 view === "yearly" ? "bg-accent/10 text-accent" : "text-muted hover:text-foreground"
               }`}
             >
@@ -213,7 +213,7 @@ export default async function SpendPage({
 
       {/* Category breakdown */}
       {categoryBreakdown.length > 0 && (
-        <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+        <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-4 font-medium">Recurring cost by category</h2>
           <div className="space-y-2">
             {categoryBreakdown.map((bucket) => {
@@ -241,7 +241,7 @@ export default async function SpendPage({
 
       {/* Actuals by year */}
       {actualsByYear.length > 0 && (
-        <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+        <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-3 font-medium">Actuals by financial year</h2>
           <div className="overflow-x-auto">
             {/* #403 — pl-4 + nowrap keep the amount columns from running into

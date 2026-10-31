@@ -277,7 +277,7 @@ export default async function HoldingPage({
         <BackLink href={`/wealth/portfolios/${portfolioId}`} label={holding.portfolio.name} />
         <div className="mt-1 flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold">{holding.ticker}</h1>
+            <h1 className="text-2xl font-medium">{holding.ticker}</h1>
             {holding.name && <p className="text-sm text-muted">{holding.name}</p>}
             <p className="mt-0.5 text-xs text-muted">{ASSET_CLASS_LABELS[holding.assetClass] ?? holding.assetClass}{holding.exchange ? ` · ${holding.exchange}` : ""}</p>
           </div>
@@ -308,15 +308,15 @@ export default async function HoldingPage({
 
       {/* Position summary */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <div className="rounded-xl border border-border bg-surface p-4">
+        <div className="rounded-lg border border-border bg-surface p-4">
           <p className="text-xs text-muted">Units held</p>
-          <p className="mt-1 text-lg font-semibold">
+          <p className="mt-1 text-base font-medium">
             {formatNumber(units, region)}
           </p>
         </div>
-        <div className="rounded-xl border border-border bg-surface p-4">
+        <div className="rounded-lg border border-border bg-surface p-4">
           <p className="text-xs text-muted">Current price</p>
-          <p className="mt-1 text-lg font-semibold">
+          <p className="mt-1 text-base font-medium">
             {currentPrice != null ? formatCurrency(currentPrice, currency, undefined, region, { showCode: true }) : <span className="text-muted">No price</span>}
           </p>
           {currentPrice != null && priceEntry?.changePct != null && (
@@ -325,15 +325,15 @@ export default async function HoldingPage({
             </p>
           )}
         </div>
-        <div className="rounded-xl border border-border bg-surface p-4">
+        <div className="rounded-lg border border-border bg-surface p-4">
           <p className="text-xs text-muted">Market value</p>
-          <p className="mt-1 text-lg font-semibold">
+          <p className="mt-1 text-base font-medium">
             {currentValue != null ? formatCurrency(currentValue, currency, undefined, region, { showCode: true }) : "—"}
           </p>
         </div>
-        <div className="rounded-xl border border-border bg-surface p-4">
+        <div className="rounded-lg border border-border bg-surface p-4">
           <p className="text-xs text-muted">Unrealised gain/loss</p>
-          <p className={`mt-1 text-lg font-semibold ${gainLoss == null ? "" : gainLoss >= 0 ? "text-success" : "text-danger"}`}>
+          <p className={`mt-1 text-base font-medium ${gainLoss == null ? "" : gainLoss >= 0 ? "text-success" : "text-danger"}`}>
             {gainLoss != null
               ? `${gainLoss >= 0 ? "+" : ""}${formatCurrency(gainLoss, costCurrency, undefined, region, { showCode: true })}`
               : unpricedReason === "NO_FX"
@@ -348,7 +348,7 @@ export default async function HoldingPage({
         </div>
       </div>
 
-      <dl className="grid grid-cols-2 gap-4 rounded-xl border border-border bg-surface p-4 md:p-6 sm:grid-cols-3">
+      <dl className="grid grid-cols-2 gap-4 rounded-lg border border-border bg-surface p-4 md:p-6 sm:grid-cols-3">
         <div className="min-w-0">
           <dt className="text-xs text-muted">
             Cost basis <span className="text-muted">({COST_METHOD_LABELS[holding.portfolio.costMethod]})</span>
@@ -372,7 +372,7 @@ export default async function HoldingPage({
 
       {/* Performance chart */}
       {chartPoints.length >= 2 && (
-        <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+        <section className="rounded-lg border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-4 font-medium">Performance since first purchase</h2>
           <PerformanceChart points={chartPoints} currency={currency} dateFormat={dateFormat} region={region} />
           {chartStartsLate && (
@@ -400,7 +400,7 @@ export default async function HoldingPage({
         </div>
 
         {tradesDesc.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted">
+          <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted">
             No trades yet.
           </p>
         ) : (
@@ -415,10 +415,10 @@ export default async function HoldingPage({
                   : null;
 
               return (
-                <div key={trade.id} className="rounded-xl border border-border bg-surface p-4">
+                <div key={trade.id} className="rounded-lg border border-border bg-surface p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3">
-                      <span className="shrink-0 rounded-full bg-muted/10 px-2.5 py-0.5 text-xs font-semibold text-muted">
+                      <span className="shrink-0 rounded-full bg-muted/10 px-2.5 py-0.5 text-xs font-medium text-muted">
                         {TRADE_TYPE_LABELS[trade.type] ?? trade.type}
                       </span>
                       <div>
@@ -450,7 +450,7 @@ export default async function HoldingPage({
                             className="rounded-lg border border-border p-2 hover:bg-hover"
                             title="Edit trade"
                           >
-                            <Pencil size={14} />
+                            <Pencil size={16} />
                           </Link>
                           <ConfirmForm
                             action={deleteTrade.bind(null, holdingId, trade.id)}
@@ -465,7 +465,7 @@ export default async function HoldingPage({
                             ariaLabel={`Delete trade from ${formatDate(trade.date, dateFormat)}`}
                             className="rounded-lg border border-border p-2 text-danger hover:bg-danger/10"
                           >
-                            <Trash2 size={14} />
+                            <Trash2 size={16} />
                           </ConfirmForm>
                         </>
                       )}

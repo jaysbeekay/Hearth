@@ -419,7 +419,7 @@ export function ProductForm({
             type="checkbox"
             checked={confirmExtraction}
             onChange={(e) => setConfirmExtraction(e.target.checked)}
-            className="mt-0.5 size-4 rounded border-border accent-accent"
+            className="mt-0.5 size-4 rounded-lg border-border accent-accent"
           />
           <label htmlFor="confirmExtractionCheckbox" className="text-sm">
             I&apos;ve checked the highlighted fields above and they&apos;re correct. Leave this

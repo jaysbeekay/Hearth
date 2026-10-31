@@ -21,11 +21,11 @@ export function HoldingCard({ holding, portfolioId, region }: Props) {
   return (
     <Link
       href={`/wealth/portfolios/${portfolioId}/holdings/${holding.holdingId}`}
-      className="block rounded-xl border border-border bg-surface p-4 hover:border-accent/50 transition-colors"
+      className="block rounded-lg border border-border bg-surface p-4 hover:border-accent/50 transition-colors"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="font-semibold truncate">{holding.ticker}</p>
+          <p className="font-medium truncate">{holding.ticker}</p>
           {holding.name && (
             <p className="text-xs text-muted truncate">{holding.name}</p>
           )}
@@ -72,7 +72,7 @@ export function HoldingCard({ holding, portfolioId, region }: Props) {
           <dd className={`flex flex-wrap items-center gap-0.5 text-sm font-medium wrap-anywhere ${hasGainLoss ? (isPositive ? "text-success" : "text-danger") : "text-muted"}`}>
             {gainLoss != null ? (
               <>
-                {isPositive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                {isPositive ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
                 {isPositive ? "+" : ""}
                 {formatCurrency(gainLoss, holding.costCurrency, undefined, region, { showCode: true })}
                 {holding.gainLossPct != null && (
@@ -84,7 +84,7 @@ export function HoldingCard({ holding, portfolioId, region }: Props) {
             ) : holding.unpricedReason === "NO_FX" ? (
               <span>No exchange rate</span>
             ) : (
-              <><Minus size={12} />—</>
+              <><Minus size={16} />—</>
             )}
           </dd>
         </div>

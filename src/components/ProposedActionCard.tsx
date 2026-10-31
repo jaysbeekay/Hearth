@@ -140,7 +140,7 @@ export function ProposedActionCard({
     : ((action.data.title ?? action.data.description) as string | undefined);
 
   return (
-    <div className="mt-2 rounded-xl border border-accent/30 bg-accent/5 p-3 text-sm">
+    <div className="mt-2 rounded-lg border border-accent/30 bg-accent/5 p-3 text-sm">
       <p className="mb-2 font-medium">
         {action.operation === "create" ? "Create" : "Update"} {action.entity}
         {titleValue ? `: ${titleValue}` : ""}
@@ -165,7 +165,7 @@ export function ProposedActionCard({
           disabled={working}
           className="flex items-center gap-1 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground hover:opacity-90 disabled:opacity-50"
         >
-          <Check size={14} />
+          <Check size={16} />
           {working ? "Saving…" : "Confirm"}
         </button>
         <button
@@ -174,7 +174,7 @@ export function ProposedActionCard({
           disabled={working}
           className="flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-hover disabled:opacity-50"
         >
-          <X size={14} />
+          <X size={16} />
           Cancel
         </button>
       </div>

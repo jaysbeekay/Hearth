@@ -28,7 +28,7 @@ export function PendingRecordCard({
   return (
     <div className="min-w-0 rounded-lg border border-dashed border-border bg-surface p-4">
       <span className="inline-flex items-center gap-1 rounded-full bg-muted/10 px-2 py-0.5 text-xs font-medium text-muted">
-        <Clock size={12} aria-hidden />
+        <Clock size={16} aria-hidden />
         Pending sync
       </span>
       <p className="mt-1.5 truncate font-medium">{title}</p>
@@ -43,7 +43,7 @@ export function PendingRecordCard({
           onClick={handleDelete}
           className="flex items-center gap-1 text-danger hover:underline"
         >
-          <Trash2 size={14} />
+          <Trash2 size={16} />
           Discard
         </button>
       </div>

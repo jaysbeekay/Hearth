@@ -25,10 +25,10 @@ export default async function EditVehiclePage({
     <div className="max-w-3xl space-y-6">
       <BackLink href={`/vehicles/${vehicle.id}`} label={vehicle.label} />
       <div>
-        <h1 className="text-2xl font-semibold">Edit vehicle</h1>
+        <h1 className="text-2xl font-medium">Edit vehicle</h1>
         <p className="text-sm text-muted">{vehicle.label}</p>
       </div>
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
         <VehicleForm action={boundAction} vehicle={vehicle} />
       </div>
     </div>

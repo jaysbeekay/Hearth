@@ -102,7 +102,7 @@ export default async function VehicleDetailPage({
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">{vehicle.label}</h1>
+          <h1 className="text-2xl font-medium">{vehicle.label}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {canWrite && (
@@ -168,7 +168,7 @@ export default async function VehicleDetailPage({
         renewLabel="Update dates"
       />
 
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
         <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">
           {vehicle.make && <Detail label="Make" value={vehicle.make} />}
           {vehicle.model && <Detail label="Model" value={vehicle.model} />}
@@ -235,7 +235,7 @@ export default async function VehicleDetailPage({
           )}
         </div>
         {linkedContracts.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted">
+          <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted">
             No contracts or warranties linked yet.
           </p>
         ) : (
@@ -262,7 +262,7 @@ export default async function VehicleDetailPage({
         </div>
 
         {items.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
+          <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted">
             No service records yet. Add a service, repair or roadworthy to start tracking.
           </p>
         ) : (
@@ -272,7 +272,7 @@ export default async function VehicleDetailPage({
               return (
                 <div
                   key={item.id}
-                  className="rounded-xl border border-border bg-surface p-4 md:p-6"
+                  className="rounded-lg border border-border bg-surface p-4 md:p-6"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="flex min-w-0 items-start gap-3">

@@ -10,7 +10,7 @@ import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapp
 import { TestConnectionButton } from "@/components/TestConnectionButton";
 import { BACKUP_DESTINATION_LABELS, type BackupDestinationChoice } from "@/lib/backupDestination";
 
-const checkboxClass = "size-4 rounded border-border accent-accent";
+const checkboxClass = "size-4 rounded-lg border-border accent-accent";
 
 function SensitiveField({ id, name, isSet }: { id: string; name: string; isSet: boolean }) {
   return (

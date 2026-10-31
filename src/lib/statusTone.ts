@@ -52,7 +52,7 @@ export function statusTone(status: RecordStatus): StatusTone {
   }
 }
 
-const PILL_BASE = "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md py-1 text-xs font-medium";
+const PILL_BASE = "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-lg py-1 text-xs font-medium";
 
 const PILL_CLASS = new Map<StatusTone, string>([
   ["danger", `${PILL_BASE} px-2.5 bg-danger/10 text-danger`],

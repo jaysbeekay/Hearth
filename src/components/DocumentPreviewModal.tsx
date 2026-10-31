@@ -76,7 +76,7 @@ export function DocumentPreviewModal({
         role="dialog"
         aria-label={`Preview of ${doc.filename}`}
         aria-modal="true"
-        className="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-xl"
+        className="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-overlay"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
@@ -85,7 +85,7 @@ export function DocumentPreviewModal({
             type="button"
             onClick={onClose}
             aria-label="Close preview"
-            className="shrink-0 rounded-md p-1 text-muted hover:bg-hover"
+            className="shrink-0 rounded-lg p-1 text-muted hover:bg-hover"
           >
             <X size={16} />
           </button>

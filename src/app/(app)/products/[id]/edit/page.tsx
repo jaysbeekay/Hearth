@@ -30,10 +30,10 @@ export default async function EditProductPage({
     <div className="max-w-3xl space-y-6">
       <BackLink href={`/products/${product.id}`} label={product.description} />
       <div>
-        <h1 className="text-2xl font-semibold">Edit warranty</h1>
+        <h1 className="text-2xl font-medium">Edit warranty</h1>
         <p className="text-sm text-muted">{product.description}</p>
       </div>
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
         <ProductForm
           action={boundAction}
           product={product}

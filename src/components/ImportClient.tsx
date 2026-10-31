@@ -99,7 +99,7 @@ async function extract(type: EntityType, file: File) {
 }
 
 function fieldClass(autoFilled?: boolean) {
-  return `rounded-md border px-2 py-1.5 text-sm outline-none focus:border-accent ${
+  return `rounded-lg border px-2 py-1.5 text-sm outline-none focus:border-accent ${
     autoFilled ? "border-accent/40 bg-accent/5 ring-1 ring-accent/40" : "border-border bg-background"
   }`;
 }
@@ -323,7 +323,7 @@ export function ImportClient({
           dragOver ? "border-accent bg-accent/5" : "border-border hover:border-accent/50"
         }`}
       >
-        <Upload size={22} className="text-muted" />
+        <Upload size={20} className="text-muted" />
         <p className="text-sm font-medium">Drag a file here or click to browse</p>
         <p className="text-xs text-muted">Drop in more than one at a time if you have several — each is scanned and added to the list below</p>
         {/* #285 — capture-time disclosure that this isn't private storage. */}
@@ -364,7 +364,7 @@ export function ImportClient({
 
           <div className="space-y-3">
             {rows.map((row) => (
-              <div key={row.id} className="rounded-xl border border-border bg-surface p-4">
+              <div key={row.id} className="rounded-lg border border-border bg-surface p-4">
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-2">
                     <FileText size={16} className="shrink-0 text-muted" />
@@ -373,7 +373,7 @@ export function ImportClient({
                   <div className="flex shrink-0 items-center gap-2">
                     {row.status === "saved" ? (
                       <span className="flex items-center gap-1 text-xs text-success">
-                        <Check size={14} /> Saved
+                        <Check size={16} /> Saved
                       </span>
                     ) : (
                       <>
@@ -386,7 +386,7 @@ export function ImportClient({
                             updateRow(row.id, { type });
                             scanRow(row.id, type, row.file);
                           }}
-                          className="rounded-md border border-border bg-background px-2 py-1 text-xs outline-none focus:border-accent"
+                          className="rounded-lg border border-border bg-background px-2 py-1 text-xs outline-none focus:border-accent"
                         >
                           <option value="CONTRACT">Contract</option>
                           <option value="PRODUCT">Warranty</option>
@@ -397,9 +397,9 @@ export function ImportClient({
                           type="button"
                           onClick={() => removeRow(row.id)}
                           aria-label={`Remove ${row.file.name} from queue`}
-                          className="rounded p-1 text-muted hover:text-danger"
+                          className="rounded-lg p-1 text-muted hover:text-danger"
                         >
-                          <X size={14} />
+                          <X size={16} />
                         </button>
                       </>
                     )}
@@ -408,7 +408,7 @@ export function ImportClient({
 
                 {row.status === "scanning" && (
                   <p role="status" className="flex items-center gap-2 text-sm text-muted">
-                    <Loader2 size={14} className="animate-spin" /> Scanning…
+                    <Loader2 size={16} className="animate-spin" /> Scanning…
                   </p>
                 )}
 
@@ -729,7 +729,7 @@ export function ImportClient({
 }
 
 const ROW_FIELD_WRAPPER = "space-y-0.5";
-const ROW_FIELD_LABEL = "flex items-center gap-1 text-[11px] font-medium text-muted";
+const ROW_FIELD_LABEL = "flex items-center gap-1 text-xs font-medium text-muted";
 
 function RowField({
   label,
@@ -751,7 +751,7 @@ function RowField({
             {/* #290: a colour tint/ring alone doesn't reach a screen reader
                 or a colour-blind reviewer — this badge and the sr-only text
                 that follows it do. */}
-            <span aria-hidden="true" className="rounded bg-accent/10 px-1 py-0.5 text-[9px] font-medium text-accent">
+            <span aria-hidden="true" className="rounded-lg bg-accent/10 px-1 py-0.5 text-xs font-medium text-accent">
               Auto
             </span>
             <span className="sr-only">(auto-filled from document — review before saving)</span>

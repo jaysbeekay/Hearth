@@ -29,14 +29,14 @@ export default async function NewHomeItemPage({
     <div className="max-w-3xl space-y-6">
       <BackLink href={`/home/${property.id}`} label={property.label} />
       <div>
-        <h1 className="text-2xl font-semibold">Add maintenance record</h1>
+        <h1 className="text-2xl font-medium">Add maintenance record</h1>
         <p className="text-sm text-muted">{property.label}</p>
         <p className="mt-1 text-xs text-muted">
           Log a repair, maintenance visit, or improvement for this property, with receipts
           attached.
         </p>
       </div>
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
         <HomeItemForm action={boundAction} propertyId={property.id} defaultCurrency={preferredCurrency} />
       </div>
     </div>

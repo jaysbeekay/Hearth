@@ -82,7 +82,7 @@ export function DetailStatusBanner({
         return (
           <div
             key={entry.field}
-            className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3 ${statusBannerClass(statusTone(entry.state))}`}
+            className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3 ${statusBannerClass(statusTone(entry.state))}`}
           >
             <p className="flex items-center gap-2 text-sm font-medium">
               <Icon size={16} className="shrink-0" aria-hidden />
@@ -95,7 +95,7 @@ export function DetailStatusBanner({
               <div className="flex flex-wrap items-center gap-2">
                 {housekeeping ? (
                   <Link href={newEndDateHref} className={actionClass}>
-                    <CalendarClock size={14} />
+                    <CalendarClock size={16} />
                     {newEndDateLabel}
                   </Link>
                 ) : (
@@ -103,12 +103,12 @@ export function DetailStatusBanner({
                     {secondaryAction}
                     {!renewLabel ? null : hasDocuments ? (
                       <Link href={renewHref} className={actionClass}>
-                        <RotateCw size={14} />
+                        <RotateCw size={16} />
                         {renewLabel}
                       </Link>
                     ) : (
                       <Link href={documentsHref} className={actionClass}>
-                        <Upload size={14} />
+                        <Upload size={16} />
                         Upload document
                       </Link>
                     )}
@@ -121,7 +121,7 @@ export function DetailStatusBanner({
       })}
       {needsReview && (
         <div
-          className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3 ${statusBannerClass(statusTone("needs-review"))}`}
+          className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3 ${statusBannerClass(statusTone("needs-review"))}`}
         >
           <p className="flex items-center gap-2 text-sm font-medium">
             <AlertCircle size={16} className="shrink-0" aria-hidden />

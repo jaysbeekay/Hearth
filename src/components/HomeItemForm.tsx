@@ -201,7 +201,7 @@ export function HomeItemForm({
               ? state.values.isTaxDeductible === "on"
               : (item?.isTaxDeductible ?? false)
           }
-          className="size-4 rounded border-border accent-accent"
+          className="size-4 rounded-lg border-border accent-accent"
         />
         <label htmlFor="isTaxDeductible" className="text-sm">
           Tax deductible

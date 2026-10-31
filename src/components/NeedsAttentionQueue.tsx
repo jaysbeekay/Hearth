@@ -37,11 +37,11 @@ export function NeedsAttentionQueue({
   return (
     <div className="space-y-6">
       <section className="space-y-2" aria-labelledby="attention-due">
-        <h3 id="attention-due" className="text-sm font-semibold">
+        <h3 id="attention-due" className="text-sm font-medium">
           Due <span className="font-normal text-muted">({due.length})</span>
         </h3>
         {due.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted">
+          <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted">
             Nothing due.
           </p>
         ) : (
@@ -51,7 +51,7 @@ export function NeedsAttentionQueue({
 
       {housekeeping.length > 0 && (
         <section className="space-y-2" aria-labelledby="attention-housekeeping">
-          <h3 id="attention-housekeeping" className="text-sm font-semibold">
+          <h3 id="attention-housekeeping" className="text-sm font-medium">
             Housekeeping <span className="font-normal text-muted">({housekeeping.length})</span>
           </h3>
           <AttentionList items={housekeeping} canWrite={canWrite} />
@@ -67,8 +67,8 @@ function AttentionList({ items, canWrite }: { items: AttentionItem[]; canWrite: 
       {items.map((item) => {
         const Icon = item.id === "inbox" ? Inbox : KIND_ICON[item.kind];
         const row = (
-          <li className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface p-3 md:flex-nowrap">
-            <Icon size={18} className="shrink-0 text-muted" aria-hidden />
+          <li className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface p-3 md:flex-nowrap">
+            <Icon size={16} className="shrink-0 text-muted" aria-hidden />
 
             <Link href={item.href} className="min-w-0 flex-1 hover:underline">
               <p className="truncate text-sm font-medium">{item.title}</p>
@@ -95,7 +95,7 @@ function AttentionList({ items, canWrite }: { items: AttentionItem[]; canWrite: 
               // failed) is neutral, as on the detail banner: colour is kept
               // for Overdue and Due soon.
               <StatusPill status={item.badge === "Needs review" ? "needs-review" : "housekeeping"}>
-                <AlertCircle size={12} aria-hidden />
+                <AlertCircle size={16} aria-hidden />
                 {item.badge}
               </StatusPill>
             )}
@@ -110,7 +110,7 @@ function AttentionList({ items, canWrite }: { items: AttentionItem[]; canWrite: 
                     ariaLabel={`Mark ${item.title} as cancelled`}
                     className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted hover:bg-hover"
                   >
-                    <Ban size={12} />
+                    <Ban size={16} />
                     Cancel
                   </ConfirmForm>
                 )}

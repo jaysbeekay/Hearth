@@ -22,7 +22,7 @@ export function ArchivedNotice({
   return (
     <div
       data-testid="archived-notice"
-      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-muted/10 px-4 py-3 text-sm"
+      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/10 px-4 py-3 text-sm"
     >
       <div className="space-y-1">
         <p className="flex flex-wrap items-center gap-2">

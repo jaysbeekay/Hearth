@@ -13,7 +13,7 @@ export function InboxCountBadge({ count, className }: { count: number; className
     <span
       aria-hidden="true"
       className={cn(
-        "rounded-full bg-accent px-1.5 text-[11px] font-semibold leading-4 tabular-nums text-accent-foreground",
+        "rounded-full bg-accent px-1.5 text-xs font-medium leading-4 tabular-nums text-accent-foreground",
         className,
       )}
     >

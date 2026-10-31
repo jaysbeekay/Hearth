@@ -92,7 +92,7 @@ export function SetupForm({ setupTokenRequired = false }: { setupTokenRequired?:
             checked
             disabled
             aria-label="Document management (always enabled)"
-            className="mt-0.5 size-4 rounded border-border accent-accent"
+            className="mt-0.5 size-4 rounded-lg border-border accent-accent"
           />
           <span>
             <span className="flex items-center gap-2 text-sm font-medium">
@@ -115,7 +115,7 @@ export function SetupForm({ setupTokenRequired = false }: { setupTokenRequired?:
                 type="checkbox"
                 name="modules"
                 value={key}
-                className="mt-0.5 size-4 rounded border-border accent-accent"
+                className="mt-0.5 size-4 rounded-lg border-border accent-accent"
               />
               <span>
                 <span className="flex items-center gap-2 text-sm font-medium">

@@ -30,7 +30,7 @@ type Row = DocumentListRow & {
 
 function TypePill({ label }: { label: string | null }) {
   if (!label) return null;
-  return <span className="rounded-md bg-muted/10 px-1.5 py-0.5 text-xs font-medium text-muted">{label}</span>;
+  return <span className="rounded-lg bg-muted/10 px-1.5 py-0.5 text-xs font-medium text-muted">{label}</span>;
 }
 
 export function DocumentList({
@@ -82,7 +82,7 @@ export function DocumentList({
                   {showsThumbnail(doc, productKind(doc)) ? (
                     <DocumentThumbnail href={href} />
                   ) : (
-                    <FileText size={18} className="shrink-0 text-muted" />
+                    <FileText size={16} className="shrink-0 text-muted" />
                   )}
                   <span className="min-w-0 truncate">{doc.filename}</span>
                 </span>
@@ -92,7 +92,7 @@ export function DocumentList({
                   </span>
                   <TypePill label={documentTypeLabel(doc, productKind(doc))} />
                   {older.length > 0 && (
-                    <span className="rounded-md bg-muted/10 px-1.5 py-0.5 text-xs font-medium text-muted">
+                    <span className="rounded-lg bg-muted/10 px-1.5 py-0.5 text-xs font-medium text-muted">
                       Latest
                     </span>
                   )}
@@ -117,7 +117,7 @@ export function DocumentList({
                       className="flex min-w-0 flex-col gap-0.5 text-xs text-muted hover:text-accent sm:flex-row sm:items-center sm:gap-2"
                     >
                       <span className="flex min-w-0 items-center gap-2">
-                        <History size={14} className="shrink-0" />
+                        <History size={16} className="shrink-0" />
                         <span className="min-w-0 truncate">{v.filename}</span>
                       </span>
                       <span className="flex flex-wrap items-center gap-x-2 gap-y-1 sm:shrink-0">

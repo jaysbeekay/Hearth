@@ -75,13 +75,13 @@ export function DocumentsExplorer({
   if (docs.length === 0) {
     if (emptyMessage) {
       return (
-        <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted">
+        <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted">
           {emptyMessage}
         </p>
       );
     }
     return (
-      <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border p-10 text-center">
+      <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border p-10 text-center">
         <p className="text-sm text-muted">No documents uploaded yet.</p>
         <Link href="/import" className={linkButtonClass("primary")}>
           <Upload size={16} />
@@ -136,13 +136,13 @@ export function DocumentsExplorer({
       </div>
 
       {visible.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted">
+        <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted">
           No documents match the selected filters.
         </p>
       ) : (
         <>
           {/* Table — md and up */}
-          <div className="hidden overflow-x-auto rounded-xl border border-border bg-surface md:block">
+          <div className="hidden overflow-x-auto rounded-lg border border-border bg-surface md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs text-muted">
@@ -194,7 +194,7 @@ export function DocumentsExplorer({
                           type="button"
                           onClick={() => setPreview(doc)}
                           aria-label={`Preview ${doc.filename}`}
-                          className="rounded-md p-1 text-muted hover:bg-hover"
+                          className="rounded-lg p-1 text-muted hover:bg-hover"
                         >
                           <Eye size={16} />
                         </button>
@@ -211,7 +211,7 @@ export function DocumentsExplorer({
             {visible.map((doc) => (
               <div
                 key={`${doc.type}-${doc.id}`}
-                className="rounded-xl border border-border bg-surface p-3"
+                className="rounded-lg border border-border bg-surface p-3"
               >
                 <div className="flex items-start justify-between gap-2">
                   <DocumentLink
@@ -229,7 +229,7 @@ export function DocumentsExplorer({
                       type="button"
                       onClick={() => setPreview(doc)}
                       aria-label={`Preview ${doc.filename}`}
-                      className="shrink-0 rounded-md p-1 text-muted hover:bg-hover"
+                      className="shrink-0 rounded-lg p-1 text-muted hover:bg-hover"
                     >
                       <Eye size={16} />
                     </button>
@@ -259,5 +259,5 @@ export function DocumentsExplorer({
 
 function FileIcon({ mimeType }: { mimeType: string }) {
   const Icon = mimeType.startsWith("image/") ? ImageIcon : FileText;
-  return <Icon size={14} className="shrink-0 text-muted" />;
+  return <Icon size={16} className="shrink-0 text-muted" />;
 }

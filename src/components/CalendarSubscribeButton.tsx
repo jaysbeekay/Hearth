@@ -20,7 +20,7 @@ export function CalendarSubscribeButton({ hasToken, appUrl }: { hasToken: boolea
         open={open}
         onClose={() => setOpen(false)}
         labelledBy="calendar-feed-heading"
-        panelClassName="w-full max-w-lg rounded-xl border border-border bg-surface p-5 shadow-xl"
+        panelClassName="w-full max-w-lg rounded-lg border border-border bg-surface p-5 shadow-overlay"
       >
         <IcalTokenSection hasToken={hasToken} appUrl={appUrl} embedded />
         <div className="mt-4 flex justify-end">

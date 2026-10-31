@@ -125,7 +125,7 @@ export default async function TripDetailPage({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm text-muted">{trip.destination || "No destination set"}</p>
-          <h1 className="text-2xl font-semibold">{trip.title}</h1>
+          <h1 className="text-2xl font-medium">{trip.title}</h1>
           <p className="text-muted">
             {trip.startDate || trip.endDate
               ? `${formatDate(trip.startDate, dateFormat)} – ${formatDate(trip.endDate, dateFormat)}`
@@ -160,7 +160,7 @@ export default async function TripDetailPage({
       </div>
 
       {trip.notes && (
-        <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+        <div className="rounded-lg border border-border bg-surface p-4 md:p-6">
           <h2 className="mb-2 font-medium">Notes</h2>
           <p className="whitespace-pre-wrap text-sm text-foreground">{trip.notes}</p>
         </div>
@@ -181,7 +181,7 @@ export default async function TripDetailPage({
         </div>
 
         {displaySegments.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
+          <p className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted">
             No segments yet. Add a flight, lodging, or activity to build the itinerary.
           </p>
         ) : (
@@ -191,7 +191,7 @@ export default async function TripDetailPage({
               return (
                 <div
                   key={segment.id}
-                  className="rounded-xl border border-border bg-surface p-4 md:p-6"
+                  className="rounded-lg border border-border bg-surface p-4 md:p-6"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="flex min-w-0 items-start gap-3">

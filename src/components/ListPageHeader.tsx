@@ -31,7 +31,7 @@ export function ListPageHeader({
   return (
     <div className="space-y-3 md:flex md:items-center md:justify-between md:gap-4 md:space-y-0">
       <div className="flex items-center justify-between gap-2">
-        <h1 className="text-2xl font-semibold">{title}</h1>
+        <h1 className="text-2xl font-medium">{title}</h1>
         {exportPath && (
           <div className="md:hidden">
             <DetailOverflowMenu label="More list actions">
@@ -50,9 +50,9 @@ export function ListPageHeader({
           {exportPath && (
             <details className="relative hidden md:block">
               <summary className={toolbarButtonClass}>
-                Export <ChevronDown size={14} />
+                Export <ChevronDown size={16} />
               </summary>
-              <div className="absolute right-0 z-10 mt-1 w-28 overflow-hidden rounded-lg border border-border bg-surface shadow-md">
+              <div className="absolute right-0 z-10 mt-1 w-28 overflow-hidden rounded-lg border border-border bg-surface shadow-overlay">
                 <a href={`${exportPath}?format=csv`} download className={exportMenuItemClass}>CSV</a>
                 <a href={`${exportPath}?format=pdf`} download className={exportMenuItemClass}>PDF</a>
               </div>
