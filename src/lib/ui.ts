@@ -18,7 +18,8 @@
 // - Motion: transition-colors on hover, plus spinners.
 //
 // Pure and free of runtime imports beyond cn, so server and client
-// components share it.
+// components share it. Lookups go through Maps rather than indexing a plain
+// object by a variable key, as lib/statusTone did before.
 
 import { cn } from "@/lib/utils";
 
@@ -69,41 +70,41 @@ export type PillTone = "danger" | "warning" | "success" | "accent" | "neutral" |
 
 const PILL_BASE = "inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-lg py-0.5 text-xs font-medium";
 
-const PILL_TONE: Record<PillTone, string> = {
-  danger: "px-2 bg-danger/10 text-danger",
-  warning: "px-2 bg-warning/10 text-warning",
-  success: "px-2 bg-success/10 text-success",
-  accent: "px-2 bg-accent/10 text-accent",
-  neutral: "px-2 bg-muted/10 text-muted",
+const PILL_TONE = new Map<PillTone, string>([
+  ["danger", "px-2 bg-danger/10 text-danger"],
+  ["warning", "px-2 bg-warning/10 text-warning"],
+  ["success", "px-2 bg-success/10 text-success"],
+  ["accent", "px-2 bg-accent/10 text-accent"],
+  ["neutral", "px-2 bg-muted/10 text-muted"],
   // No tint and no side padding: plain text that lines up with the pills.
-  plain: "text-muted",
-};
+  ["plain", "text-muted"],
+]);
 
 /** A status pill. Pills are for states; filter chips are secondary buttons. */
 export function pillClass(tone: PillTone = "neutral", className?: string) {
-  return cn(PILL_BASE, PILL_TONE[tone], className);
+  return cn(PILL_BASE, PILL_TONE.get(tone), className);
 }
 
 // ── Banner ──────────────────────────────────────────────────────────────
 
 export type BannerTone = "danger" | "warning" | "success" | "neutral" | "plain";
 
-const BANNER_TONE: Record<BannerTone, string> = {
-  danger: "border-danger/30 bg-danger/10 text-danger",
-  warning: "border-warning/30 bg-warning/10 text-warning",
-  success: "border-success/30 bg-success/10 text-success",
-  neutral: "border-border bg-muted/10 text-foreground",
-  plain: "border-border bg-surface text-foreground",
-};
+const BANNER_TONE = new Map<BannerTone, string>([
+  ["danger", "border-danger/30 bg-danger/10 text-danger"],
+  ["warning", "border-warning/30 bg-warning/10 text-warning"],
+  ["success", "border-success/30 bg-success/10 text-success"],
+  ["neutral", "border-border bg-muted/10 text-foreground"],
+  ["plain", "border-border bg-surface text-foreground"],
+]);
 
 /** Just the border, tint and text colour of a banner in a tone. */
 export function bannerToneClass(tone: BannerTone) {
-  return BANNER_TONE[tone];
+  return BANNER_TONE.get(tone) ?? "";
 }
 
 /** A banner: a 1px tinted box of running text, rounded-lg, px-4 py-3. */
 export function bannerClass(tone: BannerTone = "neutral", className?: string) {
-  return cn("rounded-lg border px-4 py-3 text-sm", BANNER_TONE[tone], className);
+  return cn("rounded-lg border px-4 py-3 text-sm", BANNER_TONE.get(tone), className);
 }
 
 // ── Button ──────────────────────────────────────────────────────────────
@@ -120,12 +121,12 @@ const BUTTON_BASE =
 const HIT_AREA = "before:-inset-1";
 const HIT_AREA_BORDERED = "before:-inset-[5px]";
 
-const BUTTON_VARIANT: Record<ButtonVariant, string> = {
-  primary: `${HIT_AREA} bg-accent text-accent-foreground hover:bg-accent/90`,
-  secondary: `${HIT_AREA_BORDERED} border border-border bg-surface hover:bg-hover-surface`,
-  quiet: `${HIT_AREA} hover:bg-hover`,
-  danger: `${HIT_AREA} bg-danger text-danger-foreground hover:bg-danger/90`,
-};
+const BUTTON_VARIANT = new Map<ButtonVariant, string>([
+  ["primary", `${HIT_AREA} bg-accent text-accent-foreground hover:bg-accent/90`],
+  ["secondary", `${HIT_AREA_BORDERED} border border-border bg-surface hover:bg-hover-surface`],
+  ["quiet", `${HIT_AREA} hover:bg-hover`],
+  ["danger", `${HIT_AREA} bg-danger text-danger-foreground hover:bg-danger/90`],
+]);
 
 export interface ButtonOptions {
   /** A square 36px button holding one icon (give it an aria-label). */
@@ -147,7 +148,7 @@ export function buttonClass(
 ) {
   return cn(
     BUTTON_BASE,
-    BUTTON_VARIANT[variant],
+    BUTTON_VARIANT.get(variant),
     icon && "w-9 px-0",
     destructive && "text-danger",
     !online && "pointer-events-none opacity-40",
@@ -174,7 +175,7 @@ export function chipClass(active: boolean, className?: string) {
  * Overdue records that filters the list to them).
  */
 export function toneButtonClass(tone: BannerTone, className?: string) {
-  return cn(BUTTON_BASE, HIT_AREA_BORDERED, "border", BANNER_TONE[tone], className);
+  return cn(BUTTON_BASE, HIT_AREA_BORDERED, "border", BANNER_TONE.get(tone), className);
 }
 
 /** A row inside a popover menu (Export, the overflow menu). */
@@ -203,14 +204,14 @@ export const textareaClass =
 
 export type PageWidth = "list" | "detail" | "form" | "auth";
 
-const PAGE_WIDTH: Record<PageWidth, string> = {
-  list: "max-w-5xl",
-  detail: "max-w-3xl",
-  form: "max-w-2xl",
-  auth: "max-w-sm",
-};
+const PAGE_WIDTH = new Map<PageWidth, string>([
+  ["list", "max-w-5xl"],
+  ["detail", "max-w-3xl"],
+  ["form", "max-w-2xl"],
+  ["auth", "max-w-sm"],
+]);
 
 /** The page column: list/dashboard 5xl, detail 3xl, form and settings 2xl, auth sm. */
 export function pageShellClass(width: PageWidth, className?: string) {
-  return cn("w-full space-y-6", PAGE_WIDTH[width], className);
+  return cn("w-full space-y-6", PAGE_WIDTH.get(width), className);
 }

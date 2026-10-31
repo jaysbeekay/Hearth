@@ -9,7 +9,10 @@ const AUTOFILL_CLASSES = {
   ai: ["ring-2", "ring-foreground/60", "bg-foreground/5"],
 };
 
-const AUTOFILL_BADGE_TONE = { heuristic: "accent", ai: "neutral" } as const;
+const AUTOFILL_BADGE_TONE = new Map<"heuristic" | "ai", "accent" | "neutral">([
+  ["heuristic", "accent"],
+  ["ai", "neutral"],
+]);
 
 let autofillDescId = 0;
 
@@ -44,7 +47,7 @@ export function markAutoFilled(
   const badge = document.createElement("span");
   badge.textContent = "Auto";
   badge.setAttribute("aria-hidden", "true");
-  badge.className = pillClass(AUTOFILL_BADGE_TONE[source], "mt-1");
+  badge.className = pillClass(AUTOFILL_BADGE_TONE.get(source), "mt-1");
   desc.insertAdjacentElement("afterend", badge);
 
   el.addEventListener(
