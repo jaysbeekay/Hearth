@@ -5,15 +5,19 @@ import type {
   ExtractionCapabilities,
 } from "@/lib/documents/textExtraction";
 
-const PROBLEM: Record<Exclude<BinaryStatus, "available">, string> = {
-  missing: "not installed",
-  unusable: "installed but can't run (check permissions)",
-};
+function problemText(status: Exclude<BinaryStatus, "available">) {
+  return status === "missing" ? "not installed" : "installed but can't run (check permissions)";
+}
 
+// A Map lookup rather than status[b], which Codacy flags as an object
+// injection sink (same pattern as ReminderHealthCard's channel labels).
 function describeProblems(status: Record<ExtractionBinary, BinaryStatus>, needed: ExtractionBinary[]) {
+  const lookup = new Map(Object.entries(status) as [ExtractionBinary, BinaryStatus][]);
   return needed
-    .filter((b) => status[b] !== "available")
-    .map((b) => `${b} ${PROBLEM[status[b] as Exclude<BinaryStatus, "available">]}`)
+    .flatMap((binary) => {
+      const s = lookup.get(binary);
+      return s && s !== "available" ? [`${binary} ${problemText(s)}`] : [];
+    })
     .join("; ");
 }
 
