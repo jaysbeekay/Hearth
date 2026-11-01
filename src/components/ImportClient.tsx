@@ -8,8 +8,8 @@ import { INVENTORY_ITEM_CATEGORIES } from "@/lib/validation/inventory";
 import { showToast } from "@/components/Toast";
 import { LinkedToField } from "@/components/LinkedToField";
 import { extractionMessage } from "@/lib/autoFillHighlight";
-import { buttonVariants, compactButtonClass } from "@/lib/buttonStyles";
-import { cn } from "@/lib/utils";
+import { buttonClass, pillClass, inputClass, inlineLinkClass } from "@/lib/ui";
+import { Card } from "@/components/ui/Card";
 
 const INVENTORY_CATEGORY_LABELS: Record<string, string> = {
   APPLIANCE: "Appliance",
@@ -107,7 +107,7 @@ async function extract(type: EntityType, file: File) {
 }
 
 function fieldClass(autoFilled?: boolean) {
-  return `rounded-md border px-2 py-1.5 text-sm outline-none focus:border-accent ${
+  return `rounded-lg border px-2 py-1.5 text-sm outline-none focus:border-accent ${
     autoFilled ? "border-accent/40 bg-accent/5 ring-1 ring-accent/40" : "border-border bg-background"
   }`;
 }
@@ -327,11 +327,11 @@ export function ImportClient({
           setDragOver(false);
           if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
         }}
-        className={`flex cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed p-8 text-center transition has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent has-[:focus-visible]:outline-offset-2 ${
+        className={`flex cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed p-8 text-center transition-colors has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-accent has-[:focus-visible]:outline-offset-2 ${
           dragOver ? "border-accent bg-accent/5" : "border-border hover:border-accent/50"
         }`}
       >
-        <Upload size={22} className="text-muted" />
+        <Upload size={20} className="text-muted" />
         <p className="text-sm font-medium">Drag a file here or click to browse</p>
         <p className="text-xs text-muted">Drop in more than one at a time if you have several — each is scanned and added to the list below</p>
         {/* #285 — capture-time disclosure that this isn't private storage. */}
@@ -360,10 +360,7 @@ export function ImportClient({
               <button
                 type="button"
                 onClick={saveAll}
-                className={cn(
-                  "inline-flex min-h-11 items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition",
-                  buttonVariants.primary,
-                )}
+                className={buttonClass("primary")}
               >
                 Save all ({readyCount})
               </button>
@@ -372,7 +369,7 @@ export function ImportClient({
 
           <div className="space-y-3">
             {rows.map((row) => (
-              <div key={row.id} className="rounded-xl border border-border bg-surface p-4">
+              <Card key={row.id}>
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-2">
                     <FileText size={16} className="shrink-0 text-muted" />
@@ -381,7 +378,7 @@ export function ImportClient({
                   <div className="flex shrink-0 items-center gap-2">
                     {row.status === "saved" ? (
                       <span className="flex items-center gap-1 text-xs text-success">
-                        <Check size={14} /> Saved
+                        <Check size={16} /> Saved
                       </span>
                     ) : (
                       <>
@@ -394,7 +391,7 @@ export function ImportClient({
                             updateRow(row.id, { type });
                             scanRow(row.id, type, row.file);
                           }}
-                          className="rounded-md border border-border bg-background px-2 py-1 text-xs outline-none focus:border-accent"
+                          className={inputClass}
                         >
                           <option value="CONTRACT">Contract</option>
                           <option value="PRODUCT">Warranty</option>
@@ -405,9 +402,9 @@ export function ImportClient({
                           type="button"
                           onClick={() => removeRow(row.id)}
                           aria-label={`Remove ${row.file.name} from queue`}
-                          className="rounded p-1 text-muted hover:text-danger"
+                          className={buttonClass("quiet", { icon: true }, "text-muted hover:text-danger")}
                         >
-                          <X size={14} />
+                          <X size={16} />
                         </button>
                       </>
                     )}
@@ -416,7 +413,7 @@ export function ImportClient({
 
                 {row.status === "scanning" && (
                   <p role="status" className="flex items-center gap-2 text-sm text-muted">
-                    <Loader2 size={14} className="animate-spin" /> Scanning…
+                    <Loader2 size={16} className="animate-spin" /> Scanning…
                   </p>
                 )}
 
@@ -704,7 +701,7 @@ export function ImportClient({
                     <p className="text-sm text-muted">
                       Saved to the Inbox as-is — say whether it&apos;s a contract, warranty or other
                       record later from{" "}
-                      <a href="/documents/inbox" className="text-accent hover:underline">
+                      <a href="/documents/inbox" className={inlineLinkClass}>
                         Inbox
                       </a>
                       .
@@ -717,7 +714,7 @@ export function ImportClient({
                   <button
                     type="button"
                     onClick={() => saveRow(row)}
-                    className={`mt-3 ${compactButtonClass()}`}
+                    className={`mt-3 ${buttonClass("secondary")}`}
                   >
                     Save
                   </button>
@@ -727,7 +724,7 @@ export function ImportClient({
                     View →
                   </a>
                 )}
-              </div>
+              </Card>
             ))}
           </div>
         </>
@@ -737,7 +734,7 @@ export function ImportClient({
 }
 
 const ROW_FIELD_WRAPPER = "space-y-0.5";
-const ROW_FIELD_LABEL = "flex items-center gap-1 text-[11px] font-medium text-muted";
+const ROW_FIELD_LABEL = "flex items-center gap-1 text-xs font-medium text-muted";
 
 function RowField({
   label,
@@ -759,7 +756,7 @@ function RowField({
             {/* #290: a colour tint/ring alone doesn't reach a screen reader
                 or a colour-blind reviewer — this badge and the sr-only text
                 that follows it do. */}
-            <span aria-hidden="true" className="rounded bg-accent/10 px-1 py-0.5 text-[9px] font-medium text-accent">
+            <span aria-hidden="true" className={pillClass("accent")}>
               Auto
             </span>
             <span className="sr-only">(auto-filled from document — review before saving)</span>

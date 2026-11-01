@@ -7,12 +7,16 @@
 // chips shown just above, but did nothing on click — a false affordance.
 // An item with `onClick` (its count has a matching filter) renders as a real
 // button; one without renders as plain text so it doesn't look clickable.
-import { statusBannerClass, statusTextClass, statusTone, type RecordStatus, type StatusTone } from "@/lib/statusTone";
+import { statusTextClass, statusTone, type RecordStatus, type StatusTone } from "@/lib/statusTone";
+import { chipClass, toneButtonClass } from "@/lib/ui";
 
 // #412 — a count takes its status's tone: only Overdue and Due soon are
-// coloured, with the same tint and border as a status banner.
-function buttonClass(tone: StatusTone): string {
-  return tone === "danger" || tone === "warning" ? statusBannerClass(tone) : "border-border bg-surface text-muted";
+// coloured, with the same tint and border as a status banner. #411 — the
+// clickable ones are secondary buttons (filter chips), not pills.
+function countButtonClass(tone: StatusTone): string {
+  return tone === "danger" || tone === "warning"
+    ? toneButtonClass(tone)
+    : chipClass(false);
 }
 
 export function ListSummaryStrip({
@@ -38,9 +42,7 @@ export function ListSummaryStrip({
             key={item.label}
             type="button"
             onClick={item.onClick}
-            className={`rounded-full border px-3 py-1 hover:bg-hover ${
-              buttonClass(tone)
-            }`}
+            className={countButtonClass(tone)}
           >
             {item.value} {item.label}
           </button>

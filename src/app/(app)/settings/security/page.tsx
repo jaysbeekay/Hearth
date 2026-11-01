@@ -7,6 +7,8 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import type { SecurityEventType } from "@/generated/prisma/enums";
 import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
+import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.security.label };
 
@@ -39,16 +41,16 @@ export default async function SecurityLogPage() {
   ]);
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <PageShell width="form">
       <BackLink {...settingsBackLink(SETTINGS_ROUTES.security)} />
-      <h1 className="text-2xl font-semibold">{SETTINGS_ROUTES.security.label}</h1>
+      <h1 className="text-2xl font-medium">{SETTINGS_ROUTES.security.label}</h1>
       <p className="text-sm text-muted">
         Auth-relevant events across the household — failed and throttled sign-ins, password
         and role changes, two-factor disablement, and account removal. The most recent 100
         events.
       </p>
 
-      <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <Card as="section">
         {events.length === 0 ? (
           <p className="text-sm text-muted">No security events recorded yet.</p>
         ) : (
@@ -73,7 +75,7 @@ export default async function SecurityLogPage() {
             ))}
           </ul>
         )}
-      </section>
-    </div>
+      </Card>
+    </PageShell>
   );
 }

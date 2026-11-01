@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { startRegistration } from "@simplewebauthn/browser";
-import { linkButtonClass } from "@/lib/buttonStyles";
+import { buttonClass, inputClass } from "@/lib/ui";
+import { cn } from "@/lib/utils";
 
 export function PasskeyRegisterButton() {
   const router = useRouter();
@@ -65,13 +66,13 @@ export function PasskeyRegisterButton() {
           type="text"
           placeholder="Nickname (e.g. MacBook Touch ID)"
           maxLength={100}
-          className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+          className={cn(inputClass, "flex-1")}
         />
         <button
           type="button"
           onClick={register}
           disabled={pending}
-          className={`${linkButtonClass("primary")} justify-center disabled:cursor-not-allowed disabled:opacity-60`}
+          className={buttonClass("secondary")}
         >
           {pending ? "Registering…" : "Add passkey"}
         </button>

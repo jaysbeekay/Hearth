@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import { ListPageHeader } from "@/components/ListPageHeader";
-import { linkButtonClass, toolbarButtonClass } from "@/lib/buttonStyles";
 import { useRouter } from "next/navigation";
 import { Plus, X, Upload } from "lucide-react";
 import { ProductCard } from "@/components/ProductCard";
@@ -25,6 +24,9 @@ import type { DueContext } from "@/lib/duePolicy";
 import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
+import { buttonClass, chipClass, emptyStateClass, inputClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
+import { cn } from "@/lib/utils";
 
 const CHIPS: { chip: ToggleableFilter; label: string; onlyWhenActive?: boolean }[] = [
   { chip: "dueSoon", label: "Due soon" },
@@ -121,7 +123,7 @@ export function ProductListClient({
   ];
 
   return (
-    <div className="space-y-6">
+    <PageShell width="list">
       <ListPageHeader
         title="Warranties"
         exportPath="/api/export/products"
@@ -139,11 +141,11 @@ export function ProductListClient({
             clearTimeout(searchTimeout.current);
             searchTimeout.current = setTimeout(() => formRef.current?.requestSubmit(), 400);
           }}
-          className="flex-1 min-h-11 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-accent"
+          className={cn(inputClass, "flex-1")}
         />
         <button
           type="submit"
-          className={toolbarButtonClass}
+          className={buttonClass("secondary", {}, "list-none")}
         >
           Filter
         </button>
@@ -162,9 +164,9 @@ export function ProductListClient({
               onClick={() => {
                 router.push(listHref("/products", filters));
               }}
-              className="flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:bg-hover"
+              className={chipClass(true)}
             >
-              &quot;{q}&quot; <X size={12} />
+              &quot;{q}&quot; <X size={16} />
             </button>
           )}
           <button
@@ -196,7 +198,7 @@ export function ProductListClient({
 
       {products.length === 0 ? (
         pendingOps.length === 0 && (
-          <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border p-10 text-center">
+          <div className={emptyStateClass("flex flex-col items-center gap-3")}>
             <p className="text-sm text-muted">
               {filtered
                 ? "No warranties match your search or filters."
@@ -204,11 +206,11 @@ export function ProductListClient({
             </p>
             {!filtered && canWrite && (
               <div className="flex flex-wrap items-center justify-center gap-2">
-                <Link href="/products/new" className={linkButtonClass("primary")}>
+                <Link href="/products/new" className={buttonClass("primary")}>
                   <Plus size={16} />
                   Add warranty
                 </Link>
-                <Link href="/import" className={linkButtonClass("secondary")}>
+                <Link href="/import" className={buttonClass("secondary")}>
                   <Upload size={16} />
                   Upload a document
                 </Link>
@@ -235,7 +237,7 @@ export function ProductListClient({
         <section className="space-y-3 border-t border-border pt-6">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold">Inventory items</h2>
+              <h2 className="text-base font-medium">Inventory items</h2>
               <p className="text-sm text-muted">Household purchases and valuables catalogued separately from warranties.</p>
             </div>
             {canWrite && (
@@ -243,7 +245,7 @@ export function ProductListClient({
                 href="/inventory/new"
                 aria-disabled={!online}
                 tabIndex={!online ? -1 : undefined}
-                className={`${linkButtonClass("secondary", { online })} shrink-0 whitespace-nowrap`}
+                className={`${buttonClass("secondary", { online })} shrink-0 whitespace-nowrap`}
               >
                 <Plus size={16} />
                 Add item
@@ -251,7 +253,7 @@ export function ProductListClient({
             )}
           </div>
           {inventoryItems.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted">
+            <p className={emptyStateClass()}>
               No inventory items yet.
             </p>
           ) : (
@@ -263,6 +265,6 @@ export function ProductListClient({
           )}
         </section>
       )}
-    </div>
+    </PageShell>
   );
 }

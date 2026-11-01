@@ -14,8 +14,8 @@ import { whenOfflineDataClaimed } from "@/lib/offlineSession";
 import { showToast } from "@/components/Toast";
 import { Dialog } from "@/components/Dialog";
 import { useCanWrite } from "@/components/CanWriteProvider";
-import { buttonVariants, compactButtonClass } from "@/lib/buttonStyles";
-import { cn, humanFileSize } from "@/lib/utils";
+import { humanFileSize } from "@/lib/utils";
+import { buttonClass } from "@/lib/ui";
 
 type SyncState = "idle" | "syncing" | "done" | "error";
 
@@ -134,7 +134,7 @@ export function OfflineSyncManager() {
     const changes = pendingCount === 1 ? "1 change" : `${pendingCount} changes`;
     return (
       <div className="flex items-center gap-3 border-b border-border bg-danger/10 px-4 py-2 text-sm text-danger">
-        <AlertCircle size={14} className="shrink-0" />
+        <AlertCircle size={16} className="shrink-0" />
         <span className="flex-1">
           {changes} on this device can&apos;t be saved because your account is now read-only.
         </span>
@@ -155,7 +155,7 @@ export function OfflineSyncManager() {
             Discard {changes}? They were never saved and can&apos;t be recovered.
           </p>
           <div className="mt-4 flex justify-end gap-2">
-            <button type="button" onClick={() => { setConfirmDiscard(false); }} className={compactButtonClass()}>
+            <button type="button" onClick={() => { setConfirmDiscard(false); }} className={buttonClass("secondary")}>
               Cancel
             </button>
             <button
@@ -169,10 +169,7 @@ export function OfflineSyncManager() {
                   })
                   .catch(() => {});
               }}
-              className={cn(
-                "inline-flex min-h-11 items-center justify-center rounded-lg px-3 text-sm font-medium",
-                buttonVariants.danger,
-              )}
+              className={buttonClass("danger")}
             >
               Discard
             </button>
@@ -193,12 +190,12 @@ export function OfflineSyncManager() {
       }`}
     >
       {syncState === "syncing" && (
-        <RefreshCw size={14} className="shrink-0 animate-spin" />
+        <RefreshCw size={16} className="shrink-0 animate-spin" />
       )}
-      {syncState === "done" && <CheckCircle size={14} className="shrink-0" />}
-      {syncState === "error" && <AlertCircle size={14} className="shrink-0" />}
+      {syncState === "done" && <CheckCircle size={16} className="shrink-0" />}
+      {syncState === "error" && <AlertCircle size={16} className="shrink-0" />}
       {syncState === "idle" && pendingCount > 0 && (
-        <RefreshCw size={14} className="shrink-0" />
+        <RefreshCw size={16} className="shrink-0" />
       )}
 
       <span className="flex-1">

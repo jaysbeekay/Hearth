@@ -9,6 +9,7 @@ import {
 import { createProductFromAssistant, updateProductFromAssistant } from "@/lib/actions/products";
 import { formatDate, type DateFormat } from "@/lib/utils";
 import { useDateFormat } from "@/components/DateFormatProvider";
+import { buttonClass, cardClass } from "@/lib/ui";
 
 export interface ProposedAction {
   id: string;
@@ -140,7 +141,7 @@ export function ProposedActionCard({
     : ((action.data.title ?? action.data.description) as string | undefined);
 
   return (
-    <div className="mt-2 rounded-xl border border-accent/30 bg-accent/5 p-3 text-sm">
+    <div className={cardClass({}, "mt-2 text-sm")}>
       <p className="mb-2 font-medium">
         {action.operation === "create" ? "Create" : "Update"} {action.entity}
         {titleValue ? `: ${titleValue}` : ""}
@@ -163,18 +164,18 @@ export function ProposedActionCard({
           type="button"
           onClick={handleConfirm}
           disabled={working}
-          className="flex items-center gap-1 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground hover:opacity-90 disabled:opacity-50"
+          className={buttonClass("primary")}
         >
-          <Check size={14} />
+          <Check size={16} />
           {working ? "Saving…" : "Confirm"}
         </button>
         <button
           type="button"
           onClick={handleCancel}
           disabled={working}
-          className="flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-hover disabled:opacity-50"
+          className={buttonClass("secondary")}
         >
-          <X size={14} />
+          <X size={16} />
           Cancel
         </button>
       </div>

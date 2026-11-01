@@ -6,6 +6,8 @@ import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { ModuleToggle } from "@/components/ModuleToggle";
 import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
+import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.modules.label };
 
@@ -18,16 +20,16 @@ export default async function ModulesPage() {
   const enabledModules = await getEnabledModuleKeys();
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <PageShell width="form">
       <BackLink {...settingsBackLink(SETTINGS_ROUTES.modules)} />
-      <h1 className="text-2xl font-semibold">{SETTINGS_ROUTES.modules.label}</h1>
+      <h1 className="text-2xl font-medium">{SETTINGS_ROUTES.modules.label}</h1>
       <p className="text-sm text-muted">
         Enable or disable optional features. Disabling a module hides it from navigation but
         keeps its data intact. Records in every module are visible to your whole household, not
         just the person who added them.
       </p>
 
-      <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <Card as="section">
         <ul className="divide-y divide-border">
           {Object.values(MODULE_REGISTRY).map(({ key, label, description, icon: Icon }) => {
             const enabled = enabledModules.has(key);
@@ -45,7 +47,7 @@ export default async function ModulesPage() {
             );
           })}
         </ul>
-      </section>
-    </div>
+      </Card>
+    </PageShell>
   );
 }

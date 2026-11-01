@@ -7,6 +7,8 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import { BackLink } from "@/components/BackLink";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
+import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
 
 export default async function NewVehicleItemPage({
   params,
@@ -26,15 +28,15 @@ export default async function NewVehicleItemPage({
   const boundAction = addVehicleItem.bind(null, vehicle.id);
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="form">
       <BackLink href={`/vehicles/${vehicle.id}`} label={vehicle.label} />
       <div>
-        <h1 className="text-2xl font-semibold">Add service record</h1>
+        <h1 className="text-2xl font-medium">Add service record</h1>
         <p className="text-sm text-muted">{vehicle.label}</p>
       </div>
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <Card>
         <VehicleItemForm action={boundAction} vehicleId={vehicle.id} defaultCurrency={preferredCurrency} />
-      </div>
-    </div>
+      </Card>
+    </PageShell>
   );
 }

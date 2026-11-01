@@ -6,6 +6,8 @@ import { RentalStatementForm } from "@/components/RentalStatementForm";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
 
 export default async function EditRentalStatementPage({
   params,
@@ -25,19 +27,19 @@ export default async function EditRentalStatementPage({
   const boundAction = updateRentalStatement.bind(null, property.id, statementId);
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="form">
       <div>
         <BackLink href={`/home/${property.id}/rental`} label="Tenancy" />
       </div>
 
       <div>
         <p className="text-sm text-muted">{property.label}</p>
-        <h1 className="text-2xl font-semibold">Edit statement</h1>
+        <h1 className="text-2xl font-medium">Edit statement</h1>
       </div>
 
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <Card>
         <RentalStatementForm action={boundAction} statement={statement} />
-      </div>
-    </div>
+      </Card>
+    </PageShell>
   );
 }

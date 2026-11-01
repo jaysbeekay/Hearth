@@ -7,6 +7,8 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import { BackLink } from "@/components/BackLink";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
+import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
 
 export default async function NewHomeItemPage({
   params,
@@ -26,19 +28,19 @@ export default async function NewHomeItemPage({
   const boundAction = addHomeItem.bind(null, property.id);
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="form">
       <BackLink href={`/home/${property.id}`} label={property.label} />
       <div>
-        <h1 className="text-2xl font-semibold">Add maintenance record</h1>
+        <h1 className="text-2xl font-medium">Add maintenance record</h1>
         <p className="text-sm text-muted">{property.label}</p>
         <p className="mt-1 text-xs text-muted">
           Log a repair, maintenance visit, or improvement for this property, with receipts
           attached.
         </p>
       </div>
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <Card>
         <HomeItemForm action={boundAction} propertyId={property.id} defaultCurrency={preferredCurrency} />
-      </div>
-    </div>
+      </Card>
+    </PageShell>
   );
 }

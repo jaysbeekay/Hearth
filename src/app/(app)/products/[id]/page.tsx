@@ -32,6 +32,9 @@ import { getHouseholdMemberCount } from "@/lib/household";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { Card } from "@/components/ui/Card";
+import { buttonClass, menuItemClass, cardClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
 export default async function ProductDetailPage({
   params,
@@ -78,7 +81,7 @@ export default async function ProductDetailPage({
   );
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="detail">
       <div>
         <BackLink href="/products" label="Warranties" />
       </div>
@@ -88,7 +91,7 @@ export default async function ProductDetailPage({
           <p className="text-sm text-muted">
             {product.manufacturer ?? product.vendor ?? "Warranty"}
           </p>
-          <h1 className="text-2xl font-semibold">{product.description}</h1>
+          <h1 className="text-2xl font-medium">{product.description}</h1>
           {product.vendor && <p className="text-muted">{product.vendor}</p>}
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -97,7 +100,7 @@ export default async function ProductDetailPage({
             <>
               <Link
                 href={`/products/${product.id}/edit`}
-                className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+                className={buttonClass("secondary")}
               >
                 <Pencil size={16} />
                 Edit
@@ -107,7 +110,7 @@ export default async function ProductDetailPage({
                   action={deleteProduct.bind(null, product.id)}
                   undo={{ action: restoreProduct.bind(null, product.id), href: `/products/${product.id}` }}
                   confirmText="Delete this warranty? Its documents are kept, and you can restore it within 30 days from Settings → Recently deleted."
-                  className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
+                  className={menuItemClass({ destructive: true })}
                   offline={{ entity: "product", entityId: product.id, label: `Delete warranty: ${product.description}` }}
                 >
                   <Trash2 size={16} />
@@ -124,7 +127,7 @@ export default async function ProductDetailPage({
         <img
           src={documentFileHref(photo.id)}
           alt={product.description}
-          className="max-h-80 w-full rounded-xl border border-border object-contain"
+          className="max-h-80 w-full rounded-lg border border-border object-contain"
         />
       )}
 
@@ -147,7 +150,7 @@ export default async function ProductDetailPage({
         <ExtractionReviewPanel fields={pendingReview} action={reviewProductExtraction.bind(null, product.id)} />
       )}
 
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <Card>
         <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">
           <Detail label="Brand" value={product.manufacturer ?? "—"} />
           <Detail label="Model" value={product.model ?? "—"} />
@@ -161,7 +164,7 @@ export default async function ProductDetailPage({
             value={product.price != null ? formatCurrency(product.price, product.currency, undefined, region) : "—"}
           />
         </dl>
-      </div>
+      </Card>
 
       {product.warrantyEndDate && (
         <ReminderHealthCard
@@ -172,15 +175,15 @@ export default async function ProductDetailPage({
       )}
 
       {(product.property || product.warrantyForItems.length > 0) && (
-        <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+        <Card>
           <h2 className="mb-3 font-medium">Linked to</h2>
           <div className="grid gap-2 sm:grid-cols-2">
             {product.property && (
               <Link
                 href={`/home/${product.property.id}`}
-                className="flex items-center gap-3 rounded-lg border border-border p-3 hover:bg-hover"
+                className={cardClass({ interactive: true }, "flex items-center gap-3")}
               >
-                <Home size={18} className="text-muted" />
+                <Home size={16} className="text-muted" />
                 <span>
                   <span className="block text-sm font-medium">{product.property.label}</span>
                   <span className="block text-xs text-muted">Property</span>
@@ -191,9 +194,9 @@ export default async function ProductDetailPage({
               <Link
                 key={invItem.id}
                 href={`/inventory/${invItem.id}`}
-                className="flex items-center gap-3 rounded-lg border border-border p-3 hover:bg-hover"
+                className={cardClass({ interactive: true }, "flex items-center gap-3")}
               >
-                <Package size={18} className="text-muted" />
+                <Package size={16} className="text-muted" />
                 <span>
                   <span className="block text-sm font-medium">{invItem.label}</span>
                   <span className="block text-xs text-muted">Inventory item — warranty registered here</span>
@@ -201,17 +204,17 @@ export default async function ProductDetailPage({
               </Link>
             ))}
           </div>
-        </div>
+        </Card>
       )}
 
       {product.notes && (
-        <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+        <Card>
           <h2 className="mb-2 font-medium">Notes</h2>
           <p className="whitespace-pre-wrap text-sm text-foreground">{product.notes}</p>
-        </div>
+        </Card>
       )}
 
-      <div id="documents" className="scroll-mt-20 rounded-xl border border-border bg-surface p-4 md:p-6">
+      <Card id="documents" className="scroll-mt-20">
         <h2 className="mb-3 font-medium">Documents</h2>
         <DocumentList kind="PRODUCT" ownerId={product.id} documents={product.documents} trashedLinks={trashedLinks.get(product.id)} />
         {canWrite && (
@@ -219,7 +222,7 @@ export default async function ProductDetailPage({
             <ProductDocumentUploadForm action={boundUpload} />
           </div>
         )}
-      </div>
+      </Card>
 
       <RecordMeta
         createdByName={product.createdBy.name}
@@ -229,6 +232,6 @@ export default async function ProductDetailPage({
         extractionConfirmedAt={product.extractionConfirmedAt}
         memberCount={memberCount}
       />
-    </div>
+    </PageShell>
   );
 }

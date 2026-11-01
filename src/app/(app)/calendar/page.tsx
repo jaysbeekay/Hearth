@@ -14,6 +14,8 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import { ExpiryBadge } from "@/components/ExpiryBadge";
 import { CalendarSubscribeButton } from "@/components/CalendarSubscribeButton";
 import type { CalendarEvent } from "@/lib/calendarEvents";
+import { cardClass, chipClass, emptyStateClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Upcoming" };
 
@@ -70,10 +72,10 @@ export default async function CalendarPage({
   const months = [...grouped.entries()].sort(([a], [b]) => a.localeCompare(b));
 
   return (
-    <div className="max-w-3xl space-y-8">
+    <PageShell width="list">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-semibold">Upcoming</h1>
+          <h1 className="text-2xl font-medium">Upcoming</h1>
           <p className="text-sm text-muted">
             What&apos;s coming up across contracts, warranties, vehicles, trips and properties, from
             today to the horizon you pick. Anything overdue is in Needs attention on the dashboard.
@@ -88,11 +90,7 @@ export default async function CalendarPage({
             key={h}
             href={`/calendar?horizon=${h}`}
             aria-pressed={horizon === h}
-            className={`rounded-full border px-3 py-1 text-sm font-medium ${
-              horizon === h
-                ? "border-accent bg-accent/10 text-accent"
-                : "border-border bg-surface text-muted hover:bg-hover-surface"
-            }`}
+            className={chipClass(horizon === h)}
           >
             {h} days
           </Link>
@@ -100,13 +98,13 @@ export default async function CalendarPage({
       </div>
 
       {months.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
+        <p className={emptyStateClass()}>
           Nothing coming up in the next {horizon} days.
         </p>
       ) : (
         months.map(([key, monthEvents]) => (
           <section key={key}>
-            <h2 className="mb-3 text-sm font-semibold text-muted">
+            <h2 className="mb-3 text-sm font-medium text-muted">
               {monthLabel(key)}
             </h2>
             <div className="space-y-2">
@@ -114,13 +112,13 @@ export default async function CalendarPage({
                 <Link
                   key={event.id}
                   href={event.href}
-                  className="flex items-start gap-3 rounded-lg border border-border bg-surface p-3 transition hover:border-accent/50"
+                  className={cardClass({ interactive: true }, "flex items-start gap-3")}
                 >
                   <div className="mt-0.5 w-10 shrink-0 text-center">
                     <p className="text-xs text-muted">
                       {dayMonth(event.date)}
                     </p>
-                    <p className="text-lg font-semibold leading-none">{Number(event.date.slice(8, 10))}</p>
+                    <p className="text-xl font-medium leading-none">{Number(event.date.slice(8, 10))}</p>
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">{event.title}</p>
@@ -143,6 +141,6 @@ export default async function CalendarPage({
           </section>
         ))
       )}
-    </div>
+    </PageShell>
   );
 }

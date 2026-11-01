@@ -1,24 +1,18 @@
 import { Fragment } from "react";
 import Link from "next/link";
-import { AlertCircle, Ban, Car, FileText, BellOff, Home, Inbox } from "lucide-react";
+import { AlertCircle, Ban } from "lucide-react";
 import { setContractStatus } from "@/lib/actions/contracts";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { ExpiryBadge } from "@/components/ExpiryBadge";
 import { StatusPill } from "@/components/StatusPill";
 import { DismissibleRow } from "@/components/DismissibleRow";
 import type { AttentionItem } from "@/lib/needsAttention";
+import { Card } from "@/components/ui/Card";
+import { buttonClass, emptyStateClass } from "@/lib/ui";
 
 // Same key NotificationNudgeBanner used, so a household that already
 // dismissed that banner doesn't see the equivalent queue row reappear.
 const REMINDER_NUDGE_DISMISS_KEY = "hearth:notification-nudge-dismissed";
-
-const KIND_ICON: Record<AttentionItem["kind"], React.ComponentType<{ size?: number; className?: string }>> = {
-  contract: FileText,
-  warranty: FileText,
-  vehicle: Car,
-  property: Home,
-  system: BellOff,
-};
 
 // Everything in the household that needs acting on, split into what's Due
 // (a Due entry inside its due-soon window or overdue, most pressing first)
@@ -37,11 +31,11 @@ export function NeedsAttentionQueue({
   return (
     <div className="space-y-6">
       <section className="space-y-2" aria-labelledby="attention-due">
-        <h3 id="attention-due" className="text-sm font-semibold">
+        <h3 id="attention-due" className="text-sm font-medium">
           Due <span className="font-normal text-muted">({due.length})</span>
         </h3>
         {due.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted">
+          <p className={emptyStateClass()}>
             Nothing due.
           </p>
         ) : (
@@ -51,7 +45,7 @@ export function NeedsAttentionQueue({
 
       {housekeeping.length > 0 && (
         <section className="space-y-2" aria-labelledby="attention-housekeeping">
-          <h3 id="attention-housekeeping" className="text-sm font-semibold">
+          <h3 id="attention-housekeeping" className="text-sm font-medium">
             Housekeeping <span className="font-normal text-muted">({housekeeping.length})</span>
           </h3>
           <AttentionList items={housekeeping} canWrite={canWrite} />
@@ -65,11 +59,8 @@ function AttentionList({ items, canWrite }: { items: AttentionItem[]; canWrite: 
   return (
     <ul className="space-y-2">
       {items.map((item) => {
-        const Icon = item.id === "inbox" ? Inbox : KIND_ICON[item.kind];
         const row = (
-          <li className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-surface p-3 md:flex-nowrap">
-            <Icon size={18} className="shrink-0 text-muted" aria-hidden />
-
+          <Card as="li" className="flex flex-wrap items-center gap-3 md:flex-nowrap">
             <Link href={item.href} className="min-w-0 flex-1 hover:underline">
               <p className="truncate text-sm font-medium">{item.title}</p>
               {item.subtitle && (
@@ -95,7 +86,7 @@ function AttentionList({ items, canWrite }: { items: AttentionItem[]; canWrite: 
               // failed) is neutral, as on the detail banner: colour is kept
               // for Overdue and Due soon.
               <StatusPill status={item.badge === "Needs review" ? "needs-review" : "housekeeping"}>
-                <AlertCircle size={12} aria-hidden />
+                <AlertCircle size={16} aria-hidden />
                 {item.badge}
               </StatusPill>
             )}
@@ -108,23 +99,23 @@ function AttentionList({ items, canWrite }: { items: AttentionItem[]; canWrite: 
                     confirmText="Mark this contract as cancelled? This just changes its status — it won't delete the contract or its documents."
                     actionLabel="Mark as cancelled"
                     ariaLabel={`Mark ${item.title} as cancelled`}
-                    className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted hover:bg-hover"
+                    className={buttonClass("secondary")}
                   >
-                    <Ban size={12} />
+                    <Ban size={16} />
                     Cancel
                   </ConfirmForm>
                 )}
                 {item.action && (
                   <Link
                     href={item.action.href}
-                    className="inline-flex items-center rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground hover:opacity-90"
+                    className={buttonClass("secondary")}
                   >
                     {item.action.label}
                   </Link>
                 )}
               </div>
             )}
-          </li>
+          </Card>
         );
 
         if (item.id === "system-reminders") {

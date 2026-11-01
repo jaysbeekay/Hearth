@@ -164,9 +164,11 @@ security notes.
 | --- | --- |
 | ![Vehicle detail](docs/screenshots/vehicle-detail.png) | ![Properties](docs/screenshots/home-list.png) |
 
-| Property detail — map | Settings — modules |
+| Property detail | Settings — modules |
 | --- | --- |
 | ![Property detail](docs/screenshots/property-detail.png) | ![Settings — modules](docs/screenshots/settings-modules.png) |
+
+_The property detail screenshot was captured without network access, so it doesn't show the map. The page shows a map once a property's address has been geocoded and the tile server can be reached._
 
 | Spending | Contract — linked tenancy |
 | --- | --- |
@@ -203,6 +205,14 @@ security notes.
 | Warranties | Contract — renew |
 | --- | --- |
 | ![Warranties](docs/screenshots/products-list.png) | ![Contract — renew](docs/screenshots/contract-renew.png) |
+
+| Dashboard — dark | Contract detail — dark |
+| --- | --- |
+| ![Dashboard in dark mode](docs/screenshots/dashboard-dark.png) | ![Contract detail in dark mode](docs/screenshots/contract-detail-dark.png) |
+
+| Contracts — dark | Settings — dark |
+| --- | --- |
+| ![Contracts list in dark mode](docs/screenshots/contracts-list-dark.png) | ![Settings in dark mode](docs/screenshots/settings-personal-dark.png) |
 
 ## Tech stack
 

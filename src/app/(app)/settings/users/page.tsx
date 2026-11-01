@@ -12,6 +12,9 @@ import { formatTimestamp, ROLE_LABELS } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
+import { Card } from "@/components/ui/Card";
+import { buttonClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.users.label };
 
@@ -28,11 +31,11 @@ export default async function ManageUsersPage() {
   ]);
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <PageShell width="form">
       <BackLink {...settingsBackLink(SETTINGS_ROUTES.users)} />
-      <h1 className="text-2xl font-semibold">{SETTINGS_ROUTES.users.label}</h1>
+      <h1 className="text-2xl font-medium">{SETTINGS_ROUTES.users.label}</h1>
 
-      <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <Card as="section">
         <ul className="divide-y divide-border">
           {users.map((user) => (
             <li key={user.id} className="flex items-center justify-between gap-3 py-3">
@@ -46,13 +49,13 @@ export default async function ManageUsersPage() {
               </div>
               {user.id !== session.user.id && (
                 <div className="flex items-center gap-3">
-                  <MemberRoleForm userId={user.id} role={user.role} />
+                  <MemberRoleForm userId={user.id} role={user.role} name={user.name} />
                   <ConfirmForm
                     action={deleteUser.bind(null, user.id)}
                     confirmText={`Remove ${user.name} from the household? Their records and documents stay with the household.`}
                     actionLabel={`Remove ${user.name}`}
                     ariaLabel={`Remove ${user.name} from the household`}
-                    className="rounded-md p-2 text-muted hover:text-danger"
+                    className={buttonClass("quiet", { icon: true }, "text-muted hover:text-danger")}
                   >
                     <Trash2 size={16} />
                   </ConfirmForm>
@@ -61,12 +64,12 @@ export default async function ManageUsersPage() {
             </li>
           ))}
         </ul>
-      </section>
+      </Card>
 
-      <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <Card as="section">
         <h2 className="mb-3 font-medium">Add a household member</h2>
         <CreateUserForm smtpConfigured={smtpConfigured} />
-      </section>
-    </div>
+      </Card>
+    </PageShell>
   );
 }

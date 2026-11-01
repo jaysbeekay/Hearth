@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { MoreVertical, X } from "lucide-react";
 import { Dialog } from "@/components/Dialog";
 import { useFocusTrap } from "@/lib/useFocusTrap";
+import { buttonClass, overlayClass, sheetClass } from "@/lib/ui";
 
 // #355 — an item that acts in place (Archive) rather than navigating away
 // calls this to close the menu; one that is a link or opens a dialog already
@@ -59,7 +60,7 @@ export function DetailOverflowMenu({
         aria-label={label}
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="flex h-11 w-11 items-center justify-center rounded-lg border border-border hover:bg-hover"
+        className={buttonClass("secondary", { icon: true })}
       >
         <MoreVertical size={16} />
       </button>
@@ -74,7 +75,7 @@ export function DetailOverflowMenu({
             ref={dropdownRef}
             role="dialog"
             aria-label={label}
-            className="absolute right-0 z-10 mt-1 hidden w-48 overflow-hidden rounded-lg border border-border bg-surface shadow-md md:block"
+            className={overlayClass("absolute right-0 z-10 mt-1 hidden w-48 overflow-hidden md:block")}
           >
             <CloseMenuContext.Provider value={closeMenu}>{children}</CloseMenuContext.Provider>
           </div>
@@ -86,7 +87,7 @@ export function DetailOverflowMenu({
             onClose={() => setOpen(false)}
             label={label}
             backdropClassName="fixed inset-0 z-40 flex items-end bg-black/40 md:hidden"
-            panelClassName="w-full rounded-t-2xl border-t border-border bg-surface p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]"
+            panelClassName={sheetClass("p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]")}
           >
             <>
               <div className="mb-1 flex items-center justify-end px-2 pt-1">
@@ -94,9 +95,9 @@ export function DetailOverflowMenu({
                   type="button"
                   onClick={() => setOpen(false)}
                   aria-label="Close"
-                  className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-hover"
+                  className={buttonClass("quiet", { icon: true })}
                 >
-                  <X size={18} />
+                  <X size={20} />
                 </button>
               </div>
               <CloseMenuContext.Provider value={closeMenu}>{children}</CloseMenuContext.Provider>

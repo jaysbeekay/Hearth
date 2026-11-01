@@ -7,6 +7,8 @@ import { PortfolioForm } from "@/components/PortfolioForm";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Edit Portfolio" };
 
@@ -25,14 +27,14 @@ export default async function EditPortfolioPage({
   const action = updatePortfolio.bind(null, id);
 
   return (
-    <div className="max-w-xl space-y-6">
+    <PageShell width="form">
       <div>
         <BackLink href={`/wealth/portfolios/${id}`} label={portfolio.name} />
-        <h1 className="mt-1 text-2xl font-semibold">Edit portfolio</h1>
+        <h1 className="mt-1 text-2xl font-medium">Edit portfolio</h1>
       </div>
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <Card>
         <PortfolioForm action={action} portfolio={portfolio} />
-      </div>
-    </div>
+      </Card>
+    </PageShell>
   );
 }

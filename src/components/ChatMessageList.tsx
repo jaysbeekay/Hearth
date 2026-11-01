@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Bot, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ProposedActionCard, type ProposedAction } from "@/components/ProposedActionCard";
 
@@ -36,7 +35,6 @@ export function ChatMessageList({
   if (messages.length === 0) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center text-sm text-muted">
-        <Bot size={28} className="text-muted" />
         <p>Ask about your contracts, warranties, trips, vehicles, properties, inventory, or wealth.</p>
       </div>
     );
@@ -49,20 +47,10 @@ export function ChatMessageList({
           key={message.id}
           className={cn("flex gap-3", message.role === "USER" && "flex-row-reverse")}
         >
-          <div
-            className={cn(
-              "flex size-7 shrink-0 items-center justify-center rounded-full",
-              message.role === "USER"
-                ? "bg-accent text-accent-foreground"
-                : "bg-muted/10",
-            )}
-          >
-            {message.role === "USER" ? <User size={14} /> : <Bot size={14} />}
-          </div>
           <div className="max-w-[85%]">
             <div
               className={cn(
-                "whitespace-pre-wrap rounded-xl px-3 py-2 text-sm",
+                "whitespace-pre-wrap rounded-lg px-3 py-2 text-sm",
                 message.role === "USER"
                   ? "bg-accent text-accent-foreground"
                   : "bg-muted/10",

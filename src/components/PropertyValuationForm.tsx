@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useId } from "react";
 import { Plus } from "lucide-react";
 import type { ActionState } from "@/lib/actions/auth";
 import { CurrencySelect } from "@/components/CurrencySelect";
@@ -8,6 +8,7 @@ import { FormMessage } from "@/components/FormMessage";
 import { SubmitButton } from "@/components/SubmitButton";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
 import { DateInput } from "@/components/DateInput";
+import { inputClass } from "@/lib/ui";
 
 export function PropertyValuationForm({
   action,
@@ -30,22 +31,25 @@ export function PropertyValuationForm({
   );
 
   const [state, formAction] = useActionState<ActionState, FormData>(offlineAwareAction, null);
+  const fieldId = useId();
 
   return (
     <form action={formAction} className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="mb-1 block text-xs text-muted">Date</label>
+          <label htmlFor={`${fieldId}-valuedAt`} className="mb-1 block text-xs text-muted">Date</label>
           <DateInput
+            id={`${fieldId}-valuedAt`}
             name="valuedAt"
             required
             defaultValue={state?.values?.valuedAt ?? new Date().toISOString().slice(0, 10)}
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+            className={inputClass}
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs text-muted">Estimated value</label>
+          <label htmlFor={`${fieldId}-value`} className="mb-1 block text-xs text-muted">Estimated value</label>
           <input
+            id={`${fieldId}-value`}
             type="number"
             name="value"
             required
@@ -53,23 +57,24 @@ export function PropertyValuationForm({
             min="0"
             defaultValue={state?.values?.value}
             placeholder="e.g. 750000"
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+            className={inputClass}
           />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="mb-1 block text-xs text-muted">Currency</label>
-          <CurrencySelect name="currency" defaultValue={state?.values?.currency ?? defaultCurrency} />
+          <label htmlFor={`${fieldId}-currency`} className="mb-1 block text-xs text-muted">Currency</label>
+          <CurrencySelect id={`${fieldId}-currency`} name="currency" defaultValue={state?.values?.currency ?? defaultCurrency} />
         </div>
         <div>
-          <label className="mb-1 block text-xs text-muted">Source (optional)</label>
+          <label htmlFor={`${fieldId}-source`} className="mb-1 block text-xs text-muted">Source (optional)</label>
           <input
+            id={`${fieldId}-source`}
             type="text"
             name="source"
             defaultValue={state?.values?.source}
             placeholder="e.g. CoreLogic, agent appraisal"
-            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+            className={inputClass}
           />
         </div>
       </div>
@@ -80,13 +85,13 @@ export function PropertyValuationForm({
           name="notes"
           defaultValue={state?.values?.notes}
           placeholder="Any additional context"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+          className={inputClass}
         />
       </div>
       <FormMessage error={state?.error} success={state?.success} />
       {/* #285 — capture-time disclosure that this isn't private storage. */}
       <p className="text-xs text-muted">Visible to your whole household once saved.</p>
-      <SubmitButton>
+      <SubmitButton variant="secondary">
         <Plus size={16} />
         Save valuation
       </SubmitButton>
