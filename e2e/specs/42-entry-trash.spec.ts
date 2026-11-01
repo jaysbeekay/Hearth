@@ -45,7 +45,7 @@ test.describe.serial("Trades go to Trash", () => {
 
     await page.goto("/wealth/portfolios/new");
     await page.locator("#name").fill(`Trash portfolio ${Date.now()}`);
-    await page.getByRole("button", { name: "Create portfolio" }).click();
+    await page.getByRole("button", { name: "Add portfolio" }).click();
     await page.waitForURL(/\/wealth\/portfolios\/(?!new$)[^/]+$/);
     await page.getByRole("link", { name: "Add holding" }).click();
     await page.waitForURL(/\/holdings\/new$/);

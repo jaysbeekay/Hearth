@@ -31,7 +31,7 @@ export default async function EditVehiclePage({
         <p className="text-sm text-muted">{vehicle.label}</p>
       </div>
       <Card>
-        <VehicleForm action={boundAction} vehicle={vehicle} />
+        <VehicleForm cancelHref={`/vehicles/${vehicle.id}`} action={boundAction} vehicle={vehicle} />
       </Card>
     </PageShell>
   );

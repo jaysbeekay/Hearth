@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import type { HoldingModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
+import { FormActions } from "@/components/FormActions";
 import { FormMessage } from "@/components/FormMessage";
 import { ASSET_CLASSES, ASSET_CLASS_LABELS } from "@/lib/validation/wealth";
 import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
@@ -14,10 +15,13 @@ const COMMON_EXCHANGES = ["ASX", "NYSE", "NASDAQ", "LSE", "TSX", "CRYPTO", "OTHE
 
 export function HoldingForm({
   action,
+  cancelHref,
   holding,
   portfolioId,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
+  /** Where Cancel goes: the same place as the page's BackLink. */
+  cancelHref: string;
   holding?: HoldingModel;
   portfolioId?: string;
 }) {
@@ -111,7 +115,9 @@ export function HoldingForm({
       {/* #285 — capture-time disclosure that this isn't private storage. */}
       {!holding && <p className="text-xs text-muted">Visible to your whole household once saved.</p>}
 
-      <SubmitButton>{holding ? "Save changes" : "Add holding"}</SubmitButton>
+      <FormActions cancelHref={cancelHref}>
+        <SubmitButton>{holding ? "Save changes" : "Add holding"}</SubmitButton>
+      </FormActions>
     </form>
   );
 }

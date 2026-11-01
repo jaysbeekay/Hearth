@@ -51,7 +51,7 @@ export default async function NewProductPage() {
         </p>
       </div>
       <Card>
-        <ProductForm
+        <ProductForm cancelHref="/products"
           action={createProduct}
           defaultCurrency={preferredCurrency}
           properties={properties}

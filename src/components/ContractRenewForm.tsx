@@ -1,9 +1,9 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import type { ActionState } from "@/lib/actions/contracts";
 import { SubmitButton } from "@/components/SubmitButton";
+import { FormActions } from "@/components/FormActions";
 import { FormMessage } from "@/components/FormMessage";
 import { Field } from "@/components/FormField";
 import { FileDropZone } from "@/components/FileDropZone";
@@ -230,12 +230,9 @@ export function ContractRenewForm({
 
       <FormMessage error={state?.error} success={state?.success} />
 
-      <div className="flex flex-wrap items-center gap-3">
+      <FormActions cancelHref={cancelHref}>
         <SubmitButton pendingText="Renewing…">Renew</SubmitButton>
-        <Link href={cancelHref} className="text-sm text-muted hover:underline">
-          Cancel
-        </Link>
-      </div>
+      </FormActions>
     </form>
   );
 }

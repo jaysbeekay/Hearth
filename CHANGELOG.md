@@ -34,6 +34,16 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   of running off-screen, text inputs show a focus ring again, the property
   valuation form's fields are labelled, and the contract status action's
   accessible name matches its visible text (#411 review).
+- **Consistency pass (#406).** Every add, edit and renew form now has Cancel
+  beside Save, going back to the same place as the page's back link. A form
+  error is shown once, in the banner above the buttons (scrolled into view
+  and announced to screen readers), instead of also popping up as a toast.
+  An empty Contracts, Warranties, Vehicles, Properties or Travel list shows
+  just its sentence and Add button, without Export, search or filter chips.
+  Import and Inbox review fields use the shared 36px input style, the
+  Inventory form sits in a card with sentence-case labels, portfolios are
+  added with "Add portfolio" everywhere, and a holding's Delete moved into
+  its ⋮ menu. The iOS and Android shell is unchanged.
 
 ## [0.20.1] - 2026-10-31
 

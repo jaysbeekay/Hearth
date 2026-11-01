@@ -43,7 +43,7 @@ export default async function NewRentalStatementPage({
       </div>
 
       <Card>
-        <RentalStatementForm
+        <RentalStatementForm cancelHref={`/home/${property.id}/rental`}
           action={boundAction}
           propertyId={property.id}
           defaultCurrency={preferredCurrency}

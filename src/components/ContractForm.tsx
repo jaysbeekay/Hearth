@@ -6,6 +6,7 @@ import { Upload } from "lucide-react";
 import type { ContractModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/contracts";
 import { SubmitButton } from "@/components/SubmitButton";
+import { FormActions } from "@/components/FormActions";
 import { FormMessage } from "@/components/FormMessage";
 import { Field } from "@/components/FormField";
 import {
@@ -52,6 +53,7 @@ type ExtractedFields = Partial<
 
 export function ContractForm({
   action,
+  cancelHref,
   contract,
   defaultCurrency,
   properties = [],
@@ -62,6 +64,8 @@ export function ContractForm({
   vehiclesEnabled = false,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
+  /** Where Cancel goes: the same place as the page's BackLink. */
+  cancelHref: string;
   contract?: ContractModel;
   defaultCurrency?: string;
   properties?: { id: string; label: string }[];
@@ -503,11 +507,11 @@ export function ContractForm({
 
       <FormMessage error={state?.error} success={state?.success} />
 
-      <div className="flex justify-end gap-3">
+      <FormActions cancelHref={cancelHref}>
         <SubmitButton>
           {pendingOp ? "Save changes" : contract ? "Save changes" : "Add contract"}
         </SubmitButton>
-      </div>
+      </FormActions>
     </form>
   );
 }

@@ -122,36 +122,42 @@ export function ProductListClient({
     { label: "added this week", value: counts.recentlyAdded ?? 0 },
   ];
 
+  // #406 — a list with nothing in it yet shows one sentence and one button:
+  // no Export, search or filter chips until there is something to act on.
+  const nothingYet = !filtered && products.length === 0 && pendingOps.length === 0;
+
   return (
     <PageShell width="list">
       <ListPageHeader
         title="Warranties"
-        exportPath="/api/export/products"
+        exportPath={nothingYet ? undefined : "/api/export/products"}
         action={canWrite ? { href: "/products/new", label: "Add warranty", online } : undefined}
       />
 
-      <form ref={formRef} className="flex flex-col gap-3 md:flex-row" method="GET">
-        <ListFilterHiddenInputs filters={filters} />
-        <input
-          type="search"
-          name="q"
-          defaultValue={q}
-          placeholder="Search by description, brand, model, vendor, serial number, or barcode…"
-          onChange={() => {
-            clearTimeout(searchTimeout.current);
-            searchTimeout.current = setTimeout(() => formRef.current?.requestSubmit(), 400);
-          }}
-          className={cn(inputClass, "flex-1")}
-        />
-        <button
-          type="submit"
-          className={buttonClass("secondary", {}, "list-none")}
-        >
-          Filter
-        </button>
-      </form>
+      {!nothingYet && (
+        <form ref={formRef} className="flex flex-col gap-3 md:flex-row" method="GET">
+          <ListFilterHiddenInputs filters={filters} />
+          <input
+            type="search"
+            name="q"
+            defaultValue={q}
+            placeholder="Search by description, brand, model, vendor, serial number, or barcode…"
+            onChange={() => {
+              clearTimeout(searchTimeout.current);
+              searchTimeout.current = setTimeout(() => formRef.current?.requestSubmit(), 400);
+            }}
+            className={cn(inputClass, "flex-1")}
+          />
+          <button
+            type="submit"
+            className={buttonClass("secondary", {}, "list-none")}
+          >
+            Filter
+          </button>
+        </form>
+      )}
 
-      <ListFilterChips filters={filters} chips={CHIPS} onToggle={toggleFilter} />
+      {!nothingYet && <ListFilterChips filters={filters} chips={CHIPS} onToggle={toggleFilter} />}
 
       {filtered && (
         <div className="flex flex-wrap items-center gap-2 text-sm">

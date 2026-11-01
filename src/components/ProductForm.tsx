@@ -7,6 +7,7 @@ import { ScanBarcode, Upload } from "lucide-react";
 import type { ProductModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/products";
 import { SubmitButton } from "@/components/SubmitButton";
+import { FormActions } from "@/components/FormActions";
 import { FormMessage } from "@/components/FormMessage";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { CurrencySelect } from "@/components/CurrencySelect";
@@ -37,6 +38,7 @@ type ExtractedFields = Partial<
 
 export function ProductForm({
   action,
+  cancelHref,
   product,
   defaultCurrency,
   properties = [],
@@ -44,6 +46,8 @@ export function ProductForm({
   barcodeLookupEnabled = false,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
+  /** Where Cancel goes: the same place as the page's BackLink. */
+  cancelHref: string;
   product?: ProductModel;
   defaultCurrency?: string;
   properties?: { id: string; label: string }[];
@@ -437,9 +441,9 @@ export function ProductForm({
 
       <FormMessage error={state?.error} success={state?.success} />
 
-      <div className="flex justify-end gap-3">
+      <FormActions cancelHref={cancelHref}>
         <SubmitButton>{pendingOp || product ? "Save changes" : "Add warranty"}</SubmitButton>
-      </div>
+      </FormActions>
 
       {scannerOpen && (
         <BarcodeScanner
