@@ -96,9 +96,20 @@ export function isAiExtractionSource(source: ExtractionSource) {
   return source === "byok" || source === "llm";
 }
 
-export function extractionMessage(source: ExtractionSource, filledCount: number) {
+export const TEXT_EXTRACTION_UNAVAILABLE_MESSAGE =
+  "Text extraction isn't available on this server (pdftotext or tesseract isn't installed), " +
+  "so nothing was auto-filled. The file still attaches — fill the fields in manually, or ask an " +
+  "admin to add an AI key in System settings.";
+
+export function extractionMessage(
+  source: ExtractionSource,
+  filledCount: number,
+  textUnavailable = false,
+) {
   const isAi = isAiExtractionSource(source);
   if (filledCount === 0) {
+    // #480 — a missing binary used to read the same as a blank document.
+    if (textUnavailable) return TEXT_EXTRACTION_UNAVAILABLE_MESSAGE;
     return "Couldn't confidently detect anything in this document — fill the fields in manually.";
   }
   if (filledCount < LOW_CONFIDENCE_FIELD_COUNT) {

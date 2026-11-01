@@ -146,7 +146,7 @@ export default async function TripDetailPage({
                 <ConfirmForm
                   action={deleteTrip.bind(null, trip.id)}
                   undo={{ action: restoreTrip.bind(null, trip.id), href: `/travel/${trip.id}` }}
-                  confirmText="Move this trip to Trash? Its segments and documents are kept, and you can restore it within 30 days from Settings → Trash."
+                  confirmText="Delete this trip? Its segments and documents are kept, and you can restore it within 30 days from Settings → Recently deleted."
                   className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
                   offline={{ entity: "trip", entityId: trip.id, label: `Delete trip: ${trip.title}` }}
                 >
@@ -225,7 +225,7 @@ export default async function TripDetailPage({
                               parentId: trip.id,
                               label: `Delete segment: ${segment.title}`,
                             }}
-                            confirmText={`Move "${segment.title}" to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash.`}
+                            confirmText={`Delete "${segment.title}"? Its documents are kept, and you can restore it within 30 days from Settings → Recently deleted.`}
                             className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
                           >
                             <Trash2 size={16} />

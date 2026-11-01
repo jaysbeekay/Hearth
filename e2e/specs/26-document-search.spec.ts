@@ -161,7 +161,7 @@ test("trashing a contract removes its document from search, and permanently dele
   await page.goto(`/contracts/${contractId}`);
   await page.getByRole("button", { name: "More actions" }).click();
   await page.getByRole("button", { name: "Delete", exact: true }).click();
-  await page.getByRole("button", { name: "Move to Trash", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
   await page.waitForURL(/\/contracts$/);
 
   // Asserting absence via getByText(filename) would false-positive: the

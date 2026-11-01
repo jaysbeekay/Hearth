@@ -97,9 +97,10 @@ export function ContractRenewForm({
       body.append("file", file);
       const res = await fetch("/api/documents/extract", { method: "POST", body });
       if (!res.ok) throw new Error("Extraction failed");
-      const { fields, source } = (await res.json()) as {
+      const { fields, source, textUnavailable } = (await res.json()) as {
         fields: Partial<Record<string, string>>;
         source: ExtractionSource;
+        textUnavailable?: boolean;
       };
       const found = new Map<RenewField, string>();
       for (const [key, value] of Object.entries(fields)) {
@@ -130,7 +131,7 @@ export function ContractRenewForm({
         setValues(next);
         setVersion((v) => v + 1);
       }
-      setScanMessage(extractionMessage(source, found.size));
+      setScanMessage(extractionMessage(source, found.size, textUnavailable));
     } catch {
       setScanMessage("Couldn't scan this document. You can still attach it and fill in the dates yourself.");
     } finally {

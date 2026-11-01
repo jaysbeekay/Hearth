@@ -99,7 +99,7 @@ export async function deleteDocumentAction(
   } catch (error) {
     return commandError(error);
   }
-  return { success: "Document moved to Trash." };
+  return { success: "Document deleted." };
 }
 
 export async function restoreDocumentAction(kind: OwnedDocumentKind, documentId: string): Promise<ActionState> {

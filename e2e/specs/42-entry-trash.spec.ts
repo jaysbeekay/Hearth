@@ -29,9 +29,9 @@ async function deleteSegment(page: Page, title: string) {
   const row = page.locator("div.rounded-xl.border.border-border.bg-surface", { hasText: title });
   await row.getByRole("button", { name: "Delete", exact: true }).click();
   const dialog = page.getByRole("alertdialog");
-  await expect(dialog).toContainText("Settings → Trash");
+  await expect(dialog).toContainText("Settings → Recently deleted");
   await expect(dialog).not.toContainText("can't be undone");
-  await dialog.getByRole("button", { name: "Move to Trash" }).click();
+  await dialog.getByRole("button", { name: "Delete", exact: true }).click();
 }
 
 test.describe.serial("Trades go to Trash", () => {
@@ -67,10 +67,10 @@ test.describe.serial("Trades go to Trash", () => {
 
     await page.getByRole("button", { name: /^Delete trade from / }).click();
     const dialog = page.getByRole("alertdialog");
-    await expect(dialog).toContainText("Settings → Trash");
-    await dialog.getByRole("button", { name: "Move to Trash" }).click();
+    await expect(dialog).toContainText("Settings → Recently deleted");
+    await dialog.getByRole("button", { name: "Delete", exact: true }).click();
     const toast = page.getByRole("status");
-    await expect(toast).toContainText("Moved to Trash.");
+    await expect(toast).toContainText("Moved to Recently deleted.");
     await expect(trades).toHaveCount(0);
 
     await toast.getByRole("button", { name: "Undo" }).click();
@@ -86,7 +86,7 @@ test.describe.serial("Trip segments go to Trash", () => {
     await deleteSegment(page, title);
 
     const toast = page.getByRole("status");
-    await expect(toast).toContainText("Moved to Trash.");
+    await expect(toast).toContainText("Moved to Recently deleted.");
     await expect(page.locator("main")).not.toContainText(title);
 
     await toast.getByRole("button", { name: "Undo" }).click();
@@ -96,7 +96,7 @@ test.describe.serial("Trip segments go to Trash", () => {
   test("a deleted one is listed in Trash and can be restored from there", async ({ page }) => {
     await page.goto(tripUrl);
     await deleteSegment(page, title);
-    await expect(page.getByRole("status")).toContainText("Moved to Trash.");
+    await expect(page.getByRole("status")).toContainText("Moved to Recently deleted.");
 
     await page.goto("/settings/trash");
     const row = page.locator("li", { hasText: title });
@@ -111,7 +111,7 @@ test.describe.serial("Trip segments go to Trash", () => {
   test("it's only deleted for good from Trash", async ({ page }) => {
     await page.goto(tripUrl);
     await deleteSegment(page, title);
-    await expect(page.getByRole("status")).toContainText("Moved to Trash.");
+    await expect(page.getByRole("status")).toContainText("Moved to Recently deleted.");
 
     await page.goto("/settings/trash");
     const row = page.locator("li", { hasText: title });
