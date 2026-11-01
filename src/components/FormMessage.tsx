@@ -21,7 +21,7 @@ export function FormMessage({
     } else if (error && error !== lastShown.current) {
       // #406 — an error is shown once, in this banner, not also as a toast.
       // The banner sits at the foot of the form, so bring it into view.
-      errorRef.current?.scrollIntoView?.({ block: "nearest" });
+      errorRef.current?.scrollIntoView?.({ block: "center" });
       lastShown.current = error;
     }
   }, [success, error]);
