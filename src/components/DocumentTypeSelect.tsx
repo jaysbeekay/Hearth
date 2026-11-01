@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { setDocumentCategoryAction } from "@/lib/actions/documents";
 import { useCanWrite } from "@/components/CanWriteProvider";
 import { showToast } from "@/components/Toast";
-import { DOCUMENT_CATEGORIES, DOCUMENT_CATEGORY_LABELS } from "@/lib/documents/categories";
+import { DOCUMENT_CATEGORIES, documentCategoryLabel } from "@/lib/documents/categories";
 import type { OwnedDocumentKind } from "@/lib/documents/kinds";
 import { pillClass } from "@/lib/ui";
 
@@ -30,10 +30,11 @@ export function DocumentTypeSelect({
   const canWrite = useCanWrite();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const known = category && (DOCUMENT_CATEGORIES as readonly string[]).includes(category) ? category : "";
+  const label = documentCategoryLabel(category);
+  const known = label ? (category ?? "") : "";
 
   if (!canWrite) {
-    return known ? <span className={pillClass()}>{DOCUMENT_CATEGORY_LABELS[known as keyof typeof DOCUMENT_CATEGORY_LABELS]}</span> : null;
+    return label ? <span className={pillClass()}>{label}</span> : null;
   }
 
   return (
@@ -55,7 +56,7 @@ export function DocumentTypeSelect({
       {!known && <option value="">Set type</option>}
       {DOCUMENT_CATEGORIES.map((c) => (
         <option key={c} value={c}>
-          {DOCUMENT_CATEGORY_LABELS[c]}
+          {documentCategoryLabel(c)}
         </option>
       ))}
     </select>
