@@ -289,7 +289,10 @@ test("list page headers don't wrap at 360, 390 and 430px, and Export sits in the
       await expect(page.locator("main summary", { hasText: "Export" })).toBeHidden();
       const menu = page.getByRole("button", { name: "More list actions" });
       // #406 — a list with nothing in it yet has no Export, so no ⋮ either.
-      const nothingYet = (await page.locator("main").getByText(/^No [a-z ]+ yet\./).count()) > 0;
+      // The list's own empty state, not another section's (Warranties also
+      // shows "No inventory items yet.").
+      const noun = new Map([["/products", "warranties"], ["/home", "properties"], ["/travel", "trips"]]).get(path) ?? path.slice(1);
+      const nothingYet = (await page.locator("main").getByText(new RegExp(`^No ${noun} yet\\.`)).count()) > 0;
       if (noExport || nothingYet) {
         await expect(menu).toHaveCount(0);
       } else {
