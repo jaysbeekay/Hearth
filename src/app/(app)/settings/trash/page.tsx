@@ -164,7 +164,7 @@ export default async function TrashPage() {
 
       {entries.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
-          Trash is empty.
+          Nothing has been deleted recently.
         </p>
       ) : (
         <ul className="divide-y divide-border rounded-xl border border-border bg-surface">

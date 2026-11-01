@@ -678,7 +678,7 @@ describe("an Inventory item linked to a warranty in Trash", () => {
     await p.product.create({ data: { description: "Other trashed", deletedAt: new Date(), createdById: actorId } });
     const page = await EditInventoryItemPage({ params: Promise.resolve({ id: item.id }) });
     const props = findFormProps(page);
-    expect(props?.products).toEqual([{ id: warranty.id, description: "Dishwasher warranty (in Trash)" }]);
+    expect(props?.products).toEqual([{ id: warranty.id, description: "Dishwasher warranty (deleted)" }]);
   });
 
   const editForm = (warrantyProductId: string) => ({
