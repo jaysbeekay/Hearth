@@ -11,12 +11,19 @@ App Store distribution and uploads it to TestFlight.
 | Manual run (Actions → Build iOS and upload to TestFlight) against a `v*` tag | Yes | Yes |
 | Manual run against a branch | Yes | Only if **Upload to TestFlight** is ticked |
 
-A tag created by running `release.yml` from the Actions tab doesn't fire push
-workflows (GitHub doesn't for refs its own token creates), so `release.yml`'s
-`artifacts` job dispatches this workflow against the new tag, alongside Docker
-and Android, and waits for it. For a pushed tag it waits for the run the push
-started. A failed iOS build fails the release run, and its summary links the
-run.
+This workflow is deliberately **not yet** one of the builds `release.yml`'s
+`artifacts` job dispatches and waits for, so a missing or broken iOS setup
+can't fail a release. Until it is, a tag created by running `release.yml` from
+the Actions tab (which doesn't fire push workflows, because GitHub doesn't for
+refs its own token creates) needs this workflow run manually against it:
+Actions → Build iOS and upload to TestFlight → Run workflow, with "Use workflow
+from" set to the tag.
+
+**Joining the release.** Once a proof run (below) has reached TestFlight, add
+`ios-testflight.yml` to the `workflows=(…)` array in `release.yml`'s
+`artifacts` job and raise that job's `timeout-minutes` to 90, since the iOS job
+has a 45-minute timeout plus macOS runner queueing. From then on a failed iOS
+build fails the release run.
 
 Tag runs use the `release` GitHub environment, like the Android and Docker
 jobs. Keep the iOS secrets at repository level until the proof run from `main`
@@ -130,7 +137,16 @@ whenever the certificate is renewed (yearly) and update both secrets.
   workflow manually from `main` with **Upload to TestFlight** ticked. That
   exercises the macOS runner, archive, signing, export, upload and App Store
   Connect processing end to end with the `package.json` version, without
-  cutting a tag. Don't rely on the first real release tag to find problems.
+  cutting a tag. Check:
+  - the run is green and the build appears under the app's TestFlight tab
+    once processing finishes;
+  - its version and build number are what the run logged;
+  - the entitlements App Store Connect shows for the build match the app,
+    including iCloud if #500 has merged;
+  - the export-compliance question, if asked, is answered;
+  - re-running the job uploads a second build with a higher number.
+
+  Then add the workflow to `release.yml` (see "Joining the release" above).
 
 - The app record for `com.hearthapp.app` must exist in App Store Connect (My
   Apps → **+** → New App). Uploads to a bundle ID with no app record fail.
@@ -142,6 +158,17 @@ whenever the certificate is renewed (yearly) and update both secrets.
   this automatic.
 - TestFlight processing takes several minutes after the upload step finishes;
   the build then appears under the app's TestFlight tab.
+
+## Rollback
+
+- **A bad build in TestFlight:** expire it in App Store Connect (the app →
+  TestFlight → the build → Expire Build). Nothing reaches the App Store until
+  you submit a build for review yourself.
+- **The pipeline is blocking releases** (after it joins `release.yml`): remove
+  `ios-testflight.yml` from the `artifacts` job's `workflows` array. Docker and
+  Android releases then go ahead without it.
+- **Turn it off entirely:** disable the workflow (Actions → Build iOS and upload
+  to TestFlight → ⋯ → Disable workflow), or delete the file.
 
 ## Runner
 

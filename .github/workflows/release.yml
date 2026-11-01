@@ -93,9 +93,8 @@ jobs:
     needs: release
     if: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-latest
-    # Android ~10 min, Docker and iOS up to their own 45 min timeouts (they
-    # run in parallel), plus queueing for a macOS runner.
-    timeout-minutes: 90
+    # Android ~10 min, Docker up to its own 45 min timeout, plus queueing.
+    timeout-minutes: 75
     permissions:
       contents: read
       actions: write
@@ -108,7 +107,7 @@ jobs:
       - name: Start or find the tag builds, and wait for them
         run: |
           set -uo pipefail
-          workflows=(docker-publish.yml android-build.yml ios-testflight.yml)
+          workflows=(docker-publish.yml android-build.yml)
           # A minute of slack for clock skew between this runner and the API.
           since=$(date -u -d '-1 minute' +%Y-%m-%dT%H:%M:%SZ)
           if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then

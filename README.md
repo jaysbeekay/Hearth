@@ -885,12 +885,12 @@ real release. A tag created via `release.yml`'s manual dispatch (rather
 than a `git push` of the tag) doesn't trigger tag-push workflows by itself —
 GitHub Actions doesn't fire push-triggered workflows for refs created by its
 own token (this is why v0.19.2 had no Docker image or Android build). So in
-that case `release.yml` dispatches `docker-publish.yml`,
-`android-build.yml` and `ios-testflight.yml` against the new tag itself (it has `actions: write` for
+that case `release.yml` dispatches `docker-publish.yml` and
+`android-build.yml` against the new tag itself (it has `actions: write` for
 this). Pushing the tag locally needs no extra step.
 
-Either way, `release.yml`'s `artifacts` job then waits for all three builds
-to finish and checks that the signed `app-release.apk`/`app-release.aab` are
+Either way, `release.yml`'s `artifacts` job then waits for both builds to
+finish and checks that the signed `app-release.apk`/`app-release.aab` are
 attached to the Release and that `jaysbeekay/hearth:vx.y.z` is on Docker Hub.
 A green release run means the artifacts were published; if a build fails, the
 release run fails too and its summary links the failed run.
@@ -933,8 +933,13 @@ manual `docker-publish.yml` dispatch from `main` can no longer log in to
 Docker Hub; run it against a tag.
 
 `ios-testflight.yml` signs the Capacitor shell and uploads it to TestFlight
-on every `vx.y.z` tag, with the version taken from the tag; a green run means
-App Store Connect accepted the upload (processing then takes a few minutes).
+on every pushed `vx.y.z` tag, with the version taken from the tag; a green run
+means App Store Connect accepted the upload (processing then takes a few
+minutes). It is **not yet** part of `release.yml`'s `artifacts` job, so a
+failed or unconfigured iOS build doesn't fail the release, and a tag created by
+`release.yml`'s dispatch needs the iOS workflow run manually against it. It
+joins the `artifacts` job only after a signed proof run has reached
+TestFlight.
 See [`docs/deployment/ios-testflight.md`](./docs/deployment/ios-testflight.md)
 for the signing and App Store Connect secrets it needs.
 
