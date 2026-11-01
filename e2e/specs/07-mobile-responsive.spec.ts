@@ -625,3 +625,33 @@ test("the Inbox count badge matches the Inbox tab on the bottom bar and the side
   await expect(sidebarDocuments).toBeVisible();
   await expect(sidebarDocuments.locator("span[aria-hidden=true]")).toHaveText(count > 99 ? "99+" : String(count));
 });
+
+test("#365 — on a 390×844 phone the first contract is on screen, and filters live in one Filters sheet", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const title = `Toolbar Phone Contract ${Date.now()}`;
+  await page.goto("/contracts/new");
+  await page.locator("#title").fill(title);
+  await page.locator("#provider").fill("Toolbar Provider");
+  await page.locator("main button[type=submit]").click();
+  await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
+
+  await page.goto("/contracts");
+  const main = page.locator("main");
+  // No Filter button, and the selects and chips are behind "Filters".
+  await expect(main.getByRole("button", { name: "Filter", exact: true })).toHaveCount(0);
+  await expect(main.getByLabel("Filter by category")).toBeHidden();
+  await expect(main.getByRole("button", { name: /^Due soon/ })).toBeHidden();
+  const firstCard = main.locator("a[href^='/contracts/']").filter({ hasNotText: /^Add contract$/ }).first();
+  await expect(firstCard).toBeInViewport();
+
+  await main.getByRole("button", { name: "Filters", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "Filters" });
+  await sheet.getByLabel("Filter by status").selectOption("ACTIVE");
+  await page.waitForURL(/[?&]status=ACTIVE/);
+  await expect(page.getByRole("dialog", { name: "Filters" })).toBeVisible();
+  await page.getByRole("dialog", { name: "Filters" }).getByRole("button", { name: "Done" }).click();
+  await expect(main.getByRole("button", { name: "Filters (1)", exact: true })).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+});

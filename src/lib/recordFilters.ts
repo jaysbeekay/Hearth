@@ -411,4 +411,4 @@ export const inventoryRules = {
  * rules the list uses, so a chip's count is the length of the list it opens.
  * List clients only display these.
  */
-export type ListFilterCounts = Partial<Record<ToggleableFilter, number>> & { recentlyAdded?: number };
+export type ListFilterCounts = Partial<Record<ToggleableFilter, number>>;
