@@ -288,7 +288,9 @@ test("list page headers don't wrap at 360, 390 and 430px, and Export sits in the
 
       await expect(page.locator("main summary", { hasText: "Export" })).toBeHidden();
       const menu = page.getByRole("button", { name: "More list actions" });
-      if (noExport) {
+      // #406 — a list with nothing in it yet has no Export, so no ⋮ either.
+      const nothingYet = (await page.locator("main").getByText(/^No [a-z ]+ yet\./).count()) > 0;
+      if (noExport || nothingYet) {
         await expect(menu).toHaveCount(0);
       } else {
         await expectSameRow([heading, menu], `${width}px ${path} heading and ⋮`);
@@ -349,7 +351,7 @@ test("detail page headers keep the badge, Edit and ⋮ on one row at 360, 390 an
       await expectOneLine(heading, `${width}px detail heading`);
       const badge = heading.locator("xpath=../following-sibling::div/*[1]");
       const edit = page.locator("main").getByRole("link", { name: "Edit", exact: true });
-      const more = page.getByRole("button", { name: "More actions" });
+      const more = page.getByRole("button", { name: "More actions", exact: true });
       await expectOneLine(badge, `${width}px detail badge`);
       await expectOneLine(edit, `${width}px detail Edit`);
       await expectSameRow([badge, edit, more], `${width}px detail actions`);
