@@ -69,8 +69,8 @@ test.describe.serial("Vehicles module", () => {
       mimeType: "application/pdf",
       buffer: pdfBytes(),
     });
-    await row.getByRole("button", { name: "Upload" }).click();
-    await expect(row).toContainText("Document uploaded.");
+    // "Add document" (#405) uploads as soon as the file is chosen.
+    await expect(row.locator('a[href^="/api/documents/"]', { hasText: "maintenance.pdf" })).toBeVisible({ timeout: 30_000 });
 
     const fileDir = path.join(UPLOADS_DIR, "vehicle-items", itemId);
     expect(fs.existsSync(fileDir)).toBe(true);
@@ -99,6 +99,7 @@ test.describe.serial("Vehicles module", () => {
     const row = page.locator("div.rounded-lg.border.border-border.bg-surface", {
       hasText: "Updated Service Record",
     });
+    await row.getByRole("button", { name: /^More actions for / }).click();
     await row.getByRole("button", { name: "Delete", exact: true }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
 
@@ -143,9 +144,11 @@ test.describe.serial("Vehicles module", () => {
       mimeType: "application/pdf",
       buffer: pdfBytes(),
     });
-    await row.getByRole("button", { name: "Upload" }).click();
-    await expect(row).toContainText("Document uploaded.");
+    await expect(row.locator('a[href^="/api/documents/"]', { hasText: "purchase-invoice.pdf" })).toBeVisible({
+      timeout: 30_000,
+    });
 
+    await row.getByRole("button", { name: /^More actions for / }).click();
     await row.getByRole("button", { name: "Delete", exact: true }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
     await expect(page.locator("body")).not.toContainText("Test Purchase Record");
@@ -175,7 +178,7 @@ test.describe.serial("Vehicles module", () => {
 
   test("delete the vehicle", async ({ page }) => {
     await page.goto(`/vehicles/${vehicleId}`);
-    await page.getByRole("button", { name: "More actions" }).click();
+    await page.getByRole("button", { name: "More actions", exact: true }).click();
     await page.getByRole("button", { name: "Delete", exact: true }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
     await page.waitForURL(/\/vehicles$/);

@@ -14,10 +14,10 @@ function daysFromNow(days: number): string {
 }
 
 async function openMenuAndArchive(page: Page) {
-  await page.getByRole("button", { name: "More actions" }).first().click();
+  await page.getByRole("button", { name: "More actions", exact: true }).first().click();
   await page.getByRole("button", { name: "Archive", exact: true }).click();
   // Archive acts in place, so the menu closes behind it.
-  await expect(page.getByRole("dialog", { name: "More actions" })).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "More actions", exact: true })).toHaveCount(0);
 }
 
 // The dashboard's "N vehicles are missing key details" row, or 0 when it's gone.

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Pencil, Trash2, Plus, FileText, Link2 } from "lucide-react";
+import { Pencil, Trash2, Plus, Link2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { addDocumentAction } from "@/lib/actions/documents";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
@@ -13,8 +13,9 @@ import {
   linkRentalAgreementContract,
 } from "@/lib/actions/home";
 import { ConfirmForm } from "@/components/ConfirmForm";
+import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DetailField as Detail } from "@/components/DetailField";
-import { DocumentUploadForm } from "@/components/DocumentUploadForm";
+import { AddDocumentButton } from "@/components/AddDocumentButton";
 import { DocumentList } from "@/components/DocumentList";
 import { getTrashedVersionLinks } from "@/lib/documents/trashedVersionLinks";
 import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
@@ -25,7 +26,7 @@ import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
 import { Pill } from "@/components/ui/Pill";
-import { buttonClass, emptyStateClass } from "@/lib/ui";
+import { buttonClass, emptyStateClass, menuItemClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
 
 function reconcile(
@@ -213,21 +214,23 @@ export default async function RentalOverviewPage({
                             <Pencil size={16} />
                             Edit
                           </Link>
-                          <ConfirmForm
-                            action={deleteRentalAgreement.bind(null, property.id, ag.id)}
-                            undo={{ action: restoreRentalAgreement.bind(null, ag.id) }}
-                            offline={{
-                              entity: "rentalAgreement",
-                              entityId: ag.id,
-                              parentId: property.id,
-                              label: `Delete tenancy: ${ag.tenantName ?? property.label}`,
-                            }}
-                            confirmText="Delete this tenancy? Statements are not affected, and you can restore it within 30 days from Settings → Recently deleted."
-                            className={buttonClass("secondary", { destructive: true })}
-                          >
-                            <Trash2 size={16} />
-                            Delete
-                          </ConfirmForm>
+                          <DetailOverflowMenu label={`More actions for tenancy ${ag.tenantName ?? property.label}`}>
+                            <ConfirmForm
+                              action={deleteRentalAgreement.bind(null, property.id, ag.id)}
+                              undo={{ action: restoreRentalAgreement.bind(null, ag.id) }}
+                              offline={{
+                                entity: "rentalAgreement",
+                                entityId: ag.id,
+                                parentId: property.id,
+                                label: `Delete tenancy: ${ag.tenantName ?? property.label}`,
+                              }}
+                              confirmText="Delete this tenancy? Statements are not affected, and you can restore it within 30 days from Settings → Recently deleted."
+                              className={menuItemClass({ destructive: true })}
+                            >
+                              <Trash2 size={16} />
+                              Delete
+                            </ConfirmForm>
+                          </DetailOverflowMenu>
                         </>
                       )}
                     </div>
@@ -382,21 +385,23 @@ export default async function RentalOverviewPage({
                               <Pencil size={16} />
                               Edit
                             </Link>
-                            <ConfirmForm
-                              action={deleteRentalStatement.bind(null, property.id, stmt.id)}
-                              undo={{ action: restoreRentalStatement.bind(null, stmt.id) }}
-                              offline={{
-                                entity: "rentalStatement",
-                                entityId: stmt.id,
-                                parentId: property.id,
-                                label: `Delete statement: ${formatDate(stmt.statementDate ?? stmt.periodEnd, dateFormat)}`,
-                              }}
-                              confirmText="Delete this statement? Its documents are kept, and you can restore it within 30 days from Settings → Recently deleted."
-                              className={buttonClass("secondary", { destructive: true })}
-                            >
-                              <Trash2 size={16} />
-                              Delete
-                            </ConfirmForm>
+                            <DetailOverflowMenu label={`More actions for statement ${formatDate(stmt.statementDate ?? stmt.periodEnd, dateFormat)}`}>
+                              <ConfirmForm
+                                action={deleteRentalStatement.bind(null, property.id, stmt.id)}
+                                undo={{ action: restoreRentalStatement.bind(null, stmt.id) }}
+                                offline={{
+                                  entity: "rentalStatement",
+                                  entityId: stmt.id,
+                                  parentId: property.id,
+                                  label: `Delete statement: ${formatDate(stmt.statementDate ?? stmt.periodEnd, dateFormat)}`,
+                                }}
+                                confirmText="Delete this statement? Its documents are kept, and you can restore it within 30 days from Settings → Recently deleted."
+                                className={menuItemClass({ destructive: true })}
+                              >
+                                <Trash2 size={16} />
+                                Delete
+                              </ConfirmForm>
+                            </DetailOverflowMenu>
                           </>
                         )}
                       </div>
@@ -439,25 +444,27 @@ export default async function RentalOverviewPage({
                       <p className="mt-3 whitespace-pre-wrap text-sm text-foreground">{stmt.notes}</p>
                     )}
 
-                    <div className="mt-4 border-t border-border pt-4">
-                      <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-                        <FileText size={16} className="text-muted" />
-                        Documents
-                      </div>
-                      <DocumentList
-                        kind="RENTAL_STATEMENT"
-                        ownerId={stmt.id}
-                        trashedLinks={trashedLinks.get(stmt.id)}
-                        documents={stmt.documents}
-                      />
-                      {canWrite && (
-                        <div className="mt-3">
-                          <DocumentUploadForm
-                            action={addDocumentAction.bind(null, "RENTAL_STATEMENT", stmt.id)}
-                          />
+                    {(canWrite || stmt.documents.length > 0) && (
+                      <div className="mt-4 space-y-2 border-t border-border pt-4">
+                        <div className="flex items-center justify-between gap-2">
+                          <h3 className="text-sm font-medium">Documents</h3>
+                          {canWrite && (
+                            <AddDocumentButton
+                              action={addDocumentAction.bind(null, "RENTAL_STATEMENT", stmt.id)}
+                              recordName={`statement ${formatDate(stmt.statementDate ?? stmt.periodEnd, dateFormat)}`}
+                            />
+                          )}
                         </div>
-                      )}
-                    </div>
+                        {stmt.documents.length > 0 && (
+                          <DocumentList
+                            kind="RENTAL_STATEMENT"
+                            ownerId={stmt.id}
+                            trashedLinks={trashedLinks.get(stmt.id)}
+                            documents={stmt.documents}
+                          />
+                        )}
+                      </div>
+                    )}
                   </Card>
                 );
               })}

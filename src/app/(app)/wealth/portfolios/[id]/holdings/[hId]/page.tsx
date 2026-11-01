@@ -13,7 +13,7 @@ import { DocumentList } from "@/components/DocumentList";
 import { getTrashedVersionLinks } from "@/lib/documents/trashedVersionLinks";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
-import { DocumentUploadForm } from "@/components/DocumentUploadForm";
+import { AddDocumentButton } from "@/components/AddDocumentButton";
 import { ASSET_CLASS_LABELS, TRADE_TYPE_LABELS, COST_METHOD_LABELS } from "@/lib/validation/wealth";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { costUsesTodaysRate, holdingUnitsAndCostIn, valueHolding } from "@/lib/wealth";
@@ -460,28 +460,39 @@ export default async function HoldingPage({
                           >
                             <Pencil size={16} />
                           </Link>
-                          <ConfirmForm
-                            action={deleteTrade.bind(null, holdingId, trade.id)}
-                            undo={{ action: restoreTrade.bind(null, trade.id) }}
-                            offline={{
-                              entity: "trade",
-                              entityId: trade.id,
-                              parentId: holdingId,
-                              label: `Delete trade: ${holding.ticker} ${formatDate(trade.date, dateFormat)}`,
-                            }}
-                            confirmText="Delete this trade? Its documents are kept, and you can restore it within 30 days from Settings → Recently deleted."
-                            ariaLabel={`Delete trade from ${formatDate(trade.date, dateFormat)}`}
-                            className={buttonClass("secondary", { icon: true, destructive: true })}
-                          >
-                            <Trash2 size={16} />
-                          </ConfirmForm>
+                          <DetailOverflowMenu label={`More actions for trade ${formatDate(trade.date, dateFormat)}`}>
+                            <ConfirmForm
+                              action={deleteTrade.bind(null, holdingId, trade.id)}
+                              undo={{ action: restoreTrade.bind(null, trade.id) }}
+                              offline={{
+                                entity: "trade",
+                                entityId: trade.id,
+                                parentId: holdingId,
+                                label: `Delete trade: ${holding.ticker} ${formatDate(trade.date, dateFormat)}`,
+                              }}
+                              confirmText="Delete this trade? Its documents are kept, and you can restore it within 30 days from Settings → Recently deleted."
+                              className={menuItemClass({ destructive: true })}
+                            >
+                              <Trash2 size={16} />
+                              Delete
+                            </ConfirmForm>
+                          </DetailOverflowMenu>
                         </>
                       )}
                     </div>
                   </div>
 
                   {(canWrite || trade.documents.length > 0) && (
-                    <div className="mt-3 border-t border-border pt-3">
+                    <div className="mt-3 space-y-2 border-t border-border pt-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="text-sm font-medium">Documents</h3>
+                        {canWrite && (
+                          <AddDocumentButton
+                            action={addDocumentAction.bind(null, "TRADE", trade.id)}
+                            recordName={`trade ${formatDate(trade.date, dateFormat)}`}
+                          />
+                        )}
+                      </div>
                       {trade.documents.length > 0 && (
                         <DocumentList
                           kind="TRADE"
@@ -490,7 +501,6 @@ export default async function HoldingPage({
                           trashedLinks={trashedLinks.get(trade.id)}
                         />
                       )}
-                      <DocumentUploadForm action={addDocumentAction.bind(null, "TRADE", trade.id)} />
                     </div>
                   )}
                 </Card>
