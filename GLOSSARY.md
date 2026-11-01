@@ -23,7 +23,7 @@ The state of a Warranty whose end date has passed. The Item itself is unaffected
 _Avoid_: Expired (for Warranties)
 
 **Archived**:
-The state of an Item, Vehicle or Property the household no longer has, because it was sold, given away, thrown out, or its lease ended. It is always set deliberately, never by a date passing, and its history is kept. An Archived Vehicle or Property has no Due entries or Reminders; Contracts Linked to it keep their own, since a Contract is its own Due source. It is not in Trash: it stays in its list, under Archived, and can be restored.
+The state of an Item, Vehicle or Property the household no longer has, because it was sold, given away, thrown out, or its lease ended. It is always set deliberately, never by a date passing, and its history is kept. An Archived Vehicle or Property has no Due entries or Reminders; Contracts Linked to it keep their own, since a Contract is its own Due source. It is not in Recently deleted: it stays in its list, under Archived, and can be restored.
 _Avoid_: Expired (for things owned), deleted
 
 **Property**:
@@ -105,7 +105,7 @@ A buy or sell of a Holding. Cost basis is worked out from Trades, not stored.
 ### Documents
 
 **Document**:
-A file attached to a Contract, an Item, or one of a record's entries: a Service record, Maintenance record, Trip segment, Rental statement or Trade. Every Document behaves the same way wherever it is attached: it can be starred, replaced by a newer version, and moved to Trash.
+A file attached to a Contract, an Item, or one of a record's entries: a Service record, Maintenance record, Trip segment, Rental statement or Trade. Every Document behaves the same way wherever it is attached: it can be starred, replaced by a newer version, and deleted.
 _Avoid_: Attachment, file
 
 **Inbox**:

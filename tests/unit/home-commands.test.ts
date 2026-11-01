@@ -508,7 +508,7 @@ describe("Tenancy commands", () => {
     await deleteTenancyCommand(trashed.id);
 
     await expect(linkTenancyContractCommand(other.id, lease.id)).rejects.toThrow(
-      "That contract is linked to a tenancy in Trash. Restore it or delete it permanently.",
+      "That contract is linked to a deleted tenancy. Restore the tenancy from Recently deleted, or delete it permanently.",
     );
     await permanentlyDeleteTenancyCommand(trashed.id);
     await linkTenancyContractCommand(other.id, lease.id);
