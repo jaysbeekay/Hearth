@@ -1297,7 +1297,7 @@ function scanCost(text) {
   const priority = /(total|amount due|balance due|premium|monthly fee|amount payable|payment)/i;
   let fallback;
   for (const line of text.split(/\r?\n/)) {
-    const match = line.match(/(?:AUD|USD|NZD|GBP|EUR|\$)\s?(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/);
+    const match = line.match(/(?:AUD|USD|NZD|GBP|EUR|\$)\s?((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{2})?)(?![\d,.]?\d)/);
     if (!match) continue;
     const value = match[1].replace(/,/g, "");
     if (priority.test(line)) return value;
