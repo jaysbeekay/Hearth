@@ -572,7 +572,9 @@ test.beforeEach(async ({ page }) => {
         },
         // On-device scanning/OCR (HearthScanPlugin), only for the tests that
         // ask (withHearthScan): without it the shell hides Scan and Read text.
-        ...(localStorage.getItem("hearth-test-hearth-scan") !== "1" ? {} : {
+        // Read from the URL's query string, not localStorage: a file://
+        // localStorage write made just before a reload is sometimes lost.
+        ...(new URLSearchParams(location.search).get("hearth-test-hearth-scan") !== "1" ? {} : {
           HearthScan: {
             isAvailable: async () => ({ scanner: true, textRecognition: true }),
             scanDocument: async () => ({
@@ -584,7 +586,7 @@ test.beforeEach(async ({ page }) => {
                 "Policy number: POL-12345",
                 "Start date: 01/07/2099",
                 "Expiry date: 30/06/2100",
-                "Annual premium $1,234.50",
+                "Annual premium $1234.50",
                 "claims@acme.example",
               ].join("\n"),
             }),
@@ -1563,8 +1565,9 @@ test("standalone purge keeps the row when the file can't be deleted, and retries
 });
 
 async function withHearthScan(page: import("@playwright/test").Page) {
-  await page.evaluate(() => localStorage.setItem("hearth-test-hearth-scan", "1"));
-  await page.reload();
+  const url = new URL(page.url());
+  url.searchParams.set("hearth-test-hearth-scan", "1");
+  await page.goto(url.toString());
   await page.getByRole("button", { name: "Use on this device" }).click();
   await expect(page.locator("#standalone-screen")).toBeVisible();
 }
