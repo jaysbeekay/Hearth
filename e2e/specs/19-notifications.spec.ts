@@ -84,6 +84,8 @@ test("the test reminder button reports no delivery channel when email/ntfy aren'
   await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
 
   await expect(page.getByRole("heading", { name: "Reminder health", exact: true })).toBeVisible();
+  // #360 — "Send test reminder" is in the card's details.
+  await page.getByText("Details", { exact: true }).click();
   await page.getByRole("button", { name: "Send test reminder" }).click();
   await expect(page.locator("body")).toContainText("No delivery channel is configured yet");
 });
@@ -132,11 +134,12 @@ test("a tenancy's lease end delivers a tenancy.expiring webhook and shows on the
     await page.locator("#tenantName").fill("Sam Lee");
     await page.locator("#leaseEnd").fill(leaseEnd);
     // The thresholds are validated like a Contract's.
+    await page.getByText("Custom…", { exact: true }).click();
     await page.locator("#reminderDaysBefore").fill("soon");
     await page.locator("main button[type=submit]").click();
     await expect(page.locator("body")).toContainText("Use a comma-separated list of non-negative numbers");
-    // Blank means the household default.
-    await page.locator("#reminderDaysBefore").fill("");
+    // The Default preset (blank) means the household default.
+    await page.getByText(/^Default · /).click();
     await page.locator("main button[type=submit]").click();
     await page.waitForURL(/\/rental$/);
 

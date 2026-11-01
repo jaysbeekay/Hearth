@@ -7,6 +7,7 @@ import type { ContractModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/contracts";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormActions } from "@/components/FormActions";
+import { ReminderThresholdsField } from "@/components/ReminderThresholdsField";
 import { FormMessage } from "@/components/FormMessage";
 import { Field } from "@/components/FormField";
 import {
@@ -54,6 +55,7 @@ type ExtractedFields = Partial<
 export function ContractForm({
   action,
   cancelHref,
+  defaultReminderDays,
   contract,
   defaultCurrency,
   properties = [],
@@ -66,6 +68,8 @@ export function ContractForm({
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   /** Where Cancel goes: the same place as the page's BackLink. */
   cancelHref: string;
+  /** #360 — the household's default Reminder thresholds, for the presets. */
+  defaultReminderDays: string;
   contract?: ContractModel;
   defaultCurrency?: string;
   properties?: { id: string; label: string }[];
@@ -455,18 +459,11 @@ export function ContractForm({
         />
       </Field>
 
-      <Field
-        label="Reminder thresholds (days before, comma-separated)"
-        htmlFor="reminderDaysBefore"
-      >
-        <input
-          id="reminderDaysBefore"
-          name="reminderDaysBefore"
-          defaultValue={effectiveValues?.reminderDaysBefore ?? contract?.reminderDaysBefore ?? ""}
-          placeholder="30,14,7,1"
-          className={inputClass}
-        />
-      </Field>
+      <ReminderThresholdsField
+        defaultValue={effectiveValues?.reminderDaysBefore ?? contract?.reminderDaysBefore ?? ""}
+        householdDefault={defaultReminderDays}
+        before="the end date or notice deadline"
+      />
 
       <div className="flex items-center gap-2">
         <input

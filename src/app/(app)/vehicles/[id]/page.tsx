@@ -199,30 +199,27 @@ export default async function VehicleDetailPage({
         )}
       </Card>
 
-      {regoHealth && (
-        <ReminderHealthCard
-          title="Registration reminder"
-          health={regoHealth}
-          dateFormat={dateFormat}
-          testTarget={{ kind: "vehicle", id: vehicle.id, field: "regoExpiry" }}
-        />
-      )}
-      {insuranceHealth && (
-        <ReminderHealthCard
-          title="Insurance reminder"
-          health={insuranceHealth}
-          dateFormat={dateFormat}
-          testTarget={{ kind: "vehicle", id: vehicle.id, field: "insuranceExpiry" }}
-        />
-      )}
-      {serviceHealth && (
-        <ReminderHealthCard
-          title="Service reminder"
-          health={serviceHealth}
-          dateFormat={dateFormat}
-          testTarget={{ kind: "vehicle", id: vehicle.id, field: "nextServiceDue" }}
-        />
-      )}
+      {/* #360 — one card for all three dates. */}
+      <ReminderHealthCard
+        dateFormat={dateFormat}
+        entries={[
+          regoHealth && {
+            label: "Registration",
+            health: regoHealth,
+            testTarget: { kind: "vehicle", id: vehicle.id, field: "regoExpiry" } as const,
+          },
+          insuranceHealth && {
+            label: "Insurance",
+            health: insuranceHealth,
+            testTarget: { kind: "vehicle", id: vehicle.id, field: "insuranceExpiry" } as const,
+          },
+          serviceHealth && {
+            label: "Service",
+            health: serviceHealth,
+            testTarget: { kind: "vehicle", id: vehicle.id, field: "nextServiceDue" } as const,
+          },
+        ].filter((entry) => !!entry)}
+      />
 
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">

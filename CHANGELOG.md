@@ -55,6 +55,18 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   pages instead of showing a dash, and a Contract's or Warranty's header
   badge is hidden while the status banner below says the same thing. The
   iOS and Android shell is unchanged.
+- **Reminder presets and a one-line Reminder card (#360).** Contract,
+  Warranty, Vehicle and Tenancy forms pick Reminder thresholds from presets
+  ("Default · 30/14/7/1", "1 week before", "1 day before", "Custom…")
+  instead of a free-text field, and a hint always says which days apply and
+  when the record shows in Needs attention. Stored values are unchanged:
+  Default saves blank (the household default), and any other list opens as
+  Custom. Vehicle thresholds are now validated like the others. The Reminder
+  health card is one line per date ("Next reminder 20 Sep by email ·
+  thresholds 30/14/7/1"), says once when no delivery channel is set up, and
+  opens to the full read-out and "Send test reminder" on click. A Vehicle
+  shows one card for its registration, insurance and service dates. The iOS
+  and Android shell is unchanged.
 
 ## [0.20.1] - 2026-10-31
 
