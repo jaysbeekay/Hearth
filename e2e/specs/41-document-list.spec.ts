@@ -158,6 +158,9 @@ test.describe.serial("The one Document list", () => {
   test("Rental statement, Maintenance record and Service record Documents show the type and star", async ({
     page,
   }) => {
+    // Builds a Property, Tenancy, statement, Vehicle and two entries before
+    // checking three Document rows, so it needs more than the default 30s.
+    test.setTimeout(90_000);
     const stamp = Date.now();
 
     await page.goto("/home/new");
