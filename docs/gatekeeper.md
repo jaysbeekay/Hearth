@@ -45,3 +45,26 @@ access).
 Open a throwaway draft PR and wait for a "PR Review - Light" comment from `thebotkeeper[bot]`. Then
 comment `@codebot review` on it and confirm the 👀 reaction and a green **CodeBot** run under
 Actions.
+
+## Turning it off
+
+Fastest first:
+
+1. **Stop `@codebot` requests:** Actions → **CodeBot** → ⋯ → **Disable workflow**. Or delete the
+   `AI_WEBHOOK_URL` secret, which makes the send step fail without reaching Hermes.
+2. **Stop the board moves:** disable **Project status** the same way, or delete `PROJECT_TOKEN`.
+3. **Stop the automatic reviews:** remove `jaysbeekay/Hearth` from the Hermes allowlist and the
+   `post-guard` hook, or remove Hearth from the thebotkeeper App's repository access.
+4. **Rotate:** if `CODEBOT_SECRET` may have leaked, change it in Hearth's secrets and on the
+   Hermes route together.
+
+## Before relying on it
+
+CI cannot show that Hermes enforces the checks above. Run these once on a throwaway PR and
+record the result:
+
+- an owner `@codebot review` (expect the 👀 reaction, a green run, and a review);
+- the same comment from a non-owner account (expect the workflow to be skipped);
+- a PR from a fork (expect no `@codebot` effect and no secrets exposed);
+- a replayed request, a wrong signature and a stale timestamp sent straight to the route
+  (expect all three rejected).

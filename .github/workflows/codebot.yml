@@ -5,10 +5,10 @@ on:
     types:
       - created
 
+# The job checks nothing out and only reacts to the comment (issues: write
+# covers comments on pull requests too), so nothing else is granted.
 permissions:
-  contents: read
   issues: write
-  pull-requests: write
 
 concurrency:
   group: codebot-${{ github.event.issue.number }}
