@@ -164,9 +164,11 @@ security notes.
 | --- | --- |
 | ![Vehicle detail](docs/screenshots/vehicle-detail.png) | ![Properties](docs/screenshots/home-list.png) |
 
-| Property detail — map | Settings — modules |
+| Property detail | Settings — modules |
 | --- | --- |
 | ![Property detail](docs/screenshots/property-detail.png) | ![Settings — modules](docs/screenshots/settings-modules.png) |
+
+_The property detail screenshot was captured without network access, so it doesn't show the map. The page shows a map once a property's address has been geocoded and the tile server can be reached._
 
 | Spending | Contract — linked tenancy |
 | --- | --- |

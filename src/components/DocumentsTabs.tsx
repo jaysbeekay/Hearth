@@ -44,7 +44,7 @@ export function DocumentsTabs({
 // In the page flow rather than floating, so they never cover a row.
 export function DocumentsUploadActions() {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <TakePhotoButton />
       <Link href="/import" className={`${buttonClass("secondary")} gap-2`}>
         <Upload size={16} />

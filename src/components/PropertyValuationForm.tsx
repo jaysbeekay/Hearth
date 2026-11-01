@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useId } from "react";
 import { Plus } from "lucide-react";
 import type { ActionState } from "@/lib/actions/auth";
 import { CurrencySelect } from "@/components/CurrencySelect";
@@ -31,13 +31,15 @@ export function PropertyValuationForm({
   );
 
   const [state, formAction] = useActionState<ActionState, FormData>(offlineAwareAction, null);
+  const fieldId = useId();
 
   return (
     <form action={formAction} className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="mb-1 block text-xs text-muted">Date</label>
+          <label htmlFor={`${fieldId}-valuedAt`} className="mb-1 block text-xs text-muted">Date</label>
           <DateInput
+            id={`${fieldId}-valuedAt`}
             name="valuedAt"
             required
             defaultValue={state?.values?.valuedAt ?? new Date().toISOString().slice(0, 10)}
@@ -45,8 +47,9 @@ export function PropertyValuationForm({
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs text-muted">Estimated value</label>
+          <label htmlFor={`${fieldId}-value`} className="mb-1 block text-xs text-muted">Estimated value</label>
           <input
+            id={`${fieldId}-value`}
             type="number"
             name="value"
             required
@@ -60,12 +63,13 @@ export function PropertyValuationForm({
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="mb-1 block text-xs text-muted">Currency</label>
-          <CurrencySelect name="currency" defaultValue={state?.values?.currency ?? defaultCurrency} />
+          <label htmlFor={`${fieldId}-currency`} className="mb-1 block text-xs text-muted">Currency</label>
+          <CurrencySelect id={`${fieldId}-currency`} name="currency" defaultValue={state?.values?.currency ?? defaultCurrency} />
         </div>
         <div>
-          <label className="mb-1 block text-xs text-muted">Source (optional)</label>
+          <label htmlFor={`${fieldId}-source`} className="mb-1 block text-xs text-muted">Source (optional)</label>
           <input
+            id={`${fieldId}-source`}
             type="text"
             name="source"
             defaultValue={state?.values?.source}

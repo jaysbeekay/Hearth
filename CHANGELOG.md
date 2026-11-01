@@ -30,6 +30,10 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 - Links inside running text are now underlined, so they no longer rely on
   colour alone, and the contract list's filter selects and each member's role
   select have accessible names (#411 review).
+- Button labels too long for their row now wrap onto a second line instead
+  of running off-screen, text inputs show a focus ring again, the property
+  valuation form's fields are labelled, and the contract status action's
+  accessible name matches its visible text (#411 review).
 
 ## [0.20.1] - 2026-10-31
 

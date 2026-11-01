@@ -160,7 +160,6 @@ export default async function ContractDetailPage({
                   action={statusAction}
                   confirmText={statusConfirmText}
                   actionLabel={statusLabel}
-                  ariaLabel={cancelled ? "Mark contract as active" : "Mark contract as cancelled"}
                   className={menuItemClass()}
                 >
                   {cancelled ? <RotateCcw size={16} /> : <Ban size={16} />}
@@ -206,7 +205,6 @@ export default async function ContractDetailPage({
                 action={statusAction}
                 confirmText={statusConfirmText}
                 actionLabel={statusLabel}
-                ariaLabel="Mark contract as cancelled"
                 className={buttonClass("secondary")}
               >
                 <Ban size={16} />

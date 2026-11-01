@@ -141,12 +141,13 @@ export function bannerClass(tone: BannerTone = "neutral", className?: string) {
 
 export type ButtonVariant = "primary" | "secondary" | "quiet" | "danger";
 
-// h-9 is the 36px visual; the ::before pseudo-element reaches 4px past every
+// min-h-9 is the 36px visual (a label too long for its row wraps onto a
+// second line rather than running off-screen); the ::before pseudo-element reaches 4px past every
 // edge, so the hit area is at least 44px tall (and 44px wide for an icon
 // button) without the button looking any bigger. ::before is placed from the
 // padding box, so a bordered button reaches 5px past its 1px border.
 const BUTTON_BASE =
-  "relative inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3 text-sm font-medium transition-colors before:absolute before:content-[''] disabled:cursor-not-allowed disabled:opacity-60 aria-disabled:pointer-events-none aria-disabled:opacity-60";
+  "relative inline-flex min-h-9 max-w-full cursor-pointer items-center justify-center gap-2 rounded-lg px-3 py-1 text-center text-sm font-medium transition-colors before:absolute before:content-[''] disabled:cursor-not-allowed disabled:opacity-60 aria-disabled:pointer-events-none aria-disabled:opacity-60";
 
 const HIT_AREA = "before:-inset-1";
 const HIT_AREA_BORDERED = "before:-inset-[5px]";
@@ -180,7 +181,7 @@ export function buttonClass(
     cn(
       BUTTON_BASE,
       BUTTON_VARIANT.get(variant),
-      icon && "w-9 px-0",
+      icon && "w-9 shrink-0 px-0",
       destructive && "text-danger",
       !online && "pointer-events-none opacity-40",
     ),
@@ -227,14 +228,14 @@ export function menuItemClass({ destructive = false }: { destructive?: boolean }
 
 /** The one input / select / textarea look: 36px tall, rounded-lg, 1px border. */
 export const inputClass =
-  "h-9 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none transition-colors focus:border-accent disabled:opacity-60";
+  "h-9 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none transition-colors focus:border-accent focus:ring-1 focus:ring-accent disabled:opacity-60";
 
 /** A native select: the input look, with room for SelectWrapper's chevron. */
 export const selectClass = cn(inputClass, "appearance-none pr-8");
 
 /** A textarea: the input look without the fixed height. */
 export const textareaClass =
-  "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-accent disabled:opacity-60";
+  "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-accent focus:ring-1 focus:ring-accent disabled:opacity-60";
 
 // ── Page widths ─────────────────────────────────────────────────────────
 

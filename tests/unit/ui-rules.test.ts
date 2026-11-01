@@ -90,7 +90,9 @@ describe("lib/ui", () => {
   it("gives every button one 36px height with a 44px hit area", () => {
     for (const variant of ["primary", "secondary", "quiet", "danger"] as const) {
       const cls = buttonClass(variant);
-      expect(cls).toContain("h-9");
+      expect(cls.split(" ")).toContain("min-h-9");
+      // Long labels wrap rather than overflow (#505 review).
+      expect(cls).not.toMatch(/whitespace-nowrap|\bshrink-0\b/);
       // ::before sits on the padding box: 4px out, or 5px past a 1px border.
       expect(cls).toContain(variant === "secondary" ? "before:-inset-[5px]" : "before:-inset-1");
       expect(cls).toContain("rounded-lg");

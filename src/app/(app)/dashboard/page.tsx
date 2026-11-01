@@ -184,7 +184,7 @@ export default async function DashboardPage() {
         </div>
         {/* Read-only members can't add or upload, so they get none of these (#400). */}
         {canWrite && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <TakePhotoButton />
             <Link href="/import" className={`${buttonClass("secondary")} gap-2`}>
               <Upload size={16} />
