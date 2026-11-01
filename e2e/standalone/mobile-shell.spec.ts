@@ -18,6 +18,7 @@ test.beforeEach(async ({ page }) => {
     const fileDeletes: { directory?: string; path?: string }[] = [];
     // Files written through the Filesystem mock, by "DIRECTORY:path" (#226).
     const files = new Map<string, string>();
+    let renames = 0;
     const fileKey = (args: { directory?: string; path?: string }) => `${args.directory ?? ""}:${args.path ?? ""}`;
     const rowsByTable: Record<string, unknown[]> = {
       local_profile: [
@@ -528,12 +529,17 @@ test.beforeEach(async ({ page }) => {
       throw new Error(`Mock: unhandled documents statement: ${sql}`);
     }
 
-    // "hearth-test-seed" puts preferences, files and rows in place before the
-    // app starts, to test what it does at launch (an interrupted restore).
+    // A seed puts preferences, files and rows in place before the app starts,
+    // to test what it does at launch (an interrupted restore). It travels in
+    // window.name, which survives a reload synchronously; file:// localStorage
+    // written just before a reload is not always there after it.
     try {
-      const seed = JSON.parse(localStorage.getItem("hearth-test-seed") ?? "null") as
-        | { preferences?: Record<string, string>; files?: Record<string, string>; rows?: Record<string, unknown[]> }
+      const seedText = window.name.startsWith("hearth-test-seed:") ? window.name.slice("hearth-test-seed:".length) : "null";
+      window.name = "";
+      const seed = JSON.parse(seedText) as
+        | { local?: Record<string, string>; preferences?: Record<string, string>; files?: Record<string, string>; rows?: Record<string, unknown[]> }
         | null;
+      for (const [key, value] of Object.entries(seed?.local ?? {})) localStorage.setItem(key, value);
       for (const [key, value] of Object.entries(seed?.preferences ?? {})) preferences.set(key, value);
       for (const [key, value] of Object.entries(seed?.files ?? {})) files.set(key, value);
       for (const [table, rows] of Object.entries(seed?.rows ?? {})) rowsByTable[table] = [...(rowsByTable[table] ?? []), ...rows];
@@ -546,6 +552,10 @@ test.beforeEach(async ({ page }) => {
       fileWrites,
       fileDeletes,
       files,
+      preferences,
+      get renames() {
+        return renames;
+      },
       rowsByTable,
       icloudUploads: [] as { path?: string; name?: string; keep?: number }[],
     };
@@ -595,6 +605,9 @@ test.beforeEach(async ({ page }) => {
               sqliteRuns.push({ statement: item.statement, values: item.values ?? [], transaction });
               applyStatement(item.statement, item.values ?? []);
             }
+            // "hearth-test-crash-at-commit": the app dies right after a
+            // restore's transaction commits.
+            if (localStorage.getItem("hearth-test-crash-at-commit") === "1" && set.some((item) => item.statement.includes("last_restore_id"))) await new Promise(() => undefined);
             return { changes: { changes: set.length } };
           },
           isSecretStored: async () => ({ result: true }),
@@ -645,6 +658,10 @@ test.beforeEach(async ({ page }) => {
             if (!files.has(from)) throw new Error("File does not exist");
             files.set(`${args.directory}:${args.to}`, files.get(from) ?? "");
             files.delete(from);
+            // "hearth-test-crash-at-rename" = N: the app dies right after
+            // its Nth move (the call never returns).
+            renames += 1;
+            if (Number(localStorage.getItem("hearth-test-crash-at-rename")) === renames) await new Promise(() => undefined);
           },
           deleteFile: async (args: { directory?: string; path?: string }) => {
             const failure = localStorage.getItem("hearth-test-delete-file-error");
@@ -1040,9 +1057,10 @@ test("standalone dashboard asks for a backup until one is made", async ({ page }
 });
 
 test("standalone iCloud backup uploads, turns on daily backup and restores from iCloud", async ({ page }) => {
-  await page.evaluate(() => localStorage.setItem("hearth-test-icloud", "on"));
-  await page.reload();
-  await page.getByRole("button", { name: "Use on this device" }).click();
+  await page.evaluate(() => {
+    window.name = `hearth-test-seed:${JSON.stringify({ local: { "hearth-test-icloud": "on" } })}`;
+  });
+  await relaunchStandalone(page);
   await openBackupSettings(page);
   await expect(page.getByRole("heading", { name: "iCloud backup" })).toBeVisible();
 
@@ -1136,40 +1154,133 @@ test("standalone Merge never overwrites a row that has no version", async ({ pag
   expect((rowsByTable.contract_terms as unknown as Record<string, unknown>[]).find((row) => row.id === "term-1")?.cost).toBe(999);
 });
 
-// A restore interrupted after moving files: rolled back at the next launch if
-// its database write never committed, finished if it did.
-for (const committed of [false, true]) {
-  test(`standalone launch ${committed ? "finishes" : "rolls back"} a restore interrupted ${committed ? "after" : "before"} its database write`, async ({ page }) => {
-    const journal = { id: "restore-1", mode: "replace", priorKeys: ["orphan.pdf", "insurance.pdf"], placed: ["insurance.pdf"], aside: ["insurance.pdf"] };
-    await page.evaluate(({ journal, committed }) => {
-      localStorage.setItem("hearth-test-seed", JSON.stringify({
-        preferences: { "hearth.mobile.restoreJournal": JSON.stringify(journal) },
-        files: {
-          "DATA:standalone-documents/insurance.pdf": "FROM-BACKUP",
-          "DATA:standalone-restore-previous/insurance.pdf": "ORIGINAL",
-          "DATA:standalone-documents/orphan.pdf": "ORPHAN",
-        },
-        rows: committed ? { schema_metadata: [{ key: "last_restore_id", value: "restore-1" }] } : {},
-      }));
-    }, { journal, committed });
-    await page.reload();
-    await page.getByRole("button", { name: "Use on this device" }).click();
-    await expect(page.locator("#standalone-screen")).toBeVisible();
-    await expect.poll(() => page.evaluate(() => (window as unknown as { Capacitor: { Plugins: { Preferences: { get(a: { key: string }): Promise<{ value: string | null }> } } } }).Capacitor.Plugins.Preferences.get({ key: "hearth.mobile.restoreJournal" }).then((r) => r.value))).toBeNull();
-    const files = await page.evaluate(() => {
-      localStorage.removeItem("hearth-test-seed");
-      return Object.fromEntries((window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest.files);
-    });
-    if (committed) {
-      expect(files["DATA:standalone-documents/insurance.pdf"]).toBe("FROM-BACKUP");
-      expect(files["DATA:standalone-documents/orphan.pdf"]).toBeUndefined();
-    } else {
-      expect(files["DATA:standalone-documents/insurance.pdf"]).toBe("ORIGINAL");
-      expect(files["DATA:standalone-documents/orphan.pdf"]).toBe("ORPHAN");
-    }
-    expect(files["DATA:standalone-restore-previous/insurance.pdf"]).toBeUndefined();
+test("standalone Merge never replaces the file of a document it keeps", async ({ page }) => {
+  await openBackupSettings(page);
+  const { text } = await exportBackup(page);
+  await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    // document-1 changed on the phone after the backup, keeping its key.
+    const document = (harness.rowsByTable.documents as unknown as Record<string, unknown>[]).find((row) => row.id === "document-1");
+    if (document) Object.assign(document, { version: 5, sha256: "newer-hash" });
+    harness.files.set("DATA:standalone-documents/insurance.pdf", "LOCAL-NEWER");
+    // A different local row now owns the inbox file's key.
+    const inbox = (harness.rowsByTable.inbox_documents as unknown as Record<string, unknown>[]).find((row) => row.id === "inbox-1");
+    if (inbox) inbox.id = "inbox-other";
+    harness.files.set("DATA:standalone-documents/receipt.pdf", "LOCAL-OTHER");
   });
+  await restoreFile(page, text, { password: "correct horse battery", mode: "merge", confirm: false });
+  await expect(page.locator("#standalone-status")).toContainText("Restored");
+  const state = await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    return {
+      insurance: harness.files.get("DATA:standalone-documents/insurance.pdf"),
+      receipt: harness.files.get("DATA:standalone-documents/receipt.pdf"),
+      document: (harness.rowsByTable.documents as unknown as Record<string, unknown>[]).find((row) => row.id === "document-1"),
+      inboxIds: (harness.rowsByTable.inbox_documents as unknown as Record<string, unknown>[]).map((row) => row.id),
+    };
+  });
+  expect(state.insurance).toBe("LOCAL-NEWER");
+  expect(state.document?.sha256).toBe("newer-hash");
+  expect(state.receipt).toBe("LOCAL-OTHER");
+  expect(state.inboxIds).toEqual(["inbox-other"]);
+});
+
+type CrashSnapshot = { files: Record<string, string>; preferences: Record<string, string>; rows: Record<string, unknown[]>; renames: number; done: boolean };
+
+// Kills a Replace restore at one point (after its Nth file move, or right
+// after its commit), relaunches the app on exactly what was left on "disk",
+// and checks every document file is wholly the phone's or wholly the
+// backup's, with nothing left aside and the journal gone (#226 review).
+// Reloads the shell and gets back into standalone mode. A relaunch seeded
+// with the phone's saved preferences goes straight in, as on a real phone.
+async function relaunchStandalone(page: ShellPage) {
+  await page.reload();
+  const useOnDevice = page.getByRole("button", { name: "Use on this device" });
+  const screen = page.locator("#standalone-screen");
+  await expect.poll(async () => (await useOnDevice.isVisible()) || (await screen.isVisible())).toBe(true);
+  if (await useOnDevice.isVisible()) await useOnDevice.click();
+  await expect(screen).toBeVisible();
 }
+
+async function crashRestoreAt(page: ShellPage, crash: { rename?: number; commit?: boolean }) {
+  await relaunchStandalone(page);
+  await openBackupSettings(page);
+  await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    for (const key of ["insurance.pdf", "receipt.pdf"]) harness.files.set(`DATA:standalone-documents/${key}`, `BACKUP-${key}`);
+  });
+  const { text } = await exportBackup(page);
+  const target = await page.evaluate((crash) => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness & { renames: number } }).__hearthStandaloneTest;
+    for (const key of ["insurance.pdf", "receipt.pdf"]) harness.files.set(`DATA:standalone-documents/${key}`, `LOCAL-${key}`);
+    const at = harness.renames + (crash.rename ?? 0);
+    if (crash.rename) localStorage.setItem("hearth-test-crash-at-rename", String(at));
+    if (crash.commit) localStorage.setItem("hearth-test-crash-at-commit", "1");
+    return at;
+  }, crash);
+  await restoreFile(page, text, { password: "correct horse battery" });
+  const snapshot = async () =>
+    page.evaluate(() => {
+      const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness & { preferences: Map<string, string>; renames: number } }).__hearthStandaloneTest;
+      return {
+        files: Object.fromEntries(harness.files),
+        preferences: Object.fromEntries(harness.preferences),
+        rows: { schema_metadata: (harness.rowsByTable.schema_metadata as unknown[]) ?? [] },
+        renames: harness.renames,
+        done: /Restored/.test(document.querySelector("#standalone-status")?.textContent ?? ""),
+      } as CrashSnapshot;
+    });
+  // Wait for the crash point (or the restore finishing without reaching it).
+  let left: CrashSnapshot = await snapshot();
+  await expect.poll(async () => {
+    left = await snapshot();
+    return left.done || (crash.commit ? left.rows.schema_metadata.length > 0 : left.renames >= target);
+  }).toBe(true);
+  if (left.done) return { reached: false };
+  const committed = left.rows.schema_metadata.some((row) => (row as { key?: string }).key === "last_restore_id");
+  await page.evaluate((left) => {
+    localStorage.removeItem("hearth-test-crash-at-rename");
+    localStorage.removeItem("hearth-test-crash-at-commit");
+    // The phone's documents, staging and aside files; the shared backup
+    // copy in the cache is left out (it is large, and not the phone's data).
+    const files = Object.fromEntries(Object.entries(left.files).filter(([key]) => key.startsWith("DATA:")));
+    window.name = `hearth-test-seed:${JSON.stringify({ files, preferences: left.preferences, rows: left.rows })}`;
+  }, left);
+  await relaunchStandalone(page);
+  await expect(page.locator("#standalone-screen")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __hearthStandaloneTest: { preferences: Map<string, string> } }).__hearthStandaloneTest.preferences.has("hearth.mobile.restoreJournal"))).toBe(false);
+  const after = await page.evaluate(() => {
+    return Object.fromEntries((window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest.files);
+  });
+  const want = committed ? "BACKUP" : "LOCAL";
+  for (const key of ["insurance.pdf", "receipt.pdf"]) expect(after[`DATA:standalone-documents/${key}`], `${key} after a crash ${JSON.stringify(crash)}`).toBe(`${want}-${key}`);
+  expect(Object.keys(after).filter((key) => key.startsWith("DATA:standalone-restore-"))).toEqual([]);
+  return { reached: true, committed };
+}
+
+test("standalone restore recovers from a crash after any file move or the commit", async ({ page }) => {
+  test.setTimeout(120_000);
+  // Two documents, each moved aside then replaced: four moves.
+  const outcomes = [];
+  for (let rename = 1; rename <= 4; rename += 1) outcomes.push(await crashRestoreAt(page, { rename }));
+  expect(outcomes).toEqual([1, 2, 3, 4].map(() => ({ reached: true, committed: false })));
+  expect(await crashRestoreAt(page, { commit: true })).toEqual({ reached: true, committed: true });
+});
+
+test("standalone launch keeps a restore journal it can't read, and the files it protects", async ({ page }) => {
+  await page.evaluate(() => {
+    window.name = `hearth-test-seed:${JSON.stringify({
+      preferences: { "hearth.mobile.restoreJournal": "{not json" },
+      files: { "DATA:standalone-restore-previous/insurance.pdf": "ORIGINAL" },
+    })}`;
+  });
+  await relaunchStandalone(page);
+  const state = await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness & { preferences: Map<string, string> } }).__hearthStandaloneTest;
+    return { journal: harness.preferences.get("hearth.mobile.restoreJournal"), aside: harness.files.get("DATA:standalone-restore-previous/insurance.pdf") };
+  });
+  expect(state).toEqual({ journal: "{not json", aside: "ORIGINAL" });
+});
 
 test("standalone help and local module settings mirror baseline settings/help surfaces", async ({ page }) => {
   await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();

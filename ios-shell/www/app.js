@@ -2533,6 +2533,17 @@ async function buildRestoreStatements(tables, mode) {
   const set = [];
   let restored = 0;
   let kept = 0;
+  // The storage keys of the document rows this restore writes: only their
+  // files are moved in. A row Merge keeps keeps its file too (#226 review).
+  const acceptedKeys = new Set();
+  // Merge: which local row owns each storage key, so a backup row can never
+  // take over another local document's file.
+  const localKeyOwners = new Map();
+  if (mode === "merge") {
+    for (const row of [...(await query("SELECT id, storage_key FROM documents")), ...(await query("SELECT id, storage_key FROM inbox_documents"))]) {
+      if (row.storage_key) localKeyOwners.set(row.storage_key, row.id);
+    }
+  }
   for (const table of BACKUP_TABLES) {
     const rows = Array.isArray(tables[table.key]) ? tables[table.key] : [];
     if (mode === "replace") set.push({ statement: `DELETE FROM ${table.table}`, values: [] });
@@ -2558,8 +2569,13 @@ async function buildRestoreStatements(tables, mode) {
         kept += 1;
         continue;
       }
+      if (row.storage_key != null && localKeyOwners.has(row.storage_key) && localKeyOwners.get(row.storage_key) !== row.id) {
+        kept += 1;
+        continue;
+      }
       const fields = new Map(Object.entries(row));
       set.push({ statement, values: table.columns.map((column) => restoreValue(fields.get(column))) });
+      if (row.storage_key != null) acceptedKeys.add(row.storage_key);
       restored += 1;
     }
   }
@@ -2569,7 +2585,7 @@ async function buildRestoreStatements(tables, mode) {
     statement: "INSERT OR IGNORE INTO local_profile (id, display_name, default_currency, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, 1)",
     values: ["local", "Hearth standalone", "AUD", now, now],
   });
-  return { set, restored, kept };
+  return { set, restored, kept, acceptedKeys };
 }
 
 async function fileExists(path) {
@@ -2589,108 +2605,143 @@ async function referencedStorageKeys() {
   return new Set(rows.map((row) => row.storage_key).filter(Boolean));
 }
 
-async function writeRestoreJournal(journal) {
-  await prefSet(RESTORE_JOURNAL_KEY, JSON.stringify(journal));
-}
+// The restore journal is written once, before the first file moves, and
+// lists every key the restore will touch and whether this phone already had
+// a file there. Recovery then works from what is on disk, so it is right
+// whichever move a crash interrupted:
+//   aside copy present        the original was moved aside: it goes back
+//                             (rollback) or is deleted (finish)
+//   no aside, had an original the original never moved: left alone
+//   no aside, had none        anything at the key is the backup's: removed
+//                             on rollback, kept on finish
+// The aside folder is only removed once every key is accounted for; until
+// then the journal stays and the next launch tries again.
+const asidePath = (key) => `${RESTORE_ASIDE_ROOT}/${key}`;
+const documentPath = (key) => `${FILE_ROOT}/${key}`;
 
-// Puts back every file a restore moved, newest first: placed files are
-// removed and the originals they displaced return.
 async function rollbackRestoreFiles(journal) {
-  for (const key of [...journal.placed].reverse()) {
-    await Filesystem.deleteFile({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${key}` }).catch(() => undefined);
-  }
-  for (const key of journal.aside) {
-    await ensureParentDir(`${FILE_ROOT}/${key}`);
-    await Filesystem.rename({ directory: FILE_DIRECTORY, from: `${RESTORE_ASIDE_ROOT}/${key}`, to: `${FILE_ROOT}/${key}` }).catch(() => undefined);
-  }
-}
-
-// After the database commit: drop the displaced originals and, for Replace,
-// the files of documents the backup no longer has. Returns the files that
-// could not be deleted.
-async function finishRestoreFiles(journal) {
-  let undeleted = 0;
-  if (journal.mode === "replace") {
-    const referenced = await referencedStorageKeys();
-    for (const key of journal.priorKeys) {
-      if (referenced.has(key)) continue;
-      await Filesystem.deleteFile({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${key}` }).catch(async () => {
-        if (await fileExists(`${FILE_ROOT}/${key}`)) undeleted += 1;
-      });
+  let unresolved = 0;
+  for (const { key, hadOriginal } of journal.files) {
+    try {
+      if (await fileExists(asidePath(key))) {
+        if (await fileExists(documentPath(key))) await Filesystem.deleteFile({ directory: FILE_DIRECTORY, path: documentPath(key) });
+        await ensureParentDir(documentPath(key));
+        await Filesystem.rename({ directory: FILE_DIRECTORY, from: asidePath(key), to: documentPath(key) });
+      } else if (!hadOriginal && (await fileExists(documentPath(key)))) {
+        await Filesystem.deleteFile({ directory: FILE_DIRECTORY, path: documentPath(key) });
+      }
+    } catch {
+      unresolved += 1;
     }
   }
+  return unresolved;
+}
+
+async function finishAsideFiles(journal) {
+  let unresolved = 0;
+  for (const { key } of journal.files) {
+    if (!(await fileExists(asidePath(key)))) continue;
+    await Filesystem.deleteFile({ directory: FILE_DIRECTORY, path: asidePath(key) }).catch(() => {
+      unresolved += 1;
+    });
+  }
+  return unresolved;
+}
+
+// Removes the aside folder and the journal, but only when nothing in the
+// folder is still needed.
+async function closeRestoreJournal(unresolved) {
+  if (unresolved > 0) return false;
   await Filesystem.rmdir({ directory: FILE_DIRECTORY, path: RESTORE_ASIDE_ROOT, recursive: true }).catch(() => undefined);
   await prefRemove(RESTORE_JOURNAL_KEY);
-  return undeleted;
+  return true;
+}
+
+// After the database commit: drop the displaced originals and the files of
+// documents no row refers to any more (Replace's dropped documents, or a
+// Merge row that moved to a new file). Returns the files that could not be
+// deleted.
+async function finishRestoreFiles(journal) {
+  let undeleted = 0;
+  const referenced = await referencedStorageKeys();
+  for (const key of journal.priorKeys) {
+    if (referenced.has(key) || !(await fileExists(documentPath(key)))) continue;
+    await Filesystem.deleteFile({ directory: FILE_DIRECTORY, path: documentPath(key) }).catch(() => {
+      undeleted += 1;
+    });
+  }
+  const unresolved = await finishAsideFiles(journal);
+  await closeRestoreJournal(unresolved);
+  return undeleted + unresolved;
 }
 
 // Runs at launch. A restore that stopped part-way (the app was killed, the
 // phone died) is finished if its database write committed, or rolled back
-// if it did not, so files and records always agree.
-async function recoverInterruptedRestore() {
+// if it did not, so files and records always agree. Only one recovery runs
+// per launch, however often standalone mode is entered: two running at once
+// could each move the same file.
+let restoreRecovery = null;
+function recoverInterruptedRestore() {
+  restoreRecovery ??= runRestoreRecovery();
+  return restoreRecovery;
+}
+
+async function runRestoreRecovery() {
   const raw = await prefGet(RESTORE_JOURNAL_KEY);
   if (!raw || !Filesystem) return;
   let journal;
   try {
     journal = JSON.parse(raw);
   } catch {
-    await prefRemove(RESTORE_JOURNAL_KEY);
-    return;
+    journal = null;
   }
-  const marker = await query("SELECT value FROM schema_metadata WHERE key = 'last_restore_id'").catch(() => []);
+  // A journal this build can't read is kept, with the aside folder, rather
+  // than guessed at.
+  if (!journal || !Array.isArray(journal.files) || !Array.isArray(journal.priorKeys)) return;
+  const marker = await query("SELECT value FROM schema_metadata WHERE key = 'last_restore_id'");
   if (marker.some((row) => row.value === journal.id)) {
     await finishRestoreFiles(journal);
   } else {
-    await rollbackRestoreFiles(journal);
-    await Filesystem.rmdir({ directory: FILE_DIRECTORY, path: RESTORE_ASIDE_ROOT, recursive: true }).catch(() => undefined);
-    await prefRemove(RESTORE_JOURNAL_KEY);
+    await closeRestoreJournal(await rollbackRestoreFiles(journal));
   }
   await clearRestoreStaging();
 }
 
-// Files first, database second, each step journalled: every staged file is
-// checked, originals it replaces are moved aside (never deleted) and the new
-// file moved in; only then does one transaction write the rows plus a
-// restore marker. Any failure before the commit puts every file back. After
-// the commit the originals, and in Replace the files of documents the backup
-// doesn't have, are deleted.
+// Files first, database second: every staged file is checked, the journal
+// is written, then each original the backup replaces is moved aside (never
+// deleted) and the backup's file moved in; only then does one transaction
+// write the rows plus a restore marker. Any failure before the commit puts
+// every file back. After the commit the originals, and the files of
+// documents no row refers to any more, are deleted.
 async function applyRestore({ tables, preferences, stagedKeys, mode, legacy = false }) {
-  const { set, restored, kept } = await buildRestoreStatements(tables, mode);
-  for (const key of stagedKeys) {
+  const { set, restored, kept, acceptedKeys } = await buildRestoreStatements(tables, mode);
+  const keys = stagedKeys.filter((key) => acceptedKeys.has(key));
+  for (const key of keys) {
     if (!(await fileExists(`${RESTORE_STAGING_ROOT}/${key}`))) throw new Error("Could not prepare the backup's documents on this phone. Nothing was changed.");
   }
-  const journal = {
-    id: crypto.randomUUID(),
-    mode,
-    priorKeys: mode === "replace" ? [...(await referencedStorageKeys())] : [],
-    placed: [],
-    aside: [],
-  };
-  await writeRestoreJournal(journal);
+  if (await prefGet(RESTORE_JOURNAL_KEY)) throw new Error("An earlier restore has not finished tidying up. Restart Hearth, then try again.");
+  const files = [];
+  for (const key of keys) files.push({ key, hadOriginal: await fileExists(documentPath(key)) });
+  const journal = { id: crypto.randomUUID(), mode, priorKeys: [...(await referencedStorageKeys())], files };
+  await prefSet(RESTORE_JOURNAL_KEY, JSON.stringify(journal));
   try {
-    for (const key of stagedKeys) {
-      const to = `${FILE_ROOT}/${key}`;
-      await ensureParentDir(to);
-      if (await fileExists(to)) {
-        await ensureParentDir(`${RESTORE_ASIDE_ROOT}/${key}`);
-        await Filesystem.rename({ directory: FILE_DIRECTORY, from: to, to: `${RESTORE_ASIDE_ROOT}/${key}` });
-        journal.aside.push(key);
-        await writeRestoreJournal(journal);
+    for (const { key, hadOriginal } of files) {
+      await ensureParentDir(documentPath(key));
+      if (hadOriginal) {
+        await ensureParentDir(asidePath(key));
+        await Filesystem.rename({ directory: FILE_DIRECTORY, from: documentPath(key), to: asidePath(key) });
       }
-      await Filesystem.rename({ directory: FILE_DIRECTORY, from: `${RESTORE_STAGING_ROOT}/${key}`, to });
-      journal.placed.push(key);
-      await writeRestoreJournal(journal);
+      await Filesystem.rename({ directory: FILE_DIRECTORY, from: `${RESTORE_STAGING_ROOT}/${key}`, to: documentPath(key) });
     }
     set.push({ statement: "INSERT OR REPLACE INTO schema_metadata (key, value) VALUES ('last_restore_id', ?)", values: [journal.id] });
     await withExclusiveDb(() => SQLite.executeSet({ database: DB, set, transaction: true }));
   } catch (error) {
-    await rollbackRestoreFiles(journal);
-    await Filesystem.rmdir({ directory: FILE_DIRECTORY, path: RESTORE_ASIDE_ROOT, recursive: true }).catch(() => undefined);
-    await prefRemove(RESTORE_JOURNAL_KEY);
-    throw new Error(`Restore failed, and this phone was left as it was (${error?.message || "unknown error"}).`);
+    const closed = await closeRestoreJournal(await rollbackRestoreFiles(journal));
+    const tail = closed ? "" : " Some files could not be put back yet; Hearth will try again when it next starts.";
+    throw new Error(`Restore failed, and this phone was left as it was (${error?.message || "unknown error"}).${tail}`);
   }
   const undeletedFiles = await finishRestoreFiles(journal);
-  const missingFiles = documentStorageKeys(tables).size - stagedKeys.length;
+  const missingFiles = [...acceptedKeys].filter((key) => !keys.includes(key)).length;
   const restoredPreferences = new Map(Object.entries(preferences && typeof preferences === "object" ? preferences : {}));
   for (const key of BACKUP_PREFERENCE_KEYS) {
     const value = restoredPreferences.get(key);
