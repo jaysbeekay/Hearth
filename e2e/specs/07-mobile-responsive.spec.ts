@@ -263,18 +263,18 @@ test("bottom-bar labels and More sheet labels stay on one line at 360, 390 and 4
 test("list page headers don't wrap at 360, 390 and 430px, and Export sits in the ⋮ menu", async ({ page }) => {
   test.setTimeout(120_000);
   const lists = [
-    { path: "/contracts", button: "Add contract" },
-    { path: "/products", button: "Add warranty" },
-    { path: "/home", button: "Add property" },
-    { path: "/vehicles", button: "Add vehicle" },
-    { path: "/travel", button: "Add trip" },
+    { path: "/contracts", button: "Add contract", emptyState: /^No contracts yet\./ },
+    { path: "/products", button: "Add warranty", emptyState: /^No warranties yet\./ },
+    { path: "/home", button: "Add property", emptyState: /^No properties yet\./ },
+    { path: "/vehicles", button: "Add vehicle", emptyState: /^No vehicles yet\./ },
+    { path: "/travel", button: "Add trip", emptyState: /^No trips yet\./ },
     { path: "/inventory", button: "Add item", noExport: true },
     // Add portfolio until the household has one, then Manage portfolios.
     { path: "/wealth", button: /^(Add portfolio|Manage portfolios)$/ },
   ];
   for (const width of PHONE_WIDTHS) {
     await page.setViewportSize({ width, height: 800 });
-    for (const { path, button, noExport } of lists) {
+    for (const { path, button, noExport, emptyState } of lists) {
       await page.goto(path);
       const heading = page.locator("main h1");
       await expectOneLine(heading, `${width}px ${path} heading`);
@@ -291,8 +291,7 @@ test("list page headers don't wrap at 360, 390 and 430px, and Export sits in the
       // #406 — a list with nothing in it yet has no Export, so no ⋮ either.
       // The list's own empty state, not another section's (Warranties also
       // shows "No inventory items yet.").
-      const noun = new Map([["/products", "warranties"], ["/home", "properties"], ["/travel", "trips"]]).get(path) ?? path.slice(1);
-      const nothingYet = (await page.locator("main").getByText(new RegExp(`^No ${noun} yet\\.`)).count()) > 0;
+      const nothingYet = emptyState ? (await page.locator("main").getByText(emptyState).count()) > 0 : false;
       if (noExport || nothingYet) {
         await expect(menu).toHaveCount(0);
       } else {
