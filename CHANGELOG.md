@@ -48,6 +48,33 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   certificate digests it saw when they don't match. Digests are public, so
   this exposes nothing secret.
 
+### Added
+
+- **Document scanning copes without pdftotext or tesseract (#480).** On a
+  server without poppler-utils or tesseract-ocr (bare-metal `npm run start`,
+  serverless), the missing tools are detected (and re-checked about once a
+  minute, so installing them needs no restart) and stage 1 is skipped:
+  uploads go straight to the household's cloud AI key, or attach unparsed
+  with a message saying text extraction isn't available on this server,
+  instead of reading like a blank document. Ollama, which only sees
+  extracted text, is no longer called with empty text. Settings → System
+  settings shows which local extraction tools are installed, and flags a tool
+  that is installed but can't run (permissions, timeout). Docker installs,
+  which ship the tools, behave as before.
+
+### Changed
+
+- "Trash" is now called "Recently deleted" everywhere it's shown: the Settings
+  section and page, delete confirmations, toasts and error messages. The
+  confirm button on a restorable delete now says "Delete" (was "Move to
+  Trash") and the toast says "Moved to Recently deleted." (still with Undo),
+  so it reads differently from "Delete permanently". The standalone mobile
+  shell, which has no Recently deleted page, no longer names one: a deleted
+  Document says "deleted." with Undo, and its record's delete confirmation says
+  the documents are kept for 30 days. Edit-form pickers mark a linked record
+  that has been deleted as "(deleted)" (was "(in Trash)").
+  The `/settings/trash` route and internal names are unchanged.
+
 ## [0.20.0] - 2026-10-31
 
 ### Fixed
@@ -121,18 +148,6 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   release.
 
 ### Added
-
-- **Document scanning copes without pdftotext or tesseract (#480).** On a
-  server without poppler-utils or tesseract-ocr (bare-metal `npm run start`,
-  serverless), the missing tools are detected (and re-checked about once a
-  minute, so installing them needs no restart) and stage 1 is skipped:
-  uploads go straight to the household's cloud AI key, or attach unparsed
-  with a message saying text extraction isn't available on this server,
-  instead of reading like a blank document. Ollama, which only sees
-  extracted text, is no longer called with empty text. Settings → System
-  settings shows which local extraction tools are installed, and flags a tool
-  that is installed but can't run (permissions, timeout). Docker installs,
-  which ship the tools, behave as before.
 
 - **Archive a Vehicle or Property you no longer have (#355).** Archive (in
   the record's More actions menu, with Undo) marks a Vehicle as sold or a
@@ -282,17 +297,6 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   opens an issue.
 
 ### Changed
-
-- "Trash" is now called "Recently deleted" everywhere it's shown: the Settings
-  section and page, delete confirmations, toasts and error messages. The
-  confirm button on a restorable delete now says "Delete" (was "Move to
-  Trash") and the toast says "Moved to Recently deleted." (still with Undo),
-  so it reads differently from "Delete permanently". The standalone mobile
-  shell, which has no Recently deleted page, no longer names one: a deleted
-  Document says "deleted." with Undo, and its record's delete confirmation says
-  the documents are kept for 30 days. Edit-form pickers mark a linked record
-  that has been deleted as "(deleted)" (was "(in Trash)").
-  The `/settings/trash` route and internal names are unchanged.
 
 - **An empty `APP_URL` now counts as unset (#477)**, so links fall back to
   `http://localhost:3000` instead of being built from an empty string. On
