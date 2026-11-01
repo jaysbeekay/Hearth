@@ -11,6 +11,19 @@ test.beforeEach(async ({ page }) => {
   });
 
   await page.addInitScript(() => {
+    // A seed puts test flags, preferences, files and rows in place before the
+    // app starts (see reloadStandalone). It travels in window.name, which
+    // survives a reload synchronously; file:// localStorage written just
+    // before a reload is not always there after it. The flags go in first,
+    // since the fixture rows below read them.
+    let seed: { local?: Record<string, string>; preferences?: Record<string, string>; files?: Record<string, string>; rows?: Record<string, unknown[]> } | null = null;
+    try {
+      seed = window.name.startsWith("hearth-test-seed:") ? JSON.parse(window.name.slice("hearth-test-seed:".length)) : null;
+    } catch {
+      seed = null;
+    }
+    window.name = "";
+    for (const [key, value] of Object.entries(seed?.local ?? {})) localStorage.setItem(key, value);
     const preferences = new Map<string, string>();
     const sqliteRuns: { statement: string; values: unknown[]; transaction?: boolean }[] = [];
     const scheduledNotifications: unknown[] = [];
@@ -529,17 +542,8 @@ test.beforeEach(async ({ page }) => {
       throw new Error(`Mock: unhandled documents statement: ${sql}`);
     }
 
-    // A seed puts preferences, files and rows in place before the app starts,
-    // to test what it does at launch (an interrupted restore). It travels in
-    // window.name, which survives a reload synchronously; file:// localStorage
-    // written just before a reload is not always there after it.
+    // The seed's preferences, files and rows (an interrupted restore).
     try {
-      const seedText = window.name.startsWith("hearth-test-seed:") ? window.name.slice("hearth-test-seed:".length) : "null";
-      window.name = "";
-      const seed = JSON.parse(seedText) as
-        | { local?: Record<string, string>; preferences?: Record<string, string>; files?: Record<string, string>; rows?: Record<string, unknown[]> }
-        | null;
-      for (const [key, value] of Object.entries(seed?.local ?? {})) localStorage.setItem(key, value);
       for (const [key, value] of Object.entries(seed?.preferences ?? {})) preferences.set(key, value);
       for (const [key, value] of Object.entries(seed?.files ?? {})) files.set(key, value);
       for (const [table, rows] of Object.entries(seed?.rows ?? {})) rowsByTable[table] = [...(rowsByTable[table] ?? []), ...rows];
@@ -1589,10 +1593,7 @@ async function sqliteRuns(page: import("@playwright/test").Page): Promise<Sqlite
 
 // Reloads the shell with Broadband Plan's documents seeded (see the mock).
 async function withContractDocuments(page: import("@playwright/test").Page) {
-  await page.evaluate(() => localStorage.setItem("hearth-test-contract-documents", "1"));
-  await page.reload();
-  await page.getByRole("button", { name: "Use on this device" }).click();
-  await expect(page.locator("#standalone-screen")).toBeVisible();
+  await reloadStandalone(page, { "hearth-test-contract-documents": "1" });
 }
 
 async function openBroadbandRenewal(page: import("@playwright/test").Page) {
@@ -1692,7 +1693,16 @@ test("standalone Previous terms opens the prior Term's document (#353)", async (
 // the Trash entry is purged, and the chain survives a trashed version.
 type ShellPage = import("@playwright/test").Page;
 
-async function reloadStandalone(page: ShellPage) {
+// `local` is test localStorage (hearth-test-* flags) to have in place when
+// the reloaded page starts. It travels in the seed (window.name): file:// localStorage set just
+// before a reload is not always there after it, which made the tests that
+// set a flag and reloaded fail now and then.
+async function reloadStandalone(page: ShellPage, local: Record<string, string> = {}) {
+  await page.evaluate((local) => {
+    // Flags set earlier in the test are carried forward too.
+    const current = Object.fromEntries(Object.keys(localStorage).filter((key) => key.startsWith("hearth-test-")).map((key) => [key, localStorage.getItem(key) ?? ""]));
+    window.name = `hearth-test-seed:${JSON.stringify({ local: { ...current, ...local } })}`;
+  }, local);
   await page.reload();
   await page.getByRole("button", { name: "Use on this device" }).click();
   await expect(page.locator("#standalone-screen")).toBeVisible();
@@ -1701,12 +1711,11 @@ async function reloadStandalone(page: ShellPage) {
 // `now` fixes the device clock before the reload, for the purge tests (the
 // fixtures are dated 2099, so with the real clock nothing is ever purged).
 async function withDocumentVersions(page: ShellPage, mode: string, options: { now?: string; deleteFileError?: string } = {}) {
-  await page.evaluate(([value, error]) => {
-    localStorage.setItem("hearth-test-doc-versions", value);
-    if (error) localStorage.setItem("hearth-test-delete-file-error", error);
-  }, [mode, options.deleteFileError ?? ""] as const);
   if (options.now) await page.clock.setFixedTime(new Date(options.now));
-  await reloadStandalone(page);
+  await reloadStandalone(page, {
+    "hearth-test-doc-versions": mode,
+    ...(options.deleteFileError ? { "hearth-test-delete-file-error": options.deleteFileError } : {}),
+  });
 }
 
 async function openBroadbandPlan(page: ShellPage) {
@@ -1953,7 +1962,6 @@ test("standalone purge keeps the row when the file can't be deleted, and retries
   expect((await savedDocuments(page)).map((row) => row.id)).toEqual(expect.arrayContaining(["version-2", "version-3"]));
 
   // A file that is already gone is fine: the rows go.
-  await page.evaluate(() => localStorage.setItem("hearth-test-delete-file-error", "missing"));
-  await reloadStandalone(page);
+  await reloadStandalone(page, { "hearth-test-delete-file-error": "missing" });
   await expect.poll(async () => deletedDocuments((await shellTestState(page)).runs)).toEqual(["version-3", "version-2"]);
 });
