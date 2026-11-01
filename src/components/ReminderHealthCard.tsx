@@ -15,7 +15,10 @@ import {
 
 /** One dated thing a card reports on: a record's single date, or one of a Vehicle's three. */
 export interface ReminderHealthEntry {
-  /** Shown before the line when a card covers several dates ("Registration"). */
+  /**
+   * Shown before the line when a card covers several dates ("Registration"),
+   * and then required: it's each row's key. A single-date card leaves it out.
+   */
   label?: string;
   health: ReminderHealth;
   /** #352 — the record whose real reminder "Send test reminder" sends. */
@@ -124,10 +127,10 @@ export function ReminderHealthCard({
               </p>
             )}
             <ul className="space-y-0.5">
-              {entries.map((entry, i) => {
+              {entries.map((entry) => {
                 const { tone, text } = reminderSummary(entry.health, dateFormat);
                 return (
-                  <li key={entry.label ?? i} className={cn("text-sm", TONE_TEXT.get(tone))}>
+                  <li key={entry.label ?? "only"} className={cn("text-sm", TONE_TEXT.get(tone))}>
                     {entry.label && <span className="font-medium">{entry.label}: </span>}
                     {text}
                   </li>
@@ -164,8 +167,8 @@ export function ReminderHealthCard({
               </dd>
             </div>
           </dl>
-          {entries.map((entry, i) => (
-            <section key={entry.label ?? i} className="space-y-3">
+          {entries.map((entry) => (
+            <section key={entry.label ?? "only"} className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 {entry.label ? <h3 className="text-sm font-medium">{entry.label}</h3> : <span />}
                 {/* #400 — sending one is a write, so read-only members see only the read-out. */}
