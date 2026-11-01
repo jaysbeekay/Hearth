@@ -31,12 +31,13 @@ export function ListFilterChips({
   onToggle: (chip: ToggleableFilter) => void;
   className?: string;
 }) {
+  const countByChip = new Map<string, number | undefined>(Object.entries(counts ?? {}));
   return (
     <div className={cn("flex flex-wrap gap-2 text-sm", className)}>
       {chips.map(({ chip, label, onlyWhenActive }) => {
         const active = isChipActive(filters, chip);
         if (onlyWhenActive && !active) return null;
-        const count = counts?.[chip];
+        const count = counts ? countByChip.get(chip) : undefined;
         return (
           <button
             key={chip}
