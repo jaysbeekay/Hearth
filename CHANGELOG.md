@@ -7,6 +7,31 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+### Added
+
+- **Encrypted backup and restore for the standalone mobile app, with iCloud
+  on iPhone (#226).** Settings → Back up this phone exports an encrypted
+  `.hearthbackup` file, protected by a password the user picks (PBKDF2-SHA256
+  then AES-256-GCM, done on the device), and opens the share sheet to save it
+  to Files, iCloud Drive, Google Drive or anywhere else (`@capacitor/share`).
+  On iPhone and iPad, backups can also go straight to a Hearth folder in the
+  user's own iCloud Drive, by hand or daily (when the app is opened, at most
+  once a day; the newest 7 are kept; the daily backup's password stays in the
+  device keychain). Restore, from a file or from iCloud, decrypts and checks
+  the whole backup before changing anything, then either replaces everything
+  on the phone or merges (keeping records edited more recently on the phone),
+  in one database transaction, and reschedules device reminders. Document
+  files are swapped in under a journal written before anything moves, so a
+  failed or interrupted restore (the app killed, the phone dying) is rolled
+  back or finished at the next launch and never leaves records and files
+  out of step. Module and reminder settings travel with the backup. A backup
+  from a newer app version is refused rather than half-restored. The dashboard asks for a
+  backup until there is one less than 30 days old. Older unencrypted JSON
+  backups still restore. The format is written a record at a time, so large
+  document libraries no longer have to fit in memory at once. iOS builds now
+  carry the iCloud Documents entitlement for the `iCloud.com.hearthapp.app`
+  container.
+
 ### Security
 
 - **Standalone mobile backups are no longer written in plain text to a
@@ -16,6 +41,72 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   built in the app's private cache, which is cleared once the backup has been
   shared or copied to iCloud. Backup files restored from outside the app are
   validated, so a crafted file can't write outside the app's document folder.
+
+## [0.20.1] - 2026-10-31
+
+### Fixed
+
+- **Android release assets were not published for v0.20.0.** The new
+  "Verify release signatures" step in `android-build.yml` rejected the signed
+  APK even though Gradle signed it with the release keystore, so the APK/AAB
+  were never attached to the v0.20.0 Release (the Docker image did publish).
+  The check now looks for the release key's certificate digest anywhere in
+  `apksigner`/`keytool` output instead of on one exact label, and prints the
+  certificate digests it saw when they don't match. Digests are public, so
+  this exposes nothing secret.
+
+### Added
+
+- **Document scanning copes without pdftotext or tesseract (#480).** On a
+  server without poppler-utils or tesseract-ocr (bare-metal `npm run start`,
+  serverless), the missing tools are detected (and re-checked about once a
+  minute, so installing them needs no restart) and stage 1 is skipped:
+  uploads go straight to the household's cloud AI key, or attach unparsed
+  with a message saying text extraction isn't available on this server,
+  instead of reading like a blank document. Ollama, which only sees
+  extracted text, is no longer called with empty text. Settings → System
+  settings shows which local extraction tools are installed, and flags a tool
+  that is installed but can't run (permissions, timeout). Docker installs,
+  which ship the tools, behave as before.
+
+### Changed
+
+- "Trash" is now called "Recently deleted" everywhere it's shown: the Settings
+  section and page, delete confirmations, toasts and error messages. The
+  confirm button on a restorable delete now says "Delete" (was "Move to
+  Trash") and the toast says "Moved to Recently deleted." (still with Undo),
+  so it reads differently from "Delete permanently". The standalone mobile
+  shell, which has no Recently deleted page, no longer names one: a deleted
+  Document says "deleted." with Undo, and its record's delete confirmation says
+  the documents are kept for 30 days. Edit-form pickers mark a linked record
+  that has been deleted as "(deleted)" (was "(in Trash)").
+  The `/settings/trash` route and internal names are unchanged.
+
+## [0.20.0] - 2026-10-31
+
+### Fixed
+
+- Android release build (`android-build.yml`) failing since v0.18.0: R8 aborted
+  with missing `com.google.errorprone.annotations.*` / `javax.annotation.*`
+  classes referenced by Tink (via the encrypted-SQLite plugin). Added the
+  matching `-dontwarn` rules plus keep rules for the Capacitor/RevenueCat
+  plugin packages, sqlcipher (`net.zetetic.database.**`, JNI native methods)
+  and Tink's protobuf fields in `proguard-rules.pro`. Minification stays on.
+- `android-actions/setup-android` v3 failed on current runners; bumped to
+  v4.0.4.
+- Manual-dispatch releases (`release.yml`) never built the Docker image or the
+  Android APK/AAB (v0.19.2 shipped with neither), because tags created by the
+  `GITHUB_TOKEN` don't fire push-triggered workflows. `release.yml` now
+  dispatches `docker-publish.yml` and `android-build.yml` against the new tag,
+  waits for both (dispatched or tag-push) builds to finish, and fails unless
+  the APK/AAB are attached to the Release and the Docker image is on Docker
+  Hub, so a green release run means the artifacts were actually published.
+- `android-build.yml` now always builds the release variant (unsigned when not
+  a signed tag run) so manual runs exercise R8, and no longer builds the debug
+  APK when dispatched against a tag.
+
+### Security
+
 - `nodemailer` 10.0.16 → 10.2.1 and `mailparser` → 3.12.4, fixing three
   high-severity "interpretation conflict" advisories in nodemailer
   (SNYK-JS-NODEMAILER-21663365, -21663367, -21663373).
@@ -51,28 +142,20 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   sign-in purges them instead), and offline Documents and cached lists
   from before it are purged. If someone other than the person who queued
   them is that first writer, they'll sync under that member's account.
+- Android release signing is now tag-only: `android-build.yml` signs only on a
+  `v*` tag with the secrets present; branch and `main` runs build unsigned
+  (`*-unsigned` artifacts, 7-day retention). Decoded keystore is deleted at
+  the end of every run.
+- Signing and Docker Hub jobs use a `release` environment (owner restricts it
+  to `v*` tags and moves the secrets into it; see README "Releasing").
+- `release.yml` and `docker-publish.yml` refuse to run outside `main` or a
+  `v*` tag; `release.yml` validates the version input and no longer
+  interpolates inputs into shell scripts; `actions: write` is held only by the
+  small `artifacts` job; Docker `latest` moves only for the highest stable
+  release.
 
 ### Added
 
-- **Encrypted backup and restore for the standalone mobile app, with iCloud
-  on iPhone (#226).** Settings → Back up this phone exports an encrypted
-  `.hearthbackup` file, protected by a password the user picks (PBKDF2-SHA256
-  then AES-256-GCM, done on the device), and opens the share sheet to save it
-  to Files, iCloud Drive, Google Drive or anywhere else (`@capacitor/share`).
-  On iPhone and iPad, backups can also go straight to a Hearth folder in the
-  user's own iCloud Drive, by hand or daily (when the app is opened, at most
-  once a day; the newest 7 are kept; the daily backup's password stays in the
-  device keychain). Restore, from a file or from iCloud, decrypts and checks
-  the whole backup before changing anything, then either replaces everything
-  on the phone or merges (keeping records edited more recently on the phone),
-  in one database transaction, and reschedules device reminders. Module and
-  reminder settings travel with the backup. A backup from a newer app
-  version is refused rather than half-restored. The dashboard asks for a
-  backup until there is one less than 30 days old. Older unencrypted JSON
-  backups still restore. The format is written a record at a time, so large
-  document libraries no longer have to fit in memory at once. iOS builds now
-  carry the iCloud Documents entitlement for the `iCloud.com.hearthapp.app`
-  container.
 - **Archive a Vehicle or Property you no longer have (#355).** Archive (in
   the record's More actions menu, with Undo) marks a Vehicle as sold or a
   Property as sold or its lease ended; Restore on the record's page puts it
@@ -216,6 +299,9 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   Console non-consumable products to be set up before shipping — see the
   comments beside `REVENUECAT_API_KEY_IOS`/`REVENUECAT_API_KEY_ANDROID` in
   `ios-shell/www/app.js`, which are placeholders pending that setup.
+- `android-check.yml`: path-filtered pull request check (plus a weekly run)
+  that runs `cap sync android` and an unsigned `assembleRelease` (R8) so Android-only breakage surfaces before a release. A failing scheduled run
+  opens an issue.
 
 ### Changed
 
@@ -601,6 +687,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   still covers code scanning.
 
 ### Fixed
+
+- **Contract and Warranty edit forms no longer offer Properties and Vehicles
+  in Trash (#489).** The Linked to picker lists only live records, as the
+  new-record forms already did, plus the record's current link if it is in
+  Trash, shown as "(in Trash)" so saving doesn't unlink it. Archived records
+  stay selectable. The "(in Trash)" wording now lives in one place
+  (`src/lib/trashWording.ts`), shared with the Inventory item edit form.
 
 - **Standalone shell: deleting a Document moves it to Trash with an Undo
   (#455).** Delete no longer asks first and removes the file at once. The

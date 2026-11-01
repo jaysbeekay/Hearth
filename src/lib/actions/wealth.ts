@@ -269,7 +269,7 @@ export async function deleteTrade(holdingId: string, tradeId: string): Promise<A
   } catch (error) {
     return commandError(error, "Trade not found.");
   }
-  return { success: "Trade moved to Trash." };
+  return { success: "Trade deleted." };
 }
 
 export async function restoreTrade(tradeId: string): Promise<ActionState> {
@@ -494,7 +494,7 @@ export async function deletePropertyValuation(
   } catch (error) {
     return valuationCommandError(error, "Valuation not found.");
   }
-  return { success: "Valuation moved to Trash." };
+  return { success: "Valuation deleted." };
 }
 
 export async function restorePropertyValuation(valuationId: string): Promise<ActionState> {

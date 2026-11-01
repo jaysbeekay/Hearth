@@ -555,9 +555,9 @@ describe("Document actions", () => {
     const [row] = await db.prisma.document.findMany({ where: { contractId: ownerId } });
     expect(row.category).toBe("RECEIPT");
     expect(await permanentlyDeleteDocumentAction("CONTRACT", row.id)).toEqual({
-      error: "Move the document to Trash before deleting it permanently.",
+      error: "Only a document in Recently deleted can be deleted permanently.",
     });
-    expect(await deleteDocumentAction("CONTRACT", row.id, ownerId)).toEqual({ success: "Document moved to Trash." });
+    expect(await deleteDocumentAction("CONTRACT", row.id, ownerId)).toEqual({ success: "Document deleted." });
     expect(await permanentlyDeleteDocumentAction("CONTRACT", row.id)).toEqual({ success: "Deleted permanently." });
 
     await setModuleEnabled("TRAVEL", false);

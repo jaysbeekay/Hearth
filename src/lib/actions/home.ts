@@ -286,7 +286,7 @@ export async function deleteHomeItem(propertyId: string, itemId: string): Promis
   } catch (error) {
     return commandError(error, "Maintenance record not found.");
   }
-  return { success: "Maintenance record moved to Trash." };
+  return { success: "Maintenance record deleted." };
 }
 
 export async function restoreHomeItem(itemId: string): Promise<ActionState> {
@@ -370,7 +370,7 @@ export async function deleteRentalAgreement(
   } catch (error) {
     return commandError(error, "Tenancy not found.");
   }
-  return { success: "Tenancy moved to Trash." };
+  return { success: "Tenancy deleted." };
 }
 
 export async function restoreRentalAgreement(agreementId: string): Promise<ActionState> {
@@ -512,7 +512,7 @@ export async function deleteRentalStatement(
   } catch (error) {
     return commandError(error, "Statement not found.");
   }
-  return { success: "Statement moved to Trash." };
+  return { success: "Statement deleted." };
 }
 
 export async function restoreRentalStatement(statementId: string): Promise<ActionState> {

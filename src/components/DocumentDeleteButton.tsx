@@ -27,15 +27,15 @@ export function DocumentDeleteButton({
       <ConfirmForm
         action={deleteDocumentAction.bind(null, kind, documentId, ownerId)}
         undo={{ action: restoreDocumentAction.bind(null, kind, documentId) }}
-        confirmText={`Move ${filename} to Trash? You can restore it within 30 days from Settings → Trash.`}
-        ariaLabel={`Move ${filename} to Trash`}
+        confirmText={`Delete ${filename}? You can restore it within 30 days from Settings → Recently deleted.`}
+        ariaLabel={`Delete ${filename}`}
         className={className}
         offline={{
           entity: "document",
           kind,
           entityId: documentId,
           parentId: ownerId,
-          label: `Move to Trash: ${filename}`,
+          label: `Delete ${filename}`,
         }}
       >
         <Trash2 size={iconSize} />
