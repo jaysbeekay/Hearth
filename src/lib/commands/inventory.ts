@@ -11,6 +11,7 @@ import {
 } from "@/lib/commands/shared";
 import type { ClearablePatch } from "@/lib/validation/fullFormUpdate";
 import type { InventoryItemInput } from "@/lib/validation/inventory";
+import { withStagedFileMoves } from "@/lib/items/stagedFileMoves";
 import { syncLegacyInventory } from "@/lib/items/syncLegacyItem";
 
 // Record commands for Inventory items (ADR 0003). Updates go through here,
@@ -38,7 +39,7 @@ export async function updateInventoryItemCommand(
   options: UpdateOptions = {},
 ) {
   await assertModuleEnabled("INVENTORY");
-  const { item, previousWarrantyId } = await prisma.$transaction(async (tx) => {
+  const { item, previousWarrantyId } = await withStagedFileMoves(() => prisma.$transaction(async (tx) => {
     const loadItem = () => tx.inventoryItem.findUnique({ where: { id } });
     const existing = await findLiveParent(loadItem(), "Inventory item");
     assertNotStale(existing, options.baseUpdatedAt);
@@ -64,7 +65,7 @@ export async function updateInventoryItemCommand(
       item: await findLiveParent(loadItem(), "Inventory item"),
       previousWarrantyId: existing.warrantyProductId,
     };
-  });
+  }));
   revalidatePath("/inventory");
   revalidatePath(`/inventory/${id}`);
   // A Warranty's page lists the items linked to it. (/wealth, which values

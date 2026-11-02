@@ -9,11 +9,19 @@
  * "Live" means what this shell's DATABASE_URL / UPLOADS_DIR point at, plus the
  * documented defaults (./data/app.db, ./data/uploads, and /app/data/... in the
  * Docker image).
+ *
+ * A scratch run where this shell's DATABASE_URL / UPLOADS_DIR were pointed at
+ * the copy itself (e.g. exported for `prisma migrate deploy`) is confirmed
+ * with ITEM_STAGE_COPY=yes-this-is-a-scratch-copy instead. That token only
+ * covers the shell's own variables; it never unlocks the documented live
+ * defaults, which still need ITEM_STAGE_PRIMARY.
  */
 import { realpathSync } from "node:fs";
 import path from "node:path";
 
 const PRIMARY_CONFIRMATION = "yes-i-have-a-fresh-backup";
+const COPY_CONFIRMATION = "yes-this-is-a-scratch-copy";
+const DEFAULT_LIVE = ["./data/app.db", "./data/uploads", "/app/data/app.db", "/app/data/uploads"];
 
 function real(p: string): string {
   try {
@@ -25,18 +33,19 @@ function real(p: string): string {
 
 type Env = Record<string, string | undefined>;
 
+const fromUrl = (url: string | undefined) => (url?.startsWith("file:") ? url.slice("file:".length) : undefined);
+
+function resolveAll(paths: (string | undefined)[], cwd: string): string[] {
+  return paths.filter((p): p is string => Boolean(p)).map((p) => real(path.resolve(cwd, p)));
+}
+
+/** What this shell's own DATABASE_URL / UPLOADS_DIR point at. */
+export function shellPaths(env: Env = process.env, cwd = process.cwd()): string[] {
+  return resolveAll([fromUrl(env.DATABASE_URL), env.UPLOADS_DIR], cwd);
+}
+
 export function livePaths(env: Env = process.env, cwd = process.cwd()): string[] {
-  const fromUrl = (url: string | undefined) => (url?.startsWith("file:") ? url.slice("file:".length) : undefined);
-  return [
-    fromUrl(env.DATABASE_URL),
-    env.UPLOADS_DIR,
-    "./data/app.db",
-    "./data/uploads",
-    "/app/data/app.db",
-    "/app/data/uploads",
-  ]
-    .filter((p): p is string => Boolean(p))
-    .map((p) => real(path.resolve(cwd, p)));
+  return [...shellPaths(env, cwd), ...resolveAll(DEFAULT_LIVE, cwd)];
 }
 
 /** Whether `target` is, or is inside, one of `live`. */
@@ -53,8 +62,15 @@ export function assertDisposableTargets(targets: string[], env: Env = process.en
     console.warn(`[items] Writing to the live install (${hits.join(", ")}): ITEM_STAGE_PRIMARY confirmed a fresh backup.`);
     return;
   }
+  const defaults = resolveAll(DEFAULT_LIVE, process.cwd());
+  const onlyShell = hits.every((t) => !touchesLive(t, defaults));
+  if (env.ITEM_STAGE_COPY === COPY_CONFIRMATION && onlyShell) {
+    console.warn(`[items] Writing to ${hits.join(", ")}: ITEM_STAGE_COPY confirmed this shell points at a scratch copy.`);
+    return;
+  }
   throw new Error(
-    `Refusing to write to the live install (${hits.join(", ")}). Run against a copy, or, in the maintenance ` +
-      `window after taking a fresh backup, set ITEM_STAGE_PRIMARY=${PRIMARY_CONFIRMATION}.`,
+    `Refusing to write to the live install (${hits.join(", ")}). For a scratch copy, unset DATABASE_URL/UPLOADS_DIR ` +
+      `or set ITEM_STAGE_COPY=${COPY_CONFIRMATION}. For the primary, in the maintenance window after taking a ` +
+      `fresh backup, set ITEM_STAGE_PRIMARY=${PRIMARY_CONFIRMATION}.`,
   );
 }

@@ -1,7 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { createHash } from "node:crypto";
-import { constants } from "node:fs";
-import { copyFile, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import type { Prisma } from "@/generated/prisma/client";
 import { mergeItemSources } from "@/lib/items/mergeSources";
@@ -9,26 +6,28 @@ import { prisma } from "@/lib/prisma";
 import { removeItemDocumentFiles } from "@/lib/storage";
 import { removeStagedLegacyDocument } from "@/lib/items/syncLegacyDocument";
 import { env } from "@/lib/env";
+import { queueStagedFileMove } from "@/lib/items/stagedFileMoves";
 
 type Tx = Prisma.TransactionClient;
 
-/** Rehome copied Documents when an InventoryItem is linked or unlinked. */
+/**
+ * Rehome copied Documents when an InventoryItem is linked or unlinked. Only
+ * database work happens here; the file copies are queued for after the legacy
+ * write commits (see stagedFileMoves.ts), so a missing staged copy can't roll
+ * the legacy write back.
+ */
 async function rehomeInventoryDocuments(tx: Tx, sourceId: string, previousItemId: string | undefined, nextItemId: string) {
   if (!previousItemId || previousItemId === nextItemId) return;
   const sourceDocs = await tx.inventoryItemDocument.findMany({ where: { inventoryItemId: sourceId }, select: { id: true } });
   const staged = await tx.itemDocument.findMany({ where: { sourceKind: "INVENTORY_ITEM", sourceDocumentId: { in: sourceDocs.map((doc) => doc.id) }, itemId: previousItemId } });
   const root = path.resolve(env.uploadsDir);
-  const destination = path.join(root, "items", path.basename(nextItemId));
-  if (staged.length) await mkdir(destination, { recursive: true });
   for (const doc of staged) {
-    const from = path.join(root, "items", path.basename(previousItemId), path.basename(doc.storedName));
-    const to = path.join(destination, path.basename(doc.storedName));
-    try { await copyFile(from, to, constants.COPYFILE_EXCL); }
-    catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-      const digest = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
-      if (digest(await readFile(from)) !== digest(await readFile(to))) throw new Error(`Item Document copy differs: ${doc.id}`);
-    }
+    const name = path.basename(doc.storedName);
+    queueStagedFileMove({
+      documentId: doc.id,
+      from: path.join(root, "items", path.basename(previousItemId), name),
+      to: path.join(root, "items", path.basename(nextItemId), name),
+    });
     await tx.itemDocument.update({ where: { id: doc.id }, data: { itemId: nextItemId } });
   }
   const old = await tx.item.findUnique({ where: { id: previousItemId } });

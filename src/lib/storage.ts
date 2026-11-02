@@ -36,13 +36,13 @@ function inventoryItemDir(inventoryItemId: string) {
   return path.join(path.resolve(env.uploadsDir), "inventory-items", path.basename(inventoryItemId));
 }
 
+// Item ids are generated (cuid/uuid). Anything else is refused before it can
+// reach a path, so the directory is always <uploads>/items/<id> (#445).
+const ITEM_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
 function itemDir(itemId: string) {
-  const root = path.resolve(env.uploadsDir);
-  const dir = path.join(root, "items", path.basename(itemId));
-  // Containment guard, as in the staged-copy helper: the resolved directory
-  // must stay inside the uploads root (#445).
-  if (!dir.startsWith(root + path.sep)) throw new Error("Invalid item id");
-  return dir;
+  if (!ITEM_ID.test(itemId)) throw new Error("Invalid item id");
+  return `${path.resolve(env.uploadsDir)}${path.sep}items${path.sep}${itemId}`;
 }
 
 function inboxDir() {

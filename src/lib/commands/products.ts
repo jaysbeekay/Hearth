@@ -14,6 +14,7 @@ import type { ClearablePatch } from "@/lib/validation/fullFormUpdate";
 import type { ProductInput } from "@/lib/validation/product";
 import type { Prisma } from "@/generated/prisma/client";
 import { syncLegacyProduct } from "@/lib/items/syncLegacyItem";
+import { withStagedFileMoves } from "@/lib/items/stagedFileMoves";
 import { syncLegacyInventory } from "@/lib/items/syncLegacyItem";
 import { syncLegacyDocument } from "@/lib/items/syncLegacyDocument";
 import { removeItemDocumentFiles } from "@/lib/storage";
@@ -202,7 +203,7 @@ export async function purgeProduct(id: string) {
       await removeItemDocumentFiles(staged.id);
     }
     for (const source of linked) {
-      await prisma.$transaction((tx) => syncLegacyInventory(tx, source.id));
+      await withStagedFileMoves(() => prisma.$transaction((tx) => syncLegacyInventory(tx, source.id)));
       const docs = await prisma.inventoryItemDocument.findMany({ where: { inventoryItemId: source.id }, select: { id: true } });
       for (const doc of docs) await syncLegacyDocument("INVENTORY_ITEM", doc.id);
     }

@@ -30,4 +30,19 @@ describe("item stage backfill target guard", () => {
       assertDisposableTargets([path.join(live, "app.db")], { ...env, ITEM_STAGE_PRIMARY: "yes-i-have-a-fresh-backup" }),
     ).not.toThrow();
   });
+
+  it("allows a shell pointed at the copy itself only with the scratch-copy confirmation", () => {
+    // The documented flow: DATABASE_URL exported to the copy for `prisma migrate deploy`.
+    const copyEnv = { DATABASE_URL: `file:${path.join(copy, "app.db")}`, UPLOADS_DIR: path.join(copy, "uploads") };
+    expect(() => assertDisposableTargets([path.join(copy, "app.db")], copyEnv)).toThrow(/ITEM_STAGE_COPY/);
+    expect(() =>
+      assertDisposableTargets([path.join(copy, "app.db")], { ...copyEnv, ITEM_STAGE_COPY: "yes-this-is-a-scratch-copy" }),
+    ).not.toThrow();
+  });
+
+  it("never lets the scratch-copy confirmation unlock the documented live defaults", () => {
+    expect(() =>
+      assertDisposableTargets([path.resolve("./data/app.db")], { ITEM_STAGE_COPY: "yes-this-is-a-scratch-copy" }),
+    ).toThrow(/Refusing/);
+  });
 });

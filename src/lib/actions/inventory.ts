@@ -15,6 +15,7 @@ import { isModuleEnabled } from "@/lib/modules/enablement";
 import type { ActionState } from "@/lib/actions/auth";
 import { describeUploadRejection } from "@/lib/uploadValidation";
 import { parseDocumentCategory } from "@/lib/documents/categories";
+import { withStagedFileMoves } from "@/lib/items/stagedFileMoves";
 import { syncLegacyInventory, purgeLegacyInventoryStage } from "@/lib/items/syncLegacyItem";
 import { itemCutoverReadiness } from "@/lib/items/cutoverReadiness";
 
@@ -69,11 +70,11 @@ async function createInventoryItemWithDestination(
 
   let item;
   try {
-    item = await prisma.$transaction(async (tx) => {
+    item = await withStagedFileMoves(() => prisma.$transaction(async (tx) => {
       const created = await tx.inventoryItem.create({ data: { ...parsed.data, createdById: user.id } });
       await syncLegacyInventory(tx, created.id);
       return created;
-    });
+    }));
   } catch {
     return { error: "Linked warranty no longer exists.", values: formDataToStringValues(formData, INVENTORY_ITEM_FORM_FIELDS) };
   }
@@ -156,10 +157,10 @@ export async function deleteInventoryItem(itemId: string): Promise<ActionState> 
   const existing = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
   if (!existing) return { error: "Item not found." };
 
-  await prisma.$transaction(async (tx) => {
+  await withStagedFileMoves(() => prisma.$transaction(async (tx) => {
     await tx.inventoryItem.update({ where: { id: itemId }, data: { deletedAt: new Date() } });
     await syncLegacyInventory(tx, itemId);
-  });
+  }));
 
   revalidatePath("/inventory");
   revalidatePath("/settings/trash");
@@ -172,10 +173,10 @@ export async function restoreInventoryItem(itemId: string): Promise<ActionState>
   const existing = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
   if (!existing) return { error: "Item not found." };
 
-  await prisma.$transaction(async (tx) => {
+  await withStagedFileMoves(() => prisma.$transaction(async (tx) => {
     await tx.inventoryItem.update({ where: { id: itemId }, data: { deletedAt: null } });
     await syncLegacyInventory(tx, itemId);
-  });
+  }));
 
   revalidatePath("/inventory");
   revalidatePath("/settings/trash");

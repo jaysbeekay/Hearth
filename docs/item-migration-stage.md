@@ -9,6 +9,13 @@ On a stopped installation, copy both the SQLite database and uploads tree to
 scratch paths. Run these commands against the copies, substituting absolute
 paths:
 
+Use the inline `DATABASE_URL=...` prefix for `prisma migrate deploy` only;
+don't `export` it. The backfills treat whatever this shell's `DATABASE_URL`
+and `UPLOADS_DIR` point at as live, so an exported copy path is refused. If
+the shell does point at the copy, either unset both variables or set
+`ITEM_STAGE_COPY=yes-this-is-a-scratch-copy`. That token only covers the
+shell's own variables and never unlocks `./data/...` or `/app/data/...`.
+
 ```sh
 DATABASE_URL=file:/absolute/copy.db npx prisma migrate deploy
 node --import tsx scripts/backfill-items.ts /absolute/copy.db
@@ -44,7 +51,11 @@ public route or navigation cutover.
 
 ## Cutover gate: Document mirrors
 
-Staged Document mirrors (`mirrorStagedDocument`) are best-effort. They run
+Staged Document mirrors (`mirrorStagedDocument`) are best-effort, and so are
+the staged file copies made when an InventoryItem moves between Items: those
+are queued during the legacy transaction and copied after it commits
+(`src/lib/items/stagedFileMoves.ts`), so a missing staged file or a full disk
+never rolls back a legacy edit. They run
 after the legacy Document write and only log on failure, and the runtime
 readiness gate does not compare Document metadata, bytes or search-index
 freshness. So a failed mirror can leave the stage stale without anything
@@ -62,3 +73,17 @@ The public cutover PR must not ship unless all of these hold:
    repairs it.
 3. The rollback backup from the maintenance-window run is kept until the
    cutover is confirmed.
+
+The injected-failure tests in (2) must cover these known divergence paths,
+which a row count can't see:
+
+- a staged Document whose predecessor's mirror is missing loses its
+  `supersedesId` link (`syncLegacyDocument.ts`), so the verifier must check
+  version chains, not only counts;
+- `purgeProduct`'s staged cleanup is logged, not retried, after the legacy
+  delete (`commands/products.ts`);
+- a queued file copy that fails after commit (`stagedFileMoves.ts`).
+
+`itemCutoverReadiness` loads every row of the eight tables on each preview
+request. That's acceptable behind `ITEMS_PREVIEW=1`, but the cutover must not
+run it on public reads: replace it with targeted checks or a cached result.

@@ -1,3 +1,4 @@
+import { BackLink } from "@/components/BackLink";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
@@ -25,9 +26,9 @@ export default async function EditItemPage({ params }: { params: Promise<{ id: s
     : { deletedAt: null }, select: { id: true, description: true, deletedAt: true }, orderBy: { description: "asc" } }))
     .map((product) => ({ id: product.id, description: product.deletedAt ? `${product.description} (in Trash)` : product.description }));
   return <div className="max-w-xl space-y-6">
-    <Link href={`/items/${id}`} className="text-sm text-muted">← {item.description}</Link>
-    <header><h1 className="text-2xl font-semibold">Edit Item</h1>{inventory.length > 1 && <p className="text-sm text-muted">This Item combines {inventory.length} inventory records. Edits apply to the oldest linked record; review its merge conflicts after saving.</p>}</header>
-    <InventoryItemForm action={updateCatalogItem.bind(null, source.id)} item={source} products={products} itemRoute />
+    <BackLink href={`/items/${id}`} label={item.description} />
+    <header><h1 className="text-2xl font-medium">Edit Item</h1>{inventory.length > 1 && <p className="text-sm text-muted">This Item combines {inventory.length} inventory records. Edits apply to the oldest linked record; review its merge conflicts after saving.</p>}</header>
+    <InventoryItemForm action={updateCatalogItem.bind(null, source.id)} cancelHref={`/items/${id}`} item={source} products={products} itemRoute />
     {item.legacyProductId && <Link className="text-sm underline" href={`/products/${item.legacyProductId}/edit`}>Edit warranty details</Link>}
   </div>;
 }

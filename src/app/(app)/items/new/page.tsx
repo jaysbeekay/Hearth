@@ -1,3 +1,4 @@
+import { BackLink } from "@/components/BackLink";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
@@ -14,9 +15,9 @@ export default async function NewItemPage() {
   redirectIfReadOnly(await auth(), "/items");
   const products = await prisma.product.findMany({ where: { deletedAt: null }, select: { id: true, description: true }, orderBy: { description: "asc" } });
   return <div className="max-w-xl space-y-6">
-    <Link href="/items" className="text-sm text-muted">← Items</Link>
-    <header><h1 className="text-2xl font-semibold">Add Item</h1><p className="text-sm text-muted">Add what you own to your household catalog.</p></header>
-    <InventoryItemForm action={createCatalogItem} products={products} itemRoute />
+    <BackLink href="/items" label="Items" />
+    <header><h1 className="text-2xl font-medium">Add Item</h1><p className="text-sm text-muted">Add what you own to your household catalog.</p></header>
+    <InventoryItemForm action={createCatalogItem} cancelHref="/items" products={products} itemRoute />
     <p className="text-sm text-muted">Need a warranty record first? <Link href="/products/new" className="underline">Add a warranty</Link>.</p>
   </div>;
 }

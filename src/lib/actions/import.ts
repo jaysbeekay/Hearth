@@ -21,6 +21,7 @@ import { RecordValidationError } from "@/lib/commands/shared";
 import { extractionFieldsFromForm } from "@/lib/documents/extractionConfirmation";
 import { saveExtractionReviewFieldsFromForm } from "@/lib/documents/extractionReview";
 import { parseDocumentCategory } from "@/lib/documents/categories";
+import { withStagedFileMoves } from "@/lib/items/stagedFileMoves";
 import { syncLegacyInventory } from "@/lib/items/syncLegacyItem";
 
 function formToInventoryItemInput(formData: FormData) {
@@ -132,11 +133,11 @@ export async function importInventoryItem(formData: FormData): Promise<ImportRes
     if (rejection) return { error: rejection };
   }
 
-  const item = await prisma.$transaction(async (tx) => {
+  const item = await withStagedFileMoves(() => prisma.$transaction(async (tx) => {
     const created = await tx.inventoryItem.create({ data: { ...parsed.data, createdById: user.id } });
     await syncLegacyInventory(tx, created.id);
     return created;
-  });
+  }));
 
   if (file instanceof File && file.size > 0) {
     await addDocumentCommand("INVENTORY_ITEM", item.id, {
