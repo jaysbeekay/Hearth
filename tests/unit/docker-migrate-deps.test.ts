@@ -11,6 +11,7 @@ const root = path.resolve(__dirname, "../..");
 const readJson = (file: string) => JSON.parse(readFileSync(path.join(root, file), "utf8"));
 
 describe("docker/migrate Prisma CLI", () => {
+  const rootPkg = readJson("package.json");
   const rootLock = readJson("package-lock.json");
   const migratePkg = readJson("docker/migrate/package.json");
   const migrateLock = readJson("docker/migrate/package-lock.json");
@@ -23,5 +24,13 @@ describe("docker/migrate Prisma CLI", () => {
   it("has a lockfile that resolves that same version", () => {
     expect(migrateLock.packages[""].dependencies.prisma).toBe(appPrisma);
     expect(migrateLock.packages["node_modules/prisma"].version).toBe(appPrisma);
+  });
+
+  // The root overrides patch vulnerable transitive deps (Docker Scout gates
+  // the image on them), and the Prisma CLI pulls in some of the same ones,
+  // e.g. mysql2. Without the same overrides the image would ship the
+  // unpatched versions under /opt/migrate.
+  it("carries the root package.json overrides", () => {
+    expect(migratePkg.overrides).toEqual(rootPkg.overrides);
   });
 });
