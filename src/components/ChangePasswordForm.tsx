@@ -38,7 +38,7 @@ export function ChangePasswordForm() {
           className={inputClass}
         />
       </div>
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
       <SubmitButton variant="secondary">Update password</SubmitButton>
     </form>
   );

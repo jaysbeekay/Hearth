@@ -105,7 +105,7 @@ export function ChatSettingsForm({
           </>
         )}
 
-        <FormMessage error={state?.error} success={state?.success} />
+        <FormMessage attempt={state} error={state?.error} success={state?.success} />
         <div className="flex items-center justify-between">
           {selected === "OLLAMA" ? (
             <TestConnectionButton action={testOllamaConnection} label="Test connection" />

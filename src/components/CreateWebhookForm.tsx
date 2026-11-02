@@ -51,7 +51,7 @@ export function CreateWebhookForm() {
         </p>
       </div>
       <div className="md:col-span-2">
-        <FormMessage error={state?.error} success={state?.success} />
+        <FormMessage attempt={state} error={state?.error} success={state?.success} />
       </div>
       <div className="md:col-span-2">
         <SubmitButton>Add webhook</SubmitButton>
