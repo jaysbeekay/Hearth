@@ -117,6 +117,38 @@ describe("proposing over MCP", () => {
     expect(stored).not.toHaveProperty("vehicleId");
   });
 
+  it("limits each token to 100 proposals an hour", async () => {
+    const client = await connect("looping-agent");
+    for (let i = 0; i < 100; i++) {
+      const ok = await client.callTool({ name: "propose_import_product", arguments: { description: `Item ${i}` } });
+      expect(ok.isError).toBeFalsy();
+    }
+    const refused = await client.callTool({ name: "propose_import_product", arguments: { description: "One more" } });
+    expect(refused.isError).toBe(true);
+    expect(JSON.stringify(refused.content)).toMatch(/Too many proposals/);
+    expect(await prisma.mcpImportProposal.count()).toBe(100);
+
+    // The budget is per token: another token can still propose.
+    const other = await connect("other-agent");
+    expect((await other.callTool({ name: "propose_import_product", arguments: { description: "Other" } })).isError).toBeFalsy();
+  });
+
+  it("keeps the queue cap when proposals race", async () => {
+    await prisma.mcpImportProposal.createMany({
+      data: Array.from({ length: MAX_PENDING_IMPORTS - 1 }, () => ({
+        kind: "PRODUCT" as const,
+        data: "{}",
+        summary: "x",
+        tokenLabel: "x",
+      })),
+    });
+    const results = await Promise.all(
+      Array.from({ length: 5 }, (_, i) => proposeImport("PRODUCT", { description: `Racer ${i}` }, `t${i}`)),
+    );
+    expect(results.filter((r) => r.ok).length).toBeLessThanOrEqual(1);
+    expect(await prisma.mcpImportProposal.count({ where: { status: "PENDING" } })).toBeLessThanOrEqual(MAX_PENDING_IMPORTS);
+  });
+
   it("refuses new proposals once the queue is full", async () => {
     await prisma.mcpImportProposal.createMany({
       data: Array.from({ length: MAX_PENDING_IMPORTS }, () => ({
@@ -159,6 +191,20 @@ describe("reviewing", () => {
     expect(await prisma.inventoryItem.count()).toBe(1);
   });
 
+  it("rolls the record back when the proposal was reviewed meanwhile", async () => {
+    const proposed = await proposeImport("CONTRACT", CONTRACT, "x");
+    if (!proposed.ok) throw new Error(proposed.error);
+    // Two reviewers approve at once: exactly one record, linked to the proposal.
+    const outcomes = await Promise.allSettled([
+      approveImportCommand(proposed.proposalId, actorId),
+      approveImportCommand(proposed.proposalId, actorId),
+    ]);
+    expect(outcomes.filter((o) => o.status === "fulfilled")).toHaveLength(1);
+    expect(await prisma.contract.count()).toBe(1);
+    const proposal = await prisma.mcpImportProposal.findUniqueOrThrow({ where: { id: proposed.proposalId } });
+    expect(proposal.recordId).toBe((await prisma.contract.findFirstOrThrow()).id);
+  });
+
   it("keeps an inventory proposal pending when Inventory has been turned off", async () => {
     await setModuleEnabled("INVENTORY", true);
     const item = await proposeImport("INVENTORY_ITEM", { label: "Drill" }, "x");
@@ -194,6 +240,12 @@ describe("reviewing", () => {
     signInAs("READONLY");
     await expect(approveMcpImports([proposed.proposalId])).rejects.toThrow("read-only");
     await expect(rejectMcpImports([proposed.proposalId])).rejects.toThrow("read-only");
+  });
+
+  it("rejects a malformed selection and caps a batch at 100", async () => {
+    await expect(approveMcpImports("not-an-array" as never)).rejects.toThrow("Invalid import selection");
+    const result = await rejectMcpImports(Array.from({ length: 150 }, (_, i) => `missing-${i}`));
+    expect(result.failed).toHaveLength(100);
   });
 
   it("flags likely duplicates of existing records", async () => {

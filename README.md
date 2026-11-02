@@ -563,8 +563,10 @@ Documents → Imports**. Nothing is saved until a household member approves
 it there; approval re-validates it and creates the record exactly as the
 form would, so Due dates and reminders work as usual. Each proposal shows
 every field in full, which token proposed it, and a warning when it looks
-like a record you already have (same contract or serial number, or same
-name and maker). Approving never merges; reject the duplicate instead.
+like a record you already have: a contract with the same contract number,
+or the same title and provider; a product or inventory item with the same
+serial number, or the same name, maker and model. Approving never merges;
+reject the duplicate instead.
 
 Limits: proposals never link to existing properties, vehicles or warranties
 (add the link after approving), documents can't be attached over MCP, each

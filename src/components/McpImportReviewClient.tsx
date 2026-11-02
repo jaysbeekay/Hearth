@@ -9,6 +9,7 @@ import { useDateFormat } from "@/components/DateFormatProvider";
 import { Card } from "@/components/ui/Card";
 import { Pill } from "@/components/ui/Pill";
 import { Banner } from "@/components/ui/Banner";
+import { Timestamp } from "@/components/Timestamp";
 import { buttonClass, emptyStateClass, inlineLinkClass } from "@/lib/ui";
 
 // Documents → Imports (#529): records an MCP agent proposed, waiting for a
@@ -174,7 +175,7 @@ export function McpImportReviewClient({
                   <span className="font-medium">{proposal.summary || "(untitled)"}</span>
                 </div>
                 <p className="text-xs text-muted">
-                  Proposed by MCP token “{proposal.tokenLabel}” on {formatDate(proposal.createdAt, dateFormat)}
+                  Proposed by MCP token “{proposal.tokenLabel}” on <Timestamp value={proposal.createdAt} />
                 </p>
               </div>
               {canWrite && (

@@ -37,7 +37,10 @@ async function reviewEach(
   run: (id: string, actorId: string) => Promise<unknown>,
 ): Promise<ImportReviewResult> {
   const user = await requireUser();
-  const unique = [...new Set(ids.filter((id) => typeof id === "string" && id.length > 0))].slice(0, MAX_BATCH);
+  // A server action's argument is whatever the client sent: check its shape,
+  // and cap it before doing any work on it.
+  if (!Array.isArray(ids)) throw new Error("Invalid import selection.");
+  const unique = [...new Set(ids.slice(0, MAX_BATCH).filter((id) => typeof id === "string" && id.length > 0))];
   const result: ImportReviewResult = { ok: 0, failed: [] };
   // One at a time: each approval is its own record write, and one failure
   // (say, a proposal that no longer validates) mustn't stop the rest.

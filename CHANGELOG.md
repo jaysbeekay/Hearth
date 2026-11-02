@@ -18,7 +18,8 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   field, the proposing token and likely duplicates, with single and bulk
   approve/reject. Proposals never carry record links or documents, are
   capped at 100 per token per hour and 200 pending, and READONLY members
-  can't review them. Server-only; the iOS and Android shell is unchanged.
+  can see the queue but can't approve or reject. Server-only; the iOS and
+  Android shell is unchanged.
 
 ### Security
 

@@ -11,6 +11,7 @@ import {
 } from "@/lib/commands/shared";
 import type { ClearablePatch } from "@/lib/validation/fullFormUpdate";
 import type { InventoryItemInput } from "@/lib/validation/inventory";
+import type { Prisma } from "@/generated/prisma/client";
 
 // Record commands for Inventory items (ADR 0003). Updates go through here,
 // from the edit form's server action and the offline sync handler (#446).
@@ -79,9 +80,15 @@ export async function updateInventoryItemCommand(
 export async function createInventoryItemCommand(
   input: Omit<InventoryItemInput, "warrantyProductId">,
   actorId: string,
+  // Runs in the create's transaction; throwing rolls the new item back.
+  alsoInTransaction?: (tx: Prisma.TransactionClient, created: { id: string }) => Promise<unknown>,
 ) {
   await assertModuleEnabled("INVENTORY");
-  const item = await prisma.inventoryItem.create({ data: { ...input, createdById: actorId } });
+  const item = await prisma.$transaction(async (tx) => {
+    const created = await tx.inventoryItem.create({ data: { ...input, createdById: actorId } });
+    if (alsoInTransaction) await alsoInTransaction(tx, created);
+    return created;
+  });
   revalidatePath("/inventory");
   return item;
 }

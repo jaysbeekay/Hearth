@@ -2,6 +2,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import type { McpImportKind } from "@/generated/prisma/enums";
+import type { Prisma } from "@/generated/prisma/client";
 import {
   BILLING_FREQUENCIES,
   CONTRACT_CATEGORIES,
@@ -134,18 +135,26 @@ export async function proposeImport(
   const parsed = validate(kind, input);
   if (!parsed.success) return { ok: false, error: issueMessage(parsed.error) };
 
-  const pending = await prisma.mcpImportProposal.count({ where: { status: "PENDING" } });
-  if (pending >= MAX_PENDING_IMPORTS) {
-    return {
-      ok: false,
-      error: `The import queue is full (${MAX_PENDING_IMPORTS} pending). Ask a household member to review it in Hearth first.`,
-    };
-  }
+  const full = {
+    ok: false as const,
+    error: `The import queue is full (${MAX_PENDING_IMPORTS} pending). Ask a household member to review it in Hearth first.`,
+  };
+  if ((await prisma.mcpImportProposal.count({ where: { status: "PENDING" } })) >= MAX_PENDING_IMPORTS) return full;
 
   const data = parsed.data as Record<string, unknown>;
   const proposal = await prisma.mcpImportProposal.create({
     data: { kind, data: JSON.stringify(data), summary: summarize(kind, data), tokenLabel },
   });
+  // Count again now the row exists, so proposals racing in from several
+  // tokens can't push the queue past the cap: whichever lands over it is
+  // withdrawn (at worst two racers both back off, never both stay).
+  const ahead = await prisma.mcpImportProposal.count({
+    where: { status: "PENDING", OR: [{ createdAt: { lt: proposal.createdAt } }, { createdAt: proposal.createdAt, id: { lt: proposal.id } }] },
+  });
+  if (ahead >= MAX_PENDING_IMPORTS) {
+    await prisma.mcpImportProposal.deleteMany({ where: { id: proposal.id, status: "PENDING" } });
+    return full;
+  }
   revalidatePath("/documents/imports");
   return { ok: true, proposalId: proposal.id };
 }
@@ -153,10 +162,11 @@ export async function proposeImport(
 export class ImportReviewError extends Error {}
 
 /**
- * Approves one pending proposal: claims it (so two reviewers can't both
- * create the record), re-validates the stored data with the form schema, and
- * writes it through the kind's record command. If the write fails the claim
- * is released and the proposal stays pending.
+ * Approves one pending proposal: re-validates the stored data with the form
+ * schema and writes it through the kind's record command. The proposal is
+ * claimed (PENDING → APPROVED, with the new record's id) inside the record's
+ * own transaction, so the record and the approval commit together or not at
+ * all, and two reviewers can't both create it.
  */
 export async function approveImportCommand(id: string, actorId: string): Promise<{ recordId: string }> {
   const proposal = await prisma.mcpImportProposal.findUnique({ where: { id } });
@@ -172,34 +182,26 @@ export async function approveImportCommand(id: string, actorId: string): Promise
   const parsed = validate(proposal.kind, (stored ?? {}) as Record<string, unknown>);
   if (!parsed.success) throw new ImportReviewError(`No longer valid: ${issueMessage(parsed.error)}`);
 
-  const claimed = await prisma.mcpImportProposal.updateMany({
-    where: { id, status: "PENDING" },
-    data: { status: "APPROVED", reviewedById: actorId, reviewedAt: new Date() },
-  });
-  if (claimed.count !== 1) throw new ImportReviewError("That import has already been reviewed.");
+  const claim = async (tx: Prisma.TransactionClient, created: { id: string }) => {
+    const claimed = await tx.mcpImportProposal.updateMany({
+      where: { id, status: "PENDING" },
+      data: { status: "APPROVED", recordId: created.id, reviewedById: actorId, reviewedAt: new Date() },
+    });
+    if (claimed.count !== 1) throw new ImportReviewError("That import has already been reviewed.");
+  };
 
   let recordId: string;
-  try {
-    switch (proposal.kind) {
-      case "CONTRACT":
-        recordId = (await createContractCommand(parsed.data as z.infer<typeof contractSchema>, actorId)).id;
-        break;
-      case "PRODUCT":
-        recordId = (await createProductCommand(parsed.data as z.infer<typeof productSchema>, actorId)).id;
-        break;
-      case "INVENTORY_ITEM":
-        recordId = (await createInventoryItemCommand(parsed.data as z.infer<typeof inventoryItemSchema>, actorId)).id;
-        break;
-    }
-  } catch (error) {
-    await prisma.mcpImportProposal.update({
-      where: { id },
-      data: { status: "PENDING", reviewedById: null, reviewedAt: null },
-    });
-    throw error;
+  switch (proposal.kind) {
+    case "CONTRACT":
+      recordId = (await createContractCommand(parsed.data as z.infer<typeof contractSchema>, actorId, undefined, claim)).id;
+      break;
+    case "PRODUCT":
+      recordId = (await createProductCommand(parsed.data as z.infer<typeof productSchema>, actorId, undefined, claim)).id;
+      break;
+    case "INVENTORY_ITEM":
+      recordId = (await createInventoryItemCommand(parsed.data as z.infer<typeof inventoryItemSchema>, actorId, claim)).id;
+      break;
   }
-
-  await prisma.mcpImportProposal.update({ where: { id }, data: { recordId } });
   revalidatePath("/documents/imports");
   return { recordId };
 }
