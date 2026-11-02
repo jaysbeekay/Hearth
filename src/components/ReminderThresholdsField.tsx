@@ -25,8 +25,12 @@ export function presetFor(stored: string | null | undefined): Preset {
 
 /**
  * Whether a record has thresholds of its own, not the household default.
- * Saving a blank field stores the default's days, so a stored value equal to
- * the default (in any order or spacing) reads as the default (#361).
+ * A record created with the field blank stores the column default
+ * ("30,14,7,1", the stock household default), while an edit saved blank
+ * stores null. So a stored
+ * value equal to the household default (in any order or spacing) reads as
+ * the default rather than as Custom, and saving it from Default stores null
+ * and keeps following the household setting (#361, #519 review).
  */
 export function hasOwnThresholds(stored: string | null | undefined, householdDefault: string): boolean {
   if (presetFor(stored) === "default") return false;

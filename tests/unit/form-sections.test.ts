@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { hasAnyValue } from "@/components/FormSection";
 import { guessContractCategory } from "@/lib/contractCategoryGuess";
+import { markAutoFilled } from "@/lib/autoFillHighlight";
 import { contractSchema } from "@/lib/validation/contract";
 
 // #361 — shorter forms: optional fields fold away, Category is really required.
@@ -30,6 +31,11 @@ describe("guessContractCategory", () => {
     expect(guessContractCategory("AGL", "Electricity")).toBe("UTILITY");
     expect(guessContractCategory("Netflix", "")).toBe("SUBSCRIPTION");
     expect(guessContractCategory("Big Bank", "Home loan")).toBe("LOAN");
+  });
+
+  it("calls a warranty a warranty, whatever it covers (#519 review)", () => {
+    expect(guessContractCategory("Samsung", "Mobile phone warranty")).toBe("WARRANTY");
+    expect(guessContractCategory("Bosch", "Power drill extended warranty")).toBe("WARRANTY");
   });
 
   it("leaves the choice to the person when nothing matches", () => {
@@ -69,8 +75,24 @@ describe("form sections", () => {
     expect(source).toContain("Choose a category");
   });
 
-  it("extraction opens the section a filled field sits in", () => {
-    const source = readFileSync(path.join(root, "src", "lib", "autoFillHighlight.ts"), "utf8");
-    expect(source).toMatch(/closest\("details"\)/);
+  it("extraction opens the section a filled field sits in (#519 review)", () => {
+    // A minimal stand-in for the DOM: the field sits in a closed <details>.
+    const section = { open: false };
+    const fakeNode = () => ({ insertAdjacentElement: () => null, setAttribute: () => undefined, remove: () => undefined });
+    const field = {
+      ...fakeNode(),
+      closest: (selector: string) => (selector === "details" ? section : null),
+      classList: { add: () => undefined, remove: () => undefined },
+      getAttribute: () => null,
+      removeAttribute: () => undefined,
+      addEventListener: () => undefined,
+    };
+    vi.stubGlobal("document", { createElement: fakeNode });
+    try {
+      markAutoFilled(field as unknown as HTMLElement);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    expect(section.open).toBe(true);
   });
 });

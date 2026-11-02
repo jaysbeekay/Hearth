@@ -139,6 +139,9 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   layout while the Filters sheet is open closes it, instead of leaving the
   page unclickable behind an invisible dialog, and the Filters button
   tells screen readers whether its sheet is open.
+- **Scanned contract category (#519 follow-up).** A scanned title such as
+  "Mobile phone warranty" is now guessed as Warranty rather than Telecom or
+  Utility.
 
 ## [0.20.1] - 2026-10-31
 
