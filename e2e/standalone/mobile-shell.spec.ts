@@ -1239,31 +1239,81 @@ test("standalone a Vehicle whose fixed-term Covering Contract has ended needs at
   await expect(card("Running Ute")).toHaveCount(0);
 });
 
-// #476 + #456 - Upcoming lists a Covered rego/insurance date once, as the
-// Covering Contract's own "Contract ends" event, never as the Vehicle's too.
+// #476 + #456 - one Reminder stream per date across Upcoming, Needs attention
+// and local Reminders: a Covered rego/insurance date is listed once, as the
+// Covering Contract's own event; a Contract that doesn't Cover leaves the
+// Vehicle's own date in place.
 test("standalone Upcoming lists a Covered vehicle date once, as the Contract's (#476, #456)", async ({ page }) => {
   await page.addInitScript(() => {
     const rows = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest.rowsByTable;
     const updated_at = "2099-01-01T00:00:00.000Z";
     // Own dates inside the Due-soon window, so a leaked Vehicle event would also be coloured.
-    rows.vehicles.push({ id: "vehicle-10", label: "Covered Ute", rego_expiry: "2099-09-12", insurance_expiry: "2099-09-14", reminder_days_before: "30,14,7,1", created_at: updated_at, updated_at });
-    rows.contracts.push({ id: "contract-cover", title: "Ute policy", category: "CAR_INSURANCE", provider: "Allianz", status: "ACTIVE", renewal_type: "MANUAL_RENEWAL", vehicle_id: "vehicle-10", end_date: "2099-09-20", currency: "AUD", reminder_days_before: "30,14,7,1", created_at: updated_at, updated_at });
+    const ute = { rego_expiry: "2099-09-12", insurance_expiry: "2099-09-14", reminder_days_before: "30,14,7,1", created_at: updated_at, updated_at };
+    rows.vehicles.push(
+      { ...ute, id: "vehicle-active", label: "Active Ute" },
+      { ...ute, id: "vehicle-cancelled", label: "Cancelled Ute" },
+      { ...ute, id: "vehicle-review", label: "Review Ute" },
+      { ...ute, id: "vehicle-ended", label: "Ended Ute" },
+      { ...ute, id: "vehicle-unlinked", label: "Unlinked Ute" },
+    );
+    const policy = { category: "CAR_INSURANCE", provider: "Allianz", status: "ACTIVE", renewal_type: "MANUAL_RENEWAL", end_date: "2099-09-20", currency: "AUD", reminder_days_before: "30,14,7,1", created_at: updated_at, updated_at };
+    rows.contracts.push(
+      { ...policy, id: "cover-active", title: "Active policy", vehicle_id: "vehicle-active" },
+      { ...policy, id: "cover-cancelled", title: "Cancelled policy", vehicle_id: "vehicle-cancelled", status: "CANCELLED" },
+      { ...policy, id: "cover-review", title: "Review policy", vehicle_id: "vehicle-review", extraction_pending: 1 },
+      // A fixed-term policy that ended 5 days ago: the Vehicle is uncovered and Overdue from that day (#487).
+      { ...policy, id: "cover-ended", title: "Ended policy", vehicle_id: "vehicle-ended", renewal_type: "FIXED_TERM", end_date: "2099-09-01" },
+      // Unlinked from its Vehicle: it Covers nothing, so the manual date resumes.
+      { ...policy, id: "cover-unlinked", title: "Unlinked policy", vehicle_id: null },
+    );
+    rows.trip_segments.push({ id: "trip-segment-cover", trip_id: "trip-1", type: "ACCOMMODATION", title: "Covers Hotel", start_date: "2099-09-05", end_date: "2099-09-08", currency: "AUD", updated_at });
   });
   await page.clock.setFixedTime(new Date("2099-09-06T12:00:00"));
   await reloadStandalone(page);
   await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
   await page.locator('#mobile-view button[data-nav="calendar"]').click();
   const card = (text: string) => page.locator(".record-card").filter({ hasText: text });
+  const vehicleEvent = (label: string, event: string) => card(label).filter({ hasText: event });
 
-  // Insurance is Covered: only the Contract's event, Due soon by its own window.
-  await expect(card("Ute policy")).toHaveCount(1);
-  await expect(card("Ute policy")).toContainText("Contract ends");
-  await expect(card("Ute policy")).toHaveClass(/warning-card/);
-  const ute = card("Covered Ute");
-  await expect(ute.filter({ hasText: "Insurance expiry" })).toHaveCount(0);
+  // Active cover: only the Contract's event, Due soon by its own window.
+  await expect(card("Active policy")).toHaveCount(1);
+  await expect(card("Active policy")).toContainText("Contract ends");
+  await expect(card("Active policy")).toHaveClass(/warning-card/);
+  await expect(vehicleEvent("Active Ute", "Insurance expiry")).toHaveCount(0);
   // Rego has no Covering Contract, so the Vehicle's own date stays.
-  await expect(ute.filter({ hasText: "Rego expiry" })).toHaveCount(1);
-  await expect(ute.filter({ hasText: "Rego expiry" })).toContainText("In 6d");
+  await expect(vehicleEvent("Active Ute", "Rego expiry")).toHaveCount(1);
+  await expect(vehicleEvent("Active Ute", "Rego expiry")).toContainText("In 6d");
+
+  // Cancelled, under review or unlinked: no Cover, so the Vehicle's own date is listed.
+  for (const label of ["Cancelled Ute", "Review Ute", "Unlinked Ute"]) {
+    await expect(vehicleEvent(label, "Insurance expiry")).toHaveCount(1);
+    await expect(vehicleEvent(label, "Insurance expiry")).toHaveClass(/warning-card/);
+  }
+  await expect(card("Cancelled policy")).toHaveCount(0);
+  await expect(card("Review policy")).not.toHaveClass(/warning-card|danger-card/);
+
+  // Ended fixed-term cover: the lapse is Overdue, so it is in Needs attention, not Upcoming.
+  await expect(vehicleEvent("Ended Ute", "Insurance expiry")).toHaveCount(0);
+  await expect(card("Ended policy")).toHaveCount(0);
+
+  // An in-progress Trip segment sits alongside, neutral.
+  await expect(card("Covers Hotel")).toContainText("In progress");
+  await expect(card("Covers Hotel")).not.toHaveClass(/warning-card|danger-card/);
+
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-record-type="vehicles"]').click();
+  await page.getByRole("button", { name: "Needs attention" }).click();
+  await expect(card("Ended Ute")).toHaveCount(1);
+  await expect(card("Ended Ute")).toContainText("Vehicle overdue");
+
+  // Local Reminders: the Covered Vehicle has none of its own for insurance; the others do.
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="reminders"]').click();
+  await expect(card("Active Ute").filter({ hasText: "Insurance" })).toHaveCount(0);
+  await expect(card("Active Ute").filter({ hasText: "Rego" })).toHaveCount(1);
+  for (const label of ["Cancelled Ute", "Review Ute", "Unlinked Ute"]) {
+    await expect(card(label).filter({ hasText: "Insurance" })).toHaveCount(1);
+  }
 });
 
 test("standalone schedules a local Reminder for a tenancy's lease end (#388)", async ({ page }) => {

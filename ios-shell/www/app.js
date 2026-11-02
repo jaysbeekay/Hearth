@@ -1022,15 +1022,23 @@ const COVERED_VEHICLE_FIELDS = new Map([
   ["REGISTRATION", "rego_expiry"],
 ]);
 
+// A stored date or timestamp as milliseconds; missing or unreadable sorts first.
+function timeOf(value) {
+  const time = value ? Date.parse(String(value)) : NaN;
+  return Number.isNaN(time) ? 0 : time;
+}
+
 function vehicleCovers(vehicleId) {
   const winners = new Map();
   for (const contract of cache.contracts) {
     const field = COVERED_VEHICLE_FIELDS.get(contract.category);
     if (contract.vehicle_id !== vehicleId || !field || contract.deleted_at || contract.status === "CANCELLED" || Number(contract.extraction_pending ?? 0) === 1 || !contract.end_date) continue;
     const current = winners.get(field);
+    // Same order as the web's compareCovers: later end (full timestamp), then
+    // entered later, then id.
     const order = current
-      ? String(contract.end_date).slice(0, 10).localeCompare(String(current.end_date).slice(0, 10)) ||
-        String(contract.created_at ?? "").localeCompare(String(current.created_at ?? "")) ||
+      ? timeOf(contract.end_date) - timeOf(current.end_date) ||
+        timeOf(contract.created_at) - timeOf(current.created_at) ||
         String(contract.id).localeCompare(String(current.id))
       : 1;
     if (order > 0) winners.set(field, contract);
