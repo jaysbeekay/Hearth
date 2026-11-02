@@ -44,8 +44,9 @@ async function logToolCalls(request: NextRequest, label: string, address: string
         console.info(`[mcp] ${label} called ${typeof name === "string" ? name : "?"} from ${address}`);
       }
     }
-  } catch {
-    // Nothing to log.
+  } catch (error) {
+    // No JSON body (e.g. a GET) — nothing to log.
+    console.debug("[mcp] tool-call log skipped:", error instanceof Error ? error.message : error);
   }
 }
 
