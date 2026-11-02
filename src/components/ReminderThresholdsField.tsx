@@ -86,7 +86,7 @@ export function ReminderThresholdsField({
                 name={`${id}-preset`}
                 value={option.preset}
                 checked={checked}
-                onChange={() => setPreset(option.preset)}
+                onChange={() => { setPreset(option.preset); }}
                 className="sr-only"
               />
               {option.label}
@@ -103,7 +103,7 @@ export function ReminderThresholdsField({
             id="reminderDaysBefore"
             name="reminderDaysBefore"
             value={custom}
-            onChange={(e) => setCustom(e.target.value)}
+            onChange={(e) => { setCustom(e.target.value); }}
             placeholder="e.g. 60,30,7"
             inputMode="numeric"
             aria-describedby={`${id}-hint`}
