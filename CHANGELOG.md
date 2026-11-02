@@ -90,7 +90,7 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   `./data` volumes upgrade in place. glibc-only native binaries that could
   never load on Alpine are dropped, and the APK index cache no longer lands
   in the image. A new `Docker image` workflow builds the image on relevant
-  PRs, fails it over a 200 MiB budget, and runs a container smoke test
+  PRs, fails if the image exceeds a 200 MiB budget, and runs a container smoke test
   (`scripts/docker-smoke.sh`) covering a fresh install and an upgrade from
   the latest release. `docker-publish.yml` runs the same checks before it
   pushes.

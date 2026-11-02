@@ -16,6 +16,10 @@ on:
       - package-lock.json
       - prisma/**
       - scripts/docker-*.sh
+      # App code too: a new dynamic require or data file can fall outside the
+      # standalone trace, which only the smoke test would catch.
+      - src/**
+      - public/**
       - .github/workflows/docker-image.yml
   workflow_dispatch:
 

@@ -71,7 +71,9 @@ check_running_image() { # check_running_image <container>
   echo "-- health: $(curl -s "http://localhost:$PORT/api/health")"
 
   local user
-  user="$(docker exec "$c" sh -c 'ps -o user= -o args= | grep -m1 "next-server" | cut -d" " -f1')"
+  # The entrypoint execs its way to the server (su-exec, then node), so PID 1
+  # is the server process; /proc/1 is owned by its effective user.
+  user="$(docker exec "$c" stat -c %U /proc/1)"
   [ "$user" = "node" ] || fail "server runs as '$user', expected node"
   echo "-- server runs as node"
 

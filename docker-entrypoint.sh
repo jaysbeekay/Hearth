@@ -28,10 +28,11 @@ DATA_DIR="${DATA_DIR:-/app/data}"
 # db file specifically can end up wrong-owned independently of its parent
 # directory (a `docker cp` done as root, a restored backup, a leftover from
 # an older image), so it's checked and repaired on its own too.
-# Unset falls back to the same default the app uses, so the migration below
-# and the server always agree on which file they open.
-DB_FILE="${DATABASE_URL:-file:./data/app.db}"
-DB_FILE="${DB_FILE#file:}"
+# Unset or empty falls back to the app's own default (src/lib/prisma.ts), and
+# is exported so the migration below and the server open the same file.
+DATABASE_URL="${DATABASE_URL:-file:./data/app.db}"
+export DATABASE_URL
+DB_FILE="${DATABASE_URL#file:}"
 case "$DB_FILE" in
   /*) : ;;
   *) DB_FILE="/app/$DB_FILE" ;;

@@ -84,7 +84,8 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Image size
-        run: scripts/docker-image-size.sh hearth:release-check
+        # Same budget as docker-image.yml: an oversized image is not pushed.
+        run: scripts/docker-image-size.sh hearth:release-check 200
 
       - name: Container smoke test
         run: scripts/docker-smoke.sh hearth:release-check jaysbeekay/hearth:latest
