@@ -734,14 +734,22 @@ async function withExclusiveDb(work) {
 
 // Every write takes its own turn at the gate (waiting on it is not enough:
 // two waiters released together could interleave with the next exclusive
-// step). Never call these from inside withExclusiveDb, which would wait on
-// itself.
+// step). Never call run()/runSet() from inside withExclusiveDb, which would
+// wait on itself: code already holding the gate uses the *Locked forms.
+async function runSetLocked(set) {
+  await SQLite.executeSet({ database: DB, set, transaction: true });
+}
+
+async function runLocked(statement, values = []) {
+  await SQLite.run({ database: DB, statement, values, transaction: true });
+}
+
 async function runSet(set) {
-  await withExclusiveDb(() => SQLite.executeSet({ database: DB, set, transaction: true }));
+  await withExclusiveDb(() => runSetLocked(set));
 }
 
 async function run(statement, values = []) {
-  await withExclusiveDb(() => SQLite.run({ database: DB, statement, values, transaction: true }));
+  await withExclusiveDb(() => runLocked(statement, values));
 }
 
 async function query(statement, values = []) {
@@ -1138,21 +1146,25 @@ async function storeFile(ownerType, ownerId, file) {
   const extension = (file.name.toLowerCase().match(/\.[a-z0-9]{1,10}$/) ?? [""])[0];
   const storageKey = `${ownerType}/${ownerId}/${crypto.randomUUID()}${extension}`;
   const data = bytesToBase64(bytes);
-  await Filesystem.writeFile({
-    directory: FILE_DIRECTORY,
-    path: `${FILE_ROOT}/${storageKey}`,
-    data,
-    recursive: true,
+  // The file and its row are written as one step at the gate, like every
+  // document change, so a restore never runs in between (#226 review).
+  await withExclusiveDb(async () => {
+    await Filesystem.writeFile({
+      directory: FILE_DIRECTORY,
+      path: `${FILE_ROOT}/${storageKey}`,
+      data,
+      recursive: true,
+    });
+    try {
+      await runLocked(
+        "INSERT INTO documents (id, owner_type, owner_id, filename, storage_key, mime_type, size, sha256, uploaded_at, version, important, is_head) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, 1)",
+        [localId("document"), ownerType, ownerId, file.name.slice(0, 255), storageKey, mimeType, file.size, sha256, nowIso()],
+      );
+    } catch (error) {
+      await Filesystem.deleteFile({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${storageKey}` }).catch(() => undefined);
+      throw error;
+    }
   });
-  try {
-    await run(
-      "INSERT INTO documents (id, owner_type, owner_id, filename, storage_key, mime_type, size, sha256, uploaded_at, version, important, is_head) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, 1)",
-      [localId("document"), ownerType, ownerId, file.name.slice(0, 255), storageKey, mimeType, file.size, sha256, nowIso()],
-    );
-  } catch (error) {
-    await Filesystem.deleteFile({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${storageKey}` }).catch(() => undefined);
-    throw error;
-  }
   return storageKey;
 }
 
@@ -1163,21 +1175,23 @@ async function storeInboxFile(file) {
   const sha256 = await sha256Hex(bytes);
   const extension = (file.name.toLowerCase().match(/\.[a-z0-9]{1,10}$/) ?? [""])[0];
   const storageKey = `inbox/${crypto.randomUUID()}${extension}`;
-  await Filesystem.writeFile({
-    directory: FILE_DIRECTORY,
-    path: `${FILE_ROOT}/${storageKey}`,
-    data: bytesToBase64(bytes),
-    recursive: true,
+  await withExclusiveDb(async () => {
+    await Filesystem.writeFile({
+      directory: FILE_DIRECTORY,
+      path: `${FILE_ROOT}/${storageKey}`,
+      data: bytesToBase64(bytes),
+      recursive: true,
+    });
+    try {
+      await runLocked(
+        "INSERT INTO inbox_documents (id, filename, storage_key, mime_type, size, status, sha256, uploaded_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)",
+        [localId("inbox"), file.name.slice(0, 255), storageKey, mimeType, file.size, inboxStatusForHash(sha256), sha256, nowIso()],
+      );
+    } catch (error) {
+      await Filesystem.deleteFile({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${storageKey}` }).catch(() => undefined);
+      throw error;
+    }
   });
-  try {
-    await run(
-      "INSERT INTO inbox_documents (id, filename, storage_key, mime_type, size, status, sha256, uploaded_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)",
-      [localId("inbox"), file.name.slice(0, 255), storageKey, mimeType, file.size, inboxStatusForHash(sha256), sha256, nowIso()],
-    );
-  } catch (error) {
-    await Filesystem.deleteFile({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${storageKey}` }).catch(() => undefined);
-    throw error;
-  }
   return storageKey;
 }
 
@@ -2215,7 +2229,7 @@ async function writeEncryptedBackup(password, directory, path) {
   if (!Filesystem) throw new Error("Native file storage bridge unavailable.");
   if (!BackupFormat) throw new Error("Backup support is missing from this build.");
   const writer = await BackupFormat.createWriter({ password, schemaVersion: STANDALONE_SCHEMA_VERSION, exportedAt: nowIso() });
-  const tables = await readBackupTables();
+  const { tables, restoreMarker } = await readBackupTables();
   await Filesystem.writeFile({ directory, path, data: `${writer.headerLine}\n`, encoding: "utf8", recursive: true });
   const append = async (record) => {
     const line = await writer.encrypt(record);
@@ -2230,6 +2244,12 @@ async function writeEncryptedBackup(password, directory, path) {
       continue;
     }
     for (const record of BackupFormat.fileRecords(key, data)) await append(record);
+  }
+  // Files are read after the gate is released, so a long backup doesn't hold
+  // up edits. A restore that committed meanwhile may have swapped files under
+  // these rows: such a backup is thrown away rather than saved mixed.
+  if ((await currentRestoreMarker()) !== restoreMarker) {
+    throw new Error("A restore finished while this backup was being made, so it was not saved. Make the backup again.");
   }
   const endLine = await writer.end();
   await Filesystem.appendFile({ directory, path, data: `${endLine}\n`, encoding: "utf8" });
@@ -2248,11 +2268,16 @@ async function readBackupTables() {
     try {
       const tables = {};
       for (const table of BACKUP_TABLES) tables[table.key] = await query(`SELECT * FROM ${table.table}`);
-      return tables;
+      return { tables, restoreMarker: await currentRestoreMarker() };
     } finally {
       if (began) await SQLite.commitTransaction({ database: DB }).catch(() => undefined);
     }
   });
+}
+
+async function currentRestoreMarker() {
+  const rows = await query("SELECT value FROM schema_metadata WHERE key = 'last_restore_id'");
+  return rows[0]?.value ?? null;
 }
 
 function checkNewBackupPassword(password, confirm) {
@@ -4929,18 +4954,24 @@ async function deleteStoredFile(storageKey) {
 
 // Deletes a Trash entry's file and row together. It re-reads the row, so the
 // chain is relinked from what is saved now, not from a list read earlier.
+// The check, the file delete and the row delete are one step at the gate: a
+// restore can't run in between and bring the entry back (or put a live
+// document's file at its key) only for this to delete it (#226 review).
 async function purgeDocument(id) {
-  const [doc] = await query("SELECT * FROM documents WHERE id = ? AND deleted_at IS NOT NULL", [id]);
-  if (!doc) return null;
-  // A file an Inbox entry still points at stays.
-  const inbox = await query("SELECT id FROM inbox_documents WHERE storage_key = ? AND deleted_at IS NULL LIMIT 1", [doc.storage_key]);
-  if (inbox.length === 0) await deleteStoredFile(doc.storage_key);
-  // The next version now follows this one's older version, so the chain stays whole.
-  await runSet([
-    { statement: "UPDATE documents SET supersedes_id = ?, version = version + 1 WHERE supersedes_id = ?", values: [doc.supersedes_id ?? null, doc.id] },
-    { statement: "DELETE FROM documents WHERE id = ?", values: [doc.id] },
-  ]);
-  return doc;
+  return withExclusiveDb(async () => {
+    const [doc] = await query("SELECT * FROM documents WHERE id = ? AND deleted_at IS NOT NULL", [id]);
+    if (!doc) return null;
+    // A file an Inbox entry or another document still points at stays.
+    const inbox = await query("SELECT id FROM inbox_documents WHERE storage_key = ? AND deleted_at IS NULL LIMIT 1", [doc.storage_key]);
+    const shared = await query("SELECT id FROM documents WHERE storage_key = ? AND id <> ? LIMIT 1", [doc.storage_key, doc.id]);
+    if (inbox.length === 0 && shared.length === 0) await deleteStoredFile(doc.storage_key);
+    // The next version now follows this one's older version, so the chain stays whole.
+    await runSetLocked([
+      { statement: "UPDATE documents SET supersedes_id = ?, version = version + 1 WHERE supersedes_id = ?", values: [doc.supersedes_id ?? null, doc.id] },
+      { statement: "DELETE FROM documents WHERE id = ?", values: [doc.id] },
+    ]);
+    return doc;
+  });
 }
 
 // Purges Trash entries past TRASH_RETENTION_DAYS, at most
@@ -4980,8 +5011,16 @@ async function deleteInboxDocument(id, rerender = true) {
   if (!doc) return;
   const confirmed = !rerender || window.confirm(`Delete "${doc.filename}" from inbox?`);
   if (!confirmed) return;
-  await Filesystem?.deleteFile({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${doc.storage_key}` }).catch(() => undefined);
-  await run("UPDATE inbox_documents SET deleted_at = ?, version = version + 1 WHERE id = ?", [nowIso(), id]);
+  // Re-checked at the gate, with the file delete and the row update as one
+  // step: the entry must still be live, and a file a document now points at
+  // (after a restore, say) stays.
+  await withExclusiveDb(async () => {
+    const [live] = await query("SELECT storage_key FROM inbox_documents WHERE id = ? AND deleted_at IS NULL", [id]);
+    if (!live) return;
+    const filed = await query("SELECT id FROM documents WHERE storage_key = ? LIMIT 1", [live.storage_key]);
+    if (filed.length === 0) await Filesystem?.deleteFile({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${live.storage_key}` }).catch(() => undefined);
+    await runLocked("UPDATE inbox_documents SET deleted_at = ?, version = version + 1 WHERE id = ?", [nowIso(), id]);
+  });
   if (rerender) {
     showStandaloneStatus("Inbox document deleted.", true);
     await render();

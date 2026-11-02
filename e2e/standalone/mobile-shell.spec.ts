@@ -425,6 +425,9 @@ test.beforeEach(async ({ page }) => {
         if (/LIMIT \?/i.test(statement)) documents = documents.slice(0, Number(values[next++]));
         return documents;
       }
+      if (table === "inbox_documents" && /WHERE id = \?/i.test(statement)) {
+        return (rows as { id?: string; deleted_at?: string | null }[]).filter((row) => row.id === values[0] && (!/deleted_at IS NULL/i.test(statement) || !row.deleted_at));
+      }
       if (table === "inbox_documents" && /storage_key = \?/i.test(statement)) {
         return (rows as { storage_key?: string; deleted_at?: string | null }[]).filter((row) => row.storage_key === values[0] && (!/deleted_at IS NULL/i.test(statement) || !row.deleted_at));
       }
@@ -1316,6 +1319,63 @@ test("standalone edit made during a restore waits and lands after it", async ({ 
     };
   });
   expect(after).toEqual({ label: "Edited during restore", editAfterCommit: true });
+});
+
+test("standalone document purge and inbox delete made during a restore wait for it", async ({ page }) => {
+  await openBackupSettings(page);
+  await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    for (const key of ["insurance.pdf", "receipt.pdf"]) harness.files.set(`DATA:standalone-documents/${key}`, `BACKUP-${key}`);
+  });
+  const { text } = await exportBackup(page);
+  await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness & { renames: number } }).__hearthStandaloneTest;
+    // document-1 was moved to Trash after the backup; the backup has it live.
+    const document = (harness.rowsByTable.documents as unknown as Record<string, unknown>[]).find((row) => row.id === "document-1");
+    if (document) document.deleted_at = "2099-02-01T00:00:00.000Z";
+    // Pause after the last file move (two documents, aside + place each), before the commit.
+    localStorage.setItem("hearth-test-pause-at-rename", String(harness.renames + 4));
+  });
+  await restoreFile(page, text, { password: "correct horse battery" });
+  await expect.poll(() => page.evaluate(() => typeof (window as unknown as { __hearthResumeRename?: unknown }).__hearthResumeRename)).toBe("function");
+  await page.evaluate(() => {
+    // A Trash purge and an Inbox delete, through the app's own functions.
+    const app = window as unknown as { purgeDocument(id: string): Promise<unknown>; deleteInboxDocument(id: string, rerender: boolean): Promise<void>; __purgeDone?: boolean; __inboxDone?: boolean };
+    void app.purgeDocument("document-1").then(() => {
+      app.__purgeDone = true;
+    });
+    void app.deleteInboxDocument("inbox-1", false).then(() => {
+      app.__inboxDone = true;
+    });
+  });
+  await page.waitForTimeout(200);
+  const during = await page.evaluate(() => {
+    const app = window as unknown as { __purgeDone?: boolean; __inboxDone?: boolean };
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    return {
+      purgeDone: app.__purgeDone ?? false,
+      inboxDone: app.__inboxDone ?? false,
+      insurance: harness.files.get("DATA:standalone-documents/insurance.pdf"),
+      receipt: harness.files.get("DATA:standalone-documents/receipt.pdf"),
+    };
+  });
+  expect(during).toEqual({ purgeDone: false, inboxDone: false, insurance: "BACKUP-insurance.pdf", receipt: "BACKUP-receipt.pdf" });
+  await page.evaluate(() => {
+    localStorage.removeItem("hearth-test-pause-at-rename");
+    (window as unknown as { __hearthResumeRename: () => void }).__hearthResumeRename();
+  });
+  await expect(page.locator("#standalone-status")).toContainText("Restored");
+  await expect.poll(() => page.evaluate(() => {
+    const app = window as unknown as { __purgeDone?: boolean; __inboxDone?: boolean };
+    return Boolean(app.__purgeDone && app.__inboxDone);
+  })).toBe(true);
+  const after = await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    const document = (harness.rowsByTable.documents as unknown as Record<string, unknown>[]).find((row) => row.id === "document-1");
+    return { document: document ? { deleted_at: document.deleted_at ?? null } : null, insurance: harness.files.get("DATA:standalone-documents/insurance.pdf") };
+  });
+  // The restore brought document-1 back live; the purge then found nothing in Trash.
+  expect(after).toEqual({ document: { deleted_at: null }, insurance: "BACKUP-insurance.pdf" });
 });
 
 test("standalone keeps retrying an old document file a restore could not delete", async ({ page }) => {
