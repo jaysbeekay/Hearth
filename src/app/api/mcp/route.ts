@@ -48,10 +48,10 @@ async function logToolCalls(request: NextRequest, label: string, address: string
         );
       }
     }
-  } catch {
-    // No JSON body (e.g. a GET) — nothing to log. The parse error's message
-    // can quote the body, so it stays out of the log.
-    console.debug("[mcp] tool-call log skipped: body is not JSON");
+  } catch (error) {
+    // No JSON body (e.g. a GET) — nothing to log. Only the error's name is
+    // logged: a parse error's message can quote the body.
+    console.debug(`[mcp] tool-call log skipped (${error instanceof Error ? error.name : "unknown error"})`);
   }
 }
 
