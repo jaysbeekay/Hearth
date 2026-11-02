@@ -87,7 +87,10 @@ export default async function VehicleDetailPage({
   // The hint for a typed-in date no Contract Covers: said once, naming the
   // right thing for each date, and a link to the pre-linked form for writers.
   const hintFor = (field: "regoExpiry" | "insuranceExpiry") =>
-    withCovers.coveredFields.includes(field) || !vehicle[field] ? null : field;
+    withCovers.coveredFields.includes(field) ||
+    !(field === "regoExpiry" ? vehicle.regoExpiry : vehicle.insuranceExpiry)
+      ? null
+      : field;
   const hintInsurance = hintFor("insuranceExpiry");
   const hintRego = hintFor("regoExpiry");
   const newContract = (category: string) => `/contracts/new?vehicleId=${vehicle.id}&category=${category}`;
