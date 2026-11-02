@@ -46,6 +46,31 @@ describe("/api/mcp", () => {
     expect(await prisma.securityEventLog.count()).toBe(0);
   });
 
+  it("quotes request-supplied values in the access log, so they can't forge lines", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const body = JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: { name: "whats_due\n[mcp] admin called everything", arguments: {} },
+    });
+    await POST(
+      new NextRequest("http://localhost/api/mcp", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          accept: "application/json, text/event-stream",
+          "x-forwarded-for": "203.0.113.7",
+          authorization: "Bearer token-a",
+        },
+        body,
+      }),
+    );
+    const line = info.mock.calls.map((call) => String(call[0])).find((l) => l.startsWith("[mcp] claude-code called"));
+    expect(line).toBe('[mcp] claude-code called "whats_due\\n[mcp] admin called everything" from "203.0.113.7"');
+    expect(line).not.toContain("\n");
+  });
+
   it("answers a valid token", async () => {
     const response = await POST(request("token-a"));
     expect(response.status).toBe(200);

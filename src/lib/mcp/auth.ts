@@ -1,8 +1,9 @@
 import { createHash, timingSafeEqual } from "crypto";
 
 // Bearer-token gate for /api/mcp. Two sources, both optional:
-//   MCP_TOKEN  — one token, used verbatim (label "default"). Unchanged from
-//                before, so existing deployments keep working.
+//   MCP_TOKEN  — one token (label "default"), with surrounding whitespace
+//                trimmed so a stray newline in .env doesn't lock clients out.
+//                Unchanged from before, so existing deployments keep working.
 //   MCP_TOKENS — several named tokens, "label:token,label:token", so each
 //                client (Claude Code, an Ollama agent, …) gets its own token
 //                that can be revoked or rotated without cutting off the rest,
@@ -37,9 +38,14 @@ export function parseMcpTokens(env: { MCP_TOKEN?: string; MCP_TOKENS?: string })
       continue;
     }
     // A label is the client's identity in the access log and its request
-    // budget, so two tokens can't share one ("default" is MCP_TOKEN's).
+    // budget, so two tokens can't share one ("default" is MCP_TOKEN's). Nor
+    // can two labels share a token: removing one entry wouldn't revoke it.
     if (tokens.some((existing) => existing.label === label)) {
       console.warn(`[mcp] ignoring a second MCP_TOKENS entry labelled "${label}"; labels must be unique`);
+      continue;
+    }
+    if (tokens.some((existing) => existing.token === token)) {
+      console.warn(`[mcp] ignoring MCP_TOKENS entry "${label}": its token is already in use; tokens must be unique`);
       continue;
     }
     tokens.push({ label, token });
@@ -66,4 +72,18 @@ export function checkMcpAuth(tokens: McpToken[], authorization: string | null): 
   }
   if (matched === null) return { ok: false, status: 401, error: "Unauthorized" };
   return { ok: true, label: matched };
+}
+
+let cached: { key: string; tokens: McpToken[] } | null = null;
+
+/**
+ * parseMcpTokens over the live environment, re-parsed only when the values
+ * change, so a malformed entry warns once rather than on every request.
+ */
+export function configuredMcpTokens(
+  env: { MCP_TOKEN?: string; MCP_TOKENS?: string } = { MCP_TOKEN: process.env.MCP_TOKEN, MCP_TOKENS: process.env.MCP_TOKENS },
+): McpToken[] {
+  const key = JSON.stringify([env.MCP_TOKEN ?? null, env.MCP_TOKENS ?? null]);
+  if (cached?.key !== key) cached = { key, tokens: parseMcpTokens(env) };
+  return cached.tokens;
 }

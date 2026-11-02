@@ -471,14 +471,14 @@ spending on insurance?", "what's my net worth?").
 
 It's disabled by default. Set `MCP_TOKEN` in `.env` (any long random string,
 e.g. from `openssl rand -base64 32`) to enable it — requests must send it as
-`Authorization: Bearer <token>`. Leaving it unset makes the endpoint 404,
-same as `CRON_SECRET`/`/api/cron`.
+`Authorization: Bearer <token>`. With neither `MCP_TOKEN` nor `MCP_TOKENS`
+(below) set, the endpoint 404s, same as `CRON_SECRET`/`/api/cron`.
 
 To give each client its own token, set `MCP_TOKENS` instead of (or as well
 as) `MCP_TOKEN`: a comma-separated list of `label:token` pairs, e.g.
 `MCP_TOKENS="claude-code:<token>,ollama:<token>"`. Labels are letters,
-digits, `-` and `_`, and must be unique (`default` is taken by
-`MCP_TOKEN`); a repeated label is ignored. Removing one entry revokes that client without touching
+digits, `-` and `_`. Labels and tokens must both be unique (`default` is
+reserved for `MCP_TOKEN` when it's set); a repeated label or token is ignored. Removing one entry revokes that client without touching
 the others; restart the container after any change. The server log records
 one line per tool call naming the label (`[mcp] claude-code called
 whats_due from <address>`), without the call's arguments.
@@ -521,7 +521,11 @@ its tool disappears on the next connection.
   token check, so a locked-out address is refused even with a valid token
   until the window passes — put clients that share an address (behind the
   same NAT) on a trusted network, and make sure your reverse proxy
-  overwrites `X-Forwarded-For`, which the throttle keys on.
+  overwrites `X-Forwarded-For`, which the throttle keys on. Without a
+  proxy setting `X-Forwarded-For` or `X-Real-IP`, every client counts as
+  the same address, so ten wrong tokens from anywhere lock out every MCP
+  client for 15 minutes. Put the endpoint behind a reverse proxy before
+  exposing it beyond your LAN.
 - **Notes are passed to the agent as-is.** The server tells clients to treat
   free-text fields as data, not instructions, but if the same agent also has
   write-capable tools from other servers, keep its confirmations on.

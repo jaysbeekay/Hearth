@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { checkMcpAuth, parseMcpTokens } from "@/lib/mcp/auth";
+import { checkMcpAuth, configuredMcpTokens, parseMcpTokens } from "@/lib/mcp/auth";
 
 describe("MCP token parsing", () => {
   afterEach(() => vi.restoreAllMocks());
@@ -63,5 +63,21 @@ describe("MCP token labels", () => {
       { label: "default", token: "one" },
       { label: "a", token: "three" },
     ]);
+  });
+
+  it("keeps only the first label for a repeated token, so removing an entry revokes it", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(parseMcpTokens({ MCP_TOKEN: "one", MCP_TOKENS: "a:one,b:two,c:two" })).toEqual([
+      { label: "default", token: "one" },
+      { label: "b", token: "two" },
+    ]);
+  });
+
+  it("parses the environment once per change, so a bad entry warns once", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const env = { MCP_TOKENS: "broken,ok:tok" };
+    for (let i = 0; i < 5; i += 1) expect(configuredMcpTokens(env)).toEqual([{ label: "ok", token: "tok" }]);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(configuredMcpTokens({ MCP_TOKENS: "ok:new" })).toEqual([{ label: "ok", token: "new" }]);
   });
 });

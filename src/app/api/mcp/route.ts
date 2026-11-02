@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { createMcpServer } from "@/lib/mcp/server";
-import { checkMcpAuth, parseMcpTokens } from "@/lib/mcp/auth";
+import { checkMcpAuth, configuredMcpTokens } from "@/lib/mcp/auth";
 import {
   checkRateLimit,
   clientAddress,
@@ -41,17 +41,22 @@ async function logToolCalls(request: NextRequest, label: string, address: string
     for (const message of Array.isArray(body) ? body : [body]) {
       if (message && typeof message === "object" && (message as { method?: unknown }).method === "tools/call") {
         const name = (message as { params?: { name?: unknown } }).params?.name;
-        console.info(`[mcp] ${label} called ${typeof name === "string" ? name : "?"} from ${address}`);
+        // JSON-quoted: both come from the request, and a raw newline in
+        // either could forge extra log lines.
+        console.info(
+          `[mcp] ${label} called ${JSON.stringify(typeof name === "string" ? name : "?")} from ${JSON.stringify(address)}`,
+        );
       }
     }
-  } catch (error) {
-    // No JSON body (e.g. a GET) — nothing to log.
-    console.debug("[mcp] tool-call log skipped:", error instanceof Error ? error.message : error);
+  } catch {
+    // No JSON body (e.g. a GET) — nothing to log. The parse error's message
+    // can quote the body, so it stays out of the log.
+    console.debug("[mcp] tool-call log skipped: body is not JSON");
   }
 }
 
 async function handle(request: NextRequest) {
-  const tokens = parseMcpTokens({ MCP_TOKEN: process.env.MCP_TOKEN, MCP_TOKENS: process.env.MCP_TOKENS });
+  const tokens = configuredMcpTokens();
   const address = clientAddress(request.headers);
 
   if (tokens.length > 0) {
