@@ -32,7 +32,7 @@ import { CATEGORY_LABELS, RENEWAL_LABELS, formatCurrency, formatDate } from "@/l
 import { getUserPreferences } from "@/lib/userPreferences";
 import { getDueContext } from "@/lib/appSettings";
 import { addDays, calendarDayOf, noticeApplies } from "@/lib/duePolicy";
-import { contractDue, headlineEntry } from "@/lib/dueRecords";
+import { bannerRepeatsBadge, contractDue, headlineEntry } from "@/lib/dueRecords";
 import { getHouseholdMemberCount } from "@/lib/household";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
@@ -122,7 +122,8 @@ export default async function ContractDetailPage({
           <p className="text-muted">{contract.provider}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <ExpiryBadge entry={entry} cancelled={cancelled} />
+          {/* #405 — no badge while the banner below says the same thing. */}
+          {(cancelled || !bannerRepeatsBadge(entry, dueEntries)) && <ExpiryBadge entry={entry} cancelled={cancelled} />}
           {canWrite && (
             <>
               <Link

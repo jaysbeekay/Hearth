@@ -69,7 +69,7 @@ test.describe("household-wide sharing", () => {
 
     // Deleting is not admin-gated: a member who can edit a shared record can
     // also remove it, subject only to the READONLY role.
-    await page.getByRole("button", { name: "More actions" }).click();
+    await page.getByRole("button", { name: "More actions", exact: true }).click();
     await page.getByRole("button", { name: /Delete/ }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
 

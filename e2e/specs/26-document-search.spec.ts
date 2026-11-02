@@ -113,11 +113,10 @@ test("filename substring search finds documents across contract, rental statemen
     mimeType: "application/pdf",
     buffer: Buffer.from("%PDF-1.4\ntrade fts regression fixture\n"),
   });
-  await tradeRow.getByRole("button", { name: "Upload" }).click();
-  // A bare filename match would also hit FileDropZone's own client-side
-  // selected-file preview, which appears on setInputFiles() regardless of
-  // whether the upload actually succeeded.
-  await expect(tradeRow).toContainText("Document uploaded.");
+  // "Add document" (#405) uploads as soon as the file is chosen.
+  await expect(
+    tradeRow.locator('a[href^="/api/documents/"]', { hasText: `confirmation_${tradeFragment}_note.pdf` }),
+  ).toBeVisible({ timeout: 30_000 });
 
   // Each fragment is a mid-word substring of its filename (never a leading
   // token) — a whole-token tokenizer would miss all three.
@@ -159,7 +158,7 @@ test("trashing a contract removes its document from search, and permanently dele
   // Soft-delete (Trash) — the document row still exists, but the contract's
   // deletedAt filter must exclude it from search.
   await page.goto(`/contracts/${contractId}`);
-  await page.getByRole("button", { name: "More actions" }).click();
+  await page.getByRole("button", { name: "More actions", exact: true }).click();
   await page.getByRole("button", { name: "Delete", exact: true }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
   await page.waitForURL(/\/contracts$/);
