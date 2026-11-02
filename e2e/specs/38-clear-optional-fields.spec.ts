@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { ADMIN_AUTH_FILE } from "../env";
+import { openFormSections } from "../formSections";
 
 test.use({ storageState: ADMIN_AUTH_FILE });
 
@@ -12,6 +13,8 @@ test("clearing a Contract's end date on the edit form clears it", async ({ page 
 
   await page.goto("/contracts/new");
   await page.locator("#title").fill(title);
+  await page.locator("#category").selectOption("OTHER");
+  await openFormSections(page);
   await page.locator("#provider").fill("Clear Fields Provider");
   await page.locator("#endDate").fill("2030-06-30");
   await page.locator("#cost").fill("42");

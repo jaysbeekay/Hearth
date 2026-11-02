@@ -8,7 +8,7 @@ import type { ProductModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/products";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormActions } from "@/components/FormActions";
-import { ReminderThresholdsField } from "@/components/ReminderThresholdsField";
+import { ReminderThresholdsField, hasOwnThresholds } from "@/components/ReminderThresholdsField";
 import { FormMessage } from "@/components/FormMessage";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { CurrencySelect } from "@/components/CurrencySelect";
@@ -21,6 +21,7 @@ import {
   type QueuedOperation,
 } from "@/lib/offlineQueue";
 import { Field } from "@/components/FormField";
+import { FormSection, hasAnyValue } from "@/components/FormSection";
 import { inputClass, textareaClass, selectClass } from "@/components/SelectWrapper";
 import { LinkedToField } from "@/components/LinkedToField";
 import { applyIfEmpty, markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
@@ -227,7 +228,7 @@ export function ProductForm({
         </p>
       )}
       {!product && (
-        <div className="space-y-4">
+        <div>
           <Card className="space-y-2">
             <p className="flex items-center gap-2 text-sm font-medium">
               <Upload size={16} />
@@ -244,14 +245,6 @@ export function ProductForm({
                 {scanMessage}
               </p>
             )}
-          </Card>
-
-          <Card className="space-y-2">
-            <p className="flex items-center gap-2 text-sm font-medium">
-              <Upload size={16} />
-              Upload a photo of the product (optional)
-            </p>
-            <FileDropZone name="photoFile" accept="image/*" label="Drag a photo here or click to browse" hint="JPG, PNG, or WEBP — up to 15MB" />
           </Card>
         </div>
       )}
@@ -278,71 +271,6 @@ export function ProductForm({
             placeholder="e.g. Samsung"
             className={inputClass}
           />
-        </Field>
-
-        <Field label="Model" htmlFor="model">
-          <input
-            ref={modelRef}
-            id="model"
-            name="model"
-            defaultValue={effectiveValues?.model ?? product?.model ?? ""}
-            placeholder="e.g. QN65Q80"
-            className={inputClass}
-          />
-        </Field>
-
-        <Field label="Vendor / retailer" htmlFor="vendor">
-          <input
-            ref={vendorRef}
-            id="vendor"
-            name="vendor"
-            defaultValue={effectiveValues?.vendor ?? product?.vendor ?? ""}
-            placeholder="e.g. JB Hi-Fi"
-            className={inputClass}
-          />
-        </Field>
-
-        <Field label="Serial number" htmlFor="serialNumber">
-          <input
-            ref={serialNumberRef}
-            id="serialNumber"
-            name="serialNumber"
-            defaultValue={effectiveValues?.serialNumber ?? product?.serialNumber ?? ""}
-            className={inputClass}
-          />
-        </Field>
-
-        <Field label="Barcode (UPC/EAN)" htmlFor="barcode">
-          <div className="flex gap-2">
-            <input
-              ref={barcodeRef}
-              id="barcode"
-              name="barcode"
-              defaultValue={effectiveValues?.barcode ?? product?.barcode ?? ""}
-              placeholder="e.g. 9310036001234"
-              className={inputClass}
-            />
-            <button
-              type="button"
-              onClick={() => setScannerOpen(true)}
-              aria-label="Scan barcode"
-              title="Scan barcode"
-              className={buttonClass("secondary")}
-            >
-              <ScanBarcode size={16} />
-            </button>
-          </div>
-          {!product && barcodeLookupEnabled && (
-            <button
-              type="button"
-              onClick={() => handleBarcodeLookup()}
-              disabled={lookingUp}
-              className="mt-1 text-xs font-medium text-accent hover:underline disabled:opacity-50"
-            >
-              {lookingUp ? "Looking up…" : "Look up barcode"}
-            </button>
-          )}
-          {lookupMessage && <p className="mt-1 text-sm text-muted">{lookupMessage}</p>}
         </Field>
 
         <Field label="Purchase date" htmlFor="purchaseDate">
@@ -387,34 +315,138 @@ export function ProductForm({
             defaultValue={effectiveValues?.currency ?? product?.currency ?? defaultCurrency}
           />
         </Field>
-
-        <LinkedToField
-          id="linkedTo"
-          properties={properties}
-          homeEnabled={homeEnabled}
-          recordNoun="warranty"
-          defaultValue={{ propertyId: effectiveValues?.propertyId ?? product?.propertyId ?? "" }}
-          withHiddenInputs
-          selectClassName={selectClass}
-          chevron
-        />
       </div>
 
-      <Field label="Notes" htmlFor="notes">
-        <textarea
-          id="notes"
-          name="notes"
-          rows={4}
-          defaultValue={effectiveValues?.notes ?? product?.notes ?? ""}
-          className={textareaClass}
-        />
-      </Field>
+      {/* #361 — the dates and price that drive Reminders and Spend stay above. */}
+      <FormSection
+        title="More details"
+        hint="Model, serial, retailer, notes"
+        defaultOpen={hasAnyValue([
+          effectiveValues?.model ?? product?.model,
+          effectiveValues?.vendor ?? product?.vendor,
+          effectiveValues?.serialNumber ?? product?.serialNumber,
+          effectiveValues?.barcode ?? product?.barcode,
+          effectiveValues?.propertyId ?? product?.propertyId,
+          effectiveValues?.notes ?? product?.notes,
+        ])}
+      >
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field label="Model" htmlFor="model">
+            <input
+              ref={modelRef}
+              id="model"
+              name="model"
+              defaultValue={effectiveValues?.model ?? product?.model ?? ""}
+              placeholder="e.g. QN65Q80"
+              className={inputClass}
+            />
+          </Field>
 
-      <ReminderThresholdsField
-        defaultValue={effectiveValues?.reminderDaysBefore ?? product?.reminderDaysBefore ?? ""}
-        householdDefault={defaultReminderDays}
-        before="the warranty ends"
-      />
+          <Field label="Vendor / retailer" htmlFor="vendor">
+            <input
+              ref={vendorRef}
+              id="vendor"
+              name="vendor"
+              defaultValue={effectiveValues?.vendor ?? product?.vendor ?? ""}
+              placeholder="e.g. JB Hi-Fi"
+              className={inputClass}
+            />
+          </Field>
+
+          <Field label="Serial number" htmlFor="serialNumber">
+            <input
+              ref={serialNumberRef}
+              id="serialNumber"
+              name="serialNumber"
+              defaultValue={effectiveValues?.serialNumber ?? product?.serialNumber ?? ""}
+              className={inputClass}
+            />
+          </Field>
+
+          <Field label="Barcode (UPC/EAN)" htmlFor="barcode">
+            <div className="flex gap-2">
+              <input
+                ref={barcodeRef}
+                id="barcode"
+                name="barcode"
+                defaultValue={effectiveValues?.barcode ?? product?.barcode ?? ""}
+                placeholder="e.g. 9310036001234"
+                className={inputClass}
+              />
+              <button
+                type="button"
+                onClick={() => setScannerOpen(true)}
+                aria-label="Scan barcode"
+                title="Scan barcode"
+                className={buttonClass("secondary")}
+              >
+                <ScanBarcode size={16} />
+              </button>
+            </div>
+            {!product && barcodeLookupEnabled && (
+              <button
+                type="button"
+                onClick={() => handleBarcodeLookup()}
+                disabled={lookingUp}
+                className="mt-1 text-xs font-medium text-accent hover:underline disabled:opacity-50"
+              >
+                {lookingUp ? "Looking up…" : "Look up barcode"}
+              </button>
+            )}
+            {lookupMessage && <p className="mt-1 text-sm text-muted">{lookupMessage}</p>}
+          </Field>
+
+          <LinkedToField
+            id="linkedTo"
+            properties={properties}
+            homeEnabled={homeEnabled}
+            recordNoun="warranty"
+            defaultValue={{ propertyId: effectiveValues?.propertyId ?? product?.propertyId ?? "" }}
+            withHiddenInputs
+            selectClassName={selectClass}
+            chevron
+          />
+        </div>
+        <Field label="Notes" htmlFor="notes">
+          <textarea
+            id="notes"
+            name="notes"
+            rows={4}
+            defaultValue={effectiveValues?.notes ?? product?.notes ?? ""}
+            className={textareaClass}
+          />
+        </Field>
+        {!product && (
+          <div className="space-y-2">
+            <p className="flex items-center gap-2 text-sm font-medium">
+              <Upload size={16} />
+              Photo of the product (optional)
+            </p>
+            <FileDropZone
+              name="photoFile"
+              accept="image/*"
+              label="Drag a photo here or click to browse"
+              hint="JPG, PNG, or WEBP — up to 15MB"
+            />
+          </div>
+        )}
+      </FormSection>
+
+      <FormSection
+        title="Reminders"
+        hint="Household default unless changed"
+        defaultOpen={hasOwnThresholds(
+          effectiveValues?.reminderDaysBefore ?? product?.reminderDaysBefore,
+          defaultReminderDays,
+        )}
+      >
+        <ReminderThresholdsField
+          defaultValue={effectiveValues?.reminderDaysBefore ?? product?.reminderDaysBefore ?? ""}
+          householdDefault={defaultReminderDays}
+          before="the warranty ends"
+          srOnlyLegend
+        />
+      </FormSection>
 
       {extractionUsed && (
         <div className={bannerClass("neutral", "flex items-start gap-2")}>

@@ -88,6 +88,7 @@ test("the calendar shows records created by other household members", async ({ b
   // A contract with an end date is enough to produce a calendar entry.
   await adminPage.goto("/contracts/new");
   await adminPage.locator("#title").fill("Admin Household Policy");
+  await adminPage.locator("#category").selectOption("OTHER");
   await adminPage.locator("#provider").fill("Shared Insurer");
   // Within the calendar's default 30-day horizon (#288) so it shows up
   // without the member having to pick a wider horizon.

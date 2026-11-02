@@ -53,6 +53,7 @@ test.describe("bulk document import and extraction", () => {
   test("duplicate file detection works during import", async ({ page }) => {
     await page.goto("/contracts/new");
     await page.locator("#title").fill("Duplicate Detection Test");
+    await page.locator("#category").selectOption("OTHER");
     await page.locator("#provider").fill("Test Provider");
     await page.locator("main button[type=submit]").click();
     await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);

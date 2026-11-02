@@ -32,6 +32,10 @@ export function markAutoFilled(
   source: "heuristic" | "ai" = "heuristic",
 ) {
   if (!el) return;
+  // #361 — a field filled inside a collapsed form section must not stay
+  // hidden from review: open the section it sits in.
+  const section = el.closest("details");
+  if (section) section.open = true;
   const classes = AUTOFILL_CLASSES[source];
   el.classList.add(...classes);
 

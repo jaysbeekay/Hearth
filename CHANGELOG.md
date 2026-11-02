@@ -76,6 +76,17 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   selects and the chips, so the first record is on the first screen. Links
   from the dashboard still pre-select the right chip. The iOS and Android
   shell is unchanged.
+- **Shorter Contract, Warranty and Vehicle forms (#361).** Only the fields
+  that drive Reminders and Spend show up front. The rest sit in a "More
+  details" section, and the thresholds sit in a "Reminders" section. A
+  section opens by itself when it already holds a value, when a document
+  scan fills a field inside it, or when the browser flags a field inside it.
+  A Contract's Category now starts on "Choose a category" and has to be
+  picked; a scan suggests one from the provider and title. Entering a cost
+  sets the billing frequency to Monthly until you choose another. The
+  Warranty photo upload moves into More details. Preferences explains that
+  date pickers follow the browser's language. The Property form was already
+  short and is unchanged, and so is the iOS and Android shell.
 
 ## [0.20.1] - 2026-10-31
 

@@ -32,6 +32,7 @@ test("previewing a PDF document from the Documents page doesn't hit a CSP violat
 
   await page.goto("/contracts/new");
   await page.locator("#title").fill("Preview CSP Regression Contract");
+  await page.locator("#category").selectOption("OTHER");
   await page.locator("#provider").fill("Regression Provider");
   await Promise.all([
     page.waitForURL(/\/contracts\/(?!new$)[^/]+$/),
@@ -65,6 +66,7 @@ test("previewing an image document from the Documents page renders it", async ({
 
   await page.goto("/contracts/new");
   await page.locator("#title").fill("Preview Image Regression Contract");
+  await page.locator("#category").selectOption("OTHER");
   await page.locator("#provider").fill("Regression Provider");
   await Promise.all([
     page.waitForURL(/\/contracts\/(?!new$)[^/]+$/),

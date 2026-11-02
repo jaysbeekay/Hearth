@@ -167,6 +167,7 @@ test.describe("read-only member (#400)", () => {
     // actions), with a Document, and auto-filled details awaiting review.
     await page.goto("/contracts/new");
     await page.locator("#title").fill(`RO Contract ${stamp}`);
+    await page.locator("#category").selectOption("OTHER");
     await page.locator("#provider").fill("RO Insurer");
     await page.locator("#endDate").fill(daysFromNow(10));
     await submit(page, /\/contracts\/(?!new$)[^/]+$/);
