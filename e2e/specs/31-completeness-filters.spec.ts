@@ -212,3 +212,18 @@ test("chip counts follow the search and the other chips", async ({ page }) => {
   await expect(main.getByRole("button", { name: "Missing key details · 1", pressed: true }).first()).toBeVisible();
   await expect(main.getByRole("button", { name: "No document · 1", pressed: false }).first()).toBeVisible();
 });
+
+// #517 review — an active chip whose list is empty can still be turned off.
+test("a zero-count active chip turns off", async ({ page }) => {
+  const stamp = Date.now();
+  await createContract(page, { title: `Chip Zero Complete ${stamp}`, endDate: "2031-01-01", cost: "10", billingFrequency: "MONTHLY" });
+
+  await page.goto(`/contracts?q=${stamp}&missing=details`);
+  const main = page.locator("main");
+  const active = main.getByRole("button", { name: "Missing key details · 0", pressed: true }).first();
+  await expect(active).toBeVisible();
+  await active.click();
+  await expect(page).not.toHaveURL(/[?&]missing=details/);
+  await expect(main.getByRole("button", { name: "Missing key details · 0", pressed: false }).first()).toBeVisible();
+  await expect(main.getByText(`Chip Zero Complete ${stamp}`)).toBeVisible();
+});
