@@ -732,14 +732,16 @@ async function withExclusiveDb(work) {
   }
 }
 
+// Every write takes its own turn at the gate (waiting on it is not enough:
+// two waiters released together could interleave with the next exclusive
+// step). Never call these from inside withExclusiveDb, which would wait on
+// itself.
 async function runSet(set) {
-  await dbGate;
-  await SQLite.executeSet({ database: DB, set, transaction: true });
+  await withExclusiveDb(() => SQLite.executeSet({ database: DB, set, transaction: true }));
 }
 
 async function run(statement, values = []) {
-  await dbGate;
-  await SQLite.run({ database: DB, statement, values, transaction: true });
+  await withExclusiveDb(() => SQLite.run({ database: DB, statement, values, transaction: true }));
 }
 
 async function query(statement, values = []) {
@@ -2670,8 +2672,10 @@ async function finishRestoreFiles(journal) {
       undeleted += 1;
     });
   }
+  // An orphan that could not be deleted keeps the journal, so the next
+  // launch tries again: stale document bytes are not left behind for good.
   const unresolved = await finishAsideFiles(journal);
-  await closeRestoreJournal(unresolved);
+  await closeRestoreJournal(unresolved + undeleted);
   return undeleted + unresolved;
 }
 
@@ -2682,7 +2686,7 @@ async function finishRestoreFiles(journal) {
 // could each move the same file.
 let restoreRecovery = null;
 function recoverInterruptedRestore() {
-  restoreRecovery ??= runRestoreRecovery();
+  restoreRecovery ??= withExclusiveDb(runRestoreRecovery);
   return restoreRecovery;
 }
 
@@ -2713,7 +2717,34 @@ async function runRestoreRecovery() {
 // write the rows plus a restore marker. Any failure before the commit puts
 // every file back. After the commit the originals, and the files of
 // documents no row refers to any more, are deleted.
+//
+// The whole critical section, from reading local versions and key owners to
+// the commit or rollback and the cleanup, holds the write gate, so an edit
+// made meanwhile waits and lands after the restore instead of being
+// overwritten by it (#226 review). Nothing inside may call run()/runSet()
+// (they wait on the same gate): the commit is a direct executeSet.
 async function applyRestore({ tables, preferences, stagedKeys, mode, legacy = false }) {
+  const { restored, kept, missingFiles, undeletedFiles } = await withExclusiveDb(() => applyRestoreLocked({ tables, stagedKeys, mode }));
+  const restoredPreferences = new Map(Object.entries(preferences && typeof preferences === "object" ? preferences : {}));
+  for (const key of BACKUP_PREFERENCE_KEYS) {
+    const value = restoredPreferences.get(key);
+    if (typeof value === "string") await prefSet(key, value);
+  }
+  await loadStandaloneModuleSettings();
+  await loadReminderDeliveryState();
+  await loadData();
+  if (state.localRemindersEnabled) {
+    await syncLocalReminders(false).catch((error) => showStandaloneStatus(error.message || "Restored, but reminders could not be rescheduled."));
+  }
+  const parts = [`Restored ${restored} record${restored === 1 ? "" : "s"}`];
+  if (kept > 0) parts.push(`kept ${kept} already on this phone`);
+  if (missingFiles > 0) parts.push(`${missingFiles} document file${missingFiles === 1 ? "" : "s"} missing from the backup`);
+  if (undeletedFiles > 0) parts.push(`${undeletedFiles} old document file${undeletedFiles === 1 ? "" : "s"} could not be removed yet; Hearth will try again when it next starts`);
+  showStandaloneStatus(`${parts.join(", ")}.${legacy ? " This was an unencrypted older backup: export a new encrypted one." : ""}`, true);
+  return { restored, kept, missingFiles };
+}
+
+async function applyRestoreLocked({ tables, stagedKeys, mode }) {
   const { set, restored, kept, acceptedKeys } = await buildRestoreStatements(tables, mode);
   const keys = stagedKeys.filter((key) => acceptedKeys.has(key));
   for (const key of keys) {
@@ -2734,7 +2765,7 @@ async function applyRestore({ tables, preferences, stagedKeys, mode, legacy = fa
       await Filesystem.rename({ directory: FILE_DIRECTORY, from: `${RESTORE_STAGING_ROOT}/${key}`, to: documentPath(key) });
     }
     set.push({ statement: "INSERT OR REPLACE INTO schema_metadata (key, value) VALUES ('last_restore_id', ?)", values: [journal.id] });
-    await withExclusiveDb(() => SQLite.executeSet({ database: DB, set, transaction: true }));
+    await SQLite.executeSet({ database: DB, set, transaction: true });
   } catch (error) {
     const closed = await closeRestoreJournal(await rollbackRestoreFiles(journal));
     const tail = closed ? "" : " Some files could not be put back yet; Hearth will try again when it next starts.";
@@ -2742,23 +2773,7 @@ async function applyRestore({ tables, preferences, stagedKeys, mode, legacy = fa
   }
   const undeletedFiles = await finishRestoreFiles(journal);
   const missingFiles = [...acceptedKeys].filter((key) => !keys.includes(key)).length;
-  const restoredPreferences = new Map(Object.entries(preferences && typeof preferences === "object" ? preferences : {}));
-  for (const key of BACKUP_PREFERENCE_KEYS) {
-    const value = restoredPreferences.get(key);
-    if (typeof value === "string") await prefSet(key, value);
-  }
-  await loadStandaloneModuleSettings();
-  await loadReminderDeliveryState();
-  await loadData();
-  if (state.localRemindersEnabled) {
-    await syncLocalReminders(false).catch((error) => showStandaloneStatus(error.message || "Restored, but reminders could not be rescheduled."));
-  }
-  const parts = [`Restored ${restored} record${restored === 1 ? "" : "s"}`];
-  if (kept > 0) parts.push(`kept ${kept} already on this phone`);
-  if (missingFiles > 0) parts.push(`${missingFiles} document file${missingFiles === 1 ? "" : "s"} missing from the backup`);
-  if (undeletedFiles > 0) parts.push(`${undeletedFiles} old document file${undeletedFiles === 1 ? "" : "s"} could not be removed`);
-  showStandaloneStatus(`${parts.join(", ")}.${legacy ? " This was an unencrypted older backup: export a new encrypted one." : ""}`, true);
-  return { restored, kept, missingFiles };
+  return { restored, kept, missingFiles, undeletedFiles };
 }
 
 function backupAge(iso) {
