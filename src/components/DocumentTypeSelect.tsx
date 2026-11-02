@@ -42,7 +42,7 @@ export function DocumentTypeSelect({
       aria-label={`Document type for ${filename}`}
       value={known}
       disabled={pending}
-      onClick={(e) => e.stopPropagation()}
+      onClick={(e) => { e.stopPropagation(); }}
       onChange={(e) => {
         const next = e.currentTarget.value;
         startTransition(async () => {
