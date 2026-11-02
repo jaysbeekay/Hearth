@@ -15,6 +15,7 @@ import { FormMessage } from "@/components/FormMessage";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 import { TestConnectionButton } from "@/components/TestConnectionButton";
+import { bannerClass, inlineLinkClass } from "@/lib/ui";
 
 export function AiSettingsForm({
   provider,
@@ -61,7 +62,7 @@ export function AiSettingsForm({
           <>
             {needsApiKey ? (
               <div className="space-y-1">
-                <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
+                <p className={bannerClass("warning")}>
                   Documents will be sent to {AI_PROVIDER_LABELS[selected]} for processing.
                 </p>
                 <label htmlFor="apiKey" className="text-sm font-medium">
@@ -79,7 +80,7 @@ export function AiSettingsForm({
             ) : (
               <p className="text-xs text-muted">
                 No API key needed — Ollama uses the base URL configured in{" "}
-                <a href="/settings/app" className="text-accent hover:underline">
+                <a href="/settings/app" className={inlineLinkClass}>
                   System settings
                 </a>
                 .
@@ -111,7 +112,7 @@ export function AiSettingsForm({
           ) : (
             <span />
           )}
-          {selected !== "" && <SubmitButton>{configured ? "Update" : "Save"}</SubmitButton>}
+          {selected !== "" && <SubmitButton variant="secondary">{configured ? "Update" : "Save"}</SubmitButton>}
         </div>
       </form>
 
@@ -122,7 +123,7 @@ export function AiSettingsForm({
           actionLabel="Remove settings"
           className="inline-flex items-center gap-2 text-sm text-muted hover:text-danger"
         >
-          <Trash2 size={14} />
+          <Trash2 size={16} />
           Remove
         </ConfirmForm>
       )}

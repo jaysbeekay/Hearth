@@ -12,6 +12,9 @@ import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
 import { useCanWrite } from "@/components/CanWriteProvider";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
+import { Card } from "@/components/ui/Card";
+import { emptyStateClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
 type PropertyWithCount = PropertyModel & { _count: { items: number } };
 
@@ -46,7 +49,7 @@ export function HomeListClient({ properties, archivedProperties = [], taxDeducti
   }, [router]);
 
   return (
-    <div className="space-y-6">
+    <PageShell width="list">
       <ListPageHeader
         title={MODULE_REGISTRY.HOME.label}
         exportPath="/api/export/home"
@@ -54,7 +57,7 @@ export function HomeListClient({ properties, archivedProperties = [], taxDeducti
       />
 
       {taxDeductibleSummary.length > 0 && (
-        <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+        <Card>
           <h2 className="mb-3 font-medium">Tax-deductible spending by financial year</h2>
           <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
             {taxDeductibleSummary.map(({ label, amount, currency }) => (
@@ -64,7 +67,7 @@ export function HomeListClient({ properties, archivedProperties = [], taxDeducti
               </div>
             ))}
           </dl>
-        </div>
+        </Card>
       )}
 
       {pendingOps.length > 0 && (
@@ -84,7 +87,7 @@ export function HomeListClient({ properties, archivedProperties = [], taxDeducti
 
       {properties.length === 0 ? (
         pendingOps.length === 0 && (
-          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
+          <p className={emptyStateClass()}>
             No properties yet. Add your first property to start tracking maintenance and improvements.
           </p>
         )
@@ -108,6 +111,6 @@ export function HomeListClient({ properties, archivedProperties = [], taxDeducti
           </div>
         </details>
       )}
-    </div>
+    </PageShell>
   );
 }

@@ -9,12 +9,13 @@ import { FormMessage } from "@/components/FormMessage";
 import { Field } from "@/components/FormField";
 import { TRIP_SEGMENT_TYPES } from "@/lib/validation/travel";
 import { TRIP_SEGMENT_TYPE_LABELS } from "@/lib/utils";
-import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
+import { SelectWrapper, inputClass, textareaClass, selectClass } from "@/components/SelectWrapper";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
 import { applyIfEmpty, markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
 import { DateInput } from "@/components/DateInput";
+import { Card } from "@/components/ui/Card";
 
 type SegmentType = (typeof TRIP_SEGMENT_TYPES)[number];
 
@@ -134,7 +135,7 @@ export function TripSegmentForm({
   return (
     <form action={formAction} className="space-y-6">
       {!segment && (
-        <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
+        <Card className="space-y-2">
           <p className="flex items-center gap-2 text-sm font-medium">
             <Upload size={16} />
             Save time: upload a document and Hearth fills in the details
@@ -150,7 +151,7 @@ export function TripSegmentForm({
               {scanMessage}
             </p>
           )}
-        </div>
+        </Card>
       )}
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -303,7 +304,7 @@ export function TripSegmentForm({
           name="notes"
           rows={4}
           defaultValue={state?.values?.notes ?? segment?.notes ?? ""}
-          className={inputClass}
+          className={textareaClass}
         />
       </Field>
 

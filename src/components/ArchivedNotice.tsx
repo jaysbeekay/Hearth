@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { StatusPill } from "@/components/StatusPill";
 import { formatDate } from "@/lib/utils";
+import { Banner } from "@/components/ui/Banner";
+import { inlineLinkClass } from "@/lib/ui";
 
 // #355 — the note at the top of an Archived Vehicle's or Property's page.
 // `children` is the Restore button, for a member who can write.
@@ -20,9 +22,9 @@ export function ArchivedNotice({
   children?: React.ReactNode;
 }) {
   return (
-    <div
+    <Banner
       data-testid="archived-notice"
-      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-muted/10 px-4 py-3 text-sm"
+      className="flex flex-wrap items-center justify-between gap-3"
     >
       <div className="space-y-1">
         <p className="flex flex-wrap items-center gap-2">
@@ -38,7 +40,7 @@ export function ArchivedNotice({
             {activeContracts.map((contract, index) => (
               <span key={contract.id}>
                 {index > 0 && ", "}
-                <Link href={`/contracts/${contract.id}`} className="text-accent hover:underline">
+                <Link href={`/contracts/${contract.id}`} className={inlineLinkClass}>
                   {contract.title}
                 </Link>
               </span>
@@ -49,6 +51,6 @@ export function ArchivedNotice({
         )}
       </div>
       {children}
-    </div>
+    </Banner>
   );
 }

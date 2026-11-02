@@ -63,10 +63,22 @@ test("DetailOverflowMenu renders as a full-width bottom sheet on mobile", async 
   // /\/contracts\/[^/]+$/ resolves instantly here instead of waiting.
   await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
 
+  // #411 — 36px visual, 44px hit area: a tap 3px outside each edge of
+  // the drawn button still lands on it.
   const trigger = page.locator('button[aria-label="More actions"]');
-  const triggerBox = await trigger.boundingBox();
-  expect(triggerBox?.width).toBeGreaterThanOrEqual(44);
-  expect(triggerBox?.height).toBeGreaterThanOrEqual(44);
+  const triggerBox = (await trigger.boundingBox())!;
+  expect(triggerBox.width).toBeGreaterThanOrEqual(36);
+  expect(triggerBox.height).toBeGreaterThanOrEqual(36);
+  const cx = triggerBox.x + triggerBox.width / 2;
+  const cy = triggerBox.y + triggerBox.height / 2;
+  for (const [x, y] of [
+    [triggerBox.x - 3, cy],
+    [triggerBox.x + triggerBox.width + 3, cy],
+    [cx, triggerBox.y - 3],
+    [cx, triggerBox.y + triggerBox.height + 3],
+  ]) {
+    expect(await trigger.evaluate((el, [px, py]) => el.contains(document.elementFromPoint(px, py)), [x, y])).toBe(true);
+  }
 
   await trigger.click();
 

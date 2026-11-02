@@ -34,7 +34,7 @@ export function PortfolioForm({
   const [state, formAction] = useActionState<ActionState, FormData>(offlineAwareAction, null);
 
   return (
-    <form action={formAction} className="space-y-5">
+    <form action={formAction} className="space-y-4">
       <FormMessage error={state?.error} success={state?.success} />
 
       <div>

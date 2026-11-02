@@ -14,8 +14,9 @@ import {
   type QueuedOperation,
 } from "@/lib/offlineQueue";
 import { Field } from "@/components/FormField";
-import { inputClass } from "@/components/SelectWrapper";
+import { inputClass, textareaClass } from "@/components/SelectWrapper";
 import { DateInput } from "@/components/DateInput";
+import { bannerClass } from "@/lib/ui";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -72,7 +73,7 @@ export function VehicleForm({
       className="space-y-6"
     >
       {pendingOp && (
-        <p className="rounded-lg border border-dashed border-warning/40 bg-warning/10 px-4 py-2 text-sm text-warning">
+        <p className={bannerClass("warning")}>
           Editing an offline entry that hasn&apos;t synced yet — saving updates it in place.
         </p>
       )}
@@ -201,7 +202,7 @@ export function VehicleForm({
           name="notes"
           rows={4}
           defaultValue={effectiveValues?.notes ?? vehicle?.notes ?? ""}
-          className={inputClass}
+          className={textareaClass}
         />
       </Field>
 

@@ -263,7 +263,7 @@ test.describe.serial("The one Document list", () => {
 
     // Clean up: deleting the portfolio takes its trades and their Documents.
     await page.goto("/wealth/portfolios");
-    const card = page.locator("div.rounded-xl.border.border-border.bg-surface", { hasText: portfolioName });
+    const card = page.locator("div.rounded-lg.border.border-border.bg-surface", { hasText: portfolioName });
     await card.getByRole("button", { name: "Delete", exact: true }).click();
     await page.getByRole("button", { name: `Delete "${portfolioName}"` }).click();
     await expect(page.locator("body")).not.toContainText(portfolioName);

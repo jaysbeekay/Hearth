@@ -7,6 +7,34 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+### Changed
+
+- **One set of shared UI rules (#411).** The app now draws from one type
+  scale (24/20/16/14/12px at two weights, sentence case), one radius
+  (`rounded-lg`, with `rounded-full` only for dots), 1px borders, no card
+  shadows and a single overlay shadow for dialogs and menus. Cards, pills,
+  banners and page widths come from `Card`, `Pill`, `Banner` and
+  `PageShell` (`src/components/ui/`), and every class string they use lives
+  in `src/lib/ui.ts`. Buttons are primary, secondary, quiet or danger at
+  one 36px size with a 44px hit area; each page has at most one primary
+  button (row actions, settings saves and detail-page actions are
+  secondary), filter chips look like secondary buttons rather than status
+  pills, and inputs and selects share one 36px style. Icons are 16px in
+  content and 20px in navigation, and decorative icons (the 32px glyphs on
+  sign-in and error pages, the chat avatars, the per-row icons in the
+  Needs attention queue) are gone. Dashed borders are kept only for file
+  drop zones, and hover motion is colour-only. A unit test
+  (`tests/unit/ui-rules.test.ts`) and an e2e check
+  (`e2e/specs/51-ui-rules.spec.ts`) hold these rules in place. The iOS and
+  Android shell keeps its own styles and is unchanged.
+- Links inside running text are now underlined, so they no longer rely on
+  colour alone, and the contract list's filter selects and each member's role
+  select have accessible names (#411 review).
+- Button labels too long for their row now wrap onto a second line instead
+  of running off-screen, text inputs show a focus ring again, the property
+  valuation form's fields are labelled, and the contract status action's
+  accessible name matches its visible text (#411 review).
+
 ## [0.20.1] - 2026-10-31
 
 ### Fixed

@@ -7,6 +7,8 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
 
 export default async function NewRentalStatementPage({
   params,
@@ -26,27 +28,27 @@ export default async function NewRentalStatementPage({
   const boundAction = createRentalStatement.bind(null, property.id);
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="form">
       <div>
         <BackLink href={`/home/${property.id}/rental`} label="Tenancy" />
       </div>
 
       <div>
         <p className="text-sm text-muted">{property.label}</p>
-        <h1 className="text-2xl font-semibold">Add rental statement</h1>
+        <h1 className="text-2xl font-medium">Add rental statement</h1>
         <p className="mt-1 text-sm text-muted">
           Upload your agent&apos;s statement — fields will be auto-filled where possible.
           Expected amounts are calculated from the tenancy for reconciliation.
         </p>
       </div>
 
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <Card>
         <RentalStatementForm
           action={boundAction}
           propertyId={property.id}
           defaultCurrency={preferredCurrency}
         />
-      </div>
-    </div>
+      </Card>
+    </PageShell>
   );
 }
