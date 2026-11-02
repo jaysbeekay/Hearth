@@ -41,3 +41,24 @@ The runtime `itemCutoverReadiness` gate also checks relational ownership before
 serving the hidden preview. It does not compare uploaded file bytes; the copy
 verifier must pass before enabling the preview. This stage does not authorize a
 public route or navigation cutover.
+
+## Cutover gate: Document mirrors
+
+Staged Document mirrors (`mirrorStagedDocument`) are best-effort. They run
+after the legacy Document write and only log on failure, and the runtime
+readiness gate does not compare Document metadata, bytes or search-index
+freshness. So a failed mirror can leave the stage stale without anything
+noticing. This staging PR deliberately leaves it that way, because nothing
+public reads the stage.
+
+The public cutover PR must not ship unless all of these hold:
+
+1. With the app stopped, the full sequence above (migrate, both backfills,
+   `verify-item-stage.ts`) passes against a frozen snapshot of the primary
+   database and uploads tree, taken immediately before the cutover deploy.
+   A nonzero verifier exit blocks the deploy.
+2. The cutover PR includes tests that inject a failing Document mirror and
+   show that the verifier detects the divergence and that a backfill rerun
+   repairs it.
+3. The rollback backup from the maintenance-window run is kept until the
+   cutover is confirmed.
