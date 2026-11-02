@@ -82,6 +82,10 @@ export const RATE_LIMITS = {
   // Requests per authorized MCP token. An agent makes a handful of calls per
   // question, so 300 in 5 minutes only stops a runaway loop.
   mcpRequests: { limit: 300, windowMs: 5 * 60_000 },
+  // Import proposals per MCP token (#529). Generous enough to load a
+  // household's paperwork in one sitting; the pending-queue cap
+  // (MAX_PENDING_IMPORTS) bounds the total either way.
+  mcpImport: { limit: 100, windowMs: 60 * 60_000 },
 } as const satisfies Record<string, RateLimitRule>;
 
 export type RateLimitName = keyof typeof RATE_LIMITS;

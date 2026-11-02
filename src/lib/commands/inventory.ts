@@ -72,3 +72,16 @@ export async function updateInventoryItemCommand(
   }
   return item;
 }
+
+// Creates an Inventory item with no warranty link — the MCP import's
+// approval path (#529), which never carries record ids from an agent. The
+// create form keeps its own action, since it also handles an upload.
+export async function createInventoryItemCommand(
+  input: Omit<InventoryItemInput, "warrantyProductId">,
+  actorId: string,
+) {
+  await assertModuleEnabled("INVENTORY");
+  const item = await prisma.inventoryItem.create({ data: { ...input, createdById: actorId } });
+  revalidatePath("/inventory");
+  return item;
+}

@@ -7,6 +7,19 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+### Added
+
+- **Import records over MCP, with approval (#529).** Tokens listed in the
+  new `MCP_IMPORT_LABELS` get `propose_import_contract`,
+  `propose_import_product` and (with Inventory on)
+  `propose_import_inventory_item`. A proposal is validated against the
+  form's own schema and queued; it becomes a record only when a household
+  member approves it in the new Documents → Imports tab, which shows every
+  field, the proposing token and likely duplicates, with single and bulk
+  approve/reject. Proposals never carry record links or documents, are
+  capped at 100 per token per hour and 200 pending, and READONLY members
+  can't review them. Server-only; the iOS and Android shell is unchanged.
+
 ### Security
 
 - **MCP server hardening.** `/api/mcp` now compares bearer tokens in

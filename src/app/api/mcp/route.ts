@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { createMcpServer } from "@/lib/mcp/server";
-import { checkMcpAuth, parseMcpTokens } from "@/lib/mcp/auth";
+import { checkMcpAuth, parseImportLabels, parseMcpTokens } from "@/lib/mcp/auth";
 import {
   checkRateLimit,
   clientAddress,
@@ -82,7 +82,8 @@ async function handle(request: NextRequest) {
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
   });
-  await (await createMcpServer()).connect(transport);
+  const canImport = parseImportLabels(process.env.MCP_IMPORT_LABELS).has(result.label);
+  await (await createMcpServer({ importLabel: canImport ? result.label : undefined })).connect(transport);
   return transport.handleRequest(request);
 }
 
