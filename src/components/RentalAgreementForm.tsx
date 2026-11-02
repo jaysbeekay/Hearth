@@ -232,7 +232,7 @@ export function RentalAgreementForm({
         />
       </Field>
 
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
 
       <FormActions cancelHref={cancelHref}>
         <SubmitButton>{agreement ? "Save changes" : "Add tenancy"}</SubmitButton>

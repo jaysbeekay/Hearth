@@ -210,7 +210,7 @@ export function VehicleForm({
         />
       </Field>
 
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
 
       <FormActions cancelHref={cancelHref}>
         <SubmitButton>{pendingOp || vehicle ? "Save changes" : "Add vehicle"}</SubmitButton>

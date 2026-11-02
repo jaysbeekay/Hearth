@@ -123,7 +123,7 @@ export function TotpSection({ enabled }: { enabled: boolean }) {
             Cancel
           </button>
         </div>
-        <FormMessage error={disableState?.error} success={disableState?.success} />
+        <FormMessage attempt={disableState} error={disableState?.error} success={disableState?.success} />
       </form>
     );
   }

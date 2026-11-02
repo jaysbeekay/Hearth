@@ -99,8 +99,8 @@ export function IcalTokenSection({ hasToken, appUrl, embedded }: Props) {
             </form>
           )}
         </div>
-        <FormMessage error={genState?.error} success={justGenerated ? undefined : genState?.success} />
-        <FormMessage error={revokeState?.error} success={revokeState?.success} />
+        <FormMessage attempt={genState} error={genState?.error} success={justGenerated ? undefined : genState?.success} />
+        <FormMessage attempt={revokeState} error={revokeState?.error} success={revokeState?.success} />
       </div>
     </section>
   );

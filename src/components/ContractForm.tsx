@@ -505,7 +505,7 @@ export function ContractForm({
       <input type="hidden" name="extractionUsed" value={extractionUsed ? "1" : "0"} />
       <input type="hidden" name="confirmExtraction" value={confirmExtraction ? "1" : "0"} />
 
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
 
       <FormActions cancelHref={cancelHref}>
         <SubmitButton>
