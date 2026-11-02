@@ -1,7 +1,7 @@
 // #471: Inventory create, delete, restore and permanent delete go through
 // record commands, from the server actions, import, offline sync and Trash
 // retention alike.
-import { mkdir, writeFile, access } from "node:fs/promises";
+import { mkdir, writeFile, access, utimes } from "node:fs/promises";
 import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
@@ -27,9 +27,16 @@ import { productSchema } from "@/lib/validation/product";
 import { inventoryItemSchema } from "@/lib/validation/inventory";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
+import { removeOwnerDocumentFiles } from "@/lib/commands/documents";
+import { reconcileDocumentStore } from "@/lib/documentStore";
+import "@/lib/storage"; // registers each kind's reconcile target
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
+vi.mock("@/lib/commands/documents", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/commands/documents")>();
+  return { ...actual, removeOwnerDocumentFiles: vi.fn(actual.removeOwnerDocumentFiles) };
+});
 vi.mock("next/navigation", () => ({
   redirect: vi.fn((url: string) => {
     throw new Error(`REDIRECT ${url}`);
@@ -225,5 +232,27 @@ describe("Inventory permanent delete", () => {
     expect(await row(item.id)).toBeNull();
     expect(await exists(dir)).toBe(false);
     expect(await row(kept.id)).not.toBeNull();
+  });
+
+  it("a file-removal failure after the row is gone is reported, and the files are swept later", async () => {
+    // Row first, then files, as every purge does (#251, #413): if removing
+    // the files fails, the item is already gone and the failure is thrown
+    // to the caller, and the document-store reconciliation (run by the
+    // scheduler) removes the orphaned files once they're stale.
+    const item = await db.prisma.inventoryItem.create({
+      data: { label: "Drill", createdById: actorId, deletedAt: new Date() },
+    });
+    const dir = await attachFile(item.id);
+    vi.mocked(removeOwnerDocumentFiles).mockRejectedValueOnce(new Error("EACCES"));
+
+    await expect(permanentlyDeleteInventoryItem(item.id)).rejects.toThrow("EACCES");
+    expect(await row(item.id)).toBeNull();
+    expect(await exists(path.join(dir, "stored.pdf"))).toBe(true);
+
+    const old = new Date(Date.now() - 60 * 60 * 1000);
+    await utimes(path.join(dir, "stored.pdf"), old, old);
+    const report = await reconcileDocumentStore();
+    expect(report.orphanedFilesRemoved).toBeGreaterThanOrEqual(1);
+    expect(await exists(path.join(dir, "stored.pdf"))).toBe(false);
   });
 });
