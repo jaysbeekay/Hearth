@@ -8,11 +8,12 @@ import { Plus, X, Upload } from "lucide-react";
 import { ProductCard } from "@/components/ProductCard";
 import { InventoryCard } from "@/components/InventoryCard";
 import { PendingRecordCard } from "@/components/PendingRecordCard";
-import { ListSummaryStrip } from "@/components/ListSummaryStrip";
+import { ListFilterSheet } from "@/components/ListFilterSheet";
 import { ListFilterChips, ListFilterHiddenInputs } from "@/components/ListFilterChips";
 import type { InventoryItemModel, ProductModel } from "@/generated/prisma/models";
 import {
   hasListFilters,
+  isChipActive,
   listHref,
   productMissingParts,
   toggleListFilter,
@@ -82,6 +83,7 @@ export function ProductListClient({
   }, [router]);
 
   const filtered = Boolean(q || hasListFilters(filters));
+  const activeFilters = CHIPS.filter(({ chip }) => isChipActive(filters, chip)).length;
   // Inventory items don't take part in the list filters, so while one is on
   // the page shows only the Warranties its count describes (#395).
   const showInventorySection =
@@ -93,34 +95,6 @@ export function ProductListClient({
     },
     [filters, q, router],
   );
-
-  const summary = [
-    {
-      label: "due soon",
-      value: counts.dueSoon ?? 0,
-      status: "due-soon" as const,
-      onClick: () => {
-        toggleFilter("dueSoon");
-      },
-    },
-    {
-      label: "lapsed",
-      value: counts.lapsed ?? 0,
-      status: "lapsed" as const,
-      onClick: () => {
-        toggleFilter("lapsed");
-      },
-    },
-    {
-      label: "needs review",
-      value: counts.review ?? 0,
-      status: "needs-review" as const,
-      onClick: () => {
-        toggleFilter("review");
-      },
-    },
-    { label: "added this week", value: counts.recentlyAdded ?? 0 },
-  ];
 
   // #406 — a list with nothing in it yet shows one sentence and one button:
   // no Export, search or filter chips until there is something to act on.
@@ -135,29 +109,38 @@ export function ProductListClient({
       />
 
       {!nothingYet && (
-        <form ref={formRef} className="flex flex-col gap-3 md:flex-row" method="GET">
-          <ListFilterHiddenInputs filters={filters} />
-          <input
-            type="search"
-            name="q"
-            defaultValue={q}
-            placeholder="Search by description, brand, model, vendor, serial number, or barcode…"
-            onChange={() => {
-              clearTimeout(searchTimeout.current);
-              searchTimeout.current = setTimeout(() => formRef.current?.requestSubmit(), 400);
-            }}
-            className={cn(inputClass, "flex-1")}
+        <div className="flex flex-col gap-3">
+          {/* #365 — no Filter button: the search submits as you type (or on
+              Enter). Below md the chips move into the Filters sheet. */}
+          <div className="flex gap-2 md:gap-3">
+            <form ref={formRef} className="flex min-w-0 flex-1" method="GET">
+              <ListFilterHiddenInputs filters={filters} />
+              <input
+                type="search"
+                name="q"
+                defaultValue={q}
+                aria-label="Search warranties"
+                placeholder="Search by description, brand, model, vendor, serial number, or barcode…"
+                onChange={() => {
+                  clearTimeout(searchTimeout.current);
+                  searchTimeout.current = setTimeout(() => formRef.current?.requestSubmit(), 400);
+                }}
+                className={cn(inputClass, "min-w-0 flex-1")}
+              />
+            </form>
+            <ListFilterSheet active={activeFilters}>
+              <ListFilterChips filters={filters} chips={CHIPS} counts={counts} onToggle={toggleFilter} />
+            </ListFilterSheet>
+          </div>
+          <ListFilterChips
+            filters={filters}
+            chips={CHIPS}
+            counts={counts}
+            onToggle={toggleFilter}
+            className="hidden md:flex"
           />
-          <button
-            type="submit"
-            className={buttonClass("secondary", {}, "list-none")}
-          >
-            Filter
-          </button>
-        </form>
+        </div>
       )}
-
-      {!nothingYet && <ListFilterChips filters={filters} chips={CHIPS} onToggle={toggleFilter} />}
 
       {filtered && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -184,8 +167,6 @@ export function ProductListClient({
           </button>
         </div>
       )}
-
-      {!filtered && products.length > 0 && <ListSummaryStrip items={summary} />}
 
       {pendingOps.length > 0 && (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">

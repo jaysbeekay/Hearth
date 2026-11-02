@@ -10,7 +10,7 @@ import { ContractCard } from "@/components/ContractCard";
 import { PendingRecordCard } from "@/components/PendingRecordCard";
 import { SwipeableListItem } from "@/components/SwipeableListItem";
 import { ConfirmForm } from "@/components/ConfirmForm";
-import { ListSummaryStrip } from "@/components/ListSummaryStrip";
+import { ListFilterSheet } from "@/components/ListFilterSheet";
 import { ListFilterChips, ListFilterHiddenInputs } from "@/components/ListFilterChips";
 import { deleteContract, restoreContract } from "@/lib/actions/contracts";
 import type { ContractModel } from "@/generated/prisma/models";
@@ -19,6 +19,7 @@ import type { DueContext } from "@/lib/duePolicy";
 import {
   contractMissingParts,
   hasListFilters,
+  isChipActive,
   listHref,
   toggleListFilter,
   type ListFilterCounts,
@@ -45,6 +46,56 @@ const CHIPS: { chip: ToggleableFilter; label: string; onlyWhenActive?: boolean }
   { chip: "missingDetails", label: "Missing key details" },
   { chip: "important", label: "Important", onlyWhenActive: true },
 ];
+
+type SelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => void;
+
+// #403 — w-full on the selects: in the stacked (phone) sheet the
+// SelectWrapper stretches to the row, and a content-sized select left the
+// chevron floating outside the box.
+function CategorySelect({ value, onChange }: { value?: string; onChange: SelectChange }) {
+  return (
+    <SelectWrapper>
+      <select
+        // #517 review — keyed by the URL's value, so removing a filter from a
+        // pill or Clear all resets it (an uncontrolled select keeps its DOM pick).
+        key={value ?? ""}
+        name="category"
+        aria-label="Filter by category"
+        defaultValue={value ?? ""}
+        onChange={onChange}
+        className={selectClass}
+      >
+        <option value="">All categories</option>
+        {Object.entries(CATEGORY_LABELS).map(([optionValue, label]) => (
+          <option key={optionValue} value={optionValue}>
+            {label}
+          </option>
+        ))}
+      </select>
+    </SelectWrapper>
+  );
+}
+
+function StatusSelect({ value, onChange }: { value?: string; onChange: SelectChange }) {
+  return (
+    <SelectWrapper>
+      <select
+        // #517 review — keyed by the URL's value, so removing a filter from a
+        // pill or Clear all resets it (an uncontrolled select keeps its DOM pick).
+        key={value ?? ""}
+        name="status"
+        aria-label="Filter by status"
+        defaultValue={value ?? ""}
+        onChange={onChange}
+        className={selectClass}
+      >
+        <option value="">All statuses</option>
+        <option value="ACTIVE">Active</option>
+        <option value="CANCELLED">Cancelled</option>
+      </select>
+    </SelectWrapper>
+  );
+}
 
 interface Props {
   contracts: ContractModel[];
@@ -107,34 +158,8 @@ export function ContractListClient({
   }, [contracts]);
 
   const filtered = Boolean(q || category || status || hasListFilters(filters));
-  const summary = [
-    {
-      label: "due soon",
-      value: counts.dueSoon ?? 0,
-      status: "due-soon" as const,
-      onClick: () => {
-        toggleFilter("dueSoon");
-      },
-    },
-    {
-      label: "expired",
-      value: counts.overdue ?? 0,
-      status: "overdue" as const,
-      onClick: () => {
-        toggleFilter("overdue");
-      },
-    },
-    {
-      label: "needs review",
-      value: counts.review ?? 0,
-      status: "needs-review" as const,
-      onClick: () => {
-        toggleFilter("review");
-      },
-    },
-    { label: "added this week", value: counts.recentlyAdded ?? 0 },
-  ];
-
+  const activeFilters =
+    (category ? 1 : 0) + (status ? 1 : 0) + CHIPS.filter(({ chip }) => isChipActive(filters, chip)).length;
   // #406 — a list with nothing in it yet shows one sentence and one button:
   // no Export, search or filter chips until there is something to act on.
   const nothingYet = !filtered && contracts.length === 0 && pendingOps.length === 0;
@@ -148,61 +173,55 @@ export function ContractListClient({
       />
 
       {!nothingYet && (
-        <form ref={formRef} className="flex flex-col gap-3 md:flex-row" method="GET">
-          <ListFilterHiddenInputs filters={filters} />
-          <input
-            type="search"
-            name="q"
-            defaultValue={q}
-            placeholder="Search by title, provider, or number…"
-            onChange={() => {
-              clearTimeout(searchTimeout.current);
-              searchTimeout.current = setTimeout(() => formRef.current?.requestSubmit(), 400);
-            }}
-            className={cn(inputClass, "flex-1")}
+        <div className="flex flex-col gap-3">
+          {/* #365 — no Filter button: the search submits as you type (or on
+              Enter) and the selects on change. Below md the selects and chips
+              move into the Filters sheet, so the first contract is on screen. */}
+          <div className="flex gap-2 md:gap-3">
+            <form ref={formRef} className="flex min-w-0 flex-1 gap-3" method="GET">
+              <ListFilterHiddenInputs filters={filters} />
+              <input
+                type="search"
+                name="q"
+                defaultValue={q}
+                aria-label="Search contracts"
+                placeholder="Search by title, provider, or number…"
+                onChange={() => {
+                  clearTimeout(searchTimeout.current);
+                  searchTimeout.current = setTimeout(() => formRef.current?.requestSubmit(), 400);
+                }}
+                className={cn(inputClass, "min-w-0 flex-1")}
+              />
+              <div className="hidden gap-3 md:flex">
+                <CategorySelect value={category} onChange={(e) => e.currentTarget.form?.requestSubmit()} />
+                <StatusSelect value={status} onChange={(e) => e.currentTarget.form?.requestSubmit()} />
+              </div>
+            </form>
+            <ListFilterSheet active={activeFilters}>
+              <CategorySelect
+                value={category}
+                onChange={(e) => {
+                  router.push(listHref("/contracts", filters, { q, category: e.currentTarget.value || undefined, status }));
+                }}
+              />
+              <StatusSelect
+                value={status}
+                onChange={(e) => {
+                  router.push(listHref("/contracts", filters, { q, category, status: e.currentTarget.value || undefined }));
+                }}
+              />
+              <ListFilterChips filters={filters} chips={CHIPS} counts={counts} onToggle={toggleFilter} />
+            </ListFilterSheet>
+          </div>
+          <ListFilterChips
+            filters={filters}
+            chips={CHIPS}
+            counts={counts}
+            onToggle={toggleFilter}
+            className="hidden md:flex"
           />
-          {/* #403 — w-full on the selects: in the stacked (phone) form the
-              SelectWrapper stretches to the row, and a content-sized select left
-              the chevron floating outside the box. */}
-          <SelectWrapper>
-            <select
-              name="category"
-              aria-label="Filter by category"
-              defaultValue={category ?? ""}
-              onChange={(e) => e.currentTarget.form?.requestSubmit()}
-              className={selectClass}
-            >
-              <option value="">All categories</option>
-              {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </SelectWrapper>
-          <SelectWrapper>
-            <select
-              name="status"
-              aria-label="Filter by status"
-              defaultValue={status ?? ""}
-              onChange={(e) => e.currentTarget.form?.requestSubmit()}
-              className={selectClass}
-            >
-              <option value="">All statuses</option>
-              <option value="ACTIVE">Active</option>
-              <option value="CANCELLED">Cancelled</option>
-            </select>
-          </SelectWrapper>
-          <button
-            type="submit"
-            className={buttonClass("secondary", {}, "list-none")}
-          >
-            Filter
-          </button>
-        </form>
+        </div>
       )}
-
-      {!nothingYet && <ListFilterChips filters={filters} chips={CHIPS} onToggle={toggleFilter} />}
 
       {filtered && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -245,8 +264,6 @@ export function ContractListClient({
           </button>
         </div>
       )}
-
-      {!filtered && contracts.length > 0 && <ListSummaryStrip items={summary} />}
 
       {pendingOps.length > 0 && (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">

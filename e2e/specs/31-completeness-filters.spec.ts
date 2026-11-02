@@ -61,6 +61,10 @@ test.describe.serial("Completeness filters", () => {
     await page.waitForURL(/\/contracts\?missing=details$/);
     // The deep-linked filter is visible and removable.
     await expect(page.getByRole("button", { name: "Missing key details" })).toHaveAttribute("aria-pressed", "true");
+    // #365 — the chip carries the same household-wide count as the dashboard.
+    await expect(page.getByRole("button", { name: "Missing key details" })).toHaveAccessibleName(
+      `Missing key details · ${dashboardCount}`,
+    );
     await expect(page.getByRole("button", { name: "Clear all" })).toBeVisible();
     await expect(page.getByText(new RegExp(`^${dashboardCount} contracts?$`))).toBeVisible();
     await expect(page.locator('main a[href^="/contracts/c"]')).toHaveCount(dashboardCount);
@@ -91,7 +95,8 @@ test.describe.serial("Completeness filters", () => {
     ] as const) {
       await page.goto(from);
       await page.waitForURL((url) => `${url.pathname}${url.search}` === to);
-      await expect(page.getByRole("button", { name: chip, exact: true })).toHaveAttribute("aria-pressed", "true");
+      // #365 — the chip's name ends with its count ("Due soon · 2").
+      await expect(page.getByRole("button", { name: chip })).toHaveAttribute("aria-pressed", "true");
     }
   });
 

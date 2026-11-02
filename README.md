@@ -214,6 +214,10 @@ _The property detail screenshot was captured without network access, so it doesn
 | --- | --- |
 | ![Contracts list in dark mode](docs/screenshots/contracts-list-dark.png) | ![Settings in dark mode](docs/screenshots/settings-personal-dark.png) |
 
+| Mobile — contracts | Mobile — contract filters |
+| --- | --- |
+| ![Contracts list on a phone](docs/screenshots/mobile-contracts.png) | ![The Filters sheet on a phone](docs/screenshots/mobile-contracts-filters.png) |
+
 ## Tech stack
 
 Next.js (App Router) + TypeScript, Prisma 7 (SQLite via `@prisma/adapter-libsql`),

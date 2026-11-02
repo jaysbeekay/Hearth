@@ -31,17 +31,15 @@ function oneOf<T extends string>(value: string | undefined, allowed: readonly T[
 // Chip counts for the whole household (not narrowed by search text or other
 // chips), from the same rules the list uses, so each count is the length of
 // the list its chip opens.
-async function contractCounts(now: Date, ctx: DueContext): Promise<ListFilterCounts> {
-  const weekAgo = new Date(now.getTime() - 7 * 86_400_000);
-  const [{ dueSoon, overdue }, review, noDocument, missingDetails, important, recentlyAdded] = await Promise.all([
+async function contractCounts(ctx: DueContext): Promise<ListFilterCounts> {
+  const [{ dueSoon, overdue }, review, noDocument, missingDetails, important] = await Promise.all([
     contractDueCounts(ctx),
     prisma.contract.count({ where: contractRules.review.where }),
     prisma.contract.count({ where: contractRules.noDocument.where }),
     prisma.contract.count({ where: contractRules.missingDetails.where }),
     prisma.contract.count({ where: contractRules.important.where }),
-    prisma.contract.count({ where: { deletedAt: null, createdAt: { gte: weekAgo } } }),
   ]);
-  return { dueSoon, overdue, review, noDocument, missingDetails, important, recentlyAdded };
+  return { dueSoon, overdue, review, noDocument, missingDetails, important };
 }
 
 export default async function ContractsPage({
@@ -83,7 +81,7 @@ export default async function ContractsPage({
       include: { _count: { select: { documents: { where: { deletedAt: null } } } } },
       orderBy: [{ status: "asc" }, { endDate: "asc" }],
     }),
-    contractCounts(now, due),
+    contractCounts(due),
     getUserPreferences(),
     auth(),
   ]);

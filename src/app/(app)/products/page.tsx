@@ -27,17 +27,15 @@ function first(value: string | string[] | undefined): string | undefined {
 }
 
 // Household-wide chip counts from the same rules the list uses (#395).
-async function warrantyCounts(now: Date, ctx: DueContext): Promise<ListFilterCounts> {
-  const weekAgo = new Date(now.getTime() - 7 * 86_400_000);
-  const [{ dueSoon, lapsed }, review, noDocument, missingDetails, important, recentlyAdded] = await Promise.all([
+async function warrantyCounts(ctx: DueContext): Promise<ListFilterCounts> {
+  const [{ dueSoon, lapsed }, review, noDocument, missingDetails, important] = await Promise.all([
     warrantyDueCounts(ctx),
     prisma.product.count({ where: productRules.review.where }),
     prisma.product.count({ where: productRules.noDocument.where }),
     prisma.product.count({ where: productRules.missingDetails.where }),
     prisma.product.count({ where: productRules.important.where }),
-    prisma.product.count({ where: { deletedAt: null, createdAt: { gte: weekAgo } } }),
   ]);
-  return { dueSoon, lapsed, review, noDocument, missingDetails, important, recentlyAdded };
+  return { dueSoon, lapsed, review, noDocument, missingDetails, important };
 }
 
 export default async function ProductsPage({
@@ -85,7 +83,7 @@ export default async function ProductsPage({
       include: { _count: { select: { documents: { where: { deletedAt: null } } } } },
       orderBy: [{ warrantyEndDate: "asc" }],
     }),
-    warrantyCounts(now, due),
+    warrantyCounts(due),
     isModuleEnabled("INVENTORY"),
     getUserPreferences(),
     auth(),

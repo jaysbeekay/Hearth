@@ -117,7 +117,6 @@ describe("source", () => {
       "components/DetailStatusBanner.tsx",
       "components/VehicleCard.tsx",
       "components/NeedsAttentionQueue.tsx",
-      "components/ListSummaryStrip.tsx",
       "lib/dueRecords.ts",
     ];
     for (const name of statusComponents) {
