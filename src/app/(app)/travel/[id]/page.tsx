@@ -32,6 +32,7 @@ import { Card } from "@/components/ui/Card";
 import { buttonClass, menuItemClass, emptyStateClass, cardClass } from "@/lib/ui";
 import { Pill } from "@/components/ui/Pill";
 import { PageShell } from "@/components/ui/PageShell";
+import { RememberRecentRecord } from "@/components/RememberRecentRecord";
 
 const SEGMENT_ICONS: Record<string, LucideIcon> = {
   FLIGHT: Plane,
@@ -122,6 +123,7 @@ export default async function TripDetailPage({
 
   return (
     <PageShell width="detail">
+      <RememberRecentRecord kind="trip" id={id} />
       <div>
         <BackLink href="/travel" label="Travel" />
       </div>

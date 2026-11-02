@@ -97,6 +97,17 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   selects and the chips, so the first record is on the first screen. Links
   from the dashboard still pre-select the right chip. The iOS and Android
   shell is unchanged.
+- **Search opens on something useful, and Documents stops overloading
+  "type" (#366).** Before you type, Search shows the last five records you
+  opened in this browser (only their ids are kept locally; titles come from
+  the server, so a deleted record drops out) and the first three Due rows
+  from Needs attention. Its chips are down to Due soon, Needs review and
+  Important; No document and Missing key details stay on the list pages'
+  filter rows, and `/api/search` still takes every filter. On Documents,
+  the area chips are labelled "Belongs to" (with "All" instead of "All
+  types"), the table has separate "Document type" and "Belongs to" columns
+  with one pill each, and each mobile card labels both. The iOS and Android
+  shell is unchanged.
 - **Shorter Contract, Warranty and Vehicle forms (#361).** Only the fields
   that drive Reminders and Spend show up front. The rest sit in a "More
   details" section, and the thresholds sit in a "Reminders" section. A
