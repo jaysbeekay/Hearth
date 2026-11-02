@@ -51,6 +51,11 @@ export function statusTone(status: RecordStatus): StatusTone {
     case "housekeeping":
     case "no-date":
       return "neutral";
+    default:
+      // Unreachable while every caller is typed, but a status from outside
+      // the union (stale data, a cast) still gets a styled neutral banner
+      // rather than an unstyled box.
+      return "neutral";
   }
 }
 
