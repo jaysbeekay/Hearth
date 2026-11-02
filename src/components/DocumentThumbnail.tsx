@@ -32,7 +32,7 @@ export function DocumentThumbnail({
   }, [online, href]);
 
   if (!online && !blobUrl) {
-    return <FileText size={18} className="shrink-0 text-muted" />;
+    return <FileText size={16} className="shrink-0 text-muted" />;
   }
 
   return (
@@ -42,7 +42,7 @@ export function DocumentThumbnail({
       // Decorative: the filename beside it is the link text.
       alt=""
       loading="lazy"
-      className="h-10 w-10 shrink-0 rounded-md object-cover"
+      className="h-10 w-10 shrink-0 rounded-lg object-cover"
     />
   );
 }

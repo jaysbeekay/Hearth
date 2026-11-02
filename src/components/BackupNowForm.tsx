@@ -11,7 +11,7 @@ export function BackupNowForm() {
 
   return (
     <form action={formAction} className="space-y-3">
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
       <SubmitButton variant="secondary">Back up now</SubmitButton>
     </form>
   );

@@ -9,6 +9,7 @@ import {
   restoreDocumentCommand,
   permanentlyDeleteDocumentCommand,
   setDocumentImportantCommand,
+  setDocumentCategoryCommand,
   supersedeDocumentCommand,
   findDocument,
   findDocumentAnyKind,
@@ -20,6 +21,7 @@ import {
   permanentlyDeleteDocumentAction,
   restoreDocumentAction,
   setDocumentImportantAction,
+  setDocumentCategoryAction,
 } from "@/lib/actions/documents";
 import { attachInboxDocumentAsVersion } from "@/lib/actions/import";
 import { auth } from "@/lib/auth";
@@ -202,6 +204,21 @@ describe.each(OWNED_DOCUMENT_KINDS)("Document command: %s", (kind) => {
     await permanentlyDeleteDocumentCommand(kind, doc.id);
     expect(await findDocument(kind, doc.id)).toBeNull();
     expect(await exists(filePath(kind, ownerId, doc.storedName))).toBe(false);
+  });
+
+  it("sets the Document type afterwards, except on a Warranty (#405)", async () => {
+    const { ownerId } = await createOwner(kind);
+    const doc = await addDocumentCommand(kind, ownerId, { file: pdf() });
+    if (kind === "PRODUCT") {
+      await expect(setDocumentCategoryCommand(kind, doc.id, "RECEIPT")).rejects.toThrow("set when it's uploaded");
+      return;
+    }
+    await setDocumentCategoryCommand(kind, doc.id, "RECEIPT", { ownerId });
+    expect((await findDocument(kind, doc.id))?.category).toBe("RECEIPT");
+    // Scoped to the record the list showed it under.
+    await expect(setDocumentCategoryCommand(kind, doc.id, "MANUAL", { ownerId: "elsewhere" })).rejects.toBeInstanceOf(
+      RecordNotFoundError,
+    );
   });
 
   it("stars and unstars", async () => {
@@ -522,6 +539,7 @@ describe("Document actions", () => {
       await expect(restoreDocumentAction("CONTRACT", "x")).rejects.toThrow("read-only");
       await expect(permanentlyDeleteDocumentAction("CONTRACT", "x")).rejects.toThrow("read-only");
       await expect(setDocumentImportantAction("CONTRACT", "x", true)).rejects.toThrow("read-only");
+      await expect(setDocumentCategoryAction("CONTRACT", "x", "o", "MANUAL")).rejects.toThrow("read-only");
       expect(await db.prisma.document.count()).toBe(0);
     } finally {
       vi.mocked(auth).mockResolvedValue({ user: { id: "u1", role: "MEMBER" } } as never);
@@ -534,6 +552,25 @@ describe("Document actions", () => {
       "Unknown document kind",
     );
     expect(await attachInboxDocumentAsVersion("x", "TRADE" as never, "o", "d")).toEqual({
+      error: "Document not found.",
+    });
+  });
+
+  it("sets a Document type from its row, checking the type and the kind (#405)", async () => {
+    const { ownerId } = await createOwner("CONTRACT");
+    expect(await addDocumentAction("CONTRACT", ownerId, null, upload())).toEqual({ success: "Document uploaded." });
+    const [row] = await db.prisma.document.findMany({ where: { contractId: ownerId } });
+    expect(await setDocumentCategoryAction("CONTRACT", row.id, ownerId, "MANUAL")).toEqual({
+      success: "Document type saved.",
+    });
+    expect((await db.prisma.document.findUnique({ where: { id: row.id } }))?.category).toBe("MANUAL");
+    expect(await setDocumentCategoryAction("CONTRACT", row.id, ownerId, "NOPE")).toEqual({
+      error: "Choose a Document type.",
+    });
+    expect(await setDocumentCategoryAction("PRODUCT", row.id, ownerId, "MANUAL")).toEqual({
+      error: "A Warranty Document's type is set when it's uploaded.",
+    });
+    expect(await setDocumentCategoryAction("CONTRACT", row.id, "elsewhere", "MANUAL")).toEqual({
       error: "Document not found.",
     });
   });

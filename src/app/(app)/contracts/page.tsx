@@ -4,16 +4,21 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { ContractListClient } from "@/components/ContractListClient";
-import { contractDueCounts, contractDueFilter } from "@/lib/listDue";
+import { CONTRACT_DUE_SELECT, contractDueFilter } from "@/lib/listDue";
 import { getDueContext } from "@/lib/appSettings";
 import type { DueContext } from "@/lib/duePolicy";
 import {
   contractFilterWheres,
-  contractRules,
+  filtersForChip,
   legacyListRedirect,
   parseListFilters,
   type ListFilterCounts,
+  type ListFilters,
+  type ToggleableFilter,
 } from "@/lib/recordFilters";
+
+// The chips the Contracts list shows (ContractListClient's CHIPS).
+const CONTRACT_CHIPS: ToggleableFilter[] = ["dueSoon", "overdue", "review", "noDocument", "missingDetails", "important"];
 import type { Prisma } from "@/generated/prisma/client";
 import { ContractCategory, ContractStatus } from "@/generated/prisma/enums";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
@@ -28,20 +33,43 @@ function oneOf<T extends string>(value: string | undefined, allowed: readonly T[
   return (allowed as readonly string[]).includes(value ?? "") ? (value as T) : undefined;
 }
 
-// Chip counts for the whole household (not narrowed by search text or other
-// chips), from the same rules the list uses, so each count is the length of
-// the list its chip opens.
-async function contractCounts(now: Date, ctx: DueContext): Promise<ListFilterCounts> {
-  const weekAgo = new Date(now.getTime() - 7 * 86_400_000);
-  const [{ dueSoon, overdue }, review, noDocument, missingDetails, important, recentlyAdded] = await Promise.all([
-    contractDueCounts(ctx),
-    prisma.contract.count({ where: contractRules.review.where }),
-    prisma.contract.count({ where: contractRules.noDocument.where }),
-    prisma.contract.count({ where: contractRules.missingDetails.where }),
-    prisma.contract.count({ where: contractRules.important.where }),
-    prisma.contract.count({ where: { deletedAt: null, createdAt: { gte: weekAgo } } }),
-  ]);
-  return { dueSoon, overdue, review, noDocument, missingDetails, important, recentlyAdded };
+interface ContractQuery {
+  q?: string;
+  category?: ContractCategory;
+  status?: ContractStatus;
+}
+
+// The list's query for a set of filters: what Prisma narrows, and the Due
+// policy's final say when a due chip is on (ADR 0002).
+function contractListQuery({ q, category, status }: ContractQuery, filters: ListFilters, due: DueContext) {
+  const and: Prisma.ContractWhereInput[] = [];
+  if (category) and.push({ category });
+  if (status) and.push({ status });
+  if (q) {
+    and.push({
+      OR: [{ title: { contains: q } }, { provider: { contains: q } }, { contractNumber: { contains: q } }],
+    });
+  }
+  const dueFilter = filters.due ? contractDueFilter(filters.due, due) : null;
+  if (dueFilter) and.push(dueFilter.where);
+  and.push(...contractFilterWheres(filters));
+  return { where: { deletedAt: null, AND: and } satisfies Prisma.ContractWhereInput, dueFilter };
+}
+
+// #517 review — each chip's count is the length of the list it opens from
+// here: the current search, category, status and other chips kept. Built
+// from the same query as the list, so the two always agree.
+async function contractCounts(query: ContractQuery, filters: ListFilters, due: DueContext): Promise<ListFilterCounts> {
+  const entries = await Promise.all(
+    CONTRACT_CHIPS.map(async (chip) => {
+      const { where, dueFilter } = contractListQuery(query, filtersForChip(filters, chip), due);
+      const count = dueFilter
+        ? (await prisma.contract.findMany({ where, select: CONTRACT_DUE_SELECT })).filter(dueFilter.matches).length
+        : await prisma.contract.count({ where });
+      return [chip, count] as const;
+    }),
+  );
+  return Object.fromEntries(entries);
 }
 
 export default async function ContractsPage({
@@ -64,28 +92,20 @@ export default async function ContractsPage({
   // decides the filter, the counts and every card's badge (ADR 0002).
   const due = await getDueContext(now);
 
-  const and: Prisma.ContractWhereInput[] = [];
-  if (category) and.push({ category });
-  if (status) and.push({ status });
-  if (q) {
-    and.push({
-      OR: [{ title: { contains: q } }, { provider: { contains: q } }, { contractNumber: { contains: q } }],
-    });
-  }
-  // The query narrows roughly and the Due policy decides (ADR 0002).
-  const dueFilter = filters.due ? contractDueFilter(filters.due, due) : null;
-  if (dueFilter) and.push(dueFilter.where);
-  and.push(...contractFilterWheres(filters));
+  const query = { q, category, status };
+  const { where, dueFilter } = contractListQuery(query, filters, due);
 
-  const [allContracts, counts, { dateFormat, region }, session] = await Promise.all([
+  const [allContracts, counts, { dateFormat, region }, session, trashCount] = await Promise.all([
     prisma.contract.findMany({
-      where: { deletedAt: null, AND: and },
+      where,
       include: { _count: { select: { documents: { where: { deletedAt: null } } } } },
       orderBy: [{ status: "asc" }, { endDate: "asc" }],
     }),
-    contractCounts(now, due),
+    contractCounts(query, filters, due),
     getUserPreferences(),
     auth(),
+    // #514 review — an empty list says how many are in Trash.
+    prisma.contract.count({ where: { deletedAt: { not: null } } }),
   ]);
   const contracts = dueFilter ? allContracts.filter(dueFilter.matches) : allContracts;
 
@@ -101,6 +121,7 @@ export default async function ContractsPage({
       dateFormat={dateFormat}
       region={region}
       canWrite={sessionCanWrite(session)}
+      trashCount={trashCount}
     />
   );
 }

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Check, Circle, FileUp, Plus, X } from "lucide-react";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
 import { useDismissible } from "@/lib/useDismissible";
-import { linkButtonClass } from "@/lib/buttonStyles";
+import { buttonClass, cardClass } from "@/lib/ui";
 
 const DISMISS_KEY = "hearth:onboarding-checklist-dismissed";
 // #345 — set when the "Review optional modules" step is followed, so a
@@ -12,11 +12,7 @@ const DISMISS_KEY = "hearth:onboarding-checklist-dismissed";
 // the step (it used to require enabling at least one).
 const MODULES_REVIEWED_KEY = "hearth:onboarding-modules-reviewed";
 
-// Solid bg-surface rather than the shared secondary variant's bg-transparent
-// — these buttons sit on this card's own bg-accent/5 tint, so a transparent
-// button would let that tint bleed through instead of reading as a button.
-const secondaryOnAccentClass =
-  "flex min-h-11 items-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-medium hover:bg-hover-surface";
+const secondaryOnAccentClass = buttonClass("secondary");
 
 export function OnboardingChecklist({
   enabledModules,
@@ -44,24 +40,24 @@ export function OnboardingChecklist({
   ];
 
   return (
-    <section className="relative space-y-4 rounded-xl border border-dashed border-accent/40 bg-accent/5 p-6 text-center md:p-10">
+    <section className={cardClass({}, "relative space-y-4 text-center")}>
       <button
         type="button"
         aria-label="Dismiss getting-started checklist"
         onClick={dismiss}
-        className="absolute right-1 top-1 flex size-11 items-center justify-center rounded-md text-muted hover:bg-hover"
+        className={buttonClass("quiet", { icon: true }, "absolute right-2 top-2 text-muted")}
       >
-        <X size={14} />
+        <X size={16} />
       </button>
 
       <div className="space-y-1">
-        <h2 className="text-lg font-semibold">Add your first document</h2>
+        <h2 className="text-base font-medium">Add your first document</h2>
         <p className="mx-auto max-w-md text-sm text-muted">
           Drop in a PDF and Hearth fills in the details for you — review and save in seconds.
         </p>
       </div>
       <div className="flex flex-wrap items-center justify-center gap-2">
-        <Link href="/import" className={linkButtonClass("primary")}>
+        <Link href="/import" className={buttonClass("primary")}>
           <FileUp size={16} />
           Upload a document
         </Link>
@@ -88,7 +84,7 @@ export function OnboardingChecklist({
             <Link
               href={step.href}
               onClick={"onClick" in step ? step.onClick : undefined}
-              className="flex min-h-11 items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm hover:border-accent/50"
+              className={cardClass({ padding: "none", interactive: true }, "flex min-h-11 items-center gap-2 px-3 py-2 text-sm")}
             >
               {step.done ? (
                 <Check size={16} className="shrink-0 text-success" />

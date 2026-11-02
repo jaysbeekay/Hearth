@@ -23,6 +23,111 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   it, the file picker still works. Shell parity: new local native plugin
   `HearthScan` (`HearthScanPlugin.swift`, `HearthScanPlugin.java`).
 
+### Changed
+
+- **One set of shared UI rules (#411).** The app now draws from one type
+  scale (24/20/16/14/12px at two weights, sentence case), one radius
+  (`rounded-lg`, with `rounded-full` only for dots), 1px borders, no card
+  shadows and a single overlay shadow for dialogs and menus. Cards, pills,
+  banners and page widths come from `Card`, `Pill`, `Banner` and
+  `PageShell` (`src/components/ui/`), and every class string they use lives
+  in `src/lib/ui.ts`. Buttons are primary, secondary, quiet or danger at
+  one 36px size with a 44px hit area; each page has at most one primary
+  button (row actions, settings saves and detail-page actions are
+  secondary), filter chips look like secondary buttons rather than status
+  pills, and inputs and selects share one 36px style. Icons are 16px in
+  content and 20px in navigation, and decorative icons (the 32px glyphs on
+  sign-in and error pages, the chat avatars, the per-row icons in the
+  Needs attention queue) are gone. Dashed borders are kept only for file
+  drop zones, and hover motion is colour-only. A unit test
+  (`tests/unit/ui-rules.test.ts`) and an e2e check
+  (`e2e/specs/51-ui-rules.spec.ts`) hold these rules in place. The iOS and
+  Android shell keeps its own styles and is unchanged.
+- Links inside running text are now underlined, so they no longer rely on
+  colour alone, and the contract list's filter selects and each member's role
+  select have accessible names (#411 review).
+- Button labels too long for their row now wrap onto a second line instead
+  of running off-screen, text inputs show a focus ring again, the property
+  valuation form's fields are labelled, and the contract status action's
+  accessible name matches its visible text (#411 review).
+- **Consistency pass (#406).** Every add, edit and renew form now has Cancel
+  beside Save, going back to the same place as the page's back link. A form
+  error is shown once, in the banner above the buttons (scrolled into view
+  and announced to screen readers), instead of also popping up as a toast.
+  An empty Contracts, Warranties, Vehicles, Properties or Travel list shows
+  just its sentence and Add button, without Export, search or filter chips;
+  an empty Contracts or Warranties list also says how many are in Recently
+  deleted, with a link there.
+  Import and Inbox review fields use the shared 36px input style, the
+  Inventory form sits in a card with sentence-case labels, portfolios are
+  added with "Add portfolio" everywhere, and a holding's Delete moved into
+  its ⋮ menu. The iOS and Android shell is unchanged.
+- **Plainer record pages (#405).** Each Trip segment, Service record,
+  Maintenance record, Rental statement and Trade now has one quiet "Add
+  document" button instead of its own drop zone, Document type select and
+  Upload button. The file uploads as soon as it's picked, and its type is
+  set afterwards from a select on its row in the Document list (every kind
+  except Warranties, whose type is still chosen at upload because it picks
+  the hero photo). Deleting an entry, a valuation or a portfolio moved from
+  a red button into the row's ⋮ menu. Empty fields are hidden on detail
+  pages instead of showing a dash, and a Contract's or Warranty's header
+  badge is hidden while the status banner below says the same thing. The
+  iOS and Android shell is unchanged.
+- **Reminder presets and a one-line Reminder card (#360).** Contract,
+  Warranty, Vehicle and Tenancy forms pick Reminder thresholds from presets
+  ("Default · 30/14/7/1", "1 week before", "1 day before", "Custom…")
+  instead of a free-text field, and a hint always says which days apply and
+  when the record shows in Needs attention. Stored values are unchanged:
+  Default saves blank (the household default), and any other list opens as
+  Custom. Vehicle thresholds are now validated like the others. The Reminder
+  health card is one line per date ("Next reminder 20 Sep by email ·
+  thresholds 30/14/7/1"), says once when no delivery channel is set up, and
+  opens to the full read-out and "Send test reminder" on click. A Vehicle
+  shows one card for its registration, insurance and service dates. The iOS
+  and Android shell is unchanged.
+- **One filter row on Contracts and Warranties (#365).** The Filter button is
+  gone (search still submits as you type or on Enter, and the selects on
+  change). Each filter chip carries the number of records it would show
+  ("Due soon · 2"), counted with the current search, category, status and
+  other chips kept, with zero counts muted, replacing the separate row of summary counts
+  and its "added this week" figure. On a phone the search box sits beside a
+  "Filters" button that opens a bottom sheet with the category and status
+  selects and the chips, so the first record is on the first screen. Links
+  from the dashboard still pre-select the right chip. The iOS and Android
+  shell is unchanged.
+- **Spending leads with what's useful (#367).** The "Tax-deductible / mo"
+  tile is hidden when nothing is tax-deductible. Contracts with a cost but
+  no billing frequency, which the dashboard and Spending both leave out of
+  the monthly figure, are now flagged here too, with a link to fill them
+  in. The category breakdown comes first; the timeline is folded under
+  "Recurring cost over time" and says so plainly when nothing changed
+  instead of drawing identical bars. "Annual projection" (monthly × 12) is
+  now "Next 12 months": a fixed-term or manually renewed contract counts
+  only up to its end date, and one that hasn't started counts from its
+  start date. The iOS and Android shell is unchanged.
+- **Search opens on something useful, and Documents stops overloading
+  "type" (#366).** Before you type, Search shows the last five records you
+  opened in this browser (only their ids are kept locally; titles come from
+  the server, so a deleted record drops out) and the first three Due rows
+  from Needs attention. Its chips are down to Due soon, Needs review and
+  Important; No document and Missing key details stay on the list pages'
+  filter rows, and `/api/search` still takes every filter. On Documents,
+  the area chips are labelled "Belongs to" (with "All" instead of "All
+  types"), the table has separate "Document type" and "Belongs to" columns
+  with one pill each, and each mobile card labels both. The iOS and Android
+  shell is unchanged.
+- **Shorter Contract, Warranty and Vehicle forms (#361).** Only the fields
+  that drive Reminders and Spend show up front. The rest sit in a "More
+  details" section, and the thresholds sit in a "Reminders" section. A
+  section opens by itself when it already holds a value, when a document
+  scan fills a field inside it, or when the browser flags a field inside it.
+  A Contract's Category now starts on "Choose a category" and has to be
+  picked; a scan suggests one from the provider and title. Entering a cost
+  sets the billing frequency to Monthly until you choose another. The
+  Warranty photo upload moves into More details. Preferences explains that
+  date pickers follow the browser's language. The Property form was already
+  short and is unchanged, and so is the iOS and Android shell.
+
 ### Fixed
 
 - **Document auto-fill read ungrouped amounts short.** "$1234.50" was read as
