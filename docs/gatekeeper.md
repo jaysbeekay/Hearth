@@ -23,7 +23,7 @@ that also reviews jaysbeekay/sure. It posts as the GitHub App `thebotkeeper[bot]
 - `CODEBOT_SECRET`: the HMAC secret Hermes' webhook route verifies.
 - `AI_WEBHOOK_URL`: the Hermes webhook URL.
 
-Until both are set, an `@codebot` comment still gets the 👀 reaction but the send step fails.
+Until both are set, the CodeBot run fails at its first step (it never signs with an empty key).
 
 **GitHub App:** install `thebotkeeper` on jaysbeekay/Hearth (its Configure page → Repository
 access).

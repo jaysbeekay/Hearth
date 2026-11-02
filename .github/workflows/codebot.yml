@@ -27,6 +27,16 @@ jobs:
 
     steps:
 
+      # Fail before doing anything if the signing secret or the endpoint is
+      # missing. Never sign with an empty key.
+      - name: Check configuration
+        env:
+          CODEBOT_SECRET: ${{ secrets.CODEBOT_SECRET }}
+          AI_WEBHOOK_URL: ${{ secrets.AI_WEBHOOK_URL }}
+        run: |
+          test -n "$CODEBOT_SECRET" || { echo "::error::CODEBOT_SECRET is not set."; exit 1; }
+          test -n "$AI_WEBHOOK_URL" || { echo "::error::AI_WEBHOOK_URL is not set."; exit 1; }
+
       # Event values reach the shell through env, never as expressions inside
       # run:, so no comment or title text can be spliced into a command.
       - name: Log trigger
@@ -92,6 +102,10 @@ jobs:
           AI_WEBHOOK_URL: ${{ secrets.AI_WEBHOOK_URL }}
           COMMENT_ID: ${{ github.event.comment.id }}
         run: |
+          # Fail closed: an empty key would still produce a valid-looking HMAC.
+          test -n "$CODEBOT_SECRET" || { echo "::error::CODEBOT_SECRET is not set; not sending."; exit 1; }
+          test -n "$AI_WEBHOOK_URL" || { echo "::error::AI_WEBHOOK_URL is not set; not sending."; exit 1; }
+
           # payload.json was written with printf (no trailing newline) so the
           # bytes we hash below are byte-for-byte identical to what curl sends.
           TIMESTAMP=$(date +%s)
