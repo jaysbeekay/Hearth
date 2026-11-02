@@ -16,6 +16,7 @@ test("Global Search's old-term aliases surface every contract/product of that ty
 
   await page.goto("/contracts/new");
   await page.locator("#title").fill(contractTitle);
+  await page.locator("#category").selectOption("OTHER");
   await page.locator("#provider").fill("Some Unrelated Provider Name");
   await page.locator("main button[type=submit]").click();
   await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);

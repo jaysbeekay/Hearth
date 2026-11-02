@@ -23,6 +23,18 @@ export function presetFor(stored: string | null | undefined): Preset {
   return "custom";
 }
 
+/**
+ * Whether a record has thresholds of its own, not the household default.
+ * Saving a blank field stores the default's days, so a stored value equal to
+ * the default (in any order or spacing) reads as the default (#361).
+ */
+export function hasOwnThresholds(stored: string | null | undefined, householdDefault: string): boolean {
+  if (presetFor(stored) === "default") return false;
+  const days = (value: string) =>
+    [...new Set(parseThresholds(value).filter(Number.isInteger))].sort((a, b) => b - a).join(",");
+  return days(stored ?? "") !== days(householdDefault);
+}
+
 /** "30, 14, 7 and 1 days" / "1 day" — the thresholds a value resolves to, in words. */
 export function describeThresholds(days: number[]): string {
   if (days.length === 0) return "no days";
@@ -53,16 +65,20 @@ export function ReminderThresholdsField({
   defaultValue,
   householdDefault,
   before = "the date",
+  srOnlyLegend = false,
 }: {
   defaultValue: string | null | undefined;
   /** The household's default thresholds, which apply when a record has none of its own. */
   householdDefault: string;
   /** What the Reminders come before, for the hint ("the end date", "the lease end"). */
   before?: string;
+  /** Inside a "Reminders" form section the visible title is the section's (#361). */
+  srOnlyLegend?: boolean;
 }) {
   const id = useId();
-  const [preset, setPreset] = useState<Preset>(() => presetFor(defaultValue));
-  const [custom, setCustom] = useState(() => (presetFor(defaultValue) === "custom" ? (defaultValue ?? "") : ""));
+  const initialPreset = hasOwnThresholds(defaultValue, householdDefault) ? presetFor(defaultValue) : "default";
+  const [preset, setPreset] = useState<Preset>(initialPreset);
+  const [custom, setCustom] = useState(() => (initialPreset === "custom" ? (defaultValue ?? "") : ""));
   const value = preset === "custom" ? custom : (PRESET_VALUES.get(preset) ?? "");
   const defaultLabel = `Default · ${parseThresholds(householdDefault).sort((a, b) => b - a).join("/")}`;
 
@@ -75,7 +91,7 @@ export function ReminderThresholdsField({
 
   return (
     <fieldset className="space-y-2">
-      <legend className="mb-1 text-sm font-medium">Reminders</legend>
+      <legend className={srOnlyLegend ? "sr-only" : "mb-1 text-sm font-medium"}>Reminders</legend>
       <div className="flex flex-wrap gap-2">
         {options.map((option) => {
           const checked = preset === option.preset;

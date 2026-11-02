@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { describeThresholds, presetFor, thresholdsHint } from "@/components/ReminderThresholdsField";
+import { describeThresholds, hasOwnThresholds, presetFor, thresholdsHint } from "@/components/ReminderThresholdsField";
 import { reminderSummary } from "@/lib/notifications/reminderSummary";
 import type { ReminderHealth } from "@/lib/notifications/health";
 
@@ -20,6 +20,21 @@ describe("presetFor", () => {
     expect(presetFor("30,14,7,1")).toBe("custom");
     expect(presetFor("60, 30")).toBe("custom");
     expect(presetFor("7,1")).toBe("custom");
+  });
+});
+
+describe("hasOwnThresholds (#361)", () => {
+  it("reads a stored copy of the household default as the default", () => {
+    expect(hasOwnThresholds("", "30,14,7,1")).toBe(false);
+    expect(hasOwnThresholds(null, "30,14,7,1")).toBe(false);
+    expect(hasOwnThresholds("30,14,7,1", "30,14,7,1")).toBe(false);
+    expect(hasOwnThresholds("1, 7,14 ,30", "30,14,7,1")).toBe(false);
+  });
+
+  it("spots a record's own thresholds", () => {
+    expect(hasOwnThresholds("7", "30,14,7,1")).toBe(true);
+    expect(hasOwnThresholds("60,30", "30,14,7,1")).toBe(true);
+    expect(hasOwnThresholds("30,14,7,1", "14,7")).toBe(true);
   });
 });
 

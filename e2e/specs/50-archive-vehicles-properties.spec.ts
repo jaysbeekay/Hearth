@@ -113,6 +113,7 @@ test("an Archived Vehicle's page lists the active Contracts still linked to it",
 
   await page.goto(`/contracts/new?vehicleId=${vehicleId}`);
   await page.locator("#title").fill("Archive Linked Insurance");
+  await page.locator("#category").selectOption("OTHER");
   await page.locator("#provider").fill("Acme");
   await page.locator("#endDate").fill(daysFromNow(200));
   await page.locator("main button[type=submit]").click();
