@@ -5,6 +5,7 @@ import { Upload } from "lucide-react";
 import type { VehicleItemModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
+import { FormActions } from "@/components/FormActions";
 import { FormMessage } from "@/components/FormMessage";
 import { Field } from "@/components/FormField";
 import { VEHICLE_ITEM_TYPES } from "@/lib/validation/vehicles";
@@ -26,11 +27,14 @@ type ExtractedFields = Partial<Record<"type" | "title" | "provider" | "date" | "
 
 export function VehicleItemForm({
   action,
+  cancelHref,
   item,
   vehicleId,
   defaultCurrency,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
+  /** Where Cancel goes: the same place as the page's BackLink. */
+  cancelHref: string;
   item?: VehicleItemModel;
   vehicleId?: string;
   defaultCurrency?: string;
@@ -205,11 +209,11 @@ export function VehicleItemForm({
         />
       </Field>
 
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
 
-      <div className="flex justify-end gap-3">
+      <FormActions cancelHref={cancelHref}>
         <SubmitButton>{item ? "Save changes" : "Add service record"}</SubmitButton>
-      </div>
+      </FormActions>
     </form>
   );
 }

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import type { VehicleModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
+import { FormActions } from "@/components/FormActions";
 import { FormMessage } from "@/components/FormMessage";
 import {
   makeOfflineAwareAction,
@@ -25,9 +26,12 @@ function toDateInputValue(date: Date | null | undefined) {
 
 export function VehicleForm({
   action,
+  cancelHref,
   vehicle,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
+  /** Where Cancel goes: the same place as the page's BackLink. */
+  cancelHref: string;
   vehicle?: VehicleModel;
 }) {
   const offlineAwareAction = makeOfflineAwareAction(
@@ -206,11 +210,11 @@ export function VehicleForm({
         />
       </Field>
 
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
 
-      <div className="flex justify-end gap-3">
+      <FormActions cancelHref={cancelHref}>
         <SubmitButton>{pendingOp || vehicle ? "Save changes" : "Add vehicle"}</SubmitButton>
-      </div>
+      </FormActions>
     </form>
   );
 }

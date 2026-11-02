@@ -8,7 +8,7 @@ import { INVENTORY_ITEM_CATEGORIES } from "@/lib/validation/inventory";
 import { showToast } from "@/components/Toast";
 import { LinkedToField } from "@/components/LinkedToField";
 import { extractionMessage } from "@/lib/autoFillHighlight";
-import { buttonClass, pillClass, inputClass, inlineLinkClass } from "@/lib/ui";
+import { buttonClass, pillClass, inputClass, inlineLinkClass, reviewFieldClass } from "@/lib/ui";
 import { Card } from "@/components/ui/Card";
 
 const INVENTORY_CATEGORY_LABELS: Record<string, string> = {
@@ -107,9 +107,7 @@ async function extract(type: EntityType, file: File) {
 }
 
 function fieldClass(autoFilled?: boolean) {
-  return `rounded-lg border px-2 py-1.5 text-sm outline-none focus:border-accent ${
-    autoFilled ? "border-accent/40 bg-accent/5 ring-1 ring-accent/40" : "border-border bg-background"
-  }`;
+  return reviewFieldClass(autoFilled ? "extracted" : "none");
 }
 
 function appendReviewFields(

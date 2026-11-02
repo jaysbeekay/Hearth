@@ -21,7 +21,7 @@ export default async function NewVehiclePage() {
         </p>
       </div>
       <Card>
-        <VehicleForm action={createVehicle} />
+        <VehicleForm cancelHref="/vehicles" action={createVehicle} />
       </Card>
     </PageShell>
   );

@@ -77,7 +77,7 @@ export function SmtpForm({
           </div>
         </Field>
       </div>
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
       {current.host && current.user && (
         <p className="text-xs text-muted">
           Testing sends against the saved settings — save your changes first if you just edited them.
@@ -139,7 +139,7 @@ export function EmailIngestForm({
           </div>
         </Field>
       </div>
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
       {current.host && current.user && (
         <p className="text-xs text-muted">
           Testing connects against the saved settings — save your changes first if you just edited
@@ -181,7 +181,7 @@ export function NtfyForm({
           <SensitiveField id="ntfyToken" name="ntfyToken" isSet={current.tokenIsSet} />
         </Field>
       </div>
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
       {current.url && current.topic && (
         <p className="text-xs text-muted">
           Testing sends against the saved settings — save your changes first if you just edited them.
@@ -219,7 +219,7 @@ export function OllamaForm({
           <input id="ollamaModel" name="ollamaModel" defaultValue={current.model} placeholder="llama3" className={inputClass} />
         </Field>
       </div>
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
       {current.baseUrl && (
         <p className="text-xs text-muted">
           Testing connects using the saved settings — save your changes first if you just edited them.
@@ -260,7 +260,7 @@ export function BarcodeForm({
           <SensitiveField id="barcodeApiKey" name="barcodeApiKey" isSet={current.apiKeyIsSet} />
         </Field>
       </div>
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
       <div className="flex justify-end">
         <SubmitButton variant="secondary">Save barcode settings</SubmitButton>
       </div>
@@ -382,7 +382,7 @@ export function BackupDestinationForm({
         </div>
       )}
 
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
       <div className="flex justify-end">
         <SubmitButton variant="secondary">Save backup destination</SubmitButton>
       </div>
@@ -424,7 +424,7 @@ export function ScheduleForm({
       <p className="text-xs text-warning">
         Cron schedule changes take effect after the next server restart.
       </p>
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
       <div className="flex justify-end">
         <SubmitButton variant="secondary">Save schedule settings</SubmitButton>
       </div>
@@ -471,7 +471,7 @@ export function HouseholdTimeZoneForm({
           </select>
         </SelectWrapper>
       </Field>
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
       <div className="flex justify-end">
         <SubmitButton variant="secondary">Save timezone</SubmitButton>
       </div>
@@ -498,7 +498,7 @@ export function AviationStackForm({
       >
         <SensitiveField id="aviationstackApiKey" name="aviationstackApiKey" isSet={isKeySet} />
       </Field>
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
       <div className="flex justify-end">
         <SubmitButton variant="secondary">Save</SubmitButton>
       </div>

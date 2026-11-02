@@ -31,7 +31,7 @@ export default async function EditPropertyPage({
         <p className="text-sm text-muted">{property.label}</p>
       </div>
       <Card>
-        <PropertyForm action={boundAction} property={property} />
+        <PropertyForm cancelHref={`/home/${property.id}`} action={boundAction} property={property} />
       </Card>
     </PageShell>
   );

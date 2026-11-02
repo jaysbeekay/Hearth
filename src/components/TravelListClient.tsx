@@ -41,11 +41,15 @@ export function TravelListClient({ trips, dateFormat, canWrite = true, distanceS
     return () => window.removeEventListener("offline-sync-complete", onSyncComplete);
   }, [router]);
 
+  // #406 — a list with nothing in it yet shows one sentence and one button:
+  // no Export, search or filter chips until there is something to act on.
+  const nothingYet = trips.length === 0 && pendingOps.length === 0;
+
   return (
     <PageShell width="list">
       <ListPageHeader
         title={MODULE_REGISTRY.TRAVEL.label}
-        exportPath="/api/export/travel"
+        exportPath={nothingYet ? undefined : "/api/export/travel"}
         action={canWrite ? { href: "/travel/new", label: "Add trip", online } : undefined}
       />
 

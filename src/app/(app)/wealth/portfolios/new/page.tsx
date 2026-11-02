@@ -9,7 +9,7 @@ import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/ui/PageShell";
 
-export const metadata: Metadata = { title: "New Portfolio" };
+export const metadata: Metadata = { title: "Add portfolio" };
 
 export default async function NewPortfolioPage() {
   await requireModuleEnabled("WEALTH");
@@ -20,10 +20,10 @@ export default async function NewPortfolioPage() {
     <PageShell width="form">
       <div>
         <BackLink href="/wealth" label="Wealth" />
-        <h1 className="mt-1 text-2xl font-medium">New portfolio</h1>
+        <h1 className="mt-1 text-2xl font-medium">Add portfolio</h1>
       </div>
       <Card>
-        <PortfolioForm action={createPortfolio} defaultCurrency={preferredCurrency} />
+        <PortfolioForm cancelHref="/wealth" action={createPortfolio} defaultCurrency={preferredCurrency} />
       </Card>
     </PageShell>
   );

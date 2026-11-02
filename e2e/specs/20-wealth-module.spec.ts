@@ -28,7 +28,7 @@ test.describe.serial("Wealth module", () => {
   test("create a portfolio", async ({ page }) => {
     await page.goto("/wealth/portfolios/new");
     await page.locator("#name").fill("Test Portfolio");
-    await page.getByRole("button", { name: "Create portfolio" }).click();
+    await page.getByRole("button", { name: "Add portfolio" }).click();
     await page.waitForURL(/\/wealth\/portfolios\/(?!new$)[^/]+$/);
 
     portfolioId = new URL(page.url()).pathname.split("/").pop()!;
@@ -151,6 +151,7 @@ test.describe.serial("Wealth module", () => {
     expect(fs.existsSync(fileDir)).toBe(true);
 
     await page.goto(`/wealth/portfolios/${portfolioId}/holdings/${holdingId}`);
+    await page.getByRole("button", { name: "More actions" }).click();
     await page.getByRole("button", { name: "Delete", exact: true }).click();
     await page.getByRole("button", { name: "Delete AAPL" }).click();
     await page.waitForURL(/\/wealth\/portfolios\/[^/]+$/);

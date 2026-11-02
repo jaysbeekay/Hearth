@@ -221,7 +221,7 @@ test.describe.serial("The one Document list", () => {
     await page.locator("#name").fill(portfolioName);
     await Promise.all([
       page.waitForURL(/\/wealth\/portfolios\/(?!new$)[^/]+$/),
-      page.getByRole("button", { name: "Create portfolio" }).click(),
+      page.getByRole("button", { name: "Add portfolio" }).click(),
     ]);
     const portfolioId = page.url().split("/portfolios/")[1];
 

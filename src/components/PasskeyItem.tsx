@@ -37,7 +37,7 @@ export function PasskeyItem({
             </>
           ) : null}
         </p>
-        <FormMessage error={state?.error} success={state?.success} />
+        <FormMessage attempt={state} error={state?.error} success={state?.success} />
       </div>
       <ConfirmForm
         action={deletePasskeyCredential.bind(null, credentialId)}

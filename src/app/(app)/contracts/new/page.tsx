@@ -56,7 +56,7 @@ export default async function NewContractPage({
         </p>
       </div>
       <Card>
-        <ContractForm
+        <ContractForm cancelHref="/contracts"
           action={createContract}
           defaultCurrency={preferredCurrency}
           properties={properties}

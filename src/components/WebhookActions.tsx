@@ -54,8 +54,8 @@ export function WebhookActions({
           <Trash2 size={16} />
         </ConfirmForm>
       </div>
-      <FormMessage error={testState?.error} success={testState?.success} />
-      <FormMessage error={toggleState?.error} success={toggleState?.success} />
+      <FormMessage attempt={testState} error={testState?.error} success={testState?.success} />
+      <FormMessage attempt={toggleState} error={toggleState?.error} success={toggleState?.success} />
     </div>
   );
 }

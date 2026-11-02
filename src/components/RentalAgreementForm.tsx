@@ -5,6 +5,7 @@ import { Upload } from "lucide-react";
 import type { RentalAgreementModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
+import { FormActions } from "@/components/FormActions";
 import { FormMessage } from "@/components/FormMessage";
 import { Field } from "@/components/FormField";
 import { inputClass, textareaClass } from "@/components/SelectWrapper";
@@ -26,12 +27,15 @@ type ExtractedFields = Partial<
 
 export function RentalAgreementForm({
   action,
+  cancelHref,
   agreement,
   propertyId,
   defaultCurrency,
   defaultReminderDays,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
+  /** Where Cancel goes: the same place as the page's BackLink. */
+  cancelHref: string;
   agreement?: RentalAgreementModel;
   propertyId?: string;
   defaultCurrency?: string;
@@ -228,11 +232,11 @@ export function RentalAgreementForm({
         />
       </Field>
 
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
 
-      <div className="flex justify-end gap-3">
+      <FormActions cancelHref={cancelHref}>
         <SubmitButton>{agreement ? "Save changes" : "Add tenancy"}</SubmitButton>
-      </div>
+      </FormActions>
     </form>
   );
 }

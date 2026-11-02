@@ -8,6 +8,7 @@ import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { PageShell } from "@/components/ui/PageShell";
+import { Card } from "@/components/ui/Card";
 import { inTrashLabel } from "@/lib/trashWording";
 
 export const metadata: Metadata = { title: "Edit Item" };
@@ -41,7 +42,9 @@ export default async function EditInventoryItemPage({
         <BackLink href={`/inventory/${id}`} label={item.label} />
       </div>
       <h1 className="text-2xl font-medium">Edit item</h1>
-      <InventoryItemForm action={updateInventoryItem.bind(null, id)} item={item} products={products} />
+      <Card>
+        <InventoryItemForm cancelHref={`/inventory/${id}`} action={updateInventoryItem.bind(null, id)} item={item} products={products} />
+      </Card>
     </PageShell>
   );
 }

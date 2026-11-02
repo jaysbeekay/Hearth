@@ -37,7 +37,7 @@ export default async function PortfoliosPage() {
             className={buttonClass("primary")}
           >
             <Plus size={16} />
-            New portfolio
+            Add portfolio
           </Link>
         )}
       </div>

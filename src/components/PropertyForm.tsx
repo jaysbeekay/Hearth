@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import type { PropertyModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
+import { FormActions } from "@/components/FormActions";
 import { FormMessage } from "@/components/FormMessage";
 import {
   makeOfflineAwareAction,
@@ -33,9 +34,12 @@ interface GeocodeSuggestion {
 
 export function PropertyForm({
   action,
+  cancelHref,
   property,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
+  /** Where Cancel goes: the same place as the page's BackLink. */
+  cancelHref: string;
   property?: PropertyModel;
 }) {
   const offlineAwareAction = makeOfflineAwareAction(
@@ -174,11 +178,11 @@ export function PropertyForm({
         />
       </Field>
 
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
 
-      <div className="flex justify-end gap-3">
+      <FormActions cancelHref={cancelHref}>
         <SubmitButton>{pendingOp || property ? "Save changes" : "Add property"}</SubmitButton>
-      </div>
+      </FormActions>
     </form>
   );
 }

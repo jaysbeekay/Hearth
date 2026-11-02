@@ -44,7 +44,7 @@ export default async function EditRentalAgreementPage({
       </div>
 
       <Card>
-        <RentalAgreementForm action={boundAction} agreement={agreement} defaultReminderDays={defaultDays} />
+        <RentalAgreementForm cancelHref={`/home/${property.id}/rental`} action={boundAction} agreement={agreement} defaultReminderDays={defaultDays} />
       </Card>
     </PageShell>
   );

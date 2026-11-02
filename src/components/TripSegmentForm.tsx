@@ -5,6 +5,7 @@ import { Upload } from "lucide-react";
 import type { TripSegmentModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
+import { FormActions } from "@/components/FormActions";
 import { FormMessage } from "@/components/FormMessage";
 import { Field } from "@/components/FormField";
 import { TRIP_SEGMENT_TYPES } from "@/lib/validation/travel";
@@ -43,11 +44,14 @@ type ExtractedFields = Partial<
 
 export function TripSegmentForm({
   action,
+  cancelHref,
   segment,
   tripId,
   defaultCurrency,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
+  /** Where Cancel goes: the same place as the page's BackLink. */
+  cancelHref: string;
   segment?: TripSegmentModel;
   tripId?: string;
   defaultCurrency?: string;
@@ -308,11 +312,11 @@ export function TripSegmentForm({
         />
       </Field>
 
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
 
-      <div className="flex justify-end gap-3">
+      <FormActions cancelHref={cancelHref}>
         <SubmitButton>{segment ? "Save changes" : "Add segment"}</SubmitButton>
-      </div>
+      </FormActions>
     </form>
   );
 }
