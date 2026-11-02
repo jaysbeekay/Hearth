@@ -375,7 +375,9 @@ export function ProductForm({
               />
               <button
                 type="button"
-                onClick={() => setScannerOpen(true)}
+                onClick={() => {
+                  setScannerOpen(true);
+                }}
                 aria-label="Scan barcode"
                 title="Scan barcode"
                 className={buttonClass("secondary")}
@@ -386,7 +388,9 @@ export function ProductForm({
             {!product && barcodeLookupEnabled && (
               <button
                 type="button"
-                onClick={() => handleBarcodeLookup()}
+                onClick={() => {
+                  void handleBarcodeLookup();
+                }}
                 disabled={lookingUp}
                 className="mt-1 text-xs font-medium text-accent hover:underline disabled:opacity-50"
               >
