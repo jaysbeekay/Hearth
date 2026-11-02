@@ -27,6 +27,7 @@ import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
 import { buttonClass, chipClass, emptyStateClass, inputClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
+import { TrashHint } from "@/components/TrashHint";
 import { cn } from "@/lib/utils";
 
 const CHIPS: { chip: ToggleableFilter; label: string; onlyWhenActive?: boolean }[] = [
@@ -52,6 +53,8 @@ interface Props {
   dateFormat?: string;
   region?: string;
   canWrite?: boolean;
+  /** Records of this list in Trash, for the empty state's hint. */
+  trashCount?: number;
 }
 
 export function ProductListClient({
@@ -65,6 +68,7 @@ export function ProductListClient({
   dateFormat,
   region,
   canWrite = true,
+  trashCount = 0,
 }: Props) {
   const online = useOnlineStatus();
   const router = useRouter();
@@ -191,6 +195,7 @@ export function ProductListClient({
                 ? "No warranties match your search or filters."
                 : "No warranties yet. Add one manually, or upload an invoice and we'll fill in the details."}
             </p>
+            {!filtered && <TrashHint count={trashCount} singular="warranty" plural="warranties" />}
             {!filtered && canWrite && (
               <div className="flex flex-wrap items-center justify-center gap-2">
                 <Link href="/products/new" className={buttonClass("primary")}>

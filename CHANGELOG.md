@@ -39,7 +39,9 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   error is shown once, in the banner above the buttons (scrolled into view
   and announced to screen readers), instead of also popping up as a toast.
   An empty Contracts, Warranties, Vehicles, Properties or Travel list shows
-  just its sentence and Add button, without Export, search or filter chips.
+  just its sentence and Add button, without Export, search or filter chips;
+  an empty Contracts or Warranties list also says how many are in Recently
+  deleted, with a link there.
   Import and Inbox review fields use the shared 36px input style, the
   Inventory form sits in a card with sentence-case labels, portfolios are
   added with "Add portfolio" everywhere, and a holding's Delete moved into

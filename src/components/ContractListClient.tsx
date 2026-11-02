@@ -31,6 +31,7 @@ import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
 import { buttonClass, chipClass, emptyStateClass, selectClass, inputClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
+import { TrashHint } from "@/components/TrashHint";
 
 const STATUS_LABELS = new Map([
   ["ACTIVE", "Active"],
@@ -110,6 +111,8 @@ interface Props {
   dateFormat?: string;
   region?: string;
   canWrite?: boolean;
+  /** Records of this list in Trash, for the empty state's hint. */
+  trashCount?: number;
 }
 
 export function ContractListClient({
@@ -123,6 +126,7 @@ export function ContractListClient({
   dateFormat,
   region,
   canWrite = true,
+  trashCount = 0,
 }: Props) {
   const online = useOnlineStatus();
   const router = useRouter();
@@ -288,6 +292,7 @@ export function ContractListClient({
                 ? "No contracts match your search or filters."
                 : "No contracts yet. Add one manually, or upload a document and we'll fill in the details."}
             </p>
+            {!filtered && <TrashHint count={trashCount} singular="contract" plural="contracts" />}
             {!filtered && canWrite && (
               <div className="flex flex-wrap items-center justify-center gap-2">
                 <Link href="/contracts/new" className={buttonClass("primary")}>
