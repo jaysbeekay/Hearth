@@ -19,7 +19,8 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   MCP `readOnlyHint` annotation, the server's instructions tell agents to
   treat free-text fields as data rather than instructions, and a unit test
   pins the exact read-only tool list. The README's MCP section now covers
-  HTTPS, Claude Code and Claude Desktop setup, and the `Accept` header for
+  HTTPS; setup for Claude Code, Claude Desktop, the OpenAI Codex CLI and Open
+  WebUI (and why ChatGPT connectors can't connect yet); and the `Accept` header for
   hand-rolled clients. Server-only; the iOS and Android shell is unchanged.
 
 ### Changed

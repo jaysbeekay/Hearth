@@ -562,6 +562,40 @@ Keeping the header value in `env` avoids argument-quoting problems with the
 space in it. `mcp-remote` refuses plain `http://` to anything but localhost
 unless you add `--allow-http`.
 
+**OpenAI Codex CLI** speaks streamable HTTP natively and reads the token from
+an environment variable (it adds the `Bearer ` prefix itself, so the variable
+holds just the token):
+
+```bash
+export HEARTH_MCP_TOKEN="<your token>"
+codex mcp add hearth --url https://hearth.example.com/api/mcp \
+  --bearer-token-env-var HEARTH_MCP_TOKEN
+```
+
+or the equivalent in `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.hearth]
+url = "https://hearth.example.com/api/mcp"
+bearer_token_env_var = "HEARTH_MCP_TOKEN"
+```
+
+**Open WebUI** (v0.6.31 or later) supports MCP over streamable HTTP natively.
+As an admin, open Settings → Admin → Integrations, and under External Tool
+Servers add a connection with Type **MCP (Streamable HTTP)**, the Hearth URL,
+and Auth **Bearer** with your token in the Key field (leaving Key empty sends
+an empty header and Hearth answers 401). If Open WebUI runs in Docker on the
+same host as Hearth, use `http://host.docker.internal:3000/api/mcp` rather
+than `localhost`. Any Open WebUI user the tool server is made available to
+can read the household data Hearth exposes, so check its access settings and
+give it its own `MCP_TOKENS` entry so you can revoke it separately.
+
+**ChatGPT** (custom connectors in developer mode) isn't supported yet. Its
+connectors authenticate with OAuth or not at all, and can't send a static
+bearer token, which is the only auth Hearth accepts. Don't work around this by
+exposing `/api/mcp` without a token. It also needs a publicly reachable HTTPS
+URL.
+
 **Other HTTP clients** use a config block like:
 
 ```json
