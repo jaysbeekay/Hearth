@@ -6,7 +6,7 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import { ProductListClient } from "@/components/ProductListClient";
 import type { Prisma } from "@/generated/prisma/client";
 import { isModuleEnabled } from "@/lib/modules/enablement";
-import { warrantyDueCounts, warrantyDueFilter } from "@/lib/listDue";
+import { WARRANTY_DUE_SELECT, warrantyDueFilter } from "@/lib/listDue";
 import { getDueContext } from "@/lib/appSettings";
 import type { DueContext } from "@/lib/duePolicy";
 import {
@@ -15,8 +15,10 @@ import {
   warrantyLapsedRedirect,
   parseListFilters,
   productFilterWheres,
-  productRules,
+  filtersForChip,
   type ListFilterCounts,
+  type ListFilters,
+  type ToggleableFilter,
 } from "@/lib/recordFilters";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 
@@ -26,16 +28,46 @@ function first(value: string | string[] | undefined): string | undefined {
   return (Array.isArray(value) ? value[0] : value) || undefined;
 }
 
-// Household-wide chip counts from the same rules the list uses (#395).
-async function warrantyCounts(ctx: DueContext): Promise<ListFilterCounts> {
-  const [{ dueSoon, lapsed }, review, noDocument, missingDetails, important] = await Promise.all([
-    warrantyDueCounts(ctx),
-    prisma.product.count({ where: productRules.review.where }),
-    prisma.product.count({ where: productRules.noDocument.where }),
-    prisma.product.count({ where: productRules.missingDetails.where }),
-    prisma.product.count({ where: productRules.important.where }),
-  ]);
-  return { dueSoon, lapsed, review, noDocument, missingDetails, important };
+// The chips the Warranties list shows (ProductListClient's CHIPS).
+const WARRANTY_CHIPS: ToggleableFilter[] = ["dueSoon", "lapsed", "review", "noDocument", "missingDetails", "important"];
+
+// The list's query for a search and a set of filters. `?due=soon` is a
+// Warranty ending inside its due-soon window; `?due=lapsed` is one past its
+// end date (the "Lapsed" chip). The query narrows roughly and the Due policy
+// decides (ADR 0002).
+function warrantyListQuery(q: string | undefined, filters: ListFilters, due: DueContext) {
+  const and: Prisma.ProductWhereInput[] = [];
+  if (q) {
+    and.push({
+      OR: [
+        { description: { contains: q } },
+        { manufacturer: { contains: q } },
+        { model: { contains: q } },
+        { vendor: { contains: q } },
+        { serialNumber: { contains: q } },
+        { barcode: { contains: q } },
+      ],
+    });
+  }
+  const dueFilter = filters.due ? warrantyDueFilter(filters.due, due) : null;
+  if (dueFilter) and.push(dueFilter.where);
+  and.push(...productFilterWheres(filters));
+  return { where: { deletedAt: null, AND: and } satisfies Prisma.ProductWhereInput, dueFilter };
+}
+
+// #517 review — each chip's count is the length of the list it opens from
+// here: the current search and other chips kept.
+async function warrantyCounts(q: string | undefined, filters: ListFilters, due: DueContext): Promise<ListFilterCounts> {
+  const entries = await Promise.all(
+    WARRANTY_CHIPS.map(async (chip) => {
+      const { where, dueFilter } = warrantyListQuery(q, filtersForChip(filters, chip), due);
+      const count = dueFilter
+        ? (await prisma.product.findMany({ where, select: WARRANTY_DUE_SELECT })).filter(dueFilter.matches).length
+        : await prisma.product.count({ where });
+      return [chip, count] as const;
+    }),
+  );
+  return Object.fromEntries(entries);
 }
 
 export default async function ProductsPage({
@@ -57,36 +89,20 @@ export default async function ProductsPage({
   // The Due policy decides the filter, the counts and every card's badge (ADR 0002).
   const due = await getDueContext(now);
 
-  const and: Prisma.ProductWhereInput[] = [];
-  if (q) {
-    and.push({
-      OR: [
-        { description: { contains: q } },
-        { manufacturer: { contains: q } },
-        { model: { contains: q } },
-        { vendor: { contains: q } },
-        { serialNumber: { contains: q } },
-        { barcode: { contains: q } },
-      ],
-    });
-  }
-  // `?due=soon` is a Warranty ending inside its due-soon window; `?due=lapsed`
-  // is one past its end date (the "Lapsed" chip). The query narrows roughly
-  // and the policy decides.
-  const dueFilter = filters.due ? warrantyDueFilter(filters.due, due) : null;
-  if (dueFilter) and.push(dueFilter.where);
-  and.push(...productFilterWheres(filters));
+  const { where, dueFilter } = warrantyListQuery(q, filters, due);
 
-  const [allProducts, counts, inventoryEnabled, { dateFormat, region }, session] = await Promise.all([
+  const [allProducts, counts, inventoryEnabled, { dateFormat, region }, session, trashCount] = await Promise.all([
     prisma.product.findMany({
-      where: { deletedAt: null, AND: and },
+      where,
       include: { _count: { select: { documents: { where: { deletedAt: null } } } } },
       orderBy: [{ warrantyEndDate: "asc" }],
     }),
-    warrantyCounts(due),
+    warrantyCounts(q, filters, due),
     isModuleEnabled("INVENTORY"),
     getUserPreferences(),
     auth(),
+    // #514 review — an empty list says how many are in Trash.
+    prisma.product.count({ where: { deletedAt: { not: null } } }),
   ]);
   const products = dueFilter ? allProducts.filter(dueFilter.matches) : allProducts;
   // Hidden while a list filter is on (see ProductListClient), so not loaded either.
@@ -110,6 +126,7 @@ export default async function ProductsPage({
       dateFormat={dateFormat}
       region={region}
       canWrite={sessionCanWrite(session)}
+      trashCount={trashCount}
     />
   );
 }
