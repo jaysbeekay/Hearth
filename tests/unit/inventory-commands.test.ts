@@ -11,6 +11,8 @@ import {
   deleteInventoryItemCommand,
   restoreInventoryItemCommand,
   permanentlyDeleteInventoryItemCommand,
+  purgeInventoryItem,
+  ItemNotInTrashError,
 } from "@/lib/commands/inventory";
 import { createProductCommand, deleteProductCommand } from "@/lib/commands/products";
 import { RecordNotFoundError, RecordValidationError } from "@/lib/commands/shared";
@@ -254,5 +256,37 @@ describe("Inventory permanent delete", () => {
     const report = await reconcileDocumentStore();
     expect(report.orphanedFilesRemoved).toBeGreaterThanOrEqual(1);
     expect(await exists(path.join(dir, "stored.pdf"))).toBe(false);
+  });
+
+  it("refuses to purge an item that was restored, and leaves its row and files", async () => {
+    // Trash retention lists expired items, then purges them one by one; a
+    // restore can land in between (#522 review).
+    const item = await db.prisma.inventoryItem.create({ data: { label: "Drill", createdById: actorId } });
+    const dir = await attachFile(item.id);
+    await expect(purgeInventoryItem(item.id)).rejects.toBeInstanceOf(ItemNotInTrashError);
+    expect(await permanentlyDeleteInventoryItem(item.id)).toEqual({
+      error: "That item has been restored, so it wasn't deleted.",
+    });
+    expect(await row(item.id)).not.toBeNull();
+    expect(await db.prisma.inventoryItemDocument.count({ where: { inventoryItemId: item.id } })).toBe(1);
+    expect(await exists(path.join(dir, "stored.pdf"))).toBe(true);
+  });
+
+  it("a retention purge leaves an item deleted again since its cutoff", async () => {
+    const cutoff = new Date(Date.now() - TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+    const item = await db.prisma.inventoryItem.create({
+      data: { label: "Drill", createdById: actorId, deletedAt: new Date() },
+    });
+    expect(await purgeInventoryItem(item.id, { deletedBefore: cutoff })).toBe(false);
+    expect(await row(item.id)).not.toBeNull();
+  });
+
+  it("a second purge of the same item reports it not found", async () => {
+    const item = await db.prisma.inventoryItem.create({
+      data: { label: "Drill", createdById: actorId, deletedAt: new Date() },
+    });
+    expect(await purgeInventoryItem(item.id)).toBe(true);
+    await expect(purgeInventoryItem(item.id)).rejects.toBeInstanceOf(RecordNotFoundError);
+    expect(await permanentlyDeleteInventoryItem(item.id)).toEqual({ error: "Item not found." });
   });
 });

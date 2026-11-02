@@ -11,7 +11,8 @@ import {
   purgePropertyValuation,
 } from "@/lib/commands/home";
 import { purgeTrade } from "@/lib/commands/wealth";
-import { purgeInventoryItem } from "@/lib/commands/inventory";
+import { purgeInventoryItem, ItemNotInTrashError } from "@/lib/commands/inventory";
+import { RecordNotFoundError } from "@/lib/commands/shared";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { purgeDocument } from "@/lib/commands/documents";
 import { DOCUMENT_KIND_MODULE, type OwnedDocumentKind } from "@/lib/documents/kinds";
@@ -125,7 +126,12 @@ export async function purgeExpiredTrash(): Promise<void> {
     await purgeTrip(t.id);
   }
   for (const i of inventoryItems) {
-    await purgeInventoryItem(i.id);
+    // Skips an item restored since it was listed rather than purging it (#522).
+    try {
+      await purgeInventoryItem(i.id, { deletedBefore: cutoff });
+    } catch (error) {
+      if (!(error instanceof RecordNotFoundError || error instanceof ItemNotInTrashError)) throw error;
+    }
   }
 }
 

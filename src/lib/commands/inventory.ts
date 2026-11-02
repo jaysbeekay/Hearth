@@ -144,15 +144,45 @@ export async function permanentlyDeleteInventoryItemCommand(id: string) {
   revalidatePath("/settings/trash");
 }
 
+/** A permanent delete refused because the item isn't in Trash (it was restored). */
+export class ItemNotInTrashError extends RecordValidationError {
+  constructor() {
+    super("That item has been restored, so it wasn't deleted.");
+    this.name = "ItemNotInTrashError";
+  }
+}
+
+export interface PurgeOptions {
+  // Trash retention's cutoff: only purge the item if it went to Trash
+  // before this, so one restored and deleted again mid-run keeps its new
+  // Trash window.
+  deletedBefore?: Date;
+}
+
 // The row-and-files part of a permanent delete, with no module gate and no
-// revalidation. Only for Trash retention (src/lib/trash.ts), which runs from
-// a page render (where revalidatePath can't be called) and from the
+// revalidation. Trash retention (src/lib/trash.ts) calls it directly: it runs
+// from a page render (where revalidatePath can't be called) and from the
 // scheduler, and purges expired records whether or not the module is on.
-export async function purgeInventoryItem(id: string) {
-  const existing = await prisma.inventoryItem.findUnique({ where: { id }, select: { id: true } });
-  if (!existing) throw new RecordNotFoundError("Inventory item");
+//
+// Only an item that's in Trash is purged, and the check is in the delete's
+// own where clause, so a restore that lands between Trash retention listing
+// the item and purging it can't be undone by the purge. A missing item is
+// not found (a second purge included); an item that's live is refused with
+// ItemNotInTrashError; one deleted again since `deletedBefore` returns false
+// and is left alone.
+export async function purgeInventoryItem(id: string, options: PurgeOptions = {}): Promise<boolean> {
+  const { count } = await prisma.inventoryItem.deleteMany({
+    where: { id, deletedAt: options.deletedBefore ? { lt: options.deletedBefore } : { not: null } },
+  });
+  if (count === 0) {
+    const existing = await prisma.inventoryItem.findUnique({ where: { id }, select: { deletedAt: true } });
+    if (!existing) throw new RecordNotFoundError("Inventory item");
+    if (!existing.deletedAt) throw new ItemNotInTrashError();
+    return false;
+  }
   // The row delete cascades to its Document rows; their files on disk
-  // aren't FK-linked, so they're removed straight after (#413).
-  await prisma.inventoryItem.delete({ where: { id } });
+  // aren't FK-linked, so they're removed straight after (#413). If that
+  // fails, the document-store reconciliation sweeps them (#251).
   await removeOwnerDocumentFiles("INVENTORY_ITEM", id);
+  return true;
 }

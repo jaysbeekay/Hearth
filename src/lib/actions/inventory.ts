@@ -149,6 +149,7 @@ export async function permanentlyDeleteInventoryItem(itemId: string): Promise<Ac
     await permanentlyDeleteInventoryItemCommand(itemId);
   } catch (error) {
     if (error instanceof RecordNotFoundError) return { error: "Item not found." };
+    if (error instanceof RecordValidationError) return { error: error.message };
     throw error;
   }
   return { success: "Deleted permanently." };
