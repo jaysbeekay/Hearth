@@ -7,6 +7,7 @@ import type { VehicleModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormActions } from "@/components/FormActions";
+import { ReminderThresholdsField } from "@/components/ReminderThresholdsField";
 import { FormMessage } from "@/components/FormMessage";
 import {
   makeOfflineAwareAction,
@@ -56,12 +57,15 @@ function CoveredDate({ name, label, cover, manual }: { name: string; label: stri
 export function VehicleForm({
   action,
   cancelHref,
+  defaultReminderDays,
   vehicle,
   covers = [],
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   /** Where Cancel goes: the same place as the page's BackLink. */
   cancelHref: string;
+  /** #360 — the household's default Reminder thresholds, for the presets. */
+  defaultReminderDays: string;
   vehicle?: VehicleModel;
   covers?: FormCover[];
 }) {
@@ -238,17 +242,13 @@ export function VehicleForm({
           />
         </Field>
 
-        <Field label="Reminder thresholds (days before, comma-separated)" htmlFor="reminderDaysBefore">
-          <input
-            id="reminderDaysBefore"
-            name="reminderDaysBefore"
-            defaultValue={
-              effectiveValues?.reminderDaysBefore ?? vehicle?.reminderDaysBefore ?? "30,14,7,1"
-            }
-            placeholder="e.g. 30,14,7,1"
-            className={inputClass}
+        <div className="md:col-span-2">
+          <ReminderThresholdsField
+            defaultValue={effectiveValues?.reminderDaysBefore ?? vehicle?.reminderDaysBefore ?? ""}
+            householdDefault={defaultReminderDays}
+            before="each date"
           />
-        </Field>
+        </div>
       </div>
 
       <Field label="Notes" htmlFor="notes">
