@@ -46,7 +46,9 @@ test.describe("as an admin", () => {
       "Backups",
       "Recently deleted",
     ]) {
-      await expect(main.getByRole("link", { name: new RegExp(`^${section.replace("&", "\\&")}`) })).toBeVisible();
+      // Each row's name is its label followed by its status line.
+      const row = main.getByRole("link").filter({ has: page.getByText(section, { exact: true }) });
+      await expect(row).toBeVisible();
     }
     await expect(main).not.toContainText("System settings");
   });
@@ -79,8 +81,11 @@ test.describe("as an admin", () => {
       await page.getByRole("button", { name: "Save changes" }).click();
       await expect(form).toContainText("Reminder schedule saved.");
 
-      await page.goto("/settings/household");
-      await expect(page.locator("main")).toContainText("Weekly on Monday at 07:30");
+      // It reads back as the plain-language choice, not as Advanced.
+      await page.reload();
+      await expect(page.locator("#reminderCronKind")).toHaveValue("weekly");
+      await expect(page.locator("#reminderCronDay")).toHaveValue("1");
+      await expect(page.locator("#reminderCronTime")).toHaveValue("07:30");
     } finally {
       await page.goto("/settings/reminders");
       await page.locator("#reminderCronKind").selectOption("advanced");
@@ -99,8 +104,12 @@ test.describe("as an admin", () => {
     await expect(save).toBeDisabled();
     await expect(page.getByRole("button", { name: /^Save (email|ntfy|reminder)/ })).toHaveCount(0);
 
-    await page.locator("#ntfyTopic").fill("e2e-unsaved-topic");
-    await expect(save).toBeEnabled();
+    // The group starts listening for edits once the page hydrates; retry the
+    // edit until it does, as other specs do for client-only listeners.
+    await expect(async () => {
+      await page.locator("#ntfyTopic").fill(`e2e-unsaved-topic-${Date.now()}`);
+      await expect(save).toBeEnabled({ timeout: 1000 });
+    }).toPass({ timeout: 15_000 });
     await expect(page.getByText("You have unsaved changes.")).toBeVisible();
   });
 });

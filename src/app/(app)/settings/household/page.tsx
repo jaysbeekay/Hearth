@@ -31,7 +31,7 @@ import { saveHouseholdTimeZone } from "@/lib/actions/app-settings";
 import { HouseholdTimeZoneForm } from "@/components/AppSettingsForms";
 import { householdTimeZoneChoices } from "@/lib/timezones";
 import { BACKUP_DESTINATION_LABELS } from "@/lib/backupDestination";
-import { AI_PROVIDER_LABELS, type AiProviderId } from "@/lib/ai/types";
+import { AI_PROVIDER_LABELS } from "@/lib/ai/types";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { describeSchedule } from "@/lib/cronSchedule";
@@ -99,7 +99,8 @@ export default async function HouseholdSettingsPage() {
   const channels = [smtpConfigured && "Email", ntfyConfigured && "ntfy", webhookCount > 0 && "Webhook"].filter(
     Boolean,
   );
-  const aiLabel = aiProvider ? AI_PROVIDER_LABELS[aiProvider as AiProviderId] : undefined;
+  // Looked up through a Map rather than by a variable object key.
+  const aiLabel = new Map<string, string>(Object.entries(AI_PROVIDER_LABELS)).get(aiProvider);
 
   const sections: Section[] = [
     {
@@ -145,7 +146,7 @@ export default async function HouseholdSettingsPage() {
       route: SETTINGS_ROUTES.backups,
       icon: DatabaseBackup,
       summary: backupConfigured
-        ? `${BACKUP_DESTINATION_LABELS[backupDestination]} · ${describeSchedule(backupSchedule.cron)}`
+        ? `${new Map<string, string>(Object.entries(BACKUP_DESTINATION_LABELS)).get(backupDestination)} · ${describeSchedule(backupSchedule.cron)}`
         : "Not set up",
       adminOnly: true,
     },

@@ -64,7 +64,7 @@ export function describeSchedule(cron: string): string {
     case "daily":
       return `Daily at ${formatScheduleTime(schedule.hour, schedule.minute)}`;
     case "weekly":
-      return `Weekly on ${WEEKDAYS[schedule.day]} at ${formatScheduleTime(schedule.hour, schedule.minute)}`;
+      return `Weekly on ${WEEKDAYS.at(schedule.day)} at ${formatScheduleTime(schedule.hour, schedule.minute)}`;
     case "advanced":
       return `Custom (${schedule.cron})`;
   }

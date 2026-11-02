@@ -58,7 +58,9 @@ export function SchedulePicker({
             <select
               id={`${id}Kind`}
               value={kind}
-              onChange={(e) => changeKind(e.target.value as ScheduleKind)}
+              onChange={(e) => {
+                changeKind(e.target.value as ScheduleKind);
+              }}
               className={selectClass}
             >
               <option value="daily">Daily</option>
@@ -73,7 +75,9 @@ export function SchedulePicker({
               <select
                 id={`${id}Day`}
                 value={day}
-                onChange={(e) => setDay(Number(e.target.value))}
+                onChange={(e) => {
+                  setDay(Number(e.target.value));
+                }}
                 className={selectClass}
               >
                 {WEEKDAYS.map((weekday, i) => (
@@ -93,7 +97,9 @@ export function SchedulePicker({
               step={60}
               required
               value={time}
-              onChange={(e) => setTime(e.target.value)}
+              onChange={(e) => {
+                setTime(e.target.value);
+              }}
               className={inputClass}
             />
           </Field>
@@ -102,7 +108,9 @@ export function SchedulePicker({
             <input
               id={id}
               value={cron}
-              onChange={(e) => setCron(e.target.value)}
+              onChange={(e) => {
+                setCron(e.target.value);
+              }}
               placeholder="0 8 * * *"
               spellCheck={false}
               className={inputClass}

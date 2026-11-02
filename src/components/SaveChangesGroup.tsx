@@ -26,6 +26,19 @@ function groupForm(target: EventTarget | null): HTMLFormElement | null {
   return target.closest<HTMLFormElement>("form[data-save-group]");
 }
 
+function formIsEdited(form: HTMLFormElement): boolean {
+  return [...form.elements].some((el) => {
+    if (el instanceof HTMLInputElement) {
+      if (el.type === "hidden") return false;
+      if (el.type === "checkbox" || el.type === "radio") return el.checked !== el.defaultChecked;
+      return el.value !== el.defaultValue;
+    }
+    if (el instanceof HTMLTextAreaElement) return el.value !== el.defaultValue;
+    if (el instanceof HTMLSelectElement) return [...el.options].some((o) => o.selected !== o.defaultSelected);
+    return false;
+  });
+}
+
 export function SaveChangesGroup({ children }: { children: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const [dirty, setDirty] = useState<HTMLFormElement[]>([]);
@@ -45,6 +58,10 @@ export function SaveChangesGroup({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const root = ref.current;
     if (!root) return;
+    // An edit made before the page hydrated fired no event we heard, so
+    // look for fields that already differ from what the server rendered.
+    const edited = [...root.querySelectorAll<HTMLFormElement>("form[data-save-group]")].filter(formIsEdited);
+    if (edited.length > 0) setDirty(edited);
     root.addEventListener("input", markDirty);
     root.addEventListener("change", markDirty);
     root.addEventListener("submit", markSaved);
