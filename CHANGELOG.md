@@ -128,6 +128,12 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   the save fails. After a failed "Add document" upload, picking the same
   file again retries it. A Warranty with none of its details filled in no
   longer shows an empty details card.
+- **Reminder card and thresholds hint (#516 follow-up).** "Next reminder …
+  by" names only the channels sending that Reminder, not every configured
+  one: a channel that already sent a threshold, or is catching up, runs on
+  its own schedule. The hint under the Reminder presets follows the
+  scheduler for a custom value with no whole days (such as 1.5): it shows
+  the household default that applies, not "No Reminders will be sent".
 
 ## [0.20.1] - 2026-10-31
 
