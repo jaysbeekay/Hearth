@@ -430,9 +430,14 @@ export default async function DocumentsPage({
       />
 
       {totalCount > 0 && (
-        <div className="flex flex-wrap gap-2">
+        // #366 — which area a Document belongs to; its Document type is the
+        // select below.
+        <div role="group" aria-labelledby="documents-belongs-to" className="flex flex-wrap items-center gap-2">
+          <span id="documents-belongs-to" className="text-sm text-muted">
+            Belongs to
+          </span>
           <Link href={showAll ? "/documents?view=all" : "/documents"} className={chipClass(!type)}>
-            All types ({showAll ? totalCount : filedCount})
+            All ({showAll ? totalCount : filedCount})
           </Link>
           {activeSources.map((s) => (
             <Link

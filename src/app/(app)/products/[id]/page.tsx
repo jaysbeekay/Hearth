@@ -35,6 +35,7 @@ import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
 import { buttonClass, menuItemClass, cardClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
+import { RememberRecentRecord } from "@/components/RememberRecentRecord";
 
 export default async function ProductDetailPage({
   params,
@@ -82,6 +83,7 @@ export default async function ProductDetailPage({
 
   return (
     <PageShell width="detail">
+      <RememberRecentRecord kind="warranty" id={id} />
       <div>
         <BackLink href="/products" label="Warranties" />
       </div>
