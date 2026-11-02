@@ -7,6 +7,7 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import { currentTenancy, LIVE_TENANCY_AGREEMENTS } from "@/lib/dueRecords";
 import {
   buildContractAttentionItems,
+  buildExtractionReviewItems,
   buildTenancyAttentionItems,
   buildVehicleAttentionItems,
   buildWarrantyAttentionItems,
@@ -77,7 +78,9 @@ export async function GET(request: NextRequest) {
     ]),
   ]);
 
-  // The same Due rows the dashboard leads with (src/lib/needsAttention.ts).
+  // The top of the dashboard's Needs attention queue (src/lib/needsAttention.ts):
+  // Due rows, then record housekeeping (a passed auto-renew end date, unconfirmed
+  // scanned details). Household-wide nudges (inbox, reminder setup) stay on the dashboard.
   const [contracts, products, vehicles, properties] = await Promise.all([
     prisma.contract.findMany({
       where: { deletedAt: null },
@@ -115,12 +118,13 @@ export async function GET(request: NextRequest) {
     ...buildWarrantyAttentionItems(products, due),
     ...buildVehicleAttentionItems(vehicles, due),
     ...buildTenancyAttentionItems(tenancies, due),
+    ...buildExtractionReviewItems(contracts, products),
   ]);
 
   return NextResponse.json(
     {
       recent: orderRecent(recent, recentGroups.flat()),
-      attention: attentionSuggestions(attention.due, prefs),
+      attention: attentionSuggestions(attention, prefs),
     },
     { headers: { "Cache-Control": "no-store" } },
   );

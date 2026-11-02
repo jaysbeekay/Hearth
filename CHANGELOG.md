@@ -147,6 +147,9 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   leaving them blank, a one-character query shows the "type at least 2
   characters" hint instead of the suggestions, and typing or picking a chip
   clears the highlighted row so Enter can't open a row from the old list.
+  Needs attention in Search is now the top three of the dashboard's queue,
+  so record housekeeping (unconfirmed scanned details, a passed auto-renew
+  end date) fills in when fewer than three things are due.
 
 ## [0.20.1] - 2026-10-31
 
