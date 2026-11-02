@@ -23,13 +23,15 @@ export function DetailField({
 }) {
   const [copied, setCopied] = useState(false);
   const isEmpty = value === "—" || value.trim() === "";
+  // #405 — an empty field isn't shown at all, rather than as a dash.
+  if (isEmpty) return null;
 
   return (
     <div className="min-w-0">
       <dt className="text-xs text-muted">{label}</dt>
       <dd className="flex items-center gap-1 text-sm font-medium">
         <span className="min-w-0 break-words">{value}</span>
-        {copyable && !isEmpty && (
+        {copyable && (
           <button
             type="button"
             onClick={() => {

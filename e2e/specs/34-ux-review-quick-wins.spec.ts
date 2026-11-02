@@ -41,8 +41,8 @@ test("#370: contract status lives in the overflow menu, not the header", async (
   const header = page.locator("main h1").locator("xpath=../..");
   await expect(header.getByRole("button", { name: "Mark as cancelled", exact: true })).toHaveCount(0);
 
-  await page.getByRole("button", { name: "More actions" }).click();
-  await page.getByRole("dialog", { name: "More actions" }).getByRole("button", { name: "Mark as cancelled", exact: true }).first().click();
+  await page.getByRole("button", { name: "More actions", exact: true }).click();
+  await page.getByRole("dialog", { name: "More actions", exact: true }).getByRole("button", { name: "Mark as cancelled", exact: true }).first().click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Mark as cancelled" }).click();
   await expect(page.getByText("Cancelled", { exact: true }).first()).toBeVisible();
 });
@@ -51,8 +51,8 @@ test("#371: deleting a contract from its page can be undone", async ({ page }) =
   const title = `Undo Delete Contract ${Date.now()}`;
   const path = await createContract(page, title);
 
-  await page.getByRole("button", { name: "More actions" }).click();
-  await page.getByRole("dialog", { name: "More actions" }).getByRole("button", { name: "Delete" }).first().click();
+  await page.getByRole("button", { name: "More actions", exact: true }).click();
+  await page.getByRole("dialog", { name: "More actions", exact: true }).getByRole("button", { name: "Delete" }).first().click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
   await page.waitForURL(/\/contracts$/);
 

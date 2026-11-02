@@ -18,7 +18,7 @@ import { ArchivedNotice } from "@/components/ArchivedNotice";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailField as Detail } from "@/components/DetailField";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
-import { DocumentUploadForm } from "@/components/DocumentUploadForm";
+import { AddDocumentButton } from "@/components/AddDocumentButton";
 import { DocumentList } from "@/components/DocumentList";
 import { getTrashedVersionLinks } from "@/lib/documents/trashedVersionLinks";
 import { RecordMeta } from "@/components/RecordMeta";
@@ -299,15 +299,17 @@ export default async function VehicleDetailPage({
                             <Pencil size={16} />
                             Edit
                           </Link>
-                          <ConfirmForm
-                            action={deleteVehicleItem.bind(null, vehicle.id, item.id)}
-                            undo={{ action: restoreVehicleItem.bind(null, item.id) }}
-                            confirmText={`Delete "${item.title}"? Its documents are kept, and you can restore it within 30 days from Settings → Recently deleted.`}
-                            className={buttonClass("secondary", { destructive: true })}
-                          >
-                            <Trash2 size={16} />
-                            Delete
-                          </ConfirmForm>
+                          <DetailOverflowMenu label={`More actions for ${item.title}`}>
+                            <ConfirmForm
+                              action={deleteVehicleItem.bind(null, vehicle.id, item.id)}
+                              undo={{ action: restoreVehicleItem.bind(null, item.id) }}
+                              confirmText={`Delete "${item.title}"? Its documents are kept, and you can restore it within 30 days from Settings → Recently deleted.`}
+                              className={menuItemClass({ destructive: true })}
+                            >
+                              <Trash2 size={16} />
+                              Delete
+                            </ConfirmForm>
+                          </DetailOverflowMenu>
                         </>
                       )}
                     </div>
@@ -327,15 +329,17 @@ export default async function VehicleDetailPage({
                     </p>
                   )}
 
-                  <div className="mt-4 border-t border-border pt-4">
-                    <h3 className="mb-2 text-sm font-medium">Documents</h3>
-                    <DocumentList kind="VEHICLE_ITEM" ownerId={item.id} documents={item.documents} trashedLinks={trashedLinks.get(item.id)} />
-                    {canWrite && (
-                      <div className="mt-3">
-                        <DocumentUploadForm action={addDocumentAction.bind(null, "VEHICLE_ITEM", item.id)} />
+                  {(canWrite || item.documents.length > 0) && (
+                    <div className="mt-4 space-y-2 border-t border-border pt-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="text-sm font-medium">Documents</h3>
+                        {canWrite && <AddDocumentButton action={addDocumentAction.bind(null, "VEHICLE_ITEM", item.id)} recordName={item.title} />}
                       </div>
-                    )}
-                  </div>
+                      {item.documents.length > 0 && (
+                        <DocumentList kind="VEHICLE_ITEM" ownerId={item.id} documents={item.documents} trashedLinks={trashedLinks.get(item.id)} />
+                      )}
+                    </div>
+                  )}
                 </Card>
               );
             })}

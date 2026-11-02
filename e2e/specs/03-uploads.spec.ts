@@ -16,13 +16,10 @@ async function upload(
   file: { name: string; mimeType: string; buffer: Buffer },
 ) {
   await page.goto(tripUrl);
+  // A segment's "Add document" (#405) uploads as soon as a file is chosen
+  // and reports the outcome, success or refusal, in a toast.
   await page.locator('input[type="file"][name="file"]').first().setInputFiles(file);
-  const submit = page.locator('form:has(input[name="file"]) button[type="submit"]').first();
-  await submit.click();
-  // networkidle can settle before a large upload's round trip finishes;
-  // the submit button's disabled/"Saving…" state directly tracks the
-  // action's pending status, so wait on that instead.
-  await expect(submit).toBeEnabled({ timeout: 30_000 });
+  await expect(page.getByRole("status").first()).toBeVisible({ timeout: 30_000 });
   return page.locator("body").innerText();
 }
 
@@ -135,8 +132,9 @@ test("served documents use Content-Disposition: attachment (no stored-XSS execut
     mimeType: "image/png",
     buffer: Buffer.concat([PNG_BYTES, Buffer.from("<script>alert(1)</script>")]),
   });
-  await page.locator('form:has(input[name="file"]) button[type="submit"]').first().click();
-  await page.waitForLoadState("networkidle");
+  await expect(page.locator('a[href^="/api/documents/"]', { hasText: "evil.png" }).first()).toBeVisible({
+    timeout: 30_000,
+  });
 
   const href = await page
     .locator('a[href^="/api/documents/"]', { hasText: "evil.png" })

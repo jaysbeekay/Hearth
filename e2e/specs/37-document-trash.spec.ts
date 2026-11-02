@@ -26,11 +26,9 @@ async function uploadToSegment(page: Page, filename: string): Promise<string> {
     mimeType: "application/pdf",
     buffer: pdfBytes(),
   });
-  const submit = page.locator('form:has(input[name="file"]) button[type="submit"]').first();
-  await submit.click();
-  await expect(submit).toBeEnabled({ timeout: 30_000 });
+  // A segment's "Add document" (#405) uploads as soon as a file is chosen.
   const link = page.locator('a[href^="/api/documents/"]', { hasText: filename }).first();
-  await expect(link).toBeVisible();
+  await expect(link).toBeVisible({ timeout: 30_000 });
   const href = (await link.getAttribute("href")) ?? "";
   const id = href.split("/").pop() ?? "";
   expect(id).not.toBe("");

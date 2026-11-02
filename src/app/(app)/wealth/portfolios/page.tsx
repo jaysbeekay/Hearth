@@ -5,12 +5,13 @@ import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency } from "@/lib/utils";
 import { ConfirmForm } from "@/components/ConfirmForm";
+import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { deletePortfolio } from "@/lib/actions/wealth";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
-import { buttonClass, emptyStateClass } from "@/lib/ui";
+import { buttonClass, emptyStateClass, menuItemClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Portfolios" };
@@ -68,16 +69,18 @@ export default async function PortfoliosPage() {
                         <Pencil size={16} />
                         Edit
                       </Link>
-                      <ConfirmForm
-                        action={deletePortfolio.bind(null, p.id)}
-                        confirmText={`Delete "${p.name}" and all its holdings and trades? This cannot be undone.`}
-                        actionLabel={`Delete "${p.name}"`}
-                        className={buttonClass("secondary", { destructive: true })}
-                        offline={{ entity: "portfolio", entityId: p.id, label: `Delete portfolio: ${p.name}` }}
-                      >
-                        <Trash2 size={16} />
-                        Delete
-                      </ConfirmForm>
+                      <DetailOverflowMenu label={`More actions for ${p.name}`}>
+                        <ConfirmForm
+                          action={deletePortfolio.bind(null, p.id)}
+                          confirmText={`Delete "${p.name}" and all its holdings and trades? This cannot be undone.`}
+                          actionLabel={`Delete "${p.name}"`}
+                          className={menuItemClass({ destructive: true })}
+                          offline={{ entity: "portfolio", entityId: p.id, label: `Delete portfolio: ${p.name}` }}
+                        >
+                          <Trash2 size={16} />
+                          Delete
+                        </ConfirmForm>
+                      </DetailOverflowMenu>
                     </>
                   )}
                 </div>

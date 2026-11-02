@@ -26,9 +26,10 @@ test("an auto-renewing contract with a notice period counts down to the notice d
   await page.locator("main button[type=submit]").click();
   await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
 
-  // #384 — the badge and banner show the Due policy's label for the notice deadline.
-  await expect(page.getByText(DAY_LABEL("Cancel by"))).toBeVisible();
+  // #384 — the banner shows the Due policy's label for the notice deadline;
+  // #405 — the header badge would only repeat it, so it's hidden.
   await expect(page.getByText(/^Cancel by .+ — 10 days left\.$/)).toBeVisible();
+  await expect(page.getByText(DAY_LABEL("Cancel by"))).toHaveCount(0);
   await expect(page.getByText(/30 days · give notice by /)).toBeVisible();
 
   await page.goto("/contracts?due=soon");

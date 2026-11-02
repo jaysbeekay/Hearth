@@ -44,6 +44,17 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   Inventory form sits in a card with sentence-case labels, portfolios are
   added with "Add portfolio" everywhere, and a holding's Delete moved into
   its ⋮ menu. The iOS and Android shell is unchanged.
+- **Plainer record pages (#405).** Each Trip segment, Service record,
+  Maintenance record, Rental statement and Trade now has one quiet "Add
+  document" button instead of its own drop zone, Document type select and
+  Upload button. The file uploads as soon as it's picked, and its type is
+  set afterwards from a select on its row in the Document list (every kind
+  except Warranties, whose type is still chosen at upload because it picks
+  the hero photo). Deleting an entry, a valuation or a portfolio moved from
+  a red button into the row's ⋮ menu. Empty fields are hidden on detail
+  pages instead of showing a dash, and a Contract's or Warranty's header
+  badge is hidden while the status banner below says the same thing. The
+  iOS and Android shell is unchanged.
 
 ## [0.20.1] - 2026-10-31
 
