@@ -44,6 +44,7 @@ test("no page renders more than one primary button", async ({ page }) => {
     "/contracts/new",
     async () => {
       await page.locator("#title").fill(`UI Rules Contract ${stamp}`);
+      await page.locator("#category").selectOption("OTHER");
       await page.locator("#provider").fill("UI Rules Provider");
     },
     /\/contracts\/(?!new$)[^/]+$/,

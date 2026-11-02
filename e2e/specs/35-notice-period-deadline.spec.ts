@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { ADMIN_AUTH_FILE } from "../env";
+import { openFormSections } from "../formSections";
 
 // #351 — a contract with a notice period counts down to the last day to give
 // notice, not to its end date.
@@ -19,6 +20,8 @@ test("an auto-renewing contract with a notice period counts down to the notice d
   const title = `Notice Period Contract ${Date.now()}`;
   await page.goto("/contracts/new");
   await page.locator("#title").fill(title);
+  await page.locator("#category").selectOption("OTHER");
+  await openFormSections(page);
   await page.locator("#provider").fill("Notice Provider");
   await page.locator("#endDate").fill(isoInDays(40));
   await page.selectOption("#renewalType", "AUTO_RENEW");
@@ -42,6 +45,8 @@ test("an auto-renewing contract with a notice period counts down to the notice d
 test("a fixed-term contract ignores its notice period", async ({ page }) => {
   await page.goto("/contracts/new");
   await page.locator("#title").fill(`Fixed Term Contract ${Date.now()}`);
+  await page.locator("#category").selectOption("OTHER");
+  await openFormSections(page);
   await page.locator("#provider").fill("Fixed Provider");
   await page.locator("#endDate").fill(isoInDays(40));
   await page.selectOption("#renewalType", "FIXED_TERM");

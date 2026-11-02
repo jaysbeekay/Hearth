@@ -17,6 +17,7 @@ test.beforeEach(async ({ page }) => {
 test("a contract created offline can be edited and discarded before it syncs", async ({ page }) => {
   await page.goto("/contracts/new");
   await page.locator("#title").fill("Offline Pending Contract");
+  await page.locator("#category").selectOption("OTHER");
   await page.locator("#provider").fill("Offline Provider");
   await page.locator("main button[type=submit]").click();
 

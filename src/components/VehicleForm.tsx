@@ -6,7 +6,7 @@ import type { VehicleModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormActions } from "@/components/FormActions";
-import { ReminderThresholdsField } from "@/components/ReminderThresholdsField";
+import { ReminderThresholdsField, hasOwnThresholds } from "@/components/ReminderThresholdsField";
 import { FormMessage } from "@/components/FormMessage";
 import {
   makeOfflineAwareAction,
@@ -16,6 +16,7 @@ import {
   type QueuedOperation,
 } from "@/lib/offlineQueue";
 import { Field } from "@/components/FormField";
+import { FormSection, hasAnyValue } from "@/components/FormSection";
 import { inputClass, textareaClass } from "@/components/SelectWrapper";
 import { DateInput } from "@/components/DateInput";
 import { bannerClass } from "@/lib/ui";
@@ -107,59 +108,6 @@ export function VehicleForm({
           />
         </Field>
 
-        <Field label="Make" htmlFor="make">
-          <input
-            id="make"
-            name="make"
-            defaultValue={effectiveValues?.make ?? vehicle?.make ?? ""}
-            placeholder="e.g. Toyota"
-            className={inputClass}
-          />
-        </Field>
-
-        <Field label="Model" htmlFor="model">
-          <input
-            id="model"
-            name="model"
-            defaultValue={effectiveValues?.model ?? vehicle?.model ?? ""}
-            placeholder="e.g. Corolla"
-            className={inputClass}
-          />
-        </Field>
-
-        <Field label="Year" htmlFor="year">
-          <input
-            id="year"
-            name="year"
-            type="number"
-            min={1886}
-            max={2100}
-            defaultValue={effectiveValues?.year ?? vehicle?.year ?? ""}
-            placeholder="e.g. 2019"
-            className={inputClass}
-          />
-        </Field>
-
-        <Field label="Colour" htmlFor="colour">
-          <input
-            id="colour"
-            name="colour"
-            defaultValue={effectiveValues?.colour ?? vehicle?.colour ?? ""}
-            placeholder="e.g. White"
-            className={inputClass}
-          />
-        </Field>
-
-        <Field label="VIN" htmlFor="vin">
-          <input
-            id="vin"
-            name="vin"
-            defaultValue={effectiveValues?.vin ?? vehicle?.vin ?? ""}
-            placeholder="17-character vehicle identifier"
-            className={inputClass}
-          />
-        </Field>
-
         <Field label="Rego expiry" htmlFor="regoExpiry">
           <DateInput
             id="regoExpiry"
@@ -190,25 +138,101 @@ export function VehicleForm({
             className={inputClass}
           />
         </Field>
-
-        <div className="md:col-span-2">
-          <ReminderThresholdsField
-            defaultValue={effectiveValues?.reminderDaysBefore ?? vehicle?.reminderDaysBefore ?? ""}
-            householdDefault={defaultReminderDays}
-            before="each date"
-          />
-        </div>
       </div>
 
-      <Field label="Notes" htmlFor="notes">
-        <textarea
-          id="notes"
-          name="notes"
-          rows={4}
-          defaultValue={effectiveValues?.notes ?? vehicle?.notes ?? ""}
-          className={textareaClass}
+      {/* #361 — the three dates that drive Reminders stay above. */}
+      <FormSection
+        title="More details"
+        hint="Make, model, year, VIN, notes"
+        defaultOpen={hasAnyValue([
+          effectiveValues?.make ?? vehicle?.make,
+          effectiveValues?.model ?? vehicle?.model,
+          effectiveValues?.year ?? vehicle?.year,
+          effectiveValues?.colour ?? vehicle?.colour,
+          effectiveValues?.vin ?? vehicle?.vin,
+          effectiveValues?.notes ?? vehicle?.notes,
+        ])}
+      >
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field label="Make" htmlFor="make">
+            <input
+              id="make"
+              name="make"
+              defaultValue={effectiveValues?.make ?? vehicle?.make ?? ""}
+              placeholder="e.g. Toyota"
+              className={inputClass}
+            />
+          </Field>
+
+          <Field label="Model" htmlFor="model">
+            <input
+              id="model"
+              name="model"
+              defaultValue={effectiveValues?.model ?? vehicle?.model ?? ""}
+              placeholder="e.g. Corolla"
+              className={inputClass}
+            />
+          </Field>
+
+          <Field label="Year" htmlFor="year">
+            <input
+              id="year"
+              name="year"
+              type="number"
+              min={1886}
+              max={2100}
+              defaultValue={effectiveValues?.year ?? vehicle?.year ?? ""}
+              placeholder="e.g. 2019"
+              className={inputClass}
+            />
+          </Field>
+
+          <Field label="Colour" htmlFor="colour">
+            <input
+              id="colour"
+              name="colour"
+              defaultValue={effectiveValues?.colour ?? vehicle?.colour ?? ""}
+              placeholder="e.g. White"
+              className={inputClass}
+            />
+          </Field>
+
+          <Field label="VIN" htmlFor="vin">
+            <input
+              id="vin"
+              name="vin"
+              defaultValue={effectiveValues?.vin ?? vehicle?.vin ?? ""}
+              placeholder="17-character vehicle identifier"
+              className={inputClass}
+            />
+          </Field>
+        </div>
+        <Field label="Notes" htmlFor="notes">
+          <textarea
+            id="notes"
+            name="notes"
+            rows={4}
+            defaultValue={effectiveValues?.notes ?? vehicle?.notes ?? ""}
+            className={textareaClass}
+          />
+        </Field>
+      </FormSection>
+
+      <FormSection
+        title="Reminders"
+        hint="Household default unless changed"
+        defaultOpen={hasOwnThresholds(
+          effectiveValues?.reminderDaysBefore ?? vehicle?.reminderDaysBefore,
+          defaultReminderDays,
+        )}
+      >
+        <ReminderThresholdsField
+          defaultValue={effectiveValues?.reminderDaysBefore ?? vehicle?.reminderDaysBefore ?? ""}
+          householdDefault={defaultReminderDays}
+          before="each date"
+          srOnlyLegend
         />
-      </Field>
+      </FormSection>
 
       <FormMessage attempt={state} error={state?.error} success={state?.success} />
 

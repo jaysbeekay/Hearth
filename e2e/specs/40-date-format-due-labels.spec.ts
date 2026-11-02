@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { ADMIN_AUTH_FILE } from "../env";
+import { openFormSections } from "../formSections";
 
 // #422 — Due labels follow the viewer's Date format from Settings →
 // Preferences, on the Contract's badge, the Contracts list and Upcoming.
@@ -49,6 +50,8 @@ test("Due labels switch to the viewer's date format", async ({ page }) => {
 
   await page.goto("/contracts/new");
   await page.locator("#title").fill(title);
+  await page.locator("#category").selectOption("OTHER");
+  await openFormSections(page);
   await page.locator("#provider").fill("Date Format Provider");
   await page.locator("#endDate").fill(addDays(today, 40));
   await page.selectOption("#renewalType", "AUTO_RENEW");

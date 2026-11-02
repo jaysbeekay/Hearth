@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { ADMIN_AUTH_FILE } from "../env";
+import { openFormSections } from "../formSections";
 
 test.use({ storageState: ADMIN_AUTH_FILE });
 
@@ -16,11 +17,16 @@ async function createContract(
 ) {
   await page.goto("/contracts/new");
   await page.locator("#title").fill(fields.title);
+  await page.locator("#category").selectOption("OTHER");
+  await openFormSections(page);
   await page.locator("#provider").fill("Completeness Provider");
   if (fields.endDate) await page.locator("#endDate").fill(fields.endDate);
   if (fields.renewalType) await page.selectOption("#renewalType", fields.renewalType);
   if (fields.cost) await page.locator("#cost").fill(fields.cost);
-  if (fields.billingFrequency) await page.selectOption("#billingFrequency", fields.billingFrequency);
+  // #361 — a cost defaults the frequency to Monthly; "" picks Not set back.
+  if (fields.billingFrequency !== undefined || fields.cost) {
+    await page.selectOption("#billingFrequency", fields.billingFrequency ?? "");
+  }
   await page.locator("main button[type=submit]").click();
   await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
   return page.url().split("/").pop()!;
@@ -145,12 +151,14 @@ test.describe.serial("Completeness filters", () => {
 
     // A VIN alone is enough; no rego/insurance/service dates is not a gap.
     await page.goto("/vehicles/new");
+    await openFormSections(page);
     await page.locator("#label").fill(completeLabel);
     await page.locator("#vin").fill("1HGCM82633A123456");
     await page.getByRole("button", { name: "Add vehicle" }).click();
     await page.waitForURL(/\/vehicles\/(?!new$)[^/]+$/);
 
     await page.goto("/vehicles/new");
+    await openFormSections(page);
     await page.locator("#label").fill(incompleteLabel);
     await page.getByRole("button", { name: "Add vehicle" }).click();
     await page.waitForURL(/\/vehicles\/(?!new$)[^/]+$/);

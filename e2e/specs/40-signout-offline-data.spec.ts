@@ -168,6 +168,7 @@ async function queueContractOffline(page: Page, title: string) {
   await setFakeOffline(page, true);
   await page.goto("/contracts/new");
   await page.locator("#title").fill(title);
+  await page.locator("#category").selectOption("OTHER");
   await page.locator("#provider").fill("Signout Provider");
   await page.locator("main button[type=submit]").click();
   await page.goto("/contracts");

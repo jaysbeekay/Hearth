@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { ADMIN_AUTH_FILE } from "../env";
+import { openFormSections } from "../formSections";
 
 // #353 — Renew adds a Contract's next Term and keeps the current one as
 // history, instead of overwriting it in the edit form.
@@ -40,6 +41,8 @@ async function createContract(
 ) {
   await page.goto("/contracts/new");
   await page.locator("#title").fill(values.title);
+  await page.locator("#category").selectOption("OTHER");
+  await openFormSections(page);
   await page.locator("#provider").fill("Renew Provider");
   if (values.startDate) await page.locator("#startDate").fill(values.startDate);
   await page.locator("#endDate").fill(values.endDate);
@@ -147,6 +150,8 @@ test("a fixed-term Contract offers no Renew, and its Renew page sends you back",
 test("a Contract with no end date offers no Renew", async ({ page }) => {
   await page.goto("/contracts/new");
   await page.locator("#title").fill(`No End Date Renew ${Date.now()}`);
+  await page.locator("#category").selectOption("OTHER");
+  await openFormSections(page);
   await page.locator("#provider").fill("Renew Provider");
   await page.locator("main button[type=submit]").click();
   await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);

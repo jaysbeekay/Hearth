@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { ADMIN_AUTH_FILE } from "../env";
+import { openFormSections } from "../formSections";
 
 test.use({ storageState: ADMIN_AUTH_FILE });
 
@@ -29,6 +30,8 @@ test.describe.serial("contracts and warranties can link to a property", () => {
   }) => {
     await page.goto("/contracts/new");
     await page.locator("#title").fill("Property-Linked Insurance");
+    await page.locator("#category").selectOption("OTHER");
+    await openFormSections(page);
     await page.locator("#provider").fill("Test Insurer");
     // #370 — one grouped "Linked to" select for homes and vehicles.
     const propertySelect = page.getByLabel("Linked to");
@@ -52,6 +55,8 @@ test.describe.serial("contracts and warranties can link to a property", () => {
   }) => {
     await page.goto("/contracts/new");
     await page.locator("#title").fill("Unlinked Contract");
+    await page.locator("#category").selectOption("OTHER");
+    await openFormSections(page);
     await page.locator("#provider").fill("Some Provider");
     await page.locator("main button[type=submit]").click();
     // Exclude "new" itself — same footgun as line 19's /home/new note above,
