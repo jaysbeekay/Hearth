@@ -173,6 +173,29 @@ const FIELD_NOUN = new Map<CoverableField, string>([
 ]);
 
 /**
+ * #487 review - what to tell someone when a Contract starts Covering a date
+ * the Vehicle already had its own value for, or null when there's nothing to
+ * say (no own date, or the same day). The Vehicle's own date stops reminding,
+ * so a mistyped end date would otherwise hide a real expiry without a word.
+ */
+export function coveredDateMessage(
+  field: CoverableField,
+  manual: Date | null,
+  cover: Date,
+  formattedManual: string | null,
+  formattedCover: string,
+): string | null {
+  const manualDay = calendarDayOf(manual);
+  const coverDay = calendarDayOf(cover);
+  if (!manualDay || !formattedManual || !coverDay || manualDay === coverDay) return null;
+  const noun = FIELD_NOUN.get(field) ?? "date";
+  const tail = manualDay < coverDay
+    ? " The vehicle's own date is earlier, so check this contract's end date is right."
+    : "";
+  return `This contract now sets the vehicle's ${noun} date: ${formattedCover}. The vehicle's own date, ${formattedManual}, no longer sends reminders.${tail}`;
+}
+
+/**
  * What to tell someone when a Contract stops Covering a date: the Vehicle's
  * own date applies again, which may be out of date or already past. `formatted`
  * is the manual date in the viewer's format.

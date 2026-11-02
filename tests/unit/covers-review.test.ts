@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDb, createTestUser, setModuleEnabled } from "../helpers/testDb";
-import { COVERING_CONTRACTS, resumedDateMessage, withVehicleCovers } from "@/lib/covers";
+import { COVERING_CONTRACTS, coveredDateMessage, resumedDateMessage, withVehicleCovers } from "@/lib/covers";
+import { gainedCover, vehicleCoverSnapshot } from "@/lib/coverNotice";
 import { contractDue, vehicleDue, vehicleDueRecord } from "@/lib/dueRecords";
 import { renewContractCommand } from "@/lib/commands/contracts";
 import { updateVehicleCommand } from "@/lib/commands/vehicles";
@@ -12,6 +13,7 @@ import { sendExpiryWebhooks } from "@/lib/notifications/webhook";
 // #456 review fixes: edge cases of the Covers rule against a real database.
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
+vi.mock("@/lib/auth", () => ({ auth: vi.fn(async () => null) }));
 vi.mock("@/lib/notifications/channels", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/notifications/channels")>();
   return {
@@ -190,6 +192,44 @@ describe("when a Contract stops Covering", () => {
     await db.prisma.contract.update({ where: { id: c.id }, data: { status: "CANCELLED" } });
     const entries = vehicleDue(await vehicleRow(v.id), ctx);
     expect(entries.find((e) => e.field === "insuranceExpiry")).toMatchObject({ state: "overdue" });
+  });
+});
+
+// #487 review - the other direction: a Contract that starts Covering a date
+// says which of the Vehicle's own dates it replaced.
+describe("when a Contract starts Covering", () => {
+  it("names both dates, and flags an own date earlier than the Contract's end", () => {
+    expect(coveredDateMessage("regoExpiry", day("2027-06-01"), day("2027-03-01"), "1 Jun 2027", "1 Mar 2027")).toBe(
+      "This contract now sets the vehicle's rego date: 1 Mar 2027. The vehicle's own date, 1 Jun 2027, no longer sends reminders.",
+    );
+    // The reviewer's case: rego really ends 5 Nov 2026, the policy was entered as 1 Jun 2027.
+    expect(coveredDateMessage("regoExpiry", day("2026-11-05"), day("2027-06-01"), "5 Nov 2026", "1 Jun 2027")).toContain(
+      "check this contract's end date is right",
+    );
+  });
+
+  it("says nothing when the dates match or the Vehicle had none", () => {
+    expect(coveredDateMessage("insuranceExpiry", day("2026-11-24"), day("2026-11-24"), "24 Nov 2026", "24 Nov 2026")).toBeNull();
+    expect(coveredDateMessage("insuranceExpiry", null, day("2026-11-24"), null, "24 Nov 2026")).toBeNull();
+  });
+
+  it("reports only a date that no Contract Covered before the save", async () => {
+    const v = await vehicleWith();
+    const before = await vehicleCoverSnapshot(v.id);
+    const first = await policy(v.id);
+    expect(await gainedCover(before, first.id)).toBe(`${v.id}:insuranceExpiry`);
+
+    // A renewal entered while the first still Covers takes over a date that was already Covered.
+    const stillCovered = await vehicleCoverSnapshot(v.id);
+    const renewal = await policy(v.id, { title: "Renewal", endDate: day("2027-11-24") });
+    expect(await gainedCover(stillCovered, renewal.id)).toBeNull();
+
+    // A Contract that doesn't Cover (awaiting review) gains nothing.
+    const other = await vehicleWith({ regoExpiry: day("2026-12-01") });
+    const otherBefore = await vehicleCoverSnapshot(other.id);
+    const pending = await policy(other.id, { category: "REGISTRATION", extractionPending: true });
+    expect(await gainedCover(otherBefore, pending.id)).toBeNull();
+    expect(await gainedCover(await vehicleCoverSnapshot(null), pending.id)).toBeNull();
   });
 });
 

@@ -3,7 +3,7 @@ import { BackLink } from "@/components/BackLink";
 import { notFound } from "next/navigation";
 import { Pencil, Trash2, Ban, RotateCcw, RotateCw, Home, Car } from "lucide-react";
 import { COVERING_CONTRACTS, coveredFieldOf, isCovering, vehicleCovers } from "@/lib/covers";
-import { parseResumed, resumedNotice } from "@/lib/coverNotice";
+import { coveredNotice, parseResumed, resumedNotice } from "@/lib/coverNotice";
 import { prisma } from "@/lib/prisma";
 import { addDocumentAction } from "@/lib/actions/documents";
 import {
@@ -48,10 +48,10 @@ export default async function ContractDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ docFallback?: string; resumed?: string }>;
+  searchParams: Promise<{ docFallback?: string; resumed?: string; covered?: string }>;
 }) {
   const { id } = await params;
-  const { docFallback, resumed } = await searchParams;
+  const { docFallback, resumed, covered } = await searchParams;
   const canWrite = sessionCanWrite(await auth());
   const [contract, { dateFormat, region }, memberCount, due] = await Promise.all([
     prisma.contract.findUnique({
@@ -117,6 +117,10 @@ export default async function ContractDetailPage({
       ? { vehicleId: contract.vehicleId, field: coverField }
       : parseResumed(resumed);
   const resumed_ = resumedTarget ? await resumedNotice(resumedTarget.vehicleId, resumedTarget.field) : null;
+  // #487 review - a Contract that has just started Covering a date the Vehicle
+  // had its own value for says which date it replaced.
+  const coveredTarget = parseResumed(covered);
+  const covered_ = coveredTarget ? await coveredNotice(contract.id, coveredTarget.vehicleId, coveredTarget.field) : null;
   const reminderHealth = await getReminderHealth({
     ownerType: "CONTRACT",
     ownerId: contract.id,
@@ -199,6 +203,17 @@ export default async function ContractDetailPage({
       </div>
 
       <DocFallbackBanner docFallback={docFallback} />
+
+      {covered_ && (
+        <Banner role="status">
+          {covered_.message}{" "}
+          {canWrite && (
+            <Link href={`/vehicles/${covered_.vehicleId}/edit`} className={inlineLinkClass}>
+              Edit {covered_.label}
+            </Link>
+          )}
+        </Banner>
+      )}
 
       {resumed_ && (
         <Banner role="status">

@@ -209,8 +209,15 @@ test.describe.serial("Vehicles module", () => {
       await page.locator("#provider").fill("Allianz");
       await page.locator("#endDate").fill("2031-06-15");
       await page.locator("main button[type=submit]").click();
-      await page.waitForURL(/\/contracts\/(?!new)[^/?]+$/);
+      await page.waitForURL(/\/contracts\/(?!new)[^/?]+(\?.*)?$/);
       policyId = new URL(page.url()).pathname.split("/").pop()!;
+
+      // #487 review - it says which of the Vehicle's own dates it replaced; that
+      // date (1 Jan 2031) is earlier than the policy's end, so check it.
+      const notice = page.getByRole("status").filter({ hasText: "This contract now sets the vehicle's insurance date" });
+      await expect(notice).toContainText("no longer sends reminders");
+      await expect(notice).toContainText("check this contract's end date is right");
+      await expect(notice.getByRole("link", { name: /^Edit / })).toHaveAttribute("href", `/vehicles/${vehicleId}/edit`);
     });
 
     test("the Vehicle shows the date as derived, read-only, with one Reminder stream", async ({ page }) => {
@@ -259,7 +266,7 @@ test.describe.serial("Vehicles module", () => {
       await page.locator("#provider").fill("Transport Dept");
       await page.locator("#endDate").fill("2031-08-20");
       await page.locator("main button[type=submit]").click();
-      await page.waitForURL(/\/contracts\/(?!new)[^/?]+$/);
+      await page.waitForURL(/\/contracts\/(?!new)[^/?]+(\?.*)?$/);
 
       await page.goto(`/vehicles/${vehicleId}`);
       await expect(page.getByText("Rego expiry")).toBeVisible();
