@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { ADMIN_AUTH_FILE, ADMIN_EMAIL } from "../env";
+import { openFormSections } from "../formSections";
 
 test.use({ storageState: ADMIN_AUTH_FILE, viewport: { width: 375, height: 812 }, hasTouch: true });
 
@@ -16,6 +17,8 @@ test("contract detail page with long field values doesn't overflow on a mobile v
 }) => {
   await page.goto("/contracts/new");
   await page.locator("#title").fill("Mobile Overflow Regression Contract");
+  await page.locator("#category").selectOption("OTHER");
+  await openFormSections(page);
   await page.locator("#provider").fill("Regression Test Provider");
   await page
     .locator("#contractNumber")
@@ -57,6 +60,8 @@ test("/spend page doesn't overflow on a mobile viewport", async ({ page }) => {
 test("DetailOverflowMenu renders as a full-width bottom sheet on mobile", async ({ page }) => {
   await page.goto("/contracts/new");
   await page.locator("#title").fill("Overflow Menu Test Contract");
+  await page.locator("#category").selectOption("OTHER");
+  await openFormSections(page);
   await page.locator("#provider").fill("Test Provider");
   await page.locator("main button[type=submit]").click();
   // Exclude "new" itself — see the test above for why a bare
@@ -96,6 +101,8 @@ test("swiping a contract card left reveals a delete action, which still uses the
 }) => {
   await page.goto("/contracts/new");
   await page.locator("#title").fill("Swipe Test Contract");
+  await page.locator("#category").selectOption("OTHER");
+  await openFormSections(page);
   await page.locator("#provider").fill("Swipe Provider");
   await page.locator("main button[type=submit]").click();
   // Exclude "new" itself: we're already on /contracts/new when this is
@@ -333,6 +340,8 @@ test("detail page headers keep the badge, Edit and ⋮ on one row at 360, 390 an
   const end = new Date(Date.now() + 20 * 86_400_000).toISOString().slice(0, 10);
   await page.goto("/contracts/new");
   await page.locator("#title").fill("Home insurance");
+  await page.locator("#category").selectOption("OTHER");
+  await openFormSections(page);
   await page.locator("#provider").fill("Allianz");
   await page.locator("#endDate").fill(end);
   await page.locator("main button[type=submit]").click();
@@ -466,6 +475,8 @@ test.describe("fixed mobile UI never covers controls (#401)", () => {
     for (let i = 0; i < 6; i++) {
       await page.goto("/contracts/new");
       await page.locator("#title").fill(`Overlap Check Contract ${stamp}-${i}`);
+      await page.locator("#category").selectOption("OTHER");
+      await openFormSections(page);
       await page.locator("#provider").fill("Overlap Provider");
       await page.locator("#endDate").fill(end);
       await page.locator("main button[type=submit]").click();
@@ -633,6 +644,8 @@ test("#365 — on a 390×844 phone the first contract is on screen, and filters 
   const title = `Toolbar Phone Contract ${Date.now()}`;
   await page.goto("/contracts/new");
   await page.locator("#title").fill(title);
+  await page.locator("#category").selectOption("OTHER");
+  await openFormSections(page);
   await page.locator("#provider").fill("Toolbar Provider");
   await page.locator("main button[type=submit]").click();
   await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);

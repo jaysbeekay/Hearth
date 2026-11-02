@@ -45,6 +45,7 @@ test("filename substring search finds documents across contract, rental statemen
   // tokenizer's mid-word substring matching (not a whole-token match).
   await page.goto("/contracts/new");
   await page.locator("#title").fill(`Search FTS Regression Contract ${stamp}`);
+  await page.locator("#category").selectOption("OTHER");
   await page.locator("#provider").fill("Regression Provider");
   await Promise.all([
     page.waitForURL(/\/contracts\/(?!new$)[^/]+$/),
@@ -138,6 +139,7 @@ test("trashing a contract removes its document from search, and permanently dele
 
   await page.goto("/contracts/new");
   await page.locator("#title").fill(`Search Lifecycle Regression Contract ${stamp}`);
+  await page.locator("#category").selectOption("OTHER");
   await page.locator("#provider").fill("Regression Provider");
   await Promise.all([
     page.waitForURL(/\/contracts\/(?!new$)[^/]+$/),

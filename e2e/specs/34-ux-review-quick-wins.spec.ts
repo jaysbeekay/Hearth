@@ -11,6 +11,7 @@ test.use({ storageState: ADMIN_AUTH_FILE });
 async function createContract(page: Page, title: string): Promise<string> {
   await page.goto("/contracts/new");
   await page.locator("#title").fill(title);
+  await page.locator("#category").selectOption("OTHER");
   await page.locator("#provider").fill("Quick Wins Provider");
   await page.locator("main button[type=submit]").click();
   await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);

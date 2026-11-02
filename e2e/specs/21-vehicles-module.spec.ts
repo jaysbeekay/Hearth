@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { test, expect } from "@playwright/test";
 import { ADMIN_AUTH_FILE, UPLOADS_DIR } from "../env";
+import { openFormSections } from "../formSections";
 
 test.use({ storageState: ADMIN_AUTH_FILE });
 
@@ -26,6 +27,7 @@ test.describe.serial("Vehicles module", () => {
 
   test("create a vehicle", async ({ page }) => {
     await page.goto("/vehicles/new");
+    await openFormSections(page);
     await page.locator("#label").fill("Test Vehicle");
     await page.locator("#make").fill("Toyota");
     await page.locator("#model").fill("Camry");

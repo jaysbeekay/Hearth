@@ -7,9 +7,11 @@ import type { ContractModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/contracts";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormActions } from "@/components/FormActions";
-import { ReminderThresholdsField } from "@/components/ReminderThresholdsField";
+import { ReminderThresholdsField, hasOwnThresholds } from "@/components/ReminderThresholdsField";
 import { FormMessage } from "@/components/FormMessage";
 import { Field } from "@/components/FormField";
+import { FormSection, hasAnyValue } from "@/components/FormSection";
+import { guessContractCategory } from "@/lib/contractCategoryGuess";
 import {
   BILLING_LABELS,
   CATEGORY_LABELS,
@@ -142,6 +144,21 @@ export function ContractForm({
   const endDateRef = useRef<HTMLInputElement>(null);
   const costRef = useRef<HTMLInputElement>(null);
   const billingFrequencyRef = useRef<HTMLSelectElement>(null);
+  const categoryRef = useRef<HTMLSelectElement>(null);
+  // #361 — a cost entered with no frequency chosen defaults to Monthly, the
+  // common case; once the person picks a frequency themselves it's theirs.
+  const frequencyChosen = useRef(!!contract?.billingFrequency);
+  function handleCostChange() {
+    const frequency = billingFrequencyRef.current;
+    if (frequency && costRef.current?.value && !frequency.value && !frequencyChosen.current) {
+      frequency.value = "MONTHLY";
+    }
+    checkCostMissingFrequency();
+  }
+  function handleFrequencyChange() {
+    frequencyChosen.current = true;
+    checkCostMissingFrequency();
+  }
   const contactNameRef = useRef<HTMLInputElement>(null);
   const contactPhoneRef = useRef<HTMLInputElement>(null);
   const contactEmailRef = useRef<HTMLInputElement>(null);
@@ -158,6 +175,11 @@ export function ContractForm({
     applyIfEmpty(contactNameRef.current, fields.contactName, highlight);
     applyIfEmpty(contactPhoneRef.current, fields.contactPhone, highlight);
     applyIfEmpty(contactEmailRef.current, fields.contactEmail, highlight);
+    applyIfEmpty(
+      categoryRef.current,
+      guessContractCategory(providerRef.current?.value, titleRef.current?.value),
+      "heuristic",
+    );
     checkCostMissingFrequency();
   }
 
@@ -244,12 +266,19 @@ export function ContractForm({
           <Field label="Category" htmlFor="category" required>
             <SelectWrapper>
               <select
+                // #361 — a form reset after a failed save restores a select to
+                // its first render's value, so remount it with the echoed one.
+                key={effectiveValues?.category ?? ""}
                 id="category"
                 name="category"
                 required
-                defaultValue={effectiveValues?.category ?? contract?.category ?? "OTHER"}
+                defaultValue={effectiveValues?.category ?? contract?.category ?? ""}
+                ref={categoryRef}
                 className={selectClass}
               >
+                <option value="" disabled>
+                  Choose a category
+                </option>
                 {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
                   <option key={value} value={value}>
                     {label}
@@ -271,61 +300,12 @@ export function ContractForm({
             />
           </Field>
 
-          <Field label="Contract number" htmlFor="contractNumber">
-            <input
-              ref={contractNumberRef}
-              id="contractNumber"
-              name="contractNumber"
-              defaultValue={effectiveValues?.contractNumber ?? contract?.contractNumber ?? ""}
-              className={inputClass}
-            />
-          </Field>
-
-          <Field label="Start date" htmlFor="startDate">
-            <DateInput
-              ref={startDateRef}
-              id="startDate"
-              name="startDate"
-              defaultValue={effectiveValues?.startDate ?? toDateInputValue(contract?.startDate)}
-              className={inputClass}
-            />
-          </Field>
-
           <Field label="End date" htmlFor="endDate">
             <DateInput
               ref={endDateRef}
               id="endDate"
               name="endDate"
               defaultValue={effectiveValues?.endDate ?? toDateInputValue(contract?.endDate)}
-              className={inputClass}
-            />
-          </Field>
-
-          <Field label="Renewal type" htmlFor="renewalType">
-            <SelectWrapper>
-              <select
-                id="renewalType"
-                name="renewalType"
-                defaultValue={effectiveValues?.renewalType ?? contract?.renewalType ?? "MANUAL_RENEWAL"}
-                className={selectClass}
-              >
-                {Object.entries(RENEWAL_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </SelectWrapper>
-          </Field>
-
-          <Field label="Notice period (days)" htmlFor="noticePeriodDays">
-            <input
-              id="noticePeriodDays"
-              name="noticePeriodDays"
-              type="number"
-              min={0}
-              defaultValue={effectiveValues?.noticePeriodDays ?? contract?.noticePeriodDays ?? ""}
-              placeholder="e.g. 30"
               className={inputClass}
             />
           </Field>
@@ -339,7 +319,7 @@ export function ContractForm({
               min={0}
               step="0.01"
               defaultValue={effectiveValues?.cost ?? contract?.cost ?? ""}
-              onChange={checkCostMissingFrequency}
+              onChange={handleCostChange}
               className={inputClass}
             />
           </Field>
@@ -363,10 +343,11 @@ export function ContractForm({
             <SelectWrapper>
               <select
                 ref={billingFrequencyRef}
+                key={effectiveValues?.billingFrequency ?? ""}
                 id="billingFrequency"
                 name="billingFrequency"
                 defaultValue={effectiveValues?.billingFrequency ?? contract?.billingFrequency ?? ""}
-                onChange={checkCostMissingFrequency}
+                onChange={handleFrequencyChange}
                 className={selectClass}
               >
                 <option value="">Not set</option>
@@ -394,6 +375,78 @@ export function ContractForm({
               </SelectWrapper>
             </Field>
           )}
+        </div>
+      </fieldset>
+
+      {/* #361 — the fields that drive Reminders and Spend stay above; the rest
+          fold away until wanted, and open when they hold anything. */}
+      <FormSection
+        title="More details"
+        hint="Dates, notice period, contacts, notes"
+        defaultOpen={hasAnyValue([
+          effectiveValues?.contractNumber ?? contract?.contractNumber,
+          effectiveValues?.startDate ?? contract?.startDate,
+          effectiveValues?.noticePeriodDays ?? contract?.noticePeriodDays,
+          (effectiveValues?.renewalType ?? contract?.renewalType ?? "MANUAL_RENEWAL") !== "MANUAL_RENEWAL",
+          effectiveValues?.propertyId ?? contract?.propertyId ?? defaultPropertyId,
+          effectiveValues?.vehicleId ?? contract?.vehicleId ?? defaultVehicleId,
+          effectiveValues?.contactName ?? contract?.contactName,
+          effectiveValues?.contactPhone ?? contract?.contactPhone,
+          effectiveValues?.contactEmail ?? contract?.contactEmail,
+          effectiveValues?.notes ?? contract?.notes,
+          effectiveValues ? effectiveValues.isTaxDeductible === "on" : contract?.isTaxDeductible,
+        ])}
+      >
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field label="Contract number" htmlFor="contractNumber">
+            <input
+              ref={contractNumberRef}
+              id="contractNumber"
+              name="contractNumber"
+              defaultValue={effectiveValues?.contractNumber ?? contract?.contractNumber ?? ""}
+              className={inputClass}
+            />
+          </Field>
+
+          <Field label="Start date" htmlFor="startDate">
+            <DateInput
+              ref={startDateRef}
+              id="startDate"
+              name="startDate"
+              defaultValue={effectiveValues?.startDate ?? toDateInputValue(contract?.startDate)}
+              className={inputClass}
+            />
+          </Field>
+
+          <Field label="Renewal type" htmlFor="renewalType">
+            <SelectWrapper>
+              <select
+                key={effectiveValues?.renewalType ?? ""}
+                id="renewalType"
+                name="renewalType"
+                defaultValue={effectiveValues?.renewalType ?? contract?.renewalType ?? "MANUAL_RENEWAL"}
+                className={selectClass}
+              >
+                {Object.entries(RENEWAL_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </SelectWrapper>
+          </Field>
+
+          <Field label="Notice period (days)" htmlFor="noticePeriodDays">
+            <input
+              id="noticePeriodDays"
+              name="noticePeriodDays"
+              type="number"
+              min={0}
+              defaultValue={effectiveValues?.noticePeriodDays ?? contract?.noticePeriodDays ?? ""}
+              placeholder="e.g. 30"
+              className={inputClass}
+            />
+          </Field>
 
           <LinkedToField
             id="linkedTo"
@@ -411,12 +464,6 @@ export function ContractForm({
             chevron
           />
         </div>
-      </fieldset>
-
-      <fieldset className="space-y-4 rounded-lg border border-border p-4">
-        <legend className="px-1 text-sm font-medium text-muted">
-          Contact details (optional)
-        </legend>
         <div className="grid gap-4 md:grid-cols-3">
           <Field label="Contact name" htmlFor="contactName">
             <input
@@ -447,40 +494,49 @@ export function ContractForm({
             />
           </Field>
         </div>
-      </fieldset>
+        <Field label="Notes" htmlFor="notes">
+          <textarea
+            id="notes"
+            name="notes"
+            rows={4}
+            defaultValue={effectiveValues?.notes ?? contract?.notes ?? ""}
+            className={textareaClass}
+          />
+        </Field>
 
-      <Field label="Notes" htmlFor="notes">
-        <textarea
-          id="notes"
-          name="notes"
-          rows={4}
-          defaultValue={effectiveValues?.notes ?? contract?.notes ?? ""}
-          className={textareaClass}
+        <div className="flex items-center gap-2">
+          <input
+            id="isTaxDeductible"
+            name="isTaxDeductible"
+            type="checkbox"
+            defaultChecked={
+              effectiveValues?.isTaxDeductible === "on"
+                ? true
+                : contract?.isTaxDeductible ?? false
+            }
+            className="size-4 rounded border-border accent-accent"
+          />
+          <label htmlFor="isTaxDeductible" className="text-sm">
+            Tax deductible
+          </label>
+        </div>
+      </FormSection>
+
+      <FormSection
+        title="Reminders"
+        hint="Household default unless changed"
+        defaultOpen={hasOwnThresholds(
+          effectiveValues?.reminderDaysBefore ?? contract?.reminderDaysBefore,
+          defaultReminderDays,
+        )}
+      >
+        <ReminderThresholdsField
+          defaultValue={effectiveValues?.reminderDaysBefore ?? contract?.reminderDaysBefore ?? ""}
+          householdDefault={defaultReminderDays}
+          before="the end date or notice deadline"
+          srOnlyLegend
         />
-      </Field>
-
-      <ReminderThresholdsField
-        defaultValue={effectiveValues?.reminderDaysBefore ?? contract?.reminderDaysBefore ?? ""}
-        householdDefault={defaultReminderDays}
-        before="the end date or notice deadline"
-      />
-
-      <div className="flex items-center gap-2">
-        <input
-          id="isTaxDeductible"
-          name="isTaxDeductible"
-          type="checkbox"
-          defaultChecked={
-            effectiveValues?.isTaxDeductible === "on"
-              ? true
-              : contract?.isTaxDeductible ?? false
-          }
-          className="size-4 rounded border-border accent-accent"
-        />
-        <label htmlFor="isTaxDeductible" className="text-sm">
-          Tax deductible
-        </label>
-      </div>
+      </FormSection>
 
       {extractionUsed && (
         <div className={bannerClass("neutral", "flex items-start gap-2")}>
