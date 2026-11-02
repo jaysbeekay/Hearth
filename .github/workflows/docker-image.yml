@@ -1,0 +1,60 @@
+name: Docker image
+
+# Builds the image on a PR that touches what goes into it, checks its size
+# against a budget and runs the container smoke test (#518). Nothing is
+# pushed. The same checks gate the release push in docker-publish.yml.
+
+on:
+  pull_request:
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - docker-entrypoint.sh
+      - docker/**
+      - next.config.ts
+      - package.json
+      - package-lock.json
+      - prisma/**
+      - scripts/docker-*.sh
+      - .github/workflows/docker-image.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-image-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Compressed size of the amd64 image, in MiB. v0.20.1 was 697.9; #518
+  # brought it to about 180. Raise this deliberately, in the PR that needs it.
+  IMAGE_BUDGET_MIB: "200"
+
+jobs:
+  build-and-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Build image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          load: true
+          tags: hearth:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Image size
+        run: scripts/docker-image-size.sh hearth:ci "$IMAGE_BUDGET_MIB"
+
+      # Upgrade path is checked against the newest published release, i.e.
+      # the database a self-hoster pulling this change already has.
+      - name: Container smoke test
+        run: scripts/docker-smoke.sh hearth:ci jaysbeekay/hearth:latest

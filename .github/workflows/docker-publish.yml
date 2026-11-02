@@ -70,6 +70,25 @@ jobs:
             type=ref,event=tag
             type=sha,prefix=
 
+      # Build and check the image locally before anything is pushed (#518):
+      # the size report and smoke test catch a broken standalone trace or a
+      # failed migration before it reaches Docker Hub. The push below reuses
+      # this build from the cache.
+      - name: Build image for checks
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          load: true
+          tags: hearth:release-check
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Image size
+        run: scripts/docker-image-size.sh hearth:release-check
+
+      - name: Container smoke test
+        run: scripts/docker-smoke.sh hearth:release-check jaysbeekay/hearth:latest
+
       - name: Build and push
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
