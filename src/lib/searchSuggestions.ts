@@ -7,14 +7,14 @@ import type { RecentKind, RecentRecord } from "@/lib/recentRecords";
 
 export const ATTENTION_SUGGESTION_LIMIT = 3;
 
-export const RECENT_KIND_LABELS: Record<RecentKind, string> = {
-  contract: "Contract",
-  warranty: "Warranty",
-  vehicle: "Vehicle",
-  property: "Property",
-  trip: "Trip",
-  inventory: "Item",
-};
+export const RECENT_KIND_LABELS = new Map<RecentKind, string>([
+  ["contract", "Contract"],
+  ["warranty", "Warranty"],
+  ["vehicle", "Vehicle"],
+  ["property", "Property"],
+  ["trip", "Trip"],
+  ["inventory", "Item"],
+]);
 
 /** The found records in the order they were viewed, most recent first. */
 export function orderRecent(recent: RecentRecord[], found: SearchResult[]): SearchResult[] {

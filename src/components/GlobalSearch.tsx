@@ -108,7 +108,7 @@ export function GlobalSearch() {
     let cancelled = false;
     fetch(`/api/search/suggestions?${params.toString()}`)
       .then((res) => (res.ok ? res.json() : null))
-      .then((data: Suggestions | null) => {
+      .then((data: Partial<Suggestions> | null) => {
         if (!cancelled && data) setSuggestions({ recent: data.recent ?? [], attention: data.attention ?? [] });
       })
       .catch(() => {
