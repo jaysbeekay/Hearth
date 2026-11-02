@@ -5,7 +5,9 @@ test.use({ storageState: ADMIN_AUTH_FILE });
 
 // #446: an Inventory item moved to Trash while its edit form is open can't
 // be saved. #447: a Contract can't be linked to a Property that went to
-// Trash after the form (or an offline edit) picked it.
+// Trash after the form (or an offline edit) picked it. #489: the edit forms
+// don't offer a Property in Trash, but keep the one the record is already
+// linked to, so saving other changes doesn't unlink it.
 
 async function postSync(request: APIRequestContext, operations: unknown[]) {
   const res = await request.post(`${BASE_URL}/api/sync`, {
@@ -86,7 +88,7 @@ test.describe.serial("writes to and links to records in Trash", () => {
     await page.getByLabel("Linked to").selectOption({ label: propertyLabel });
     await moveToTrash(request, "property", propertyId);
     await page.getByRole("button", { name: "Save changes" }).click();
-    await expect(page.locator("body")).toContainText("That property doesn't exist or is in Trash.");
+    await expect(page.locator("body")).toContainText("That property doesn't exist or has been deleted.");
 
     // Offline: the same edit queued and replayed after the property went to Trash.
     const opId = `e2e-trash-link-${stamp}`;
@@ -99,9 +101,61 @@ test.describe.serial("writes to and links to records in Trash", () => {
         formValues: { title, category: "OTHER", provider: "Trash Gap Insurer", renewalType: "MANUAL_RENEWAL", propertyId },
       },
     ]);
-    expect(results).toEqual([{ id: opId, success: false, error: "That property doesn't exist or is in Trash." }]);
+    expect(results).toEqual([{ id: opId, success: false, error: "That property doesn't exist or has been deleted." }]);
 
     await page.goto(`/contracts/${contractId}`);
     await expect(page.getByText(propertyLabel)).toHaveCount(0);
+  });
+
+  test("the edit forms offer no Property in Trash but keep the current one through a save", async ({ page, request }) => {
+    async function createProperty(label: string) {
+      await page.goto("/home/new");
+      await page.locator("#label").fill(label);
+      await page.locator("main button[type=submit]").click();
+      await page.waitForURL(/\/home\/(?!new$)[^/]+$/);
+      return idFromUrl(page);
+    }
+    const linkedLabel = `Picker Linked Property ${stamp}`;
+    const otherLabel = `Picker Other Property ${stamp}`;
+    const linkedId = await createProperty(linkedLabel);
+    const otherId = await createProperty(otherLabel);
+
+    const title = `Picker Contract ${stamp}`;
+    await page.goto("/contracts/new");
+    await page.locator("#title").fill(title);
+    await page.locator("#provider").fill("Picker Insurer");
+    await page.getByLabel("Linked to").selectOption({ label: linkedLabel });
+    await page.locator("main button[type=submit]").click();
+    await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
+    const contractId = idFromUrl(page);
+
+    await page.goto("/products/new");
+    await page.locator("#description").fill(`Picker Warranty ${stamp}`);
+    await page.locator("main button[type=submit]").click();
+    await page.waitForURL(/\/products\/(?!new$)[^/]+$/);
+    const productId = idFromUrl(page);
+
+    await moveToTrash(request, "property", linkedId);
+    await moveToTrash(request, "property", otherId);
+
+    // Contract edit: the current link stays, marked; the other trashed one is gone.
+    await page.goto(`/contracts/${contractId}/edit`);
+    const picker = page.getByLabel("Linked to");
+    await expect(picker).toHaveValue(`property:${linkedId}`);
+    await expect(picker.locator("option", { hasText: `${linkedLabel} (deleted)` })).toHaveCount(1);
+    await expect(picker.locator("option", { hasText: otherLabel })).toHaveCount(0);
+
+    // Saving another change keeps the link.
+    await page.locator("#provider").fill("Picker Insurer edited");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await page.waitForURL(new RegExp(`/contracts/${contractId}$`));
+    await page.goto(`/contracts/${contractId}/edit`);
+    await expect(page.getByLabel("Linked to")).toHaveValue(`property:${linkedId}`);
+
+    // Warranty edit with no link: neither trashed Property is offered.
+    await page.goto(`/products/${productId}/edit`);
+    const warrantyPicker = page.getByLabel("Linked to");
+    await expect(warrantyPicker.locator("option", { hasText: linkedLabel })).toHaveCount(0);
+    await expect(warrantyPicker.locator("option", { hasText: otherLabel })).toHaveCount(0);
   });
 });

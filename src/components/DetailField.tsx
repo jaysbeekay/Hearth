@@ -12,10 +12,13 @@ export function DetailField({
   label,
   value,
   copyable = false,
+  note,
 }: {
   label: string;
   value: string;
   copyable?: boolean;
+  /** A short muted line under the value, such as a Contract's cost change (#353). */
+  note?: string;
 }) {
   const [copied, setCopied] = useState(false);
   const isEmpty = value === "—" || value.trim() === "";
@@ -41,6 +44,7 @@ export function DetailField({
           </button>
         )}
       </dd>
+      {note && <dd className="text-xs text-muted">{note}</dd>}
     </div>
   );
 }

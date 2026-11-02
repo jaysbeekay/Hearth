@@ -60,7 +60,7 @@ export function ContractCard({
       </div>
 
       {missing && missing.length > 0 && (
-        <p className="mt-1 text-xs font-medium text-warning">{missing.join(" · ")}</p>
+        <p className="mt-1 text-xs font-medium text-muted">{missing.join(" · ")}</p>
       )}
 
       {contract._count != null && contract._count.documents > 0 && (

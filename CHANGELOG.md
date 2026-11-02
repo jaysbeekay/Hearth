@@ -9,15 +9,6 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Security
 
-- `nodemailer` 10.0.16 → 10.2.1 and `mailparser` → 3.12.4, fixing three
-  high-severity "interpretation conflict" advisories in nodemailer
-  (SNYK-JS-NODEMAILER-21663365, -21663367, -21663373).
-- `fast-uri` override 3.1.8 → 3.1.9, fixing four moderate-severity URI
-  parsing advisories (scheme spoofing, host confusion, path equivalence and
-  scheme injection; GHSA-w74x-v6f9-j3xg, GHSA-wjr9-j795-jxcr,
-  GHSA-xhq7-xmqj-769h, GHSA-333x-w4r6-6crp). The remaining low-severity
-  `npm audit` entries all trace to `@simplewebauthn/server` 9.x and are
-  tracked in #376.
 - **Passkeys: `@simplewebauthn` 9 → 14 (#376).** Server 14.0.3 and browser
   14.0.0 clear the last `npm audit` entries (GHSA-6hxq-p678-4hr2, which
   didn't affect Hearth: it registers passkeys with `attestationType:
@@ -31,6 +22,87 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   user handle must match the stored passkey. Registration accepts any of
   the user's unexpired challenges, so adding a passkey in two tabs works,
   and only known transports are stored.
+
+### Fixed
+
+- **A refused passkey says so.** Signing in with a passkey Hearth doesn't
+  know (for example one removed in Settings) used to drop silently back to
+  the sign-in page; it now shows "Passkey sign-in failed" (#376).
+
+## [0.20.1] - 2026-10-31
+
+### Fixed
+
+- **Android release assets were not published for v0.20.0.** The new
+  "Verify release signatures" step in `android-build.yml` rejected the signed
+  APK even though Gradle signed it with the release keystore, so the APK/AAB
+  were never attached to the v0.20.0 Release (the Docker image did publish).
+  The check now looks for the release key's certificate digest anywhere in
+  `apksigner`/`keytool` output instead of on one exact label, and prints the
+  certificate digests it saw when they don't match. Digests are public, so
+  this exposes nothing secret.
+
+### Added
+
+- **Document scanning copes without pdftotext or tesseract (#480).** On a
+  server without poppler-utils or tesseract-ocr (bare-metal `npm run start`,
+  serverless), the missing tools are detected (and re-checked about once a
+  minute, so installing them needs no restart) and stage 1 is skipped:
+  uploads go straight to the household's cloud AI key, or attach unparsed
+  with a message saying text extraction isn't available on this server,
+  instead of reading like a blank document. Ollama, which only sees
+  extracted text, is no longer called with empty text. Settings → System
+  settings shows which local extraction tools are installed, and flags a tool
+  that is installed but can't run (permissions, timeout). Docker installs,
+  which ship the tools, behave as before.
+
+### Changed
+
+- "Trash" is now called "Recently deleted" everywhere it's shown: the Settings
+  section and page, delete confirmations, toasts and error messages. The
+  confirm button on a restorable delete now says "Delete" (was "Move to
+  Trash") and the toast says "Moved to Recently deleted." (still with Undo),
+  so it reads differently from "Delete permanently". The standalone mobile
+  shell, which has no Recently deleted page, no longer names one: a deleted
+  Document says "deleted." with Undo, and its record's delete confirmation says
+  the documents are kept for 30 days. Edit-form pickers mark a linked record
+  that has been deleted as "(deleted)" (was "(in Trash)").
+  The `/settings/trash` route and internal names are unchanged.
+
+## [0.20.0] - 2026-10-31
+
+### Fixed
+
+- Android release build (`android-build.yml`) failing since v0.18.0: R8 aborted
+  with missing `com.google.errorprone.annotations.*` / `javax.annotation.*`
+  classes referenced by Tink (via the encrypted-SQLite plugin). Added the
+  matching `-dontwarn` rules plus keep rules for the Capacitor/RevenueCat
+  plugin packages, sqlcipher (`net.zetetic.database.**`, JNI native methods)
+  and Tink's protobuf fields in `proguard-rules.pro`. Minification stays on.
+- `android-actions/setup-android` v3 failed on current runners; bumped to
+  v4.0.4.
+- Manual-dispatch releases (`release.yml`) never built the Docker image or the
+  Android APK/AAB (v0.19.2 shipped with neither), because tags created by the
+  `GITHUB_TOKEN` don't fire push-triggered workflows. `release.yml` now
+  dispatches `docker-publish.yml` and `android-build.yml` against the new tag,
+  waits for both (dispatched or tag-push) builds to finish, and fails unless
+  the APK/AAB are attached to the Release and the Docker image is on Docker
+  Hub, so a green release run means the artifacts were actually published.
+- `android-build.yml` now always builds the release variant (unsigned when not
+  a signed tag run) so manual runs exercise R8, and no longer builds the debug
+  APK when dispatched against a tag.
+
+### Security
+
+- `nodemailer` 10.0.16 → 10.2.1 and `mailparser` → 3.12.4, fixing three
+  high-severity "interpretation conflict" advisories in nodemailer
+  (SNYK-JS-NODEMAILER-21663365, -21663367, -21663373).
+- `fast-uri` override 3.1.8 → 3.1.9, fixing four moderate-severity URI
+  parsing advisories (scheme spoofing, host confusion, path equivalence and
+  scheme injection; GHSA-w74x-v6f9-j3xg, GHSA-wjr9-j795-jxcr,
+  GHSA-xhq7-xmqj-769h, GHSA-333x-w4r6-6crp). The remaining low-severity
+  `npm audit` entries all trace to `@simplewebauthn/server` 9.x and are
+  tracked in #376.
 - **Signing out clears this device's offline data (#424).** Sign out now
   deletes the service worker's cached pages and data (and serwist's record
   of their URLs), the offline write queue and offline Documents, then does
@@ -57,9 +129,88 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   sign-in purges them instead), and offline Documents and cached lists
   from before it are purged. If someone other than the person who queued
   them is that first writer, they'll sync under that member's account.
+- Android release signing is now tag-only: `android-build.yml` signs only on a
+  `v*` tag with the secrets present; branch and `main` runs build unsigned
+  (`*-unsigned` artifacts, 7-day retention). Decoded keystore is deleted at
+  the end of every run.
+- Signing and Docker Hub jobs use a `release` environment (owner restricts it
+  to `v*` tags and moves the secrets into it; see README "Releasing").
+- `release.yml` and `docker-publish.yml` refuse to run outside `main` or a
+  `v*` tag; `release.yml` validates the version input and no longer
+  interpolates inputs into shell scripts; `actions: write` is held only by the
+  small `artifacts` job; Docker `latest` moves only for the highest stable
+  release.
 
 ### Added
 
+- **Archive a Vehicle or Property you no longer have (#355).** Archive (in
+  the record's More actions menu, with Undo) marks a Vehicle as sold or a
+  Property as sold or its lease ended; Restore on the record's page puts it
+  back. It is not Trash: the record stays, with its Service or Maintenance
+  records, Tenancies and Documents, in an "Archived" section at the foot of
+  its list, and Search still finds it, marked Archived. An Archived Vehicle
+  has no Due entries, so no Reminders, and an Archived Property's current
+  Tenancy no longer reminds about its lease end. Both leave Needs
+  attention, Upcoming, the iCal feed, the dashboard counts, `whats_due` and
+  the Assistant's and MCP's vehicle and property lists, and an Archived
+  Vehicle is never "missing key details". An Archived Property's valuation
+  no longer counts toward net worth. They're also left out of the pickers
+  for linking new Contracts and Warranties, but stay in the Inbox and Import
+  filing pickers, labelled "(archived)", for late paperwork. The vehicle and
+  home CSV exports gain an Archived column, and an Archived record's page
+  lists the active Contracts still linked to it. Contracts
+  linked to an Archived Vehicle or Property keep their own Reminders, since
+  a Contract is its own Due source. Items follow after #380. The standalone
+  mobile shell has the same Archive and Restore, an Archived filter chip, and
+  stops local Reminders for archived records (standalone schema version 11:
+  `archived_at` on vehicles and properties; older backups import as not
+  archived).
+- **Licence: AGPL-3.0-only.** Hearth now has a `LICENSE` file (the GNU Affero
+  General Public License v3.0), a `license` field in `package.json`, and an
+  updated README "License" section. This is the licence a managed host such
+  as PikaPods needs before it can list the app.
+
+- **Health check endpoint and hosting notes (#477).** `GET /api/health`
+  answers `200 {"status":"ok"}` when the app can read its database file, and
+  `503 {"status":"unavailable"}` when it can't. The result is reused for 5
+  seconds. It needs no login and returns nothing else, so managed hosts such
+  as PikaPods and Render, and uptime monitors, can use it. Docker Compose users
+  can add a `healthcheck` that runs
+  `wget -qO- http://localhost:3000/api/health`; the image itself doesn't
+  define one. README gains a "Deploy" section listing what any Docker host
+  needs (image, port `3000`, volume at `/app/data`, health check, env vars),
+  and fixes the container's database path in Quick start
+  (`/app/data/app.db`, not `/data/app.db`). `docs/deployment/one-click.md`
+  assesses PikaPods (go once Hearth has a licence and the owner applies),
+  Render (go) and Vercel (still no-go; `vercel.json` keeps deploys off), with
+  costs, data custody and security notes. Follow-ups: #478–#482.
+
+- **Deploy to Render (#477).** A `render.yaml` Blueprint and a README button
+  set up Hearth on the household's own Render account. It runs the published
+  Docker image (needs the first release after v0.19.2, or later) on a 2 GB
+  instance with a 1 GB persistent disk at `/app/data`, and health-checks
+  `/api/health`. Render generates `AUTH_SECRET`, `ENCRYPTION_KEY` and
+  `SETUP_TOKEN`, and asks for `TZ`. It costs about $25/month, or about $7 on
+  the 512 MB instance for households that rarely scan documents (Render's
+  October 2026 prices). The free tier can't keep data.
+
+- **Renew a Contract.** Renew on a Contract's page, its Due banner and
+  Needs attention opens a short form for the next Term: new start and end
+  dates and cost, pre-filled from the current Term (it starts the day after
+  the current end date and lasts as long; an auto-renewing Contract that's
+  several Terms late skips ahead to the Term running now), plus an optional
+  Document that's scanned to fill in the dates. The form warns when the new
+  end date has already passed, and asks which Document was the paperwork
+  for the Term being kept when there's more than one. Saving keeps the
+  current Term's dates, cost and Document under a new **Previous terms**
+  section instead of overwriting them, and the cost shows how it compares
+  with the prior Term ("+12% vs prior term"). Reminders restart for the new
+  end date and the Contract leaves Needs attention. An auto-renewing
+  Contract past its end date gets its new end date the same way. Fixed-term
+  Contracts and Contracts with no end date don't offer Renew. Renewing goes
+  through the Contract command, and `get_contract` (MCP and the Assistant)
+  lists previous terms. The standalone app has the same Renew form and
+  history (#353).
 - **Reminders for a tenancy's lease end.** The current tenancy of a rented
   property now gets Reminders before its lease ends, linking to the
   property: an email headed `Reminder: lease for "Beach Flat" ends in 30
@@ -135,8 +286,41 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   Console non-consumable products to be set up before shipping — see the
   comments beside `REVENUECAT_API_KEY_IOS`/`REVENUECAT_API_KEY_ANDROID` in
   `ios-shell/www/app.js`, which are placeholders pending that setup.
+- `android-check.yml`: path-filtered pull request check (plus a weekly run)
+  that runs `cap sync android` and an unsigned `assembleRelease` (R8) so Android-only breakage surfaces before a release. A failing scheduled run
+  opens an issue.
 
 ### Changed
+
+- **An empty `APP_URL` now counts as unset (#477)**, so links fall back to
+  `http://localhost:3000` instead of being built from an empty string. On
+  Render, an unset `APP_URL` uses the service's own `RENDER_EXTERNAL_URL`.
+  An explicit `APP_URL` still wins.
+
+- **Public paths match whole path segments (#477).** The routes that need no
+  login (`/login`, `/setup`, `/api/cron`, `/api/health` and the rest) now
+  match the exact path or a sub-path, not any path that merely starts with
+  the same letters. A future route such as `/api/health-admin` or `/setupx`
+  can't become public by accident.
+
+- **Colour only for Overdue and Due soon.** One mapping,
+  `statusTone` in `src/lib/statusTone.ts`, now sets the colour of every
+  status pill and banner: Overdue is red, Due soon is amber, and Ended,
+  Lapsed, Cancelled, Needs review, needs a new end date and other
+  Housekeeping are a grey pill. A date outside its due-soon window is plain
+  grey text with no pill, so a far-off "Expires 31 Dec" is no longer green.
+  Needs review is grey everywhere (it was amber on the dashboard and the
+  list counts). Other Housekeeping is grey too: Missing key details,
+  "Not configured" reminders and backups, stale property valuations, and
+  changes waiting to sync. So are Tax deductible, the current Tenancy and
+  Trade types. A flight is coloured only when it's cancelled, has an
+  incident or is diverted. Document types, asset classes and the "Latest"
+  version tag are grey rather than blue. The standalone shell matches:
+  its plain badge is grey rather than purple, Needs review, Held, setup
+  states (No date, No thresholds, Invalid date), Important, Hidden and Off
+  are grey, and a record whose reminders can't run counts only as Missing
+  setup, not also as Due soon. Its red, grey and tints are adjusted so
+  badge and card text is at least 4.5:1 in both themes (#412).
 
 - **One Document list (#397).** Every record's Documents use the same list:
   Contracts, Warranties, Maintenance records, Service records, Inventory
@@ -330,6 +514,23 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   Documents of every kind, and those three kinds now keep the Document
   type chosen on upload. An offline Document delete also goes to Trash
   when it syncs (it used to delete the file outright) (#396).
+- **Trip segments, Rental statements, Trades, Tenancies and Property
+  valuations go to Trash.** Deleting one now says "Moved to Trash" with
+  Undo instead of deleting it for good; its Documents stay with it, and it
+  can be restored from Settings → Trash (once the Trip or Property it's
+  under is restored) or deleted permanently there, which removes its files
+  too. The 30-day Trash purge covers them. While one is in Trash it's
+  read-only and left out of the Trip, Rental and Holding pages, Upcoming,
+  the calendar feed, exports, search and the Documents page, and a Trade or
+  valuation in Trash no longer counts towards holdings, cost basis or net
+  worth. A Tenancy in Trash gets no lease-end Reminders, and the 30-day
+  purge clears its sent-Reminder log. A CSV import row that matches a
+  Trade in Trash restores that Trade rather than adding a second one. A
+  Contract still linked to a Tenancy in Trash shows as unavailable in the
+  link list, and linking it says why. Offline deletes of all five sync to
+  Trash, and a Tenancy edit made offline is now refused if someone else
+  changed it first. Maintenance records in Trash no longer show in search
+  either (#427).
 - Search, the Documents page and the dashboard's Document counts leave out
   Documents in Trash, and Documents whose record is in Trash. A Document
   can only be deleted permanently from Trash, and a Restore or Delete in
@@ -474,9 +675,33 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
-- **A refused passkey says so.** Signing in with a passkey Hearth doesn't
-  know (for example one removed in Settings) used to drop silently back to
-  the sign-in page; it now shows "Passkey sign-in failed" (#376).
+- **Contract and Warranty edit forms no longer offer Properties and Vehicles
+  in Trash (#489).** The Linked to picker lists only live records, as the
+  new-record forms already did, plus the record's current link if it is in
+  Trash, shown as "(in Trash)" so saving doesn't unlink it. Archived records
+  stay selectable. The "(in Trash)" wording now lives in one place
+  (`src/lib/trashWording.ts`), shared with the Inventory item edit form.
+
+- **Standalone shell: deleting a Document moves it to Trash with an Undo
+  (#455).** Delete no longer asks first and removes the file at once. The
+  Document goes to Trash with an Undo (several deletes keep several Undos),
+  and its file is deleted only when the Trash entry is purged, together with
+  its row. Entries stay in Trash for 30 days; deleting a record also puts its
+  Documents in Trash for 30 days, and its confirm says so. Purging runs at
+  launch, at most 20 entries at a time, and distrusts the device clock: it
+  does nothing if the clock is more than a day behind the newest saved
+  timestamp, and a clock that jumped ahead can't expire anything newer than
+  that. A file that can't be deleted keeps its row for the next launch.
+  Deleting the latest version now makes the previous version the latest
+  again instead of hiding the whole Document, a version in Trash in the
+  middle of a chain no longer splits it, and a new version is filed on top
+  of the newest one, in Trash or not. Undo won't restore a Document whose
+  record was deleted. Privacy: standalone backups still include Documents
+  in Trash, with their files, so a restore from a backup can bring them
+  back; they leave backups when purged. The latest version is worked out
+  from the version chain, so backups from earlier builds import cleanly and
+  Documents they had hidden show again. No schema change.
+
 - **An Inventory item in Trash can't be edited (#446).** Saving an edit form
   left open while the item was moved to Trash, or replaying an offline edit
   to it, now fails with "Item not found." instead of changing the trashed

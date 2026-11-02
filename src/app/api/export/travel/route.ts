@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   const [trips, { dateFormat }] = await Promise.all([
     prisma.trip.findMany({
       where: { deletedAt: null },
-      include: { segments: { orderBy: { startDate: "asc" } } },
+      include: { segments: { where: { deletedAt: null }, orderBy: { startDate: "asc" } } },
       orderBy: { startDate: "desc" },
     }),
     getUserPreferences(),

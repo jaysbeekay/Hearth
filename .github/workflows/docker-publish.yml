@@ -19,10 +19,36 @@ permissions:
 
 jobs:
   build-and-push:
+    # Only publish from main or a release tag, never from an arbitrary branch
+    # dispatched by hand.
+    if: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # Tag runs use the `release` environment (Docker Hub secrets live there,
+    # restricted to `v*` tags); other refs get none.
+    environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # `latest` must follow the highest stable release, not whichever tag was
+      # built last: re-running an old tag must not move it backwards.
+      - name: Decide whether this tag is the newest release
+        id: latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REF: ${{ github.ref }}
+          REF_NAME: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          IS_LATEST=false
+          if [[ "$REF" == refs/tags/v* && $REF_NAME =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            HIGHEST=$(gh api --paginate "repos/$REPO/tags" --jq '.[].name' \
+              | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
+            echo "this=$REF_NAME highest=$HIGHEST"
+            [[ "$REF_NAME" == "$HIGHEST" ]] && IS_LATEST=true
+          fi
+          echo "is_latest=$IS_LATEST" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
@@ -38,11 +64,9 @@ jobs:
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
           images: jaysbeekay/hearth
-          # Every trigger of this workflow is now a release (tag push, or a
-          # manual dispatch run against one), so `latest` applies
-          # unconditionally rather than being gated on the default branch.
+          # `latest` only on a tag ref that is the highest stable release.
           tags: |
-            type=raw,value=latest
+            type=raw,value=latest,enable=${{ steps.latest.outputs.is_latest == 'true' }}
             type=ref,event=tag
             type=sha,prefix=
 

@@ -2,8 +2,24 @@ function optional(name: string, fallback = ""): string {
   return process.env[name] ?? fallback;
 }
 
+type AppUrlSource = { APP_URL?: string; RENDER_EXTERNAL_URL?: string; [name: string]: string | undefined };
+
+// The public URL, or "" when none is configured. An empty APP_URL counts as
+// unset, not as a URL. On Render, RENDER_EXTERNAL_URL (the service's own
+// https://….onrender.com address, set by Render) is the fallback, so a
+// Blueprint deploy works without asking for a URL nobody knows yet (#477).
+// An explicit APP_URL always wins: with a custom domain, set it before anyone
+// registers a passkey, because passkeys are bound to the hostname.
+export function configuredAppUrl(source: AppUrlSource): string {
+  return source.APP_URL?.trim() || source.RENDER_EXTERNAL_URL?.trim() || "";
+}
+
+export function resolveAppUrl(source: AppUrlSource): string {
+  return configuredAppUrl(source) || "http://localhost:3000";
+}
+
 export const env = {
-  appUrl: optional("APP_URL", "http://localhost:3000"),
+  appUrl: resolveAppUrl(process.env),
   uploadsDir: optional("UPLOADS_DIR", "./data/uploads"),
   reminderDefaultDays: optional("REMINDER_DEFAULT_DAYS", "30,14,7,1"),
   reminderCron: optional("REMINDER_CRON_SCHEDULE", "0 8 * * *"),
@@ -111,7 +127,7 @@ export const isAppUrlSecure = () => {
 // True when APP_URL was actually set, as opposed to silently defaulting to
 // http://localhost:3000 — that default is fine for local dev, but a link
 // built from it and emailed to a real recipient is just broken (#227).
-export const isAppUrlConfigured = () => Boolean(process.env.APP_URL);
+export const isAppUrlConfigured = () => configuredAppUrl(process.env).length > 0;
 
 export const isEmailConfigured = () => Boolean(env.smtp.host && env.smtp.user);
 export const isNtfyConfigured = () => Boolean(env.ntfy.url && env.ntfy.topic);

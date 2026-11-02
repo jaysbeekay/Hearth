@@ -8,11 +8,26 @@ on:
 permissions:
   contents: write
 
+# Never cancel a release build half way; just don't run two for one ref.
+concurrency:
+  group: android-build-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Tag runs use the `release` environment (holds the signing secrets, and
+    # is restricted to `v*` tags by the owner). Every other ref gets no
+    # environment (empty string), so a branch build never reaches the secrets
+    # and isn't rejected by the environment's deployment-tag rule.
+    environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}
     env:
-      HAS_SIGNING: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      # Sign ONLY for a release tag, and only when the keystore secret exists.
+      # Branch / main / PR-ish runs always build unsigned.
+      HAS_SIGNING: ${{ startsWith(github.ref, 'refs/tags/v') && secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      # Branch artifacts are throwaway; tag artifacts keep the default 90 days.
+      ARTIFACT_RETENTION: ${{ startsWith(github.ref, 'refs/tags/v') && 90 || 7 }}
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -24,7 +39,7 @@ jobs:
           java-version: "21"
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
 
       - name: Set up Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -36,6 +51,16 @@ jobs:
 
       - name: Sync Capacitor Android project
         run: npx cap sync android
+
+      # A tagged build with no signing secrets used to fall back to attaching
+      # the debug APK to the public release. Fail instead of shipping one.
+      - name: Require release signing for tagged builds
+        if: ${{ startsWith(github.ref, 'refs/tags/v') && env.HAS_SIGNING != 'true' }}
+        run: |
+          echo "::error::Release signing is not configured, so this tag would" \
+               "have published an unsigned debug build. Set ANDROID_KEYSTORE_BASE64," \
+               "ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD."
+          exit 1
 
       - name: Set version from tag
         if: startsWith(github.ref, 'refs/tags/v')
@@ -55,97 +80,143 @@ jobs:
         run: chmod +x gradlew
         working-directory: android
 
-      # Debug builds only on a manual run, never for a tag. A debug APK is
+      # Debug builds only on a manual run against a branch, never for a tag
+      # (release.yml dispatches this workflow against the new tag, which is a
+      # workflow_dispatch event too, so check the ref rather than the event). A debug APK is
       # signed with the universal Android debug key — anyone can modify and
       # re-sign it — and is built debuggable, so it must not be distributed
       # (#160). Kept here purely so a maintainer can dispatch a build to test
       # a change without release signing configured.
       - name: Build debug APK (manual runs only)
-        if: ${{ github.event_name == 'workflow_dispatch' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && !startsWith(github.ref, 'refs/tags/v') }}
         run: ./gradlew assembleDebug --no-daemon
         working-directory: android
 
       - name: Upload debug APK artifact (manual runs only)
-        if: ${{ github.event_name == 'workflow_dispatch' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && !startsWith(github.ref, 'refs/tags/v') }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: hearth-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
-
-      # A tagged build with no signing secrets used to fall back to attaching
-      # the debug APK to the public release. Fail instead of shipping one.
-      - name: Require release signing for tagged builds
-        if: ${{ startsWith(github.ref, 'refs/tags/v') && env.HAS_SIGNING != 'true' }}
-        run: |
-          echo "::error::Release signing is not configured, so this tag would" \
-               "have published an unsigned debug build. Set ANDROID_KEYSTORE_BASE64," \
-               "ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD."
-          exit 1
+          retention-days: ${{ env.ARTIFACT_RETENTION }}
 
       - name: Decode release keystore
-        if: ${{ env.HAS_SIGNING == 'true' }}
+        if: ${{ startsWith(github.ref, 'refs/tags/v') && env.HAS_SIGNING == 'true' }}
         run: echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/hearth-release.jks"
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
 
-      - name: Build signed release APK
-        if: ${{ env.HAS_SIGNING == 'true' }}
+      # Always build the release variant, signed when secrets exist and
+      # unsigned otherwise, so R8/minification runs on every manual build too
+      # (a tag-only release build once broke for months unnoticed).
+      - name: Build release APK
         run: ./gradlew assembleRelease --no-daemon
         working-directory: android
         env:
-          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/hearth-release.jks
+          # Empty when unsigned: build.gradle only wires up signing when
+          # ANDROID_KEYSTORE_PATH is non-empty.
+          ANDROID_KEYSTORE_PATH: ${{ env.HAS_SIGNING == 'true' && format('{0}/hearth-release.jks', runner.temp) || '' }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
       - name: Upload release APK artifact
-        if: ${{ env.HAS_SIGNING == 'true' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: hearth-release-apk
-          path: android/app/build/outputs/apk/release/app-release.apk
+          # app-release.apk when signed, app-release-unsigned.apk otherwise.
+          name: ${{ env.HAS_SIGNING == 'true' && 'hearth-release-apk' || 'hearth-release-apk-unsigned' }}
+          path: android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
+          retention-days: ${{ env.ARTIFACT_RETENTION }}
 
       # The Play Store requires an .aab (App Bundle), not the .apk above —
       # that one's for direct sideload / GitHub Releases only.
-      - name: Build signed release AAB (Play Store)
-        if: ${{ env.HAS_SIGNING == 'true' }}
+      - name: Build release AAB (Play Store)
         run: ./gradlew bundleRelease --no-daemon
         working-directory: android
         env:
-          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/hearth-release.jks
+          # Empty when unsigned: build.gradle only wires up signing when
+          # ANDROID_KEYSTORE_PATH is non-empty.
+          ANDROID_KEYSTORE_PATH: ${{ env.HAS_SIGNING == 'true' && format('{0}/hearth-release.jks', runner.temp) || '' }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
       - name: Upload release AAB artifact
-        if: ${{ env.HAS_SIGNING == 'true' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: hearth-release-aab
+          name: ${{ env.HAS_SIGNING == 'true' && 'hearth-release-aab' || 'hearth-release-aab-unsigned' }}
           path: android/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
+          retention-days: ${{ env.ARTIFACT_RETENTION }}
+
+      # Prove the artifacts that are about to be published are really signed
+      # with the release key, not unsigned or debug-signed (a corrupted or
+      # wrong keystore secret must fail here, not ship). apksigner checks the
+      # APK's v2/v3 signature; jarsigner checks the AAB's JAR signature. Both
+      # then compare the signer certificate against the release keystore.
+      - name: Verify release signatures
+        if: ${{ startsWith(github.ref, 'refs/tags/v') && env.HAS_SIGNING == 'true' }}
+        run: |
+          set -euo pipefail
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          AAB=android/app/build/outputs/bundle/release/app-release.aab
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -n1)
+          KEY_SHA=$(keytool -list -v -keystore "$RUNNER_TEMP/hearth-release.jks" \
+            -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" \
+            | awk -F': ' '/SHA256:/ {print $2; exit}' | tr -d ':' | tr 'A-F' 'a-f')
+          test -n "$KEY_SHA" || { echo "::error::Could not read the release key's certificate digest"; exit 1; }
+          echo "Release key certificate SHA-256: $KEY_SHA"
+          # Match the digest anywhere in apksigner's output rather than on one
+          # exact label, so a change in its wording can't fail a good build.
+          # Certificate digests are public (they ship inside every APK), so
+          # printing them on failure is safe and makes a mismatch diagnosable.
+          APK_CERTS=$("$APKSIGNER" verify --print-certs "$APK" | tr 'A-F' 'a-f' | tr -d ':')
+          if ! grep -q "$KEY_SHA" <<< "$APK_CERTS"; then
+            echo "apksigner ($APKSIGNER) reported:"
+            grep -i 'signer\|digest\|scheme' <<< "$APK_CERTS" || echo "$APK_CERTS"
+            echo "::error::APK is not signed with the release key"
+            exit 1
+          fi
+          jarsigner -verify "$AAB" >/dev/null || { echo "::error::AAB signature does not verify"; exit 1; }
+          AAB_CERTS=$(keytool -printcert -jarfile "$AAB" | tr 'A-F' 'a-f' | tr -d ':')
+          if ! grep -q "$KEY_SHA" <<< "$AAB_CERTS"; then
+            echo "keytool -printcert reported:"
+            grep -i 'sha256\|owner' <<< "$AAB_CERTS" || echo "$AAB_CERTS"
+            echo "::error::AAB is not signed with the release key"
+            exit 1
+          fi
+          echo "APK and AAB are signed with the release key ($KEY_SHA)."
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
 
       - name: Attach APK/AAB to release
         if: ${{ startsWith(github.ref, 'refs/tags/v') && env.HAS_SIGNING == 'true' }}
         run: |
           # release.yml also triggers on this tag push and creates the
           # GitHub Release; wait for it to exist before uploading to it.
-          # Only signed artifacts are ever published — the unsigned-fallback
-          # path that used to attach a debug APK is gone.
+          # Only signed artifacts are ever published.
           assets=(
             "android/app/build/outputs/apk/release/app-release.apk"
             "android/app/build/outputs/bundle/release/app-release.aab"
           )
           for i in $(seq 1 30); do
-            if gh release view "${{ github.ref_name }}" >/dev/null 2>&1; then
-              gh release upload "${{ github.ref_name }}" "${assets[@]}" --clobber
+            if gh release view "$TAG" >/dev/null 2>&1; then
+              gh release upload "$TAG" "${assets[@]}" --clobber
               exit 0
             fi
             sleep 10
           done
-          echo "Release ${{ github.ref_name }} never appeared; skipping upload." >&2
+          echo "Release $TAG never appeared; skipping upload." >&2
           exit 1
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+
+      # The decoded keystore must not outlive the job (self-hosted runners,
+      # or anything later in this job).
+      - name: Remove decoded keystore
+        if: ${{ always() }}
+        run: rm -f "$RUNNER_TEMP/hearth-release.jks"

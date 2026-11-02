@@ -22,14 +22,14 @@ export default async function NewContractPage({
   ]);
   const properties = homeEnabled
     ? await prisma.property.findMany({
-        where: { deletedAt: null },
+        where: { deletedAt: null, archivedAt: null },
         select: { id: true, label: true },
         orderBy: { label: "asc" },
       })
     : [];
   const vehicles = vehiclesEnabled
     ? await prisma.vehicle.findMany({
-        where: { deletedAt: null },
+        where: { deletedAt: null, archivedAt: null },
         select: { id: true, label: true },
         orderBy: { label: "asc" },
       })

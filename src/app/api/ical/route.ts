@@ -5,7 +5,7 @@ import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { env } from "@/lib/env";
 import { addDays, calendarDayOf, noticeApplies } from "@/lib/duePolicy";
 import { dayStart } from "@/lib/listDue";
-import { currentTenancy, TENANCY_AGREEMENT_SELECT } from "@/lib/dueRecords";
+import { currentTenancy, LIVE_TENANCY_AGREEMENTS } from "@/lib/dueRecords";
 import { hashToken } from "@/lib/crypto";
 
 export async function GET(request: NextRequest) {
@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
   // Vehicles (rego + insurance + next service)
   if (enabledModules.has("VEHICLES")) {
     const vehicles = await prisma.vehicle.findMany({
-      where: { deletedAt: null },
+      where: { deletedAt: null, archivedAt: null },
       select: { id: true, label: true, regoExpiry: true, insuranceExpiry: true, nextServiceDue: true },
     });
     for (const v of vehicles) {
@@ -129,7 +129,7 @@ export async function GET(request: NextRequest) {
   // Travel segments
   if (enabledModules.has("TRAVEL")) {
     const segments = await prisma.tripSegment.findMany({
-      where: { startDate: { not: null }, trip: { deletedAt: null } },
+      where: { startDate: { not: null }, deletedAt: null, trip: { deletedAt: null } },
       include: { trip: { select: { id: true, title: true } } },
     });
     for (const s of segments) {
@@ -148,7 +148,7 @@ export async function GET(request: NextRequest) {
   // Home items
   if (enabledModules.has("HOME")) {
     const homeItems = await prisma.homeItem.findMany({
-      where: { date: { not: null }, deletedAt: null, property: { deletedAt: null } },
+      where: { date: { not: null }, deletedAt: null, property: { deletedAt: null, archivedAt: null } },
       include: { property: { select: { id: true, label: true } } },
     });
     for (const item of homeItems) {
@@ -167,8 +167,8 @@ export async function GET(request: NextRequest) {
     // Property with rental tracking on (#384). The UID is the agreement's,
     // so moving the lease end updates the event instead of adding one.
     const rentedProperties = await prisma.property.findMany({
-      where: { deletedAt: null, isRented: true },
-      select: { id: true, label: true, isRented: true, rentalAgreements: { select: TENANCY_AGREEMENT_SELECT } },
+      where: { deletedAt: null, archivedAt: null, isRented: true },
+      select: { id: true, label: true, isRented: true, archivedAt: true, rentalAgreements: LIVE_TENANCY_AGREEMENTS },
     });
     for (const property of rentedProperties) {
       const tenancy = currentTenancy(property);

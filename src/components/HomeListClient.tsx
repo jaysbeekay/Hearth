@@ -23,19 +23,21 @@ interface TaxSummaryEntry {
 
 interface Props {
   properties: PropertyWithCount[];
+  /** #355 — Properties the household no longer has, listed apart from the rest. */
+  archivedProperties?: PropertyWithCount[];
   taxDeductibleSummary: TaxSummaryEntry[];
   region?: string;
 }
 
-export function HomeListClient({ properties, taxDeductibleSummary, region }: Props) {
+export function HomeListClient({ properties, archivedProperties = [], taxDeductibleSummary, region }: Props) {
   const online = useOnlineStatus();
   const canWrite = useCanWrite();
   const router = useRouter();
   const { pendingOps, refresh: refreshPending } = usePendingCreates("property");
 
   useEffect(() => {
-    cachePageData("properties:list", properties).catch(() => {});
-  }, [properties]);
+    cachePageData("properties:list", [...properties, ...archivedProperties]).catch(() => {});
+  }, [properties, archivedProperties]);
 
   useEffect(() => {
     const onSyncComplete = () => router.refresh();
@@ -92,6 +94,19 @@ export function HomeListClient({ properties, taxDeductibleSummary, region }: Pro
             <PropertyCard key={property.id} property={property} />
           ))}
         </div>
+      )}
+
+      {archivedProperties.length > 0 && (
+        <details data-testid="archived-section">
+          <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-muted hover:text-foreground">
+            Archived ({archivedProperties.length})
+          </summary>
+          <div className="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {archivedProperties.map((property) => (
+              <PropertyCard key={property.id} property={property} />
+            ))}
+          </div>
+        </details>
       )}
     </div>
   );

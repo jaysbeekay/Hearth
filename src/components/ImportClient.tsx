@@ -94,8 +94,16 @@ async function extract(type: EntityType, file: File) {
   body.append("file", file);
   const res = await fetch(url, { method: "POST", body });
   if (!res.ok) return { fields: {} as Record<string, string>, source: "none" as ExtractionSource };
-  const data = (await res.json()) as { fields: Record<string, string>; source?: ExtractionSource };
-  return { fields: data.fields, source: data.source ?? "none" };
+  const data = (await res.json()) as {
+    fields: Record<string, string>;
+    source?: ExtractionSource;
+    textUnavailable?: boolean;
+  };
+  return {
+    fields: data.fields,
+    source: data.source ?? "none",
+    textUnavailable: data.textUnavailable === true,
+  };
 }
 
 function fieldClass(autoFilled?: boolean) {
@@ -150,9 +158,9 @@ export function ImportClient({
       return;
     }
     updateRow(id, { status: "scanning" });
-    const { fields, source } = await extract(type, file);
+    const { fields, source, textUnavailable } = await extract(type, file);
     const filledCount = Object.keys(fields).length;
-    const scanMessage = extractionMessage(source, filledCount);
+    const scanMessage = extractionMessage(source, filledCount, textUnavailable);
     const extractionUsed = filledCount > 0;
     if (type === "CONTRACT") {
       updateRow(id, {

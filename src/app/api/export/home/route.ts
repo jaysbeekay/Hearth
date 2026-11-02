@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
   ]);
 
   const allItems = properties.flatMap((p) =>
-    p.items.map((item) => ({ ...item, propertyLabel: p.label })),
+    p.items.map((item) => ({ ...item, propertyLabel: p.label, propertyArchived: p.archivedAt != null })),
   );
 
   if (format === "pdf") {
@@ -63,10 +63,12 @@ export async function GET(request: NextRequest) {
     item.cost ?? "",
     item.currency,
     item.isTaxDeductible ? "Yes" : "No",
+    // #355 — the Property is Archived; its history stays in the export.
+    item.propertyArchived ? "Yes" : "No",
   ]);
 
   const csv = stringify([
-    ["Property", "Type", "Title", "Provider", "Date", "Cost", "Currency", "Tax Deductible"],
+    ["Property", "Type", "Title", "Provider", "Date", "Cost", "Currency", "Tax Deductible", "Archived"],
     ...rows.map(sanitizeCsvRow),
   ]);
 

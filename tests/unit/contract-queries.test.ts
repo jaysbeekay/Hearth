@@ -204,6 +204,27 @@ describe("getContract", () => {
     expect(JSON.stringify(json)).not.toContain("stored-uuid");
   });
 
+  it("lists previous Terms newest first, hiding a Document in Trash (#353)", async () => {
+    const user = await createTestUser();
+    const { phone } = await seedContracts(user.id);
+    const doc = { contractId: phone.id, storedName: "s.pdf", mimeType: "application/pdf", size: 1 };
+    const live = await db.prisma.document.create({ data: { ...doc, filename: "2025.pdf" } });
+    const trashed = await db.prisma.document.create({ data: { ...doc, filename: "2024.pdf", deletedAt: new Date() } });
+    const term = { contractId: phone.id, currency: "AUD", billingFrequency: "MONTHLY" as const };
+    await db.prisma.contractTerm.create({
+      data: { ...term, startDate: day("2024-12-04"), endDate: day("2025-12-03"), cost: 45, documentId: trashed.id, createdAt: day("2025-12-01") },
+    });
+    await db.prisma.contractTerm.create({
+      data: { ...term, startDate: day("2025-12-04"), endDate: day("2025-12-03"), cost: 48, documentId: live.id, createdAt: day("2026-01-01") },
+    });
+
+    const json = await getContract(phone.id);
+    expect(json?.previousTerms).toEqual([
+      { startDate: "2025-12-04", endDate: "2025-12-03", cost: 48, currency: "AUD", billingFrequency: "MONTHLY", documentId: live.id },
+      { startDate: "2024-12-04", endDate: "2025-12-03", cost: 45, currency: "AUD", billingFrequency: "MONTHLY", documentId: null },
+    ]);
+  });
+
   it("is null for a missing or trashed Contract", async () => {
     const user = await createTestUser();
     const { trashed } = await seedContracts(user.id);

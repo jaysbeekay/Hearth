@@ -17,7 +17,7 @@ export default async function EditRentalStatementPage({
   const { id, statementId } = await params;
   redirectIfReadOnly(await auth(), `/home/${id}/rental`);
   const statement = await prisma.rentalStatement.findUnique({ where: { id: statementId } });
-  if (!statement || statement.propertyId !== id) notFound();
+  if (!statement || statement.deletedAt || statement.propertyId !== id) notFound();
 
   const property = await prisma.property.findUnique({ where: { id } });
   if (!property || property.deletedAt) notFound();

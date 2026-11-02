@@ -5,7 +5,16 @@ import type { LucideIcon } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { addDocumentAction } from "@/lib/actions/documents";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
-import { deleteVehicle, deleteVehicleItem, restoreVehicle, restoreVehicleItem } from "@/lib/actions/vehicles";
+import {
+  archiveVehicle,
+  deleteVehicle,
+  deleteVehicleItem,
+  restoreVehicle,
+  restoreVehicleItem,
+  unarchiveVehicle,
+} from "@/lib/actions/vehicles";
+import { ArchiveButton } from "@/components/ArchiveButton";
+import { ArchivedNotice } from "@/components/ArchivedNotice";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailField as Detail } from "@/components/DetailField";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
@@ -64,7 +73,8 @@ export default async function VehicleDetailPage({
   if (!vehicle || vehicle.deletedAt) notFound();
 
   const healthFor = (field: "regoExpiry" | "insuranceExpiry" | "nextServiceDue", date: Date | null) =>
-    date
+    // An Archived Vehicle has no Reminders to report on (#355).
+    date && !vehicle.archivedAt
       ? getReminderHealth({ ownerType: "VEHICLE", ownerId: vehicle.id, field, record: { kind: "vehicle", ...vehicle } })
       : null;
   const [regoHealth, insuranceHealth, serviceHealth] = await Promise.all([
@@ -105,10 +115,19 @@ export default async function VehicleDetailPage({
                 Edit
               </Link>
               <DetailOverflowMenu>
+                {!vehicle.archivedAt && (
+                  <ArchiveButton
+                    mode="archive"
+                    noun="vehicle"
+                    action={archiveVehicle.bind(null, vehicle.id)}
+                    undo={unarchiveVehicle.bind(null, vehicle.id)}
+                    className="flex min-h-11 w-full items-center gap-2 px-4 py-2 text-sm hover:bg-hover"
+                  />
+                )}
                 <ConfirmForm
                   action={deleteVehicle.bind(null, vehicle.id)}
                   undo={{ action: restoreVehicle.bind(null, vehicle.id), href: `/vehicles/${vehicle.id}` }}
-                  confirmText="Move this vehicle to Trash? Its service records and documents are kept, and you can restore it within 30 days from Settings → Trash."
+                  confirmText="Delete this vehicle? Its service records and documents are kept, and you can restore it within 30 days from Settings → Recently deleted."
                   className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
                   offline={{ entity: "vehicle", entityId: vehicle.id, label: `Delete vehicle: ${vehicle.label}` }}
                 >
@@ -121,8 +140,26 @@ export default async function VehicleDetailPage({
         </div>
       </div>
 
+      {vehicle.archivedAt && (
+        <ArchivedNotice
+          archivedAt={vehicle.archivedAt}
+          dateFormat={dateFormat}
+          effect="Reminders and Needs attention no longer include its rego, insurance or service dates."
+          activeContracts={linkedContracts.filter((c) => c.status === "ACTIVE")}
+        >
+          {canWrite && (
+            <ArchiveButton
+              mode="restore"
+              noun="vehicle"
+              action={unarchiveVehicle.bind(null, vehicle.id)}
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+            />
+          )}
+        </ArchivedNotice>
+      )}
+
       {/* #384 — one row per Due entry (rego, insurance, service), each with
-          its own state from the Due policy. */}
+          its own state from the Due policy. An Archived Vehicle has none. */}
       <DetailStatusBanner
         entries={vehicleDue(vehicle, due)}
         hasDocuments
@@ -263,7 +300,7 @@ export default async function VehicleDetailPage({
                           <ConfirmForm
                             action={deleteVehicleItem.bind(null, vehicle.id, item.id)}
                             undo={{ action: restoreVehicleItem.bind(null, item.id) }}
-                            confirmText={`Move "${item.title}" to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash.`}
+                            confirmText={`Delete "${item.title}"? Its documents are kept, and you can restore it within 30 days from Settings → Recently deleted.`}
                             className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
                           >
                             <Trash2 size={16} />
