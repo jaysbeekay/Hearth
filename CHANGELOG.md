@@ -79,6 +79,12 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   selects and the chips, so the first record is on the first screen. Links
   from the dashboard still pre-select the right chip. The iOS and Android
   shell is unchanged.
+- **Spending lists the manual renewals coming up.** Under the tiles, a
+  folded line reads "+ $X from N contracts ending within 12 months (renew
+  manually)": what those contracts would cost for the rest of the year if
+  renewed on the same terms, which "Next 12 months" leaves out until you
+  renew. Open it for each contract and its end date, linked to the
+  contract. The iOS and Android shell is unchanged.
 - **Spending leads with what's useful (#367).** The "Tax-deductible / mo"
   tile is hidden when nothing is tax-deductible. Contracts with a cost but
   no billing frequency, which the dashboard and Spending both leave out of
@@ -111,6 +117,12 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   Warranty photo upload moves into More details. Preferences explains that
   date pickers follow the browser's language. The Property form was already
   short and is unchanged, and so is the iOS and Android shell.
+
+### Fixed
+
+- **Recently deleted count on empty lists (#514 follow-up).** An empty
+  Contracts or Warranties list no longer counts records past the 30-day
+  Trash window, which are purged the next time Trash opens.
 
 ## [0.20.1] - 2026-10-31
 

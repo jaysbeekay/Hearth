@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nextTwelveMonthsSpend, timelineIsFlat } from "@/lib/spend";
+import { manualRenewalsAhead, nextTwelveMonthsSpend, timelineIsFlat } from "@/lib/spend";
 
 // #367 — "Next 12 months" counts a contract that won't renew by itself only
 // up to its end date, instead of monthly × 12.
@@ -60,5 +60,38 @@ describe("timelineIsFlat", () => {
   it("is flat when every bucket matches, to the cent", () => {
     expect(timelineIsFlat([{ total: 50 }, { total: 50.001 }, { total: 50 }])).toBe(true);
     expect(timelineIsFlat([{ total: 50 }, { total: 60 }])).toBe(false);
+  });
+});
+
+describe("manualRenewalsAhead", () => {
+  it("lists manual renewals ending inside the year with what the rest of the year would cost", () => {
+    const soon = contract({ endDate: day("2027-02-01") });
+    const later = contract({ endDate: day("2027-06-01"), cost: 50 });
+    const { amount, contracts } = manualRenewalsAhead([later, soon], "AUD", rates, NOW);
+    expect(contracts).toEqual([soon, later]);
+    // 2 Feb 2027 → 2 Nov 2027 is 273 days; 2 Jun 2027 → 2 Nov 2027 is 153.
+    expect(amount).toBeCloseTo((1200 * 273) / 365 + (600 * 153) / 365, 6);
+  });
+
+  it("adds up with Next 12 months to the full year", () => {
+    const c = contract({ endDate: day("2027-02-01") });
+    const total = nextTwelveMonthsSpend([c], "AUD", rates, NOW) + manualRenewalsAhead([c], "AUD", rates, NOW).amount;
+    expect(total).toBeCloseTo(1200, 6);
+  });
+
+  it("leaves out auto-renewing, fixed-term, ended and later contracts", () => {
+    const skipped = [
+      contract({ endDate: day("2027-02-01"), renewalType: "AUTO_RENEW" }),
+      contract({ endDate: day("2027-02-01"), renewalType: "FIXED_TERM" }),
+      contract({ endDate: day("2026-10-01") }),
+      contract({ endDate: day("2027-12-01") }),
+      contract(),
+    ];
+    expect(manualRenewalsAhead(skipped, "AUD", rates, NOW)).toEqual({ amount: 0, contracts: [] });
+  });
+
+  it("lists a renewal without a cost but adds nothing for it", () => {
+    const free = contract({ endDate: day("2027-02-01"), cost: null });
+    expect(manualRenewalsAhead([free], "AUD", rates, NOW)).toEqual({ amount: 0, contracts: [free] });
   });
 });
