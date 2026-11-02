@@ -169,8 +169,8 @@ test.describe.serial("Vehicles module", () => {
 
     await expect(page.getByText("Next service due")).toBeVisible();
     // #360 — one Reminder card lists each of the Vehicle's dates.
-    const reminders = page.locator("details", { has: page.getByRole("heading", { name: "Reminder health" }) });
-    await expect(reminders.locator("li", { hasText: /^Service: / })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Reminder health" })).toHaveCount(1);
+    await expect(page.locator("main li", { hasText: /^Service: / })).toBeVisible();
 
     await page.goto("/vehicles");
     const card = page.locator("a", { hasText: "Test Vehicle" });
