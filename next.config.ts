@@ -22,6 +22,13 @@ const nextConfig: NextConfig = {
   // its own source; bundled into a server chunk those files are left behind
   // and every PDF export 500s with ENOENT Helvetica.afm (#523).
   serverExternalPackages: ["ssh2", "ssh2-sftp-client", "yahoo-finance2", "pdfkit"],
+  // libsql picks its native binding with a computed require, so the
+  // standalone trace can't see which one the runtime will load: it picked up
+  // the glibc build and missed the musl one the Alpine image actually needs
+  // (#518). Include every musl binding that was installed for this platform.
+  outputFileTracingIncludes: {
+    "/*": ["./node_modules/@libsql/linux-*-musl/**/*"],
+  },
   experimental: {
     // Document/photo uploads go through Server Actions and are validated
     // against MAX_UPLOAD_BYTES (15MB) in application code. Next's own

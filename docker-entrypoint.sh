@@ -28,7 +28,10 @@ DATA_DIR="${DATA_DIR:-/app/data}"
 # db file specifically can end up wrong-owned independently of its parent
 # directory (a `docker cp` done as root, a restored backup, a leftover from
 # an older image), so it's checked and repaired on its own too.
-DB_FILE="${DATABASE_URL#file:}"
+# Unset falls back to the same default the app uses, so the migration below
+# and the server always agree on which file they open.
+DB_FILE="${DATABASE_URL:-file:./data/app.db}"
+DB_FILE="${DB_FILE#file:}"
 case "$DB_FILE" in
   /*) : ;;
   *) DB_FILE="/app/$DB_FILE" ;;
@@ -81,8 +84,12 @@ if [ -e "$DB_FILE" ] && [ ! -w "$DB_FILE" ]; then
 fi
 
 # Direct binary invocation, not `npx prisma` — the runner image has no npm
-# CLI (#225), and none is needed here: prisma is already a production
-# dependency with its own resolved bin.
-./node_modules/.bin/prisma migrate deploy
+# CLI (#225). The Prisma CLI is installed on its own under /opt/migrate rather
+# than in the app's node_modules, which only holds Next's traced runtime
+# subset (#518). Its config (docker/migrate/prisma.config.ts) lives there too,
+# and Prisma resolves a relative SQLite path against the config file's
+# directory, so pass the database as the absolute path worked out above.
+DATABASE_URL="file:$DB_FILE" /opt/migrate/node_modules/.bin/prisma migrate deploy \
+  --config /opt/migrate/prisma.config.ts
 
 exec node server.js

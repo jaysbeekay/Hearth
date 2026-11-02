@@ -1,0 +1,9 @@
+{
+  "name": "hearth-migrate",
+  "private": true,
+  "description": "Prisma CLI for `prisma migrate deploy` in the Docker image, installed apart from the app so the runner can ship Next's standalone output instead of the root project's full production node_modules (#518). Keep the prisma version equal to the root package-lock.json's; tests/unit/docker-migrate-deps.test.ts checks it.",
+  "license": "AGPL-3.0-only",
+  "dependencies": {
+    "prisma": "7.10.0"
+  }
+}
