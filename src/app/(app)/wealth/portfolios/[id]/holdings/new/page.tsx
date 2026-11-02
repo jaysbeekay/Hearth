@@ -33,7 +33,7 @@ export default async function NewHoldingPage({
         <h1 className="mt-1 text-2xl font-medium">Add holding</h1>
       </div>
       <Card>
-        <HoldingForm action={action} portfolioId={id} />
+        <HoldingForm cancelHref={`/wealth/portfolios/${id}`} action={action} portfolioId={id} />
       </Card>
     </PageShell>
   );

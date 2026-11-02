@@ -18,7 +18,7 @@ import { LinkedToField } from "@/components/LinkedToField";
 import { extractionMessage, isAiExtractionSource } from "@/lib/autoFillHighlight";
 import { Card } from "@/components/ui/Card";
 import { Banner } from "@/components/ui/Banner";
-import { buttonClass, chipClass, emptyStateClass, pillClass, inputClass } from "@/lib/ui";
+import { buttonClass, chipClass, emptyStateClass, pillClass, inputClass, reviewFieldClass } from "@/lib/ui";
 
 export type InboxDocumentStatus =
   | "NEEDS_CLASSIFICATION"
@@ -195,10 +195,7 @@ function emptyRowState(initialType: EntityType = "CONTRACT"): RowState {
 // so a reviewer can tell pattern-matched fields from model-inferred ones
 // at a glance (#172).
 function fieldClass(autoFilled?: boolean, isAi?: boolean) {
-  if (!autoFilled) return "rounded-lg border px-2 py-1.5 text-sm outline-none focus:border-accent border-border bg-background";
-  return `rounded-lg border px-2 py-1.5 text-sm outline-none focus:border-accent ${
-    isAi ? "border-foreground/60 bg-foreground/5 ring-2 ring-foreground/60" : "border-accent/40 bg-accent/5 ring-1 ring-accent/40"
-  }`;
+  return reviewFieldClass(autoFilled ? (isAi ? "ai" : "extracted") : "none");
 }
 
 function appendReviewFields(

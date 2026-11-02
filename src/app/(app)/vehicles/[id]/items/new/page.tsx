@@ -35,7 +35,7 @@ export default async function NewVehicleItemPage({
         <p className="text-sm text-muted">{vehicle.label}</p>
       </div>
       <Card>
-        <VehicleItemForm action={boundAction} vehicleId={vehicle.id} defaultCurrency={preferredCurrency} />
+        <VehicleItemForm cancelHref={`/vehicles/${vehicle.id}`} action={boundAction} vehicleId={vehicle.id} defaultCurrency={preferredCurrency} />
       </Card>
     </PageShell>
   );

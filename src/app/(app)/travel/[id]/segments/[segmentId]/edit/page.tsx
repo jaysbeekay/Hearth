@@ -34,7 +34,7 @@ export default async function EditTripSegmentPage({
         <p className="text-sm text-muted">{segment.title}</p>
       </div>
       <Card>
-        <TripSegmentForm action={boundAction} segment={segment} />
+        <TripSegmentForm cancelHref={`/travel/${id}`} action={boundAction} segment={segment} />
       </Card>
     </PageShell>
   );

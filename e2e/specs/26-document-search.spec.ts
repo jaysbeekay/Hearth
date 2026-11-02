@@ -85,7 +85,7 @@ test("filename substring search finds documents across contract, rental statemen
   await page.locator("#name").fill(`FTS Regression Portfolio ${stamp}`);
   await Promise.all([
     page.waitForURL(/\/wealth\/portfolios\/(?!new$)[^/]+$/),
-    page.getByRole("button", { name: "Create portfolio" }).click(),
+    page.getByRole("button", { name: "Add portfolio" }).click(),
   ]);
   const portfolioId = page.url().split("/portfolios/")[1];
 

@@ -12,6 +12,7 @@ import { deleteHolding, deleteTrade, restoreTrade } from "@/lib/actions/wealth";
 import { DocumentList } from "@/components/DocumentList";
 import { getTrashedVersionLinks } from "@/lib/documents/trashedVersionLinks";
 import { ConfirmForm } from "@/components/ConfirmForm";
+import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
 import { ASSET_CLASS_LABELS, TRADE_TYPE_LABELS, COST_METHOD_LABELS } from "@/lib/validation/wealth";
 import { getUserPreferences } from "@/lib/userPreferences";
@@ -23,7 +24,7 @@ import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
 import { Pill } from "@/components/ui/Pill";
-import { cardClass, buttonClass, emptyStateClass } from "@/lib/ui";
+import { cardClass, buttonClass, emptyStateClass, menuItemClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Holding" };
@@ -295,15 +296,18 @@ export default async function HoldingPage({
                   <Pencil size={16} />
                   Edit
                 </Link>
-                <ConfirmForm
-                  action={deleteHolding.bind(null, portfolioId, holdingId)}
-                  confirmText={`Delete ${holding.ticker} and all its trades? This cannot be undone.`}
-                  actionLabel={`Delete ${holding.ticker}`}
-                  className={buttonClass("secondary", { destructive: true })}
-                >
-                  <Trash2 size={16} />
-                  Delete
-                </ConfirmForm>
+                {/* #406 — destructive actions live in the ⋮ menu, as on other record pages. */}
+                <DetailOverflowMenu>
+                  <ConfirmForm
+                    action={deleteHolding.bind(null, portfolioId, holdingId)}
+                    confirmText={`Delete ${holding.ticker} and all its trades? This cannot be undone.`}
+                    actionLabel={`Delete ${holding.ticker}`}
+                    className={menuItemClass({ destructive: true })}
+                  >
+                    <Trash2 size={16} />
+                    Delete
+                  </ConfirmForm>
+                </DetailOverflowMenu>
               </>
             )}
           </div>

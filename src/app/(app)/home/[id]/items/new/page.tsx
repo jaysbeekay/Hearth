@@ -39,7 +39,7 @@ export default async function NewHomeItemPage({
         </p>
       </div>
       <Card>
-        <HomeItemForm action={boundAction} propertyId={property.id} defaultCurrency={preferredCurrency} />
+        <HomeItemForm cancelHref={`/home/${property.id}`} action={boundAction} propertyId={property.id} defaultCurrency={preferredCurrency} />
       </Card>
     </PageShell>
   );

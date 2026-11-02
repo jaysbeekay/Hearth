@@ -135,68 +135,74 @@ export function ContractListClient({
     { label: "added this week", value: counts.recentlyAdded ?? 0 },
   ];
 
+  // #406 — a list with nothing in it yet shows one sentence and one button:
+  // no Export, search or filter chips until there is something to act on.
+  const nothingYet = !filtered && contracts.length === 0 && pendingOps.length === 0;
+
   return (
     <PageShell width="list">
       <ListPageHeader
         title="Contracts"
-        exportPath="/api/export/contracts"
+        exportPath={nothingYet ? undefined : "/api/export/contracts"}
         action={canWrite ? { href: "/contracts/new", label: "Add contract", online } : undefined}
       />
 
-      <form ref={formRef} className="flex flex-col gap-3 md:flex-row" method="GET">
-        <ListFilterHiddenInputs filters={filters} />
-        <input
-          type="search"
-          name="q"
-          defaultValue={q}
-          placeholder="Search by title, provider, or number…"
-          onChange={() => {
-            clearTimeout(searchTimeout.current);
-            searchTimeout.current = setTimeout(() => formRef.current?.requestSubmit(), 400);
-          }}
-          className={cn(inputClass, "flex-1")}
-        />
-        {/* #403 — w-full on the selects: in the stacked (phone) form the
-            SelectWrapper stretches to the row, and a content-sized select left
-            the chevron floating outside the box. */}
-        <SelectWrapper>
-          <select
-            name="category"
-            aria-label="Filter by category"
-            defaultValue={category ?? ""}
-            onChange={(e) => e.currentTarget.form?.requestSubmit()}
-            className={selectClass}
+      {!nothingYet && (
+        <form ref={formRef} className="flex flex-col gap-3 md:flex-row" method="GET">
+          <ListFilterHiddenInputs filters={filters} />
+          <input
+            type="search"
+            name="q"
+            defaultValue={q}
+            placeholder="Search by title, provider, or number…"
+            onChange={() => {
+              clearTimeout(searchTimeout.current);
+              searchTimeout.current = setTimeout(() => formRef.current?.requestSubmit(), 400);
+            }}
+            className={cn(inputClass, "flex-1")}
+          />
+          {/* #403 — w-full on the selects: in the stacked (phone) form the
+              SelectWrapper stretches to the row, and a content-sized select left
+              the chevron floating outside the box. */}
+          <SelectWrapper>
+            <select
+              name="category"
+              aria-label="Filter by category"
+              defaultValue={category ?? ""}
+              onChange={(e) => e.currentTarget.form?.requestSubmit()}
+              className={selectClass}
+            >
+              <option value="">All categories</option>
+              {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </SelectWrapper>
+          <SelectWrapper>
+            <select
+              name="status"
+              aria-label="Filter by status"
+              defaultValue={status ?? ""}
+              onChange={(e) => e.currentTarget.form?.requestSubmit()}
+              className={selectClass}
+            >
+              <option value="">All statuses</option>
+              <option value="ACTIVE">Active</option>
+              <option value="CANCELLED">Cancelled</option>
+            </select>
+          </SelectWrapper>
+          <button
+            type="submit"
+            className={buttonClass("secondary", {}, "list-none")}
           >
-            <option value="">All categories</option>
-            {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </SelectWrapper>
-        <SelectWrapper>
-          <select
-            name="status"
-            aria-label="Filter by status"
-            defaultValue={status ?? ""}
-            onChange={(e) => e.currentTarget.form?.requestSubmit()}
-            className={selectClass}
-          >
-            <option value="">All statuses</option>
-            <option value="ACTIVE">Active</option>
-            <option value="CANCELLED">Cancelled</option>
-          </select>
-        </SelectWrapper>
-        <button
-          type="submit"
-          className={buttonClass("secondary", {}, "list-none")}
-        >
-          Filter
-        </button>
-      </form>
+            Filter
+          </button>
+        </form>
+      )}
 
-      <ListFilterChips filters={filters} chips={CHIPS} onToggle={toggleFilter} />
+      {!nothingYet && <ListFilterChips filters={filters} chips={CHIPS} onToggle={toggleFilter} />}
 
       {filtered && (
         <div className="flex flex-wrap items-center gap-2 text-sm">

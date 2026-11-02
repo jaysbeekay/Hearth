@@ -21,7 +21,7 @@ export default async function NewTripPage() {
         </p>
       </div>
       <Card>
-        <TripForm action={createTrip} />
+        <TripForm cancelHref="/travel" action={createTrip} />
       </Card>
     </PageShell>
   );

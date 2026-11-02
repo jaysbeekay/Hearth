@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import type { TripModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
+import { FormActions } from "@/components/FormActions";
 import { FormMessage } from "@/components/FormMessage";
 import {
   makeOfflineAwareAction,
@@ -25,9 +26,12 @@ function toDateInputValue(date: Date | null | undefined) {
 
 export function TripForm({
   action,
+  cancelHref,
   trip,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
+  /** Where Cancel goes: the same place as the page's BackLink. */
+  cancelHref: string;
   trip?: TripModel;
 }) {
   const offlineAwareAction = makeOfflineAwareAction(
@@ -128,11 +132,11 @@ export function TripForm({
         />
       </Field>
 
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
 
-      <div className="flex justify-end gap-3">
+      <FormActions cancelHref={cancelHref}>
         <SubmitButton>{pendingOp || trip ? "Save changes" : "Add trip"}</SubmitButton>
-      </div>
+      </FormActions>
     </form>
   );
 }

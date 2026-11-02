@@ -35,7 +35,7 @@ export default async function EditProductPage({
         <p className="text-sm text-muted">{product.description}</p>
       </div>
       <Card>
-        <ProductForm
+        <ProductForm cancelHref={`/products/${product.id}`}
           action={boundAction}
           product={product}
           properties={properties}

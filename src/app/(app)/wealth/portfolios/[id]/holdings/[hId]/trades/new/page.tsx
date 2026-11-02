@@ -39,7 +39,7 @@ export default async function NewTradePage({
         <h1 className="mt-1 text-2xl font-medium">Add trade</h1>
       </div>
       <Card>
-        <TradeForm
+        <TradeForm cancelHref={`/wealth/portfolios/${portfolioId}/holdings/${holdingId}`}
           action={action}
           holdingId={holdingId}
           ticker={holding.ticker}

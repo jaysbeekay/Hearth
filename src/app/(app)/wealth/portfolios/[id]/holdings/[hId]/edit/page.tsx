@@ -38,7 +38,7 @@ export default async function EditHoldingPage({
         <h1 className="mt-1 text-2xl font-medium">Edit holding</h1>
       </div>
       <Card>
-        <HoldingForm action={action} holding={holding} />
+        <HoldingForm cancelHref={`/wealth/portfolios/${portfolioId}/holdings/${holdingId}`} action={action} holding={holding} />
       </Card>
     </PageShell>
   );

@@ -44,7 +44,7 @@ export default async function EditTradePage({
         <h1 className="mt-1 text-2xl font-medium">Edit trade</h1>
       </div>
       <Card>
-        <TradeForm action={action} trade={trade} ticker={trade.holding.ticker} lookUpMarketPrice={!isCryptoHolding(trade.holding)} defaultCurrency={trade.holding.portfolio.currency} />
+        <TradeForm cancelHref={`/wealth/portfolios/${portfolioId}/holdings/${holdingId}`} action={action} trade={trade} ticker={trade.holding.ticker} lookUpMarketPrice={!isCryptoHolding(trade.holding)} defaultCurrency={trade.holding.portfolio.currency} />
       </Card>
     </PageShell>
   );

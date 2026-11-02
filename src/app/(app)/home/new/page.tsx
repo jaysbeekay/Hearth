@@ -21,7 +21,7 @@ export default async function NewPropertyPage() {
         </p>
       </div>
       <Card>
-        <PropertyForm action={createProperty} />
+        <PropertyForm cancelHref="/home" action={createProperty} />
       </Card>
     </PageShell>
   );

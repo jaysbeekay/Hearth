@@ -6,6 +6,7 @@ import { Upload } from "lucide-react";
 import type { InventoryItemModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
+import { FormActions } from "@/components/FormActions";
 import { FormMessage } from "@/components/FormMessage";
 import { Field } from "@/components/FormField";
 import { INVENTORY_ITEM_CATEGORIES } from "@/lib/validation/inventory";
@@ -44,10 +45,13 @@ type ExtractedFields = Partial<Record<"category" | "label" | "brand" | "model" |
 
 export function InventoryItemForm({
   action,
+  cancelHref,
   item,
   products = [],
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
+  /** Where Cancel goes: the same place as the page's BackLink. */
+  cancelHref: string;
   item?: InventoryItemModel;
   products?: { id: string; description: string }[];
 }) {
@@ -204,7 +208,7 @@ export function InventoryItemForm({
       </Field>
 
       <div className="grid grid-cols-2 gap-4">
-        <Field label="Brand / Manufacturer" htmlFor="brand">
+        <Field label="Brand" htmlFor="brand">
           <input
             ref={brandRef}
             id="brand"
@@ -225,7 +229,7 @@ export function InventoryItemForm({
         </Field>
       </div>
 
-      <Field label="Serial Number" htmlFor="serialNumber">
+      <Field label="Serial number" htmlFor="serialNumber">
         <input
           ref={serialNumberRef}
           id="serialNumber"
@@ -236,7 +240,7 @@ export function InventoryItemForm({
       </Field>
 
       <div className="grid grid-cols-2 gap-4">
-        <Field label="Purchase Date" htmlFor="purchaseDate">
+        <Field label="Purchase date" htmlFor="purchaseDate">
           <DateInput
             ref={purchaseDateRef}
             id="purchaseDate"
@@ -246,7 +250,7 @@ export function InventoryItemForm({
           />
         </Field>
 
-        <Field label="Purchase Price" htmlFor="purchasePrice">
+        <Field label="Purchase price" htmlFor="purchasePrice">
           <input
             ref={purchasePriceRef}
             id="purchasePrice"
@@ -315,11 +319,11 @@ export function InventoryItemForm({
         </Field>
       </fieldset>
 
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
 
-      <div className="flex justify-end gap-3">
+      <FormActions cancelHref={cancelHref}>
         <SubmitButton>{pendingOp || item ? "Save changes" : "Add item"}</SubmitButton>
-      </div>
+      </FormActions>
     </form>
   );
 }

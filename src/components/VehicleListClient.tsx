@@ -55,11 +55,15 @@ export function VehicleListClient({ vehicles, archivedVehicles = [], filters, co
     return () => window.removeEventListener("offline-sync-complete", onSyncComplete);
   }, [router]);
 
+  // #406 — a list with nothing in it yet shows one sentence and one button:
+  // no Export, search or filter chips until there is something to act on.
+  const nothingYet = !filtered && vehicles.length === 0 && archivedVehicles.length === 0 && pendingOps.length === 0;
+
   return (
     <PageShell width="list">
       <ListPageHeader
         title={MODULE_REGISTRY.VEHICLES.label}
-        exportPath="/api/export/vehicles"
+        exportPath={nothingYet ? undefined : "/api/export/vehicles"}
         action={canWrite ? { href: "/vehicles/new", label: "Add vehicle", online } : undefined}
       />
 

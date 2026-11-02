@@ -35,7 +35,7 @@ export default async function NewTripSegmentPage({
         <p className="text-sm text-muted">{trip.title}</p>
       </div>
       <Card>
-        <TripSegmentForm action={boundAction} tripId={trip.id} defaultCurrency={preferredCurrency} />
+        <TripSegmentForm cancelHref={`/travel/${trip.id}`} action={boundAction} tripId={trip.id} defaultCurrency={preferredCurrency} />
       </Card>
     </PageShell>
   );
