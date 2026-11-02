@@ -33,14 +33,15 @@ const KIND_LABELS: Record<ImportProposalView["kind"], string> = {
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}T/;
 
-const LABEL_OVERRIDES: Record<string, string> = {
-  isTaxDeductible: "Tax deductible",
-  noticePeriodDays: "Notice period (days)",
-  reminderDaysBefore: "Reminder thresholds (days)",
-};
+const LABEL_OVERRIDES = new Map<string, string>([
+  ["isTaxDeductible", "Tax deductible"],
+  ["noticePeriodDays", "Notice period (days)"],
+  ["reminderDaysBefore", "Reminder thresholds (days)"],
+]);
 
 function fieldLabel(key: string): string {
-  if (LABEL_OVERRIDES[key]) return LABEL_OVERRIDES[key];
+  const override = LABEL_OVERRIDES.get(key);
+  if (override) return override;
   const spaced = key.replace(/([A-Z])/g, " $1").toLowerCase();
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
@@ -123,7 +124,9 @@ export function McpImportReviewClient({
             <input
               type="checkbox"
               checked={allSelected}
-              onChange={() => setSelected(allSelected ? new Set() : new Set(proposals.map((p) => p.id)))}
+              onChange={() => {
+                setSelected(allSelected ? new Set() : new Set(proposals.map((p) => p.id)));
+              }}
             />
             Select all
           </label>
@@ -131,7 +134,9 @@ export function McpImportReviewClient({
             type="button"
             className={buttonClass("secondary")}
             disabled={pending || selected.size === 0}
-            onClick={() => review(selectedIds, true)}
+            onClick={() => {
+              review(selectedIds, true);
+            }}
           >
             Approve selected ({selected.size})
           </button>
@@ -139,7 +144,9 @@ export function McpImportReviewClient({
             type="button"
             className={buttonClass("danger")}
             disabled={pending || selected.size === 0}
-            onClick={() => review(selectedIds, false)}
+            onClick={() => {
+              review(selectedIds, false);
+            }}
           >
             Reject selected
           </button>
@@ -156,7 +163,9 @@ export function McpImportReviewClient({
                   className="mt-1"
                   aria-label={`Select ${proposal.summary}`}
                   checked={selected.has(proposal.id)}
-                  onChange={() => toggle(proposal.id)}
+                  onChange={() => {
+                    toggle(proposal.id);
+                  }}
                 />
               )}
               <div className="min-w-0 flex-1">
@@ -174,7 +183,9 @@ export function McpImportReviewClient({
                     type="button"
                     className={buttonClass("secondary")}
                     disabled={pending}
-                    onClick={() => review([proposal.id], true)}
+                    onClick={() => {
+                      review([proposal.id], true);
+                    }}
                   >
                     Approve
                   </button>
@@ -182,7 +193,9 @@ export function McpImportReviewClient({
                     type="button"
                     className={buttonClass("quiet")}
                     disabled={pending}
-                    onClick={() => review([proposal.id], false)}
+                    onClick={() => {
+                      review([proposal.id], false);
+                    }}
                   >
                     Reject
                   </button>
