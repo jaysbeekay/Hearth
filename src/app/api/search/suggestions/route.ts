@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
       (row): SearchResult => ({
         id: row.id,
         title: row.title,
-        subtitle: RECENT_KIND_LABELS[kind],
+        subtitle: RECENT_KIND_LABELS.get(kind),
         href: hrefFor(kind, row.id),
         group: kind,
       }),
