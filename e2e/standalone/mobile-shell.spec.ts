@@ -666,6 +666,13 @@ test.beforeEach(async ({ page }) => {
             // its Nth move (the call never returns).
             renames += 1;
             if (Number(localStorage.getItem("hearth-test-crash-at-rename")) === renames) await new Promise(() => undefined);
+            // "hearth-test-pause-at-rename" = N: the Nth move waits until the
+            // test calls __hearthResumeRename(), to interleave an edit.
+            if (Number(localStorage.getItem("hearth-test-pause-at-rename")) === renames) {
+              await new Promise((resolve) => {
+                (window as unknown as { __hearthResumeRename?: () => void }).__hearthResumeRename = () => resolve(undefined);
+              });
+            }
           },
           deleteFile: async (args: { directory?: string; path?: string }) => {
             const failure = localStorage.getItem("hearth-test-delete-file-error");
@@ -1269,6 +1276,79 @@ test("standalone restore recovers from a crash after any file move or the commit
   for (let rename = 1; rename <= 4; rename += 1) outcomes.push(await crashRestoreAt(page, { rename }));
   expect(outcomes).toEqual([1, 2, 3, 4].map(() => ({ reached: true, committed: false })));
   expect(await crashRestoreAt(page, { commit: true })).toEqual({ reached: true, committed: true });
+});
+
+test("standalone edit made during a restore waits and lands after it", async ({ page }) => {
+  await openBackupSettings(page);
+  const { text } = await exportBackup(page);
+  await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness & { renames: number } }).__hearthStandaloneTest;
+    localStorage.setItem("hearth-test-pause-at-rename", String(harness.renames + 1));
+  });
+  await restoreFile(page, text, { password: "correct horse battery", mode: "merge", confirm: false });
+  // Paused mid-restore: versions are chosen and files are moving.
+  await expect.poll(() => page.evaluate(() => typeof (window as unknown as { __hearthResumeRename?: unknown }).__hearthResumeRename)).toBe("function");
+  await page.evaluate(() => {
+    // An ordinary edit, through the app's own write path, saving a newer Vehicle.
+    const app = window as unknown as { run(statement: string, values: unknown[]): Promise<void>; __editDone?: boolean };
+    void app.run("UPDATE vehicles SET label = ?, version = ? WHERE id = ?", ["Edited during restore", 9, "vehicle-1"]).then(() => {
+      app.__editDone = true;
+    });
+  });
+  await page.waitForTimeout(200);
+  const during = await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    return { done: (window as unknown as { __editDone?: boolean }).__editDone ?? false, runs: harness.sqliteRuns.filter((run) => run.statement.startsWith("UPDATE vehicles SET label")).length };
+  });
+  expect(during).toEqual({ done: false, runs: 0 });
+  await page.evaluate(() => {
+    localStorage.removeItem("hearth-test-pause-at-rename");
+    (window as unknown as { __hearthResumeRename: () => void }).__hearthResumeRename();
+  });
+  await expect(page.locator("#standalone-status")).toContainText("Restored");
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __editDone?: boolean }).__editDone ?? false)).toBe(true);
+  const after = await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    const statements = harness.sqliteRuns.map((run) => run.statement);
+    return {
+      label: (harness.rowsByTable.vehicles as unknown as Record<string, unknown>[]).find((row) => row.id === "vehicle-1")?.label,
+      editAfterCommit: statements.findIndex((statement) => statement.startsWith("UPDATE vehicles SET label")) > statements.findIndex((statement) => statement.includes("last_restore_id")),
+    };
+  });
+  expect(after).toEqual({ label: "Edited during restore", editAfterCommit: true });
+});
+
+test("standalone keeps retrying an old document file a restore could not delete", async ({ page }) => {
+  await openBackupSettings(page);
+  const { text } = await exportBackup(page);
+  await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    harness.files.set("DATA:standalone-documents/added-later.pdf", "STALE");
+    (harness.rowsByTable.documents as unknown as Record<string, unknown>[]).push({ id: "document-later", owner_type: "contract", owner_id: "contract-1", filename: "added-later.pdf", storage_key: "added-later.pdf", deleted_at: null });
+    localStorage.setItem("hearth-test-delete-file-error", "other");
+  });
+  await restoreFile(page, text, { password: "correct horse battery" });
+  await expect(page.locator("#standalone-status")).toContainText("could not be removed yet");
+  const left = await page.evaluate(() => {
+    localStorage.removeItem("hearth-test-delete-file-error");
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness & { preferences: Map<string, string> } }).__hearthStandaloneTest;
+    return {
+      files: Object.fromEntries([...harness.files].filter(([key]) => key.startsWith("DATA:"))),
+      preferences: Object.fromEntries(harness.preferences),
+      rows: { schema_metadata: (harness.rowsByTable.schema_metadata as unknown[]) ?? [] },
+    };
+  });
+  // The journal stays while the stale file is still there.
+  expect(left.files["DATA:standalone-documents/added-later.pdf"]).toBe("STALE");
+  expect(left.preferences["hearth.mobile.restoreJournal"]).toBeTruthy();
+  await page.evaluate((left) => {
+    window.name = `hearth-test-seed:${JSON.stringify(left)}`;
+  }, left);
+  await relaunchStandalone(page);
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __hearthStandaloneTest: { preferences: Map<string, string> } }).__hearthStandaloneTest.preferences.has("hearth.mobile.restoreJournal"))).toBe(false);
+  const keys = await page.evaluate(() => [...(window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest.files.keys()]);
+  expect(keys).not.toContain("DATA:standalone-documents/added-later.pdf");
+  expect(keys.filter((key) => key.startsWith("DATA:standalone-restore-"))).toEqual([]);
 });
 
 test("standalone launch keeps a restore journal it can't read, and the files it protects", async ({ page }) => {
