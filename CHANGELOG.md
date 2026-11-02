@@ -79,6 +79,16 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   selects and the chips, so the first record is on the first screen. Links
   from the dashboard still pre-select the right chip. The iOS and Android
   shell is unchanged.
+- **Spending leads with what's useful (#367).** The "Tax-deductible / mo"
+  tile is hidden when nothing is tax-deductible. Contracts with a cost but
+  no billing frequency, which the dashboard and Spending both leave out of
+  the monthly figure, are now flagged here too, with a link to fill them
+  in. The category breakdown comes first; the timeline is folded under
+  "Recurring cost over time" and says so plainly when nothing changed
+  instead of drawing identical bars. "Annual projection" (monthly × 12) is
+  now "Next 12 months": a fixed-term or manually renewed contract counts
+  only up to its end date, and one that hasn't started counts from its
+  start date. The iOS and Android shell is unchanged.
 - **Search opens on something useful, and Documents stops overloading
   "type" (#366).** Before you type, Search shows the last five records you
   opened in this browser (only their ids are kept locally; titles come from
