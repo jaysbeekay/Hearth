@@ -75,8 +75,9 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   ("Due soon · 2"), counted with the current search, category, status and
   other chips kept, with zero counts muted, replacing the separate row of summary counts
   and its "added this week" figure. On a phone the search box sits beside a
-  "Filters" button that opens a bottom sheet with the category and status
-  selects and the chips, so the first record is on the first screen. Links
+  "Filters" button that opens a bottom sheet (the category and status
+  selects and the chips on Contracts, the chips on Warranties), so the
+  first record is on the first screen. Links
   from the dashboard still pre-select the right chip. The iOS and Android
   shell is unchanged.
 - **Spending lists the manual renewals coming up.** Under the tiles, a
@@ -134,6 +135,10 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   its own schedule. The hint under the Reminder presets follows the
   scheduler for a custom value with no whole days (such as 1.5): it shows
   the household default that applies, not "No Reminders will be sent".
+- **Filters sheet (#517 follow-up).** Widening the window past the phone
+  layout while the Filters sheet is open closes it, instead of leaving the
+  page unclickable behind an invisible dialog, and the Filters button
+  tells screen readers whether its sheet is open.
 
 ## [0.20.1] - 2026-10-31
 

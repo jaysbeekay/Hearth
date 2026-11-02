@@ -673,6 +673,14 @@ test("#365 — on a 390×844 phone the first contract is on screen, and filters 
   await page.waitForURL(/\/contracts$/);
   await main.getByRole("button", { name: "Filters", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Filters" }).getByLabel("Filter by status")).toHaveValue("");
+  await expect(main.getByRole("button", { name: "Filters", exact: true })).toHaveAttribute("aria-expanded", "true");
+
+  // Widening past the phone layout closes the sheet, so its focus trap
+  // doesn't hold the desktop page (#517 review).
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await expect(page.getByRole("dialog", { name: "Filters" })).toHaveCount(0);
+  await main.getByRole("button", { name: /^Due soon/ }).click();
+  await page.waitForURL(/[?&]due=soon/);
 });
 
 test("#517 review — removing a category pill resets the category select on desktop", async ({ page }) => {
