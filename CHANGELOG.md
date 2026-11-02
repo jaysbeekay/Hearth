@@ -35,6 +35,16 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   valuation form's fields are labelled, and the contract status action's
   accessible name matches its visible text (#411 review).
 
+### Fixed
+
+- **Standalone Upcoming no longer marks a Trip date overdue (#476).** Trip
+  dates and past events leave Upcoming, as on the web: it starts from today,
+  and anything Overdue is in Needs attention instead. Only a Contract,
+  Warranty or Vehicle date is ever Due soon; a Trip segment is a plain
+  neutral date, listed from today while any of it is still ahead. The web
+  lists Trip segments rather than the Trip itself, and so does the shell now.
+  The due-soon window and Contract rule differences (#386) are tracked there.
+
 ## [0.20.1] - 2026-10-31
 
 ### Fixed

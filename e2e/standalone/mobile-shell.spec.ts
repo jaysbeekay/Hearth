@@ -1040,6 +1040,122 @@ test("standalone inventory item links to a warranty, and the warranty lists it b
   await expect(page.locator(".list").getByRole("button", { name: /Camera/ })).toBeVisible();
 });
 
+test("standalone Upcoming has no history and colours only Due dates, never a Trip date (#476)", async ({ page }) => {
+  // The fixtures are dated 2099: fix the clock at 2099-09-06 and add rows around it.
+  await page.addInitScript(() => {
+    const rows = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest.rowsByTable;
+    const updated_at = "2099-01-01T00:00:00.000Z";
+    const contract = { category: "OTHER", status: "ACTIVE", end_date: "2099-09-01", cost: 20, currency: "AUD", billing_frequency: "MONTHLY", reminder_days_before: "30,14,7,1", updated_at };
+    rows.contracts.push(
+      { ...contract, id: "contract-2", title: "Gym Membership", renewal_type: "MANUAL_RENEWAL" },
+      { ...contract, id: "contract-3", title: "Fixed Hire", renewal_type: "FIXED_TERM" },
+      { ...contract, id: "contract-4", title: "Auto Streaming", renewal_type: "AUTO_RENEW" },
+    );
+    rows.products.push({ id: "product-2", description: "Old Kettle", warranty_end_date: "2099-09-01", currency: "AUD", reminder_days_before: "30,14,7,1", updated_at });
+    rows.vehicles.push({ id: "vehicle-2", label: "Old Ute", rego_expiry: "2099-09-01", reminder_days_before: "30,14,7,1", updated_at });
+    rows.trip_segments.push(
+      { id: "trip-segment-2", trip_id: "trip-1", type: "ACCOMMODATION", title: "Tokyo Hotel", start_date: "2099-09-05", end_date: "2099-09-13", currency: "AUD", updated_at },
+      { id: "trip-segment-3", trip_id: "trip-1", type: "FLIGHT", title: "Flight to Bali", start_date: "2099-09-09", currency: "AUD", updated_at },
+      // Began yesterday and ends today: still in progress.
+      { id: "trip-segment-4", trip_id: "trip-1", type: "CAR_RENTAL", title: "Kyoto Car", start_date: "2099-09-05", end_date: "2099-09-06", currency: "AUD", updated_at },
+      // Began yesterday with no end date: over.
+      { id: "trip-segment-5", trip_id: "trip-1", type: "ACTIVITY", title: "Sumo Tickets", start_date: "2099-09-05", currency: "AUD", updated_at },
+    );
+    // Due-soon parity with the web Due policy (window = largest Reminder threshold).
+    const soon = { ...contract, end_date: "2099-09-16", renewal_type: "MANUAL_RENEWAL" };
+    rows.contracts.push(
+      { ...soon, id: "contract-5", title: "Due Insurance" },
+      { ...soon, id: "contract-6", title: "Cancelled Phone", status: "CANCELLED" },
+      { ...soon, id: "contract-7", title: "Renewing Music", renewal_type: "AUTO_RENEW" },
+      { ...soon, id: "contract-8", title: "Short Window Plan", reminder_days_before: "7,1" },
+      { ...soon, id: "contract-9", title: "Unreviewed Scan", extraction_pending: 1 },
+    );
+  });
+  await page.clock.setFixedTime(new Date("2099-09-06T12:00:00"));
+  await reloadStandalone(page);
+
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="calendar"]').click();
+  const card = (text: string) => page.locator(".record-card").filter({ hasText: text });
+
+  // Past events are not shown, as on the web: a segment that began 5 days
+  // ago, and Contract, Warranty and Vehicle dates already past. The Trip
+  // itself is never listed, only its segments.
+  for (const gone of ["Flight to Tokyo", "Japan Holiday", "Gym Membership", "Fixed Hire", "Auto Streaming", "Old Kettle", "Old Ute"]) {
+    await expect(card(gone)).toHaveCount(0);
+  }
+
+  // A stay that began yesterday and ends next week is still ahead: it sorts
+  // at today but says In progress and keeps its real start date. Neutral.
+  const stay = card("Tokyo Hotel");
+  await expect(stay).toContainText("In progress");
+  await expect(stay).toContainText("Since 2099-09-05");
+  await expect(stay).not.toHaveClass(/warning-card|danger-card/);
+  await expect(card("Kyoto Car")).toContainText("In progress");
+  await expect(card("Sumo Tickets")).toHaveCount(0);
+
+  // In-progress segments come first, in a stable order, before later dates.
+  const titles = await page.locator(".record-card h3").allTextContents();
+  expect(titles.indexOf("Tokyo Hotel")).toBeLessThan(titles.indexOf("Flight to Bali"));
+  expect(titles.indexOf("Kyoto Car")).toBeLessThan(titles.indexOf("Flight to Bali"));
+
+  // Due soon only for an eligible Due entry inside its own Reminder window.
+  await expect(card("Due Insurance")).toHaveClass(/warning-card/);
+  await expect(card("Cancelled Phone")).toHaveCount(0);
+  for (const neutral of ["Renewing Music", "Short Window Plan", "Unreviewed Scan"]) {
+    await expect(card(neutral)).toContainText("In 10d");
+    await expect(card(neutral)).not.toHaveClass(/warning-card|danger-card/);
+  }
+
+  // A segment starting in 3 days is a neutral date, not Due soon.
+  const soon = card("Flight to Bali");
+  await expect(soon).toContainText("In 3d");
+  await expect(soon).not.toHaveClass(/warning-card|danger-card/);
+  await expect(soon.locator(".badge").first()).not.toHaveClass(/warning|danger/);
+
+  // Overdue stays visible where the shell shows it: Needs attention.
+  await page.locator(".bottom-nav").getByRole("button", { name: "Contracts" }).click();
+  await page.getByRole("button", { name: "Needs attention" }).click();
+  await expect(card("Gym Membership")).toHaveCount(1);
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-record-type="vehicles"]').click();
+  await page.getByRole("button", { name: "Needs attention" }).click();
+  await expect(card("Old Ute")).toHaveCount(1);
+
+  // No Reminder card or count is made for a Trip.
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="reminders"]').click();
+  await expect(card("Japan Holiday")).toHaveCount(0);
+});
+
+test.describe("standalone Upcoming across a DST change and a dense itinerary (#476)", () => {
+  // Sydney's clocks go forward at 02:00 on Sunday 2099-10-04 (a 23-hour day).
+  test.use({ timezoneId: "Australia/Sydney" });
+
+  test("counts whole days across DST and says when the list is capped", async ({ page }) => {
+    await page.addInitScript(() => {
+      const rows = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest.rowsByTable;
+      const updated_at = "2099-01-01T00:00:00.000Z";
+      rows.trip_segments.push({ id: "dst-1", trip_id: "trip-1", type: "FLIGHT", title: "Across DST", start_date: "2099-10-05", currency: "AUD", updated_at });
+      for (let i = 0; i < 85; i += 1) {
+        rows.trip_segments.push({ id: `dense-${String(i).padStart(2, "0")}`, trip_id: "trip-1", type: "ACTIVITY", title: `Dense ${String(i).padStart(2, "0")}`, start_date: "2099-10-10", currency: "AUD", updated_at });
+      }
+    });
+    // Just before midnight, the night before the change.
+    await page.clock.setFixedTime(new Date("2099-10-03T23:30:00+10:00"));
+    await reloadStandalone(page);
+    await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+    await page.locator('#mobile-view button[data-nav="calendar"]').click();
+
+    await expect(page.locator(".record-card").filter({ hasText: "Across DST" })).toContainText("In 2d");
+    await expect(page.locator(".record-card")).toHaveCount(80);
+    await expect(page.locator(".calendar-more")).toContainText(/Showing the next 80 of \d+ dates/);
+    // Same-day entries keep a stable order (label, then title).
+    const dense = (await page.locator(".record-card h3").allTextContents()).filter((t) => t.startsWith("Dense"));
+    expect(dense).toEqual([...dense].sort());
+  });
+});
+
 test("standalone vehicle service-due date feeds the detail page, calendar and reminders", async ({ page }) => {
   await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
   await page.locator('#mobile-view button[data-record-type="vehicles"]').click();
@@ -1121,6 +1237,33 @@ test("standalone a Vehicle whose fixed-term Covering Contract has ended needs at
   const card = (text: string) => page.locator(".record-card").filter({ hasText: text });
   await expect(card("Lapsed Ute")).toHaveCount(1);
   await expect(card("Running Ute")).toHaveCount(0);
+});
+
+// #476 + #456 - Upcoming lists a Covered rego/insurance date once, as the
+// Covering Contract's own "Contract ends" event, never as the Vehicle's too.
+test("standalone Upcoming lists a Covered vehicle date once, as the Contract's (#476, #456)", async ({ page }) => {
+  await page.addInitScript(() => {
+    const rows = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest.rowsByTable;
+    const updated_at = "2099-01-01T00:00:00.000Z";
+    // Own dates inside the Due-soon window, so a leaked Vehicle event would also be coloured.
+    rows.vehicles.push({ id: "vehicle-10", label: "Covered Ute", rego_expiry: "2099-09-12", insurance_expiry: "2099-09-14", reminder_days_before: "30,14,7,1", created_at: updated_at, updated_at });
+    rows.contracts.push({ id: "contract-cover", title: "Ute policy", category: "CAR_INSURANCE", provider: "Allianz", status: "ACTIVE", renewal_type: "MANUAL_RENEWAL", vehicle_id: "vehicle-10", end_date: "2099-09-20", currency: "AUD", reminder_days_before: "30,14,7,1", created_at: updated_at, updated_at });
+  });
+  await page.clock.setFixedTime(new Date("2099-09-06T12:00:00"));
+  await reloadStandalone(page);
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="calendar"]').click();
+  const card = (text: string) => page.locator(".record-card").filter({ hasText: text });
+
+  // Insurance is Covered: only the Contract's event, Due soon by its own window.
+  await expect(card("Ute policy")).toHaveCount(1);
+  await expect(card("Ute policy")).toContainText("Contract ends");
+  await expect(card("Ute policy")).toHaveClass(/warning-card/);
+  const ute = card("Covered Ute");
+  await expect(ute.filter({ hasText: "Insurance expiry" })).toHaveCount(0);
+  // Rego has no Covering Contract, so the Vehicle's own date stays.
+  await expect(ute.filter({ hasText: "Rego expiry" })).toHaveCount(1);
+  await expect(ute.filter({ hasText: "Rego expiry" })).toContainText("In 6d");
 });
 
 test("standalone schedules a local Reminder for a tenancy's lease end (#388)", async ({ page }) => {
