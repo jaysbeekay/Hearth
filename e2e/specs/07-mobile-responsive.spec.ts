@@ -654,4 +654,21 @@ test("#365 — on a 390×844 phone the first contract is on screen, and filters 
   await page.getByRole("dialog", { name: "Filters" }).getByRole("button", { name: "Done" }).click();
   await expect(main.getByRole("button", { name: "Filters (1)", exact: true })).toBeVisible();
   await expectNoHorizontalOverflow(page);
+
+  // #517 review — removing the filter outside the sheet resets its select.
+  await main.getByRole("button", { name: "Clear all" }).click();
+  await page.waitForURL(/\/contracts$/);
+  await main.getByRole("button", { name: "Filters", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Filters" }).getByLabel("Filter by status")).toHaveValue("");
+});
+
+test("#517 review — removing a category pill resets the category select on desktop", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/contracts");
+  const main = page.locator("main");
+  await main.getByLabel("Filter by category").selectOption("UTILITY");
+  await page.waitForURL(/[?&]category=UTILITY/);
+  await main.getByRole("button", { name: "Utility" }).click();
+  await page.waitForURL(/\/contracts$/);
+  await expect(main.getByLabel("Filter by category")).toHaveValue("");
 });

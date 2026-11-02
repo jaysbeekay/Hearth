@@ -56,6 +56,9 @@ function CategorySelect({ value, onChange }: { value?: string; onChange: SelectC
   return (
     <SelectWrapper>
       <select
+        // #517 review — keyed by the URL's value, so removing a filter from a
+        // pill or Clear all resets it (an uncontrolled select keeps its DOM pick).
+        key={value ?? ""}
         name="category"
         aria-label="Filter by category"
         defaultValue={value ?? ""}
@@ -77,6 +80,9 @@ function StatusSelect({ value, onChange }: { value?: string; onChange: SelectCha
   return (
     <SelectWrapper>
       <select
+        // #517 review — keyed by the URL's value, so removing a filter from a
+        // pill or Clear all resets it (an uncontrolled select keeps its DOM pick).
+        key={value ?? ""}
         name="status"
         aria-label="Filter by status"
         defaultValue={value ?? ""}
