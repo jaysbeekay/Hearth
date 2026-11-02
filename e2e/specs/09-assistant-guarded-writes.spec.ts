@@ -78,23 +78,14 @@ function startMockOllama(
 test("assistant proposes a contract, confirming creates it and cancelling doesn't", async ({ page }) => {
   const mock = await startMockOllama();
   try {
-    await page.goto("/settings/app");
+    await page.goto("/settings/ai");
     await page.locator("#ollamaBaseUrl").fill(mock.url);
-    await page
-      .locator("#ollamaBaseUrl")
-      .locator("xpath=ancestor::form[1]")
-      .locator("button[type=submit]")
-      .click();
-    // Wait for each save to land: navigating away mid-action drops it.
-    await expect(page.getByText("Ollama settings saved.").first()).toBeVisible();
-
     await page.selectOption("#chatProvider", "OLLAMA");
     await page.locator("#chatModel").fill("test-model");
-    await page
-      .locator("#chatProvider")
-      .locator("xpath=ancestor::form[1]")
-      .locator("button[type=submit]")
-      .click();
+    // #363 — one Save changes submits both edited sections.
+    await page.getByRole("button", { name: "Save changes" }).click();
+    // Wait for each save to land: navigating away mid-action drops it.
+    await expect(page.getByText("Ollama settings saved.").first()).toBeVisible();
     await expect(page.getByText("AI Assistant settings saved.").first()).toBeVisible();
 
     await page.goto("/assistant");
@@ -146,22 +137,14 @@ test("assistant update proposal lists and writes only the named fields", async (
       : createGym,
   );
   try {
-    await page.goto("/settings/app");
+    await page.goto("/settings/ai");
     await page.locator("#ollamaBaseUrl").fill(mock.url);
-    await page
-      .locator("#ollamaBaseUrl")
-      .locator("xpath=ancestor::form[1]")
-      .locator("button[type=submit]")
-      .click();
-    await expect(page.getByText("Ollama settings saved.").first()).toBeVisible();
-
     await page.selectOption("#chatProvider", "OLLAMA");
     await page.locator("#chatModel").fill("test-model");
-    await page
-      .locator("#chatProvider")
-      .locator("xpath=ancestor::form[1]")
-      .locator("button[type=submit]")
-      .click();
+    // #363 — one Save changes submits both edited sections.
+    await page.getByRole("button", { name: "Save changes" }).click();
+    // Wait for each save to land: navigating away mid-action drops it.
+    await expect(page.getByText("Ollama settings saved.").first()).toBeVisible();
     await expect(page.getByText("AI Assistant settings saved.").first()).toBeVisible();
 
     await page.goto("/assistant");

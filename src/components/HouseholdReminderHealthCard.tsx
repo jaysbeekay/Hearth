@@ -27,12 +27,12 @@ export function HouseholdReminderHealthCard({
   appUrlConfigured?: boolean;
 }) {
   return (
-    <Card className="space-y-4">
+    <Card as="section" className="space-y-4">
       <div>
-        <h3 className="flex items-center gap-2 font-medium">
+        <h2 className="flex items-center gap-2 font-medium">
           <BellRing size={16} className="text-muted" aria-hidden />
           Reminder delivery health
-        </h3>
+        </h2>
         <p className="mt-0.5 text-xs text-muted">
           Household-wide view of whether reminders are actually reaching a channel.
         </p>
@@ -89,7 +89,7 @@ export function HouseholdReminderHealthCard({
         <p className={bannerClass("neutral", "flex items-start gap-2")}>
           <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden />
           No delivery channel configured — every record that comes due has no working reminder
-          coverage until email, ntfy, or a webhook is set up above.
+          coverage until email or ntfy is set up below, or a webhook under Integrations.
         </p>
       ) : health.uncovered.length > 0 ? (
         <div className="space-y-2">

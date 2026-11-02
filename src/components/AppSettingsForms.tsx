@@ -3,7 +3,8 @@
 import { useActionState, useState } from "react";
 import { testSmtpSettings, testNtfySettings, testOllamaConnection } from "@/lib/actions/app-settings";
 import type { ActionState } from "@/lib/actions/auth";
-import { SubmitButton } from "@/components/SubmitButton";
+import { GroupedSubmit } from "@/components/SaveChangesGroup";
+import { SchedulePicker } from "@/components/SchedulePicker";
 import { FormMessage } from "@/components/FormMessage";
 import { Field } from "@/components/FormField";
 import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
@@ -46,7 +47,7 @@ export function SmtpForm({
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(action, null);
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} data-save-group className="space-y-4">
       {!appUrlConfigured && (
         <p className={bannerClass("warning")}>
           APP_URL isn&apos;t set — password-reset and invitation links in emails will point to
@@ -89,7 +90,7 @@ export function SmtpForm({
         ) : (
           <span />
         )}
-        <SubmitButton variant="secondary">Save email settings</SubmitButton>
+        <GroupedSubmit>Save email settings</GroupedSubmit>
       </div>
     </form>
   );
@@ -115,7 +116,7 @@ export function EmailIngestForm({
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(action, null);
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} data-save-group className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="IMAP host" htmlFor="emailIngestHost">
           <input id="emailIngestHost" name="emailIngestHost" defaultValue={current.host} placeholder="imap.example.com" className={inputClass} />
@@ -152,7 +153,7 @@ export function EmailIngestForm({
         ) : (
           <span />
         )}
-        <SubmitButton variant="secondary">Save email ingestion settings</SubmitButton>
+        <GroupedSubmit>Save email ingestion settings</GroupedSubmit>
       </div>
     </form>
   );
@@ -169,7 +170,7 @@ export function NtfyForm({
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(action, null);
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} data-save-group className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="ntfy server URL" htmlFor="ntfyUrl" hint="Default: https://ntfy.sh">
           <input id="ntfyUrl" name="ntfyUrl" defaultValue={current.url} placeholder="https://ntfy.sh" className={inputClass} />
@@ -193,7 +194,7 @@ export function NtfyForm({
         ) : (
           <span />
         )}
-        <SubmitButton variant="secondary">Save ntfy settings</SubmitButton>
+        <GroupedSubmit>Save ntfy settings</GroupedSubmit>
       </div>
     </form>
   );
@@ -210,7 +211,7 @@ export function OllamaForm({
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(action, null);
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} data-save-group className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Ollama base URL" htmlFor="ollamaBaseUrl">
           <input id="ollamaBaseUrl" name="ollamaBaseUrl" defaultValue={current.baseUrl} placeholder="http://localhost:11434" className={inputClass} />
@@ -231,7 +232,7 @@ export function OllamaForm({
         ) : (
           <span />
         )}
-        <SubmitButton variant="secondary">Save Ollama settings</SubmitButton>
+        <GroupedSubmit>Save Ollama settings</GroupedSubmit>
       </div>
     </form>
   );
@@ -248,7 +249,7 @@ export function BarcodeForm({
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(action, null);
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} data-save-group className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="" htmlFor="barcodeEnabled">
           <div className="flex items-center gap-2 pt-1">
@@ -261,8 +262,8 @@ export function BarcodeForm({
         </Field>
       </div>
       <FormMessage attempt={state} error={state?.error} success={state?.success} />
-      <div className="flex justify-end">
-        <SubmitButton variant="secondary">Save barcode settings</SubmitButton>
+      <div className="flex justify-end empty:hidden">
+        <GroupedSubmit>Save barcode settings</GroupedSubmit>
       </div>
     </form>
   );
@@ -304,7 +305,7 @@ export function BackupDestinationForm({
   const [destination, setDestination] = useState<BackupDestinationChoice>(current.destination);
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} data-save-group className="space-y-4">
       <Field label="Backup destination" htmlFor="destination">
         <SelectWrapper>
           <select
@@ -383,50 +384,72 @@ export function BackupDestinationForm({
       )}
 
       <FormMessage attempt={state} error={state?.error} success={state?.success} />
-      <div className="flex justify-end">
-        <SubmitButton variant="secondary">Save backup destination</SubmitButton>
+      <div className="flex justify-end empty:hidden">
+        <GroupedSubmit>Save backup destination</GroupedSubmit>
       </div>
     </form>
   );
 }
 
 // ─── Schedules ───────────────────────────────────────────────────────────────
+// #363 — plain-language pickers that write the cron string. The scheduler
+// re-reads them every minute (src/instrumentation.ts), so no restart.
 
-export function ScheduleForm({
+export function ReminderScheduleForm({
   action,
   current,
+  serverTimeZone,
 }: {
   action: (s: ActionState, f: FormData) => Promise<ActionState>;
-  current: {
-    reminderCron: string;
-    reminderDefaultDays: string;
-    backupCron: string;
-    retentionCount: number;
-  };
+  current: { cron: string; defaultDays: string };
+  serverTimeZone: string;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(action, null);
   return (
-    <form action={formAction} className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Reminder cron" htmlFor="reminderCron" hint="When to send reminders (cron syntax)">
-          <input id="reminderCron" name="reminderCron" defaultValue={current.reminderCron} placeholder="0 8 * * *" className={inputClass} />
-        </Field>
-        <Field label="Default reminder thresholds" htmlFor="reminderDefaultDays" hint="Days before the date, comma-separated, e.g. 30,14,7,1">
-          <input id="reminderDefaultDays" name="reminderDefaultDays" defaultValue={current.reminderDefaultDays} placeholder="30,14,7,1" className={inputClass} />
-        </Field>
-        <Field label="Backup cron" htmlFor="backupCron" hint="When to run automatic backups">
-          <input id="backupCron" name="backupCron" defaultValue={current.backupCron} placeholder="0 3 * * *" className={inputClass} />
-        </Field>
-        <Field label="Backup retention" htmlFor="retentionCount" hint="Number of backups to keep per destination">
-          <input id="retentionCount" name="retentionCount" type="number" min={1} defaultValue={current.retentionCount} className={inputClass} />
-        </Field>
-      </div>
-      <p className="text-xs text-warning">
-        Cron schedule changes take effect after the next server restart.
-      </p>
+    <form action={formAction} data-save-group className="space-y-4">
+      <SchedulePicker
+        id="reminderCron"
+        name="reminderCron"
+        label="Check for reminders"
+        defaultCron={current.cron}
+        hint={`Times are in the server's timezone (${serverTimeZone}).`}
+      />
+      <Field label="Default reminder thresholds" htmlFor="reminderDefaultDays" hint="Days before the date, comma-separated, e.g. 30,14,7,1. Used by records that don't set their own.">
+        <input id="reminderDefaultDays" name="reminderDefaultDays" defaultValue={current.defaultDays} placeholder="30,14,7,1" className={inputClass} />
+      </Field>
       <FormMessage attempt={state} error={state?.error} success={state?.success} />
-      <div className="flex justify-end">
-        <SubmitButton variant="secondary">Save schedule settings</SubmitButton>
+      <div className="flex justify-end empty:hidden">
+        <GroupedSubmit>Save reminder schedule</GroupedSubmit>
+      </div>
+    </form>
+  );
+}
+
+export function BackupScheduleForm({
+  action,
+  current,
+  serverTimeZone,
+}: {
+  action: (s: ActionState, f: FormData) => Promise<ActionState>;
+  current: { cron: string; retentionCount: number };
+  serverTimeZone: string;
+}) {
+  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  return (
+    <form action={formAction} data-save-group className="space-y-4">
+      <SchedulePicker
+        id="backupCron"
+        name="backupCron"
+        label="Run automatic backups"
+        defaultCron={current.cron}
+        hint={`Times are in the server's timezone (${serverTimeZone}).`}
+      />
+      <Field label="Backup retention" htmlFor="retentionCount" hint="Number of backups to keep per destination">
+        <input id="retentionCount" name="retentionCount" type="number" min={1} defaultValue={current.retentionCount} className={inputClass} />
+      </Field>
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
+      <div className="flex justify-end empty:hidden">
+        <GroupedSubmit>Save backup schedule</GroupedSubmit>
       </div>
     </form>
   );
@@ -449,7 +472,7 @@ export function HouseholdTimeZoneForm({
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(action, null);
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} data-save-group className="space-y-4">
       <Field label="Timezone" htmlFor="householdTimeZone">
         <SelectWrapper>
           <select id="householdTimeZone" name="householdTimeZone" defaultValue={current} className={selectClass}>
@@ -472,8 +495,8 @@ export function HouseholdTimeZoneForm({
         </SelectWrapper>
       </Field>
       <FormMessage attempt={state} error={state?.error} success={state?.success} />
-      <div className="flex justify-end">
-        <SubmitButton variant="secondary">Save timezone</SubmitButton>
+      <div className="flex justify-end empty:hidden">
+        <GroupedSubmit>Save timezone</GroupedSubmit>
       </div>
     </form>
   );
@@ -490,7 +513,7 @@ export function AviationStackForm({
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(action, null);
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} data-save-group className="space-y-4">
       <Field
         label="API key"
         htmlFor="aviationstackApiKey"
@@ -499,8 +522,8 @@ export function AviationStackForm({
         <SensitiveField id="aviationstackApiKey" name="aviationstackApiKey" isSet={isKeySet} />
       </Field>
       <FormMessage attempt={state} error={state?.error} success={state?.success} />
-      <div className="flex justify-end">
-        <SubmitButton variant="secondary">Save</SubmitButton>
+      <div className="flex justify-end empty:hidden">
+        <GroupedSubmit>Save</GroupedSubmit>
       </div>
     </form>
   );

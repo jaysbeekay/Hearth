@@ -174,13 +174,17 @@ _The property detail screenshot was captured without network access, so it doesn
 | --- | --- |
 | ![Spending](docs/screenshots/spend.png) | ![Contract — linked tenancy](docs/screenshots/contract-rental-link.png) |
 
-| Settings — personal account | Settings — household & system |
+| Settings — My account | Settings — Household |
 | --- | --- |
-| ![Settings — personal](docs/screenshots/settings-personal.png) | ![Settings — household & system](docs/screenshots/settings-household-system.png) |
+| ![Settings — My account](docs/screenshots/settings-personal.png) | ![Settings — Household](docs/screenshots/settings-household-tab.png) |
 
-| Settings — household members | Settings — AI provider |
+| Settings — Reminders & channels | Settings — reminder schedule |
 | --- | --- |
-| ![Settings — household](docs/screenshots/settings-household.png) | ![Settings — AI](docs/screenshots/settings-ai.png) |
+| ![Settings — Reminders & channels](docs/screenshots/settings-reminders.png) | ![Settings — reminder schedule](docs/screenshots/settings-reminders-schedule.png) |
+
+| Settings — Members | Settings — AI & privacy |
+| --- | --- |
+| ![Settings — Members](docs/screenshots/settings-household.png) | ![Settings — AI & privacy](docs/screenshots/settings-ai.png) |
 
 | Two-factor setup | Two-factor recovery codes |
 | --- | --- |

@@ -10,12 +10,12 @@ import {
   AI_PROVIDERS_WITHOUT_API_KEY,
   type AiProviderId,
 } from "@/lib/ai/types";
-import { SubmitButton } from "@/components/SubmitButton";
+import { GroupedSubmit } from "@/components/SaveChangesGroup";
 import { FormMessage } from "@/components/FormMessage";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 import { TestConnectionButton } from "@/components/TestConnectionButton";
-import { bannerClass, inlineLinkClass } from "@/lib/ui";
+import { bannerClass } from "@/lib/ui";
 
 export function AiSettingsForm({
   provider,
@@ -35,7 +35,7 @@ export function AiSettingsForm({
 
   return (
     <div className="space-y-4">
-      <form action={formAction} className="space-y-3">
+      <form action={formAction} data-save-group className="space-y-3">
         <div className="space-y-1">
           <label htmlFor="provider" className="text-sm font-medium">
             Provider
@@ -79,11 +79,8 @@ export function AiSettingsForm({
               </div>
             ) : (
               <p className="text-xs text-muted">
-                No API key needed — Ollama uses the base URL configured in{" "}
-                <a href="/settings/app" className={inlineLinkClass}>
-                  System settings
-                </a>
-                .
+                No API key needed — Ollama uses the base URL set under Local AI (Ollama) on this
+                page.
               </p>
             )}
 
@@ -112,7 +109,7 @@ export function AiSettingsForm({
           ) : (
             <span />
           )}
-          {selected !== "" && <SubmitButton variant="secondary">{configured ? "Update" : "Save"}</SubmitButton>}
+          {selected !== "" && <GroupedSubmit>{configured ? "Update" : "Save"}</GroupedSubmit>}
         </div>
       </form>
 

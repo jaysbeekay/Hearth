@@ -77,7 +77,7 @@ export function ConfirmForm({
             if (undo.href) router.push(undo.href);
             else router.refresh();
           } catch {
-            showToast("Couldn't restore it — find it in Settings → Recently deleted.", "error");
+            showToast("Couldn't restore it — find it in Settings → Household → Recently deleted.", "error");
           }
         },
       },

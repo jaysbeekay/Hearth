@@ -57,6 +57,24 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   pages instead of showing a dash, and a Contract's or Warranty's header
   badge is hidden while the status banner below says the same thing. The
   iOS and Android shell is unchanged.
+- **Settings is two tabs: My account and Household (#363).** My account
+  holds only your own things: profile, reminders by email, preferences,
+  passkeys and two-factor, password, calendar feed and downloaded documents.
+  Household lists everything shared: Members, Modules, Reminders & channels,
+  AI & privacy, Document ingestion, Integrations, Backups, Security log and
+  Recently deleted, each with a one-line status, plus the household
+  timezone. Members see the whole list with the admin-only sections greyed
+  out, and can open Recently deleted. The long "System settings" page is
+  split into those sections; Reminders & channels opens with Reminder
+  delivery health, and webhooks now sit under Integrations with barcode and
+  flight lookups. `/settings/app` and `/settings/webhooks` redirect, and
+  every other Settings URL is unchanged. Reminder and backup schedules are
+  picked as "Daily at 08:00" or "Weekly on Monday at 03:30", with an
+  "Advanced (cron)" choice for anything else; the cron string is checked
+  before it's saved, and the old "restart the server" note is gone since the
+  scheduler re-reads it every minute. Each page has one sticky "Save changes"
+  that saves every section you edited, instead of a Save button per form.
+  The iOS and Android shell is unchanged.
 - **Reminder presets and a one-line Reminder card (#360).** Contract,
   Warranty, Vehicle and Tenancy forms pick Reminder thresholds from presets
   ("Default · 30/14/7/1", "1 week before", "1 day before", "Custom…")

@@ -12,7 +12,7 @@ import {
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 import { FormMessage } from "@/components/FormMessage";
-import { buttonClass } from "@/lib/ui";
+import { GroupedSubmit } from "@/components/SaveChangesGroup";
 
 export function PreferencesForm({
   dateFormat,
@@ -38,7 +38,7 @@ export function PreferencesForm({
     // #403 — the settings container caps at max-w-4xl, so a 4-column row is too
     // narrow for the longest date-format label ("DD/MM/YYYY (e.g. 10 Jul 2026)")
     // at every width; 2 columns keep every select wide enough to show it whole.
-    <form action={formAction} className="grid gap-4 sm:grid-cols-2">
+    <form action={formAction} data-save-group className="grid gap-4 sm:grid-cols-2">
       <div className="space-y-1">
         <label htmlFor="dateFormat" className="text-sm font-medium">
           Date format
@@ -99,9 +99,9 @@ export function PreferencesForm({
       </div>
       <div className="sm:col-span-2 space-y-2">
         <FormMessage attempt={state} error={state?.error} success={state?.success} />
-        <button type="submit" className={buttonClass("secondary")}>
-          Save preferences
-        </button>
+        <div className="empty:hidden">
+          <GroupedSubmit>Save preferences</GroupedSubmit>
+        </div>
       </div>
     </form>
   );

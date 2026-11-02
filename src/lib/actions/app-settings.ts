@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import cron from "node-cron";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import {
@@ -42,7 +43,9 @@ export async function saveSmtpSettings(
     return { error: error instanceof Error ? error.message : "Failed to save email settings." };
   }
 
-  revalidatePath("/settings/app");
+  // #363 — these settings show on more than one Settings page (the
+  // Household tab summarises them), so refresh the whole section.
+  revalidatePath("/settings", "layout");
   return { success: "Email settings saved." };
 }
 
@@ -62,7 +65,9 @@ export async function saveNtfySettings(
     return { error: error instanceof Error ? error.message : "Failed to save push notification settings." };
   }
 
-  revalidatePath("/settings/app");
+  // #363 — these settings show on more than one Settings page (the
+  // Household tab summarises them), so refresh the whole section.
+  revalidatePath("/settings", "layout");
   return { success: "Push notification settings saved." };
 }
 
@@ -91,7 +96,9 @@ export async function saveEmailIngestSettings(
     };
   }
 
-  revalidatePath("/settings/app");
+  // #363 — these settings show on more than one Settings page (the
+  // Household tab summarises them), so refresh the whole section.
+  revalidatePath("/settings", "layout");
   return { success: "Email ingestion settings saved." };
 }
 
@@ -108,7 +115,9 @@ export async function saveOllamaSettings(
     return { error: error instanceof Error ? error.message : "Failed to save Ollama settings." };
   }
 
-  revalidatePath("/settings/app");
+  // #363 — these settings show on more than one Settings page (the
+  // Household tab summarises them), so refresh the whole section.
+  revalidatePath("/settings", "layout");
   return { success: "Ollama settings saved." };
 }
 
@@ -130,7 +139,9 @@ export async function saveBarcodeSettings(
     return { error: error instanceof Error ? error.message : "Failed to save barcode lookup settings." };
   }
 
-  revalidatePath("/settings/app");
+  // #363 — these settings show on more than one Settings page (the
+  // Household tab summarises them), so refresh the whole section.
+  revalidatePath("/settings", "layout");
   return { success: "Barcode lookup settings saved." };
 }
 
@@ -176,28 +187,71 @@ export async function saveBackupDestination(
     return { error: error instanceof Error ? error.message : "Failed to save backup settings." };
   }
 
-  revalidatePath("/settings/app");
+  // #363 — these settings show on more than one Settings page (the
+  // Household tab summarises them), so refresh the whole section.
+  revalidatePath("/settings", "layout");
   revalidatePath("/settings/backups");
   return { success: "Backup destination saved." };
 }
 
-export async function saveScheduleSettings(
+// #363 — the Settings pickers write these cron strings; Advanced lets an
+// admin type one, so check it before storing. The scheduler re-reads them
+// every minute, so a change applies without a restart.
+function invalidCron(value: FormDataEntryValue | null): string | null {
+  if (typeof value !== "string" || value.trim() === "") return "Choose a schedule.";
+  return cron.validate(value.trim()) ? null : `"${value.trim()}" isn't a valid cron expression.`;
+}
+
+export async function saveReminderSchedule(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
   await requireAdmin();
 
-  try {
-    await setAppSetting("reminder.cron", formData.get("reminderCron") as string);
-    await setAppSetting("backup.cron", formData.get("backupCron") as string);
-    await setAppSetting("backup.retentionCount", formData.get("retentionCount") as string);
-    await setAppSetting("reminder.defaultDays", formData.get("reminderDefaultDays") as string);
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : "Failed to save schedule settings." };
+  const reminderCron = formData.get("reminderCron");
+  const cronError = invalidCron(reminderCron);
+  if (cronError) return { error: cronError };
+  const defaultDays = String(formData.get("reminderDefaultDays") ?? "").trim();
+  if (defaultDays !== "" && !/^\d+(\s*,\s*\d+)*$/.test(defaultDays)) {
+    return { error: "Default reminder thresholds must be whole numbers of days, comma-separated." };
   }
 
-  revalidatePath("/settings/app");
-  return { success: "Schedule settings saved. Restart the server for cron changes to take effect." };
+  try {
+    await setAppSetting("reminder.cron", String(reminderCron).trim());
+    await setAppSetting("reminder.defaultDays", defaultDays);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Failed to save the reminder schedule." };
+  }
+
+  revalidatePath("/settings/reminders");
+  revalidatePath("/settings/household");
+  return { success: "Reminder schedule saved." };
+}
+
+export async function saveBackupSchedule(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  await requireAdmin();
+
+  const backupCron = formData.get("backupCron");
+  const cronError = invalidCron(backupCron);
+  if (cronError) return { error: cronError };
+  const retention = Number(formData.get("retentionCount"));
+  if (!Number.isInteger(retention) || retention < 1) {
+    return { error: "Backup retention must be a whole number of at least 1." };
+  }
+
+  try {
+    await setAppSetting("backup.cron", String(backupCron).trim());
+    await setAppSetting("backup.retentionCount", String(retention));
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Failed to save the backup schedule." };
+  }
+
+  revalidatePath("/settings/backups");
+  revalidatePath("/settings/household");
+  return { success: "Backup schedule saved." };
 }
 
 // An empty value clears the setting, so the server's TZ applies again.
@@ -245,7 +299,9 @@ export async function clearAppSetting(key: string): Promise<ActionState> {
     return { error: error instanceof Error ? error.message : "Failed to clear setting." };
   }
 
-  revalidatePath("/settings/app");
+  // #363 — these settings show on more than one Settings page (the
+  // Household tab summarises them), so refresh the whole section.
+  revalidatePath("/settings", "layout");
   return { success: "Setting cleared." };
 }
 
@@ -262,7 +318,9 @@ export async function saveAviationStackSettings(
     return { error: error instanceof Error ? error.message : "Failed to save flight status settings." };
   }
 
-  revalidatePath("/settings/app");
+  // #363 — these settings show on more than one Settings page (the
+  // Household tab summarises them), so refresh the whole section.
+  revalidatePath("/settings", "layout");
   return { success: "Flight status settings saved." };
 }
 

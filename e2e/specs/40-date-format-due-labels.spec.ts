@@ -34,7 +34,7 @@ async function savePreferences(page: Page, dateFormat: string, region: string) {
   await page.goto("/settings");
   await page.locator("#dateFormat").selectOption(dateFormat);
   await page.locator("#region").selectOption(region);
-  await page.locator('form:has(#region) button[type="submit"]').click();
+  await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page.locator("#main").getByText("Preferences saved.")).toBeVisible();
 }
 
