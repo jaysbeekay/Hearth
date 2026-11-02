@@ -321,6 +321,7 @@ services:
       NTFY_TOKEN: ${NTFY_TOKEN:-}
       CRON_SECRET: ${CRON_SECRET:-}
       MCP_TOKEN: ${MCP_TOKEN:-}
+      MCP_TOKENS: ${MCP_TOKENS:-}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-}
       BARCODE_LOOKUP_ENABLED: ${BARCODE_LOOKUP_ENABLED:-}
@@ -468,17 +469,26 @@ a tool-calling model like Hermes — can answer questions about your household
 data in natural language ("what's renewing this month?", "how much am I
 spending on insurance?", "what's my net worth?").
 
-It's disabled by default. Set `MCP_TOKEN` in `.env` (any random string, e.g.
-from `openssl rand -base64 32`) to enable it — requests must send it as
+It's disabled by default. Set `MCP_TOKEN` in `.env` (any long random string,
+e.g. from `openssl rand -base64 32`) to enable it — requests must send it as
 `Authorization: Bearer <token>`. Leaving it unset makes the endpoint 404,
 same as `CRON_SECRET`/`/api/cron`.
 
+To give each client its own token, set `MCP_TOKENS` instead of (or as well
+as) `MCP_TOKEN`: a comma-separated list of `label:token` pairs, e.g.
+`MCP_TOKENS="claude-code:<token>,ollama:<token>"`. Labels are letters,
+digits, `-` and `_`. Removing one entry revokes that client without touching
+the others; restart the container after any change. The server log records
+one line per tool call naming the label (`[mcp] claude-code called
+whats_due from <address>`), without the call's arguments.
+
 The server is read-only — no tool ever modifies data or returns account
 credentials or uploaded document file contents (only document metadata:
-filename, type, size). Contracts and products are always exposed; the rest
-mirror whichever optional modules (Travel, Vehicles, Home, Inventory, Wealth)
-this household has enabled, same as the in-app AI Assistant — disable a
-module and its tool disappears on the next connection.
+filename, type, size), and every tool carries the MCP `readOnlyHint`
+annotation. Contracts and products are always exposed; the rest mirror
+whichever optional modules (Travel, Vehicles, Home, Inventory, Wealth) this
+household has enabled, same as the in-app AI Assistant — disable a module and
+its tool disappears on the next connection.
 
 | Tool | Purpose |
 | --- | --- |
@@ -495,23 +505,40 @@ module and its tool disappears on the next connection.
 | `list_inventory_items` *(Inventory)* | List catalogued household items, optionally filtered by search text. |
 | `net_worth` *(Wealth)* | Household net worth: share/crypto, property, and inventory value, with per-holding gain/loss. |
 
-Point your MCP client at `http://<host>:3000/api/mcp` with the bearer token.
-For a tool that speaks MCP-over-HTTP directly, a config block looks like:
+### Security notes
 
-```json
-{
-  "mcpServers": {
-    "hearth": {
-      "url": "http://<host>:3000/api/mcp",
-      "headers": { "Authorization": "Bearer <your MCP_TOKEN>" }
-    }
-  }
-}
+- **A token reads everything the tools expose** — contract numbers, contact
+  details, notes, tenant names and rent, net worth — for whoever holds it,
+  independent of user roles. Treat it like a household password.
+- **Use HTTPS off your LAN.** Over plain `http://` the token and every answer
+  travel in cleartext. Reach the endpoint through the HTTPS compose file or
+  your reverse proxy, or keep it on the LAN/VPN (e.g. Tailscale).
+- **Wrong tokens are throttled** per client address (10 per 15 minutes), and
+  each one is recorded in Settings → Security as "MCP request with a wrong
+  token". Each valid token is capped at 300 requests per 5 minutes. Counters
+  are in memory and reset on restart.
+- **Notes are passed to the agent as-is.** The server tells clients to treat
+  free-text fields as data, not instructions, but if the same agent also has
+  write-capable tools from other servers, keep its confirmations on.
+
+### Connecting a client
+
+The endpoint is a stateless streamable-HTTP MCP server at
+`https://<your-host>/api/mcp` (or `http://<host>:3000/api/mcp` on the LAN).
+
+**Claude Code:**
+
+```bash
+claude mcp add --transport http hearth https://hearth.example.com/api/mcp \
+  --header "Authorization: Bearer <your token>"
 ```
 
-If your agent only speaks stdio-based MCP servers (common for local
-Ollama tool-calling setups), bridge it with
-[`mcp-remote`](https://github.com/geelen/mcp-remote) instead:
+Run `/mcp` inside Claude Code to check the tools are listed.
+
+**Claude Desktop**, or any agent that only speaks stdio MCP servers (common
+for local Ollama tool-calling setups): bridge it with
+[`mcp-remote`](https://github.com/geelen/mcp-remote) in
+`claude_desktop_config.json` (or your agent's equivalent), then restart it:
 
 ```json
 {
@@ -519,19 +546,44 @@ Ollama tool-calling setups), bridge it with
     "hearth": {
       "command": "npx",
       "args": [
+        "-y",
         "mcp-remote",
-        "http://<host>:3000/api/mcp",
+        "https://hearth.example.com/api/mcp",
         "--header",
-        "Authorization: Bearer <your MCP_TOKEN>"
-      ]
+        "Authorization:${HEARTH_AUTH}"
+      ],
+      "env": { "HEARTH_AUTH": "Bearer <your token>" }
     }
   }
 }
 ```
 
-Adjust the exact syntax for whatever client/agent you're running — the
-endpoint itself is a standard streamable-HTTP MCP server, so anything that
-speaks MCP over HTTP (or can be bridged to it) will work.
+Keeping the header value in `env` avoids argument-quoting problems with the
+space in it. `mcp-remote` refuses plain `http://` to anything but localhost
+unless you add `--allow-http`.
+
+**Other HTTP clients** use a config block like:
+
+```json
+{
+  "mcpServers": {
+    "hearth": {
+      "url": "https://hearth.example.com/api/mcp",
+      "headers": { "Authorization": "Bearer <your token>" }
+    }
+  }
+}
+```
+
+To test by hand, send JSON-RPC with both `Accept` types the transport
+requires:
+
+```bash
+curl -s -X POST https://hearth.example.com/api/mcp \
+  -H "Authorization: Bearer $MCP_TOKEN" -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
 
 ## Auto-filling fields from a document
 
@@ -780,6 +832,7 @@ for the full list with defaults. Notable ones:
 | `CRON_SECRET` | Optional. If set, enables `POST /api/cron` (with header `x-cron-secret`) so an external scheduler can trigger the check instead of/alongside the built-in one. |
 | `AUTH_TRUST_HOST` | Set to `true` when running behind a reverse proxy (e.g. nginx) — see "Locking down access with nginx + mTLS" above. |
 | `MCP_TOKEN` | Optional. If set, enables `GET/POST /api/mcp`, a read-only MCP server for querying contracts from an LLM agent — see "Querying contracts from an LLM (MCP)" above. |
+| `MCP_TOKENS` | Optional. Comma-separated `label:token` pairs, one per MCP client, so each can be revoked on its own and is named in the access log. Enables the endpoint like `MCP_TOKEN`; both can be set. |
 | `OLLAMA_BASE_URL` / `OLLAMA_MODEL` | Optional. Set both to enable the local-LLM fallback for document auto-fill when heuristics can't confidently parse a scan — see "Auto-filling fields from a document" above. |
 | `AI_EGRESS_PROXY_URL` | Optional. Routes outbound AI provider calls (document extraction and the chat assistant) through a local agent-firewall proxy such as Pipelock, instead of calling the provider directly — see "Routing AI traffic through an agent firewall" above. |
 | `BARCODE_LOOKUP_ENABLED` | Optional. Set to `true` to look up a scanned product barcode online and auto-fill its name/manufacturer — see "Barcode scanning for products" above. |

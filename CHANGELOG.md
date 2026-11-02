@@ -7,6 +7,21 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+### Security
+
+- **MCP server hardening.** `/api/mcp` now compares bearer tokens in
+  constant time, throttles wrong tokens per client address (10 per 15
+  minutes, recorded in Settings → Security as "MCP request with a wrong
+  token" and "MCP requests throttled"), and caps each valid token at 300
+  requests per 5 minutes. A new optional `MCP_TOKENS` variable takes
+  `label:token` pairs so each client gets its own revocable token, and the
+  server log names the label on every tool call. Every tool now carries the
+  MCP `readOnlyHint` annotation, the server's instructions tell agents to
+  treat free-text fields as data rather than instructions, and a unit test
+  pins the exact read-only tool list. The README's MCP section now covers
+  HTTPS, Claude Code and Claude Desktop setup, and the `Accept` header for
+  hand-rolled clients. Server-only; the iOS and Android shell is unchanged.
+
 ### Changed
 
 - **One set of shared UI rules (#411).** The app now draws from one type

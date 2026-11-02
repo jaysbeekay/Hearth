@@ -1,23 +1,80 @@
 import { NextRequest, NextResponse } from "next/server";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { createMcpServer } from "@/lib/mcp/server";
-import { checkMcpAuth } from "@/lib/mcp/auth";
+import { checkMcpAuth, parseMcpTokens } from "@/lib/mcp/auth";
+import {
+  checkRateLimit,
+  clientAddress,
+  consumeRateLimit,
+  recordFailedAttempt,
+  type RateLimitResult,
+} from "@/lib/rateLimit";
+import { logSecurityEvent } from "@/lib/securityEventLog";
 
-// Read-only MCP server for hooking up a local LLM agent (e.g. Ollama running
-// a tool-calling model) to query contracts. Stateless: each request gets its
-// own McpServer/transport pair (the SDK refuses to reuse a stateless
-// transport across requests), and each call is authorized independently
-// rather than via an MCP session, so there's no "initialize" handshake to
-// carry between requests.
-function checkAuth(request: NextRequest): NextResponse | null {
-  const result = checkMcpAuth(process.env.MCP_TOKEN, request.headers.get("authorization"));
-  if (result.ok) return null;
-  return NextResponse.json({ error: result.error }, { status: result.status });
+// Read-only MCP server for hooking up an LLM agent (Claude Code/Desktop, or a
+// local Ollama tool-calling model) to query household data. Stateless: each
+// request gets its own McpServer/transport pair (the SDK refuses to reuse a
+// stateless transport across requests), and each call is authorized
+// independently rather than via an MCP session, so there's no "initialize"
+// handshake to carry between requests.
+//
+// /api/mcp skips the session login (PUBLIC_PATHS), so the bearer token is the
+// only gate. Failed tokens are throttled per client address and recorded in
+// Settings → Security; authorized clients get a per-token request ceiling so
+// a runaway agent can't hammer the database or the price feeds.
+
+function tooMany(result: RateLimitResult) {
+  return NextResponse.json(
+    { error: "Too many requests. Try again shortly." },
+    { status: 429, headers: { "Retry-After": String(result.retryAfterSeconds) } },
+  );
+}
+
+// One line per tool call in the server log, naming the token's label — the
+// access log for "which client asked what". Arguments are left out: they can
+// carry search terms about the household's records.
+async function logToolCalls(request: NextRequest, label: string, address: string) {
+  let body: unknown;
+  try {
+    body = await request.clone().json();
+  } catch {
+    return;
+  }
+  for (const message of Array.isArray(body) ? body : [body]) {
+    if (message && typeof message === "object" && (message as { method?: unknown }).method === "tools/call") {
+      const name = (message as { params?: { name?: unknown } }).params?.name;
+      console.info(`[mcp] ${label} called ${typeof name === "string" ? name : "?"} from ${address}`);
+    }
+  }
 }
 
 async function handle(request: NextRequest) {
-  const unauthorized = checkAuth(request);
-  if (unauthorized) return unauthorized;
+  const tokens = parseMcpTokens({ MCP_TOKEN: process.env.MCP_TOKEN, MCP_TOKENS: process.env.MCP_TOKENS });
+  const address = clientAddress(request.headers);
+
+  if (tokens.length > 0) {
+    const throttle = checkRateLimit("mcpAuth", address);
+    if (!throttle.allowed) return tooMany(throttle);
+  }
+
+  const result = checkMcpAuth(tokens, request.headers.get("authorization"));
+  if (!result.ok) {
+    if (result.status === 401) {
+      recordFailedAttempt("mcpAuth", address);
+      await logSecurityEvent({ type: "MCP_AUTH_FAILED", address, detail: address });
+      // Record the lockout once, when this failure crosses the limit, rather
+      // than once per throttled request — bounded however hard it's hammered.
+      if (!checkRateLimit("mcpAuth", address).allowed) {
+        await logSecurityEvent({ type: "MCP_THROTTLED", address, detail: address });
+      }
+    }
+    return NextResponse.json({ error: result.error }, { status: result.status });
+  }
+
+  const usage = consumeRateLimit("mcpRequests", result.label);
+  if (!usage.allowed) return tooMany(usage);
+
+  await logToolCalls(request, result.label, address);
 
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
