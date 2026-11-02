@@ -215,12 +215,22 @@ describe("Due rows follow the Due policy (#384)", () => {
   });
 
   it("a Tenancy whose linked Contract Covers its lease end has one Due row: the Contract's (#457)", () => {
-    const end = inDays(10);
-    const contract = { status: "ACTIVE", renewalType: "MANUAL_RENEWAL", extractionPending: false, endDate: end, deletedAt: null };
-    const lease = { propertyId: "p", propertyLabel: "Flat", agreementId: "a", tenantName: null, leaseEnd: end, contract };
-    expect(buildTenancyAttentionItems([lease], ctx)).toEqual([]);
-    // A Contract ending on another day doesn't Cover it: two obligations, two rows.
-    expect(buildTenancyAttentionItems([{ ...lease, contract: { ...contract, endDate: inDays(40) } }], ctx)).toHaveLength(1);
+    const rows = (contractEndInDays: number) => {
+      const linked = contract("lease", contractEndInDays);
+      const lease = {
+        propertyId: "p",
+        propertyLabel: "Flat",
+        agreementId: "a",
+        tenantName: null,
+        leaseEnd: inDays(10),
+        contract: { ...linked, extractionPending: false, deletedAt: null },
+      };
+      return [...buildContractAttentionItems([linked], ctx), ...buildTenancyAttentionItems([lease], ctx)].map((i) => i.id);
+    };
+    // Ending on the lease end, the Contract Covers it: one row, the Contract's.
+    expect(rows(10)).toEqual(["lease"]);
+    // Ending on another day inside the window, it doesn't: two obligations, two rows.
+    expect(rows(20)).toEqual(["lease", "lease-a"]);
   });
 });
 

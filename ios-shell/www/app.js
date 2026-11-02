@@ -1282,11 +1282,12 @@ function dueReminderEntries(record, ctx) {
 
 // ─── Local rows as Due records ────────────────────────────────────────────────
 
-// A local row's date for the policy: as stored, or its leading YYYY-MM-DD
-// when it was saved in some other shape (older rows, imports).
+// A local row's date for the policy, under the web's input contract: the
+// shell stores YYYY-MM-DD (forms and imports normalise to it), and anything
+// the web would read as no date is no date here too.
 function rowDueDate(value) {
   if (value == null || value === "") return null;
-  return dueDay(String(value)) ?? dueDay(String(value).slice(0, 10));
+  return dueDay(String(value));
 }
 
 function contractDueRecord(row) {
