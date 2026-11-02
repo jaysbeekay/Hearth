@@ -56,7 +56,7 @@ test.describe.serial("Archive a Vehicle", () => {
     await expect(page.getByText("Archived.", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Undo" })).toBeVisible();
     // No Due banner and no Reminder card for an Archived Vehicle.
-    await expect(page.getByText("Registration reminder")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Reminder health" })).toHaveCount(0);
 
     await page.goto("/dashboard");
     await expect(page.locator("main")).not.toContainText(label);

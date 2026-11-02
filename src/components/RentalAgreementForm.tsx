@@ -6,6 +6,7 @@ import type { RentalAgreementModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormActions } from "@/components/FormActions";
+import { ReminderThresholdsField } from "@/components/ReminderThresholdsField";
 import { FormMessage } from "@/components/FormMessage";
 import { Field } from "@/components/FormField";
 import { inputClass, textareaClass } from "@/components/SelectWrapper";
@@ -40,7 +41,7 @@ export function RentalAgreementForm({
   propertyId?: string;
   defaultCurrency?: string;
   /** The household default Reminder thresholds, which a blank field uses (#388). */
-  defaultReminderDays?: string;
+  defaultReminderDays: string;
 }) {
   const offlineAwareAction = makeOfflineAwareAction(
     action,
@@ -205,21 +206,13 @@ export function RentalAgreementForm({
           />
         </Field>
 
-        <Field
-          label="Reminder thresholds (days before)"
-          htmlFor="reminderDaysBefore"
-          hint={`Days before the lease end, comma-separated. Leave blank to use the household default${
-            defaultReminderDays ? ` (${defaultReminderDays})` : ""
-          }.`}
-        >
-          <input
-            id="reminderDaysBefore"
-            name="reminderDaysBefore"
+        <div className="md:col-span-2">
+          <ReminderThresholdsField
             defaultValue={state?.values?.reminderDaysBefore ?? agreement?.reminderDaysBefore ?? ""}
-            placeholder={defaultReminderDays || "30,14,7,1"}
-            className={inputClass}
+            householdDefault={defaultReminderDays}
+            before="the lease ends"
           />
-        </Field>
+        </div>
       </div>
 
       <Field label="Notes" htmlFor="notes">

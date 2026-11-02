@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { getReminderConfig } from "@/lib/appSettings";
 import { updateContract } from "@/lib/actions/contracts";
 import { ContractForm } from "@/components/ContractForm";
 import { isModuleEnabled } from "@/lib/modules/enablement";
@@ -17,10 +18,11 @@ export default async function EditContractPage({
 }) {
   const { id } = await params;
   redirectIfReadOnly(await auth(), `/contracts/${id}`);
-  const [contract, homeEnabled, vehiclesEnabled] = await Promise.all([
+  const [contract, homeEnabled, vehiclesEnabled, { defaultDays }] = await Promise.all([
     prisma.contract.findUnique({ where: { id } }),
     isModuleEnabled("HOME"),
     isModuleEnabled("VEHICLES"),
+    getReminderConfig(),
   ]);
   if (!contract || contract.deletedAt) notFound();
 
@@ -40,6 +42,7 @@ export default async function EditContractPage({
       </div>
       <Card>
         <ContractForm cancelHref={`/contracts/${contract.id}`}
+          defaultReminderDays={defaultDays}
           action={boundAction}
           contract={contract}
           properties={properties}

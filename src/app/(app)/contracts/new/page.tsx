@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createContract } from "@/lib/actions/contracts";
 import { ContractForm } from "@/components/ContractForm";
 import { getUserPreferences } from "@/lib/userPreferences";
+import { getReminderConfig } from "@/lib/appSettings";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import { prisma } from "@/lib/prisma";
 import { BackLink } from "@/components/BackLink";
@@ -17,11 +18,12 @@ export default async function NewContractPage({
   searchParams: Promise<{ propertyId?: string; vehicleId?: string }>;
 }) {
   redirectIfReadOnly(await auth(), "/contracts");
-  const [{ preferredCurrency }, homeEnabled, vehiclesEnabled, { propertyId, vehicleId }] = await Promise.all([
+  const [{ preferredCurrency }, homeEnabled, vehiclesEnabled, { propertyId, vehicleId }, { defaultDays }] = await Promise.all([
     getUserPreferences(),
     isModuleEnabled("HOME"),
     isModuleEnabled("VEHICLES"),
     searchParams,
+    getReminderConfig(),
   ]);
   const properties = homeEnabled
     ? await prisma.property.findMany({
@@ -57,6 +59,7 @@ export default async function NewContractPage({
       </div>
       <Card>
         <ContractForm cancelHref="/contracts"
+          defaultReminderDays={defaultDays}
           action={createContract}
           defaultCurrency={preferredCurrency}
           properties={properties}

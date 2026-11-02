@@ -8,6 +8,7 @@ import type { ProductModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/products";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormActions } from "@/components/FormActions";
+import { ReminderThresholdsField } from "@/components/ReminderThresholdsField";
 import { FormMessage } from "@/components/FormMessage";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { CurrencySelect } from "@/components/CurrencySelect";
@@ -39,6 +40,7 @@ type ExtractedFields = Partial<
 export function ProductForm({
   action,
   cancelHref,
+  defaultReminderDays,
   product,
   defaultCurrency,
   properties = [],
@@ -48,6 +50,8 @@ export function ProductForm({
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
   /** Where Cancel goes: the same place as the page's BackLink. */
   cancelHref: string;
+  /** #360 — the household's default Reminder thresholds, for the presets. */
+  defaultReminderDays: string;
   product?: ProductModel;
   defaultCurrency?: string;
   properties?: { id: string; label: string }[];
@@ -406,18 +410,11 @@ export function ProductForm({
         />
       </Field>
 
-      <Field
-        label="Reminder thresholds (days before, comma-separated)"
-        htmlFor="reminderDaysBefore"
-      >
-        <input
-          id="reminderDaysBefore"
-          name="reminderDaysBefore"
-          defaultValue={effectiveValues?.reminderDaysBefore ?? product?.reminderDaysBefore ?? ""}
-          placeholder="30,14,7,1"
-          className={inputClass}
-        />
-      </Field>
+      <ReminderThresholdsField
+        defaultValue={effectiveValues?.reminderDaysBefore ?? product?.reminderDaysBefore ?? ""}
+        householdDefault={defaultReminderDays}
+        before="the warranty ends"
+      />
 
       {extractionUsed && (
         <div className={bannerClass("neutral", "flex items-start gap-2")}>

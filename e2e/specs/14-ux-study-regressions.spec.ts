@@ -26,6 +26,11 @@ test("reminder health card reports no delivery channel configured, and the test 
   ]);
 
   await expect(page.getByRole("heading", { name: "Reminder health", exact: true })).toBeVisible();
+  // #360 — one line; the full read-out opens on click.
+  await expect(page.getByText(/^Next reminder .* · thresholds 30\/14\/7\/1$/)).toBeVisible();
+  // With no channel set up, the card says so once, on its own line.
+  await expect(page.getByText("Reminders can't be delivered yet — an admin needs to set up email or push.")).toBeVisible();
+  await page.getByText("Details", { exact: true }).click();
   await expect(page.getByText("Enabled").locator("..").getByText("Yes")).toBeVisible();
   await expect(page.getByText("None configured")).toBeVisible();
 
