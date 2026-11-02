@@ -20,8 +20,6 @@ import {
   getBackupDestinationChoice,
   getBackupScheduleConfig,
   getReminderConfig,
-  isSmtpConfigured,
-  isNtfyConfigured,
   isEmailIngestionConfigured,
   getAppSetting,
   getHouseholdTimeZone,
@@ -32,6 +30,7 @@ import { HouseholdTimeZoneForm } from "@/components/AppSettingsForms";
 import { householdTimeZoneChoices } from "@/lib/timezones";
 import { BACKUP_DESTINATION_LABELS } from "@/lib/backupDestination";
 import { AI_PROVIDER_LABELS } from "@/lib/ai/types";
+import { activeChannels } from "@/lib/notifications/channels";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { describeSchedule } from "@/lib/cronSchedule";
@@ -74,8 +73,7 @@ export default async function HouseholdSettingsPage() {
     reminder,
     webhookCount,
     enabledModules,
-    smtpConfigured,
-    ntfyConfigured,
+    active,
     ingestConfigured,
     aiProvider,
     savedTimeZone,
@@ -88,17 +86,16 @@ export default async function HouseholdSettingsPage() {
     getReminderConfig(),
     prisma.webhookEndpoint.count(),
     getEnabledModuleKeys(),
-    isSmtpConfigured(),
-    isNtfyConfigured(),
+    activeChannels(),
     isEmailIngestionConfigured(),
     getAppSetting("ai.provider"),
     getAppSetting("household.timezone"),
     getHouseholdTimeZone(),
   ]);
 
-  const channels = [smtpConfigured && "Email", ntfyConfigured && "ntfy", webhookCount > 0 && "Webhook"].filter(
-    Boolean,
-  );
+  // What the scheduler will actually send on, as the Reminders health card
+  // reports it: a disabled webhook or SMTP nobody gets reminders from is left out.
+  const channels = [active.email && "Email", active.ntfy && "ntfy", active.webhook && "Webhook"].filter(Boolean);
   // Looked up through a Map rather than by a variable object key.
   const aiLabel = new Map<string, string>(Object.entries(AI_PROVIDER_LABELS)).get(aiProvider);
 
@@ -127,7 +124,7 @@ export default async function HouseholdSettingsPage() {
     {
       route: SETTINGS_ROUTES.ai,
       icon: Sparkles,
-      summary: aiLabel ? `Cloud AI: ${aiLabel}` : "Local extraction only",
+      summary: aiLabel ? `AI: ${aiLabel}` : "Local extraction only",
       adminOnly: true,
     },
     {

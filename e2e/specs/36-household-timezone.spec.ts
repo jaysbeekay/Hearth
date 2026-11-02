@@ -6,6 +6,8 @@ import { ADMIN_AUTH_FILE, MEMBER_AUTH_FILE } from "../env";
 
 async function saveHouseholdTimeZone(page: Page, value: string) {
   await page.goto("/settings/household");
+  // Already set: nothing to save, so Save changes stays disabled.
+  if ((await page.locator("#householdTimeZone").inputValue()) === value) return;
   await page.locator("#householdTimeZone").selectOption(value);
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page.locator("body")).toContainText("Household timezone saved.");

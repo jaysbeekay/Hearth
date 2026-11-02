@@ -45,13 +45,21 @@ export function SchedulePicker({
   function changeKind(next: ScheduleKind) {
     // Switching to Advanced starts from what the simple choice stood for.
     if (next === "advanced" && kind !== "advanced") setCron(value);
+    // And back again keeps what the cron said, when it's a simple schedule.
+    if (next !== "advanced" && kind === "advanced") {
+      const parsed = parseSchedule(cron.trim());
+      if (parsed.kind !== "advanced") {
+        setTime(formatScheduleTime(parsed.hour, parsed.minute));
+        if (parsed.kind === "weekly") setDay(parsed.day);
+      }
+    }
     setKind(next);
   }
 
   return (
     <fieldset className="space-y-2">
       <legend className="text-sm font-medium">{label}</legend>
-      <input type="hidden" name={name} value={value} />
+      <input type="hidden" name={name} value={value} data-default-value={defaultCron} />
       <div className="grid gap-4 sm:grid-cols-3">
         <Field label="Repeats" htmlFor={`${id}Kind`}>
           <SelectWrapper>

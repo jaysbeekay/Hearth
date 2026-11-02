@@ -105,7 +105,7 @@ export function ConfirmForm({
         <p id="confirm-dialog-text" className="text-sm text-foreground">
           {confirmText}
         </p>
-        {destructive && !/household/i.test(confirmText) && (
+        {destructive && !mentionsHousehold(confirmText) && (
           <p className="mt-2 text-xs text-muted">
             This affects shared household data for everyone with access.
           </p>
@@ -186,4 +186,10 @@ export function ConfirmForm({
       </Dialog>
     </>
   );
+}
+
+// A confirmation that already explains the household-wide effect doesn't need
+// the generic note; a "Settings → Household → …" path doesn't count as one.
+function mentionsHousehold(text: string): boolean {
+  return /household/i.test(text.replaceAll("Settings → Household", ""));
 }

@@ -72,8 +72,11 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   picked as "Daily at 08:00" or "Weekly on Monday at 03:30", with an
   "Advanced (cron)" choice for anything else; the cron string is checked
   before it's saved, and the old "restart the server" note is gone since the
-  scheduler re-reads it every minute. Each page has one sticky "Save changes"
-  that saves every section you edited, instead of a Save button per form.
+  scheduler re-reads it every minute. Settings pages have one sticky "Save
+  changes" bar that saves each section you edited, instead of a Save button
+  per form; a section only counts as saved once its save succeeds. One-off
+  actions (change password, add a webhook, test connection) keep their own
+  buttons.
   The iOS and Android shell is unchanged.
 - **Reminder presets and a one-line Reminder card (#360).** Contract,
   Warranty, Vehicle and Tenancy forms pick Reminder thresholds from presets

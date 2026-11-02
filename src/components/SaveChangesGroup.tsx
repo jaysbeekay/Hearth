@@ -9,14 +9,15 @@ import { buttonClass, cardClass } from "@/lib/ui";
 // every form. Each settings form keeps its own server action and messages;
 // it marks itself with `data-save-group` and renders <GroupedSubmit> where
 // its own button used to be. Inside a SaveChangesGroup that button goes
-// away, the group notices which marked forms were edited, and its sticky
-// bar submits each of them. Forms that are actions rather than settings
-// (change password, add a webhook) aren't marked and keep their buttons.
+// away, the group notices which marked forms differ from what was last
+// saved, and its sticky bar submits each of them. Forms that are actions
+// rather than settings (change password, add a webhook) aren't marked and
+// keep their buttons.
 //
-// A section only counts as saved once its own action comes back without an
-// error, and only for the values it sent: an edit made while the save was
-// in flight keeps the section unsaved, and a rejected or failed save leaves
-// it unsaved so "Save changes" can retry it.
+// A section counts as unsaved while its values differ from the last values
+// that saved successfully, so undoing an edit clears it, a rejected or
+// failed save leaves it unsaved for "Save changes" to retry, and an edit
+// made while a save was in flight stays unsaved.
 
 type ActionResult = { error?: string } | null | undefined;
 
@@ -28,7 +29,7 @@ const SaveGroup = createContext<SaveGroupApi | null>(null);
 
 /**
  * The form's own Save button, except inside a SaveChangesGroup, where it
- * renders nothing visible and tells the group how the form's save went.
+ * renders no visible button and tells the group how the form's save went.
  * `state` is the form's useActionState state.
  */
 export function GroupedSubmit({
@@ -38,63 +39,116 @@ export function GroupedSubmit({
 }: {
   children: React.ReactNode;
   state: ActionResult;
-  /** False hides the standalone button (nothing to save yet). */
+  /** False means the form has nothing to save yet: no button, and the group skips it. */
   show?: boolean;
 }) {
   const group = useContext(SaveGroup);
   const { pending } = useFormStatus();
-  const ref = useRef<HTMLSpanElement>(null);
+  const ref = useRef<HTMLButtonElement>(null);
   const wasPending = useRef(false);
 
   useEffect(() => {
     // The action finished: report it with the state it returned, which
     // arrives in the same render that clears `pending`.
     if (wasPending.current && !pending && group) {
-      const form = ref.current?.closest("form");
+      const form = ref.current?.form;
       if (form) group.settled(form, !state?.error);
     }
     wasPending.current = pending;
   }, [pending, state, group]);
 
-  if (group) return <span ref={ref} hidden />;
+  if (group) {
+    // Kept so Enter in a text field still saves this section on its own;
+    // invisible, since the sticky bar is the page's Save button.
+    return (
+      <button
+        ref={ref}
+        type="submit"
+        tabIndex={-1}
+        aria-hidden="true"
+        disabled={!show}
+        data-save-idle={show ? undefined : ""}
+        className="sr-only"
+      >
+        {children}
+      </button>
+    );
+  }
   if (!show) return null;
   return <SubmitButton variant="secondary">{children}</SubmitButton>;
 }
 
+type Mode = "current" | "default";
+
+/**
+ * The form's values as one comparable string. Empty values are left out, so
+ * a field that appears later (an API key box) only counts once it's filled,
+ * and a password box the form clears after saving doesn't read as an edit.
+ * "default" reads what the server rendered, for edits made before hydration.
+ */
+function snapshot(form: HTMLFormElement, mode: Mode = "current"): string {
+  const pairs: string[] = [];
+  for (const el of form.elements) {
+    if (el instanceof HTMLInputElement) {
+      if (!el.name || el.disabled || el.type === "file" || el.type === "submit" || el.type === "button") continue;
+      if (el.type === "checkbox" || el.type === "radio") {
+        if (mode === "default" ? el.defaultChecked : el.checked) pairs.push(`${el.name}=${el.value}`);
+        continue;
+      }
+      // A hidden input's value is its default too, so a component that
+      // drives one (the schedule picker) says what it started from.
+      const initial = el.type === "hidden" ? (el.dataset.defaultValue ?? el.value) : el.defaultValue;
+      const value = mode === "default" ? initial : el.value;
+      if (value !== "") pairs.push(`${el.name}=${value}`);
+    } else if (el instanceof HTMLTextAreaElement) {
+      if (!el.name || el.disabled) continue;
+      const value = mode === "default" ? el.defaultValue : el.value;
+      if (value !== "") pairs.push(`${el.name}=${value}`);
+    } else if (el instanceof HTMLSelectElement) {
+      if (!el.name || el.disabled) continue;
+      // React may set a select's starting value without marking the option
+      // as `selected` in the markup; then the value at mount is the default.
+      const marked = [...el.options].some((o) => o.defaultSelected);
+      for (const option of el.options) {
+        const selected = mode === "default" && marked ? option.defaultSelected : option.selected;
+        if (selected && option.value !== "") pairs.push(`${el.name}=${option.value}`);
+      }
+    }
+  }
+  return JSON.stringify(pairs);
+}
+
 interface FormEntry {
-  /** Bumped on every edit. */
+  /** The values as of the last successful save (or as the page loaded). */
+  baseline: string;
+  /** The values sent by the save in flight, if any. */
+  inFlight: string | null;
+  /** Bumped on every edit, to tell whether one happened during a save. */
   edits: number;
-  /** `edits` as of the last successful save. */
-  saved: number;
-  /** `edits` as of the save in flight, if any. */
-  inFlight: number | null;
+  editsAtSubmit: number;
   failed: boolean;
 }
+
+type Entries = ReadonlyMap<HTMLFormElement, FormEntry>;
 
 function groupForm(target: EventTarget | null): HTMLFormElement | null {
   if (!(target instanceof Element)) return null;
   return target.closest<HTMLFormElement>("form[data-save-group]");
 }
 
-function formIsEdited(form: HTMLFormElement): boolean {
-  return [...form.elements].some((el) => {
-    if (el instanceof HTMLInputElement) {
-      if (el.type === "hidden") return false;
-      if (el.type === "checkbox" || el.type === "radio") return el.checked !== el.defaultChecked;
-      return el.value !== el.defaultValue;
-    }
-    if (el instanceof HTMLTextAreaElement) return el.value !== el.defaultValue;
-    if (el instanceof HTMLSelectElement) return [...el.options].some((o) => o.selected !== o.defaultSelected);
-    return false;
-  });
+function newEntry(form: HTMLFormElement): FormEntry {
+  return { baseline: snapshot(form, "default"), inFlight: null, edits: 0, editsAtSubmit: 0, failed: false };
 }
 
-type Entries = ReadonlyMap<HTMLFormElement, FormEntry>;
-
-const NEW_ENTRY: FormEntry = { edits: 0, saved: 0, inFlight: null, failed: false };
-
-function update(entries: Entries, form: HTMLFormElement, change: (entry: FormEntry) => FormEntry | null): Entries {
-  const next = change(entries.get(form) ?? NEW_ENTRY);
+function update(
+  entries: Entries,
+  form: HTMLFormElement,
+  change: (entry: FormEntry) => FormEntry | null,
+  fresh?: FormEntry,
+): Entries {
+  const existing = entries.get(form) ?? fresh;
+  if (!existing) return entries;
+  const next = change(existing);
   if (!next) return entries;
   return new Map(entries).set(form, next);
 }
@@ -102,33 +156,54 @@ function update(entries: Entries, form: HTMLFormElement, change: (entry: FormEnt
 export function SaveChangesGroup({ children }: { children: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const [entries, setEntries] = useState<Entries>(() => new Map());
+  // Bumped when a form's values change without an edit we track (React
+  // resetting a form after its action), so the bar re-reads them.
+  const [, setVersion] = useState(0);
+  const bump = useCallback(() => {
+    setVersion((v) => v + 1);
+  }, []);
 
   const markEdited = useCallback((event: Event) => {
     const form = groupForm(event.target);
     if (!form) return;
-    setEntries((current) => update(current, form, (e) => ({ ...e, edits: e.edits + 1 })));
-  }, []);
+    const fresh = newEntry(form);
+    setEntries((current) =>
+      update(current, form, (e) => ({ ...e, edits: e.edits + 1, failed: false }), fresh),
+    );
+    // This listener runs before React handles the same event, so a value a
+    // component derives from it (the schedule picker's hidden cron) isn't in
+    // the DOM yet; look again once React has committed it.
+    setTimeout(bump, 0);
+  }, [bump]);
 
   const markSubmitting = useCallback((event: Event) => {
     const form = groupForm(event.target);
     if (!form) return;
-    setEntries((current) => update(current, form, (e) => ({ ...e, inFlight: e.edits })));
+    const sent = snapshot(form);
+    const fresh = newEntry(form);
+    setEntries((current) =>
+      update(current, form, (e) => ({ ...e, inFlight: sent, editsAtSubmit: e.edits }), fresh),
+    );
   }, []);
+
+  const markReset = useCallback(() => {
+    setTimeout(bump, 0);
+  }, [bump]);
 
   const api = useMemo<SaveGroupApi>(
     () => ({
       settled: (form, ok) => {
+        // Read now: React has already reset the form to its new defaults.
+        const after = snapshot(form);
         setEntries((current) =>
-          update(current, form, (e) =>
-            e.inFlight === null
-              ? null
-              : {
-                  ...e,
-                  saved: ok ? Math.max(e.saved, e.inFlight) : e.saved,
-                  failed: !ok,
-                  inFlight: null,
-                },
-          ),
+          update(current, form, (e) => {
+            if (e.inFlight === null) return null;
+            if (!ok) return { ...e, inFlight: null, failed: true };
+            // With no edit during the save, what's on screen now is what was
+            // saved (as the server echoed it back); otherwise it's the values sent.
+            const baseline = e.edits === e.editsAtSubmit ? after : e.inFlight;
+            return { ...e, baseline, inFlight: null, failed: false };
+          }),
         );
       },
     }),
@@ -138,28 +213,33 @@ export function SaveChangesGroup({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const root = ref.current;
     if (!root) return;
-    // An edit made before the page hydrated fired no event we heard, so
-    // look for fields that already differ from what the server rendered.
-    const edited = [...root.querySelectorAll<HTMLFormElement>("form[data-save-group]")].filter(formIsEdited);
-    if (edited.length > 0) {
-      setEntries((current) =>
-        edited.reduce((acc, form) => update(acc, form, (e) => ({ ...e, edits: e.edits + 1 })), current),
-      );
-    }
+    // Baselines from what the server rendered, so an edit made before the
+    // page hydrated still counts.
+    // Read now, not inside the state update, which can run after an edit.
+    const initial = [...root.querySelectorAll<HTMLFormElement>("form[data-save-group]")].map(
+      (form) => [form, newEntry(form)] as const,
+    );
+    setEntries((current) => {
+      const next = new Map(current);
+      for (const [form, entry] of initial) if (!next.has(form)) next.set(form, entry);
+      return next;
+    });
     root.addEventListener("input", markEdited);
     root.addEventListener("change", markEdited);
     root.addEventListener("submit", markSubmitting);
+    root.addEventListener("reset", markReset);
     return () => {
       root.removeEventListener("input", markEdited);
       root.removeEventListener("change", markEdited);
       root.removeEventListener("submit", markSubmitting);
+      root.removeEventListener("reset", markReset);
     };
-  }, [markEdited, markSubmitting]);
+  }, [markEdited, markSubmitting, markReset]);
 
-  const live = [...entries].filter(([form]) => form.isConnected);
-  const dirty = live.filter(([, e]) => e.edits > e.saved).map(([form]) => form);
+  const live = [...entries].filter(([form]) => form.isConnected && !form.querySelector("[data-save-idle]"));
+  const dirty = live.filter(([form, e]) => snapshot(form) !== e.baseline).map(([form]) => form);
   const saving = live.some(([, e]) => e.inFlight !== null);
-  const failed = live.some(([, e]) => e.failed && e.edits > e.saved);
+  const failed = live.some(([, e]) => e.failed);
 
   function saveAll() {
     // In page order, so the messages appear top to bottom. A form that

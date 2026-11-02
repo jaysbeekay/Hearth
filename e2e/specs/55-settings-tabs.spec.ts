@@ -86,14 +86,30 @@ test.describe("as an admin", () => {
       await expect(page.locator("#reminderCronKind")).toHaveValue("weekly");
       await expect(page.locator("#reminderCronDay")).toHaveValue("1");
       await expect(page.locator("#reminderCronTime")).toHaveValue("07:30");
+
+      // And back from Advanced keeps a simple cron's day and time.
+      await page.locator("#reminderCronKind").selectOption("advanced");
+      await page.locator("#reminderCron").fill("15 6 * * *");
+      await page.locator("#reminderCronKind").selectOption("daily");
+      await expect(page.locator("#reminderCronTime")).toHaveValue("06:15");
+      await expect(hidden).toHaveValue("15 6 * * *");
+
+      // Six fields (with seconds) are refused: the scheduler checks once a minute.
+      await page.locator("#reminderCronKind").selectOption("advanced");
+      await page.locator("#reminderCron").fill("30 15 6 * * *");
+      await page.getByRole("button", { name: "Save changes" }).click();
+      await expect(form).toContainText("Use five fields");
     } finally {
       await page.goto("/settings/reminders");
-      await page.locator("#reminderCronKind").selectOption("advanced");
-      await page.locator("#reminderCron").fill(original);
-      await page.getByRole("button", { name: "Save changes" }).click();
-      await expect(page.locator("form").filter({ has: page.locator("#reminderCronKind") })).toContainText(
-        "Reminder schedule saved.",
-      );
+      if ((await hidden.inputValue()) !== original) {
+        await expect(async () => {
+          await page.locator("#reminderCronKind").selectOption("advanced");
+          await page.locator("#reminderCron").fill(original);
+          await expect(page.getByRole("button", { name: "Save changes" })).toBeEnabled({ timeout: 1000 });
+        }).toPass({ timeout: 15_000 });
+        await page.getByRole("button", { name: "Save changes" }).click();
+        await expect(form).toContainText("Reminder schedule saved.");
+      }
     }
   });
 
@@ -103,6 +119,7 @@ test.describe("as an admin", () => {
     await expect(save).toHaveCount(1);
     await expect(save).toBeDisabled();
     await expect(page.getByRole("button", { name: /^Save (email|ntfy|reminder)/ })).toHaveCount(0);
+    const originalTopic = await page.locator("#ntfyTopic").inputValue();
 
     // The group starts listening for edits once the page hydrates; retry the
     // edit until it does, as other specs do for client-only listeners.
@@ -111,6 +128,11 @@ test.describe("as an admin", () => {
       await expect(save).toBeEnabled({ timeout: 1000 });
     }).toPass({ timeout: 15_000 });
     await expect(page.getByText("You have unsaved changes.")).toBeVisible();
+
+    // Undoing the edit leaves nothing to save.
+    await page.locator("#ntfyTopic").fill(originalTopic);
+    await expect(save).toBeDisabled();
+    await expect(page.getByText("No unsaved changes.")).toBeVisible();
   });
 
   test("a section whose save is rejected stays unsaved while the others save", async ({ page }) => {
@@ -146,7 +168,7 @@ test.describe("as an admin", () => {
       await expect(bar).toContainText("Some changes weren't saved.");
       await expect(save).toBeEnabled();
 
-      await page.locator("#reminderCron").fill(originalCron);
+      await page.locator("#reminderCron").fill(originalCron === "0 9 * * *" ? "0 10 * * *" : "0 9 * * *");
       await save.click();
       await expect(scheduleForm).toContainText("Reminder schedule saved.");
       await expect(bar).toContainText("No unsaved changes.");
@@ -156,13 +178,20 @@ test.describe("as an admin", () => {
       await expect(page.locator("#ntfyTopic")).toHaveValue(topic);
     } finally {
       await page.goto("/settings/reminders");
-      await expect(async () => {
-        await page.locator("#ntfyTopic").fill(originalTopic === topic ? "" : originalTopic);
-        await expect(save).toBeEnabled({ timeout: 1000 });
-      }).toPass({ timeout: 15_000 });
-      await page.locator("#ntfyTopic").fill(originalTopic);
-      await save.click();
-      await expect(ntfyForm).toContainText("Push notification settings saved.");
+      if ((await page.locator("#ntfyTopic").inputValue()) !== originalTopic) {
+        await expect(async () => {
+          await page.locator("#ntfyTopic").fill(originalTopic);
+          await expect(save).toBeEnabled({ timeout: 1000 });
+        }).toPass({ timeout: 15_000 });
+        await save.click();
+        await expect(ntfyForm).toContainText("Push notification settings saved.");
+      }
+      if ((await scheduleForm.locator('input[name="reminderCron"]').inputValue()) !== originalCron) {
+        await page.locator("#reminderCronKind").selectOption("advanced");
+        await page.locator("#reminderCron").fill(originalCron);
+        await save.click();
+        await expect(scheduleForm).toContainText("Reminder schedule saved.");
+      }
     }
   });
 });
@@ -175,7 +204,20 @@ test.describe("as a member", () => {
     const main = page.locator("main");
     await expect(main).toContainText("Only an admin can change the greyed-out sections.");
     await expect(main.getByRole("link", { name: /^Members/ })).toHaveCount(0);
-    await expect(main.getByText("Admin only").first()).toBeVisible();
+    for (const section of [
+      "Members",
+      "Modules",
+      "Reminders & channels",
+      "AI & privacy",
+      "Document ingestion",
+      "Integrations",
+      "Backups",
+      "Security log",
+    ]) {
+      const row = main.locator('[aria-disabled="true"]').filter({ has: page.getByText(section, { exact: true }) });
+      await expect(row).toContainText("Admin only");
+      await expect(main.getByRole("link").filter({ has: page.getByText(section, { exact: true }) })).toHaveCount(0);
+    }
     await main.getByRole("link", { name: /^Recently deleted/ }).click();
     await expect(page).toHaveURL(/\/settings\/trash$/);
     await expect(main).not.toContainText("System settings");

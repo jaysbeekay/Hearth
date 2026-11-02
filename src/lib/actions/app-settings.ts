@@ -199,7 +199,11 @@ export async function saveBackupDestination(
 // every minute, so a change applies without a restart.
 function invalidCron(value: FormDataEntryValue | null): string | null {
   if (typeof value !== "string" || value.trim() === "") return "Choose a schedule.";
-  return cron.validate(value.trim()) ? null : `"${value.trim()}" isn't a valid cron expression.`;
+  const expr = value.trim();
+  // Five fields only: the scheduler checks once a minute, so a seconds field
+  // (which node-cron would accept) could make the job never run.
+  if (expr.split(/\s+/).length !== 5) return `"${expr}" isn't a valid cron expression. Use five fields: minute hour day month weekday.`;
+  return cron.validate(expr) ? null : `"${expr}" isn't a valid cron expression.`;
 }
 
 export async function saveReminderSchedule(
