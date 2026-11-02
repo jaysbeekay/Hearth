@@ -86,8 +86,28 @@ describe("reminderSummary", () => {
     ).toEqual({ tone: "danger", text: "The last Reminder failed via email — SMTP refused." });
   });
 
-  it("says when nothing is left to send", () => {
-    expect(reminderSummary({ ...base, enabled: false, nextReminder: null }).text).toBe("No Reminders left to send.");
+  it("tells apart no thresholds, no scheduled Reminder and all sent (#516 review)", () => {
+    // A future date with no thresholds has no coverage: a warning, not "all done".
+    expect(reminderSummary({ ...base, thresholds: [], enabled: false, nextReminder: null })).toEqual({
+      tone: "warning",
+      text: "No Reminder thresholds are set, so no Reminders will be sent.",
+    });
+    // No Reminder entry (the date has passed, or nothing to remind of).
+    expect(reminderSummary({ ...base, enabled: false, nextReminder: null }).text).toBe(
+      "No Reminder is scheduled for this date.",
+    );
+    // Every threshold for this date has gone out.
+    expect(
+      reminderSummary({
+        ...base,
+        nextReminder: null,
+        lastSent: { channel: "EMAIL", thresholdDays: 1, sentAt: new Date() },
+      }).text,
+    ).toBe("All Reminders for this date have been sent · thresholds 30/14/7/1");
+    // Thresholds passed with nothing sent (e.g. no channel at the time).
+    expect(reminderSummary({ ...base, nextReminder: null }).text).toBe(
+      "No more Reminders for this date · thresholds 30/14/7/1",
+    );
   });
 });
 

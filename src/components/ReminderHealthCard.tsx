@@ -109,39 +109,39 @@ export function ReminderHealthCard({
 
   return (
     <Card>
-      <details className="group">
-        <summary className="flex cursor-pointer list-none items-start justify-between gap-3 [&::-webkit-details-marker]:hidden">
-          <div className="min-w-0 space-y-1">
-            <h2 className="flex items-center gap-2 font-medium">
-              {anyEnabled ? (
-                <BellRing size={16} className="text-muted" aria-hidden />
-              ) : (
-                <BellOff size={16} className="text-muted" aria-hidden />
-              )}
-              {title}
-            </h2>
-            {!deliveryReady && (
-              <p className="flex items-center gap-1.5 text-sm text-warning">
-                <AlertTriangle size={16} className="shrink-0" aria-hidden />
-                Reminders can&apos;t be delivered yet — an admin needs to set up email or push.
-              </p>
-            )}
-            <ul className="space-y-0.5">
-              {entries.map((entry) => {
-                const { tone, text } = reminderSummary(entry.health, dateFormat);
-                return (
-                  <li key={entry.label ?? "only"} className={cn("text-sm", TONE_TEXT.get(tone))}>
-                    {entry.label && <span className="font-medium">{entry.label}: </span>}
-                    {text}
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-          <span className="flex shrink-0 items-center gap-1 text-xs text-muted">
-            Details
-            <ChevronDown size={16} className="transition-transform group-open:rotate-180" aria-hidden />
-          </span>
+      {/* #516 review — the heading and lines sit outside <summary>, which
+          may only hold phrasing content; "Details" alone is the toggle. */}
+      <div className="min-w-0 space-y-1">
+        <h2 className="flex items-center gap-2 font-medium">
+          {anyEnabled ? (
+            <BellRing size={16} className="text-muted" aria-hidden />
+          ) : (
+            <BellOff size={16} className="text-muted" aria-hidden />
+          )}
+          {title}
+        </h2>
+        {!deliveryReady && (
+          <p className="flex items-center gap-1.5 text-sm text-warning">
+            <AlertTriangle size={16} className="shrink-0" aria-hidden />
+            Reminders can&apos;t be delivered yet — an admin needs to set up email or push.
+          </p>
+        )}
+        <ul className="space-y-0.5">
+          {entries.map((entry) => {
+            const { tone, text } = reminderSummary(entry.health, dateFormat);
+            return (
+              <li key={entry.label ?? "only"} className={cn("text-sm", TONE_TEXT.get(tone))}>
+                {entry.label && <span className="font-medium">{entry.label}: </span>}
+                {text}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+      <details className="group mt-2">
+        <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-xs text-muted hover:text-foreground [&::-webkit-details-marker]:hidden">
+          Details
+          <ChevronDown size={16} className="transition-transform group-open:rotate-180" aria-hidden />
         </summary>
 
         <div className="mt-4 space-y-4 border-t border-border pt-4">
