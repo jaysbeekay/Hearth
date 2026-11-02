@@ -241,7 +241,7 @@ export function RentalStatementForm({
         />
       </Field>
 
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
 
       <FormActions cancelHref={cancelHref}>
         <SubmitButton>{statement ? "Save changes" : "Add statement"}</SubmitButton>

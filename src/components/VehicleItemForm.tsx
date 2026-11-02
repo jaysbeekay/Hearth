@@ -209,7 +209,7 @@ export function VehicleItemForm({
         />
       </Field>
 
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
 
       <FormActions cancelHref={cancelHref}>
         <SubmitButton>{item ? "Save changes" : "Add service record"}</SubmitButton>

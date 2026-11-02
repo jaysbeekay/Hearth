@@ -105,7 +105,7 @@ export function LoginForm({
           </div>
         )}
 
-        <FormMessage error={state?.error} success={state?.success} />
+        <FormMessage attempt={state} error={state?.error} success={state?.success} />
 
         <SubmitButton className="w-full" pendingText={totpRequired ? "Verifying…" : "Signing in…"}>
           {totpRequired ? "Verify" : "Sign in"}

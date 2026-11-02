@@ -319,7 +319,7 @@ export function InventoryItemForm({
         </Field>
       </fieldset>
 
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
 
       <FormActions cancelHref={cancelHref}>
         <SubmitButton>{pendingOp || item ? "Save changes" : "Add item"}</SubmitButton>
