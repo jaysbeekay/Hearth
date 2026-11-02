@@ -1,11 +1,14 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { getReminderConfig } from "@/lib/appSettings";
 import { updateProduct } from "@/lib/actions/products";
 import { ProductForm } from "@/components/ProductForm";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
 import { propertyLinkTargets } from "@/lib/linkTargets";
 
 export default async function EditProductPage({
@@ -15,9 +18,10 @@ export default async function EditProductPage({
 }) {
   const { id } = await params;
   redirectIfReadOnly(await auth(), `/products/${id}`);
-  const [product, homeEnabled] = await Promise.all([
+  const [product, homeEnabled, { defaultDays }] = await Promise.all([
     prisma.product.findUnique({ where: { id } }),
     isModuleEnabled("HOME"),
+    getReminderConfig(),
   ]);
   if (!product || product.deletedAt) notFound();
 
@@ -26,20 +30,21 @@ export default async function EditProductPage({
   const boundAction = updateProduct.bind(null, product.id);
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="form">
       <BackLink href={`/products/${product.id}`} label={product.description} />
       <div>
-        <h1 className="text-2xl font-semibold">Edit warranty</h1>
+        <h1 className="text-2xl font-medium">Edit warranty</h1>
         <p className="text-sm text-muted">{product.description}</p>
       </div>
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
-        <ProductForm
+      <Card>
+        <ProductForm cancelHref={`/products/${product.id}`}
+          defaultReminderDays={defaultDays}
           action={boundAction}
           product={product}
           properties={properties}
           homeEnabled={homeEnabled}
         />
-      </div>
-    </div>
+      </Card>
+    </PageShell>
   );
 }

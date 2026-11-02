@@ -100,6 +100,16 @@ export function bannerEntries(entries: DueEntry[]): DueEntry[] {
   return entries.filter((entry) => isDue(entry) || entry.state === "needs-new-end-date");
 }
 
+/**
+ * #405 — whether a detail page's status banner already states the headline
+ * entry, so the header badge beside it ("10d left" next to "Expires in 10
+ * days") would only repeat it.
+ */
+export function bannerRepeatsBadge(headline: DueEntry | null, entries: DueEntry[]): boolean {
+  if (!headline) return false;
+  return bannerEntries(entries).some((e) => e.field === headline.field && e.date === headline.date);
+}
+
 type TenancyAgreement = { leaseStart: Date | null; leaseEnd: Date | null; createdAt: Date; deletedAt: Date | null };
 
 // Missing dates sort before any real one.

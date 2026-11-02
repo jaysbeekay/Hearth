@@ -4,9 +4,10 @@ import { useActionState, useState, useEffect, useRef } from "react";
 import type { TradeModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
+import { FormActions } from "@/components/FormActions";
 import { FormMessage } from "@/components/FormMessage";
 import { TRADE_TYPES, TRADE_TYPE_LABELS } from "@/lib/validation/wealth";
-import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
+import { SelectWrapper, inputClass, textareaClass, selectClass } from "@/components/SelectWrapper";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
@@ -19,6 +20,7 @@ function toDateInputValue(date: Date | null | undefined) {
 
 export function TradeForm({
   action,
+  cancelHref,
   trade,
   ticker,
   holdingId,
@@ -26,6 +28,8 @@ export function TradeForm({
   lookUpMarketPrice = true,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
+  /** Where Cancel goes: the same place as the page's BackLink. */
+  cancelHref: string;
   trade?: TradeModel;
   ticker?: string;
   holdingId?: string;
@@ -98,8 +102,8 @@ export function TradeForm({
   }
 
   return (
-    <form ref={formRef} action={formAction} className="space-y-5">
-      <FormMessage error={state?.error} success={state?.success} />
+    <form ref={formRef} action={formAction} className="space-y-4">
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
 
       <div className="grid grid-cols-2 gap-4">
         <div>
@@ -230,7 +234,7 @@ export function TradeForm({
           rows={2}
           defaultValue={state?.values?.notes ?? trade?.notes ?? ""}
           placeholder="Optional notes"
-          className={inputClass}
+          className={textareaClass}
         />
       </div>
 
@@ -240,7 +244,9 @@ export function TradeForm({
         <p className="mt-1 text-xs text-muted">PDF, image, or Word — max 15MB</p>
       </div>
 
-      <SubmitButton>{trade ? "Save changes" : "Add trade"}</SubmitButton>
+      <FormActions cancelHref={cancelHref}>
+        <SubmitButton>{trade ? "Save changes" : "Add trade"}</SubmitButton>
+      </FormActions>
     </form>
   );
 }

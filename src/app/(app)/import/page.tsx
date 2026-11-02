@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { ImportClient } from "@/components/ImportClient";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { BackLink } from "@/components/BackLink";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Upload documents" };
 
@@ -29,16 +30,16 @@ export default async function ImportPage() {
     rows.map((row) => ({ id: row.id, label: row.archivedAt ? `${row.label} (archived)` : row.label }));
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="detail">
       <BackLink href="/documents" label="Documents" />
       <div>
-        <h1 className="text-2xl font-semibold">Upload documents</h1>
+        <h1 className="text-2xl font-medium">Upload documents</h1>
         <p className="text-sm text-muted">
           Drop in a document — or several at once if you&apos;re migrating existing paperwork.
           Hearth scans each one, you confirm what it is, review the details, and save.
         </p>
       </div>
       <ImportClient enabledModules={[...enabledModules]} properties={withArchivedLabel(properties)} vehicles={withArchivedLabel(vehicles)} />
-    </div>
+    </PageShell>
   );
 }

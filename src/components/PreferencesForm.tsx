@@ -12,7 +12,7 @@ import {
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 import { FormMessage } from "@/components/FormMessage";
-import { compactButtonClass } from "@/lib/buttonStyles";
+import { buttonClass } from "@/lib/ui";
 
 export function PreferencesForm({
   dateFormat,
@@ -44,7 +44,13 @@ export function PreferencesForm({
           Date format
         </label>
         <SelectWrapper>
-          <select id="dateFormat" name="dateFormat" defaultValue={dateFormat} className={selectClass}>
+          <select
+            id="dateFormat"
+            name="dateFormat"
+            aria-describedby="dateFormatHint"
+            defaultValue={dateFormat}
+            className={selectClass}
+          >
             {DATE_FORMAT_OPTIONS.map((value) => (
               <option key={value} value={value}>
                 {DATE_FORMAT_LABELS[value]}
@@ -52,6 +58,10 @@ export function PreferencesForm({
             ))}
           </select>
         </SelectWrapper>
+        {/* #361 — native date pickers can't take this format; say why. */}
+        <p id="dateFormatHint" className="text-xs text-muted">
+          Date pickers follow your browser&apos;s language; the date shown under each field uses your chosen format.
+        </p>
       </div>
       <div className="space-y-1">
         <label htmlFor="preferredCurrency" className="text-sm font-medium">
@@ -88,8 +98,8 @@ export function PreferencesForm({
         </SelectWrapper>
       </div>
       <div className="sm:col-span-2 space-y-2">
-        <FormMessage error={state?.error} success={state?.success} />
-        <button type="submit" className={compactButtonClass()}>
+        <FormMessage attempt={state} error={state?.error} success={state?.success} />
+        <button type="submit" className={buttonClass("secondary")}>
           Save preferences
         </button>
       </div>

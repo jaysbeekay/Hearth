@@ -8,6 +8,7 @@ import {
   restoreDocumentCommand,
   permanentlyDeleteDocumentCommand,
   setDocumentImportantCommand,
+  setDocumentCategoryCommand,
 } from "@/lib/commands/documents";
 import { documentCommandError as commandError } from "@/lib/documents/commandErrors";
 import { isOwnedDocumentKind, type OwnedDocumentKind } from "@/lib/documents/kinds";
@@ -138,4 +139,27 @@ export async function setDocumentImportantAction(
     return commandError(error);
   }
   return { success: isImportant ? "Marked as important." : "Unmarked as important." };
+}
+
+/**
+ * Sets a Document's type from its row (#405). `ownerId` is the record the
+ * list showed it under; the category is checked against the Document types.
+ */
+export async function setDocumentCategoryAction(
+  kind: OwnedDocumentKind,
+  documentId: string,
+  ownerId: string,
+  category: string,
+): Promise<ActionState> {
+  await requireWriter();
+  const documentKind = requireKind(kind);
+  if (documentKind === "PRODUCT") return { error: "A Warranty Document's type is set when it's uploaded." };
+  const parsed = parseDocumentCategory(category);
+  if (!parsed) return { error: "Choose a Document type." };
+  try {
+    await setDocumentCategoryCommand(documentKind, documentId, parsed, { ownerId });
+  } catch (error) {
+    return commandError(error);
+  }
+  return { success: "Document type saved." };
 }

@@ -2,6 +2,8 @@ import Link from "next/link";
 import { BellRing, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { Timestamp } from "@/components/Timestamp";
 import type { HouseholdReminderHealth } from "@/lib/notifications/health";
+import { Card } from "@/components/ui/Card";
+import { bannerClass } from "@/lib/ui";
 
 function channelSummary(channels: HouseholdReminderHealth["channels"]) {
   const active = [
@@ -25,7 +27,7 @@ export function HouseholdReminderHealthCard({
   appUrlConfigured?: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
+    <Card className="space-y-4">
       <div>
         <h3 className="flex items-center gap-2 font-medium">
           <BellRing size={16} className="text-muted" aria-hidden />
@@ -46,12 +48,12 @@ export function HouseholdReminderHealthCard({
           <dd className="flex items-center gap-1.5 text-sm font-medium">
             {health.deliveryReady ? (
               <>
-                <CheckCircle2 size={14} className="text-success" aria-hidden />
+                <CheckCircle2 size={16} className="text-success" aria-hidden />
                 Ready
               </>
             ) : (
               <>
-                <AlertTriangle size={14} className="text-muted" aria-hidden />
+                <AlertTriangle size={16} className="text-muted" aria-hidden />
                 Not configured
               </>
             )}
@@ -76,7 +78,7 @@ export function HouseholdReminderHealthCard({
       </dl>
 
       {health.deliveryReady && !appUrlConfigured && (
-        <p className="flex items-start gap-2 rounded-lg border border-border bg-muted/10 p-3 text-sm text-foreground">
+        <p className={bannerClass("neutral", "flex items-start gap-2")}>
           <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden />
           Reminders can&apos;t link to the record they&apos;re about until the server&apos;s
           APP_URL is set to the address you open Hearth on.
@@ -84,7 +86,7 @@ export function HouseholdReminderHealthCard({
       )}
 
       {!health.deliveryReady ? (
-        <p className="flex items-start gap-2 rounded-lg border border-border bg-muted/10 p-3 text-sm text-foreground">
+        <p className={bannerClass("neutral", "flex items-start gap-2")}>
           <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden />
           No delivery channel configured — every record that comes due has no working reminder
           coverage until email, ntfy, or a webhook is set up above.
@@ -112,6 +114,6 @@ export function HouseholdReminderHealthCard({
           Every record due within 90 days has working reminder coverage.
         </p>
       )}
-    </div>
+    </Card>
   );
 }
