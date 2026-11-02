@@ -228,7 +228,7 @@ export function ContractRenewForm({
         )}
       </div>
 
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
 
       <FormActions cancelHref={cancelHref}>
         <SubmitButton pendingText="Renewing…">Renew</SubmitButton>

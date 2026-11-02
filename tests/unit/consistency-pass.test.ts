@@ -66,3 +66,27 @@ describe("selects", () => {
     }
   });
 });
+
+describe("FormMessage on a repeated failure (#514 review)", () => {
+  it("announces the same error again when it comes from a new submission", async () => {
+    const { isNewMessage } = await import("@/components/FormMessage");
+    const first = { error: "Title is required" };
+    const second = { error: "Title is required" };
+    const last = { message: "Title is required", attempt: first };
+    expect(isNewMessage("Title is required", first, last)).toBe(false);
+    expect(isNewMessage("Title is required", second, last)).toBe(true);
+    expect(isNewMessage("Another error", first, last)).toBe(true);
+    // Without an attempt, only a different message counts.
+    expect(isNewMessage("Title is required", undefined, { message: "Title is required", attempt: undefined })).toBe(false);
+  });
+
+  it("every action-state FormMessage passes its state as the attempt", () => {
+    const sources = readdirSync(path.join(root, "src", "components"))
+      .filter((name) => name.endsWith(".tsx"))
+      .map((name) => read(path.join("src", "components", name)));
+    const missing = sources
+      .flatMap((source) => source.match(/<FormMessage error=\{\w+\?\.error\}[^>]*>/g) ?? [])
+      .filter((tag) => !tag.includes("attempt="));
+    expect(missing).toEqual([]);
+  });
+});

@@ -103,7 +103,7 @@ export function TradeForm({
 
   return (
     <form ref={formRef} action={formAction} className="space-y-4">
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
 
       <div className="grid grid-cols-2 gap-4">
         <div>

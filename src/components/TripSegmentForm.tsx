@@ -312,7 +312,7 @@ export function TripSegmentForm({
         />
       </Field>
 
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
 
       <FormActions cancelHref={cancelHref}>
         <SubmitButton>{segment ? "Save changes" : "Add segment"}</SubmitButton>

@@ -41,6 +41,14 @@ test("reversed date range is rejected with a cross-field error", async ({ page }
   await page.locator('input[name="endDate"]').fill("2026-09-01");
   await submit(page).click();
   await expect(page.locator("body")).toContainText("can't be before");
+
+  // Failing again with the same error still brings it into view (#514 review).
+  const alert = page.getByRole("alert").filter({ hasText: "can't be before" });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.setViewportSize({ width: 1280, height: 400 });
+  await expect(alert).not.toBeInViewport();
+  await submit(page).click();
+  await expect(alert).toBeInViewport();
 });
 
 test("XSS-shaped input is escaped, not executed", async ({ page }) => {
