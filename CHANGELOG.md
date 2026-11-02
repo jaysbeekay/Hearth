@@ -123,6 +123,11 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 - **Recently deleted count on empty lists (#514 follow-up).** An empty
   Contracts or Warranties list no longer counts records past the 30-day
   Trash window, which are purged the next time Trash opens.
+- **Document rows (#515 follow-up).** A picked Document type shows straight
+  away instead of jumping back until the save lands, and goes back only if
+  the save fails. After a failed "Add document" upload, picking the same
+  file again retries it. A Warranty with none of its details filled in no
+  longer shows an empty details card.
 
 ## [0.20.1] - 2026-10-31
 

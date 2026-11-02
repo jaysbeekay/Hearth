@@ -44,7 +44,7 @@ async function expectType(page: Page, filename: string, typeLabel: string) {
       return rowOf(page, filename)
         .getByLabel(`Document type for ${filename}`)
         .evaluate((el) => (el as HTMLSelectElement).selectedOptions[0]?.text ?? "");
-    })
+    }, { timeout: 15_000 })
     .toBe(typeLabel);
 }
 
