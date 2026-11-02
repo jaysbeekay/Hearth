@@ -111,7 +111,7 @@ describe("Inventory item update command (#446)", () => {
 
     await expect(
       updateInventoryItemCommand(item.id, { warrantyProductId: trashed.id }, actorId),
-    ).rejects.toThrow("That warranty doesn't exist or is in Trash.");
+    ).rejects.toThrow("That warranty doesn't exist or has been deleted.");
     await expect(updateInventoryItemCommand(item.id, { warrantyProductId: "missing" }, actorId)).rejects.toBeInstanceOf(
       RecordValidationError,
     );
@@ -162,10 +162,10 @@ describe("Contract and Product links to records in Trash (#447)", () => {
     const product = await createProductCommand(productInput(), actorId);
 
     await expect(createContractCommand(contractInput({ propertyId: property.id }), actorId)).rejects.toThrow(
-      "That property doesn't exist or is in Trash.",
+      "That property doesn't exist or has been deleted.",
     );
     await expect(createContractCommand(contractInput({ vehicleId: vehicle.id }), actorId)).rejects.toThrow(
-      "That vehicle doesn't exist or is in Trash.",
+      "That vehicle doesn't exist or has been deleted.",
     );
     await expect(updateContractCommand(contract.id, { propertyId: property.id }, actorId)).rejects.toBeInstanceOf(
       RecordValidationError,
@@ -217,7 +217,7 @@ describe("Contract and Product links to records in Trash (#447)", () => {
       formData({ title: "Insurance", category: "HOME_INSURANCE", provider: "InsureCo", renewalType: "MANUAL_RENEWAL", propertyId: property.id }),
     );
     expect(result).toMatchObject({
-      error: "That property doesn't exist or is in Trash.",
+      error: "That property doesn't exist or has been deleted.",
       values: { title: "Insurance", propertyId: property.id },
     });
     expect(await db.prisma.contract.count()).toBe(0);
@@ -239,10 +239,10 @@ describe("Contract and Product links to records in Trash (#447)", () => {
       { id: "op-4", entity: "product", operation: "create", formValues: { description: "Oven", propertyId: property.id } },
     ]);
     expect(results).toEqual([
-      { id: "op-1", success: false, error: "That property doesn't exist or is in Trash." },
-      { id: "op-2", success: false, error: "That vehicle doesn't exist or is in Trash." },
-      { id: "op-3", success: false, error: "That property doesn't exist or is in Trash." },
-      { id: "op-4", success: false, error: "That property doesn't exist or is in Trash." },
+      { id: "op-1", success: false, error: "That property doesn't exist or has been deleted." },
+      { id: "op-2", success: false, error: "That vehicle doesn't exist or has been deleted." },
+      { id: "op-3", success: false, error: "That property doesn't exist or has been deleted." },
+      { id: "op-4", success: false, error: "That property doesn't exist or has been deleted." },
     ]);
     expect(await db.prisma.contract.count()).toBe(1);
     expect(await db.prisma.product.count()).toBe(1);
@@ -253,7 +253,7 @@ describe("Contract and Product links to records in Trash (#447)", () => {
 
 describe("review fixes for #446 / #447", () => {
   const contractForm = { title: "Insurance", category: "HOME_INSURANCE", provider: "InsureCo", renewalType: "MANUAL_RENEWAL" };
-  const PROPERTY_TRASHED = "That property doesn't exist or is in Trash.";
+  const PROPERTY_TRASHED = "That property doesn't exist or has been deleted.";
 
   it("refuses switching a live link to a Property in Trash", async () => {
     const a = await newProperty("A");
@@ -387,7 +387,7 @@ describe("review fixes for #446 / #447", () => {
       formData({ label: "Edited drill", category: "TOOL", warrantyProductId: warranty.id }),
     );
     expect(result).toMatchObject({
-      error: "That warranty doesn't exist or is in Trash.",
+      error: "That warranty doesn't exist or has been deleted.",
       values: { label: "Edited drill", warrantyProductId: warranty.id },
     });
   });

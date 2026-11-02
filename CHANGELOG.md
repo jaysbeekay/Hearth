@@ -7,6 +7,153 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+### Changed
+
+- **One set of shared UI rules (#411).** The app now draws from one type
+  scale (24/20/16/14/12px at two weights, sentence case), one radius
+  (`rounded-lg`, with `rounded-full` only for dots), 1px borders, no card
+  shadows and a single overlay shadow for dialogs and menus. Cards, pills,
+  banners and page widths come from `Card`, `Pill`, `Banner` and
+  `PageShell` (`src/components/ui/`), and every class string they use lives
+  in `src/lib/ui.ts`. Buttons are primary, secondary, quiet or danger at
+  one 36px size with a 44px hit area; each page has at most one primary
+  button (row actions, settings saves and detail-page actions are
+  secondary), filter chips look like secondary buttons rather than status
+  pills, and inputs and selects share one 36px style. Icons are 16px in
+  content and 20px in navigation, and decorative icons (the 32px glyphs on
+  sign-in and error pages, the chat avatars, the per-row icons in the
+  Needs attention queue) are gone. Dashed borders are kept only for file
+  drop zones, and hover motion is colour-only. A unit test
+  (`tests/unit/ui-rules.test.ts`) and an e2e check
+  (`e2e/specs/51-ui-rules.spec.ts`) hold these rules in place. The iOS and
+  Android shell keeps its own styles and is unchanged.
+- Links inside running text are now underlined, so they no longer rely on
+  colour alone, and the contract list's filter selects and each member's role
+  select have accessible names (#411 review).
+- Button labels too long for their row now wrap onto a second line instead
+  of running off-screen, text inputs show a focus ring again, the property
+  valuation form's fields are labelled, and the contract status action's
+  accessible name matches its visible text (#411 review).
+- **Consistency pass (#406).** Every add, edit and renew form now has Cancel
+  beside Save, going back to the same place as the page's back link. A form
+  error is shown once, in the banner above the buttons (scrolled into view
+  and announced to screen readers), instead of also popping up as a toast.
+  An empty Contracts, Warranties, Vehicles, Properties or Travel list shows
+  just its sentence and Add button, without Export, search or filter chips;
+  an empty Contracts or Warranties list also says how many are in Recently
+  deleted, with a link there.
+  Import and Inbox review fields use the shared 36px input style, the
+  Inventory form sits in a card with sentence-case labels, portfolios are
+  added with "Add portfolio" everywhere, and a holding's Delete moved into
+  its ⋮ menu. The iOS and Android shell is unchanged.
+- **Plainer record pages (#405).** Each Trip segment, Service record,
+  Maintenance record, Rental statement and Trade now has one quiet "Add
+  document" button instead of its own drop zone, Document type select and
+  Upload button. The file uploads as soon as it's picked, and its type is
+  set afterwards from a select on its row in the Document list (every kind
+  except Warranties, whose type is still chosen at upload because it picks
+  the hero photo). Deleting an entry, a valuation or a portfolio moved from
+  a red button into the row's ⋮ menu. Empty fields are hidden on detail
+  pages instead of showing a dash, and a Contract's or Warranty's header
+  badge is hidden while the status banner below says the same thing. The
+  iOS and Android shell is unchanged.
+- **Reminder presets and a one-line Reminder card (#360).** Contract,
+  Warranty, Vehicle and Tenancy forms pick Reminder thresholds from presets
+  ("Default · 30/14/7/1", "1 week before", "1 day before", "Custom…")
+  instead of a free-text field, and a hint always says which days apply and
+  when the record shows in Needs attention. Stored values are unchanged:
+  Default saves blank (the household default), and any other list opens as
+  Custom. Vehicle thresholds are now validated like the others. The Reminder
+  health card is one line per date ("Next reminder 20 Sep by email ·
+  thresholds 30/14/7/1"), says once when no delivery channel is set up, and
+  opens to the full read-out and "Send test reminder" on click. A Vehicle
+  shows one card for its registration, insurance and service dates. The iOS
+  and Android shell is unchanged.
+- **One filter row on Contracts and Warranties (#365).** The Filter button is
+  gone (search still submits as you type or on Enter, and the selects on
+  change). Each filter chip carries the number of records it would show
+  ("Due soon · 2"), counted with the current search, category, status and
+  other chips kept, with zero counts muted, replacing the separate row of summary counts
+  and its "added this week" figure. On a phone the search box sits beside a
+  "Filters" button that opens a bottom sheet with the category and status
+  selects and the chips, so the first record is on the first screen. Links
+  from the dashboard still pre-select the right chip. The iOS and Android
+  shell is unchanged.
+- **Shorter Contract, Warranty and Vehicle forms (#361).** Only the fields
+  that drive Reminders and Spend show up front. The rest sit in a "More
+  details" section, and the thresholds sit in a "Reminders" section. A
+  section opens by itself when it already holds a value, when a document
+  scan fills a field inside it, or when the browser flags a field inside it.
+  A Contract's Category now starts on "Choose a category" and has to be
+  picked; a scan suggests one from the provider and title. Entering a cost
+  sets the billing frequency to Monthly until you choose another. The
+  Warranty photo upload moves into More details. Preferences explains that
+  date pickers follow the browser's language. The Property form was already
+  short and is unchanged, and so is the iOS and Android shell.
+
+## [0.20.1] - 2026-10-31
+
+### Fixed
+
+- **Android release assets were not published for v0.20.0.** The new
+  "Verify release signatures" step in `android-build.yml` rejected the signed
+  APK even though Gradle signed it with the release keystore, so the APK/AAB
+  were never attached to the v0.20.0 Release (the Docker image did publish).
+  The check now looks for the release key's certificate digest anywhere in
+  `apksigner`/`keytool` output instead of on one exact label, and prints the
+  certificate digests it saw when they don't match. Digests are public, so
+  this exposes nothing secret.
+
+### Added
+
+- **Document scanning copes without pdftotext or tesseract (#480).** On a
+  server without poppler-utils or tesseract-ocr (bare-metal `npm run start`,
+  serverless), the missing tools are detected (and re-checked about once a
+  minute, so installing them needs no restart) and stage 1 is skipped:
+  uploads go straight to the household's cloud AI key, or attach unparsed
+  with a message saying text extraction isn't available on this server,
+  instead of reading like a blank document. Ollama, which only sees
+  extracted text, is no longer called with empty text. Settings → System
+  settings shows which local extraction tools are installed, and flags a tool
+  that is installed but can't run (permissions, timeout). Docker installs,
+  which ship the tools, behave as before.
+
+### Changed
+
+- "Trash" is now called "Recently deleted" everywhere it's shown: the Settings
+  section and page, delete confirmations, toasts and error messages. The
+  confirm button on a restorable delete now says "Delete" (was "Move to
+  Trash") and the toast says "Moved to Recently deleted." (still with Undo),
+  so it reads differently from "Delete permanently". The standalone mobile
+  shell, which has no Recently deleted page, no longer names one: a deleted
+  Document says "deleted." with Undo, and its record's delete confirmation says
+  the documents are kept for 30 days. Edit-form pickers mark a linked record
+  that has been deleted as "(deleted)" (was "(in Trash)").
+  The `/settings/trash` route and internal names are unchanged.
+
+## [0.20.0] - 2026-10-31
+
+### Fixed
+
+- Android release build (`android-build.yml`) failing since v0.18.0: R8 aborted
+  with missing `com.google.errorprone.annotations.*` / `javax.annotation.*`
+  classes referenced by Tink (via the encrypted-SQLite plugin). Added the
+  matching `-dontwarn` rules plus keep rules for the Capacitor/RevenueCat
+  plugin packages, sqlcipher (`net.zetetic.database.**`, JNI native methods)
+  and Tink's protobuf fields in `proguard-rules.pro`. Minification stays on.
+- `android-actions/setup-android` v3 failed on current runners; bumped to
+  v4.0.4.
+- Manual-dispatch releases (`release.yml`) never built the Docker image or the
+  Android APK/AAB (v0.19.2 shipped with neither), because tags created by the
+  `GITHUB_TOKEN` don't fire push-triggered workflows. `release.yml` now
+  dispatches `docker-publish.yml` and `android-build.yml` against the new tag,
+  waits for both (dispatched or tag-push) builds to finish, and fails unless
+  the APK/AAB are attached to the Release and the Docker image is on Docker
+  Hub, so a green release run means the artifacts were actually published.
+- `android-build.yml` now always builds the release variant (unsigned when not
+  a signed tag run) so manual runs exercise R8, and no longer builds the debug
+  APK when dispatched against a tag.
+
 ### Security
 
 - `nodemailer` 10.0.16 → 10.2.1 and `mailparser` → 3.12.4, fixing three
@@ -44,6 +191,17 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   sign-in purges them instead), and offline Documents and cached lists
   from before it are purged. If someone other than the person who queued
   them is that first writer, they'll sync under that member's account.
+- Android release signing is now tag-only: `android-build.yml` signs only on a
+  `v*` tag with the secrets present; branch and `main` runs build unsigned
+  (`*-unsigned` artifacts, 7-day retention). Decoded keystore is deleted at
+  the end of every run.
+- Signing and Docker Hub jobs use a `release` environment (owner restricts it
+  to `v*` tags and moves the secrets into it; see README "Releasing").
+- `release.yml` and `docker-publish.yml` refuse to run outside `main` or a
+  `v*` tag; `release.yml` validates the version input and no longer
+  interpolates inputs into shell scripts; `actions: write` is held only by the
+  small `artifacts` job; Docker `latest` moves only for the highest stable
+  release.
 
 ### Added
 
@@ -190,6 +348,9 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   Console non-consumable products to be set up before shipping — see the
   comments beside `REVENUECAT_API_KEY_IOS`/`REVENUECAT_API_KEY_ANDROID` in
   `ios-shell/www/app.js`, which are placeholders pending that setup.
+- `android-check.yml`: path-filtered pull request check (plus a weekly run)
+  that runs `cap sync android` and an unsigned `assembleRelease` (R8) so Android-only breakage surfaces before a release. A failing scheduled run
+  opens an issue.
 
 ### Changed
 
@@ -575,6 +736,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   still covers code scanning.
 
 ### Fixed
+
+- **Contract and Warranty edit forms no longer offer Properties and Vehicles
+  in Trash (#489).** The Linked to picker lists only live records, as the
+  new-record forms already did, plus the record's current link if it is in
+  Trash, shown as "(in Trash)" so saving doesn't unlink it. Archived records
+  stay selectable. The "(in Trash)" wording now lives in one place
+  (`src/lib/trashWording.ts`), shared with the Inventory item edit form.
 
 - **Standalone shell: deleting a Document moves it to Trash with an Undo
   (#455).** Delete no longer asks first and removes the file at once. The

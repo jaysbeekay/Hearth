@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import { ListPageHeader } from "@/components/ListPageHeader";
-import { linkButtonClass, toolbarButtonClass } from "@/lib/buttonStyles";
 import { useRouter } from "next/navigation";
 import { Plus, X, Trash2, Upload } from "lucide-react";
 import { SelectWrapper } from "@/components/SelectWrapper";
@@ -11,15 +10,16 @@ import { ContractCard } from "@/components/ContractCard";
 import { PendingRecordCard } from "@/components/PendingRecordCard";
 import { SwipeableListItem } from "@/components/SwipeableListItem";
 import { ConfirmForm } from "@/components/ConfirmForm";
-import { ListSummaryStrip } from "@/components/ListSummaryStrip";
+import { ListFilterSheet } from "@/components/ListFilterSheet";
 import { ListFilterChips, ListFilterHiddenInputs } from "@/components/ListFilterChips";
 import { deleteContract, restoreContract } from "@/lib/actions/contracts";
 import type { ContractModel } from "@/generated/prisma/models";
-import { CATEGORY_LABELS } from "@/lib/utils";
+import { CATEGORY_LABELS, cn } from "@/lib/utils";
 import type { DueContext } from "@/lib/duePolicy";
 import {
   contractMissingParts,
   hasListFilters,
+  isChipActive,
   listHref,
   toggleListFilter,
   type ListFilterCounts,
@@ -29,8 +29,15 @@ import {
 import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
+import { buttonClass, chipClass, emptyStateClass, selectClass, inputClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
+import { TrashHint } from "@/components/TrashHint";
 
-const STATUS_LABELS: Record<string, string> = { ACTIVE: "Active", CANCELLED: "Cancelled" };
+const STATUS_LABELS = new Map([
+  ["ACTIVE", "Active"],
+  ["CANCELLED", "Cancelled"],
+]);
+const CATEGORY_LABEL_MAP = new Map(Object.entries(CATEGORY_LABELS));
 
 const CHIPS: { chip: ToggleableFilter; label: string; onlyWhenActive?: boolean }[] = [
   { chip: "dueSoon", label: "Due soon" },
@@ -41,9 +48,59 @@ const CHIPS: { chip: ToggleableFilter; label: string; onlyWhenActive?: boolean }
   { chip: "important", label: "Important", onlyWhenActive: true },
 ];
 
+type SelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => void;
+
+// #403 — w-full on the selects: in the stacked (phone) sheet the
+// SelectWrapper stretches to the row, and a content-sized select left the
+// chevron floating outside the box.
+function CategorySelect({ value, onChange }: { value?: string; onChange: SelectChange }) {
+  return (
+    <SelectWrapper>
+      <select
+        // #517 review — keyed by the URL's value, so removing a filter from a
+        // pill or Clear all resets it (an uncontrolled select keeps its DOM pick).
+        key={value ?? ""}
+        name="category"
+        aria-label="Filter by category"
+        defaultValue={value ?? ""}
+        onChange={onChange}
+        className={selectClass}
+      >
+        <option value="">All categories</option>
+        {Object.entries(CATEGORY_LABELS).map(([optionValue, label]) => (
+          <option key={optionValue} value={optionValue}>
+            {label}
+          </option>
+        ))}
+      </select>
+    </SelectWrapper>
+  );
+}
+
+function StatusSelect({ value, onChange }: { value?: string; onChange: SelectChange }) {
+  return (
+    <SelectWrapper>
+      <select
+        // #517 review — keyed by the URL's value, so removing a filter from a
+        // pill or Clear all resets it (an uncontrolled select keeps its DOM pick).
+        key={value ?? ""}
+        name="status"
+        aria-label="Filter by status"
+        defaultValue={value ?? ""}
+        onChange={onChange}
+        className={selectClass}
+      >
+        <option value="">All statuses</option>
+        <option value="ACTIVE">Active</option>
+        <option value="CANCELLED">Cancelled</option>
+      </select>
+    </SelectWrapper>
+  );
+}
+
 interface Props {
   contracts: ContractModel[];
-  /** #395 — household-wide, from the server; never recounted here. */
+  /** From the server: each chip's list length, search and filters kept; never recounted here. */
   counts: ListFilterCounts;
   /** #384 — the household's today and default thresholds, for each card's Due badge. */
   due: DueContext;
@@ -54,6 +111,8 @@ interface Props {
   dateFormat?: string;
   region?: string;
   canWrite?: boolean;
+  /** Records of this list in Trash, for the empty state's hint. */
+  trashCount?: number;
 }
 
 export function ContractListClient({
@@ -67,6 +126,7 @@ export function ContractListClient({
   dateFormat,
   region,
   canWrite = true,
+  trashCount = 0,
 }: Props) {
   const online = useOnlineStatus();
   const router = useRouter();
@@ -102,94 +162,70 @@ export function ContractListClient({
   }, [contracts]);
 
   const filtered = Boolean(q || category || status || hasListFilters(filters));
-  const summary = [
-    {
-      label: "due soon",
-      value: counts.dueSoon ?? 0,
-      status: "due-soon" as const,
-      onClick: () => {
-        toggleFilter("dueSoon");
-      },
-    },
-    {
-      label: "expired",
-      value: counts.overdue ?? 0,
-      status: "overdue" as const,
-      onClick: () => {
-        toggleFilter("overdue");
-      },
-    },
-    {
-      label: "needs review",
-      value: counts.review ?? 0,
-      status: "needs-review" as const,
-      onClick: () => {
-        toggleFilter("review");
-      },
-    },
-    { label: "added this week", value: counts.recentlyAdded ?? 0 },
-  ];
+  const activeFilters =
+    (category ? 1 : 0) + (status ? 1 : 0) + CHIPS.filter(({ chip }) => isChipActive(filters, chip)).length;
+  // #406 — a list with nothing in it yet shows one sentence and one button:
+  // no Export, search or filter chips until there is something to act on.
+  const nothingYet = !filtered && contracts.length === 0 && pendingOps.length === 0;
 
   return (
-    <div className="space-y-6">
+    <PageShell width="list">
       <ListPageHeader
         title="Contracts"
-        exportPath="/api/export/contracts"
+        exportPath={nothingYet ? undefined : "/api/export/contracts"}
         action={canWrite ? { href: "/contracts/new", label: "Add contract", online } : undefined}
       />
 
-      <form ref={formRef} className="flex flex-col gap-3 md:flex-row" method="GET">
-        <ListFilterHiddenInputs filters={filters} />
-        <input
-          type="search"
-          name="q"
-          defaultValue={q}
-          placeholder="Search by title, provider, or number…"
-          onChange={() => {
-            clearTimeout(searchTimeout.current);
-            searchTimeout.current = setTimeout(() => formRef.current?.requestSubmit(), 400);
-          }}
-          className="flex-1 min-h-11 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-accent"
-        />
-        {/* #403 — w-full on the selects: in the stacked (phone) form the
-            SelectWrapper stretches to the row, and a content-sized select left
-            the chevron floating outside the box. */}
-        <SelectWrapper>
-          <select
-            name="category"
-            defaultValue={category ?? ""}
-            onChange={(e) => e.currentTarget.form?.requestSubmit()}
-            className="min-h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-accent appearance-none pr-8"
-          >
-            <option value="">All categories</option>
-            {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </SelectWrapper>
-        <SelectWrapper>
-          <select
-            name="status"
-            defaultValue={status ?? ""}
-            onChange={(e) => e.currentTarget.form?.requestSubmit()}
-            className="min-h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-accent appearance-none pr-8"
-          >
-            <option value="">All statuses</option>
-            <option value="ACTIVE">Active</option>
-            <option value="CANCELLED">Cancelled</option>
-          </select>
-        </SelectWrapper>
-        <button
-          type="submit"
-          className={toolbarButtonClass}
-        >
-          Filter
-        </button>
-      </form>
-
-      <ListFilterChips filters={filters} chips={CHIPS} onToggle={toggleFilter} />
+      {!nothingYet && (
+        <div className="flex flex-col gap-3">
+          {/* #365 — no Filter button: the search submits as you type (or on
+              Enter) and the selects on change. Below md the selects and chips
+              move into the Filters sheet, so the first contract is on screen. */}
+          <div className="flex gap-2 md:gap-3">
+            <form ref={formRef} className="flex min-w-0 flex-1 gap-3" method="GET">
+              <ListFilterHiddenInputs filters={filters} />
+              <input
+                type="search"
+                name="q"
+                defaultValue={q}
+                aria-label="Search contracts"
+                placeholder="Search by title, provider, or number…"
+                onChange={() => {
+                  clearTimeout(searchTimeout.current);
+                  searchTimeout.current = setTimeout(() => formRef.current?.requestSubmit(), 400);
+                }}
+                className={cn(inputClass, "min-w-0 flex-1")}
+              />
+              <div className="hidden gap-3 md:flex">
+                <CategorySelect value={category} onChange={(e) => e.currentTarget.form?.requestSubmit()} />
+                <StatusSelect value={status} onChange={(e) => e.currentTarget.form?.requestSubmit()} />
+              </div>
+            </form>
+            <ListFilterSheet active={activeFilters}>
+              <CategorySelect
+                value={category}
+                onChange={(e) => {
+                  router.push(listHref("/contracts", filters, { q, category: e.currentTarget.value || undefined, status }));
+                }}
+              />
+              <StatusSelect
+                value={status}
+                onChange={(e) => {
+                  router.push(listHref("/contracts", filters, { q, category, status: e.currentTarget.value || undefined }));
+                }}
+              />
+              <ListFilterChips filters={filters} chips={CHIPS} counts={counts} onToggle={toggleFilter} />
+            </ListFilterSheet>
+          </div>
+          <ListFilterChips
+            filters={filters}
+            chips={CHIPS}
+            counts={counts}
+            onToggle={toggleFilter}
+            className="hidden md:flex"
+          />
+        </div>
+      )}
 
       {filtered && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -200,27 +236,27 @@ export function ContractListClient({
             <button
               type="button"
               onClick={() => removeFilter("q")}
-              className="flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:bg-hover"
+              className={chipClass(true)}
             >
-              &quot;{q}&quot; <X size={12} />
+              &quot;{q}&quot; <X size={16} />
             </button>
           )}
           {category && (
             <button
               type="button"
               onClick={() => removeFilter("category")}
-              className="flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:bg-hover"
+              className={chipClass(true)}
             >
-              {CATEGORY_LABELS[category] ?? category} <X size={12} />
+              {CATEGORY_LABEL_MAP.get(category) ?? category} <X size={16} />
             </button>
           )}
           {status && (
             <button
               type="button"
               onClick={() => removeFilter("status")}
-              className="flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:bg-hover"
+              className={chipClass(true)}
             >
-              {STATUS_LABELS[status] ?? status} <X size={12} />
+              {STATUS_LABELS.get(status) ?? status} <X size={16} />
             </button>
           )}
           <button
@@ -232,8 +268,6 @@ export function ContractListClient({
           </button>
         </div>
       )}
-
-      {!filtered && contracts.length > 0 && <ListSummaryStrip items={summary} />}
 
       {pendingOps.length > 0 && (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
@@ -252,19 +286,20 @@ export function ContractListClient({
 
       {contracts.length === 0 ? (
         pendingOps.length === 0 && (
-          <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border p-10 text-center">
+          <div className={emptyStateClass("flex flex-col items-center gap-3")}>
             <p className="text-sm text-muted">
               {filtered
                 ? "No contracts match your search or filters."
                 : "No contracts yet. Add one manually, or upload a document and we'll fill in the details."}
             </p>
+            {!filtered && <TrashHint count={trashCount} singular="contract" plural="contracts" />}
             {!filtered && canWrite && (
               <div className="flex flex-wrap items-center justify-center gap-2">
-                <Link href="/contracts/new" className={linkButtonClass("primary")}>
+                <Link href="/contracts/new" className={buttonClass("primary")}>
                   <Plus size={16} />
                   Add contract
                 </Link>
-                <Link href="/import" className={linkButtonClass("secondary")}>
+                <Link href="/import" className={buttonClass("secondary")}>
                   <Upload size={16} />
                   Upload a document
                 </Link>
@@ -282,12 +317,12 @@ export function ContractListClient({
                   <ConfirmForm
                     action={deleteContract.bind(null, contract.id)}
                     undo={{ action: restoreContract.bind(null, contract.id) }}
-                    confirmText={`Move this contract to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash.`}
+                    confirmText={`Delete this contract? Its documents are kept, and you can restore it within 30 days from Settings → Recently deleted.`}
                     ariaLabel={`Delete ${contract.title}`}
                     className="flex h-full w-full flex-col items-center justify-center gap-1 bg-danger text-xs font-medium text-danger-foreground"
                     offline={{ entity: "contract", entityId: contract.id, label: `Delete contract: ${contract.title}` }}
                   >
-                    <Trash2 size={18} />
+                    <Trash2 size={16} />
                     Delete
                   </ConfirmForm>
                 }
@@ -313,6 +348,6 @@ export function ContractListClient({
           )}
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

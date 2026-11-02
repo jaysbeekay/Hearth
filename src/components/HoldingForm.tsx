@@ -4,19 +4,24 @@ import { useActionState } from "react";
 import type { HoldingModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
+import { FormActions } from "@/components/FormActions";
 import { FormMessage } from "@/components/FormMessage";
 import { ASSET_CLASSES, ASSET_CLASS_LABELS } from "@/lib/validation/wealth";
 import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
+import { cn } from "@/lib/utils";
 
 const COMMON_EXCHANGES = ["ASX", "NYSE", "NASDAQ", "LSE", "TSX", "CRYPTO", "OTHER"];
 
 export function HoldingForm({
   action,
+  cancelHref,
   holding,
   portfolioId,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
+  /** Where Cancel goes: the same place as the page's BackLink. */
+  cancelHref: string;
   holding?: HoldingModel;
   portfolioId?: string;
 }) {
@@ -36,8 +41,8 @@ export function HoldingForm({
   const [state, formAction] = useActionState<ActionState, FormData>(offlineAwareAction, null);
 
   return (
-    <form action={formAction} className="space-y-5">
-      <FormMessage error={state?.error} success={state?.success} />
+    <form action={formAction} className="space-y-4">
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
 
       <div>
         <label className="block text-sm font-medium mb-1" htmlFor="ticker">
@@ -50,7 +55,7 @@ export function HoldingForm({
           required
           defaultValue={state?.values?.ticker ?? holding?.ticker ?? ""}
           placeholder="e.g. CBA.AX, AAPL, bitcoin"
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm uppercase outline-none focus:border-accent"
+          className={cn(inputClass, "font-mono")}
         />
         <p className="mt-1 text-xs text-muted">
           ASX: append .AX (e.g. CBA.AX) · Crypto: set the asset class to Crypto and use the CoinGecko ID (e.g. bitcoin) or symbol (e.g. BTC)
@@ -110,7 +115,9 @@ export function HoldingForm({
       {/* #285 — capture-time disclosure that this isn't private storage. */}
       {!holding && <p className="text-xs text-muted">Visible to your whole household once saved.</p>}
 
-      <SubmitButton>{holding ? "Save changes" : "Add holding"}</SubmitButton>
+      <FormActions cancelHref={cancelHref}>
+        <SubmitButton>{holding ? "Save changes" : "Add holding"}</SubmitButton>
+      </FormActions>
     </form>
   );
 }

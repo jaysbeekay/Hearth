@@ -16,22 +16,36 @@ function pdfBytes(): Buffer {
 
 const docLink = (page: Page, filename: string) => page.locator('a[href^="/api/documents/"]', { hasText: filename });
 
-/** Uploads a PDF through the first upload form inside `scope`, with a Document type, and returns its id. */
+/**
+ * Uploads a PDF with the first "Add document" button inside `scope`, then
+ * sets its Document type on its row (#405), and returns its id.
+ */
 async function upload(page: Page, scope: Locator, filename: string, typeLabel: string): Promise<string> {
-  const form = scope.locator('form:has(select[name="documentCategory"])').first();
-  await form.getByLabel("Document type").selectOption({ label: typeLabel });
+  const form = scope.locator('form:has(button[aria-label^="Add document to"])').first();
   await form.locator('input[type="file"][name="file"]').setInputFiles({
     name: filename,
     mimeType: "application/pdf",
     buffer: pdfBytes(),
   });
-  await form.getByRole("button", { name: "Upload" }).click();
-  await expect(form).toContainText("Document uploaded.", { timeout: 30_000 });
   const link = docLink(page, filename).first();
-  await expect(link).toBeVisible();
+  await expect(link).toBeVisible({ timeout: 30_000 });
   const id = ((await link.getAttribute("href")) ?? "").split("/").pop() ?? "";
   expect(id).not.toBe("");
+  await rowOf(page, filename).getByLabel(`Document type for ${filename}`).selectOption({ label: typeLabel });
+  await expectType(page, filename, typeLabel);
   return id;
+}
+
+/** The Document type picked on a row, after a reload so it's the saved one. */
+async function expectType(page: Page, filename: string, typeLabel: string) {
+  await expect
+    .poll(async () => {
+      await page.reload();
+      return rowOf(page, filename)
+        .getByLabel(`Document type for ${filename}`)
+        .evaluate((el) => (el as HTMLSelectElement).selectedOptions[0]?.text ?? "");
+    })
+    .toBe(typeLabel);
 }
 
 /** The list row (li) of a Document's latest version. */
@@ -67,19 +81,19 @@ async function expectStarToggles(page: Page, filename: string) {
 }
 
 async function moveToTrash(page: Page, filename: string) {
-  await page.getByRole("button", { name: `Move ${filename} to Trash` }).click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "Move to Trash" }).click();
-  await expect(page.getByRole("status").first()).toContainText("Moved to Trash.");
+  await page.getByRole("button", { name: `Delete ${filename}`, exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(page.getByRole("status").first()).toContainText("Moved to Recently deleted.");
   await expect(docLink(page, filename)).toHaveCount(0);
 }
 
 async function deleteFromOverflowMenu(page: Page, url: string, leavesTo: RegExp) {
   await page.goto(url);
-  await page.getByRole("button", { name: "More actions" }).click();
+  await page.getByRole("button", { name: "More actions", exact: true }).click();
   // The page's own Delete, not a service record's or maintenance record's.
-  const menu = page.getByRole("dialog", { name: "More actions" }).first();
+  const menu = page.getByRole("dialog", { name: "More actions", exact: true }).first();
   await menu.getByRole("button", { name: "Delete", exact: true }).click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "Move to Trash" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
   await page.waitForURL(leavesTo);
 }
 
@@ -102,7 +116,7 @@ test.describe.serial("The one Document list", () => {
     const v2Id = await upload(page, main, v2, "Receipt");
     const v3Id = await upload(page, main, v3, "Receipt");
 
-    await expect(rowOf(page, v3)).toContainText("Receipt");
+    await expectType(page, v3, "Receipt");
     await expectStarToggles(page, v3);
 
     // v1 ← v2 ← v3, and v1 keeps a star from before v2 was filed.
@@ -115,7 +129,7 @@ test.describe.serial("The one Document list", () => {
     await expect(versions.locator('a[href^="/api/documents/"]')).toHaveCount(2);
     // Older versions aren't listed again as Documents of their own.
     await expect(docLink(page, v1)).toHaveCount(1);
-    await expect(versions.getByRole("button", { name: `Move ${v1} to Trash` })).toBeVisible();
+    await expect(versions.getByRole("button", { name: `Delete ${v1}`, exact: true })).toBeVisible();
     await expect(versions.getByRole("button", { name: `Preview ${v1}` })).toBeVisible();
     await expect(versions.locator("li", { hasText: v1 })).toContainText("Receipt");
 
@@ -144,6 +158,9 @@ test.describe.serial("The one Document list", () => {
   test("Rental statement, Maintenance record and Service record Documents show the type and star", async ({
     page,
   }) => {
+    // Builds a Property, Tenancy, statement, Vehicle and two entries before
+    // checking three Document rows, so it needs more than the default 30s.
+    test.setTimeout(90_000);
     const stamp = Date.now();
 
     await page.goto("/home/new");
@@ -204,7 +221,7 @@ test.describe.serial("The one Document list", () => {
         const filename = `${name.toLowerCase().replace(/ /g, "-")}-${stamp}.pdf`;
         await page.goto(url);
         await upload(page, page.locator("main"), filename, type);
-        await expect(rowOf(page, filename)).toContainText(type);
+        await expectType(page, filename, type);
         await expectStarToggles(page, filename);
         await moveToTrash(page, filename);
       });
@@ -221,7 +238,7 @@ test.describe.serial("The one Document list", () => {
     await page.locator("#name").fill(portfolioName);
     await Promise.all([
       page.waitForURL(/\/wealth\/portfolios\/(?!new$)[^/]+$/),
-      page.getByRole("button", { name: "Create portfolio" }).click(),
+      page.getByRole("button", { name: "Add portfolio" }).click(),
     ]);
     const portfolioId = page.url().split("/portfolios/")[1];
 
@@ -247,23 +264,24 @@ test.describe.serial("The one Document list", () => {
     await upload(page, page.locator("main"), filename, "Invoice");
 
     const row = rowOf(page, filename);
-    await expect(row).toContainText("Invoice");
+    await expectType(page, filename, "Invoice");
     await expect(row.getByRole("button", { name: `Preview ${filename}` })).toBeVisible();
     await expectStarToggles(page, filename);
 
-    await rowOf(page, filename).getByRole("button", { name: `Move ${filename} to Trash` }).click();
+    await rowOf(page, filename).getByRole("button", { name: `Delete ${filename}`, exact: true }).click();
     const dialog = page.getByRole("alertdialog");
-    await expect(dialog).toContainText("Settings → Trash");
-    await dialog.getByRole("button", { name: "Move to Trash" }).click();
+    await expect(dialog).toContainText("Settings → Recently deleted");
+    await dialog.getByRole("button", { name: "Delete", exact: true }).click();
     const toast = page.getByRole("status");
-    await expect(toast).toContainText("Moved to Trash.");
+    await expect(toast).toContainText("Moved to Recently deleted.");
     await expect(docLink(page, filename)).toHaveCount(0);
     await toast.getByRole("button", { name: "Undo" }).click();
     await expect(docLink(page, filename)).toHaveCount(1);
 
     // Clean up: deleting the portfolio takes its trades and their Documents.
     await page.goto("/wealth/portfolios");
-    const card = page.locator("div.rounded-xl.border.border-border.bg-surface", { hasText: portfolioName });
+    const card = page.locator("div.rounded-lg.border.border-border.bg-surface", { hasText: portfolioName });
+    await card.getByRole("button", { name: `More actions for ${portfolioName}` }).click();
     await card.getByRole("button", { name: "Delete", exact: true }).click();
     await page.getByRole("button", { name: `Delete "${portfolioName}"` }).click();
     await expect(page.locator("body")).not.toContainText(portfolioName);

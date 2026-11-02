@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { test, expect } from "@playwright/test";
 import { ADMIN_AUTH_FILE, UPLOADS_DIR } from "../env";
+import { openFormSections } from "../formSections";
 
 test.use({ storageState: ADMIN_AUTH_FILE });
 
@@ -26,6 +27,7 @@ test.describe.serial("Vehicles module", () => {
 
   test("create a vehicle", async ({ page }) => {
     await page.goto("/vehicles/new");
+    await openFormSections(page);
     await page.locator("#label").fill("Test Vehicle");
     await page.locator("#make").fill("Toyota");
     await page.locator("#model").fill("Camry");
@@ -49,7 +51,7 @@ test.describe.serial("Vehicles module", () => {
     await page.getByRole("button", { name: "Add service record" }).click();
     await page.waitForURL(/\/vehicles\/(?!new$)[^/]+$/);
 
-    const row = page.locator("div.rounded-xl.border.border-border.bg-surface", {
+    const row = page.locator("div.rounded-lg.border.border-border.bg-surface", {
       hasText: "Test Service Record",
     });
     const editHref = await row.getByRole("link", { name: "Edit" }).getAttribute("href");
@@ -61,7 +63,7 @@ test.describe.serial("Vehicles module", () => {
   test("upload a document to the service record", async ({ page }) => {
     await page.goto(`/vehicles/${vehicleId}`);
 
-    const row = page.locator("div.rounded-xl.border.border-border.bg-surface", {
+    const row = page.locator("div.rounded-lg.border.border-border.bg-surface", {
       hasText: "Test Service Record",
     });
     await row.locator('input[type="file"]').setInputFiles({
@@ -69,8 +71,8 @@ test.describe.serial("Vehicles module", () => {
       mimeType: "application/pdf",
       buffer: pdfBytes(),
     });
-    await row.getByRole("button", { name: "Upload" }).click();
-    await expect(row).toContainText("Document uploaded.");
+    // "Add document" (#405) uploads as soon as the file is chosen.
+    await expect(row.locator('a[href^="/api/documents/"]', { hasText: "maintenance.pdf" })).toBeVisible({ timeout: 30_000 });
 
     const fileDir = path.join(UPLOADS_DIR, "vehicle-items", itemId);
     expect(fs.existsSync(fileDir)).toBe(true);
@@ -96,11 +98,12 @@ test.describe.serial("Vehicles module", () => {
     expect(fs.existsSync(fileDir)).toBe(true);
 
     await page.goto(`/vehicles/${vehicleId}`);
-    const row = page.locator("div.rounded-xl.border.border-border.bg-surface", {
+    const row = page.locator("div.rounded-lg.border.border-border.bg-surface", {
       hasText: "Updated Service Record",
     });
+    await row.getByRole("button", { name: /^More actions for / }).click();
     await row.getByRole("button", { name: "Delete", exact: true }).click();
-    await page.getByRole("button", { name: "Move to Trash" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
 
     // Soft-deleted: gone from the active list, but the files are untouched.
     await expect(page.locator("body")).not.toContainText("Updated Service Record");
@@ -133,7 +136,7 @@ test.describe.serial("Vehicles module", () => {
     await page.getByRole("button", { name: "Add service record" }).click();
     await page.waitForURL(/\/vehicles\/(?!new$)[^/]+$/);
 
-    const row = page.locator("div.rounded-xl.border.border-border.bg-surface", {
+    const row = page.locator("div.rounded-lg.border.border-border.bg-surface", {
       hasText: "Test Purchase Record",
     });
     await expect(row).toContainText("Purchase");
@@ -143,11 +146,13 @@ test.describe.serial("Vehicles module", () => {
       mimeType: "application/pdf",
       buffer: pdfBytes(),
     });
-    await row.getByRole("button", { name: "Upload" }).click();
-    await expect(row).toContainText("Document uploaded.");
+    await expect(row.locator('a[href^="/api/documents/"]', { hasText: "purchase-invoice.pdf" })).toBeVisible({
+      timeout: 30_000,
+    });
 
+    await row.getByRole("button", { name: /^More actions for / }).click();
     await row.getByRole("button", { name: "Delete", exact: true }).click();
-    await page.getByRole("button", { name: "Move to Trash" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
     await expect(page.locator("body")).not.toContainText("Test Purchase Record");
   });
 
@@ -165,7 +170,9 @@ test.describe.serial("Vehicles module", () => {
     await page.waitForURL(/\/vehicles\/(?!new$)[^/]+$/);
 
     await expect(page.getByText("Next service due")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Service reminder" })).toBeVisible();
+    // #360 — one Reminder card lists each of the Vehicle's dates.
+    await expect(page.getByRole("heading", { name: "Reminder health" })).toHaveCount(1);
+    await expect(page.locator("main li", { hasText: /^Service: / })).toBeVisible();
 
     await page.goto("/vehicles");
     const card = page.locator("a", { hasText: "Test Vehicle" });
@@ -175,9 +182,9 @@ test.describe.serial("Vehicles module", () => {
 
   test("delete the vehicle", async ({ page }) => {
     await page.goto(`/vehicles/${vehicleId}`);
-    await page.getByRole("button", { name: "More actions" }).click();
+    await page.getByRole("button", { name: "More actions", exact: true }).click();
     await page.getByRole("button", { name: "Delete", exact: true }).click();
-    await page.getByRole("button", { name: "Move to Trash" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
     await page.waitForURL(/\/vehicles$/);
 
     await expect(page.locator("body")).not.toContainText("Test Vehicle");

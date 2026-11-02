@@ -6,6 +6,8 @@ import { WealthImportClient } from "@/components/WealthImportClient";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Import Trades" };
 
@@ -22,14 +24,14 @@ export default async function ImportPage({
   if (!portfolio) notFound();
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="detail">
       <div>
         <BackLink href={`/wealth/portfolios/${id}`} label={portfolio.name} />
-        <h1 className="mt-1 text-2xl font-semibold">Import trades</h1>
+        <h1 className="mt-1 text-2xl font-medium">Import trades</h1>
       </div>
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <Card>
         <WealthImportClient portfolioId={id} />
-      </div>
-    </div>
+      </Card>
+    </PageShell>
   );
 }
