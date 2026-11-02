@@ -257,7 +257,7 @@ export const ROLE_LABELS: Record<string, string> = {
 // "Admin" vs "Read-only" isn't left for the admin to infer.
 export const ROLE_DESCRIPTIONS: Record<string, string> = {
   READONLY: "Can see shared household records, but can't change or delete them.",
-  MEMBER: "Can add, edit, and move shared household records to Trash.",
+  MEMBER: "Can add, edit, and delete shared household records.",
   ADMIN: "Can also manage household members, modules, backups, and system settings.",
 };
 

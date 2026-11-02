@@ -166,7 +166,7 @@ export default async function ContractDetailPage({
                 <ConfirmForm
                   action={deleteContract.bind(null, contract.id)}
                   undo={{ action: restoreContract.bind(null, contract.id), href: `/contracts/${contract.id}` }}
-                  confirmText="Move this contract to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash."
+                  confirmText="Delete this contract? Its documents are kept, and you can restore it within 30 days from Settings → Recently deleted."
                   className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
                   offline={{ entity: "contract", entityId: contract.id, label: `Delete contract: ${contract.title}` }}
                 >

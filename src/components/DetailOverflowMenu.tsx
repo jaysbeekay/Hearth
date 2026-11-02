@@ -1,9 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { MoreVertical, X } from "lucide-react";
 import { Dialog } from "@/components/Dialog";
 import { useFocusTrap } from "@/lib/useFocusTrap";
+
+// #355 — an item that acts in place (Archive) rather than navigating away
+// calls this to close the menu; one that is a link or opens a dialog already
+// leaves it.
+const CloseMenuContext = createContext<() => void>(() => undefined);
+export function useCloseOverflowMenu() {
+  return useContext(CloseMenuContext);
+}
 
 // Also the list pages' ⋮ menu below `md` (#369), where `label` names it
 // "More list actions" so it reads differently from a record's own menu.
@@ -39,6 +47,10 @@ export function DetailOverflowMenu({
     };
   }, [open]);
 
+  const closeMenu = () => {
+    setOpen(false);
+  };
+
   return (
     <div ref={ref} className="relative">
       <button
@@ -64,7 +76,7 @@ export function DetailOverflowMenu({
             aria-label={label}
             className="absolute right-0 z-10 mt-1 hidden w-48 overflow-hidden rounded-lg border border-border bg-surface shadow-md md:block"
           >
-            {children}
+            <CloseMenuContext.Provider value={closeMenu}>{children}</CloseMenuContext.Provider>
           </div>
 
           {/* Mobile: bottom sheet, matching BottomNav's "More" pattern —
@@ -87,7 +99,7 @@ export function DetailOverflowMenu({
                   <X size={18} />
                 </button>
               </div>
-              {children}
+              <CloseMenuContext.Provider value={closeMenu}>{children}</CloseMenuContext.Provider>
             </>
           </Dialog>
         </>

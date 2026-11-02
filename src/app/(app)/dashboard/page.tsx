@@ -59,7 +59,7 @@ export default async function DashboardPage() {
         include: { _count: { select: { documents: { where: { deletedAt: null } } } } },
       }),
       enabledModules.has("VEHICLES")
-        ? prisma.vehicle.findMany({ where: { deletedAt: null }, orderBy: { createdAt: "desc" } })
+        ? prisma.vehicle.findMany({ where: { deletedAt: null, archivedAt: null }, orderBy: { createdAt: "desc" } })
         : [],
       enabledModules.has("TRAVEL")
         ? prisma.trip.findMany({
@@ -70,11 +70,12 @@ export default async function DashboardPage() {
         : [],
       enabledModules.has("HOME")
         ? prisma.property.findMany({
-            where: { deletedAt: null, isRented: true },
+            where: { deletedAt: null, archivedAt: null, isRented: true },
             select: {
               id: true,
               label: true,
               isRented: true,
+              archivedAt: true,
               rentalAgreements: LIVE_TENANCY_AGREEMENTS,
             },
           })

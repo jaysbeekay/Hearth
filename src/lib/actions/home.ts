@@ -14,6 +14,8 @@ import {
   setPropertyRentedCommand,
   deletePropertyCommand,
   restorePropertyCommand,
+  archivePropertyCommand,
+  unarchivePropertyCommand,
   permanentlyDeletePropertyCommand,
   createMaintenanceRecordCommand,
   updateMaintenanceRecordCommand,
@@ -182,6 +184,27 @@ export async function restoreProperty(propertyId: string): Promise<ActionState> 
   return { success: "Restored." };
 }
 
+// #355 — Archive / unarchive: see archivePropertyCommand.
+export async function archiveProperty(propertyId: string): Promise<ActionState> {
+  const user = await requireUser();
+  try {
+    await archivePropertyCommand(propertyId, user.id);
+  } catch (error) {
+    return commandError(error, "Property not found.");
+  }
+  return { success: "Archived." };
+}
+
+export async function unarchiveProperty(propertyId: string): Promise<ActionState> {
+  const user = await requireUser();
+  try {
+    await unarchivePropertyCommand(propertyId, user.id);
+  } catch (error) {
+    return commandError(error, "Property not found.");
+  }
+  return { success: "Restored." };
+}
+
 export async function permanentlyDeleteProperty(propertyId: string): Promise<ActionState> {
   await requireUser();
   try {
@@ -263,7 +286,7 @@ export async function deleteHomeItem(propertyId: string, itemId: string): Promis
   } catch (error) {
     return commandError(error, "Maintenance record not found.");
   }
-  return { success: "Maintenance record moved to Trash." };
+  return { success: "Maintenance record deleted." };
 }
 
 export async function restoreHomeItem(itemId: string): Promise<ActionState> {
@@ -347,7 +370,7 @@ export async function deleteRentalAgreement(
   } catch (error) {
     return commandError(error, "Tenancy not found.");
   }
-  return { success: "Tenancy moved to Trash." };
+  return { success: "Tenancy deleted." };
 }
 
 export async function restoreRentalAgreement(agreementId: string): Promise<ActionState> {
@@ -489,7 +512,7 @@ export async function deleteRentalStatement(
   } catch (error) {
     return commandError(error, "Statement not found.");
   }
-  return { success: "Statement moved to Trash." };
+  return { success: "Statement deleted." };
 }
 
 export async function restoreRentalStatement(statementId: string): Promise<ActionState> {

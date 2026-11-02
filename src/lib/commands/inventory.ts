@@ -46,7 +46,7 @@ export async function updateInventoryItemCommand(
         where: { id: patch.warrantyProductId },
         select: { deletedAt: true },
       });
-      if (!isLive(warranty)) throw new RecordValidationError("That warranty doesn't exist or is in Trash.");
+      if (!isLive(warranty)) throw new RecordValidationError("That warranty doesn't exist or has been deleted.");
     }
     await updateLiveUnlessStale(
       options.baseUpdatedAt,

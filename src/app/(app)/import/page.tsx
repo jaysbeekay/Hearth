@@ -17,12 +17,16 @@ export default async function ImportPage() {
 
   const [properties, vehicles] = await Promise.all([
     enabledModules.has("HOME")
-      ? prisma.property.findMany({ where: { deletedAt: null }, select: { id: true, label: true } })
+      ? prisma.property.findMany({ where: { deletedAt: null }, select: { id: true, label: true, archivedAt: true } })
       : [],
     enabledModules.has("VEHICLES")
-      ? prisma.vehicle.findMany({ where: { deletedAt: null }, select: { id: true, label: true } })
+      ? prisma.vehicle.findMany({ where: { deletedAt: null }, select: { id: true, label: true, archivedAt: true } })
       : [],
   ]);
+  // #355 — late paperwork (a sale receipt, a final invoice) still files to an
+  // Archived record, so it stays in the picker, labelled.
+  const withArchivedLabel = (rows: { id: string; label: string; archivedAt: Date | null }[]) =>
+    rows.map((row) => ({ id: row.id, label: row.archivedAt ? `${row.label} (archived)` : row.label }));
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -34,7 +38,7 @@ export default async function ImportPage() {
           Hearth scans each one, you confirm what it is, review the details, and save.
         </p>
       </div>
-      <ImportClient enabledModules={[...enabledModules]} properties={properties} vehicles={vehicles} />
+      <ImportClient enabledModules={[...enabledModules]} properties={withArchivedLabel(properties)} vehicles={withArchivedLabel(vehicles)} />
     </div>
   );
 }

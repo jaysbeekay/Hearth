@@ -190,6 +190,7 @@ export async function getHouseholdReminderHealth(): Promise<HouseholdReminderHea
       prisma.vehicle.findMany({
         where: {
           deletedAt: null,
+          archivedAt: null,
           OR: [{ regoExpiry: { not: null } }, { insuranceExpiry: { not: null } }, { nextServiceDue: { not: null } }],
         },
       }),
