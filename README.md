@@ -923,12 +923,25 @@ Docker Hub jobs run in a GitHub environment named `release` on tag runs:
    rule `v*`, so only release tags can read its secrets.
 3. Move `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
    `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `DOCKERHUB_USERNAME` and
-   `DOCKERHUB_TOKEN` into the environment's secrets.
+   `DOCKERHUB_TOKEN` into the environment's secrets, along with the iOS
+   signing and App Store Connect secrets once the first iOS proof run (from
+   `main`) has passed — see the iOS doc below.
 4. Delete the repository-level copies of those secrets.
 
 Until step 4 the jobs keep working from repo-level secrets. Once done, a
 manual `docker-publish.yml` dispatch from `main` can no longer log in to
 Docker Hub; run it against a tag.
+
+`ios-testflight.yml` signs the Capacitor shell and uploads it to TestFlight
+on every pushed `vx.y.z` tag, with the version taken from the tag; a green run
+means App Store Connect accepted the upload (processing then takes a few
+minutes). It is **not yet** part of `release.yml`'s `artifacts` job, so a
+failed or unconfigured iOS build doesn't fail the release, and a tag created by
+`release.yml`'s dispatch needs the iOS workflow run manually against it. It
+joins the `artifacts` job only after a signed proof run has reached
+TestFlight.
+See [`docs/deployment/ios-testflight.md`](./docs/deployment/ios-testflight.md)
+for the signing and App Store Connect secrets it needs.
 
 ## License
 
