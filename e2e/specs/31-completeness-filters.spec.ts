@@ -61,6 +61,10 @@ test.describe.serial("Completeness filters", () => {
     await page.waitForURL(/\/contracts\?missing=details$/);
     // The deep-linked filter is visible and removable.
     await expect(page.getByRole("button", { name: "Missing key details" })).toHaveAttribute("aria-pressed", "true");
+    // #365 — the chip carries the same household-wide count as the dashboard.
+    await expect(page.getByRole("button", { name: "Missing key details" })).toHaveAccessibleName(
+      `Missing key details · ${dashboardCount}`,
+    );
     await expect(page.getByRole("button", { name: "Clear all" })).toBeVisible();
     await expect(page.getByText(new RegExp(`^${dashboardCount} contracts?$`))).toBeVisible();
     await expect(page.locator('main a[href^="/contracts/c"]')).toHaveCount(dashboardCount);
@@ -91,7 +95,8 @@ test.describe.serial("Completeness filters", () => {
     ] as const) {
       await page.goto(from);
       await page.waitForURL((url) => `${url.pathname}${url.search}` === to);
-      await expect(page.getByRole("button", { name: chip, exact: true })).toHaveAttribute("aria-pressed", "true");
+      // #365 — the chip's name ends with its count ("Due soon · 2").
+      await expect(page.getByRole("button", { name: chip })).toHaveAttribute("aria-pressed", "true");
     }
   });
 
@@ -181,4 +186,23 @@ test.describe.serial("Completeness filters", () => {
     // The result explains what is missing, not just that something is.
     await expect(dialog.getByRole("option", { name: new RegExp(incompleteLabel) })).toContainText("No VIN or plate");
   });
+});
+
+// #517 review — a chip's count follows the search and the other chips: it
+// is the length of the list clicking it opens from here.
+test("chip counts follow the search and the other chips", async ({ page }) => {
+  const stamp = Date.now();
+  await createContract(page, { title: `Chip Count Complete ${stamp}`, endDate: "2031-01-01", cost: "10", billingFrequency: "MONTHLY" });
+  await createContract(page, { title: `Chip Count No End ${stamp}` });
+
+  await page.goto(`/contracts?q=${stamp}`);
+  const chips = page.locator("main").getByRole("button", { pressed: false });
+  await expect(chips.filter({ hasText: /^No document · / }).first()).toHaveText("No document · 2");
+  await expect(chips.filter({ hasText: /^Missing key details · / }).first()).toHaveText("Missing key details · 1");
+
+  await page.goto(`/contracts?q=${stamp}&missing=details`);
+  const main = page.locator("main");
+  // The active chip counts the list on screen; the others count within it.
+  await expect(main.getByRole("button", { name: "Missing key details · 1", pressed: true }).first()).toBeVisible();
+  await expect(main.getByRole("button", { name: "No document · 1", pressed: false }).first()).toBeVisible();
 });
