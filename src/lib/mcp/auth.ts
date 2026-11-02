@@ -44,7 +44,7 @@ export function parseMcpTokens(env: { MCP_TOKEN?: string; MCP_TOKENS?: string })
       console.warn(`[mcp] ignoring a second MCP_TOKENS entry labelled "${label}"; labels must be unique`);
       continue;
     }
-    if (tokens.some((existing) => existing.token === token)) {
+    if (tokens.some((existing) => timingSafeEqual(digest(existing.token), digest(token)))) {
       console.warn(`[mcp] ignoring MCP_TOKENS entry "${label}": its token is already in use; tokens must be unique`);
       continue;
     }
