@@ -21,7 +21,7 @@ const UI_FILE = path.join("lib", "ui.ts");
 
 /** Every quoted or template string in a file, so the checks only look at class-like text. */
 function strings(text: string): string[] {
-  return [...text.matchAll(/"([^"\n]*)"|`([^`]*)`/g)].map((m) => m[1] ?? m[2]);
+  return [...text.matchAll(/"([^"\n]*)"|'([^'\n]*)'|`([^`]*)`/g)].map((m) => m[1] ?? m[2] ?? m[3]);
 }
 
 function offenders(test: (s: string) => boolean, { skip = [UI_FILE] }: { skip?: string[] } = {}) {
