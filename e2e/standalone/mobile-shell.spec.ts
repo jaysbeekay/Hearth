@@ -1411,6 +1411,48 @@ test("standalone a Contract that Covers a Tenancy replaces its lease-end row and
   await expect(card("Lease").filter({ hasText: "Home" }).filter({ hasNotText: "Home lease" })).toHaveCount(0);
 });
 
+// #457 — when the Contract stops Covering (Cancelled, awaiting review,
+// another end date, unlinked) the lease end is Due again through the row
+// adapter; once a fixed-term Covering Contract has ended, the lease needs its
+// new end date.
+test("standalone a Tenancy's lease end comes back when its Contract stops Covering it (#457)", async ({ page }) => {
+  await page.addInitScript(() => {
+    const rows = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest.rowsByTable;
+    const updated_at = "2099-01-01T00:00:00.000Z";
+    const lease = { category: "OTHER", provider: "Agent", status: "ACTIVE", renewal_type: "MANUAL_RENEWAL", end_date: "2099-09-20", currency: "AUD", created_at: updated_at, updated_at };
+    rows.contracts.push(
+      { ...lease, id: "lease-active", title: "Active lease" },
+      { ...lease, id: "lease-cancelled", title: "Cancelled lease", status: "CANCELLED" },
+      { ...lease, id: "lease-review", title: "Review lease", extraction_pending: 1 },
+      { ...lease, id: "lease-other-day", title: "Other-day lease", end_date: "2099-09-25" },
+      { ...lease, id: "lease-fixed", title: "Fixed lease", renewal_type: "FIXED_TERM", end_date: "2099-09-01" },
+    );
+  });
+  await page.clock.setFixedTime(new Date("2099-09-06T12:00:00"));
+  await reloadStandalone(page);
+  const states = await page.evaluate(() => {
+    const shell = window as unknown as { dueEntriesFor: (type: string, row: unknown) => { state: string; label: string }[] };
+    const lease = (contractId: string | null, leaseEnd = "2099-09-20") => ({ id: "t", property_id: "property-1", contract_id: contractId, lease_end: leaseEnd });
+    const read = (row: unknown) => shell.dueEntriesFor("rentalAgreements", row).map((e) => `${e.state}: ${e.label}`);
+    return {
+      covered: read(lease("lease-active")),
+      cancelled: read(lease("lease-cancelled")),
+      review: read(lease("lease-review")),
+      otherDay: read(lease("lease-other-day")),
+      unlinked: read(lease(null)),
+      fixedEnded: read(lease("lease-fixed", "2099-09-01")),
+    };
+  });
+  expect(states).toEqual({
+    covered: [],
+    cancelled: ["due-soon: Lease ends 20 Sep"],
+    review: ["due-soon: Lease ends 20 Sep"],
+    otherDay: ["due-soon: Lease ends 20 Sep"],
+    unlinked: ["due-soon: Lease ends 20 Sep"],
+    fixedEnded: ["needs-new-end-date: Lease ended — set the new lease end"],
+  });
+});
+
 // #386 — a Contract's notice deadline, as on the web: Upcoming lists it while
 // it's ahead, and an auto-renewing Contract gets local Reminders for it but
 // never for its end date.
