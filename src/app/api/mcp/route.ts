@@ -32,19 +32,20 @@ function tooMany(result: RateLimitResult) {
 
 // One line per tool call in the server log, naming the token's label — the
 // access log for "which client asked what". Arguments are left out: they can
-// carry search terms about the household's records.
+// carry search terms about the household's records. Never throws: a body that
+// isn't JSON (or any other logging fault) is left for the transport to reject,
+// and must not fail the request it's only observing.
 async function logToolCalls(request: NextRequest, label: string, address: string) {
-  let body: unknown;
   try {
-    body = await request.clone().json();
-  } catch {
-    return;
-  }
-  for (const message of Array.isArray(body) ? body : [body]) {
-    if (message && typeof message === "object" && (message as { method?: unknown }).method === "tools/call") {
-      const name = (message as { params?: { name?: unknown } }).params?.name;
-      console.info(`[mcp] ${label} called ${typeof name === "string" ? name : "?"} from ${address}`);
+    const body: unknown = await request.clone().json();
+    for (const message of Array.isArray(body) ? body : [body]) {
+      if (message && typeof message === "object" && (message as { method?: unknown }).method === "tools/call") {
+        const name = (message as { params?: { name?: unknown } }).params?.name;
+        console.info(`[mcp] ${label} called ${typeof name === "string" ? name : "?"} from ${address}`);
+      }
     }
+  } catch {
+    // Nothing to log.
   }
 }
 
