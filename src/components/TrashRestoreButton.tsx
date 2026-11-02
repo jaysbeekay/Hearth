@@ -24,7 +24,7 @@ export function TrashRestoreButton({ action }: { action: () => Promise<unknown> 
   return (
     <form action={formAction}>
       <SubmitButton variant="secondary" pendingText="Restoring…">
-        <RotateCcw size={14} className="mr-1.5" />
+        <RotateCcw size={16} className="mr-1.5" />
         Restore
       </SubmitButton>
     </form>

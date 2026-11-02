@@ -9,6 +9,9 @@ import { deletePortfolio } from "@/lib/actions/wealth";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { Card } from "@/components/ui/Card";
+import { buttonClass, emptyStateClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Portfolios" };
 
@@ -22,16 +25,16 @@ export default async function PortfoliosPage() {
   });
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="list">
       <div className="flex items-center justify-between">
         <div>
           <BackLink href="/wealth" label="Wealth" />
-          <h1 className="mt-1 text-2xl font-semibold">Portfolios</h1>
+          <h1 className="mt-1 text-2xl font-medium">Portfolios</h1>
         </div>
         {canWrite && (
           <Link
             href="/wealth/portfolios/new"
-            className="flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+            className={buttonClass("primary")}
           >
             <Plus size={16} />
             New portfolio
@@ -40,16 +43,16 @@ export default async function PortfoliosPage() {
       </div>
 
       {portfolios.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
+        <p className={emptyStateClass()}>
           No portfolios yet.
         </p>
       ) : (
         <div className="space-y-3">
           {portfolios.map((p) => (
-            <div key={p.id} className="rounded-xl border border-border bg-surface p-4 md:p-6">
+            <Card key={p.id}>
               <div className="flex items-start justify-between gap-4">
                 <Link href={`/wealth/portfolios/${p.id}`} className="min-w-0">
-                  <p className="font-semibold hover:text-accent">{p.name}</p>
+                  <p className="font-medium hover:text-accent">{p.name}</p>
                   {p.description && <p className="text-sm text-muted">{p.description}</p>}
                   <p className="mt-1 text-sm text-muted">
                     {p.holdings.length} holding{p.holdings.length !== 1 ? "s" : ""} · {p.currency}
@@ -60,7 +63,7 @@ export default async function PortfoliosPage() {
                     <>
                       <Link
                         href={`/wealth/portfolios/${p.id}/edit`}
-                        className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+                        className={buttonClass("secondary")}
                       >
                         <Pencil size={16} />
                         Edit
@@ -69,7 +72,7 @@ export default async function PortfoliosPage() {
                         action={deletePortfolio.bind(null, p.id)}
                         confirmText={`Delete "${p.name}" and all its holdings and trades? This cannot be undone.`}
                         actionLabel={`Delete "${p.name}"`}
-                        className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
+                        className={buttonClass("secondary", { destructive: true })}
                         offline={{ entity: "portfolio", entityId: p.id, label: `Delete portfolio: ${p.name}` }}
                       >
                         <Trash2 size={16} />
@@ -79,10 +82,10 @@ export default async function PortfoliosPage() {
                   )}
                 </div>
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

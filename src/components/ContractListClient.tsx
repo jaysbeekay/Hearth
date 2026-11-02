@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import { ListPageHeader } from "@/components/ListPageHeader";
-import { linkButtonClass, toolbarButtonClass } from "@/lib/buttonStyles";
 import { useRouter } from "next/navigation";
 import { Plus, X, Trash2, Upload } from "lucide-react";
 import { SelectWrapper } from "@/components/SelectWrapper";
@@ -15,7 +14,7 @@ import { ListSummaryStrip } from "@/components/ListSummaryStrip";
 import { ListFilterChips, ListFilterHiddenInputs } from "@/components/ListFilterChips";
 import { deleteContract, restoreContract } from "@/lib/actions/contracts";
 import type { ContractModel } from "@/generated/prisma/models";
-import { CATEGORY_LABELS } from "@/lib/utils";
+import { CATEGORY_LABELS, cn } from "@/lib/utils";
 import type { DueContext } from "@/lib/duePolicy";
 import {
   contractMissingParts,
@@ -29,8 +28,14 @@ import {
 import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
+import { buttonClass, chipClass, emptyStateClass, selectClass, inputClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
-const STATUS_LABELS: Record<string, string> = { ACTIVE: "Active", CANCELLED: "Cancelled" };
+const STATUS_LABELS = new Map([
+  ["ACTIVE", "Active"],
+  ["CANCELLED", "Cancelled"],
+]);
+const CATEGORY_LABEL_MAP = new Map(Object.entries(CATEGORY_LABELS));
 
 const CHIPS: { chip: ToggleableFilter; label: string; onlyWhenActive?: boolean }[] = [
   { chip: "dueSoon", label: "Due soon" },
@@ -131,7 +136,7 @@ export function ContractListClient({
   ];
 
   return (
-    <div className="space-y-6">
+    <PageShell width="list">
       <ListPageHeader
         title="Contracts"
         exportPath="/api/export/contracts"
@@ -149,7 +154,7 @@ export function ContractListClient({
             clearTimeout(searchTimeout.current);
             searchTimeout.current = setTimeout(() => formRef.current?.requestSubmit(), 400);
           }}
-          className="flex-1 min-h-11 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-accent"
+          className={cn(inputClass, "flex-1")}
         />
         {/* #403 — w-full on the selects: in the stacked (phone) form the
             SelectWrapper stretches to the row, and a content-sized select left
@@ -157,9 +162,10 @@ export function ContractListClient({
         <SelectWrapper>
           <select
             name="category"
+            aria-label="Filter by category"
             defaultValue={category ?? ""}
             onChange={(e) => e.currentTarget.form?.requestSubmit()}
-            className="min-h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-accent appearance-none pr-8"
+            className={selectClass}
           >
             <option value="">All categories</option>
             {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
@@ -172,9 +178,10 @@ export function ContractListClient({
         <SelectWrapper>
           <select
             name="status"
+            aria-label="Filter by status"
             defaultValue={status ?? ""}
             onChange={(e) => e.currentTarget.form?.requestSubmit()}
-            className="min-h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-accent appearance-none pr-8"
+            className={selectClass}
           >
             <option value="">All statuses</option>
             <option value="ACTIVE">Active</option>
@@ -183,7 +190,7 @@ export function ContractListClient({
         </SelectWrapper>
         <button
           type="submit"
-          className={toolbarButtonClass}
+          className={buttonClass("secondary", {}, "list-none")}
         >
           Filter
         </button>
@@ -200,27 +207,27 @@ export function ContractListClient({
             <button
               type="button"
               onClick={() => removeFilter("q")}
-              className="flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:bg-hover"
+              className={chipClass(true)}
             >
-              &quot;{q}&quot; <X size={12} />
+              &quot;{q}&quot; <X size={16} />
             </button>
           )}
           {category && (
             <button
               type="button"
               onClick={() => removeFilter("category")}
-              className="flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:bg-hover"
+              className={chipClass(true)}
             >
-              {CATEGORY_LABELS[category] ?? category} <X size={12} />
+              {CATEGORY_LABEL_MAP.get(category) ?? category} <X size={16} />
             </button>
           )}
           {status && (
             <button
               type="button"
               onClick={() => removeFilter("status")}
-              className="flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:bg-hover"
+              className={chipClass(true)}
             >
-              {STATUS_LABELS[status] ?? status} <X size={12} />
+              {STATUS_LABELS.get(status) ?? status} <X size={16} />
             </button>
           )}
           <button
@@ -252,7 +259,7 @@ export function ContractListClient({
 
       {contracts.length === 0 ? (
         pendingOps.length === 0 && (
-          <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border p-10 text-center">
+          <div className={emptyStateClass("flex flex-col items-center gap-3")}>
             <p className="text-sm text-muted">
               {filtered
                 ? "No contracts match your search or filters."
@@ -260,11 +267,11 @@ export function ContractListClient({
             </p>
             {!filtered && canWrite && (
               <div className="flex flex-wrap items-center justify-center gap-2">
-                <Link href="/contracts/new" className={linkButtonClass("primary")}>
+                <Link href="/contracts/new" className={buttonClass("primary")}>
                   <Plus size={16} />
                   Add contract
                 </Link>
-                <Link href="/import" className={linkButtonClass("secondary")}>
+                <Link href="/import" className={buttonClass("secondary")}>
                   <Upload size={16} />
                   Upload a document
                 </Link>
@@ -287,7 +294,7 @@ export function ContractListClient({
                     className="flex h-full w-full flex-col items-center justify-center gap-1 bg-danger text-xs font-medium text-danger-foreground"
                     offline={{ entity: "contract", entityId: contract.id, label: `Delete contract: ${contract.title}` }}
                   >
-                    <Trash2 size={18} />
+                    <Trash2 size={16} />
                     Delete
                   </ConfirmForm>
                 }
@@ -313,6 +320,6 @@ export function ContractListClient({
           )}
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

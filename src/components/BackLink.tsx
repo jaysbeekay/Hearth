@@ -13,7 +13,7 @@ export function BackLink({ href, label }: { href: string; label: string }) {
       href={href}
       className="inline-flex min-h-11 items-center gap-1 text-sm text-muted hover:text-foreground"
     >
-      <ArrowLeft size={14} aria-hidden />
+      <ArrowLeft size={16} aria-hidden />
       Back to {label}
     </Link>
   );

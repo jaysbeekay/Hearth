@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle } from "lucide-react";
+import { buttonClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
 export default function AppError({
   error,
@@ -11,11 +12,10 @@ export default function AppError({
   reset: () => void;
 }) {
   return (
-    <div className="flex flex-1 items-center justify-center px-4 py-12">
-      <div className="w-full max-w-sm space-y-6 text-center">
+    <div className="flex flex-1 items-center justify-center px-4 py-8">
+      <PageShell width="auth" className="text-center">
         <div className="flex flex-col items-center gap-2">
-          <AlertTriangle size={32} className="text-accent" />
-          <h1 className="text-2xl font-semibold">Something went wrong</h1>
+          <h1 className="text-2xl font-medium">Something went wrong</h1>
           <p className="text-sm text-muted">
             {error.message || "That action couldn't be completed. If your account has read-only access, this may be why."}
           </p>
@@ -24,18 +24,18 @@ export default function AppError({
           <button
             type="button"
             onClick={reset}
-            className="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-hover"
+            className={buttonClass("secondary")}
           >
             Try again
           </button>
           <Link
             href="/dashboard"
-            className="inline-flex items-center justify-center rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+            className={buttonClass("primary")}
           >
             Back to dashboard
           </Link>
         </div>
-      </div>
+      </PageShell>
     </div>
   );
 }

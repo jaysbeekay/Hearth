@@ -6,6 +6,8 @@ import { VehicleForm } from "@/components/VehicleForm";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
 
 export default async function EditVehiclePage({
   params,
@@ -22,15 +24,15 @@ export default async function EditVehiclePage({
   const boundAction = updateVehicle.bind(null, vehicle.id);
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="form">
       <BackLink href={`/vehicles/${vehicle.id}`} label={vehicle.label} />
       <div>
-        <h1 className="text-2xl font-semibold">Edit vehicle</h1>
+        <h1 className="text-2xl font-medium">Edit vehicle</h1>
         <p className="text-sm text-muted">{vehicle.label}</p>
       </div>
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <Card>
         <VehicleForm action={boundAction} vehicle={vehicle} />
-      </div>
-    </div>
+      </Card>
+    </PageShell>
   );
 }

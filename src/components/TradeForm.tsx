@@ -6,7 +6,7 @@ import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { TRADE_TYPES, TRADE_TYPE_LABELS } from "@/lib/validation/wealth";
-import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
+import { SelectWrapper, inputClass, textareaClass, selectClass } from "@/components/SelectWrapper";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
@@ -98,7 +98,7 @@ export function TradeForm({
   }
 
   return (
-    <form ref={formRef} action={formAction} className="space-y-5">
+    <form ref={formRef} action={formAction} className="space-y-4">
       <FormMessage error={state?.error} success={state?.success} />
 
       <div className="grid grid-cols-2 gap-4">
@@ -230,7 +230,7 @@ export function TradeForm({
           rows={2}
           defaultValue={state?.values?.notes ?? trade?.notes ?? ""}
           placeholder="Optional notes"
-          className={inputClass}
+          className={textareaClass}
         />
       </div>
 

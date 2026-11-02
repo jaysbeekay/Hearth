@@ -13,7 +13,7 @@ import {
   CATEGORY_LABELS,
   RENEWAL_LABELS,
 } from "@/lib/utils";
-import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
+import { SelectWrapper, inputClass, textareaClass, selectClass } from "@/components/SelectWrapper";
 import { LinkedToField } from "@/components/LinkedToField";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
@@ -26,6 +26,8 @@ import {
 } from "@/lib/offlineQueue";
 import { applyIfEmpty, extractionMessage, isAiExtractionSource } from "@/lib/autoFillHighlight";
 import { DateInput } from "@/components/DateInput";
+import { bannerClass } from "@/lib/ui";
+import { Card } from "@/components/ui/Card";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -190,12 +192,12 @@ export function ContractForm({
       className="space-y-6"
     >
       {pendingOp && (
-        <p className="rounded-lg border border-dashed border-warning/40 bg-warning/10 px-4 py-2 text-sm text-warning">
+        <p className={bannerClass("warning")}>
           Editing an offline entry that hasn&apos;t synced yet — saving updates it in place.
         </p>
       )}
       {!contract && (
-        <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
+        <Card className="space-y-2">
           <p className="flex items-center gap-2 text-sm font-medium">
             <Upload size={16} />
             Save time: drop in the contract PDF and Hearth fills the form for you
@@ -211,7 +213,7 @@ export function ContractForm({
               {scanMessage}
             </p>
           )}
-        </div>
+        </Card>
       )}
 
       <fieldset className="space-y-4 rounded-lg border border-border p-4">
@@ -445,7 +447,7 @@ export function ContractForm({
           name="notes"
           rows={4}
           defaultValue={effectiveValues?.notes ?? contract?.notes ?? ""}
-          className={inputClass}
+          className={textareaClass}
         />
       </Field>
 
@@ -480,7 +482,7 @@ export function ContractForm({
       </div>
 
       {extractionUsed && (
-        <div className="flex items-start gap-2 rounded-lg border border-dashed border-border p-3">
+        <div className={bannerClass("neutral", "flex items-start gap-2")}>
           <input
             id="confirmExtractionCheckbox"
             type="checkbox"

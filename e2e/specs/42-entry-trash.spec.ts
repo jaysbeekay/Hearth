@@ -26,7 +26,7 @@ async function addSegment(page: Page, title: string) {
 }
 
 async function deleteSegment(page: Page, title: string) {
-  const row = page.locator("div.rounded-xl.border.border-border.bg-surface", { hasText: title });
+  const row = page.locator("div.rounded-lg.border.border-border.bg-surface", { hasText: title });
   await row.getByRole("button", { name: "Delete", exact: true }).click();
   const dialog = page.getByRole("alertdialog");
   await expect(dialog).toContainText("Settings → Recently deleted");

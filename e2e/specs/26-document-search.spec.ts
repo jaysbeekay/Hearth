@@ -107,7 +107,7 @@ test("filename substring search finds documents across contract, rental statemen
   ]);
 
   await page.goto(`/wealth/portfolios/${portfolioId}/holdings/${holdingId}`);
-  const tradeRow = page.locator("div.rounded-xl.border.border-border.bg-surface.p-4", { hasText: "Buy" });
+  const tradeRow = page.locator("div.rounded-lg.border.border-border.bg-surface.p-4", { hasText: "Buy" });
   await tradeRow.locator('input[type="file"]').setInputFiles({
     name: `confirmation_${tradeFragment}_note.pdf`,
     mimeType: "application/pdf",

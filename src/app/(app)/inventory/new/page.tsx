@@ -7,6 +7,8 @@ import { InventoryItemForm } from "@/components/InventoryItemForm";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { PageShell } from "@/components/ui/PageShell";
+import { inlineLinkClass } from "@/lib/ui";
 
 export const metadata: Metadata = { title: "Add Item" };
 
@@ -21,22 +23,22 @@ export default async function NewInventoryItemPage() {
   });
 
   return (
-    <div className="max-w-xl space-y-6">
+    <PageShell width="form">
       <div>
         <BackLink href="/inventory" label="Inventory" />
       </div>
       <div>
-        <h1 className="text-2xl font-semibold">Add item</h1>
+        <h1 className="text-2xl font-medium">Add item</h1>
         <p className="mt-1 text-xs text-muted">
           Inventory is a catalogue of what you own — no warranty tracking. Need to track a
           warranty instead? Try{" "}
-          <Link href="/products/new" className="text-accent hover:underline">
+          <Link href="/products/new" className={inlineLinkClass}>
             add a warranty
           </Link>
           .
         </p>
       </div>
       <InventoryItemForm action={createInventoryItem} products={products} />
-    </div>
+    </PageShell>
   );
 }

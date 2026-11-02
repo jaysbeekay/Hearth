@@ -8,6 +8,7 @@ import {
   formatCurrency,
   formatDate,
 } from "@/lib/utils";
+import { cardClass } from "@/lib/ui";
 
 export function ContractCard({
   contract,
@@ -31,7 +32,7 @@ export function ContractCard({
   return (
     <Link
       href={`/contracts/${contract.id}`}
-      className="block min-w-0 rounded-lg border border-border bg-surface p-4 transition hover:border-accent/50"
+      className={cardClass({ interactive: true }, "block min-w-0")}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">

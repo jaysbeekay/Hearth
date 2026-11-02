@@ -39,10 +39,10 @@ test("#370: contract status lives in the overflow menu, not the header", async (
   await createContract(page, `Status Menu Contract ${Date.now()}`);
 
   const header = page.locator("main h1").locator("xpath=../..");
-  await expect(header.getByRole("button", { name: "Mark contract as cancelled" })).toHaveCount(0);
+  await expect(header.getByRole("button", { name: "Mark as cancelled", exact: true })).toHaveCount(0);
 
   await page.getByRole("button", { name: "More actions" }).click();
-  await page.getByRole("dialog", { name: "More actions" }).getByRole("button", { name: "Mark contract as cancelled" }).first().click();
+  await page.getByRole("dialog", { name: "More actions" }).getByRole("button", { name: "Mark as cancelled", exact: true }).first().click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Mark as cancelled" }).click();
   await expect(page.getByText("Cancelled", { exact: true }).first()).toBeVisible();
 });

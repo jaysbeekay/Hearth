@@ -6,6 +6,8 @@ import { HomeItemForm } from "@/components/HomeItemForm";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
 
 export default async function EditHomeItemPage({
   params,
@@ -25,15 +27,15 @@ export default async function EditHomeItemPage({
   const boundAction = updateHomeItem.bind(null, id, itemId);
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="form">
       <BackLink href={`/home/${id}`} label={item.property.label} />
       <div>
-        <h1 className="text-2xl font-semibold">Edit maintenance record</h1>
+        <h1 className="text-2xl font-medium">Edit maintenance record</h1>
         <p className="text-sm text-muted">{item.title}</p>
       </div>
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <Card>
         <HomeItemForm action={boundAction} item={item} />
-      </div>
-    </div>
+      </Card>
+    </PageShell>
   );
 }
