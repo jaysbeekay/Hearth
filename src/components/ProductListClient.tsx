@@ -174,7 +174,7 @@ export function ProductListClient({
           )}
           <button
             type="button"
-            onClick={() => navigate("/products")}
+            onClick={() => { navigate("/products"); }}
             className="text-xs text-muted underline hover:text-foreground"
           >
             Clear all

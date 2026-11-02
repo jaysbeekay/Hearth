@@ -271,7 +271,7 @@ export function ContractListClient({
           )}
           <button
             type="button"
-            onClick={() => navigate("/contracts")}
+            onClick={() => { navigate("/contracts"); }}
             className="text-xs text-muted underline hover:text-foreground"
           >
             Clear all
