@@ -71,8 +71,9 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   and Android shell is unchanged.
 - **One filter row on Contracts and Warranties (#365).** The Filter button is
   gone (search still submits as you type or on Enter, and the selects on
-  change). The filter chips carry their household-wide counts ("Due soon ·
-  2"), with zero counts muted, replacing the separate row of summary counts
+  change). Each filter chip carries the number of records it would show
+  ("Due soon · 2"), counted with the current search, category, status and
+  other chips kept, with zero counts muted, replacing the separate row of summary counts
   and its "added this week" figure. On a phone the search box sits beside a
   "Filters" button that opens a bottom sheet with the category and status
   selects and the chips, so the first record is on the first screen. Links

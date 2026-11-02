@@ -44,7 +44,7 @@ interface Props {
   products: ProductModel[];
   inventoryItems?: (InventoryItemModel & { _count: { documents: number } })[];
   inventoryEnabled?: boolean;
-  /** #395 — household-wide, from the server; never recounted here. */
+  /** From the server: each chip's list length, search and filters kept; never recounted here. */
   counts: ListFilterCounts;
   /** #384 — the household's today and default thresholds, for each card's Due badge. */
   due: DueContext;

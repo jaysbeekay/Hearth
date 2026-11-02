@@ -15,8 +15,8 @@ import { cn } from "@/lib/utils";
 // can arrive in a link, so it shows (pressed) only while it's on, which keeps
 // every filter in the URL visible and removable.
 //
-// #365 — with `counts`, each chip carries its household-wide count
-// ("Due soon · 1"), replacing the separate summary strip, and a chip with
+// #365 — with `counts`, each chip carries the length of the list it opens
+// from here ("Due soon · 1", search and other filters kept), replacing the separate summary strip, and a chip with
 // nothing to show is muted (still pressable, so it can be turned off).
 export function ListFilterChips({
   filters,

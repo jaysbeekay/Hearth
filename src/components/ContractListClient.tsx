@@ -100,7 +100,7 @@ function StatusSelect({ value, onChange }: { value?: string; onChange: SelectCha
 
 interface Props {
   contracts: ContractModel[];
-  /** #395 — household-wide, from the server; never recounted here. */
+  /** From the server: each chip's list length, search and filters kept; never recounted here. */
   counts: ListFilterCounts;
   /** #384 — the household's today and default thresholds, for each card's Due badge. */
   due: DueContext;
