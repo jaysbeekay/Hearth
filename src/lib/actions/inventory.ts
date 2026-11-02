@@ -1,14 +1,18 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { formToInventoryItemInput } from "@/lib/formMappers";
-import { prisma } from "@/lib/prisma";
 import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
 import { inventoryItemSchema } from "@/lib/validation/inventory";
-import { addDocumentCommand, removeOwnerDocumentFiles } from "@/lib/commands/documents";
-import { updateInventoryItemCommand } from "@/lib/commands/inventory";
+import { addDocumentCommand } from "@/lib/commands/documents";
+import {
+  createInventoryItemCommand,
+  deleteInventoryItemCommand,
+  permanentlyDeleteInventoryItemCommand,
+  restoreInventoryItemCommand,
+  updateInventoryItemCommand,
+} from "@/lib/commands/inventory";
 import { RecordNotFoundError, RecordValidationError, StaleEditError } from "@/lib/commands/shared";
 import { formDataToStringValues } from "@/lib/form-state";
 import { isModuleEnabled } from "@/lib/modules/enablement";
@@ -64,13 +68,16 @@ export async function createInventoryItem(
     if (rejection) return { error: rejection };
   }
 
+  // The command refuses a link to a warranty that's missing or in Trash
+  // (#471); any other failure is a real error, not a warranty problem.
   let item;
   try {
-    item = await prisma.inventoryItem.create({
-      data: { ...parsed.data, createdById: user.id },
-    });
-  } catch {
-    return { error: "Linked warranty no longer exists.", values: formDataToStringValues(formData, INVENTORY_ITEM_FORM_FIELDS) };
+    item = await createInventoryItemCommand(parsed.data, user.id);
+  } catch (error) {
+    if (error instanceof RecordValidationError) {
+      return { error: error.message, values: formDataToStringValues(formData, INVENTORY_ITEM_FORM_FIELDS) };
+    }
+    throw error;
   }
 
   if (file instanceof File && file.size > 0) {
@@ -80,7 +87,6 @@ export async function createInventoryItem(
     });
   }
 
-  revalidatePath("/inventory");
   redirect(`/inventory/${item.id}`);
 }
 
@@ -114,42 +120,36 @@ export async function updateInventoryItem(
 }
 
 // #287 — soft-delete: see the equivalent comment on deleteContract (contracts.ts).
+// Deleting an item that's already in Trash is a no-op (#471).
 export async function deleteInventoryItem(itemId: string): Promise<ActionState> {
   await requireUser();
-
-  const existing = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
-  if (!existing) return { error: "Item not found." };
-
-  await prisma.inventoryItem.update({ where: { id: itemId }, data: { deletedAt: new Date() } });
-
-  revalidatePath("/inventory");
-  revalidatePath("/settings/trash");
+  try {
+    await deleteInventoryItemCommand(itemId);
+  } catch (error) {
+    if (error instanceof RecordNotFoundError) return { error: "Item not found." };
+    throw error;
+  }
   redirect("/inventory");
 }
 
 export async function restoreInventoryItem(itemId: string): Promise<ActionState> {
   await requireUser();
-
-  const existing = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
-  if (!existing) return { error: "Item not found." };
-
-  await prisma.inventoryItem.update({ where: { id: itemId }, data: { deletedAt: null } });
-
-  revalidatePath("/inventory");
-  revalidatePath("/settings/trash");
+  try {
+    await restoreInventoryItemCommand(itemId);
+  } catch (error) {
+    if (error instanceof RecordNotFoundError) return { error: "Item not found." };
+    throw error;
+  }
   return { success: "Restored." };
 }
 
 export async function permanentlyDeleteInventoryItem(itemId: string): Promise<ActionState> {
   await requireUser();
-
-  const existing = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
-  if (!existing) return { error: "Item not found." };
-
-  await removeOwnerDocumentFiles("INVENTORY_ITEM", itemId);
-  await prisma.inventoryItem.delete({ where: { id: itemId } });
-
-  revalidatePath("/settings/trash");
+  try {
+    await permanentlyDeleteInventoryItemCommand(itemId);
+  } catch (error) {
+    if (error instanceof RecordNotFoundError) return { error: "Item not found." };
+    throw error;
+  }
   return { success: "Deleted permanently." };
 }
-

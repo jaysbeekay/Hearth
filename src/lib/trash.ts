@@ -11,8 +11,9 @@ import {
   purgePropertyValuation,
 } from "@/lib/commands/home";
 import { purgeTrade } from "@/lib/commands/wealth";
+import { purgeInventoryItem } from "@/lib/commands/inventory";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { purgeDocument, removeOwnerDocumentFiles } from "@/lib/commands/documents";
+import { purgeDocument } from "@/lib/commands/documents";
 import { DOCUMENT_KIND_MODULE, type OwnedDocumentKind } from "@/lib/documents/kinds";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import type { ModuleKey } from "@/lib/modules/registry";
@@ -124,8 +125,7 @@ export async function purgeExpiredTrash(): Promise<void> {
     await purgeTrip(t.id);
   }
   for (const i of inventoryItems) {
-    await removeOwnerDocumentFiles("INVENTORY_ITEM", i.id);
-    await prisma.inventoryItem.delete({ where: { id: i.id } });
+    await purgeInventoryItem(i.id);
   }
 }
 
