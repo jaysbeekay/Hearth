@@ -53,3 +53,15 @@ describe("MCP authentication gate", () => {
     expect(checkMcpAuth(tokens, "Bearer other-secret")).toEqual({ ok: true, label: "ollama" });
   });
 });
+
+describe("MCP token labels", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("keeps only the first token for a repeated label, including MCP_TOKEN's \"default\"", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(parseMcpTokens({ MCP_TOKEN: "one", MCP_TOKENS: "default:two,a:three,a:four" })).toEqual([
+      { label: "default", token: "one" },
+      { label: "a", token: "three" },
+    ]);
+  });
+});

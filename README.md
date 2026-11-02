@@ -477,7 +477,8 @@ same as `CRON_SECRET`/`/api/cron`.
 To give each client its own token, set `MCP_TOKENS` instead of (or as well
 as) `MCP_TOKEN`: a comma-separated list of `label:token` pairs, e.g.
 `MCP_TOKENS="claude-code:<token>,ollama:<token>"`. Labels are letters,
-digits, `-` and `_`. Removing one entry revokes that client without touching
+digits, `-` and `_`, and must be unique (`default` is taken by
+`MCP_TOKEN`); a repeated label is ignored. Removing one entry revokes that client without touching
 the others; restart the container after any change. The server log records
 one line per tool call naming the label (`[mcp] claude-code called
 whats_due from <address>`), without the call's arguments.
@@ -516,7 +517,11 @@ its tool disappears on the next connection.
 - **Wrong tokens are throttled** per client address (10 per 15 minutes), and
   each one is recorded in Settings → Security as "MCP request with a wrong
   token". Each valid token is capped at 300 requests per 5 minutes. Counters
-  are in memory and reset on restart.
+  are in memory and reset on restart. The address check runs before the
+  token check, so a locked-out address is refused even with a valid token
+  until the window passes — put clients that share an address (behind the
+  same NAT) on a trusted network, and make sure your reverse proxy
+  overwrites `X-Forwarded-For`, which the throttle keys on.
 - **Notes are passed to the agent as-is.** The server tells clients to treat
   free-text fields as data, not instructions, but if the same agent also has
   write-capable tools from other servers, keep its confirmations on.
