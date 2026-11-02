@@ -112,6 +112,59 @@ test.describe("as an admin", () => {
     }).toPass({ timeout: 15_000 });
     await expect(page.getByText("You have unsaved changes.")).toBeVisible();
   });
+
+  test("a section whose save is rejected stays unsaved while the others save", async ({ page }) => {
+    await page.goto("/settings/reminders");
+    const save = page.getByRole("button", { name: "Save changes" });
+    const bar = page.getByRole("region", { name: "Unsaved changes" });
+    const ntfyForm = page.locator("form").filter({ has: page.locator("#ntfyTopic") });
+    const scheduleForm = page.locator("form").filter({ has: page.locator("#reminderCronKind") });
+    const originalTopic = await page.locator("#ntfyTopic").inputValue();
+    const originalCron = await scheduleForm.locator('input[name="reminderCron"]').inputValue();
+    const topic = `e2e-group-topic-${Date.now()}`;
+
+    try {
+      await expect(async () => {
+        await page.locator("#ntfyTopic").fill(topic);
+        await expect(save).toBeEnabled({ timeout: 1000 });
+      }).toPass({ timeout: 15_000 });
+      await page.locator("#reminderCronKind").selectOption("advanced");
+      await page.locator("#reminderCron").fill("not a cron");
+      await expect(bar).toContainText("You have unsaved changes in 2 sections.");
+
+      // ntfy saves; the schedule is rejected and stays unsaved.
+      await save.click();
+      await expect(ntfyForm).toContainText("Push notification settings saved.");
+      await expect(scheduleForm).toContainText("isn't a valid cron expression");
+      await expect(bar).toContainText("Some changes weren't saved.");
+      await expect(save).toBeEnabled();
+
+      // Retrying the same values sends them again rather than calling them saved.
+      const resent = page.waitForRequest((req) => req.method() === "POST" && req.headers()["next-action"] !== undefined);
+      await save.click();
+      await resent;
+      await expect(bar).toContainText("Some changes weren't saved.");
+      await expect(save).toBeEnabled();
+
+      await page.locator("#reminderCron").fill(originalCron);
+      await save.click();
+      await expect(scheduleForm).toContainText("Reminder schedule saved.");
+      await expect(bar).toContainText("No unsaved changes.");
+      await expect(save).toBeDisabled();
+
+      await page.reload();
+      await expect(page.locator("#ntfyTopic")).toHaveValue(topic);
+    } finally {
+      await page.goto("/settings/reminders");
+      await expect(async () => {
+        await page.locator("#ntfyTopic").fill(originalTopic === topic ? "" : originalTopic);
+        await expect(save).toBeEnabled({ timeout: 1000 });
+      }).toPass({ timeout: 15_000 });
+      await page.locator("#ntfyTopic").fill(originalTopic);
+      await save.click();
+      await expect(ntfyForm).toContainText("Push notification settings saved.");
+    }
+  });
 });
 
 test.describe("as a member", () => {

@@ -109,7 +109,7 @@ export function ChatSettingsForm({
           ) : (
             <span />
           )}
-          {selected !== "" && <GroupedSubmit>{configured ? "Update" : "Save"}</GroupedSubmit>}
+          <GroupedSubmit state={state} show={selected !== ""}>{configured ? "Update" : "Save"}</GroupedSubmit>
         </div>
       </form>
 

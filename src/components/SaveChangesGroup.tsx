@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
 import { SubmitButton } from "@/components/SubmitButton";
 import { buttonClass, cardClass } from "@/lib/ui";
 
@@ -11,14 +12,63 @@ import { buttonClass, cardClass } from "@/lib/ui";
 // away, the group notices which marked forms were edited, and its sticky
 // bar submits each of them. Forms that are actions rather than settings
 // (change password, add a webhook) aren't marked and keep their buttons.
+//
+// A section only counts as saved once its own action comes back without an
+// error, and only for the values it sent: an edit made while the save was
+// in flight keeps the section unsaved, and a rejected or failed save leaves
+// it unsaved so "Save changes" can retry it.
 
-const InSaveGroup = createContext(false);
+type ActionResult = { error?: string } | null | undefined;
 
-/** The form's own Save button, except inside a SaveChangesGroup. */
-export function GroupedSubmit({ children }: { children: React.ReactNode }) {
-  const grouped = useContext(InSaveGroup);
-  if (grouped) return null;
+interface SaveGroupApi {
+  settled: (form: HTMLFormElement, ok: boolean) => void;
+}
+
+const SaveGroup = createContext<SaveGroupApi | null>(null);
+
+/**
+ * The form's own Save button, except inside a SaveChangesGroup, where it
+ * renders nothing visible and tells the group how the form's save went.
+ * `state` is the form's useActionState state.
+ */
+export function GroupedSubmit({
+  children,
+  state,
+  show = true,
+}: {
+  children: React.ReactNode;
+  state: ActionResult;
+  /** False hides the standalone button (nothing to save yet). */
+  show?: boolean;
+}) {
+  const group = useContext(SaveGroup);
+  const { pending } = useFormStatus();
+  const ref = useRef<HTMLSpanElement>(null);
+  const wasPending = useRef(false);
+
+  useEffect(() => {
+    // The action finished: report it with the state it returned, which
+    // arrives in the same render that clears `pending`.
+    if (wasPending.current && !pending && group) {
+      const form = ref.current?.closest("form");
+      if (form) group.settled(form, !state?.error);
+    }
+    wasPending.current = pending;
+  }, [pending, state, group]);
+
+  if (group) return <span ref={ref} hidden />;
+  if (!show) return null;
   return <SubmitButton variant="secondary">{children}</SubmitButton>;
+}
+
+interface FormEntry {
+  /** Bumped on every edit. */
+  edits: number;
+  /** `edits` as of the last successful save. */
+  saved: number;
+  /** `edits` as of the save in flight, if any. */
+  inFlight: number | null;
+  failed: boolean;
 }
 
 function groupForm(target: EventTarget | null): HTMLFormElement | null {
@@ -39,21 +89,51 @@ function formIsEdited(form: HTMLFormElement): boolean {
   });
 }
 
+type Entries = ReadonlyMap<HTMLFormElement, FormEntry>;
+
+const NEW_ENTRY: FormEntry = { edits: 0, saved: 0, inFlight: null, failed: false };
+
+function update(entries: Entries, form: HTMLFormElement, change: (entry: FormEntry) => FormEntry | null): Entries {
+  const next = change(entries.get(form) ?? NEW_ENTRY);
+  if (!next) return entries;
+  return new Map(entries).set(form, next);
+}
+
 export function SaveChangesGroup({ children }: { children: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [dirty, setDirty] = useState<HTMLFormElement[]>([]);
+  const [entries, setEntries] = useState<Entries>(() => new Map());
 
-  const markDirty = useCallback((event: Event) => {
+  const markEdited = useCallback((event: Event) => {
     const form = groupForm(event.target);
     if (!form) return;
-    setDirty((current) => (current.includes(form) ? current : [...current, form]));
+    setEntries((current) => update(current, form, (e) => ({ ...e, edits: e.edits + 1 })));
   }, []);
 
-  const markSaved = useCallback((event: Event) => {
+  const markSubmitting = useCallback((event: Event) => {
     const form = groupForm(event.target);
     if (!form) return;
-    setDirty((current) => current.filter((f) => f !== form));
+    setEntries((current) => update(current, form, (e) => ({ ...e, inFlight: e.edits })));
   }, []);
+
+  const api = useMemo<SaveGroupApi>(
+    () => ({
+      settled: (form, ok) => {
+        setEntries((current) =>
+          update(current, form, (e) =>
+            e.inFlight === null
+              ? null
+              : {
+                  ...e,
+                  saved: ok ? Math.max(e.saved, e.inFlight) : e.saved,
+                  failed: !ok,
+                  inFlight: null,
+                },
+          ),
+        );
+      },
+    }),
+    [],
+  );
 
   useEffect(() => {
     const root = ref.current;
@@ -61,38 +141,51 @@ export function SaveChangesGroup({ children }: { children: React.ReactNode }) {
     // An edit made before the page hydrated fired no event we heard, so
     // look for fields that already differ from what the server rendered.
     const edited = [...root.querySelectorAll<HTMLFormElement>("form[data-save-group]")].filter(formIsEdited);
-    if (edited.length > 0) setDirty(edited);
-    root.addEventListener("input", markDirty);
-    root.addEventListener("change", markDirty);
-    root.addEventListener("submit", markSaved);
+    if (edited.length > 0) {
+      setEntries((current) =>
+        edited.reduce((acc, form) => update(acc, form, (e) => ({ ...e, edits: e.edits + 1 })), current),
+      );
+    }
+    root.addEventListener("input", markEdited);
+    root.addEventListener("change", markEdited);
+    root.addEventListener("submit", markSubmitting);
     return () => {
-      root.removeEventListener("input", markDirty);
-      root.removeEventListener("change", markDirty);
-      root.removeEventListener("submit", markSaved);
+      root.removeEventListener("input", markEdited);
+      root.removeEventListener("change", markEdited);
+      root.removeEventListener("submit", markSubmitting);
     };
-  }, [markDirty, markSaved]);
+  }, [markEdited, markSubmitting]);
+
+  const live = [...entries].filter(([form]) => form.isConnected);
+  const dirty = live.filter(([, e]) => e.edits > e.saved).map(([form]) => form);
+  const saving = live.some(([, e]) => e.inFlight !== null);
+  const failed = live.some(([, e]) => e.failed && e.edits > e.saved);
 
   function saveAll() {
     // In page order, so the messages appear top to bottom. A form that
-    // fails its own validation (a required field left empty) stays dirty.
-    const forms = dirty
-      .filter((form) => form.isConnected)
-      .sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
-    const stillDirty = forms.filter((form) => {
+    // fails its own validation (a required field left empty) isn't sent.
+    const forms = [...dirty].sort((a, b) =>
+      a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1,
+    );
+    for (const form of forms) {
       if (!form.checkValidity()) {
         form.reportValidity();
-        return true;
+        continue;
       }
       form.requestSubmit();
-      return false;
-    });
-    setDirty(stillDirty);
+    }
   }
 
   const count = dirty.length;
+  let status: string;
+  if (saving) status = "Saving…";
+  else if (failed) status = "Some changes weren't saved. Check the messages above, then try again.";
+  else if (count === 0) status = "No unsaved changes.";
+  else if (count === 1) status = "You have unsaved changes.";
+  else status = `You have unsaved changes in ${count} sections.`;
 
   return (
-    <InSaveGroup.Provider value={true}>
+    <SaveGroup.Provider value={api}>
       <div ref={ref} className="space-y-6">
         {children}
         <div
@@ -105,22 +198,18 @@ export function SaveChangesGroup({ children }: { children: React.ReactNode }) {
           )}
         >
           <p className="text-sm text-muted" aria-live="polite">
-            {count === 0
-              ? "No unsaved changes."
-              : count === 1
-                ? "You have unsaved changes."
-                : `You have unsaved changes in ${count} sections.`}
+            {status}
           </p>
           <button
             type="button"
             onClick={saveAll}
-            disabled={count === 0}
+            disabled={saving || count === 0}
             className={buttonClass("primary")}
           >
-            Save changes
+            {saving ? "Saving…" : "Save changes"}
           </button>
         </div>
       </div>
-    </InSaveGroup.Provider>
+    </SaveGroup.Provider>
   );
 }

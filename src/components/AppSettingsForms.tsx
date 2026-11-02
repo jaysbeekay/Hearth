@@ -90,7 +90,7 @@ export function SmtpForm({
         ) : (
           <span />
         )}
-        <GroupedSubmit>Save email settings</GroupedSubmit>
+        <GroupedSubmit state={state}>Save email settings</GroupedSubmit>
       </div>
     </form>
   );
@@ -153,7 +153,7 @@ export function EmailIngestForm({
         ) : (
           <span />
         )}
-        <GroupedSubmit>Save email ingestion settings</GroupedSubmit>
+        <GroupedSubmit state={state}>Save email ingestion settings</GroupedSubmit>
       </div>
     </form>
   );
@@ -194,7 +194,7 @@ export function NtfyForm({
         ) : (
           <span />
         )}
-        <GroupedSubmit>Save ntfy settings</GroupedSubmit>
+        <GroupedSubmit state={state}>Save ntfy settings</GroupedSubmit>
       </div>
     </form>
   );
@@ -232,7 +232,7 @@ export function OllamaForm({
         ) : (
           <span />
         )}
-        <GroupedSubmit>Save Ollama settings</GroupedSubmit>
+        <GroupedSubmit state={state}>Save Ollama settings</GroupedSubmit>
       </div>
     </form>
   );
@@ -263,7 +263,7 @@ export function BarcodeForm({
       </div>
       <FormMessage attempt={state} error={state?.error} success={state?.success} />
       <div className="flex justify-end empty:hidden">
-        <GroupedSubmit>Save barcode settings</GroupedSubmit>
+        <GroupedSubmit state={state}>Save barcode settings</GroupedSubmit>
       </div>
     </form>
   );
@@ -385,7 +385,7 @@ export function BackupDestinationForm({
 
       <FormMessage attempt={state} error={state?.error} success={state?.success} />
       <div className="flex justify-end empty:hidden">
-        <GroupedSubmit>Save backup destination</GroupedSubmit>
+        <GroupedSubmit state={state}>Save backup destination</GroupedSubmit>
       </div>
     </form>
   );
@@ -419,7 +419,7 @@ export function ReminderScheduleForm({
       </Field>
       <FormMessage attempt={state} error={state?.error} success={state?.success} />
       <div className="flex justify-end empty:hidden">
-        <GroupedSubmit>Save reminder schedule</GroupedSubmit>
+        <GroupedSubmit state={state}>Save reminder schedule</GroupedSubmit>
       </div>
     </form>
   );
@@ -449,7 +449,7 @@ export function BackupScheduleForm({
       </Field>
       <FormMessage attempt={state} error={state?.error} success={state?.success} />
       <div className="flex justify-end empty:hidden">
-        <GroupedSubmit>Save backup schedule</GroupedSubmit>
+        <GroupedSubmit state={state}>Save backup schedule</GroupedSubmit>
       </div>
     </form>
   );
@@ -496,7 +496,7 @@ export function HouseholdTimeZoneForm({
       </Field>
       <FormMessage attempt={state} error={state?.error} success={state?.success} />
       <div className="flex justify-end empty:hidden">
-        <GroupedSubmit>Save timezone</GroupedSubmit>
+        <GroupedSubmit state={state}>Save timezone</GroupedSubmit>
       </div>
     </form>
   );
@@ -523,7 +523,7 @@ export function AviationStackForm({
       </Field>
       <FormMessage attempt={state} error={state?.error} success={state?.success} />
       <div className="flex justify-end empty:hidden">
-        <GroupedSubmit>Save</GroupedSubmit>
+        <GroupedSubmit state={state}>Save</GroupedSubmit>
       </div>
     </form>
   );

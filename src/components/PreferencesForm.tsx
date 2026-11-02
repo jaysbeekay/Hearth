@@ -100,7 +100,7 @@ export function PreferencesForm({
       <div className="sm:col-span-2 space-y-2">
         <FormMessage attempt={state} error={state?.error} success={state?.success} />
         <div className="empty:hidden">
-          <GroupedSubmit>Save preferences</GroupedSubmit>
+          <GroupedSubmit state={state}>Save preferences</GroupedSubmit>
         </div>
       </div>
     </form>

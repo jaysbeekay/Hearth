@@ -22,7 +22,7 @@ export function NotificationPreferencesForm({ emailReminders }: { emailReminders
           Email me reminders (contracts, warranties, vehicles)
         </label>
         <span className="ml-auto empty:hidden">
-          <GroupedSubmit>Save</GroupedSubmit>
+          <GroupedSubmit state={state}>Save</GroupedSubmit>
         </span>
       </div>
       <FormMessage attempt={state} error={state?.error} success={state?.success} />
