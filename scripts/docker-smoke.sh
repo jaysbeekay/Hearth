@@ -8,7 +8,8 @@
 # the unprivileged `node` user, the three document-extraction binaries are
 # present, every external module the server bundle requires resolves from the
 # standalone output (a missed trace only fails at the first request that needs
-# it, so nothing else would catch it), and every MCP tool answers.
+# it, so nothing else would catch it), and every MCP tool answers without an
+# error result.
 #
 # With <previous-release-image>, it first starts that image on a second volume
 # to create a database the way a current install has one, then starts <image>
@@ -65,6 +66,19 @@ mcp() { # mcp <json-rpc body>
     -H 'Accept: application/json, text/event-stream' -d "$1"
 }
 
+# Reads one JSON-RPC response (plain JSON or a single SSE `data:` line) on
+# stdin. `tools` prints the tool names from tools/list; `call` prints "ok"
+# for a tools/call result, or why it is not one.
+mcp_read() { # mcp_read tools|call
+  node -e '
+    let s = ""; process.stdin.on("data", (d) => (s += d)).on("end", () => {
+      const json = s.trim().startsWith("{") ? s : (s.split("\n").find((l) => l.startsWith("data:")) || "data:{}").slice(5);
+      const r = JSON.parse(json);
+      if (process.argv[1] === "tools") return console.log(r.result.tools.map((t) => t.name).join(" "));
+      console.log(!r.result ? "no result" : r.result.isError ? "error: " + JSON.stringify(r.result.content) : "ok");
+    });' "$1"
+}
+
 check_running_image() { # check_running_image <container>
   local c="$1"
 
@@ -101,13 +115,12 @@ check_running_image() { # check_running_image <container>
   mcp '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"docker-smoke","version":"1"}}}' >/dev/null \
     || fail "MCP initialize failed"
   local tools
-  tools="$(mcp '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | node -e '
-    let s = ""; process.stdin.on("data", (d) => (s += d)).on("end", () => {
-      const json = s.trim().startsWith("{") ? s : s.split("\n").find((l) => l.startsWith("data:")).slice(5);
-      console.log(JSON.parse(json).result.tools.map((t) => t.name).join(" "));
-    });')"
+  tools="$(mcp '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | mcp_read tools)"
   [ -n "$tools" ] || fail "MCP tools/list returned no tools"
-  local id=10 tool args
+  # A tool that throws (a failed query, a missing module) still comes back as
+  # a JSON-RPC result, with `isError: true`, so check that rather than only
+  # the presence of `result`.
+  local id=10 tool args outcome
   for tool in $tools; do
     case "$tool" in
       get_contract) args='{"id":"docker-smoke-missing"}' ;;
@@ -115,8 +128,10 @@ check_running_image() { # check_running_image <container>
       *) args='{}' ;;
     esac
     id=$((id + 1))
-    mcp "{\"jsonrpc\":\"2.0\",\"id\":$id,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool\",\"arguments\":$args}}" \
-      | grep '"result"' >/dev/null || fail "MCP tool $tool did not return a result"
+    outcome="$(mcp "{\"jsonrpc\":\"2.0\",\"id\":$id,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool\",\"arguments\":$args}}" \
+      | mcp_read call)" \
+      || fail "MCP tool $tool returned an unreadable response"
+    [ "$outcome" = "ok" ] || fail "MCP tool $tool: $outcome"
   done
   echo "-- MCP tools answer: $tools"
 
