@@ -520,6 +520,31 @@ export async function setDocumentImportantCommand(
   revalidate(owner.paths);
 }
 
+/**
+ * Sets a Document's type (#405): uploads from a record's "Add document"
+ * button land untyped and the type is picked afterwards on the row. Not for
+ * PRODUCT Documents, whose legacy kind is set at upload and drives the
+ * Warranty's hero photo. Refused as not found while the record, or its
+ * parent, is in Trash.
+ */
+export async function setDocumentCategoryCommand(
+  kind: OwnedDocumentKind,
+  id: string,
+  category: string | null,
+  scope: DocumentScope = {},
+) {
+  if (kind === "PRODUCT") throw new Error("A Warranty Document's type is set when it's uploaded");
+  await gate(kind);
+  const config = KINDS[kind];
+  const owner = await prisma.$transaction(async (tx) => {
+    const doc = await requireDocument(kind, id, scope, tx);
+    const liveOwner = await requireLiveOwner(config, doc.ownerId, tx, "Document");
+    await config.delegate(tx).update({ where: { id }, data: { category } });
+    return liveOwner;
+  });
+  revalidate(owner.paths);
+}
+
 // The row-and-file part of a permanent delete, with no module gate and no
 // revalidation. Only for Trash retention (src/lib/trash.ts), which runs from
 // a page render and from the scheduler, and purges whether or not the

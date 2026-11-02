@@ -10,6 +10,8 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import { getDueContext } from "@/lib/appSettings";
 import { billingFrequencyText, formatTermCost, nextTermDates, pickTermDocument } from "@/lib/contractTerms";
 import { formatDate } from "@/lib/utils";
+import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
 
 // #353 — Renew: adds the Contract's next Term and keeps the current one as
 // history. Reached from the detail page's header, its Due banner and Needs
@@ -37,13 +39,13 @@ export default async function RenewContractPage({ params }: { params: Promise<{ 
   const currentTerm = `${formatDate(contract.startDate, dateFormat)} – ${formatDate(contract.endDate, dateFormat)}`;
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="form">
       <BackLink href={`/contracts/${contract.id}`} label={contract.title} />
       <div>
-        <h1 className="text-2xl font-semibold">Renew contract</h1>
+        <h1 className="text-2xl font-medium">Renew contract</h1>
         <p className="text-sm text-muted">{contract.title}</p>
       </div>
-      <div className="space-y-4 rounded-xl border border-border bg-surface p-4 md:p-6">
+      <Card className="space-y-4">
         <p className="text-sm text-muted">
           Current term: {currentTerm}, {currentCost}. It&apos;s kept under Previous terms once you renew.
         </p>
@@ -68,7 +70,7 @@ export default async function RenewContractPage({ params }: { params: Promise<{ 
               : undefined
           }
         />
-      </div>
-    </div>
+      </Card>
+    </PageShell>
   );
 }

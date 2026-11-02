@@ -9,6 +9,7 @@ import { Field } from "@/components/FormField";
 import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 import { TestConnectionButton } from "@/components/TestConnectionButton";
 import { BACKUP_DESTINATION_LABELS, type BackupDestinationChoice } from "@/lib/backupDestination";
+import { bannerClass } from "@/lib/ui";
 
 const checkboxClass = "size-4 rounded border-border accent-accent";
 
@@ -47,7 +48,7 @@ export function SmtpForm({
   return (
     <form action={formAction} className="space-y-4">
       {!appUrlConfigured && (
-        <p className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
+        <p className={bannerClass("warning")}>
           APP_URL isn&apos;t set — password-reset and invitation links in emails will point to
           http://localhost:3000 and won&apos;t work for recipients. Set APP_URL to this
           app&apos;s real address (see .env.example).
@@ -76,7 +77,7 @@ export function SmtpForm({
           </div>
         </Field>
       </div>
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
       {current.host && current.user && (
         <p className="text-xs text-muted">
           Testing sends against the saved settings — save your changes first if you just edited them.
@@ -88,7 +89,7 @@ export function SmtpForm({
         ) : (
           <span />
         )}
-        <SubmitButton>Save email settings</SubmitButton>
+        <SubmitButton variant="secondary">Save email settings</SubmitButton>
       </div>
     </form>
   );
@@ -138,7 +139,7 @@ export function EmailIngestForm({
           </div>
         </Field>
       </div>
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
       {current.host && current.user && (
         <p className="text-xs text-muted">
           Testing connects against the saved settings — save your changes first if you just edited
@@ -151,7 +152,7 @@ export function EmailIngestForm({
         ) : (
           <span />
         )}
-        <SubmitButton>Save email ingestion settings</SubmitButton>
+        <SubmitButton variant="secondary">Save email ingestion settings</SubmitButton>
       </div>
     </form>
   );
@@ -180,7 +181,7 @@ export function NtfyForm({
           <SensitiveField id="ntfyToken" name="ntfyToken" isSet={current.tokenIsSet} />
         </Field>
       </div>
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
       {current.url && current.topic && (
         <p className="text-xs text-muted">
           Testing sends against the saved settings — save your changes first if you just edited them.
@@ -192,7 +193,7 @@ export function NtfyForm({
         ) : (
           <span />
         )}
-        <SubmitButton>Save ntfy settings</SubmitButton>
+        <SubmitButton variant="secondary">Save ntfy settings</SubmitButton>
       </div>
     </form>
   );
@@ -218,7 +219,7 @@ export function OllamaForm({
           <input id="ollamaModel" name="ollamaModel" defaultValue={current.model} placeholder="llama3" className={inputClass} />
         </Field>
       </div>
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
       {current.baseUrl && (
         <p className="text-xs text-muted">
           Testing connects using the saved settings — save your changes first if you just edited them.
@@ -230,7 +231,7 @@ export function OllamaForm({
         ) : (
           <span />
         )}
-        <SubmitButton>Save Ollama settings</SubmitButton>
+        <SubmitButton variant="secondary">Save Ollama settings</SubmitButton>
       </div>
     </form>
   );
@@ -259,9 +260,9 @@ export function BarcodeForm({
           <SensitiveField id="barcodeApiKey" name="barcodeApiKey" isSet={current.apiKeyIsSet} />
         </Field>
       </div>
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
       <div className="flex justify-end">
-        <SubmitButton>Save barcode settings</SubmitButton>
+        <SubmitButton variant="secondary">Save barcode settings</SubmitButton>
       </div>
     </form>
   );
@@ -381,9 +382,9 @@ export function BackupDestinationForm({
         </div>
       )}
 
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
       <div className="flex justify-end">
-        <SubmitButton>Save backup destination</SubmitButton>
+        <SubmitButton variant="secondary">Save backup destination</SubmitButton>
       </div>
     </form>
   );
@@ -423,9 +424,9 @@ export function ScheduleForm({
       <p className="text-xs text-warning">
         Cron schedule changes take effect after the next server restart.
       </p>
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
       <div className="flex justify-end">
-        <SubmitButton>Save schedule settings</SubmitButton>
+        <SubmitButton variant="secondary">Save schedule settings</SubmitButton>
       </div>
     </form>
   );
@@ -470,9 +471,9 @@ export function HouseholdTimeZoneForm({
           </select>
         </SelectWrapper>
       </Field>
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
       <div className="flex justify-end">
-        <SubmitButton>Save timezone</SubmitButton>
+        <SubmitButton variant="secondary">Save timezone</SubmitButton>
       </div>
     </form>
   );
@@ -497,9 +498,9 @@ export function AviationStackForm({
       >
         <SensitiveField id="aviationstackApiKey" name="aviationstackApiKey" isSet={isKeySet} />
       </Field>
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
       <div className="flex justify-end">
-        <SubmitButton>Save</SubmitButton>
+        <SubmitButton variant="secondary">Save</SubmitButton>
       </div>
     </form>
   );

@@ -42,6 +42,7 @@ test("crossing a reminder threshold delivers a webhook notification", async ({ p
     const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
     await page.goto("/contracts/new");
     await page.locator("#title").fill("Webhook Notification Test Contract");
+    await page.locator("#category").selectOption("OTHER");
     await page.locator("#provider").fill("Test Provider");
     await page.locator("#endDate").fill(tomorrow);
     await page.locator("main button[type=submit]").click();
@@ -77,6 +78,7 @@ test("the test reminder button reports no delivery channel when email/ntfy aren'
   // this stays accurate even after the webhook test above runs first.
   await page.goto("/contracts/new");
   await page.locator("#title").fill("Reminder Button Test Contract");
+  await page.locator("#category").selectOption("OTHER");
   await page.locator("#provider").fill("Test Provider");
   const end = new Date(Date.now() + 20 * 86_400_000).toISOString().slice(0, 10);
   await page.locator("#endDate").fill(end);
@@ -84,6 +86,8 @@ test("the test reminder button reports no delivery channel when email/ntfy aren'
   await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
 
   await expect(page.getByRole("heading", { name: "Reminder health", exact: true })).toBeVisible();
+  // #360 — "Send test reminder" is in the card's details.
+  await page.getByText("Details", { exact: true }).click();
   await page.getByRole("button", { name: "Send test reminder" }).click();
   await expect(page.locator("body")).toContainText("No delivery channel is configured yet");
 });
@@ -132,11 +136,12 @@ test("a tenancy's lease end delivers a tenancy.expiring webhook and shows on the
     await page.locator("#tenantName").fill("Sam Lee");
     await page.locator("#leaseEnd").fill(leaseEnd);
     // The thresholds are validated like a Contract's.
+    await page.getByText("Custom…", { exact: true }).click();
     await page.locator("#reminderDaysBefore").fill("soon");
     await page.locator("main button[type=submit]").click();
     await expect(page.locator("body")).toContainText("Use a comma-separated list of non-negative numbers");
-    // Blank means the household default.
-    await page.locator("#reminderDaysBefore").fill("");
+    // The Default preset (blank) means the household default.
+    await page.getByText(/^Default · /).click();
     await page.locator("main button[type=submit]").click();
     await page.waitForURL(/\/rental$/);
 
@@ -161,7 +166,7 @@ test("a tenancy's lease end delivers a tenancy.expiring webhook and shows on the
     expect(payload.daysRemaining).toBeLessThanOrEqual(11);
 
     await page.goto(propertyUrl);
-    const card = page.locator("div.rounded-xl", { has: page.getByRole("heading", { name: "Lease reminders" }) });
+    const card = page.locator("div.rounded-lg", { has: page.getByRole("heading", { name: "Lease reminders" }) });
     await expect(card).toBeVisible();
     await expect(card).toContainText("1d, 7d, 14d, 30d");
     // The delivery attempt is on the card. (The first test's endpoint is

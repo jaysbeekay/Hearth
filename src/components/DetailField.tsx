@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Copy, Check } from "lucide-react";
+import { buttonClass } from "@/lib/ui";
 
 // #210 — shared detail field row, replacing the byte-identical `Detail`
 // function that was copy-pasted across every record detail page. Consistent
@@ -22,13 +23,15 @@ export function DetailField({
 }) {
   const [copied, setCopied] = useState(false);
   const isEmpty = value === "—" || value.trim() === "";
+  // #405 — an empty field isn't shown at all, rather than as a dash.
+  if (isEmpty) return null;
 
   return (
     <div className="min-w-0">
       <dt className="text-xs text-muted">{label}</dt>
       <dd className="flex items-center gap-1 text-sm font-medium">
         <span className="min-w-0 break-words">{value}</span>
-        {copyable && !isEmpty && (
+        {copyable && (
           <button
             type="button"
             onClick={() => {
@@ -38,9 +41,9 @@ export function DetailField({
               });
             }}
             aria-label={copied ? `Copied ${label}` : `Copy ${label}`}
-            className="shrink-0 rounded p-1 text-muted hover:bg-hover hover:text-foreground"
+            className={buttonClass("quiet", { icon: true }, "shrink-0 text-muted hover:text-foreground")}
           >
-            {copied ? <Check size={13} /> : <Copy size={13} />}
+            {copied ? <Check size={16} /> : <Copy size={16} />}
           </button>
         )}
       </dd>

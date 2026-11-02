@@ -133,6 +133,16 @@ export function isChipActive(filters: ListFilters, chip: ToggleableFilter): bool
 }
 
 /**
+ * #517 review — the filters a chip's count is taken under: the list on
+ * screen with that chip on. An active chip counts the current list; an
+ * inactive one counts the list clicking it opens (search, category, status
+ * and the other chips kept, and a due chip replacing another due chip).
+ */
+export function filtersForChip(filters: ListFilters, chip: ToggleableFilter): ListFilters {
+  return isChipActive(filters, chip) ? filters : toggleListFilter(filters, chip);
+}
+
+/**
  * Maps a pre-#395 list URL onto the current vocabulary. Returns the URL to
  * redirect to, or null when `params` has no old-style parameter. Other
  * parameters (q, category, status…) are kept.
@@ -407,8 +417,10 @@ export const inventoryRules = {
 // ---------------------------------------------------------------------------
 
 /**
- * Household-wide count per chip, worked out on the server from the same
- * rules the list uses, so a chip's count is the length of the list it opens.
+ * Count per chip, worked out on the server from the same query the list
+ * uses, so a chip's count is the length of the list it opens from the
+ * current one (see filtersForChip): search, category, status and the other
+ * chips kept.
  * List clients only display these.
  */
-export type ListFilterCounts = Partial<Record<ToggleableFilter, number>> & { recentlyAdded?: number };
+export type ListFilterCounts = Partial<Record<ToggleableFilter, number>>;

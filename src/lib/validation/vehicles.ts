@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { reminderDaysBeforeField } from "@/lib/validation/reminderThresholds";
 
 export const VEHICLE_ITEM_TYPES = [
   "SERVICE",
@@ -23,7 +24,7 @@ export const vehicleSchema = z.object({
   regoExpiry: z.preprocess(emptyToUndefined, z.coerce.date().optional()),
   insuranceExpiry: z.preprocess(emptyToUndefined, z.coerce.date().optional()),
   nextServiceDue: z.preprocess(emptyToUndefined, z.coerce.date().optional()),
-  reminderDaysBefore: z.preprocess(emptyToUndefined, z.string().trim().max(100).optional()),
+  reminderDaysBefore: reminderDaysBeforeField,
   notes: z.preprocess(emptyToUndefined, z.string().trim().max(5000).optional()),
 });
 
