@@ -20,7 +20,9 @@ export function TotpSection({ enabled }: { enabled: boolean }) {
   // A new object per failure, passed to FormMessage as its `attempt`, so a
   // second identical error (a mistyped code twice) still comes into view (#406).
   const [failure, setFailure] = useState<{ message: string } | null>(null);
-  const setError = (message: string | null) => setFailure(message ? { message } : null);
+  const setError = (message: string | null) => {
+    setFailure(message ? { message } : null);
+  };
   const [pending, startTransition] = useTransition();
   const [showDisableForm, setShowDisableForm] = useState(false);
 
