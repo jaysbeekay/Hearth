@@ -106,7 +106,7 @@ export function ContractListClient({
     {
       label: "due soon",
       value: counts.dueSoon ?? 0,
-      tone: "warning" as const,
+      status: "due-soon" as const,
       onClick: () => {
         toggleFilter("dueSoon");
       },
@@ -114,7 +114,7 @@ export function ContractListClient({
     {
       label: "expired",
       value: counts.overdue ?? 0,
-      tone: "danger" as const,
+      status: "overdue" as const,
       onClick: () => {
         toggleFilter("overdue");
       },
@@ -122,7 +122,7 @@ export function ContractListClient({
     {
       label: "needs review",
       value: counts.review ?? 0,
-      tone: "warning" as const,
+      status: "needs-review" as const,
       onClick: () => {
         toggleFilter("review");
       },
@@ -282,7 +282,7 @@ export function ContractListClient({
                   <ConfirmForm
                     action={deleteContract.bind(null, contract.id)}
                     undo={{ action: restoreContract.bind(null, contract.id) }}
-                    confirmText={`Move this contract to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash.`}
+                    confirmText={`Delete this contract? Its documents are kept, and you can restore it within 30 days from Settings → Recently deleted.`}
                     ariaLabel={`Delete ${contract.title}`}
                     className="flex h-full w-full flex-col items-center justify-center gap-1 bg-danger text-xs font-medium text-danger-foreground"
                     offline={{ entity: "contract", entityId: contract.id, label: `Delete contract: ${contract.title}` }}

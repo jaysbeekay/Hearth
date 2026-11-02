@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { addDocumentAction } from "@/lib/actions/documents";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/utils";
 import { refreshPricesForTickers, getPriceMap, fetchAndStorePriceHistory, getPriceHistory } from "@/lib/prices";
-import { deleteHolding, deleteTrade } from "@/lib/actions/wealth";
+import { deleteHolding, deleteTrade, restoreTrade } from "@/lib/actions/wealth";
 import { DocumentList } from "@/components/DocumentList";
 import { getTrashedVersionLinks } from "@/lib/documents/trashedVersionLinks";
 import { ConfirmForm } from "@/components/ConfirmForm";
@@ -194,6 +194,7 @@ export default async function HoldingPage({
       include: {
         portfolio: true,
         trades: {
+          where: { deletedAt: null },
           include: { documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" } } },
           orderBy: { date: "asc" },
         },
@@ -417,11 +418,7 @@ export default async function HoldingPage({
                 <div key={trade.id} className="rounded-xl border border-border bg-surface p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3">
-                      <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                        trade.type === "BUY" ? "bg-success/10 text-success" :
-                        trade.type === "SELL" ? "bg-danger/10 text-danger" :
-                        "bg-muted/10 text-muted"
-                      }`}>
+                      <span className="shrink-0 rounded-full bg-muted/10 px-2.5 py-0.5 text-xs font-semibold text-muted">
                         {TRADE_TYPE_LABELS[trade.type] ?? trade.type}
                       </span>
                       <div>
@@ -457,8 +454,14 @@ export default async function HoldingPage({
                           </Link>
                           <ConfirmForm
                             action={deleteTrade.bind(null, holdingId, trade.id)}
-                            confirmText="Delete this trade? This can't be undone."
-                            actionLabel="Delete trade"
+                            undo={{ action: restoreTrade.bind(null, trade.id) }}
+                            offline={{
+                              entity: "trade",
+                              entityId: trade.id,
+                              parentId: holdingId,
+                              label: `Delete trade: ${holding.ticker} ${formatDate(trade.date, dateFormat)}`,
+                            }}
+                            confirmText="Delete this trade? Its documents are kept, and you can restore it within 30 days from Settings → Recently deleted."
                             ariaLabel={`Delete trade from ${formatDate(trade.date, dateFormat)}`}
                             className="rounded-lg border border-border p-2 text-danger hover:bg-danger/10"
                           >

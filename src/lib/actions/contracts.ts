@@ -2,7 +2,12 @@
 
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { contractSchema, contractPatchSchema, CONTRACT_STATUSES } from "@/lib/validation/contract";
+import {
+  contractSchema,
+  contractPatchSchema,
+  contractRenewalSchema,
+  CONTRACT_STATUSES,
+} from "@/lib/validation/contract";
 import { parseNamedPatch } from "@/lib/validation/namedPatch";
 import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
 import { formDataToStringValues } from "@/lib/form-state";
@@ -19,6 +24,7 @@ import { parseDocumentCategory } from "@/lib/documents/categories";
 import {
   createContractCommand,
   updateContractCommand,
+  renewContractCommand,
   confirmContractExtractionCommand,
   deleteContractCommand,
   restoreContractCommand,
@@ -160,6 +166,78 @@ export async function updateContract(
     return { ...commandError(error), values: formDataToStringValues(formData, CONTRACT_FORM_FIELDS) };
   }
   redirect(`/contracts/${contractId}`);
+}
+
+const RENEWAL_FORM_FIELDS = ["startDate", "endDate", "cost", "termDocumentId"];
+
+// The Renew form's "Paperwork for the term being kept" select: left out
+// when there was nothing to choose between (the command picks), "" for None.
+function termDocumentFromForm(formData: FormData): string | null | undefined {
+  const value = formData.get("termDocumentId");
+  if (typeof value !== "string") return undefined;
+  return value === "" ? null : value;
+}
+
+/**
+ * #353 — the Renew form: adds the Contract's next Term, keeping the current
+ * one as history, then attaches the new Term's Document if one was chosen.
+ * The form carries the updatedAt it was loaded with, so a second submit (or
+ * a renewal someone else saved meanwhile) is refused rather than adding a
+ * second Term.
+ */
+export async function renewContract(
+  contractId: string,
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await requireUser();
+  const values = () => formDataToStringValues(formData, RENEWAL_FORM_FIELDS);
+
+  const parsed = contractRenewalSchema.safeParse({
+    startDate: formData.get("startDate"),
+    endDate: formData.get("endDate"),
+    cost: formData.get("cost"),
+  });
+  if (!parsed.success) return { error: firstIssueMessage(parsed.error), values: values() };
+
+  const file = formData.get("file");
+  const hasFile = file instanceof File && file.size > 0;
+  if (hasFile) {
+    const rejection = await describeUploadRejection(file);
+    if (rejection) return { error: rejection, values: values() };
+  }
+
+  const baseUpdatedAt = formData.get("baseUpdatedAt");
+  try {
+    await renewContractCommand(
+      contractId,
+      { ...parsed.data, termDocumentId: termDocumentFromForm(formData) },
+      user.id,
+      { baseUpdatedAt: typeof baseUpdatedAt === "string" && baseUpdatedAt ? baseUpdatedAt : undefined },
+    );
+  } catch (error) {
+    return { ...commandError(error), values: values() };
+  }
+
+  // The renewal is saved by now, so nothing below may turn into an error
+  // page: a Document that can't be attached goes to the Inbox instead, and
+  // if even that fails the Contract page says so.
+  let docFallback: "inbox" | "failed" | null = null;
+  if (hasFile) {
+    try {
+      await addDocumentCommand("CONTRACT", contractId, {
+        file,
+        // The new Term's paperwork, unless the form says otherwise.
+        category: parseDocumentCategory(formData.get("documentCategory")) ?? "POLICY",
+      });
+    } catch (error) {
+      console.error("[renew] couldn't attach the new term's document:", error);
+      const fallback = await saveFileToInboxFallback(file, user.id).catch(() => null);
+      docFallback = fallback ? "inbox" : "failed";
+    }
+  }
+
+  redirect(`/contracts/${contractId}${docFallback ? `?docFallback=${docFallback}` : ""}`);
 }
 
 /**

@@ -16,7 +16,7 @@ import { prisma } from "@/lib/prisma";
 import { CATEGORY_LABELS, daysUntil, formatPropertyAddress, monthlyEquivalent } from "@/lib/utils";
 import { getDueContext, getHouseholdToday } from "@/lib/appSettings";
 import { calendarDayOf, isDue, type DueContext, type DueEntry } from "@/lib/duePolicy";
-import { contractDue, currentTenancy, tenancyDue, TENANCY_AGREEMENT_SELECT, vehicleDue, warrantyDue } from "@/lib/dueRecords";
+import { contractDue, currentTenancy, tenancyDue, LIVE_TENANCY_AGREEMENTS, vehicleDue, warrantyDue } from "@/lib/dueRecords";
 import { buildCategoryBreakdown, monthlySpend } from "@/lib/spend";
 import { getFxRateMap, refreshFxRates } from "@/lib/fx";
 import type { ModuleKey } from "@/lib/modules/registry";
@@ -77,7 +77,7 @@ export async function queryTrips(upcomingOnly?: boolean) {
       startDate: true,
       endDate: true,
       notes: true,
-      _count: { select: { segments: true } },
+      _count: { select: { segments: { where: { deletedAt: null } } } },
     },
     orderBy: { startDate: "asc" },
   });
@@ -95,7 +95,7 @@ export async function queryTrips(upcomingOnly?: boolean) {
 export async function queryVehicles(attentionOnly?: boolean) {
   const today = await getHouseholdToday();
   const vehicles = await prisma.vehicle.findMany({
-    where: { deletedAt: null },
+    where: { deletedAt: null, archivedAt: null },
     select: {
       id: true,
       label: true,
@@ -127,7 +127,7 @@ export async function queryVehicles(attentionOnly?: boolean) {
 
 export async function queryProperties() {
   const properties = await prisma.property.findMany({
-    where: { deletedAt: null },
+    where: { deletedAt: null, archivedAt: null },
     select: {
       id: true,
       label: true,
@@ -140,11 +140,13 @@ export async function queryProperties() {
       occupancyStatus: true,
       notes: true,
       rentalAgreements: {
+        where: { deletedAt: null },
         select: { tenantName: true, weeklyRent: true, leaseEnd: true },
         orderBy: { createdAt: "desc" },
         take: 1,
       },
       valuations: {
+        where: { deletedAt: null },
         select: { value: true, currency: true, valuedAt: true },
         orderBy: { valuedAt: "desc" },
         take: 1,
@@ -320,14 +322,34 @@ export async function getContract(id: string) {
           select: { id: true, filename: true, mimeType: true, size: true, uploadedAt: true },
           orderBy: { uploadedAt: "asc" },
         },
+        // #353 — earlier Terms, newest first; the current Term is the
+        // Contract's own dates and cost.
+        terms: {
+          select: {
+            startDate: true,
+            endDate: true,
+            cost: true,
+            currency: true,
+            billingFrequency: true,
+            document: { select: { id: true, deletedAt: true } },
+          },
+          orderBy: { createdAt: "desc" },
+        },
       },
     }),
   ]);
   if (!contract) return null;
-  const { documents, ...fields } = contract;
+  const { documents, terms, ...fields } = contract;
   return {
     ...serializeContract(fields, ctx),
     documents: documents.map((doc) => ({ ...doc, uploadedAt: doc.uploadedAt.toISOString() })),
+    previousTerms: terms.map(({ document, ...term }) => ({
+      ...term,
+      startDate: calendarDayOf(term.startDate),
+      endDate: calendarDayOf(term.endDate),
+      // A Document in Trash isn't listed under documents either.
+      documentId: document && !document.deletedAt ? document.id : null,
+    })),
   };
 }
 
@@ -503,12 +525,13 @@ export async function whatsDue(enabledModules: Set<ModuleKey>, withinDays: numbe
     }),
     enabledModules.has("VEHICLES")
       ? prisma.vehicle.findMany({
-          where: { deletedAt: null },
+          where: { deletedAt: null, archivedAt: null },
           select: {
             id: true,
             label: true,
             regoExpiry: true,
             insuranceExpiry: true,
+            archivedAt: true,
             nextServiceDue: true,
             reminderDaysBefore: true,
           },
@@ -516,8 +539,8 @@ export async function whatsDue(enabledModules: Set<ModuleKey>, withinDays: numbe
       : [],
     enabledModules.has("HOME")
       ? prisma.property.findMany({
-          where: { deletedAt: null, isRented: true },
-          select: { id: true, label: true, isRented: true, rentalAgreements: { select: TENANCY_AGREEMENT_SELECT } },
+          where: { deletedAt: null, archivedAt: null, isRented: true },
+          select: { id: true, label: true, isRented: true, archivedAt: true, rentalAgreements: LIVE_TENANCY_AGREEMENTS },
         })
       : [],
   ]);
@@ -558,7 +581,9 @@ export const TOOL_DESCRIPTIONS = {
     `and so on), optionally filtered by status and/or category. ${CONTRACT_SHAPE}`,
   getContract:
     "Get one Contract by id, with the same shape as list_contracts plus its documents' metadata " +
-    "(filename, type, size; never file contents).",
+    "(filename, type, size; never file contents) and previousTerms: its earlier Terms, newest first, " +
+    "each with startDate, endDate, cost, currency, billingFrequency and documentId. The Contract's own " +
+    "dates and cost are its current Term.",
   searchContracts: `Case-insensitive search of Contracts across title, provider, contract number and notes. ${CONTRACT_SHAPE}`,
   upcomingRenewals:
     "Contracts with a renewal-related date within N days (default 30), soonest first: the notice deadline " +
@@ -580,5 +605,5 @@ export const TOOL_DESCRIPTIONS = {
     "id, title, field, date, daysLeft, state and label; state is due-soon (inside its due-soon window) or " +
     "overdue (an Expired Contract, a passed Vehicle date). Dates not yet in their due-soon window, an " +
     "auto-renewing Contract's renewal date, Ended Contracts, Lapsed Warranties and Cancelled Contracts " +
-    "are never Due, so they are not listed.",
+    "are never Due, so they are not listed, and neither are Archived Vehicles and Properties.",
 } as const;

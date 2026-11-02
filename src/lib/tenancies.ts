@@ -6,7 +6,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { isModuleEnabled } from "@/lib/modules/enablement";
-import { currentTenancy, TENANCY_AGREEMENT_SELECT } from "@/lib/dueRecords";
+import { currentTenancy, LIVE_TENANCY_AGREEMENTS, TENANCY_AGREEMENT_SELECT } from "@/lib/dueRecords";
 import type { Prisma } from "@/generated/prisma/client";
 
 export interface CurrentTenancy {
@@ -19,13 +19,21 @@ const RENTED_PROPERTY_SELECT = {
   id: true,
   label: true,
   isRented: true,
-  rentalAgreements: { select: TENANCY_AGREEMENT_SELECT },
+  archivedAt: true,
+  rentalAgreements: LIVE_TENANCY_AGREEMENTS,
 } as const;
 
 async function currentTenanciesWhere(where: Prisma.PropertyWhereInput): Promise<CurrentTenancy[]> {
   if (!(await isModuleEnabled("HOME"))) return [];
   const properties = await prisma.property.findMany({
-    where: { ...where, deletedAt: null, isRented: true },
+    // Neither in Trash nor Archived (#355): the household no longer has
+    // an Archived Property, so its lease end isn't Due and gets no Reminders.
+    // currentTenancy() also returns null for an Archived Property, so a
+    // caller with its own query can't bring it back without selecting
+    // `archivedAt` (it's a required field). The Covers work (#456/#487)
+    // builds Vehicle Due records through vehicleDueRecord(row), which must
+    // carry `archivedAt` for the same reason.
+    where: { ...where, deletedAt: null, archivedAt: null, isRented: true },
     select: RENTED_PROPERTY_SELECT,
   });
   return properties.flatMap((property) => {

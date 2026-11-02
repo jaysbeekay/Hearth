@@ -295,8 +295,17 @@ async function previewFields(docId: string, type: EntityType, filename: string) 
     body: JSON.stringify({ target: type }),
   });
   if (!res.ok) return { fields: {} as Record<string, string>, source: "none" as ExtractionSource };
-  const data = (await res.json()) as { fields: Record<string, string>; source?: ExtractionSource };
-  return { fields: data.fields, source: data.source ?? "none", fallbackName: filename.replace(/\.[^.]+$/, "") };
+  const data = (await res.json()) as {
+    fields: Record<string, string>;
+    source?: ExtractionSource;
+    textUnavailable?: boolean;
+  };
+  return {
+    fields: data.fields,
+    source: data.source ?? "none",
+    textUnavailable: data.textUnavailable === true,
+    fallbackName: filename.replace(/\.[^.]+$/, ""),
+  };
 }
 
 export function InboxReviewClient({
@@ -354,9 +363,9 @@ export function InboxReviewClient({
 
   async function scan(id: string, type: EntityType, filename: string) {
     updateRow(id, { status: "scanning" });
-    const { fields, source } = await previewFields(id, type, filename);
+    const { fields, source, textUnavailable } = await previewFields(id, type, filename);
     const filledCount = Object.keys(fields).length;
-    const scanMessage = extractionMessage(source, filledCount);
+    const scanMessage = extractionMessage(source, filledCount, textUnavailable);
     if (type === "CONTRACT") {
       updateRow(id, {
         status: "ready",

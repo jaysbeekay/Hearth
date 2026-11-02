@@ -5,8 +5,17 @@ import type { LucideIcon } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { addDocumentAction } from "@/lib/actions/documents";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
-import { deleteProperty, deleteHomeItem, restoreProperty, restoreHomeItem } from "@/lib/actions/home";
-import { createPropertyValuation, deletePropertyValuation } from "@/lib/actions/wealth";
+import {
+  archiveProperty,
+  deleteProperty,
+  deleteHomeItem,
+  restoreProperty,
+  restoreHomeItem,
+  unarchiveProperty,
+} from "@/lib/actions/home";
+import { ArchiveButton } from "@/components/ArchiveButton";
+import { ArchivedNotice } from "@/components/ArchivedNotice";
+import { createPropertyValuation, deletePropertyValuation, restorePropertyValuation } from "@/lib/actions/wealth";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailField as Detail } from "@/components/DetailField";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
@@ -30,7 +39,7 @@ import {
 import { getUserPreferences } from "@/lib/userPreferences";
 import { getHouseholdMemberCount } from "@/lib/household";
 import { getDueContext } from "@/lib/appSettings";
-import { currentTenancy, tenancyDue, TENANCY_AGREEMENT_SELECT } from "@/lib/dueRecords";
+import { currentTenancy, tenancyDue, LIVE_TENANCY_AGREEMENTS } from "@/lib/dueRecords";
 import { DetailStatusBanner } from "@/components/DetailStatusBanner";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
@@ -71,8 +80,8 @@ export default async function PropertyDetailPage({
             where: { deletedAt: null },
             include: { documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" } } },
           },
-          valuations: { orderBy: { valuedAt: "desc" } },
-          rentalAgreements: { select: TENANCY_AGREEMENT_SELECT },
+          valuations: { where: { deletedAt: null }, orderBy: { valuedAt: "desc" } },
+          rentalAgreements: LIVE_TENANCY_AGREEMENTS,
         },
       }),
       getUserPreferences(),
@@ -88,6 +97,8 @@ export default async function PropertyDetailPage({
   const tenancy = currentTenancy(property);
   // #388 — the lease end gets Reminders like any other Due entry; the card
   // reads the same Reminder schedule the scheduler sends from.
+  // An Archived Property has no current Tenancy (#355), so it shows neither a
+  // lease banner nor a Reminder card.
   const leaseReminderHealth = tenancy?.leaseEnd
     ? await getReminderHealth({ ownerType: "TENANCY", ownerId: tenancy.id, record: { kind: "tenancy", ...tenancy } })
     : null;
@@ -134,10 +145,19 @@ export default async function PropertyDetailPage({
                 Edit
               </Link>
               <DetailOverflowMenu>
+                {!property.archivedAt && (
+                  <ArchiveButton
+                    mode="archive"
+                    noun="property"
+                    action={archiveProperty.bind(null, property.id)}
+                    undo={unarchiveProperty.bind(null, property.id)}
+                    className="flex min-h-11 w-full items-center gap-2 px-4 py-2 text-sm hover:bg-hover"
+                  />
+                )}
                 <ConfirmForm
                   action={deleteProperty.bind(null, property.id)}
                   undo={{ action: restoreProperty.bind(null, property.id), href: `/home/${property.id}` }}
-                  confirmText="Move this property to Trash? Its maintenance records and documents are kept, and you can restore it within 30 days from Settings → Trash."
+                  confirmText="Delete this property? Its maintenance records and documents are kept, and you can restore it within 30 days from Settings → Recently deleted."
                   className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
                   offline={{ entity: "property", entityId: property.id, label: `Delete property: ${property.label}` }}
                 >
@@ -149,6 +169,24 @@ export default async function PropertyDetailPage({
           )}
         </div>
       </div>
+
+      {property.archivedAt && (
+        <ArchivedNotice
+          archivedAt={property.archivedAt}
+          dateFormat={dateFormat}
+          effect={property.isRented ? "Reminders and Needs attention no longer include its lease end." : undefined}
+          activeContracts={linkedContracts.filter((c) => c.status === "ACTIVE")}
+        >
+          {canWrite && (
+            <ArchiveButton
+              mode="restore"
+              noun="property"
+              action={unarchiveProperty.bind(null, property.id)}
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+            />
+          )}
+        </ArchivedNotice>
+      )}
 
       {tenancy && (
         <DetailStatusBanner
@@ -215,7 +253,7 @@ export default async function PropertyDetailPage({
                         <p className="flex flex-wrap items-center gap-2 font-medium">
                           {item.title}
                           {item.isTaxDeductible && (
-                            <span className="rounded-full bg-success/10 px-2 py-0.5 text-xs font-normal text-success">
+                            <span className="rounded-full bg-muted/10 px-2 py-0.5 text-xs font-normal text-muted">
                               Tax deductible
                             </span>
                           )}
@@ -238,7 +276,7 @@ export default async function PropertyDetailPage({
                           <ConfirmForm
                             action={deleteHomeItem.bind(null, property.id, item.id)}
                             undo={{ action: restoreHomeItem.bind(null, item.id) }}
-                            confirmText={`Move "${item.title}" to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash.`}
+                            confirmText={`Delete "${item.title}"? Its documents are kept, and you can restore it within 30 days from Settings → Recently deleted.`}
                             className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
                           >
                             <Trash2 size={16} />
@@ -318,7 +356,7 @@ export default async function PropertyDetailPage({
         </div>
 
         {valuationStale && (
-          <div className="flex items-center gap-2 rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
+          <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/10 p-3 text-sm text-foreground">
             <AlertTriangle size={16} className="shrink-0" />
             {latestValuation
               ? "Valuation is over 12 months old — consider updating."
@@ -340,9 +378,15 @@ export default async function PropertyDetailPage({
                 {canWrite && (
                   <ConfirmForm
                     action={deletePropertyValuation.bind(null, property.id, v.id)}
-                    confirmText="Remove this valuation? This can't be undone."
-                    actionLabel="Remove valuation"
-                    ariaLabel={`Remove valuation from ${formatDate(v.valuedAt, dateFormat)}`}
+                    undo={{ action: restorePropertyValuation.bind(null, v.id) }}
+                    offline={{
+                      entity: "propertyValuation",
+                      entityId: v.id,
+                      parentId: property.id,
+                      label: `Delete valuation: ${formatDate(v.valuedAt, dateFormat)}`,
+                    }}
+                    confirmText="Delete this valuation? You can restore it within 30 days from Settings → Recently deleted."
+                    ariaLabel={`Delete valuation from ${formatDate(v.valuedAt, dateFormat)}`}
                     className="rounded-lg border border-border p-2 text-danger hover:bg-danger/10"
                   >
                     <Trash2 size={14} />

@@ -34,6 +34,7 @@ import {
   deleteTripCommand,
   createTripSegmentCommand,
   updateTripSegmentCommand,
+  deleteTripSegmentCommand,
 } from "@/lib/commands/trips";
 import {
   createPropertyCommand,
@@ -43,9 +44,12 @@ import {
   updateMaintenanceRecordCommand,
   createTenancyCommand,
   updateTenancyCommand,
+  deleteTenancyCommand,
   createRentalStatementCommand,
   updateRentalStatementCommand,
+  deleteRentalStatementCommand,
   createPropertyValuationCommand,
+  deletePropertyValuationCommand,
 } from "@/lib/commands/home";
 import {
   createPortfolioCommand,
@@ -55,6 +59,7 @@ import {
   updateHoldingCommand,
   createTradeCommand,
   updateTradeCommand,
+  deleteTradeCommand,
 } from "@/lib/commands/wealth";
 import { updateInventoryItemCommand } from "@/lib/commands/inventory";
 import { RecordNotFoundError } from "@/lib/commands/shared";
@@ -277,6 +282,10 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
         baseUpdatedAt: ctx.baseUpdatedAt,
       });
     },
+    // #427 — soft-delete, matching deleteTripSegment in actions/trips.ts.
+    remove: async (id, ctx) => {
+      await deleteTripSegmentCommand(id, { tripId: ctx.parentId });
+    },
     saveFile: async (segmentId, file) => {
       validateFile(file);
       await addDocumentCommand("TRIP_SEGMENT", segmentId, { file });
@@ -321,8 +330,6 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     },
   }),
 
-  // RentalAgreement (Tenancy) has no `updatedAt` column, so its updates take
-  // no stale-edit check.
   rentalAgreement: defineEntity({
     schema: rentalAgreementSchema,
     input: formToRentalAgreementInput,
@@ -332,7 +339,14 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
       return { id: agreement.id };
     },
     update: async (id, data, ctx) => {
-      await updateTenancyCommand(id, data, { propertyId: requireParentId(ctx) });
+      await updateTenancyCommand(id, data, {
+        propertyId: requireParentId(ctx),
+        baseUpdatedAt: ctx.baseUpdatedAt,
+      });
+    },
+    // #427 — soft-delete, matching deleteRentalAgreement in actions/home.ts.
+    remove: async (id, ctx) => {
+      await deleteTenancyCommand(id, { propertyId: ctx.parentId });
     },
   }),
 
@@ -349,6 +363,10 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
         propertyId: requireParentId(ctx),
         baseUpdatedAt: ctx.baseUpdatedAt,
       });
+    },
+    // #427 — soft-delete, matching deleteRentalStatement in actions/home.ts.
+    remove: async (id, ctx) => {
+      await deleteRentalStatementCommand(id, { propertyId: ctx.parentId });
     },
     saveFile: async (statementId, file) => {
       validateFile(file);
@@ -428,6 +446,10 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     update: async (id, data, ctx) => {
       await updateTradeCommand(id, data, { holdingId: requireParentId(ctx), baseUpdatedAt: ctx.baseUpdatedAt });
     },
+    // #427 — soft-delete, matching deleteTrade in actions/wealth.ts.
+    remove: async (id, ctx) => {
+      await deleteTradeCommand(id, { holdingId: ctx.parentId });
+    },
     saveFile: async (tradeId, file) => {
       validateFile(file);
       await addDocumentCommand("TRADE", tradeId, { file });
@@ -443,6 +465,10 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     create: async (data, ctx) => {
       const valuation = await createPropertyValuationCommand(requireParentId(ctx), data);
       return { id: valuation.id };
+    },
+    // #427 — soft-delete, matching deletePropertyValuation in actions/wealth.ts.
+    remove: async (id, ctx) => {
+      await deletePropertyValuationCommand(id, { propertyId: ctx.parentId });
     },
   }),
 

@@ -197,7 +197,7 @@ const listTripsTool = defineTool({
 const listVehiclesTool = defineTool({
   name: "list_vehicles",
   description:
-    "List vehicles with registration/insurance expiry, optionally only ones needing attention (expiring within 30 days or already expired).",
+    "List vehicles with registration/insurance expiry, optionally only ones needing attention (expiring within 30 days or already expired). Archived vehicles (no longer owned) are left out.",
   moduleKey: "VEHICLES",
   inputSchema: {
     type: "object",
@@ -217,7 +217,7 @@ const listVehiclesTool = defineTool({
 const listPropertiesTool = defineTool({
   name: "list_properties",
   description:
-    "List properties with rental status, the current tenant/weekly rent if rented, and the most recent valuation.",
+    "List properties with rental status, the current tenant/weekly rent if rented, and the most recent valuation. Archived properties (no longer owned) are left out.",
   moduleKey: "HOME",
   inputSchema: { type: "object", properties: {} },
   schema: z.object({}),
