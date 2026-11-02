@@ -5,16 +5,18 @@ import { Upload } from "lucide-react";
 import type { VehicleItemModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
+import { FormActions } from "@/components/FormActions";
 import { FormMessage } from "@/components/FormMessage";
 import { Field } from "@/components/FormField";
 import { VEHICLE_ITEM_TYPES } from "@/lib/validation/vehicles";
 import { VEHICLE_ITEM_TYPE_LABELS } from "@/lib/utils";
-import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
+import { SelectWrapper, inputClass, textareaClass, selectClass } from "@/components/SelectWrapper";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
 import { applyIfEmpty, markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 import { DateInput } from "@/components/DateInput";
+import { Card } from "@/components/ui/Card";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -25,11 +27,14 @@ type ExtractedFields = Partial<Record<"type" | "title" | "provider" | "date" | "
 
 export function VehicleItemForm({
   action,
+  cancelHref,
   item,
   vehicleId,
   defaultCurrency,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
+  /** Where Cancel goes: the same place as the page's BackLink. */
+  cancelHref: string;
   item?: VehicleItemModel;
   vehicleId?: string;
   defaultCurrency?: string;
@@ -101,7 +106,7 @@ export function VehicleItemForm({
   return (
     <form action={formAction} className="space-y-6">
       {!item && (
-        <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
+        <Card className="space-y-2">
           <p className="flex items-center gap-2 text-sm font-medium">
             <Upload size={16} />
             Save time: upload a receipt or invoice and Hearth fills in the details
@@ -117,7 +122,7 @@ export function VehicleItemForm({
               {scanMessage}
             </p>
           )}
-        </div>
+        </Card>
       )}
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -200,15 +205,15 @@ export function VehicleItemForm({
           name="notes"
           rows={4}
           defaultValue={state?.values?.notes ?? item?.notes ?? ""}
-          className={inputClass}
+          className={textareaClass}
         />
       </Field>
 
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
 
-      <div className="flex justify-end gap-3">
+      <FormActions cancelHref={cancelHref}>
         <SubmitButton>{item ? "Save changes" : "Add service record"}</SubmitButton>
-      </div>
+      </FormActions>
     </form>
   );
 }

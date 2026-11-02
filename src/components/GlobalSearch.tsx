@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Search, X, Loader2 } from "lucide-react";
 import type { SearchResult } from "@/app/api/search/route";
 import { toggleListFilter, writeListFilters, type ToggleableFilter } from "@/lib/recordFilters";
+import { overlayClass, chipClass, buttonClass } from "@/lib/ui";
 
 const OPEN_EVENT = "hearth:open-search";
 
@@ -128,11 +129,11 @@ export function GlobalSearch() {
         role="dialog"
         aria-label="Search"
         aria-modal="true"
-        className="w-full max-w-lg overflow-hidden rounded-xl border border-border bg-surface shadow-xl"
+        className={overlayClass("w-full max-w-lg overflow-hidden")}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-          <Search size={18} className="shrink-0 text-muted" />
+          <Search size={20} className="shrink-0 text-muted" />
           <input
             ref={inputRef}
             role="combobox"
@@ -190,7 +191,7 @@ export function GlobalSearch() {
               }
             }}
             aria-label="Close search"
-            className="shrink-0 rounded-md p-1 text-muted hover:bg-hover"
+            className={buttonClass("quiet", { icon: true }, "shrink-0 text-muted")}
           >
             <X size={16} />
           </button>
@@ -216,11 +217,7 @@ export function GlobalSearch() {
                   closeButtonRef.current?.focus();
                 }
               }}
-              className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
-                filter === f.value
-                  ? "border-accent bg-accent/10 text-accent"
-                  : "border-border text-muted hover:bg-hover"
-              }`}
+              className={chipClass(filter === f.value)}
             >
               {f.label}
             </button>
@@ -249,7 +246,7 @@ export function GlobalSearch() {
           )}
           {loading && (
             <p className="flex items-center justify-center gap-2 px-3 py-6 text-center text-sm text-muted">
-              <Loader2 size={14} className="animate-spin" aria-hidden /> Searching…
+              <Loader2 size={16} className="animate-spin" aria-hidden /> Searching…
             </p>
           )}
           {showEmpty && (
@@ -282,7 +279,7 @@ export function GlobalSearch() {
                     <span className="truncate text-sm font-medium">{r.title}</span>
                     {r.subtitle && <span className="truncate text-xs text-muted">{r.subtitle}</span>}
                     {r.matchedInDocument && (
-                      <span className="text-[11px] italic text-muted">Matched inside an attached document</span>
+                      <span className="text-xs italic text-muted">Matched inside an attached document</span>
                     )}
                   </button>
                 );

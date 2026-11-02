@@ -6,6 +6,7 @@ test.use({ storageState: ADMIN_AUTH_FILE });
 test("switching region changes number formatting, and resets cleanly", async ({ page }) => {
   await page.goto("/contracts/new");
   await page.locator("#title").fill("Region Format Test Contract");
+  await page.locator("#category").selectOption("OTHER");
   await page.locator("#provider").fill("Region Format Test Provider");
   await page.locator("#cost").fill("1234.5");
   await page.locator("main button[type=submit]").click();

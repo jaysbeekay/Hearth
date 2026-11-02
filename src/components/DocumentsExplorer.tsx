@@ -5,11 +5,13 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { FileText, Image as ImageIcon, Eye, Upload } from "lucide-react";
 import { SelectWrapper, inputClass } from "@/components/SelectWrapper";
-import { linkButtonClass } from "@/lib/buttonStyles";
 import { DocumentLink } from "@/components/DocumentLink";
 import { DocumentPreviewModal, isPreviewable } from "@/components/DocumentPreviewModal";
 import { humanFileSize } from "@/lib/utils";
 import { DOCUMENT_CATEGORIES, DOCUMENT_CATEGORY_LABELS, type DocumentCategory } from "@/lib/documents/categories";
+import { buttonClass, emptyStateClass, selectClass } from "@/lib/ui";
+import { Card } from "@/components/ui/Card";
+import { Pill } from "@/components/ui/Pill";
 
 export interface DocRow {
   id: string;
@@ -75,15 +77,15 @@ export function DocumentsExplorer({
   if (docs.length === 0) {
     if (emptyMessage) {
       return (
-        <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted">
+        <p className={emptyStateClass()}>
           {emptyMessage}
         </p>
       );
     }
     return (
-      <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border p-10 text-center">
+      <div className={emptyStateClass("flex flex-col items-center gap-3")}>
         <p className="text-sm text-muted">No documents uploaded yet.</p>
-        <Link href="/import" className={linkButtonClass("primary")}>
+        <Link href="/import" className={buttonClass("primary")}>
           <Upload size={16} />
           Upload a document
         </Link>
@@ -111,7 +113,7 @@ export function DocumentsExplorer({
               value={category}
               onChange={(e) => setCategory(e.target.value as "ALL" | DocumentCategory)}
               aria-label="Filter by document type"
-              className="rounded-lg border border-border bg-background px-3 h-9 text-sm outline-none focus:border-accent appearance-none pr-8"
+              className={selectClass}
             >
               <option value="ALL">All document types</option>
               {DOCUMENT_CATEGORIES.map((key) => (
@@ -123,7 +125,7 @@ export function DocumentsExplorer({
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value as SortKey)}
-            className="rounded-lg border border-border bg-background px-3 h-9 text-sm outline-none focus:border-accent appearance-none pr-8"
+            className={selectClass}
           >
             {(Object.keys(SORT_LABELS) as SortKey[]).map((key) => (
               <option key={key} value={key}>
@@ -136,13 +138,13 @@ export function DocumentsExplorer({
       </div>
 
       {visible.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted">
+        <p className={emptyStateClass()}>
           No documents match the selected filters.
         </p>
       ) : (
         <>
           {/* Table — md and up */}
-          <div className="hidden overflow-x-auto rounded-xl border border-border bg-surface md:block">
+          <Card padding="none" className="hidden overflow-x-auto md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs text-muted">
@@ -170,12 +172,12 @@ export function DocumentsExplorer({
                       </DocumentLink>
                     </td>
                     <td className="px-4 py-2">
-                      <span className="rounded-full bg-muted/10 px-2 py-0.5 text-xs font-medium text-muted">
+                      <Pill>
                         {doc.category ? DOCUMENT_CATEGORY_LABELS[doc.category as DocumentCategory] ?? doc.category : "Uncategorised"}
-                      </span>
-                      <span className="ml-2 rounded-full bg-muted/10 px-2 py-0.5 text-xs font-medium text-muted">
+                      </Pill>
+                      <Pill className="ml-2">
                         {doc.type}
-                      </span>
+                      </Pill>
                     </td>
                     <td className="max-w-xs px-4 py-2">
                       <Link href={doc.parentHref} className="truncate text-accent hover:underline">
@@ -194,7 +196,7 @@ export function DocumentsExplorer({
                           type="button"
                           onClick={() => setPreview(doc)}
                           aria-label={`Preview ${doc.filename}`}
-                          className="rounded-md p-1 text-muted hover:bg-hover"
+                          className={buttonClass("quiet", { icon: true }, "text-muted")}
                         >
                           <Eye size={16} />
                         </button>
@@ -204,14 +206,13 @@ export function DocumentsExplorer({
                 ))}
               </tbody>
             </table>
-          </div>
+          </Card>
 
           {/* Cards — below md */}
           <div className="grid gap-2 md:hidden">
             {visible.map((doc) => (
-              <div
+              <Card
                 key={`${doc.type}-${doc.id}`}
-                className="rounded-xl border border-border bg-surface p-3"
               >
                 <div className="flex items-start justify-between gap-2">
                   <DocumentLink
@@ -229,16 +230,14 @@ export function DocumentsExplorer({
                       type="button"
                       onClick={() => setPreview(doc)}
                       aria-label={`Preview ${doc.filename}`}
-                      className="shrink-0 rounded-md p-1 text-muted hover:bg-hover"
+                      className={buttonClass("quiet", { icon: true }, "shrink-0 text-muted")}
                     >
                       <Eye size={16} />
                     </button>
                   )}
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
-                  <span className="rounded-full bg-muted/10 px-2 py-0.5 font-medium text-muted">
-                    {doc.type}
-                  </span>
+                  <Pill>{doc.type}</Pill>
                   <span>{doc.category ? DOCUMENT_CATEGORY_LABELS[doc.category as DocumentCategory] ?? doc.category : "Uncategorised"}</span>
                   <Link href={doc.parentHref} className="text-accent hover:underline">
                     {doc.parentTitle}
@@ -246,7 +245,7 @@ export function DocumentsExplorer({
                   <span><Timestamp value={doc.uploadedAt} /></span>
                   <span>{humanFileSize(doc.size)}</span>
                 </div>
-              </div>
+              </Card>
             ))}
           </div>
         </>
@@ -259,5 +258,5 @@ export function DocumentsExplorer({
 
 function FileIcon({ mimeType }: { mimeType: string }) {
   const Icon = mimeType.startsWith("image/") ? ImageIcon : FileText;
-  return <Icon size={14} className="shrink-0 text-muted" />;
+  return <Icon size={16} className="shrink-0 text-muted" />;
 }

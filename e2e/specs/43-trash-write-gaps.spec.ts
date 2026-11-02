@@ -1,5 +1,6 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
 import { ADMIN_AUTH_FILE, BASE_URL } from "../env";
+import { openFormSections } from "../formSections";
 
 test.use({ storageState: ADMIN_AUTH_FILE });
 
@@ -78,6 +79,8 @@ test.describe.serial("writes to and links to records in Trash", () => {
     const title = `Trash Gap Contract ${stamp}`;
     await page.goto("/contracts/new");
     await page.locator("#title").fill(title);
+    await page.locator("#category").selectOption("OTHER");
+    await openFormSections(page);
     await page.locator("#provider").fill("Trash Gap Insurer");
     await page.locator("main button[type=submit]").click();
     await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
@@ -85,6 +88,7 @@ test.describe.serial("writes to and links to records in Trash", () => {
 
     // Online: the property is picked, then trashed before the form is saved.
     await page.goto(`/contracts/${contractId}/edit`);
+    await openFormSections(page);
     await page.getByLabel("Linked to").selectOption({ label: propertyLabel });
     await moveToTrash(request, "property", propertyId);
     await page.getByRole("button", { name: "Save changes" }).click();
@@ -123,6 +127,8 @@ test.describe.serial("writes to and links to records in Trash", () => {
     const title = `Picker Contract ${stamp}`;
     await page.goto("/contracts/new");
     await page.locator("#title").fill(title);
+    await page.locator("#category").selectOption("OTHER");
+    await openFormSections(page);
     await page.locator("#provider").fill("Picker Insurer");
     await page.getByLabel("Linked to").selectOption({ label: linkedLabel });
     await page.locator("main button[type=submit]").click();

@@ -14,10 +14,10 @@ function daysFromNow(days: number): string {
 }
 
 async function openMenuAndArchive(page: Page) {
-  await page.getByRole("button", { name: "More actions" }).first().click();
+  await page.getByRole("button", { name: "More actions", exact: true }).first().click();
   await page.getByRole("button", { name: "Archive", exact: true }).click();
   // Archive acts in place, so the menu closes behind it.
-  await expect(page.getByRole("dialog", { name: "More actions" })).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "More actions", exact: true })).toHaveCount(0);
 }
 
 // The dashboard's "N vehicles are missing key details" row, or 0 when it's gone.
@@ -56,7 +56,7 @@ test.describe.serial("Archive a Vehicle", () => {
     await expect(page.getByText("Archived.", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Undo" })).toBeVisible();
     // No Due banner and no Reminder card for an Archived Vehicle.
-    await expect(page.getByText("Registration reminder")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Reminder health" })).toHaveCount(0);
 
     await page.goto("/dashboard");
     await expect(page.locator("main")).not.toContainText(label);
@@ -113,6 +113,7 @@ test("an Archived Vehicle's page lists the active Contracts still linked to it",
 
   await page.goto(`/contracts/new?vehicleId=${vehicleId}`);
   await page.locator("#title").fill("Archive Linked Insurance");
+  await page.locator("#category").selectOption("OTHER");
   await page.locator("#provider").fill("Acme");
   await page.locator("#endDate").fill(daysFromNow(200));
   await page.locator("main button[type=submit]").click();

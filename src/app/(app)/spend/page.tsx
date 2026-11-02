@@ -12,6 +12,9 @@ import {
 import { buildMonthlyTimeline, buildYearlyTimeline, buildCategoryBreakdown, monthlySpend } from "@/lib/spend";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { refreshFxRates, getFxRateMap, convertAmount } from "@/lib/fx";
+import { Card } from "@/components/ui/Card";
+import { chipClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Spending" };
 
@@ -119,8 +122,8 @@ export default async function SpendPage({
   const maxTotal = Math.max(...timeline.map((b) => b.total), 1);
 
   return (
-    <div className="max-w-3xl space-y-8">
-      <h1 className="text-2xl font-semibold">Spending</h1>
+    <PageShell width="list">
+      <h1 className="text-2xl font-medium">Spending</h1>
 
       {hasUnconverted && (
         <p className="text-xs text-warning">
@@ -133,46 +136,42 @@ export default async function SpendPage({
           space, so the whole amount is one unbreakable word; wrap-anywhere
           (unlike break-words) reliably breaks it inside the narrow tile. */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <div className="min-w-0 rounded-xl border border-border bg-surface p-4">
+        <Card className="min-w-0">
           <p className="text-xs text-muted">Monthly recurring</p>
-          <p className="mt-1 wrap-anywhere text-xl font-semibold sm:text-2xl">
+          <p className="mt-1 wrap-anywhere text-xl font-medium sm:text-2xl">
             {formatCurrency(monthlyTotal, preferredCurrency, undefined, region, { showCode: true })}
           </p>
-        </div>
-        <div className="min-w-0 rounded-xl border border-border bg-surface p-4">
+        </Card>
+        <Card className="min-w-0">
           <p className="text-xs text-muted">Annual projection</p>
-          <p className="mt-1 wrap-anywhere text-xl font-semibold sm:text-2xl">
+          <p className="mt-1 wrap-anywhere text-xl font-medium sm:text-2xl">
             {formatCurrency(annualTotal, preferredCurrency, undefined, region, { showCode: true })}
           </p>
-        </div>
-        <div className="min-w-0 rounded-xl border border-border bg-surface p-4">
+        </Card>
+        <Card className="min-w-0">
           <p className="text-xs text-muted">Tax-deductible / mo</p>
-          <p className="mt-1 wrap-anywhere text-xl font-semibold sm:text-2xl">
+          <p className="mt-1 wrap-anywhere text-xl font-medium sm:text-2xl">
             {formatCurrency(taxDeductibleMonthly, preferredCurrency, undefined, region, { showCode: true })}
           </p>
-        </div>
+        </Card>
       </div>
 
       {/* Timeline chart */}
-      <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <Card as="section">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-medium">
             Recurring cost — {view === "yearly" ? "last 5 years" : "last 12 months"}
           </h2>
-          <div className="flex rounded-lg border border-border p-0.5 text-xs">
+          <div className="flex gap-2">
             <Link
               href="/spend?view=monthly"
-              className={`rounded-md px-2.5 py-1 font-medium ${
-                view === "monthly" ? "bg-accent/10 text-accent" : "text-muted hover:text-foreground"
-              }`}
+              className={chipClass(view === "monthly")}
             >
               Monthly
             </Link>
             <Link
               href="/spend?view=yearly"
-              className={`rounded-md px-2.5 py-1 font-medium ${
-                view === "yearly" ? "bg-accent/10 text-accent" : "text-muted hover:text-foreground"
-              }`}
+              className={chipClass(view === "yearly")}
             >
               Yearly
             </Link>
@@ -183,9 +182,9 @@ export default async function SpendPage({
             ? yearlyTimeline.map((bucket) => (
                 <div key={bucket.year} className="flex items-center gap-3">
                   <span className="w-16 shrink-0 text-right text-xs text-muted">{bucket.year}</span>
-                  <div className="flex-1 rounded-full bg-muted/10 h-5 overflow-hidden">
+                  <div className="flex-1 h-5 overflow-hidden rounded-lg bg-muted/10">
                     <div
-                      className="h-full rounded-full bg-accent/70 transition-all"
+                      className="h-full rounded-lg bg-accent/70"
                       style={{ width: `${(bucket.total / maxTotal) * 100}%` }}
                     />
                   </div>
@@ -197,9 +196,9 @@ export default async function SpendPage({
             : monthlyTimeline.map((bucket) => (
                 <div key={bucket.month} className="flex items-center gap-3">
                   <span className="w-16 shrink-0 text-right text-xs text-muted">{bucket.month}</span>
-                  <div className="flex-1 rounded-full bg-muted/10 h-5 overflow-hidden">
+                  <div className="flex-1 h-5 overflow-hidden rounded-lg bg-muted/10">
                     <div
-                      className="h-full rounded-full bg-accent/70 transition-all"
+                      className="h-full rounded-lg bg-accent/70"
                       style={{ width: `${(bucket.total / maxTotal) * 100}%` }}
                     />
                   </div>
@@ -209,11 +208,11 @@ export default async function SpendPage({
                 </div>
               ))}
         </div>
-      </section>
+      </Card>
 
       {/* Category breakdown */}
       {categoryBreakdown.length > 0 && (
-        <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+        <Card as="section">
           <h2 className="mb-4 font-medium">Recurring cost by category</h2>
           <div className="space-y-2">
             {categoryBreakdown.map((bucket) => {
@@ -223,9 +222,9 @@ export default async function SpendPage({
                   <span className="w-28 shrink-0 truncate text-xs text-muted">
                     {CATEGORY_LABELS[bucket.category] ?? bucket.category}
                   </span>
-                  <div className="flex-1 rounded-full bg-muted/10 h-5 overflow-hidden">
+                  <div className="flex-1 h-5 overflow-hidden rounded-lg bg-muted/10">
                     <div
-                      className="h-full rounded-full bg-accent/70 transition-all"
+                      className="h-full rounded-lg bg-accent/70"
                       style={{ width: `${pct}%` }}
                     />
                   </div>
@@ -236,12 +235,12 @@ export default async function SpendPage({
               );
             })}
           </div>
-        </section>
+        </Card>
       )}
 
       {/* Actuals by year */}
       {actualsByYear.length > 0 && (
-        <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+        <Card as="section">
           <h2 className="mb-3 font-medium">Actuals by financial year</h2>
           <div className="overflow-x-auto">
             {/* #403 — pl-4 + nowrap keep the amount columns from running into
@@ -285,8 +284,8 @@ export default async function SpendPage({
               </tbody>
             </table>
           </div>
-        </section>
+        </Card>
       )}
-    </div>
+    </PageShell>
   );
 }

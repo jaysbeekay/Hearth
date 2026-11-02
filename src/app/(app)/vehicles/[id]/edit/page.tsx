@@ -1,11 +1,14 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { getReminderConfig } from "@/lib/appSettings";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { updateVehicle } from "@/lib/actions/vehicles";
 import { VehicleForm } from "@/components/VehicleForm";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
 
 export default async function EditVehiclePage({
   params,
@@ -16,21 +19,24 @@ export default async function EditVehiclePage({
 
   const { id } = await params;
   redirectIfReadOnly(await auth(), `/vehicles/${id}`);
-  const vehicle = await prisma.vehicle.findUnique({ where: { id } });
+  const [vehicle, { defaultDays }] = await Promise.all([
+    prisma.vehicle.findUnique({ where: { id } }),
+    getReminderConfig(),
+  ]);
   if (!vehicle || vehicle.deletedAt) notFound();
 
   const boundAction = updateVehicle.bind(null, vehicle.id);
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="form">
       <BackLink href={`/vehicles/${vehicle.id}`} label={vehicle.label} />
       <div>
-        <h1 className="text-2xl font-semibold">Edit vehicle</h1>
+        <h1 className="text-2xl font-medium">Edit vehicle</h1>
         <p className="text-sm text-muted">{vehicle.label}</p>
       </div>
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
-        <VehicleForm action={boundAction} vehicle={vehicle} />
-      </div>
-    </div>
+      <Card>
+        <VehicleForm cancelHref={`/vehicles/${vehicle.id}`} action={boundAction} vehicle={vehicle} defaultReminderDays={defaultDays} />
+      </Card>
+    </PageShell>
   );
 }

@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { ADMIN_AUTH_FILE, ADMIN_EMAIL } from "../env";
+import { openFormSections } from "../formSections";
 
 test.use({ storageState: ADMIN_AUTH_FILE, viewport: { width: 375, height: 812 }, hasTouch: true });
 
@@ -16,6 +17,8 @@ test("contract detail page with long field values doesn't overflow on a mobile v
 }) => {
   await page.goto("/contracts/new");
   await page.locator("#title").fill("Mobile Overflow Regression Contract");
+  await page.locator("#category").selectOption("OTHER");
+  await openFormSections(page);
   await page.locator("#provider").fill("Regression Test Provider");
   await page
     .locator("#contractNumber")
@@ -57,16 +60,30 @@ test("/spend page doesn't overflow on a mobile viewport", async ({ page }) => {
 test("DetailOverflowMenu renders as a full-width bottom sheet on mobile", async ({ page }) => {
   await page.goto("/contracts/new");
   await page.locator("#title").fill("Overflow Menu Test Contract");
+  await page.locator("#category").selectOption("OTHER");
+  await openFormSections(page);
   await page.locator("#provider").fill("Test Provider");
   await page.locator("main button[type=submit]").click();
   // Exclude "new" itself — see the test above for why a bare
   // /\/contracts\/[^/]+$/ resolves instantly here instead of waiting.
   await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
 
+  // #411 — 36px visual, 44px hit area: a tap 3px outside each edge of
+  // the drawn button still lands on it.
   const trigger = page.locator('button[aria-label="More actions"]');
-  const triggerBox = await trigger.boundingBox();
-  expect(triggerBox?.width).toBeGreaterThanOrEqual(44);
-  expect(triggerBox?.height).toBeGreaterThanOrEqual(44);
+  const triggerBox = (await trigger.boundingBox())!;
+  expect(triggerBox.width).toBeGreaterThanOrEqual(36);
+  expect(triggerBox.height).toBeGreaterThanOrEqual(36);
+  const cx = triggerBox.x + triggerBox.width / 2;
+  const cy = triggerBox.y + triggerBox.height / 2;
+  for (const [x, y] of [
+    [triggerBox.x - 3, cy],
+    [triggerBox.x + triggerBox.width + 3, cy],
+    [cx, triggerBox.y - 3],
+    [cx, triggerBox.y + triggerBox.height + 3],
+  ]) {
+    expect(await trigger.evaluate((el, [px, py]) => el.contains(document.elementFromPoint(px, py)), [x, y])).toBe(true);
+  }
 
   await trigger.click();
 
@@ -84,6 +101,8 @@ test("swiping a contract card left reveals a delete action, which still uses the
 }) => {
   await page.goto("/contracts/new");
   await page.locator("#title").fill("Swipe Test Contract");
+  await page.locator("#category").selectOption("OTHER");
+  await openFormSections(page);
   await page.locator("#provider").fill("Swipe Provider");
   await page.locator("main button[type=submit]").click();
   // Exclude "new" itself: we're already on /contracts/new when this is
@@ -251,18 +270,18 @@ test("bottom-bar labels and More sheet labels stay on one line at 360, 390 and 4
 test("list page headers don't wrap at 360, 390 and 430px, and Export sits in the ⋮ menu", async ({ page }) => {
   test.setTimeout(120_000);
   const lists = [
-    { path: "/contracts", button: "Add contract" },
-    { path: "/products", button: "Add warranty" },
-    { path: "/home", button: "Add property" },
-    { path: "/vehicles", button: "Add vehicle" },
-    { path: "/travel", button: "Add trip" },
+    { path: "/contracts", button: "Add contract", emptyState: /^No contracts yet\./ },
+    { path: "/products", button: "Add warranty", emptyState: /^No warranties yet\./ },
+    { path: "/home", button: "Add property", emptyState: /^No properties yet\./ },
+    { path: "/vehicles", button: "Add vehicle", emptyState: /^No vehicles yet\./ },
+    { path: "/travel", button: "Add trip", emptyState: /^No trips yet\./ },
     { path: "/inventory", button: "Add item", noExport: true },
     // Add portfolio until the household has one, then Manage portfolios.
     { path: "/wealth", button: /^(Add portfolio|Manage portfolios)$/ },
   ];
   for (const width of PHONE_WIDTHS) {
     await page.setViewportSize({ width, height: 800 });
-    for (const { path, button, noExport } of lists) {
+    for (const { path, button, noExport, emptyState } of lists) {
       await page.goto(path);
       const heading = page.locator("main h1");
       await expectOneLine(heading, `${width}px ${path} heading`);
@@ -276,7 +295,11 @@ test("list page headers don't wrap at 360, 390 and 430px, and Export sits in the
 
       await expect(page.locator("main summary", { hasText: "Export" })).toBeHidden();
       const menu = page.getByRole("button", { name: "More list actions" });
-      if (noExport) {
+      // #406 — a list with nothing in it yet has no Export, so no ⋮ either.
+      // The list's own empty state, not another section's (Warranties also
+      // shows "No inventory items yet.").
+      const nothingYet = emptyState ? (await page.locator("main").getByText(emptyState).count()) > 0 : false;
+      if (noExport || nothingYet) {
         await expect(menu).toHaveCount(0);
       } else {
         await expectSameRow([heading, menu], `${width}px ${path} heading and ⋮`);
@@ -317,6 +340,8 @@ test("detail page headers keep the badge, Edit and ⋮ on one row at 360, 390 an
   const end = new Date(Date.now() + 20 * 86_400_000).toISOString().slice(0, 10);
   await page.goto("/contracts/new");
   await page.locator("#title").fill("Home insurance");
+  await page.locator("#category").selectOption("OTHER");
+  await openFormSections(page);
   await page.locator("#provider").fill("Allianz");
   await page.locator("#endDate").fill(end);
   await page.locator("main button[type=submit]").click();
@@ -337,7 +362,7 @@ test("detail page headers keep the badge, Edit and ⋮ on one row at 360, 390 an
       await expectOneLine(heading, `${width}px detail heading`);
       const badge = heading.locator("xpath=../following-sibling::div/*[1]");
       const edit = page.locator("main").getByRole("link", { name: "Edit", exact: true });
-      const more = page.getByRole("button", { name: "More actions" });
+      const more = page.getByRole("button", { name: "More actions", exact: true });
       await expectOneLine(badge, `${width}px detail badge`);
       await expectOneLine(edit, `${width}px detail Edit`);
       await expectSameRow([badge, edit, more], `${width}px detail actions`);
@@ -450,6 +475,8 @@ test.describe("fixed mobile UI never covers controls (#401)", () => {
     for (let i = 0; i < 6; i++) {
       await page.goto("/contracts/new");
       await page.locator("#title").fill(`Overlap Check Contract ${stamp}-${i}`);
+      await page.locator("#category").selectOption("OTHER");
+      await openFormSections(page);
       await page.locator("#provider").fill("Overlap Provider");
       await page.locator("#endDate").fill(end);
       await page.locator("main button[type=submit]").click();
@@ -608,4 +635,53 @@ test("the Inbox count badge matches the Inbox tab on the bottom bar and the side
   const sidebarDocuments = page.locator("aside").getByRole("link", { name: `Documents, ${count} in Inbox` });
   await expect(sidebarDocuments).toBeVisible();
   await expect(sidebarDocuments.locator("span[aria-hidden=true]")).toHaveText(count > 99 ? "99+" : String(count));
+});
+
+test("#365 — on a 390×844 phone the first contract is on screen, and filters live in one Filters sheet", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const title = `Toolbar Phone Contract ${Date.now()}`;
+  await page.goto("/contracts/new");
+  await page.locator("#title").fill(title);
+  await page.locator("#category").selectOption("OTHER");
+  await openFormSections(page);
+  await page.locator("#provider").fill("Toolbar Provider");
+  await page.locator("main button[type=submit]").click();
+  await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
+
+  await page.goto("/contracts");
+  const main = page.locator("main");
+  // No Filter button, and the selects and chips are behind "Filters".
+  await expect(main.getByRole("button", { name: "Filter", exact: true })).toHaveCount(0);
+  await expect(main.getByLabel("Filter by category")).toBeHidden();
+  await expect(main.getByRole("button", { name: /^Due soon/ })).toBeHidden();
+  const firstCard = main.locator("a[href^='/contracts/']").filter({ hasNotText: /^Add contract$/ }).first();
+  await expect(firstCard).toBeInViewport();
+
+  await main.getByRole("button", { name: "Filters", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "Filters" });
+  await sheet.getByLabel("Filter by status").selectOption("ACTIVE");
+  await page.waitForURL(/[?&]status=ACTIVE/);
+  await expect(page.getByRole("dialog", { name: "Filters" })).toBeVisible();
+  await page.getByRole("dialog", { name: "Filters" }).getByRole("button", { name: "Done" }).click();
+  await expect(main.getByRole("button", { name: "Filters (1)", exact: true })).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+
+  // #517 review — removing the filter outside the sheet resets its select.
+  await main.getByRole("button", { name: "Clear all" }).click();
+  await page.waitForURL(/\/contracts$/);
+  await main.getByRole("button", { name: "Filters", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Filters" }).getByLabel("Filter by status")).toHaveValue("");
+});
+
+test("#517 review — removing a category pill resets the category select on desktop", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/contracts");
+  const main = page.locator("main");
+  await main.getByLabel("Filter by category").selectOption("UTILITY");
+  await page.waitForURL(/[?&]category=UTILITY/);
+  await main.getByRole("button", { name: "Utility" }).click();
+  await page.waitForURL(/\/contracts$/);
+  await expect(main.getByLabel("Filter by category")).toHaveValue("");
 });

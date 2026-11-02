@@ -7,6 +7,96 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+### Changed
+
+- **One set of shared UI rules (#411).** The app now draws from one type
+  scale (24/20/16/14/12px at two weights, sentence case), one radius
+  (`rounded-lg`, with `rounded-full` only for dots), 1px borders, no card
+  shadows and a single overlay shadow for dialogs and menus. Cards, pills,
+  banners and page widths come from `Card`, `Pill`, `Banner` and
+  `PageShell` (`src/components/ui/`), and every class string they use lives
+  in `src/lib/ui.ts`. Buttons are primary, secondary, quiet or danger at
+  one 36px size with a 44px hit area; each page has at most one primary
+  button (row actions, settings saves and detail-page actions are
+  secondary), filter chips look like secondary buttons rather than status
+  pills, and inputs and selects share one 36px style. Icons are 16px in
+  content and 20px in navigation, and decorative icons (the 32px glyphs on
+  sign-in and error pages, the chat avatars, the per-row icons in the
+  Needs attention queue) are gone. Dashed borders are kept only for file
+  drop zones, and hover motion is colour-only. A unit test
+  (`tests/unit/ui-rules.test.ts`) and an e2e check
+  (`e2e/specs/51-ui-rules.spec.ts`) hold these rules in place. The iOS and
+  Android shell keeps its own styles and is unchanged.
+- Links inside running text are now underlined, so they no longer rely on
+  colour alone, and the contract list's filter selects and each member's role
+  select have accessible names (#411 review).
+- Button labels too long for their row now wrap onto a second line instead
+  of running off-screen, text inputs show a focus ring again, the property
+  valuation form's fields are labelled, and the contract status action's
+  accessible name matches its visible text (#411 review).
+- **Consistency pass (#406).** Every add, edit and renew form now has Cancel
+  beside Save, going back to the same place as the page's back link. A form
+  error is shown once, in the banner above the buttons (scrolled into view
+  and announced to screen readers), instead of also popping up as a toast.
+  An empty Contracts, Warranties, Vehicles, Properties or Travel list shows
+  just its sentence and Add button, without Export, search or filter chips;
+  an empty Contracts or Warranties list also says how many are in Recently
+  deleted, with a link there.
+  Import and Inbox review fields use the shared 36px input style, the
+  Inventory form sits in a card with sentence-case labels, portfolios are
+  added with "Add portfolio" everywhere, and a holding's Delete moved into
+  its ⋮ menu. The iOS and Android shell is unchanged.
+- **Plainer record pages (#405).** Each Trip segment, Service record,
+  Maintenance record, Rental statement and Trade now has one quiet "Add
+  document" button instead of its own drop zone, Document type select and
+  Upload button. The file uploads as soon as it's picked, and its type is
+  set afterwards from a select on its row in the Document list (every kind
+  except Warranties, whose type is still chosen at upload because it picks
+  the hero photo). Deleting an entry, a valuation or a portfolio moved from
+  a red button into the row's ⋮ menu. Empty fields are hidden on detail
+  pages instead of showing a dash, and a Contract's or Warranty's header
+  badge is hidden while the status banner below says the same thing. The
+  iOS and Android shell is unchanged.
+- **Reminder presets and a one-line Reminder card (#360).** Contract,
+  Warranty, Vehicle and Tenancy forms pick Reminder thresholds from presets
+  ("Default · 30/14/7/1", "1 week before", "1 day before", "Custom…")
+  instead of a free-text field, and a hint always says which days apply and
+  when the record shows in Needs attention. Stored values are unchanged:
+  Default saves blank (the household default), and any other list opens as
+  Custom. Vehicle thresholds are now validated like the others. The Reminder
+  health card is one line per date ("Next reminder 20 Sep by email ·
+  thresholds 30/14/7/1"), says once when no delivery channel is set up, and
+  opens to the full read-out and "Send test reminder" on click. A Vehicle
+  shows one card for its registration, insurance and service dates. The iOS
+  and Android shell is unchanged.
+- **One filter row on Contracts and Warranties (#365).** The Filter button is
+  gone (search still submits as you type or on Enter, and the selects on
+  change). Each filter chip carries the number of records it would show
+  ("Due soon · 2"), counted with the current search, category, status and
+  other chips kept, with zero counts muted, replacing the separate row of summary counts
+  and its "added this week" figure. On a phone the search box sits beside a
+  "Filters" button that opens a bottom sheet with the category and status
+  selects and the chips, so the first record is on the first screen. Links
+  from the dashboard still pre-select the right chip. The iOS and Android
+  shell is unchanged.
+- **Shorter Contract, Warranty and Vehicle forms (#361).** Only the fields
+  that drive Reminders and Spend show up front. The rest sit in a "More
+  details" section, and the thresholds sit in a "Reminders" section. A
+  section opens by itself when it already holds a value, when a document
+  scan fills a field inside it, or when the browser flags a field inside it.
+  A Contract's Category now starts on "Choose a category" and has to be
+  picked; a scan suggests one from the provider and title. Entering a cost
+  sets the billing frequency to Monthly until you choose another. The
+  Warranty photo upload moves into More details. Preferences explains that
+  date pickers follow the browser's language. The Property form was already
+  short and is unchanged, and so is the iOS and Android shell.
+
+### Fixed
+
+- **A refused passkey says so.** Signing in with a passkey Hearth doesn't
+  know (for example one removed in Settings) used to drop silently back to
+  the sign-in page; it now shows "Passkey sign-in failed" (#376).
+
 ### Security
 
 - **Passkeys: `@simplewebauthn` 9 → 14 (#376).** Server 14.0.3 and browser
@@ -22,12 +112,6 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   user handle must match the stored passkey. Registration accepts any of
   the user's unexpired challenges, so adding a passkey in two tabs works,
   and only known transports are stored.
-
-### Fixed
-
-- **A refused passkey says so.** Signing in with a passkey Hearth doesn't
-  know (for example one removed in Settings) used to drop silently back to
-  the sign-in page; it now shows "Passkey sign-in failed" (#376).
 
 ## [0.20.1] - 2026-10-31
 

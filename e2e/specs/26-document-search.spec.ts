@@ -45,6 +45,7 @@ test("filename substring search finds documents across contract, rental statemen
   // tokenizer's mid-word substring matching (not a whole-token match).
   await page.goto("/contracts/new");
   await page.locator("#title").fill(`Search FTS Regression Contract ${stamp}`);
+  await page.locator("#category").selectOption("OTHER");
   await page.locator("#provider").fill("Regression Provider");
   await Promise.all([
     page.waitForURL(/\/contracts\/(?!new$)[^/]+$/),
@@ -85,7 +86,7 @@ test("filename substring search finds documents across contract, rental statemen
   await page.locator("#name").fill(`FTS Regression Portfolio ${stamp}`);
   await Promise.all([
     page.waitForURL(/\/wealth\/portfolios\/(?!new$)[^/]+$/),
-    page.getByRole("button", { name: "Create portfolio" }).click(),
+    page.getByRole("button", { name: "Add portfolio" }).click(),
   ]);
   const portfolioId = page.url().split("/portfolios/")[1];
 
@@ -107,17 +108,16 @@ test("filename substring search finds documents across contract, rental statemen
   ]);
 
   await page.goto(`/wealth/portfolios/${portfolioId}/holdings/${holdingId}`);
-  const tradeRow = page.locator("div.rounded-xl.border.border-border.bg-surface.p-4", { hasText: "Buy" });
+  const tradeRow = page.locator("div.rounded-lg.border.border-border.bg-surface.p-4", { hasText: "Buy" });
   await tradeRow.locator('input[type="file"]').setInputFiles({
     name: `confirmation_${tradeFragment}_note.pdf`,
     mimeType: "application/pdf",
     buffer: Buffer.from("%PDF-1.4\ntrade fts regression fixture\n"),
   });
-  await tradeRow.getByRole("button", { name: "Upload" }).click();
-  // A bare filename match would also hit FileDropZone's own client-side
-  // selected-file preview, which appears on setInputFiles() regardless of
-  // whether the upload actually succeeded.
-  await expect(tradeRow).toContainText("Document uploaded.");
+  // "Add document" (#405) uploads as soon as the file is chosen.
+  await expect(
+    tradeRow.locator('a[href^="/api/documents/"]', { hasText: `confirmation_${tradeFragment}_note.pdf` }),
+  ).toBeVisible({ timeout: 30_000 });
 
   // Each fragment is a mid-word substring of its filename (never a leading
   // token) — a whole-token tokenizer would miss all three.
@@ -139,6 +139,7 @@ test("trashing a contract removes its document from search, and permanently dele
 
   await page.goto("/contracts/new");
   await page.locator("#title").fill(`Search Lifecycle Regression Contract ${stamp}`);
+  await page.locator("#category").selectOption("OTHER");
   await page.locator("#provider").fill("Regression Provider");
   await Promise.all([
     page.waitForURL(/\/contracts\/(?!new$)[^/]+$/),
@@ -159,7 +160,7 @@ test("trashing a contract removes its document from search, and permanently dele
   // Soft-delete (Trash) — the document row still exists, but the contract's
   // deletedAt filter must exclude it from search.
   await page.goto(`/contracts/${contractId}`);
-  await page.getByRole("button", { name: "More actions" }).click();
+  await page.getByRole("button", { name: "More actions", exact: true }).click();
   await page.getByRole("button", { name: "Delete", exact: true }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
   await page.waitForURL(/\/contracts$/);
