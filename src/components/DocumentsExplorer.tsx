@@ -13,6 +13,12 @@ import { buttonClass, emptyStateClass, selectClass } from "@/lib/ui";
 import { Card } from "@/components/ui/Card";
 import { Pill } from "@/components/ui/Pill";
 
+// #366 — the area a Document belongs to (Contracts, Vehicles…) is "Belongs
+// to"; "Document type" is only its category (invoice, manual…).
+function documentTypeLabel(category: string | null | undefined): string {
+  return category ? DOCUMENT_CATEGORY_LABELS[category as DocumentCategory] ?? category : "Uncategorised";
+}
+
 export interface DocRow {
   id: string;
   filename: string;
@@ -150,7 +156,7 @@ export function DocumentsExplorer({
                 <tr className="border-b border-border text-left text-xs text-muted">
                   <th className="px-4 py-2 font-medium">File</th>
                   <th className="px-4 py-2 font-medium">Document type</th>
-                  <th className="px-4 py-2 font-medium">Linked record</th>
+                  <th className="px-4 py-2 font-medium">Belongs to</th>
                   <th className="px-4 py-2 font-medium">Uploaded</th>
                   <th className="px-4 py-2 text-right font-medium">Size</th>
                   <th className="px-4 py-2" />
@@ -172,17 +178,15 @@ export function DocumentsExplorer({
                       </DocumentLink>
                     </td>
                     <td className="px-4 py-2">
-                      <Pill>
-                        {doc.category ? DOCUMENT_CATEGORY_LABELS[doc.category as DocumentCategory] ?? doc.category : "Uncategorised"}
-                      </Pill>
-                      <Pill className="ml-2">
-                        {doc.type}
-                      </Pill>
+                      <Pill>{documentTypeLabel(doc.category)}</Pill>
                     </td>
                     <td className="max-w-xs px-4 py-2">
-                      <Link href={doc.parentHref} className="truncate text-accent hover:underline">
-                        {doc.parentTitle}
-                      </Link>
+                      <div className="flex items-center gap-2">
+                        <Pill className="shrink-0">{doc.type}</Pill>
+                        <Link href={doc.parentHref} className="truncate text-accent hover:underline">
+                          {doc.parentTitle}
+                        </Link>
+                      </div>
                     </td>
                     <td className="whitespace-nowrap px-4 py-2 text-muted">
                       <Timestamp value={doc.uploadedAt} />
@@ -236,15 +240,20 @@ export function DocumentsExplorer({
                     </button>
                   )}
                 </div>
-                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
-                  <Pill>{doc.type}</Pill>
-                  <span>{doc.category ? DOCUMENT_CATEGORY_LABELS[doc.category as DocumentCategory] ?? doc.category : "Uncategorised"}</span>
-                  <Link href={doc.parentHref} className="text-accent hover:underline">
-                    {doc.parentTitle}
-                  </Link>
-                  <span><Timestamp value={doc.uploadedAt} /></span>
-                  <span>{humanFileSize(doc.size)}</span>
-                </div>
+                <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+                  <dt className="text-muted">Document type</dt>
+                  <dd>{documentTypeLabel(doc.category)}</dd>
+                  <dt className="text-muted">Belongs to</dt>
+                  <dd className="min-w-0 truncate">
+                    {doc.type} ·{" "}
+                    <Link href={doc.parentHref} className="text-accent hover:underline">
+                      {doc.parentTitle}
+                    </Link>
+                  </dd>
+                </dl>
+                <p className="mt-1 text-xs text-muted">
+                  <Timestamp value={doc.uploadedAt} /> · {humanFileSize(doc.size)}
+                </p>
               </Card>
             ))}
           </div>

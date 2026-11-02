@@ -42,6 +42,7 @@ import { Card } from "@/components/ui/Card";
 import { buttonClass, menuItemClass, cardClass, inlineLinkClass } from "@/lib/ui";
 import { Banner } from "@/components/ui/Banner";
 import { PageShell } from "@/components/ui/PageShell";
+import { RememberRecentRecord } from "@/components/RememberRecentRecord";
 
 export default async function ContractDetailPage({
   params,
@@ -129,6 +130,7 @@ export default async function ContractDetailPage({
 
   return (
     <PageShell width="detail">
+      <RememberRecentRecord kind="contract" id={id} />
       <div>
         <BackLink href="/contracts" label="Contracts" />
       </div>

@@ -7,9 +7,9 @@ test.use({ storageState: ADMIN_AUTH_FILE });
 // #328/#395 — Missing key details, defined once in src/lib/recordFilters.ts:
 // the dashboard's Housekeeping row counts with the same rule as the list it
 // opens, the list shows the filter as an active chip with Clear all, each
-// row says which part is missing, old URLs still land on the right filter,
-// and Global Search offers one "Missing key details" chip (no "Missing
-// reminder" / "Missing link").
+// row says which part is missing, and old URLs still land on the right
+// filter. #366 — Global Search keeps three plain chips; Missing key details
+// lives on the lists.
 
 async function createContract(
   page: Page,
@@ -137,7 +137,7 @@ test.describe.serial("Completeness filters", () => {
     await expect(page.getByRole("heading", { name: "Inventory items" })).toHaveCount(0);
   });
 
-  test("Vehicles: Missing key details means no VIN and no plate, in Search and the list", async ({ page }) => {
+  test("Vehicles: Missing key details means no VIN and no plate", async ({ page }) => {
     const stamp = Date.now();
     const completeLabel = `Completeness Filter Complete Vehicle ${stamp}`;
     const incompleteLabel = `Completeness Filter Incomplete Vehicle ${stamp}`;
@@ -174,6 +174,8 @@ test.describe.serial("Completeness filters", () => {
     await expect(page.locator("main")).not.toContainText(completeLabel);
     await expect(page.locator("a", { hasText: incompleteLabel }).getByText("No VIN or plate")).toBeVisible();
 
+    // #366 — Search no longer has completeness chips; the list above is
+    // where Missing key details lives.
     // The Search button opens GlobalSearch's dialog via a client-only event
     // listener that isn't wired up until React hydrates, so a click right
     // after goto() can land before it exists and silently no-op — retry
@@ -185,14 +187,10 @@ test.describe.serial("Completeness filters", () => {
     }).toPass({ timeout: 15_000 });
 
     const dialog = page.getByRole("dialog", { name: "Search" });
-    for (const removed of ["Missing reminder", "Missing link", "Missing date", "Missing identifier"]) {
+    await expect(dialog.getByRole("button", { name: "Due soon" })).toBeVisible();
+    for (const removed of ["Missing key details", "No document attached", "Missing reminder", "Missing link"]) {
       await expect(dialog.getByRole("button", { name: removed })).toHaveCount(0);
     }
-    await dialog.getByRole("button", { name: "Missing key details" }).click();
-    await expect(dialog.getByText(incompleteLabel)).toBeVisible();
-    await expect(dialog.getByText(completeLabel)).not.toBeVisible();
-    // The result explains what is missing, not just that something is.
-    await expect(dialog.getByRole("option", { name: new RegExp(incompleteLabel) })).toContainText("No VIN or plate");
   });
 });
 

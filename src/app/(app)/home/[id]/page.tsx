@@ -51,6 +51,7 @@ import { Pill } from "@/components/ui/Pill";
 import { Banner } from "@/components/ui/Banner";
 import { buttonClass, menuItemClass, emptyStateClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
+import { RememberRecentRecord } from "@/components/RememberRecentRecord";
 
 const ITEM_ICONS: Record<string, LucideIcon> = {
   MAINTENANCE: Wrench,
@@ -125,6 +126,7 @@ export default async function PropertyDetailPage({
 
   return (
     <PageShell width="detail">
+      <RememberRecentRecord kind="property" id={id} />
       <div>
         <BackLink href="/home" label="Properties" />
       </div>

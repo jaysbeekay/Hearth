@@ -38,6 +38,7 @@ import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
 import { buttonClass, menuItemClass, emptyStateClass, inlineLinkClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
+import { RememberRecentRecord } from "@/components/RememberRecentRecord";
 
 const ITEM_ICONS: Record<string, LucideIcon> = {
   SERVICE: Wrench,
@@ -120,6 +121,7 @@ export default async function VehicleDetailPage({
 
   return (
     <PageShell width="detail">
+      <RememberRecentRecord kind="vehicle" id={id} />
       <div>
         <BackLink href="/vehicles" label="Vehicles" />
       </div>
