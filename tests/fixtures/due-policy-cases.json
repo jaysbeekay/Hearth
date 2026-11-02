@@ -235,6 +235,26 @@
       "expected": [{ "field": "leaseEnd", "date": "2026-10-23", "daysLeft": -1, "state": "needs-new-end-date", "label": "Lease ended — set the new lease end" }]
     },
     {
+      "name": "tenancy: a lease end its linked Contract Covers has no entry of its own (#457)",
+      "record": { "kind": "tenancy", "leaseEnd": "2026-11-03", "reminderDaysBefore": null, "coveredFields": ["leaseEnd"] },
+      "expected": []
+    },
+    {
+      "name": "tenancy: a Covered lease end stays silent once passed while the Contract's own entry stands in (#457)",
+      "record": { "kind": "tenancy", "leaseEnd": "2026-10-19", "reminderDaysBefore": null, "coveredFields": ["leaseEnd"] },
+      "expected": []
+    },
+    {
+      "name": "tenancy: a fixed-term Covering Contract not yet ended keeps the lease end silent (#457)",
+      "record": { "kind": "tenancy", "leaseEnd": "2026-11-03", "reminderDaysBefore": null, "coveredFields": ["leaseEnd"], "fixedTermCoverEnds": { "leaseEnd": "2026-11-03" } },
+      "expected": []
+    },
+    {
+      "name": "tenancy: once a fixed-term Covering Contract has ended, the lease needs its new end date (#457)",
+      "record": { "kind": "tenancy", "leaseEnd": "2026-10-19", "reminderDaysBefore": null, "coveredFields": ["leaseEnd"], "fixedTermCoverEnds": { "leaseEnd": "2026-10-19" } },
+      "expected": [{ "field": "leaseEnd", "date": "2026-10-19", "daysLeft": -5, "state": "needs-new-end-date", "label": "Lease ended — set the new lease end" }]
+    },
+    {
       "name": "contract: a manual renewal whose notice deadline was yesterday counts to its end date",
       "record": { "kind": "contract", "endDate": "2026-11-22", "noticePeriodDays": 30, "renewalType": "MANUAL_RENEWAL", "status": "ACTIVE", "reminderDaysBefore": null },
       "expected": [{ "field": "endDate", "date": "2026-11-22", "daysLeft": 29, "state": "due-soon", "label": "Expires 22 Nov" }]

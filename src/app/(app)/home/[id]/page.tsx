@@ -39,7 +39,8 @@ import {
 import { getUserPreferences } from "@/lib/userPreferences";
 import { getHouseholdMemberCount } from "@/lib/household";
 import { getDueContext } from "@/lib/appSettings";
-import { currentTenancy, tenancyDue, LIVE_TENANCY_AGREEMENTS } from "@/lib/dueRecords";
+import { currentTenancy, tenancyDue, tenancyDueRecord, LIVE_TENANCY_AGREEMENTS } from "@/lib/dueRecords";
+import { isCoveringTenancy } from "@/lib/covers";
 import { DetailStatusBanner } from "@/components/DetailStatusBanner";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
@@ -105,8 +106,10 @@ export default async function PropertyDetailPage({
   // reads the same Reminder schedule the scheduler sends from.
   // An Archived Property has no current Tenancy (#355), so it shows neither a
   // lease banner nor a Reminder card.
-  const leaseReminderHealth = tenancy?.leaseEnd
-    ? await getReminderHealth({ ownerType: "TENANCY", ownerId: tenancy.id, record: { kind: "tenancy", ...tenancy } })
+  // #457 — a lease end its linked Contract Covers is the Contract's to remind about.
+  const leaseCoveredBy = tenancy && isCoveringTenancy(tenancy.contract, tenancy.leaseEnd) ? tenancy.contract : null;
+  const leaseReminderHealth = tenancy?.leaseEnd && !leaseCoveredBy
+    ? await getReminderHealth({ ownerType: "TENANCY", ownerId: tenancy.id, record: tenancyDueRecord(tenancy) })
     : null;
 
   const latestValuation = property.valuations[0] ?? null;
@@ -465,6 +468,18 @@ export default async function PropertyDetailPage({
               This property is rented — track statements and reconcile rent income.
             </p>
           )}
+        </Card>
+      )}
+
+      {leaseCoveredBy && (
+        <Card>
+          <p className="text-sm text-muted">
+            Lease reminders come from the linked contract,{" "}
+            <Link href={`/contracts/${leaseCoveredBy.id}`} className="underline">
+              {leaseCoveredBy.title}
+            </Link>
+            , which ends on the lease end.
+          </p>
         </Card>
       )}
 

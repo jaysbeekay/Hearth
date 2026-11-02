@@ -4,11 +4,12 @@ import {
   COVERING_CONTRACTS,
   coveredFieldOf,
   isCovering,
+  isCoveringTenancy,
   vehicleCovers,
   withVehicleCovers,
   type CoveringContractRow,
 } from "@/lib/covers";
-import { vehicleDue, vehicleDueRecord } from "@/lib/dueRecords";
+import { tenancyDue, tenancyDueRecord, vehicleDue, vehicleDueRecord } from "@/lib/dueRecords";
 import { reminderEntries } from "@/lib/notifications/reminderSchedule";
 import { runExpirationCheck } from "@/lib/notifications/scheduler";
 import { getReminderHealth } from "@/lib/notifications/health";
@@ -252,5 +253,72 @@ describe("against the database", () => {
     const [bucket] = buildCategoryBreakdown([contract!], "AUD", new Map());
     expect(bucket.category).toBe("REGISTRATION");
     expect(bucket.monthlyTotal).toBeCloseTo(70, 5);
+  });
+
+  it("sends one lease-end Reminder stream when a linked Contract Covers the Tenancy (#457)", async () => {
+    await setModuleEnabled("HOME", true);
+    const property = await db.prisma.property.create({ data: { label: "Flat", createdById, isRented: true } });
+    const lease = await db.prisma.contract.create({
+      data: { title: "Flat lease", category: "OTHER", provider: "Agent", createdById, endDate: day("2026-11-24"), renewalType: "MANUAL_RENEWAL" },
+    });
+    const tenancy = await db.prisma.rentalAgreement.create({
+      data: { propertyId: property.id, contractId: lease.id, tenantName: "Sam", weeklyRent: 600, leaseEnd: day("2026-11-24") },
+    });
+
+    await runExpirationCheck(new Date("2026-10-25T09:00:00Z"));
+    expect(webhookKinds()).toEqual([`contract:${lease.id}`]);
+
+    // Unlinked, the lease end reminds on its own again.
+    vi.mocked(sendExpiryWebhooks).mockClear();
+    await db.prisma.rentalAgreement.update({ where: { id: tenancy.id }, data: { contractId: null } });
+    await runExpirationCheck(new Date("2026-10-26T09:00:00Z"));
+    expect(webhookKinds()).toEqual([`tenancy:${tenancy.id}`]);
+  });
+});
+
+describe("Tenancy Covers (#457)", () => {
+  const lease = new Date("2026-11-03T00:00:00Z");
+  const contract = {
+    status: "ACTIVE",
+    renewalType: "MANUAL_RENEWAL",
+    extractionPending: false,
+    endDate: new Date("2026-11-03T00:00:00Z"),
+    deletedAt: null,
+  };
+  const ctx = { today: "2026-10-24", defaultReminderDays: "30,14,7,1" };
+
+  it("a linked Contract ending on the lease end Covers it; any other day doesn't", () => {
+    expect(isCoveringTenancy(contract, lease)).toBe(true);
+    expect(isCoveringTenancy({ ...contract, endDate: new Date("2026-11-04T00:00:00Z") }, lease)).toBe(false);
+    expect(isCoveringTenancy(null, lease)).toBe(false);
+    expect(isCoveringTenancy(contract, null)).toBe(false);
+  });
+
+  it("a Cancelled, trashed, unreviewed or undated Contract never Covers", () => {
+    expect(isCoveringTenancy({ ...contract, status: "CANCELLED" }, lease)).toBe(false);
+    expect(isCoveringTenancy({ ...contract, deletedAt: new Date() }, lease)).toBe(false);
+    expect(isCoveringTenancy({ ...contract, extractionPending: true }, lease)).toBe(false);
+    expect(isCoveringTenancy({ ...contract, endDate: null }, null)).toBe(false);
+  });
+
+  it("a Covered lease end has no Due entry; it comes back when the Contract stops Covering", () => {
+    expect(tenancyDue({ leaseEnd: lease, contract }, ctx)).toEqual([]);
+    expect(tenancyDue({ leaseEnd: lease, contract: { ...contract, status: "CANCELLED" } }, ctx)).toEqual([
+      expect.objectContaining({ field: "leaseEnd", state: "due-soon", label: "Lease ends 3 Nov" }),
+    ]);
+  });
+
+  it("an ended fixed-term Covering Contract hands the lease back for its new end date", () => {
+    const past = new Date("2026-10-19T00:00:00Z");
+    const fixed = { ...contract, renewalType: "FIXED_TERM", endDate: past };
+    expect(tenancyDueRecord({ leaseEnd: past, contract: fixed })).toMatchObject({
+      coveredFields: ["leaseEnd"],
+      fixedTermCoverEnds: { leaseEnd: past },
+    });
+    expect(tenancyDue({ leaseEnd: past, contract: fixed }, ctx)).toEqual([
+      expect.objectContaining({ field: "leaseEnd", state: "needs-new-end-date" }),
+    ]);
+    // A manual-renewal Contract past its end is Expired itself, so the lease stays silent.
+    expect(tenancyDue({ leaseEnd: past, contract: { ...contract, endDate: past } }, ctx)).toEqual([]);
   });
 });

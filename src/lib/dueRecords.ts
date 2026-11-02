@@ -9,7 +9,14 @@
 // Pure and free of runtime imports beyond the policy, so client components
 // (the list cards) can use it with a DueContext handed down from the server.
 
-import { coveredFieldsOf, fixedTermCoverEndsOf, vehicleCovers, type CoveringContractRow } from "@/lib/covers";
+import {
+  coveredFieldsOf,
+  fixedTermCoverEndsOf,
+  isCoveringTenancy,
+  vehicleCovers,
+  type CoveringContractRow,
+  type TenancyContractRow,
+} from "@/lib/covers";
 import {
   dueEntries,
   isDue,
@@ -55,8 +62,14 @@ export interface VehicleDueRow {
 }
 
 export interface TenancyDueRow {
-  leaseEnd: DateInput;
+  leaseEnd: Date | null;
   reminderDaysBefore?: string | null;
+  /**
+   * #457 — the linked Contract, which Covers the Tenancy when its end date is
+   * the lease end. Required (null when there's none), so a query can't forget
+   * it and give one lease two Due rows and two Reminder streams.
+   */
+  contract: TenancyContractRow | null;
 }
 
 export function contractDue(row: ContractDueRow, ctx: DueContext): DueEntry[] {
@@ -103,8 +116,28 @@ export function vehicleDue(row: VehicleDueRow, ctx: DueContext): DueEntry[] {
   return dueEntries(vehicleDueRecord(row), ctx);
 }
 
+/**
+ * A Tenancy as a Due record: while its linked Contract Covers it (#457), the
+ * lease end is left out, since the Contract's entries stand in. Reminders,
+ * health and the lists all build the record here.
+ */
+export function tenancyDueRecord(row: TenancyDueRow): Extract<DueRecord, { kind: "tenancy" }> {
+  const covered = isCoveringTenancy(row.contract, row.leaseEnd);
+  return {
+    kind: "tenancy",
+    leaseEnd: row.leaseEnd,
+    reminderDaysBefore: row.reminderDaysBefore,
+    ...(covered
+      ? {
+          coveredFields: ["leaseEnd" as const],
+          ...(row.contract!.renewalType === "FIXED_TERM" ? { fixedTermCoverEnds: { leaseEnd: row.contract!.endDate } } : {}),
+        }
+      : {}),
+  };
+}
+
 export function tenancyDue(row: TenancyDueRow, ctx: DueContext): DueEntry[] {
-  return dueEntries({ kind: "tenancy", leaseEnd: row.leaseEnd, reminderDaysBefore: row.reminderDaysBefore }, ctx);
+  return dueEntries(tenancyDueRecord(row), ctx);
 }
 
 /**
@@ -180,6 +213,10 @@ export const TENANCY_AGREEMENT_SELECT = {
   reminderDaysBefore: true,
   createdAt: true,
   deletedAt: true,
+  // #457 — the linked Contract, which may Cover the lease end.
+  contract: {
+    select: { id: true, title: true, status: true, renewalType: true, extractionPending: true, endDate: true, deletedAt: true },
+  },
 } as const;
 
 /**

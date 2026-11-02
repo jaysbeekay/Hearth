@@ -196,6 +196,7 @@ describe("Due rows follow the Due policy (#384)", () => {
       agreementId,
       tenantName: "Sam",
       leaseEnd,
+      contract: null,
     });
     const items = buildTenancyAttentionItems([tenancy("soon", inDays(10)), tenancy("ended", inDays(-1))], ctx);
     expect(items.map((i) => [i.id, i.group])).toEqual([
@@ -206,17 +207,26 @@ describe("Due rows follow the Due policy (#384)", () => {
   });
 
   it("a Tenancy's own Reminder thresholds set its due-soon window (#388)", () => {
-    const lease = { propertyId: "p", propertyLabel: "Flat", agreementId: "a", tenantName: null, leaseEnd: inDays(50) };
+    const lease = { propertyId: "p", propertyLabel: "Flat", agreementId: "a", tenantName: null, leaseEnd: inDays(50), contract: null };
     expect(buildTenancyAttentionItems([lease], ctx)).toEqual([]);
     expect(buildTenancyAttentionItems([{ ...lease, reminderDaysBefore: "60,30" }], ctx).map((i) => i.group)).toEqual([
       "due",
     ]);
   });
+
+  it("a Tenancy whose linked Contract Covers its lease end has one Due row: the Contract's (#457)", () => {
+    const end = inDays(10);
+    const contract = { status: "ACTIVE", renewalType: "MANUAL_RENEWAL", extractionPending: false, endDate: end, deletedAt: null };
+    const lease = { propertyId: "p", propertyLabel: "Flat", agreementId: "a", tenantName: null, leaseEnd: end, contract };
+    expect(buildTenancyAttentionItems([lease], ctx)).toEqual([]);
+    // A Contract ending on another day doesn't Cover it: two obligations, two rows.
+    expect(buildTenancyAttentionItems([{ ...lease, contract: { ...contract, endDate: inDays(40) } }], ctx)).toHaveLength(1);
+  });
 });
 
 describe("Reminder failure rows", () => {
   it("a failed lease Reminder links to its Property (#388)", () => {
-    const lease = { propertyId: "p1", propertyLabel: "Flat", agreementId: "t1", tenantName: null, leaseEnd: inDays(10) };
+    const lease = { propertyId: "p1", propertyLabel: "Flat", agreementId: "t1", tenantName: null, leaseEnd: inDays(10), contract: null };
     const items = buildReminderFailureItems(
       [{ ownerType: "TENANCY", ownerId: "t1", error: "HTTP 500" }],
       [],
