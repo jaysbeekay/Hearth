@@ -132,6 +132,16 @@ export function ContractListClient({
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // #517 review: every other way of changing the list cancels a pending
+  // search auto-submit first. Otherwise it fires up to 400 ms later and puts
+  // back a q= that a chip, select, pill or Clear all just changed.
+  const navigate = useCallback(
+    (href: string) => {
+      clearTimeout(searchTimeout.current);
+      router.push(href);
+    },
+    [router],
+  );
   const { pendingOps, refresh: refreshPending } = usePendingCreates("contract");
 
   useEffect(() => {
@@ -141,7 +151,7 @@ export function ContractListClient({
   }, [router]);
 
   function removeFilter(key: "q" | "category" | "status") {
-    router.push(
+    navigate(
       listHref("/contracts", filters, {
         q: key === "q" ? undefined : q,
         category: key === "category" ? undefined : category,
@@ -152,9 +162,9 @@ export function ContractListClient({
 
   const toggleFilter = useCallback(
     (chip: ToggleableFilter) => {
-      router.push(listHref("/contracts", toggleListFilter(filters, chip), { q, category, status }));
+      navigate(listHref("/contracts", toggleListFilter(filters, chip), { q, category, status }));
     },
-    [filters, q, category, status, router],
+    [filters, q, category, status, navigate],
   );
 
   useEffect(() => {
@@ -197,21 +207,21 @@ export function ContractListClient({
                 className={cn(inputClass, "min-w-0 flex-1")}
               />
               <div className="hidden gap-3 md:flex">
-                <CategorySelect value={category} onChange={(e) => e.currentTarget.form?.requestSubmit()} />
-                <StatusSelect value={status} onChange={(e) => e.currentTarget.form?.requestSubmit()} />
+                <CategorySelect value={category} onChange={(e) => { clearTimeout(searchTimeout.current); e.currentTarget.form?.requestSubmit(); }} />
+                <StatusSelect value={status} onChange={(e) => { clearTimeout(searchTimeout.current); e.currentTarget.form?.requestSubmit(); }} />
               </div>
             </form>
             <ListFilterSheet active={activeFilters}>
               <CategorySelect
                 value={category}
                 onChange={(e) => {
-                  router.push(listHref("/contracts", filters, { q, category: e.currentTarget.value || undefined, status }));
+                  navigate(listHref("/contracts", filters, { q, category: e.currentTarget.value || undefined, status }));
                 }}
               />
               <StatusSelect
                 value={status}
                 onChange={(e) => {
-                  router.push(listHref("/contracts", filters, { q, category, status: e.currentTarget.value || undefined }));
+                  navigate(listHref("/contracts", filters, { q, category, status: e.currentTarget.value || undefined }));
                 }}
               />
               <ListFilterChips filters={filters} chips={CHIPS} counts={counts} onToggle={toggleFilter} />
@@ -261,7 +271,7 @@ export function ContractListClient({
           )}
           <button
             type="button"
-            onClick={() => router.push("/contracts")}
+            onClick={() => navigate("/contracts")}
             className="text-xs text-muted underline hover:text-foreground"
           >
             Clear all

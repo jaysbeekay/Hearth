@@ -74,6 +74,16 @@ export function ProductListClient({
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // #517 review: every other way of changing the list cancels a pending
+  // search auto-submit first. Otherwise it fires up to 400 ms later and puts
+  // back a q= that a chip, select, pill or Clear all just changed.
+  const navigate = useCallback(
+    (href: string) => {
+      clearTimeout(searchTimeout.current);
+      router.push(href);
+    },
+    [router],
+  );
   const { pendingOps, refresh: refreshPending } = usePendingCreates("product");
 
   useEffect(() => {
@@ -95,9 +105,9 @@ export function ProductListClient({
 
   const toggleFilter = useCallback(
     (chip: ToggleableFilter) => {
-      router.push(listHref("/products", toggleListFilter(filters, chip), { q }));
+      navigate(listHref("/products", toggleListFilter(filters, chip), { q }));
     },
-    [filters, q, router],
+    [filters, q, navigate],
   );
 
   // #406 — a list with nothing in it yet shows one sentence and one button:
@@ -155,7 +165,7 @@ export function ProductListClient({
             <button
               type="button"
               onClick={() => {
-                router.push(listHref("/products", filters));
+                navigate(listHref("/products", filters));
               }}
               className={chipClass(true)}
             >
@@ -164,7 +174,7 @@ export function ProductListClient({
           )}
           <button
             type="button"
-            onClick={() => router.push("/products")}
+            onClick={() => navigate("/products")}
             className="text-xs text-muted underline hover:text-foreground"
           >
             Clear all

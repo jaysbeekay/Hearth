@@ -214,3 +214,29 @@ test("chip counts follow the search and the other chips", async ({ page }) => {
   await expect(main.getByRole("button", { name: "Missing key details · 1", pressed: true }).first()).toBeVisible();
   await expect(main.getByRole("button", { name: "No document · 1", pressed: false }).first()).toBeVisible();
 });
+
+// #517 review — a search still waiting to auto-submit must not fire after a
+// pill or Clear all has changed the list, and put back a q= it just removed.
+test("removing the search before the auto-submit fires keeps it removed", async ({ page }) => {
+  // The toolbar only renders once there is a record, so the race needs one.
+  await createContract(page, { title: `Debounce Race ${Date.now()}` });
+  await page.goto("/products/new");
+  await page.locator("#description").fill(`Debounce Race ${Date.now()}`);
+  await page.locator("main button[type=submit]").click();
+  await page.waitForURL(/\/products\/(?!new$)[^/]+$/);
+
+  await page.goto("/contracts?q=Stale");
+  await page.getByPlaceholder("Search by title, provider, or number…").fill("Stale typed");
+  await page.locator("main").getByRole("button", { name: '"Stale"' }).click();
+  await page.waitForURL((url) => url.pathname === "/contracts" && !url.searchParams.has("q"));
+  // Longer than the 400 ms debounce: a stale timer would have navigated by now.
+  await page.waitForTimeout(1000);
+  expect(new URL(page.url()).searchParams.has("q")).toBe(false);
+
+  await page.goto("/products?q=Stale");
+  await page.locator('main input[name="q"]').fill("Stale typed");
+  await page.locator("main").getByRole("button", { name: "Clear all" }).click();
+  await page.waitForURL((url) => url.pathname === "/products" && !url.searchParams.has("q"));
+  await page.waitForTimeout(1000);
+  expect(new URL(page.url()).searchParams.has("q")).toBe(false);
+});
