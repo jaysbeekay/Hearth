@@ -24,7 +24,7 @@ export function ListFilterSheet({
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => { setOpen(true); }}
         aria-haspopup="dialog"
         className={buttonClass("secondary", {}, "md:hidden")}
       >
@@ -33,7 +33,7 @@ export function ListFilterSheet({
       </button>
       <Dialog
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={() => { setOpen(false); }}
         labelledBy={titleId}
         backdropClassName="fixed inset-0 z-50 flex items-end bg-black/40 md:hidden"
         panelClassName={sheetClass(
@@ -45,7 +45,7 @@ export function ListFilterSheet({
         </h2>
         {children}
         <div className="flex justify-end">
-          <button type="button" onClick={() => setOpen(false)} className={buttonClass("primary")}>
+          <button type="button" onClick={() => { setOpen(false); }} className={buttonClass("primary")}>
             Done
           </button>
         </div>
