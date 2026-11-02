@@ -39,7 +39,7 @@ test("deleting a contract moves it to Trash without touching its files, until pe
   expect(fs.readdirSync(fileDir).length).toBeGreaterThan(0);
 
   await page.goto(`/contracts/${contractId}`);
-  await page.getByRole("button", { name: "More actions" }).click();
+  await page.getByRole("button", { name: "More actions", exact: true }).click();
   await page.getByRole("button", { name: "Delete", exact: true }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
   await page.waitForURL(/\/contracts$/);
@@ -85,7 +85,7 @@ test("deleting a product moves it to Trash without touching its files, until per
   expect(fs.readdirSync(fileDir).length).toBeGreaterThan(0);
 
   await page.goto(`/products/${productId}`);
-  await page.getByRole("button", { name: "More actions" }).click();
+  await page.getByRole("button", { name: "More actions", exact: true }).click();
   await page.getByRole("button", { name: "Delete", exact: true }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
   await page.waitForURL(/\/products$/);

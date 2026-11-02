@@ -34,7 +34,7 @@ export default async function EditHomeItemPage({
         <p className="text-sm text-muted">{item.title}</p>
       </div>
       <Card>
-        <HomeItemForm action={boundAction} item={item} />
+        <HomeItemForm cancelHref={`/home/${id}`} action={boundAction} item={item} />
       </Card>
     </PageShell>
   );

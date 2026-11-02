@@ -17,7 +17,12 @@ export function TotpSection({ enabled }: { enabled: boolean }) {
   const [secret, setSecret] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  // A new object per failure, passed to FormMessage as its `attempt`, so a
+  // second identical error (a mistyped code twice) still comes into view (#406).
+  const [failure, setFailure] = useState<{ message: string } | null>(null);
+  const setError = (message: string | null) => {
+    setFailure(message ? { message } : null);
+  };
   const [pending, startTransition] = useTransition();
   const [showDisableForm, setShowDisableForm] = useState(false);
 
@@ -123,7 +128,7 @@ export function TotpSection({ enabled }: { enabled: boolean }) {
             Cancel
           </button>
         </div>
-        <FormMessage error={disableState?.error} success={disableState?.success} />
+        <FormMessage attempt={disableState} error={disableState?.error} success={disableState?.success} />
       </form>
     );
   }
@@ -178,7 +183,7 @@ export function TotpSection({ enabled }: { enabled: boolean }) {
             Cancel
           </button>
         </div>
-        <FormMessage error={error} />
+        <FormMessage error={failure?.message} attempt={failure ?? undefined} />
       </div>
     );
   }
@@ -219,7 +224,7 @@ export function TotpSection({ enabled }: { enabled: boolean }) {
       >
         {pending ? "Starting…" : "Enable two-factor authentication"}
       </button>
-      <FormMessage error={error} />
+      <FormMessage error={failure?.message} attempt={failure ?? undefined} />
     </div>
   );
 }

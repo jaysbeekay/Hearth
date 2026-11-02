@@ -79,7 +79,7 @@ export default async function ProductsPage({
   if (dueFilter) and.push(dueFilter.where);
   and.push(...productFilterWheres(filters));
 
-  const [allProducts, counts, inventoryEnabled, { dateFormat, region }, session] = await Promise.all([
+  const [allProducts, counts, inventoryEnabled, { dateFormat, region }, session, trashCount] = await Promise.all([
     prisma.product.findMany({
       where: { deletedAt: null, AND: and },
       include: { _count: { select: { documents: { where: { deletedAt: null } } } } },
@@ -89,6 +89,8 @@ export default async function ProductsPage({
     isModuleEnabled("INVENTORY"),
     getUserPreferences(),
     auth(),
+    // #514 review — an empty list says how many are in Trash.
+    prisma.product.count({ where: { deletedAt: { not: null } } }),
   ]);
   const products = dueFilter ? allProducts.filter(dueFilter.matches) : allProducts;
   // Hidden while a list filter is on (see ProductListClient), so not loaded either.
@@ -112,6 +114,7 @@ export default async function ProductsPage({
       dateFormat={dateFormat}
       region={region}
       canWrite={sessionCanWrite(session)}
+      trashCount={trashCount}
     />
   );
 }

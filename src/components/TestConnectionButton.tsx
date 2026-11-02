@@ -30,7 +30,7 @@ export function TestConnectionButton({
       >
         {pending ? "Testing…" : label}
       </button>
-      <FormMessage error={result?.error} success={result?.success} />
+      <FormMessage attempt={result} error={result?.error} success={result?.success} />
     </div>
   );
 }

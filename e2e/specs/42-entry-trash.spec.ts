@@ -27,6 +27,7 @@ async function addSegment(page: Page, title: string) {
 
 async function deleteSegment(page: Page, title: string) {
   const row = page.locator("div.rounded-lg.border.border-border.bg-surface", { hasText: title });
+  await row.getByRole("button", { name: `More actions for ${title}` }).click();
   await row.getByRole("button", { name: "Delete", exact: true }).click();
   const dialog = page.getByRole("alertdialog");
   await expect(dialog).toContainText("Settings → Recently deleted");
@@ -45,7 +46,7 @@ test.describe.serial("Trades go to Trash", () => {
 
     await page.goto("/wealth/portfolios/new");
     await page.locator("#name").fill(`Trash portfolio ${Date.now()}`);
-    await page.getByRole("button", { name: "Create portfolio" }).click();
+    await page.getByRole("button", { name: "Add portfolio" }).click();
     await page.waitForURL(/\/wealth\/portfolios\/(?!new$)[^/]+$/);
     await page.getByRole("link", { name: "Add holding" }).click();
     await page.waitForURL(/\/holdings\/new$/);
@@ -65,7 +66,8 @@ test.describe.serial("Trades go to Trash", () => {
     const trades = page.getByTitle("Edit trade");
     await expect(trades).toHaveCount(1);
 
-    await page.getByRole("button", { name: /^Delete trade from / }).click();
+    await page.getByRole("button", { name: /^More actions for trade / }).click();
+    await page.getByRole("dialog", { name: /^More actions for trade / }).getByRole("button", { name: "Delete", exact: true }).click();
     const dialog = page.getByRole("alertdialog");
     await expect(dialog).toContainText("Settings → Recently deleted");
     await dialog.getByRole("button", { name: "Delete", exact: true }).click();

@@ -31,7 +31,7 @@ export default async function EditTripPage({
         <p className="text-sm text-muted">{trip.title}</p>
       </div>
       <Card>
-        <TripForm action={boundAction} trip={trip} />
+        <TripForm cancelHref={`/travel/${trip.id}`} action={boundAction} trip={trip} />
       </Card>
     </PageShell>
   );

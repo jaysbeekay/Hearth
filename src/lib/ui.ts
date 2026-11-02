@@ -226,9 +226,22 @@ export function menuItemClass({ destructive = false }: { destructive?: boolean }
 
 // ── Form controls ───────────────────────────────────────────────────────
 
+const INPUT_SHAPE =
+  "h-9 w-full rounded-lg border px-3 text-sm outline-none transition-colors focus:border-accent focus:ring-1 focus:ring-accent disabled:opacity-60";
+
 /** The one input / select / textarea look: 36px tall, rounded-lg, 1px border. */
-export const inputClass =
-  "h-9 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none transition-colors focus:border-accent focus:ring-1 focus:ring-accent disabled:opacity-60";
+export const inputClass = cn(INPUT_SHAPE, "border-border bg-background");
+
+/**
+ * #406 — a field on an Import / Inbox review row: the input look, tinted
+ * when extraction filled it in (accent for heuristics, foreground for AI) so
+ * the user knows which values to check.
+ */
+export function reviewFieldClass(fill: "none" | "extracted" | "ai" = "none") {
+  if (fill === "ai") return cn(INPUT_SHAPE, "border-foreground/60 bg-foreground/5 ring-2 ring-foreground/60");
+  if (fill === "extracted") return cn(INPUT_SHAPE, "border-accent/40 bg-accent/5 ring-1 ring-accent/40");
+  return inputClass;
+}
 
 /** A native select: the input look, with room for SelectWrapper's chevron. */
 export const selectClass = cn(inputClass, "appearance-none pr-8");

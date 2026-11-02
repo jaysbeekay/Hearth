@@ -77,7 +77,7 @@ export default async function ContractsPage({
   if (dueFilter) and.push(dueFilter.where);
   and.push(...contractFilterWheres(filters));
 
-  const [allContracts, counts, { dateFormat, region }, session] = await Promise.all([
+  const [allContracts, counts, { dateFormat, region }, session, trashCount] = await Promise.all([
     prisma.contract.findMany({
       where: { deletedAt: null, AND: and },
       include: {
@@ -89,6 +89,8 @@ export default async function ContractsPage({
     contractCounts(now, due),
     getUserPreferences(),
     auth(),
+    // #514 review — an empty list says how many are in Trash.
+    prisma.contract.count({ where: { deletedAt: { not: null } } }),
   ]);
   const contracts = dueFilter ? allContracts.filter(dueFilter.matches) : allContracts;
 
@@ -104,6 +106,7 @@ export default async function ContractsPage({
       dateFormat={dateFormat}
       region={region}
       canWrite={sessionCanWrite(session)}
+      trashCount={trashCount}
     />
   );
 }

@@ -39,7 +39,7 @@ export default async function EditContractPage({
         <p className="text-sm text-muted">{contract.title}</p>
       </div>
       <Card>
-        <ContractForm
+        <ContractForm cancelHref={`/contracts/${contract.id}`}
           action={boundAction}
           contract={contract}
           properties={properties}

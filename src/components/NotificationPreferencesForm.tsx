@@ -25,7 +25,7 @@ export function NotificationPreferencesForm({ emailReminders }: { emailReminders
           Save
         </button>
       </div>
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
     </form>
   );
 }

@@ -33,7 +33,7 @@ export default async function EditPortfolioPage({
         <h1 className="mt-1 text-2xl font-medium">Edit portfolio</h1>
       </div>
       <Card>
-        <PortfolioForm action={action} portfolio={portfolio} />
+        <PortfolioForm cancelHref={`/wealth/portfolios/${id}`} action={action} portfolio={portfolio} />
       </Card>
     </PageShell>
   );

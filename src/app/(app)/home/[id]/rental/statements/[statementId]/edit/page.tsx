@@ -38,7 +38,7 @@ export default async function EditRentalStatementPage({
       </div>
 
       <Card>
-        <RentalStatementForm action={boundAction} statement={statement} />
+        <RentalStatementForm cancelHref={`/home/${property.id}/rental`} action={boundAction} statement={statement} />
       </Card>
     </PageShell>
   );

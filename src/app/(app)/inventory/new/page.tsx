@@ -8,6 +8,7 @@ import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { PageShell } from "@/components/ui/PageShell";
+import { Card } from "@/components/ui/Card";
 import { inlineLinkClass } from "@/lib/ui";
 
 export const metadata: Metadata = { title: "Add Item" };
@@ -38,7 +39,9 @@ export default async function NewInventoryItemPage() {
           .
         </p>
       </div>
-      <InventoryItemForm action={createInventoryItem} products={products} />
+      <Card>
+        <InventoryItemForm cancelHref="/inventory" action={createInventoryItem} products={products} />
+      </Card>
     </PageShell>
   );
 }

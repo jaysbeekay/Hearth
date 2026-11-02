@@ -142,7 +142,7 @@ export function ExtractionReviewPanel({
         <SubmitButton variant="secondary" pendingText="Confirming…">
           Confirm reviewed details
         </SubmitButton>
-        <FormMessage error={state?.error} success={state?.success} />
+        <FormMessage attempt={state} error={state?.error} success={state?.success} />
       </div>
     </form>
   );

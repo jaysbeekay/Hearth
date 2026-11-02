@@ -88,7 +88,7 @@ export function PreferencesForm({
         </SelectWrapper>
       </div>
       <div className="sm:col-span-2 space-y-2">
-        <FormMessage error={state?.error} success={state?.success} />
+        <FormMessage attempt={state} error={state?.error} success={state?.success} />
         <button type="submit" className={buttonClass("secondary")}>
           Save preferences
         </button>

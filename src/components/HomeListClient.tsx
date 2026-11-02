@@ -48,11 +48,15 @@ export function HomeListClient({ properties, archivedProperties = [], taxDeducti
     return () => window.removeEventListener("offline-sync-complete", onSyncComplete);
   }, [router]);
 
+  // #406 — a list with nothing in it yet shows one sentence and one button:
+  // no Export, search or filter chips until there is something to act on.
+  const nothingYet = properties.length === 0 && archivedProperties.length === 0 && pendingOps.length === 0;
+
   return (
     <PageShell width="list">
       <ListPageHeader
         title={MODULE_REGISTRY.HOME.label}
-        exportPath="/api/export/home"
+        exportPath={nothingYet ? undefined : "/api/export/home"}
         action={canWrite ? { href: "/home/new", label: "Add property", online } : undefined}
       />
 

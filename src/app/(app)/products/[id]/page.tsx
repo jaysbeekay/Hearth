@@ -26,7 +26,7 @@ import { getReminderHealth } from "@/lib/notifications/health";
 import { DocFallbackBanner } from "@/components/DocFallbackBanner";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { getDueContext } from "@/lib/appSettings";
-import { headlineEntry, warrantyDue } from "@/lib/dueRecords";
+import { bannerRepeatsBadge, headlineEntry, warrantyDue } from "@/lib/dueRecords";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { getHouseholdMemberCount } from "@/lib/household";
 import { auth } from "@/lib/auth";
@@ -95,7 +95,10 @@ export default async function ProductDetailPage({
           {product.vendor && <p className="text-muted">{product.vendor}</p>}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <ExpiryBadge entry={headlineEntry(dueEntries)} empty="No warranty end date" />
+          {/* #405 — no badge while the banner below says the same thing. */}
+          {!bannerRepeatsBadge(headlineEntry(dueEntries), dueEntries) && (
+            <ExpiryBadge entry={headlineEntry(dueEntries)} empty="No warranty end date" />
+          )}
           {canWrite && (
             <>
               <Link

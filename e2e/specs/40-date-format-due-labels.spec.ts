@@ -57,14 +57,14 @@ test("Due labels switch to the viewer's date format", async ({ page }) => {
   await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
   const contractUrl = page.url();
 
-  // The default DD/MM/YYYY reads day first.
-  await expect(page.getByText(dayMonth, { exact: true })).toBeVisible();
+  // The default DD/MM/YYYY reads day first. The detail page states it in
+  // the banner; the header badge would only repeat it (#405).
+  await expect(page.getByText(`${dayMonth} — 10 days left.`, { exact: true })).toBeVisible();
 
   try {
     await savePreferences(page, "MM/DD/YYYY", "en-US");
 
     await page.goto(contractUrl);
-    await expect(page.getByText(monthDay, { exact: true })).toBeVisible();
     await expect(page.getByText(`${monthDay} — 10 days left.`, { exact: true })).toBeVisible();
     await expect(page.getByText(dayMonth, { exact: true })).toHaveCount(0);
 
@@ -79,12 +79,12 @@ test("Due labels switch to the viewer's date format", async ({ page }) => {
     // ISO always keeps the year.
     await savePreferences(page, "YYYY-MM-DD", "en-US");
     await page.goto(contractUrl);
-    await expect(page.getByText(`Cancel by ${deadline}`, { exact: true })).toBeVisible();
+    await expect(page.getByText(`Cancel by ${deadline} — 10 days left.`, { exact: true })).toBeVisible();
   } finally {
     // Restore the defaults so this doesn't leak into later specs.
     await savePreferences(page, "DD/MM/YYYY", "en-AU");
   }
 
   await page.goto(contractUrl);
-  await expect(page.getByText(dayMonth, { exact: true })).toBeVisible();
+  await expect(page.getByText(`${dayMonth} — 10 days left.`, { exact: true })).toBeVisible();
 });

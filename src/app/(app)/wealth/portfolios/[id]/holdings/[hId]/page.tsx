@@ -12,7 +12,8 @@ import { deleteHolding, deleteTrade, restoreTrade } from "@/lib/actions/wealth";
 import { DocumentList } from "@/components/DocumentList";
 import { getTrashedVersionLinks } from "@/lib/documents/trashedVersionLinks";
 import { ConfirmForm } from "@/components/ConfirmForm";
-import { DocumentUploadForm } from "@/components/DocumentUploadForm";
+import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
+import { AddDocumentButton } from "@/components/AddDocumentButton";
 import { ASSET_CLASS_LABELS, TRADE_TYPE_LABELS, COST_METHOD_LABELS } from "@/lib/validation/wealth";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { costUsesTodaysRate, holdingUnitsAndCostIn, valueHolding } from "@/lib/wealth";
@@ -23,7 +24,7 @@ import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
 import { Pill } from "@/components/ui/Pill";
-import { cardClass, buttonClass, emptyStateClass } from "@/lib/ui";
+import { cardClass, buttonClass, emptyStateClass, menuItemClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Holding" };
@@ -295,15 +296,18 @@ export default async function HoldingPage({
                   <Pencil size={16} />
                   Edit
                 </Link>
-                <ConfirmForm
-                  action={deleteHolding.bind(null, portfolioId, holdingId)}
-                  confirmText={`Delete ${holding.ticker} and all its trades? This cannot be undone.`}
-                  actionLabel={`Delete ${holding.ticker}`}
-                  className={buttonClass("secondary", { destructive: true })}
-                >
-                  <Trash2 size={16} />
-                  Delete
-                </ConfirmForm>
+                {/* #406 — destructive actions live in the ⋮ menu, as on other record pages. */}
+                <DetailOverflowMenu>
+                  <ConfirmForm
+                    action={deleteHolding.bind(null, portfolioId, holdingId)}
+                    confirmText={`Delete ${holding.ticker} and all its trades? This cannot be undone.`}
+                    actionLabel={`Delete ${holding.ticker}`}
+                    className={menuItemClass({ destructive: true })}
+                  >
+                    <Trash2 size={16} />
+                    Delete
+                  </ConfirmForm>
+                </DetailOverflowMenu>
               </>
             )}
           </div>
@@ -456,28 +460,39 @@ export default async function HoldingPage({
                           >
                             <Pencil size={16} />
                           </Link>
-                          <ConfirmForm
-                            action={deleteTrade.bind(null, holdingId, trade.id)}
-                            undo={{ action: restoreTrade.bind(null, trade.id) }}
-                            offline={{
-                              entity: "trade",
-                              entityId: trade.id,
-                              parentId: holdingId,
-                              label: `Delete trade: ${holding.ticker} ${formatDate(trade.date, dateFormat)}`,
-                            }}
-                            confirmText="Delete this trade? Its documents are kept, and you can restore it within 30 days from Settings → Recently deleted."
-                            ariaLabel={`Delete trade from ${formatDate(trade.date, dateFormat)}`}
-                            className={buttonClass("secondary", { icon: true, destructive: true })}
-                          >
-                            <Trash2 size={16} />
-                          </ConfirmForm>
+                          <DetailOverflowMenu label={`More actions for trade ${formatDate(trade.date, dateFormat)}`}>
+                            <ConfirmForm
+                              action={deleteTrade.bind(null, holdingId, trade.id)}
+                              undo={{ action: restoreTrade.bind(null, trade.id) }}
+                              offline={{
+                                entity: "trade",
+                                entityId: trade.id,
+                                parentId: holdingId,
+                                label: `Delete trade: ${holding.ticker} ${formatDate(trade.date, dateFormat)}`,
+                              }}
+                              confirmText="Delete this trade? Its documents are kept, and you can restore it within 30 days from Settings → Recently deleted."
+                              className={menuItemClass({ destructive: true })}
+                            >
+                              <Trash2 size={16} />
+                              Delete
+                            </ConfirmForm>
+                          </DetailOverflowMenu>
                         </>
                       )}
                     </div>
                   </div>
 
                   {(canWrite || trade.documents.length > 0) && (
-                    <div className="mt-3 border-t border-border pt-3">
+                    <div className="mt-3 space-y-2 border-t border-border pt-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="text-sm font-medium">Documents</h3>
+                        {canWrite && (
+                          <AddDocumentButton
+                            action={addDocumentAction.bind(null, "TRADE", trade.id)}
+                            recordName={`trade ${formatDate(trade.date, dateFormat)}`}
+                          />
+                        )}
+                      </div>
                       {trade.documents.length > 0 && (
                         <DocumentList
                           kind="TRADE"
@@ -486,7 +501,6 @@ export default async function HoldingPage({
                           trashedLinks={trashedLinks.get(trade.id)}
                         />
                       )}
-                      <DocumentUploadForm action={addDocumentAction.bind(null, "TRADE", trade.id)} />
                     </div>
                   )}
                 </Card>

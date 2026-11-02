@@ -28,7 +28,7 @@ test.describe.serial("Wealth module", () => {
   test("create a portfolio", async ({ page }) => {
     await page.goto("/wealth/portfolios/new");
     await page.locator("#name").fill("Test Portfolio");
-    await page.getByRole("button", { name: "Create portfolio" }).click();
+    await page.getByRole("button", { name: "Add portfolio" }).click();
     await page.waitForURL(/\/wealth\/portfolios\/(?!new$)[^/]+$/);
 
     portfolioId = new URL(page.url()).pathname.split("/").pop()!;
@@ -135,12 +135,8 @@ test.describe.serial("Wealth module", () => {
       mimeType: "application/pdf",
       buffer: pdfBytes(),
     });
-    await buyRow.getByRole("button", { name: "Upload" }).click();
-    // "trade.pdf" alone would also match FileDropZone's own client-side
-    // selected-file preview, which appears immediately on setInputFiles()
-    // regardless of whether the upload actually succeeds — wait for the
-    // server action's own success message instead.
-    await expect(buyRow).toContainText("Document uploaded.");
+    // "Add document" (#405) uploads as soon as the file is chosen.
+    await expect(buyRow.locator('a[href^="/api/documents/"]', { hasText: "trade.pdf" })).toBeVisible({ timeout: 30_000 });
 
     const fileDir = path.join(UPLOADS_DIR, "trades", buyTradeId);
     expect(fs.existsSync(fileDir)).toBe(true);
@@ -151,6 +147,7 @@ test.describe.serial("Wealth module", () => {
     expect(fs.existsSync(fileDir)).toBe(true);
 
     await page.goto(`/wealth/portfolios/${portfolioId}/holdings/${holdingId}`);
+    await page.getByRole("button", { name: "More actions", exact: true }).click();
     await page.getByRole("button", { name: "Delete", exact: true }).click();
     await page.getByRole("button", { name: "Delete AAPL" }).click();
     await page.waitForURL(/\/wealth\/portfolios\/[^/]+$/);
@@ -166,6 +163,7 @@ test.describe.serial("Wealth module", () => {
     const row = page.locator("div.rounded-lg.border.border-border.bg-surface", {
       hasText: "Test Portfolio",
     });
+    await row.getByRole("button", { name: "More actions for Test Portfolio" }).click();
     await row.getByRole("button", { name: "Delete", exact: true }).click();
     await page.getByRole("button", { name: 'Delete "Test Portfolio"' }).click();
 

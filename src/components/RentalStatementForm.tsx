@@ -5,6 +5,7 @@ import { Upload } from "lucide-react";
 import type { RentalStatementModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
+import { FormActions } from "@/components/FormActions";
 import { FormMessage } from "@/components/FormMessage";
 import { Field } from "@/components/FormField";
 import { inputClass, textareaClass } from "@/components/SelectWrapper";
@@ -35,11 +36,14 @@ type ExtractedFields = Partial<
 
 export function RentalStatementForm({
   action,
+  cancelHref,
   statement,
   propertyId,
   defaultCurrency,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
+  /** Where Cancel goes: the same place as the page's BackLink. */
+  cancelHref: string;
   statement?: RentalStatementModel;
   propertyId?: string;
   defaultCurrency?: string;
@@ -237,11 +241,11 @@ export function RentalStatementForm({
         />
       </Field>
 
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
 
-      <div className="flex justify-end gap-3">
+      <FormActions cancelHref={cancelHref}>
         <SubmitButton>{statement ? "Save changes" : "Add statement"}</SubmitButton>
-      </div>
+      </FormActions>
     </form>
   );
 }

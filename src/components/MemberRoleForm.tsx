@@ -39,7 +39,7 @@ export function MemberRoleForm({ userId, role, name }: { userId: string; role: s
       </form>
       {/* #291 — explains the role at the point of changing it, not just its name. */}
       <p className="max-w-48 text-right text-xs text-muted">{ROLE_DESCRIPTIONS[selectedRole]}</p>
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
     </div>
   );
 }

@@ -45,7 +45,7 @@ export function AcceptInvitationForm({ token }: { token: string }) {
         />
       </div>
 
-      <FormMessage error={state?.error} />
+      <FormMessage attempt={state} error={state?.error} />
 
       <SubmitButton className="w-full">Set password</SubmitButton>
     </form>

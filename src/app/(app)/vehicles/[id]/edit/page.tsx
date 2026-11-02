@@ -38,6 +38,7 @@ export default async function EditVehiclePage({
       </div>
       <Card>
         <VehicleForm
+          cancelHref={`/vehicles/${vehicle.id}`}
           action={boundAction}
           vehicle={vehicle}
           covers={vehicleCovers(vehicle.contracts).map((c) => ({

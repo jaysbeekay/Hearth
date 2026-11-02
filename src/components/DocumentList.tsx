@@ -5,6 +5,7 @@ import { DocumentDeleteButton } from "@/components/DocumentDeleteButton";
 import { DocumentLink } from "@/components/DocumentLink";
 import { DocumentPreviewButton } from "@/components/DocumentPreviewButton";
 import { DocumentThumbnail } from "@/components/DocumentThumbnail";
+import { DocumentTypeSelect } from "@/components/DocumentTypeSelect";
 import { ImportantToggle } from "@/components/ImportantToggle";
 import { documentFileHref, type OwnedDocumentKind } from "@/lib/documents/kinds";
 import {
@@ -91,7 +92,7 @@ export function DocumentList({
                   <span className="text-muted">
                     {humanFileSize(doc.size)} · <Timestamp value={doc.uploadedAt} />
                   </span>
-                  <TypePill label={documentTypeLabel(doc, productKind(doc))} />
+                  {kind === "PRODUCT" && <TypePill label={documentTypeLabel(doc, productKind(doc))} />}
                   {older.length > 0 && (
                     <Pill>
                       Latest
@@ -100,6 +101,18 @@ export function DocumentList({
                 </span>
               </DocumentLink>
               <div className="flex shrink-0 items-center">
+                {/* #405 — the type is set here, outside the file link, so an
+                    "Add document" upload can be typed afterwards. A Warranty
+                    Document's type is fixed at upload (it drives the hero photo). */}
+                {kind !== "PRODUCT" && (
+                  <DocumentTypeSelect
+                    kind={kind}
+                    documentId={doc.id}
+                    ownerId={ownerId}
+                    filename={doc.filename}
+                    category={doc.category}
+                  />
+                )}
                 <DocumentPreviewButton href={href} filename={doc.filename} mimeType={doc.mimeType} />
                 {star(doc)}
                 <DocumentDeleteButton kind={kind} documentId={doc.id} ownerId={ownerId} filename={doc.filename} />

@@ -26,6 +26,7 @@ import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
 import { buttonClass, chipClass, emptyStateClass, inputClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
+import { TrashHint } from "@/components/TrashHint";
 import { cn } from "@/lib/utils";
 
 const CHIPS: { chip: ToggleableFilter; label: string; onlyWhenActive?: boolean }[] = [
@@ -51,6 +52,8 @@ interface Props {
   dateFormat?: string;
   region?: string;
   canWrite?: boolean;
+  /** Records of this list in Trash, for the empty state's hint. */
+  trashCount?: number;
 }
 
 export function ProductListClient({
@@ -64,6 +67,7 @@ export function ProductListClient({
   dateFormat,
   region,
   canWrite = true,
+  trashCount = 0,
 }: Props) {
   const online = useOnlineStatus();
   const router = useRouter();
@@ -122,36 +126,42 @@ export function ProductListClient({
     { label: "added this week", value: counts.recentlyAdded ?? 0 },
   ];
 
+  // #406 — a list with nothing in it yet shows one sentence and one button:
+  // no Export, search or filter chips until there is something to act on.
+  const nothingYet = !filtered && products.length === 0 && pendingOps.length === 0;
+
   return (
     <PageShell width="list">
       <ListPageHeader
         title="Warranties"
-        exportPath="/api/export/products"
+        exportPath={nothingYet ? undefined : "/api/export/products"}
         action={canWrite ? { href: "/products/new", label: "Add warranty", online } : undefined}
       />
 
-      <form ref={formRef} className="flex flex-col gap-3 md:flex-row" method="GET">
-        <ListFilterHiddenInputs filters={filters} />
-        <input
-          type="search"
-          name="q"
-          defaultValue={q}
-          placeholder="Search by description, brand, model, vendor, serial number, or barcode…"
-          onChange={() => {
-            clearTimeout(searchTimeout.current);
-            searchTimeout.current = setTimeout(() => formRef.current?.requestSubmit(), 400);
-          }}
-          className={cn(inputClass, "flex-1")}
-        />
-        <button
-          type="submit"
-          className={buttonClass("secondary", {}, "list-none")}
-        >
-          Filter
-        </button>
-      </form>
+      {!nothingYet && (
+        <form ref={formRef} className="flex flex-col gap-3 md:flex-row" method="GET">
+          <ListFilterHiddenInputs filters={filters} />
+          <input
+            type="search"
+            name="q"
+            defaultValue={q}
+            placeholder="Search by description, brand, model, vendor, serial number, or barcode…"
+            onChange={() => {
+              clearTimeout(searchTimeout.current);
+              searchTimeout.current = setTimeout(() => formRef.current?.requestSubmit(), 400);
+            }}
+            className={cn(inputClass, "flex-1")}
+          />
+          <button
+            type="submit"
+            className={buttonClass("secondary", {}, "list-none")}
+          >
+            Filter
+          </button>
+        </form>
+      )}
 
-      <ListFilterChips filters={filters} chips={CHIPS} onToggle={toggleFilter} />
+      {!nothingYet && <ListFilterChips filters={filters} chips={CHIPS} onToggle={toggleFilter} />}
 
       {filtered && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -204,6 +214,7 @@ export function ProductListClient({
                 ? "No warranties match your search or filters."
                 : "No warranties yet. Add one manually, or upload an invoice and we'll fill in the details."}
             </p>
+            {!filtered && <TrashHint count={trashCount} singular="warranty" plural="warranties" />}
             {!filtered && canWrite && (
               <div className="flex flex-wrap items-center justify-center gap-2">
                 <Link href="/products/new" className={buttonClass("primary")}>
