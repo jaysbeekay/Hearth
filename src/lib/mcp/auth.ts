@@ -36,6 +36,12 @@ export function parseMcpTokens(env: { MCP_TOKEN?: string; MCP_TOKENS?: string })
       console.warn("[mcp] ignoring a malformed MCP_TOKENS entry (expected label:token)");
       continue;
     }
+    // A label is the client's identity in the access log and its request
+    // budget, so two tokens can't share one ("default" is MCP_TOKEN's).
+    if (tokens.some((existing) => existing.label === label)) {
+      console.warn(`[mcp] ignoring a second MCP_TOKENS entry labelled "${label}"; labels must be unique`);
+      continue;
+    }
     tokens.push({ label, token });
   }
   return tokens;
