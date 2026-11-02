@@ -11,11 +11,28 @@ test.beforeEach(async ({ page }) => {
   });
 
   await page.addInitScript(() => {
+    // A seed puts test flags, preferences, files and rows in place before the
+    // app starts (see reloadStandalone). It travels in window.name, which
+    // survives a reload synchronously; file:// localStorage written just
+    // before a reload is not always there after it. The flags go in first,
+    // since the fixture rows below read them.
+    let seed: { local?: Record<string, string>; preferences?: Record<string, string>; files?: Record<string, string>; rows?: Record<string, unknown[]> } | null = null;
+    try {
+      seed = window.name.startsWith("hearth-test-seed:") ? JSON.parse(window.name.slice("hearth-test-seed:".length)) : null;
+    } catch {
+      seed = null;
+    }
+    window.name = "";
+    for (const [key, value] of Object.entries(seed?.local ?? {})) localStorage.setItem(key, value);
     const preferences = new Map<string, string>();
     const sqliteRuns: { statement: string; values: unknown[]; transaction?: boolean }[] = [];
     const scheduledNotifications: unknown[] = [];
     const fileWrites: { directory?: string; path?: string; data?: string }[] = [];
     const fileDeletes: { directory?: string; path?: string }[] = [];
+    // Files written through the Filesystem mock, by "DIRECTORY:path" (#226).
+    const files = new Map<string, string>();
+    let renames = 0;
+    const fileKey = (args: { directory?: string; path?: string }) => `${args.directory ?? ""}:${args.path ?? ""}`;
     const rowsByTable: Record<string, unknown[]> = {
       local_profile: [
         {
@@ -433,6 +450,24 @@ test.beforeEach(async ({ page }) => {
     // statement shape can't silently do nothing (#455).
     function applyStatement(statement: string, values: unknown[]) {
       const sql = statement.trim();
+      // A Replace restore clears each table, then writes the backup's rows (#226).
+      const clearTable = /^DELETE FROM ([a-z_]+)$/i.exec(sql);
+      if (clearTable) {
+        rowsByTable[clearTable[1]] = [];
+        return;
+      }
+      const restoreRow = /^INSERT OR REPLACE INTO ([a-z_]+) \(([^)]+)\) VALUES/i.exec(sql);
+      // A restore's commit marker (#226).
+      if (restoreRow?.[1] === "schema_metadata" && /'last_restore_id'/.test(sql)) {
+        rowsByTable.schema_metadata = [...((rowsByTable.schema_metadata ?? []) as { key?: unknown }[]).filter((row) => row.key !== "last_restore_id"), { key: "last_restore_id", value: values[0] }];
+        return;
+      }
+      if (restoreRow && !["documents", "local_profile", "schema_metadata"].includes(restoreRow[1])) {
+        const columns = restoreRow[2].split(",").map((column) => column.trim());
+        const row = Object.fromEntries(columns.map((column, index) => [column, values[index]]));
+        rowsByTable[restoreRow[1]] = [...((rowsByTable[restoreRow[1]] ?? []) as { id?: unknown }[]).filter((candidate) => candidate.id !== row.id), row];
+        return;
+      }
       // Tenancy edits and deletes land in the rows, so a resync of local
       // Reminders sees them (#388); a deleted contract goes too (#455), and
       // so does archiving a Vehicle or Property (#355).
@@ -484,6 +519,10 @@ test.beforeEach(async ({ page }) => {
         }
         return;
       }
+      if (/^DELETE FROM documents$/i.test(sql)) {
+        rowsByTable.documents = [];
+        return;
+      }
       if (/^DELETE FROM documents WHERE id = \?$/i.test(sql)) {
         rowsByTable.documents = documents.filter((row) => row.id !== values[0]);
         return;
@@ -503,7 +542,53 @@ test.beforeEach(async ({ page }) => {
       throw new Error(`Mock: unhandled documents statement: ${sql}`);
     }
 
-    (window as Window & { Capacitor?: unknown; __hearthStandaloneTest?: unknown }).__hearthStandaloneTest = { sqliteRuns, scheduledNotifications, fileWrites, fileDeletes };
+    // The seed's preferences, files and rows (an interrupted restore).
+    try {
+      for (const [key, value] of Object.entries(seed?.preferences ?? {})) preferences.set(key, value);
+      for (const [key, value] of Object.entries(seed?.files ?? {})) files.set(key, value);
+      for (const [table, rows] of Object.entries(seed?.rows ?? {})) rowsByTable[table] = [...(rowsByTable[table] ?? []), ...rows];
+    } catch {
+      // No seed.
+    }
+    (window as Window & { Capacitor?: unknown; __hearthStandaloneTest?: unknown }).__hearthStandaloneTest = {
+      sqliteRuns,
+      scheduledNotifications,
+      fileWrites,
+      fileDeletes,
+      files,
+      preferences,
+      get renames() {
+        return renames;
+      },
+      rowsByTable,
+      icloudUploads: [] as { path?: string; name?: string; keep?: number }[],
+    };
+    const icloudFiles = new Map<string, string>();
+    // iOS's own iCloud backup plugin; present only when a test asks for it.
+    const icloudBackup = localStorage.getItem("hearth-test-icloud") === "on"
+      ? {
+          status: async () => ({ available: true }),
+          upload: async (args: { path?: string; name?: string; keep?: number }) => {
+            (window as unknown as { __hearthStandaloneTest: { icloudUploads: unknown[] } }).__hearthStandaloneTest.icloudUploads.push(args);
+            const cacheKey = `CACHE:${String(args.path).replace("file:///cache/", "")}`;
+            icloudFiles.set(String(args.name), files.get(cacheKey) ?? "");
+            return { name: args.name, pruned: 0 };
+          },
+          list: async () => ({
+            backups: [...icloudFiles.entries()].map(([name, data]) => ({ name, size: data.length, modifiedAt: "2099-01-01T00:00:00.000Z", downloaded: true })),
+          }),
+          prepare: async ({ name }: { name: string }) => ({ size: (icloudFiles.get(name) ?? "").length }),
+          readChunk: async ({ name, offset, length }: { name: string; offset: number; length: number }) => ({ data: (icloudFiles.get(name) ?? "").slice(offset, offset + length) }),
+          remove: async () => ({}),
+          setAutoBackupPassword: async ({ password }: { password: string }) => {
+            preferences.set("test-keychain-backup-password", password);
+          },
+          getAutoBackupPassword: async () => ({ password: preferences.get("test-keychain-backup-password") ?? "" }),
+          clearAutoBackupPassword: async () => {
+            preferences.delete("test-keychain-backup-password");
+          },
+        }
+      : undefined;
     (window as Window & { Capacitor?: unknown; __hearthStandaloneTest?: unknown }).Capacitor = {
       getPlatform: () => "ios",
       Plugins: {
@@ -524,6 +609,9 @@ test.beforeEach(async ({ page }) => {
               sqliteRuns.push({ statement: item.statement, values: item.values ?? [], transaction });
               applyStatement(item.statement, item.values ?? []);
             }
+            // "hearth-test-crash-at-commit": the app dies right after a
+            // restore's transaction commits.
+            if (localStorage.getItem("hearth-test-crash-at-commit") === "1" && set.some((item) => item.statement.includes("last_restore_id"))) await new Promise(() => undefined);
             return { changes: { changes: set.length } };
           },
           isSecretStored: async () => ({ result: true }),
@@ -543,14 +631,55 @@ test.beforeEach(async ({ page }) => {
         Filesystem: {
           writeFile: async (args: { directory?: string; path?: string; data?: string }) => {
             fileWrites.push(args);
+            files.set(fileKey(args), args.data ?? "");
             return {};
           },
-          readFile: async () => ({ data: "JVBERi0=" }),
+          appendFile: async (args: { directory?: string; path?: string; data?: string }) => {
+            files.set(fileKey(args), (files.get(fileKey(args)) ?? "") + (args.data ?? ""));
+          },
+          readFile: async (args: { directory?: string; path?: string }) => {
+            // "hearth-test-unreadable-file" names a path fragment whose
+            // reads fail, to test a backup that can't read every document.
+            const unreadable = localStorage.getItem("hearth-test-unreadable-file");
+            if (unreadable && String(args.path).includes(unreadable)) throw new Error("File does not exist");
+            return { data: files.get(fileKey(args)) ?? "JVBERi0=" };
+          },
+          stat: async (args: { directory?: string; path?: string }) => {
+            if (!files.has(fileKey(args))) throw new Error("File does not exist");
+            return { type: "file", size: (files.get(fileKey(args)) ?? "").length };
+          },
+          getUri: async (args: { directory?: string; path?: string }) => ({ uri: `file:///${String(args.directory).toLowerCase()}/${args.path}` }),
+          mkdir: async () => ({}),
+          rmdir: async (args: { directory?: string; path?: string }) => {
+            for (const key of [...files.keys()]) if (key.startsWith(`${fileKey(args)}/`)) files.delete(key);
+          },
+          rename: async (args: { directory?: string; from: string; to: string }) => {
+            // "hearth-test-rename-error" names a path fragment whose moves
+            // fail, to test that a restore puts every file back.
+            const failing = localStorage.getItem("hearth-test-rename-error");
+            if (failing && args.to.includes(failing)) throw new Error("Disk full");
+            const from = `${args.directory}:${args.from}`;
+            if (!files.has(from)) throw new Error("File does not exist");
+            files.set(`${args.directory}:${args.to}`, files.get(from) ?? "");
+            files.delete(from);
+            // "hearth-test-crash-at-rename" = N: the app dies right after
+            // its Nth move (the call never returns).
+            renames += 1;
+            if (Number(localStorage.getItem("hearth-test-crash-at-rename")) === renames) await new Promise(() => undefined);
+            // "hearth-test-pause-at-rename" = N: the Nth move waits until the
+            // test calls __hearthResumeRename(), to interleave an edit.
+            if (Number(localStorage.getItem("hearth-test-pause-at-rename")) === renames) {
+              await new Promise((resolve) => {
+                (window as unknown as { __hearthResumeRename?: () => void }).__hearthResumeRename = () => resolve(undefined);
+              });
+            }
+          },
           deleteFile: async (args: { directory?: string; path?: string }) => {
             const failure = localStorage.getItem("hearth-test-delete-file-error");
             if (failure === "missing") throw new Error("File does not exist");
             if (failure === "other") throw new Error("Disk error");
             fileDeletes.push(args);
+            files.delete(fileKey(args));
             return {};
           },
         },
@@ -570,6 +699,7 @@ test.beforeEach(async ({ page }) => {
           },
           getPending: async () => ({ notifications: [] }),
         },
+        ...(icloudBackup ? { ICloudBackup: icloudBackup } : {}),
         ServerConfig: {
           getServerUrl: async () => ({ url: "" }),
           importClientCertificate: async () => ({ label: "Test certificate" }),
@@ -785,27 +915,106 @@ test("standalone reminder setup states are neutral and counted once (#412)", asy
   expect(colours.actual).toBe(colours.expected);
 });
 
-test("standalone settings exports and imports local backups", async ({ page }) => {
+type BackupHarness = {
+  fileWrites: { directory?: string; path?: string; data?: string; encoding?: string }[];
+  files: Map<string, string>;
+  sqliteRuns: { statement: string; values: unknown[]; transaction?: boolean }[];
+  rowsByTable: Record<string, { id?: string; title?: string }[]>;
+  icloudUploads: { path?: string; name?: string; keep?: number }[];
+};
+
+async function openBackupSettings(page: ShellPage) {
   await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
   await page.locator('#mobile-view button[data-nav="settings"]').click();
-  await expect(page.getByRole("heading", { name: "Standalone backup" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Back up this phone" })).toBeVisible();
+}
 
-  await page.getByRole("button", { name: "Export backup" }).click();
-  await expect(page.locator("#standalone-status")).toContainText("Backup exported");
-  let snapshot = await page.evaluate(() => {
-    return (window as Window & {
-      __hearthStandaloneTest?: {
-        fileWrites: { directory?: string; path?: string; data?: string }[];
-        sqliteRuns: { statement: string; values: unknown[] }[];
-      };
-    }).__hearthStandaloneTest;
+// Exports through Settings and returns the backup file's text (#226).
+async function exportBackup(page: ShellPage, password = "correct horse battery") {
+  const form = page.locator("form[data-export-standalone-backup-form]");
+  await form.getByLabel("Backup password").fill(password);
+  await form.getByLabel("Confirm password").fill(password);
+  await form.getByRole("button", { name: "Export and share" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Backup saved as hearth-standalone-");
+  return page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    const write = harness.fileWrites.find((candidate) => candidate.path?.startsWith("hearth-backups/hearth-standalone-"));
+    return { write: write ? { directory: write.directory, path: write.path, encoding: write.encoding } : null, text: write ? harness.files.get(`${write.directory}:${write.path}`) ?? "" : "" };
   });
-  const backupWrite = snapshot?.fileWrites.find((write) => write.path?.startsWith("hearth-backups/hearth-standalone-"));
-  expect(backupWrite?.directory).toBe("DOCUMENTS");
-  expect(backupWrite?.data).toContain('"kind": "hearth-standalone-backup"');
-  expect(backupWrite?.data).toContain('"contracts"');
-  expect(backupWrite?.data).toContain('"rentalAgreements"');
+}
 
+async function restoreFile(page: ShellPage, text: string, options: { password?: string; mode?: "replace" | "merge"; confirm?: boolean; name?: string } = {}) {
+  const form = page.locator("form[data-import-standalone-backup-form]");
+  await form.locator('input[type="file"]').setInputFiles({ name: options.name ?? "backup.hearthbackup", mimeType: "application/octet-stream", buffer: Buffer.from(text) });
+  if (options.password != null) await form.getByLabel("Backup password").fill(options.password);
+  await form.getByLabel("Restore mode").selectOption(options.mode ?? "replace");
+  await form.getByLabel(/I understand Replace deletes/).setChecked(options.confirm ?? true);
+  await form.getByRole("button", { name: "Restore backup" }).click();
+}
+
+function backupHarness(page: ShellPage) {
+  return page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    return { sqliteRuns: harness.sqliteRuns, rowsByTable: harness.rowsByTable, icloudUploads: harness.icloudUploads };
+  });
+}
+
+test("standalone backups are encrypted, leave no shared copy, and restore everything", async ({ page }) => {
+  await openBackupSettings(page);
+  const { write, text } = await exportBackup(page);
+  // Built in the app cache, not the public Documents folder (#226).
+  expect(write).toEqual({ directory: "CACHE", path: expect.stringMatching(/^hearth-backups\/hearth-standalone-\d{4}-\d{2}-\d{2}-\d{6}\.hearthbackup$/), encoding: "utf8" });
+  const [headerLine, ...records] = text.trim().split("\n");
+  expect(JSON.parse(headerLine)).toMatchObject({ kind: "hearth-standalone-backup", formatVersion: 2, cipher: "AES-256-GCM" });
+  // Manifest, at least one document part, and the end record.
+  expect(records.length).toBeGreaterThanOrEqual(3);
+  expect(text).not.toContain("Broadband Plan");
+  await expect(page.locator(".detail-row", { hasText: "Last backup" })).not.toContainText("Never");
+
+  // A record added after the backup is gone after a Replace restore.
+  await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    harness.rowsByTable.contracts.push({ id: "contract-after-backup", title: "Added later" });
+  });
+  await restoreFile(page, text, { password: "correct horse battery" });
+  await expect(page.locator("#standalone-status")).toContainText("Restored");
+  const { sqliteRuns, rowsByTable } = await backupHarness(page);
+  const restoreRuns = sqliteRuns.filter((run) => run.transaction === true);
+  expect(restoreRuns.some((run) => run.statement === "DELETE FROM contracts")).toBe(true);
+  expect(restoreRuns.some((run) => run.statement.startsWith("INSERT OR REPLACE INTO contracts"))).toBe(true);
+  expect(rowsByTable.contracts.map((row) => row.id)).not.toContain("contract-after-backup");
+  expect(rowsByTable.contracts.map((row) => row.title)).toContain("Broadband Plan");
+});
+
+test("standalone restore refuses a wrong password, a cut-off file and an unconfirmed Replace", async ({ page }) => {
+  await openBackupSettings(page);
+  const { text } = await exportBackup(page);
+
+  await restoreFile(page, text, { password: "not the password" });
+  await expect(page.locator("#standalone-status")).toContainText("Wrong backup password");
+
+  const truncated = text.trim().split("\n").slice(0, -1).join("\n");
+  await restoreFile(page, truncated, { password: "correct horse battery" });
+  await expect(page.locator("#standalone-status")).toContainText("incomplete");
+
+  await restoreFile(page, text, { password: "correct horse battery", confirm: false });
+  await expect(page.locator("#standalone-status")).toContainText("Tick the box");
+
+  const { sqliteRuns } = await backupHarness(page);
+  expect(sqliteRuns.some((run) => run.transaction === true && run.statement.startsWith("DELETE FROM"))).toBe(false);
+});
+
+test("standalone backup passwords must match and be long enough", async ({ page }) => {
+  await openBackupSettings(page);
+  const form = page.locator("form[data-export-standalone-backup-form]");
+  await form.getByLabel("Backup password").fill("correct horse battery");
+  await form.getByLabel("Confirm password").fill("correct horse batteryX");
+  await form.getByRole("button", { name: "Export and share" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("do not match");
+});
+
+test("standalone still merges an older unencrypted JSON backup", async ({ page }) => {
+  await openBackupSettings(page);
   const backup = {
     kind: "hearth-standalone-backup",
     version: 1,
@@ -813,15 +1022,7 @@ test("standalone settings exports and imports local backups", async ({ page }) =
     exportedAt: "2099-01-01T00:00:00.000Z",
     tables: {
       // A backup from before #355 has no archived_at: the Vehicle imports as not Archived.
-      vehicles: [
-        {
-          id: "vehicle-imported",
-          label: "Old Backup Car",
-          created_at: "2099-01-01T00:00:00.000Z",
-          updated_at: "2099-01-01T00:00:00.000Z",
-          version: 1,
-        },
-      ],
+      vehicles: [{ id: "vehicle-imported", label: "Old Backup Car", created_at: "2099-01-01T00:00:00.000Z", updated_at: "2099-01-01T00:00:00.000Z", version: 1 }],
       contracts: [
         {
           id: "contract-imported",
@@ -838,26 +1039,331 @@ test("standalone settings exports and imports local backups", async ({ page }) =
           version: 1,
         },
       ],
+      // A crafted path is refused before it becomes a file path.
+      inboxDocuments: [{ id: "inbox-bad", filename: "x.pdf", storage_key: "../../escape.pdf", file_data: "JVBERi0=" }],
     },
   };
-  await page.locator('form[data-import-standalone-backup-form] input[type="file"]').setInputFiles({
-    name: "hearth-backup.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(backup)),
-  });
-  await page.locator("form[data-import-standalone-backup-form]").getByRole("button", { name: "Import backup" }).click();
-  await expect(page.locator("#standalone-status")).toContainText("Imported");
-  snapshot = await page.evaluate(() => {
-    return (window as Window & {
-      __hearthStandaloneTest?: {
-        fileWrites: { directory?: string; path?: string; data?: string }[];
-        sqliteRuns: { statement: string; values: unknown[] }[];
-      };
-    }).__hearthStandaloneTest;
-  });
-  expect(snapshot?.sqliteRuns.some((run) => run.statement.includes("INSERT OR REPLACE INTO contracts") && run.values.includes("contract-imported"))).toBe(true);
-  const importedVehicle = snapshot?.sqliteRuns.find((run) => run.statement.includes("INSERT OR REPLACE INTO vehicles") && run.values.includes("vehicle-imported"));
+  await restoreFile(page, JSON.stringify(backup), { mode: "merge", confirm: false, name: "hearth-backup.json" });
+  await expect(page.locator("#standalone-status")).toContainText("Hearth cannot read");
+
+  backup.tables.inboxDocuments = [];
+  await restoreFile(page, JSON.stringify(backup), { mode: "merge", confirm: false, name: "hearth-backup.json" });
+  await expect(page.locator("#standalone-status")).toContainText("unencrypted older backup");
+  const { sqliteRuns, rowsByTable } = await backupHarness(page);
+  expect(sqliteRuns.some((run) => run.statement.includes("INSERT OR REPLACE INTO contracts") && run.values.includes("contract-imported"))).toBe(true);
+  const importedVehicle = sqliteRuns.find((run) => run.statement.includes("INSERT OR REPLACE INTO vehicles") && run.values.includes("vehicle-imported"));
   expect(importedVehicle?.statement).toContain("archived_at");
+  // Merge keeps what was already on the phone.
+  expect(rowsByTable.contracts.map((row) => row.title)).toContain("Broadband Plan");
+  expect(sqliteRuns.some((run) => run.statement.startsWith("DELETE FROM"))).toBe(false);
+});
+
+test("standalone dashboard asks for a backup until one is made", async ({ page }) => {
+  await expect(page.locator("[data-backup-nudge]")).toContainText("Nothing on this phone has been backed up yet");
+  await openBackupSettings(page);
+  await exportBackup(page);
+  await page.locator(".bottom-nav").getByRole("button", { name: "Dashboard" }).click();
+  await expect(page.getByRole("heading", { name: "What needs attention" })).toBeVisible();
+  await expect(page.locator("[data-backup-nudge]")).toHaveCount(0);
+});
+
+test("standalone iCloud backup uploads, turns on daily backup and restores from iCloud", async ({ page }) => {
+  await page.evaluate(() => {
+    window.name = `hearth-test-seed:${JSON.stringify({ local: { "hearth-test-icloud": "on" } })}`;
+  });
+  await relaunchStandalone(page);
+  await openBackupSettings(page);
+  await expect(page.getByRole("heading", { name: "iCloud backup" })).toBeVisible();
+
+  const icloudForm = page.locator("form[data-enable-icloud-auto-backup-form]");
+  await icloudForm.getByLabel("Backup password").fill("correct horse battery");
+  await icloudForm.getByLabel("Confirm password").fill("correct horse battery");
+  await icloudForm.getByRole("button", { name: "Turn on daily iCloud backup" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Daily iCloud backup is on");
+  await expect(page.locator(".detail-row", { hasText: "Daily backup" })).toContainText("On");
+  const { icloudUploads } = await backupHarness(page);
+  expect(icloudUploads).toEqual([{ path: expect.stringMatching(/^file:\/\/\/cache\/hearth-backups\/hearth-standalone-.+\.hearthbackup$/), name: expect.stringMatching(/\.hearthbackup$/), keep: 7 }]);
+
+  const restore = page.locator("form[data-restore-icloud-backup-form]");
+  await restore.getByLabel("Backup password").fill("correct horse battery");
+  await restore.getByLabel(/I understand Replace deletes/).check();
+  await restore.getByRole("button", { name: "Restore from iCloud" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Restored");
+
+  await page.getByRole("button", { name: "Turn off daily backup" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Daily iCloud backup is off");
+});
+
+test("standalone backup that can't read a document file is not counted as complete", async ({ page }) => {
+  await page.evaluate(() => localStorage.setItem("hearth-test-unreadable-file", "receipt.pdf"));
+  await openBackupSettings(page);
+  const form = page.locator("form[data-export-standalone-backup-form]");
+  await form.getByLabel("Backup password").fill("correct horse battery");
+  await form.getByLabel("Confirm password").fill("correct horse battery");
+  await form.getByRole("button", { name: "Export and share" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("not counted as a complete backup");
+  await expect(page.locator(".detail-row", { hasText: "Last backup" })).toContainText("Never");
+  await page.locator(".bottom-nav").getByRole("button", { name: "Dashboard" }).click();
+  await expect(page.locator("[data-backup-nudge]")).toBeVisible();
+  await page.evaluate(() => localStorage.removeItem("hearth-test-unreadable-file"));
+});
+
+test("standalone restore that fails moving a file puts every file back and writes no rows", async ({ page }) => {
+  await openBackupSettings(page);
+  const { text } = await exportBackup(page);
+  await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    harness.files.set("DATA:standalone-documents/insurance.pdf", "ORIGINAL");
+    localStorage.setItem("hearth-test-rename-error", "standalone-documents/receipt.pdf");
+  });
+  await restoreFile(page, text, { password: "correct horse battery" });
+  await expect(page.locator("#standalone-status")).toContainText("Restore failed, and this phone was left as it was");
+  const state = await page.evaluate(async () => {
+    localStorage.removeItem("hearth-test-rename-error");
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    return {
+      documentFiles: [...harness.files.entries()].filter(([key]) => key.startsWith("DATA:standalone-documents/")),
+      asideFiles: [...harness.files.keys()].filter((key) => key.startsWith("DATA:standalone-restore-previous/")),
+      restoreRuns: harness.sqliteRuns.filter((run) => run.transaction === true && run.statement.startsWith("DELETE FROM")).length,
+      journal: (await (window as unknown as { Capacitor: { Plugins: { Preferences: { get(a: { key: string }): Promise<{ value: string | null }> } } } }).Capacitor.Plugins.Preferences.get({ key: "hearth.mobile.restoreJournal" })).value,
+    };
+  });
+  expect(state.documentFiles).toEqual([["DATA:standalone-documents/insurance.pdf", "ORIGINAL"]]);
+  expect(state.asideFiles).toEqual([]);
+  expect(state.restoreRuns).toBe(0);
+  expect(state.journal).toBeNull();
+});
+
+test("standalone Replace restore deletes the files of documents the backup doesn't have", async ({ page }) => {
+  await openBackupSettings(page);
+  const { text } = await exportBackup(page);
+  await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    harness.files.set("DATA:standalone-documents/added-later.pdf", "LATER");
+    (harness.rowsByTable.documents as unknown as Record<string, unknown>[]).push({ id: "document-later", owner_type: "contract", owner_id: "contract-1", filename: "added-later.pdf", storage_key: "added-later.pdf", deleted_at: null });
+  });
+  await restoreFile(page, text, { password: "correct horse battery" });
+  await expect(page.locator("#standalone-status")).toContainText("Restored");
+  const keys = await page.evaluate(() => [...(window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest.files.keys()]);
+  expect(keys).not.toContain("DATA:standalone-documents/added-later.pdf");
+  expect(keys).toContain("DATA:standalone-documents/receipt.pdf");
+  expect(keys.filter((key) => key.startsWith("DATA:standalone-restore-"))).toEqual([]);
+});
+
+test("standalone Merge never overwrites a row that has no version", async ({ page }) => {
+  await openBackupSettings(page);
+  const { text } = await exportBackup(page);
+  await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    const term = (harness.rowsByTable.contract_terms as unknown as Record<string, unknown>[]).find((row) => row.id === "term-1");
+    if (term) term.cost = 999;
+  });
+  await restoreFile(page, text, { password: "correct horse battery", mode: "merge", confirm: false });
+  await expect(page.locator("#standalone-status")).toContainText("kept");
+  const { sqliteRuns, rowsByTable } = await backupHarness(page);
+  expect(sqliteRuns.some((run) => run.statement.startsWith("INSERT OR REPLACE INTO contract_terms") && run.values.includes("term-1"))).toBe(false);
+  expect((rowsByTable.contract_terms as unknown as Record<string, unknown>[]).find((row) => row.id === "term-1")?.cost).toBe(999);
+});
+
+test("standalone Merge never replaces the file of a document it keeps", async ({ page }) => {
+  await openBackupSettings(page);
+  const { text } = await exportBackup(page);
+  await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    // document-1 changed on the phone after the backup, keeping its key.
+    const document = (harness.rowsByTable.documents as unknown as Record<string, unknown>[]).find((row) => row.id === "document-1");
+    if (document) Object.assign(document, { version: 5, sha256: "newer-hash" });
+    harness.files.set("DATA:standalone-documents/insurance.pdf", "LOCAL-NEWER");
+    // A different local row now owns the inbox file's key.
+    const inbox = (harness.rowsByTable.inbox_documents as unknown as Record<string, unknown>[]).find((row) => row.id === "inbox-1");
+    if (inbox) inbox.id = "inbox-other";
+    harness.files.set("DATA:standalone-documents/receipt.pdf", "LOCAL-OTHER");
+  });
+  await restoreFile(page, text, { password: "correct horse battery", mode: "merge", confirm: false });
+  await expect(page.locator("#standalone-status")).toContainText("Restored");
+  const state = await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    return {
+      insurance: harness.files.get("DATA:standalone-documents/insurance.pdf"),
+      receipt: harness.files.get("DATA:standalone-documents/receipt.pdf"),
+      document: (harness.rowsByTable.documents as unknown as Record<string, unknown>[]).find((row) => row.id === "document-1"),
+      inboxIds: (harness.rowsByTable.inbox_documents as unknown as Record<string, unknown>[]).map((row) => row.id),
+    };
+  });
+  expect(state.insurance).toBe("LOCAL-NEWER");
+  expect(state.document?.sha256).toBe("newer-hash");
+  expect(state.receipt).toBe("LOCAL-OTHER");
+  expect(state.inboxIds).toEqual(["inbox-other"]);
+});
+
+type CrashSnapshot = { files: Record<string, string>; preferences: Record<string, string>; rows: Record<string, unknown[]>; renames: number; done: boolean };
+
+// Kills a Replace restore at one point (after its Nth file move, or right
+// after its commit), relaunches the app on exactly what was left on "disk",
+// and checks every document file is wholly the phone's or wholly the
+// backup's, with nothing left aside and the journal gone (#226 review).
+// Reloads the shell and gets back into standalone mode. A relaunch seeded
+// with the phone's saved preferences goes straight in, as on a real phone.
+async function relaunchStandalone(page: ShellPage) {
+  await page.reload();
+  const useOnDevice = page.getByRole("button", { name: "Use on this device" });
+  const screen = page.locator("#standalone-screen");
+  await expect.poll(async () => (await useOnDevice.isVisible()) || (await screen.isVisible())).toBe(true);
+  if (await useOnDevice.isVisible()) await useOnDevice.click();
+  await expect(screen).toBeVisible();
+}
+
+async function crashRestoreAt(page: ShellPage, crash: { rename?: number; commit?: boolean }) {
+  await relaunchStandalone(page);
+  await openBackupSettings(page);
+  await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    for (const key of ["insurance.pdf", "receipt.pdf"]) harness.files.set(`DATA:standalone-documents/${key}`, `BACKUP-${key}`);
+  });
+  const { text } = await exportBackup(page);
+  const target = await page.evaluate((crash) => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness & { renames: number } }).__hearthStandaloneTest;
+    for (const key of ["insurance.pdf", "receipt.pdf"]) harness.files.set(`DATA:standalone-documents/${key}`, `LOCAL-${key}`);
+    const at = harness.renames + (crash.rename ?? 0);
+    if (crash.rename) localStorage.setItem("hearth-test-crash-at-rename", String(at));
+    if (crash.commit) localStorage.setItem("hearth-test-crash-at-commit", "1");
+    return at;
+  }, crash);
+  await restoreFile(page, text, { password: "correct horse battery" });
+  const snapshot = async () =>
+    page.evaluate(() => {
+      const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness & { preferences: Map<string, string>; renames: number } }).__hearthStandaloneTest;
+      return {
+        files: Object.fromEntries(harness.files),
+        preferences: Object.fromEntries(harness.preferences),
+        rows: { schema_metadata: (harness.rowsByTable.schema_metadata as unknown[]) ?? [] },
+        renames: harness.renames,
+        done: /Restored/.test(document.querySelector("#standalone-status")?.textContent ?? ""),
+      } as CrashSnapshot;
+    });
+  // Wait for the crash point (or the restore finishing without reaching it).
+  let left: CrashSnapshot = await snapshot();
+  await expect.poll(async () => {
+    left = await snapshot();
+    return left.done || (crash.commit ? left.rows.schema_metadata.length > 0 : left.renames >= target);
+  }).toBe(true);
+  if (left.done) return { reached: false };
+  const committed = left.rows.schema_metadata.some((row) => (row as { key?: string }).key === "last_restore_id");
+  await page.evaluate((left) => {
+    localStorage.removeItem("hearth-test-crash-at-rename");
+    localStorage.removeItem("hearth-test-crash-at-commit");
+    // The phone's documents, staging and aside files; the shared backup
+    // copy in the cache is left out (it is large, and not the phone's data).
+    const files = Object.fromEntries(Object.entries(left.files).filter(([key]) => key.startsWith("DATA:")));
+    window.name = `hearth-test-seed:${JSON.stringify({ files, preferences: left.preferences, rows: left.rows })}`;
+  }, left);
+  await relaunchStandalone(page);
+  await expect(page.locator("#standalone-screen")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __hearthStandaloneTest: { preferences: Map<string, string> } }).__hearthStandaloneTest.preferences.has("hearth.mobile.restoreJournal"))).toBe(false);
+  const after = await page.evaluate(() => {
+    return Object.fromEntries((window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest.files);
+  });
+  const want = committed ? "BACKUP" : "LOCAL";
+  for (const key of ["insurance.pdf", "receipt.pdf"]) expect(after[`DATA:standalone-documents/${key}`], `${key} after a crash ${JSON.stringify(crash)}`).toBe(`${want}-${key}`);
+  expect(Object.keys(after).filter((key) => key.startsWith("DATA:standalone-restore-"))).toEqual([]);
+  return { reached: true, committed };
+}
+
+test("standalone restore recovers from a crash after any file move or the commit", async ({ page }) => {
+  test.setTimeout(120_000);
+  // Two documents, each moved aside then replaced: four moves.
+  const outcomes = [];
+  for (let rename = 1; rename <= 4; rename += 1) outcomes.push(await crashRestoreAt(page, { rename }));
+  expect(outcomes).toEqual([1, 2, 3, 4].map(() => ({ reached: true, committed: false })));
+  expect(await crashRestoreAt(page, { commit: true })).toEqual({ reached: true, committed: true });
+});
+
+test("standalone edit made during a restore waits and lands after it", async ({ page }) => {
+  await openBackupSettings(page);
+  const { text } = await exportBackup(page);
+  await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness & { renames: number } }).__hearthStandaloneTest;
+    localStorage.setItem("hearth-test-pause-at-rename", String(harness.renames + 1));
+  });
+  await restoreFile(page, text, { password: "correct horse battery", mode: "merge", confirm: false });
+  // Paused mid-restore: versions are chosen and files are moving.
+  await expect.poll(() => page.evaluate(() => typeof (window as unknown as { __hearthResumeRename?: unknown }).__hearthResumeRename)).toBe("function");
+  await page.evaluate(() => {
+    // An ordinary edit, through the app's own write path, saving a newer Vehicle.
+    const app = window as unknown as { run(statement: string, values: unknown[]): Promise<void>; __editDone?: boolean };
+    void app.run("UPDATE vehicles SET label = ?, version = ? WHERE id = ?", ["Edited during restore", 9, "vehicle-1"]).then(() => {
+      app.__editDone = true;
+    });
+  });
+  await page.waitForTimeout(200);
+  const during = await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    return { done: (window as unknown as { __editDone?: boolean }).__editDone ?? false, runs: harness.sqliteRuns.filter((run) => run.statement.startsWith("UPDATE vehicles SET label")).length };
+  });
+  expect(during).toEqual({ done: false, runs: 0 });
+  await page.evaluate(() => {
+    localStorage.removeItem("hearth-test-pause-at-rename");
+    (window as unknown as { __hearthResumeRename: () => void }).__hearthResumeRename();
+  });
+  await expect(page.locator("#standalone-status")).toContainText("Restored");
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __editDone?: boolean }).__editDone ?? false)).toBe(true);
+  const after = await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    const statements = harness.sqliteRuns.map((run) => run.statement);
+    return {
+      label: (harness.rowsByTable.vehicles as unknown as Record<string, unknown>[]).find((row) => row.id === "vehicle-1")?.label,
+      editAfterCommit: statements.findIndex((statement) => statement.startsWith("UPDATE vehicles SET label")) > statements.findIndex((statement) => statement.includes("last_restore_id")),
+    };
+  });
+  expect(after).toEqual({ label: "Edited during restore", editAfterCommit: true });
+});
+
+test("standalone keeps retrying an old document file a restore could not delete", async ({ page }) => {
+  await openBackupSettings(page);
+  const { text } = await exportBackup(page);
+  await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    harness.files.set("DATA:standalone-documents/added-later.pdf", "STALE");
+    (harness.rowsByTable.documents as unknown as Record<string, unknown>[]).push({ id: "document-later", owner_type: "contract", owner_id: "contract-1", filename: "added-later.pdf", storage_key: "added-later.pdf", deleted_at: null });
+    localStorage.setItem("hearth-test-delete-file-error", "other");
+  });
+  await restoreFile(page, text, { password: "correct horse battery" });
+  await expect(page.locator("#standalone-status")).toContainText("could not be removed yet");
+  const left = await page.evaluate(() => {
+    localStorage.removeItem("hearth-test-delete-file-error");
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness & { preferences: Map<string, string> } }).__hearthStandaloneTest;
+    return {
+      files: Object.fromEntries([...harness.files].filter(([key]) => key.startsWith("DATA:"))),
+      preferences: Object.fromEntries(harness.preferences),
+      rows: { schema_metadata: (harness.rowsByTable.schema_metadata as unknown[]) ?? [] },
+    };
+  });
+  // The journal stays while the stale file is still there.
+  expect(left.files["DATA:standalone-documents/added-later.pdf"]).toBe("STALE");
+  expect(left.preferences["hearth.mobile.restoreJournal"]).toBeTruthy();
+  await page.evaluate((left) => {
+    window.name = `hearth-test-seed:${JSON.stringify(left)}`;
+  }, left);
+  await relaunchStandalone(page);
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __hearthStandaloneTest: { preferences: Map<string, string> } }).__hearthStandaloneTest.preferences.has("hearth.mobile.restoreJournal"))).toBe(false);
+  const keys = await page.evaluate(() => [...(window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest.files.keys()]);
+  expect(keys).not.toContain("DATA:standalone-documents/added-later.pdf");
+  expect(keys.filter((key) => key.startsWith("DATA:standalone-restore-"))).toEqual([]);
+});
+
+test("standalone launch keeps a restore journal it can't read, and the files it protects", async ({ page }) => {
+  await page.evaluate(() => {
+    window.name = `hearth-test-seed:${JSON.stringify({
+      preferences: { "hearth.mobile.restoreJournal": "{not json" },
+      files: { "DATA:standalone-restore-previous/insurance.pdf": "ORIGINAL" },
+    })}`;
+  });
+  await relaunchStandalone(page);
+  const state = await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness & { preferences: Map<string, string> } }).__hearthStandaloneTest;
+    return { journal: harness.preferences.get("hearth.mobile.restoreJournal"), aside: harness.files.get("DATA:standalone-restore-previous/insurance.pdf") };
+  });
+  expect(state).toEqual({ journal: "{not json", aside: "ORIGINAL" });
 });
 
 test("standalone help and local module settings mirror baseline settings/help surfaces", async ({ page }) => {
@@ -1167,10 +1673,7 @@ async function sqliteRuns(page: import("@playwright/test").Page): Promise<Sqlite
 
 // Reloads the shell with Broadband Plan's documents seeded (see the mock).
 async function withContractDocuments(page: import("@playwright/test").Page) {
-  await page.evaluate(() => localStorage.setItem("hearth-test-contract-documents", "1"));
-  await page.reload();
-  await page.getByRole("button", { name: "Use on this device" }).click();
-  await expect(page.locator("#standalone-screen")).toBeVisible();
+  await reloadStandalone(page, { "hearth-test-contract-documents": "1" });
 }
 
 async function openBroadbandRenewal(page: import("@playwright/test").Page) {
@@ -1270,7 +1773,16 @@ test("standalone Previous terms opens the prior Term's document (#353)", async (
 // the Trash entry is purged, and the chain survives a trashed version.
 type ShellPage = import("@playwright/test").Page;
 
-async function reloadStandalone(page: ShellPage) {
+// `local` is test localStorage (hearth-test-* flags) to have in place when
+// the reloaded page starts. It travels in the seed (window.name): file:// localStorage set just
+// before a reload is not always there after it, which made the tests that
+// set a flag and reloaded fail now and then.
+async function reloadStandalone(page: ShellPage, local: Record<string, string> = {}) {
+  await page.evaluate((local) => {
+    // Flags set earlier in the test are carried forward too.
+    const current = Object.fromEntries(Object.keys(localStorage).filter((key) => key.startsWith("hearth-test-")).map((key) => [key, localStorage.getItem(key) ?? ""]));
+    window.name = `hearth-test-seed:${JSON.stringify({ local: { ...current, ...local } })}`;
+  }, local);
   await page.reload();
   await page.getByRole("button", { name: "Use on this device" }).click();
   await expect(page.locator("#standalone-screen")).toBeVisible();
@@ -1279,12 +1791,11 @@ async function reloadStandalone(page: ShellPage) {
 // `now` fixes the device clock before the reload, for the purge tests (the
 // fixtures are dated 2099, so with the real clock nothing is ever purged).
 async function withDocumentVersions(page: ShellPage, mode: string, options: { now?: string; deleteFileError?: string } = {}) {
-  await page.evaluate(([value, error]) => {
-    localStorage.setItem("hearth-test-doc-versions", value);
-    if (error) localStorage.setItem("hearth-test-delete-file-error", error);
-  }, [mode, options.deleteFileError ?? ""] as const);
   if (options.now) await page.clock.setFixedTime(new Date(options.now));
-  await reloadStandalone(page);
+  await reloadStandalone(page, {
+    "hearth-test-doc-versions": mode,
+    ...(options.deleteFileError ? { "hearth-test-delete-file-error": options.deleteFileError } : {}),
+  });
 }
 
 async function openBroadbandPlan(page: ShellPage) {
@@ -1474,13 +1985,8 @@ test("standalone imports an older backup whose latest version was deleted (#455)
     exportedAt: "2099-01-01T00:00:00.000Z",
     tables: { documents: [row("old-1", null, { is_head: 0 }), row("old-2", "old-1", { is_head: 0, deleted_at: "2099-01-02T00:00:00.000Z" })] },
   };
-  await page.locator('form[data-import-standalone-backup-form] input[type="file"]').setInputFiles({
-    name: "hearth-backup.json",
-    mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(backup)),
-  });
-  await page.locator("form[data-import-standalone-backup-form]").getByRole("button", { name: "Import backup" }).click();
-  await expect(page.locator("#standalone-status")).toContainText("Imported");
+  await restoreFile(page, JSON.stringify(backup), { mode: "merge", confirm: false, name: "hearth-backup.json" });
+  await expect(page.locator("#standalone-status")).toContainText("Restored");
   await page.locator(".bottom-nav").getByRole("button", { name: "Documents" }).click();
   await expect(page.getByRole("heading", { name: "old-1.pdf" })).toBeVisible();
   expect((await shellTestState(page)).fileDeletes).toEqual([]);
@@ -1536,7 +2042,6 @@ test("standalone purge keeps the row when the file can't be deleted, and retries
   expect((await savedDocuments(page)).map((row) => row.id)).toEqual(expect.arrayContaining(["version-2", "version-3"]));
 
   // A file that is already gone is fine: the rows go.
-  await page.evaluate(() => localStorage.setItem("hearth-test-delete-file-error", "missing"));
-  await reloadStandalone(page);
+  await reloadStandalone(page, { "hearth-test-delete-file-error": "missing" });
   await expect.poll(async () => deletedDocuments((await shellTestState(page)).runs)).toEqual(["version-3", "version-2"]);
 });

@@ -70,13 +70,14 @@ const requiredDependencies = [
   "@capacitor/local-notifications",
   "@capacitor/preferences",
   "@capacitor/network",
+  "@capacitor/share",
   "@revenuecat/purchases-capacitor",
 ];
 for (const dependency of requiredDependencies) {
   if (!packageJson.dependencies?.[dependency]) fail(`package.json missing ${dependency}`);
 }
 
-for (const file of ["app.js", "index.html", "style.css", "icon.svg"]) {
+for (const file of ["app.js", "backup-format.js", "index.html", "style.css", "icon.svg"]) {
   assertSameAsset(file);
 }
 
@@ -100,8 +101,11 @@ for (const marker of [
   "function renderDocumentVersionHistory",
   "function confirmDetails",
   "function recordReminderScheduleAttempt",
-  "function exportStandaloneBackup",
-  "function importStandaloneBackup",
+  "function writeEncryptedBackup",
+  "function restoreStandaloneBackup",
+  "function backupToICloud",
+  "function maybeRunICloudAutoBackup",
+  "const BackupFormat = window.HearthBackupFormat",
   "function renderMore()",
   "function renderHelp()",
   "function toggleStandaloneModule",
@@ -156,6 +160,7 @@ for (const plugin of [
   "Preferences",
   "Network",
   "Purchases",
+  "Share",
 ]) {
   assertIncludes(androidPlugins, plugin, "Android Capacitor plugins");
 }
@@ -236,7 +241,7 @@ const apkPath = join(root, "android/app/build/outputs/apk/debug/app-debug.apk");
 requireFile(apkPath);
 if (existsSync(apkPath)) {
   const apkEntries = commandOutput("unzip", ["-Z1", apkPath], "Inspect Android APK");
-  for (const asset of ["assets/public/app.js", "assets/public/index.html", "assets/public/style.css"]) {
+  for (const asset of ["assets/public/app.js", "assets/public/backup-format.js", "assets/public/index.html", "assets/public/style.css"]) {
     assertIncludes(apkEntries, asset, "Android APK");
   }
 }
@@ -254,7 +259,7 @@ const iosAppPath = iosAppCandidates.find((candidate) => existsSync(candidate));
 if (!iosAppPath) {
   fail("Missing built iOS simulator App.app bundle. Run the iOS debug build before this verifier.");
 } else {
-  for (const file of ["app.js", "index.html", "style.css"]) {
+  for (const file of ["app.js", "backup-format.js", "index.html", "style.css"]) {
     requireFile(join(iosAppPath, "public", file));
     assertEqual(sha(join(root, "ios-shell/www", file)), sha(join(iosAppPath, "public", file)), `iOS App.app public/${file}`);
   }
@@ -265,6 +270,7 @@ if (!iosAppPath) {
 const iosMainViewController = text(join(root, "ios/App/App/MainViewController.swift"));
 for (const marker of [
   "bridge?.registerPluginInstance(ServerConfigPlugin())",
+  "bridge?.registerPluginInstance(ICloudBackupPlugin())",
   "override func instanceDescriptor() -> InstanceDescriptor",
   "descriptor.allowedNavigationHostnames += [host]",
   "static func reloadForUpdatedServerUrl()",
@@ -285,6 +291,26 @@ for (const marker of [
   assertIncludes(iosServerConfigPlugin, marker, "iOS ServerConfig plugin");
 }
 
+// #226 — standalone backups to the user's iCloud Drive. The container id
+// must agree across the plugin, the entitlements and Info.plist.
+const iosICloudPlugin = text(join(root, "ios/App/App/ICloudBackupPlugin.swift"));
+for (const marker of [
+  "public let jsName = \"ICloudBackup\"",
+  "static let containerIdentifier = \"iCloud.com.hearthapp.app\"",
+  "kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly",
+]) {
+  assertIncludes(iosICloudPlugin, marker, "iOS iCloud backup plugin");
+}
+const iosEntitlements = text(join(root, "ios/App/App/App.entitlements"));
+for (const marker of ["com.apple.developer.icloud-container-identifiers", "com.apple.developer.icloud-services", "CloudDocuments", "iCloud.com.hearthapp.app"]) {
+  assertIncludes(iosEntitlements, marker, "iOS entitlements");
+}
+const iosInfoPlist = text(join(root, "ios/App/App/Info.plist"));
+for (const marker of ["NSUbiquitousContainers", "iCloud.com.hearthapp.app"]) {
+  assertIncludes(iosInfoPlist, marker, "iOS Info.plist");
+}
+assertIncludes(text(join(root, "ios/App/App.xcodeproj/project.pbxproj")), "CODE_SIGN_ENTITLEMENTS = App/App.entitlements;", "iOS project");
+
 const privacyManifest = text(join(root, "ios/App/App/PrivacyInfo.xcprivacy"));
 assertIncludes(privacyManifest, "NSPrivacyAccessedAPITypes", "iOS privacy manifest");
 
@@ -295,6 +321,6 @@ if (failures.length > 0) {
 }
 
 console.log("Mobile package verification passed.");
-console.log(`Verified assets: ${["app.js", "index.html", "style.css", "icon.svg"].map((file) => basename(file)).join(", ")}`);
+console.log(`Verified assets: ${["app.js", "backup-format.js", "index.html", "style.css", "icon.svg"].map((file) => basename(file)).join(", ")}`);
 console.log(`Verified Android APK: ${rel(apkPath)}`);
 console.log(`Verified iOS app: ${iosAppPath}`);

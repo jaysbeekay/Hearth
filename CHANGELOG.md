@@ -7,6 +7,41 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+### Added
+
+- **Encrypted backup and restore for the standalone mobile app, with iCloud
+  on iPhone (#226).** Settings → Back up this phone exports an encrypted
+  `.hearthbackup` file, protected by a password the user picks (PBKDF2-SHA256
+  then AES-256-GCM, done on the device), and opens the share sheet to save it
+  to Files, iCloud Drive, Google Drive or anywhere else (`@capacitor/share`).
+  On iPhone and iPad, backups can also go straight to a Hearth folder in the
+  user's own iCloud Drive, by hand or daily (when the app is opened, at most
+  once a day; the newest 7 are kept; the daily backup's password stays in the
+  device keychain). Restore, from a file or from iCloud, decrypts and checks
+  the whole backup before changing anything, then either replaces everything
+  on the phone or merges (keeping records edited more recently on the phone),
+  in one database transaction, and reschedules device reminders. Document
+  files are swapped in under a journal written before anything moves, so a
+  failed or interrupted restore (the app killed, the phone dying) is rolled
+  back or finished at the next launch and never leaves records and files
+  out of step. Module and reminder settings travel with the backup. A backup
+  from a newer app version is refused rather than half-restored. The dashboard asks for a
+  backup until there is one less than 30 days old. Older unencrypted JSON
+  backups still restore. The format is written a record at a time, so large
+  document libraries no longer have to fit in memory at once. iOS builds now
+  carry the iCloud Documents entitlement for the `iCloud.com.hearthapp.app`
+  container.
+
+### Security
+
+- **Standalone mobile backups are no longer written in plain text to a
+  shared folder (#226).** The old export wrote every record and document,
+  unencrypted, to the Documents folder, which on Android is the public
+  Documents folder other apps can read. Backups are now encrypted and are
+  built in the app's private cache, which is cleared once the backup has been
+  shared or copied to iCloud. Backup files restored from outside the app are
+  validated, so a crafted file can't write outside the app's document folder.
+
 ## [0.20.1] - 2026-10-31
 
 ### Fixed
