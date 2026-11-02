@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { ADMIN_AUTH_FILE, UPLOADS_DIR } from "../env";
 
 test.use({ storageState: ADMIN_AUTH_FILE });
@@ -178,6 +178,9 @@ test.describe.serial("Vehicles module", () => {
     await expect(card.getByText(/^Service due \d{1,2} [A-Z][a-z]{2}( \d{4})?$/)).toBeVisible();
   });
 
+  // #360 - one Reminder card per Vehicle, with a line per date it reminds about.
+  const insuranceReminderLine = (page: Page) => page.locator("li", { hasText: /^Insurance: / });
+
   // #456 - a Contract that Covers the Vehicle supplies its insurance date.
   test.describe.serial("a Contract that Covers the Vehicle", () => {
     let policyId: string;
@@ -191,7 +194,7 @@ test.describe.serial("Vehicles module", () => {
 
       await expect(page.getByText("Insurance expiry")).toBeVisible();
       await expect(page.getByText("Add the insurance policy as a contract to track cost and documents.")).toBeVisible();
-      await expect(page.getByRole("heading", { name: "Insurance reminder" })).toBeVisible();
+      await expect(insuranceReminderLine(page)).toBeVisible();
     });
 
     test("Add insurance opens the contract form pre-linked, as car insurance", async ({ page }) => {
@@ -218,7 +221,7 @@ test.describe.serial("Vehicles module", () => {
       );
       await expect(page.getByText("Add the insurance policy as a contract to track cost and documents.")).toHaveCount(0);
       // The Contract's Reminders replace the Vehicle's own for this date.
-      await expect(page.getByRole("heading", { name: "Insurance reminder" })).toHaveCount(0);
+      await expect(insuranceReminderLine(page)).toHaveCount(0);
       await expect(page.getByRole("link", { name: "Add insurance" })).toHaveCount(0);
 
       await page.goto(`/contracts/${policyId}`);
@@ -244,7 +247,7 @@ test.describe.serial("Vehicles module", () => {
       await page.goto(`/vehicles/${vehicleId}`);
       await expect(page.getByRole("link", { name: `From ${policyTitle}` })).toHaveCount(0);
       await expect(page.getByText("Add the insurance policy as a contract to track cost and documents.")).toBeVisible();
-      await expect(page.getByRole("heading", { name: "Insurance reminder" })).toBeVisible();
+      await expect(insuranceReminderLine(page)).toBeVisible();
       await expect(page.getByRole("link", { name: "Add insurance" })).toBeVisible();
     });
 
