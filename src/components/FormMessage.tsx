@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { showToast } from "@/components/Toast";
 import { bannerClass } from "@/lib/ui";
 
@@ -18,20 +18,6 @@ export function isNewMessage(
   return message !== last.message || (attempt !== undefined && attempt !== last.attempt);
 }
 
-// A stable key per submission, so a repeated error is a new alert node and
-// screen readers announce it again (an unchanged role="alert" isn't re-read).
-const attemptIds = new WeakMap<object, number>();
-let nextAttemptId = 0;
-function attemptKey(attempt: unknown): string {
-  if (typeof attempt !== "object" || attempt === null) return "0";
-  let id = attemptIds.get(attempt);
-  if (id === undefined) {
-    id = ++nextAttemptId;
-    attemptIds.set(attempt, id);
-  }
-  return String(id);
-}
-
 export function FormMessage({
   error,
   success,
@@ -44,6 +30,16 @@ export function FormMessage({
 }) {
   const last = useRef<{ message: string | null; attempt: unknown }>({ message: null, attempt: undefined });
   const errorRef = useRef<HTMLParagraphElement>(null);
+  // A new key per submission, so a repeated error is a new alert node and
+  // screen readers announce it again (an unchanged role="alert" isn't re-read).
+  // Adjusted during render from the previous attempt, as React recommends,
+  // rather than kept in module state.
+  const [seenAttempt, setSeenAttempt] = useState(attempt);
+  const [alertKey, setAlertKey] = useState(0);
+  if (attempt !== seenAttempt) {
+    setSeenAttempt(attempt);
+    setAlertKey((key) => key + 1);
+  }
 
   useEffect(() => {
     if (success && isNewMessage(success, attempt, last.current)) {
@@ -61,7 +57,7 @@ export function FormMessage({
 
   if (error) {
     return (
-      <p key={attemptKey(attempt)} ref={errorRef} role="alert" className={bannerClass("danger")}>
+      <p key={alertKey} ref={errorRef} role="alert" className={bannerClass("danger")}>
         {error}
       </p>
     );
