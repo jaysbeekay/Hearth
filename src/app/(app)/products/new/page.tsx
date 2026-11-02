@@ -4,7 +4,7 @@ import { ProductForm } from "@/components/ProductForm";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { prisma } from "@/lib/prisma";
-import { isBarcodeLookupConfigured } from "@/lib/appSettings";
+import { getReminderConfig, isBarcodeLookupConfigured } from "@/lib/appSettings";
 import { BackLink } from "@/components/BackLink";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
@@ -14,10 +14,11 @@ import { inlineLinkClass } from "@/lib/ui";
 
 export default async function NewProductPage() {
   redirectIfReadOnly(await auth(), "/products");
-  const [{ preferredCurrency }, enabledModules, barcodeLookupEnabled] = await Promise.all([
+  const [{ preferredCurrency }, enabledModules, barcodeLookupEnabled, { defaultDays }] = await Promise.all([
     getUserPreferences(),
     getEnabledModuleKeys(),
     isBarcodeLookupConfigured(),
+    getReminderConfig(),
   ]);
   const properties = enabledModules.has("HOME")
     ? await prisma.property.findMany({ where: { deletedAt: null, archivedAt: null }, select: { id: true, label: true }, orderBy: { label: "asc" } })
@@ -52,6 +53,7 @@ export default async function NewProductPage() {
       </div>
       <Card>
         <ProductForm cancelHref="/products"
+          defaultReminderDays={defaultDays}
           action={createProduct}
           defaultCurrency={preferredCurrency}
           properties={properties}

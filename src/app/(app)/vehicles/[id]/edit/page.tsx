@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { getReminderConfig } from "@/lib/appSettings";
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { updateVehicle } from "@/lib/actions/vehicles";
 import { VehicleForm } from "@/components/VehicleForm";
@@ -18,7 +19,10 @@ export default async function EditVehiclePage({
 
   const { id } = await params;
   redirectIfReadOnly(await auth(), `/vehicles/${id}`);
-  const vehicle = await prisma.vehicle.findUnique({ where: { id } });
+  const [vehicle, { defaultDays }] = await Promise.all([
+    prisma.vehicle.findUnique({ where: { id } }),
+    getReminderConfig(),
+  ]);
   if (!vehicle || vehicle.deletedAt) notFound();
 
   const boundAction = updateVehicle.bind(null, vehicle.id);
@@ -31,7 +35,7 @@ export default async function EditVehiclePage({
         <p className="text-sm text-muted">{vehicle.label}</p>
       </div>
       <Card>
-        <VehicleForm cancelHref={`/vehicles/${vehicle.id}`} action={boundAction} vehicle={vehicle} />
+        <VehicleForm cancelHref={`/vehicles/${vehicle.id}`} action={boundAction} vehicle={vehicle} defaultReminderDays={defaultDays} />
       </Card>
     </PageShell>
   );

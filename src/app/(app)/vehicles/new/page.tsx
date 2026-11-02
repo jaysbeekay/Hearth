@@ -1,5 +1,6 @@
 import { requireModuleEnabled } from "@/lib/modules/enablement";
 import { createVehicle } from "@/lib/actions/vehicles";
+import { getReminderConfig } from "@/lib/appSettings";
 import { VehicleForm } from "@/components/VehicleForm";
 import { BackLink } from "@/components/BackLink";
 import { auth } from "@/lib/auth";
@@ -10,6 +11,7 @@ import { PageShell } from "@/components/ui/PageShell";
 export default async function NewVehiclePage() {
   await requireModuleEnabled("VEHICLES");
   redirectIfReadOnly(await auth(), "/vehicles");
+  const { defaultDays } = await getReminderConfig();
 
   return (
     <PageShell width="form">
@@ -21,7 +23,7 @@ export default async function NewVehiclePage() {
         </p>
       </div>
       <Card>
-        <VehicleForm cancelHref="/vehicles" action={createVehicle} />
+        <VehicleForm cancelHref="/vehicles" action={createVehicle} defaultReminderDays={defaultDays} />
       </Card>
     </PageShell>
   );

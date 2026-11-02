@@ -6,7 +6,8 @@ const emptyToUndefined = (val: unknown) =>
 /**
  * A record's Reminder thresholds as typed: a comma-separated list of days
  * before its date ("30,14,7,1"). Blank means none of its own, so the
- * household default applies. Shared by Contracts, Warranties and Tenancies.
+ * household default applies. Shared by Contracts, Warranties, Vehicles and
+ * Tenancies.
  */
 export const reminderDaysBeforeField = z.preprocess(
   emptyToUndefined,

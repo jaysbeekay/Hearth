@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { getReminderConfig } from "@/lib/appSettings";
 import { updateProduct } from "@/lib/actions/products";
 import { ProductForm } from "@/components/ProductForm";
 import { isModuleEnabled } from "@/lib/modules/enablement";
@@ -17,9 +18,10 @@ export default async function EditProductPage({
 }) {
   const { id } = await params;
   redirectIfReadOnly(await auth(), `/products/${id}`);
-  const [product, homeEnabled] = await Promise.all([
+  const [product, homeEnabled, { defaultDays }] = await Promise.all([
     prisma.product.findUnique({ where: { id } }),
     isModuleEnabled("HOME"),
+    getReminderConfig(),
   ]);
   if (!product || product.deletedAt) notFound();
 
@@ -36,6 +38,7 @@ export default async function EditProductPage({
       </div>
       <Card>
         <ProductForm cancelHref={`/products/${product.id}`}
+          defaultReminderDays={defaultDays}
           action={boundAction}
           product={product}
           properties={properties}
