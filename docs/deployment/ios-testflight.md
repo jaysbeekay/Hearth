@@ -11,6 +11,14 @@ App Store distribution and uploads it to TestFlight.
 | Manual run (Actions → Build iOS and upload to TestFlight) against a `v*` tag | Yes | Yes |
 | Manual run against a branch | Yes | Only if **Upload to TestFlight** is ticked |
 
+**Expected failure until it is configured.** Until the secrets below exist,
+every pushed `v*` tag starts a run that fails at its first step ("Require
+signing and App Store Connect secrets") and lists the missing names. That
+failure is expected and doesn't affect `release.yml`, Docker or Android. Once
+the secrets are in place, a red run on a tag is a real failure and needs
+looking at. Check the Actions tab after each release until the proof run has
+passed.
+
 This workflow is deliberately **not yet** one of the builds `release.yml`'s
 `artifacts` job dispatches and waits for, so a missing or broken iOS setup
 can't fail a release. Until it is, a tag created by running `release.yml` from
