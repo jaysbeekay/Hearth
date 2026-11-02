@@ -1016,6 +1016,344 @@ function hasDocument(type, id) {
   return docsFor(ownerTypeForRecordType(type), id).length > 0;
 }
 
+// ─── Due policy (#386, ADR 0002) ─────────────────────────────────────────────
+// Hand-ported from src/lib/duePolicy.ts, which can't be imported here. It
+// takes the same records (camelCase, as in the web) and gives the same
+// entries: which dated obligations a record has, how many days each has left,
+// its state and its badge text. tests/fixtures/due-policy-cases.json pins
+// both: vitest runs it against the web module and the standalone suite runs
+// it against this port, so a rule changed on one side only fails a suite.
+// Lists, Needs attention, Upcoming and local Reminders all ask dueEntries();
+// a standalone install is one household on one device, so "today" is the
+// device's day (dueContext).
+const DUE_DAY_MS = 86400000;
+const DUE_DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const DUE_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
+const DUE_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const DEFAULT_REMINDER_DAYS = "30,14,7,1";
+
+function dueValidTimeZone(timeZone) {
+  if (!timeZone) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// The calendar day `now` falls on in `timeZone` (an invalid zone counts as UTC).
+function dueHouseholdDay(now, timeZone) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: dueValidTimeZone(timeZone) ? timeZone : "UTC",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const part = (type) => Number(parts.find((p) => p.type === type)?.value);
+  const pad = (n, width = 2) => String(n).padStart(width, "0");
+  return `${pad(part("year"), 4)}-${pad(part("month"))}-${pad(part("day"))}`;
+}
+
+// What every Due question on this device is asked with.
+function dueContext() {
+  return { today: localTermToday(), defaultReminderDays: DEFAULT_REMINDER_DAYS };
+}
+
+function dueUtcMidnight(y, m, d) {
+  const date = new Date(0);
+  date.setUTCFullYear(y, m - 1, d);
+  return date.getTime();
+}
+
+function dueDayOf(ms) {
+  const date = new Date(ms);
+  const year = date.getUTCFullYear();
+  if (Number.isNaN(year) || year < 0 || year > 9999) return null;
+  const pad = (n, width = 2) => String(n).padStart(width, "0");
+  return `${pad(year, 4)}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
+}
+
+// A stored date's calendar day (its UTC date), or null when it isn't one.
+function dueDay(value) {
+  if (value == null || value === "") return null;
+  if (value instanceof Date) return dueDayOf(value.getTime());
+  if (typeof value !== "string") return null;
+  if (DUE_DAY_PATTERN.test(value)) {
+    const [y, m, d] = value.split("-").map(Number);
+    return dueDayOf(dueUtcMidnight(y, m, d)) === value ? value : null;
+  }
+  if (DUE_TIMESTAMP_PATTERN.test(value)) return dueDayOf(new Date(value).getTime());
+  return null;
+}
+
+function dueDayNumber(day) {
+  const [y, m, d] = day.split("-").map(Number);
+  return dueUtcMidnight(y, m, d) / DUE_DAY_MS;
+}
+
+function dueAddDays(day, days) {
+  return dueDayOf((dueDayNumber(day) + days) * DUE_DAY_MS) ?? day;
+}
+
+function dueDaysBetween(from, to) {
+  return dueDayNumber(to) - dueDayNumber(from);
+}
+
+// "3 Nov", or "3 Nov 2027" when it isn't this year.
+function dueDateText(day, today) {
+  const [, m, d] = day.split("-").map(Number);
+  const short = `${d} ${DUE_MONTHS[m - 1] ?? ""}`;
+  return day.slice(0, 4) === today.slice(0, 4) ? short : `${short} ${day.slice(0, 4)}`;
+}
+
+const DUE_VERBS = {
+  cancelBy: "Cancel by",
+  renews: "Renews",
+  expires: "Expires",
+  ends: "Ends",
+  regoDue: "Rego due",
+  insuranceDue: "Insurance due",
+  serviceDue: "Service due",
+  leaseEnds: "Lease ends",
+  ended: "Ended",
+  lapsed: "Lapsed",
+};
+
+function dueLabelText(label) {
+  const ago = (days) => (days === 1 ? "yesterday" : `${days} days ago`);
+  switch (label.key) {
+    case "expiredAgo":
+      return `Expired ${ago(label.days)}`;
+    case "regoExpiredAgo":
+      return `Rego expired ${ago(label.days)}`;
+    case "insuranceExpiredAgo":
+      return `Insurance expired ${ago(label.days)}`;
+    case "serviceOverdue":
+      return `Service overdue by ${label.days} ${label.days === 1 ? "day" : "days"}`;
+    case "needsNewEndDate":
+      return "Needs new end date";
+    case "leaseEnded":
+      return "Lease ended — set the new lease end";
+    default: {
+      const on = label.date === label.today ? "today" : dueDateText(label.date, label.today);
+      return `${DUE_VERBS[label.key]} ${on}`;
+    }
+  }
+}
+
+function dueEntry(field, date, daysLeft, state, labelParts) {
+  return { field, date, daysLeft, state, label: dueLabelText(labelParts) };
+}
+
+// Thresholds as the web's parseThresholds reads them, whole days only.
+function dueWholeDayThresholds(value) {
+  if (!value || !String(value).trim()) return [];
+  const days = String(value)
+    .split(",")
+    .map((part) => Number(part.trim()))
+    .filter((n) => Number.isFinite(n) && n >= 0 && Number.isInteger(n));
+  return Array.from(new Set(days)).sort((a, b) => a - b);
+}
+
+// A record's Reminder thresholds, ascending: its own, else the default's.
+function dueThresholds(reminderDaysBefore, defaultReminderDays = DEFAULT_REMINDER_DAYS) {
+  const own = dueWholeDayThresholds(reminderDaysBefore);
+  return own.length > 0 ? own : dueWholeDayThresholds(defaultReminderDays);
+}
+
+// How far ahead a record becomes Due: its largest Reminder threshold.
+function dueSoonWindow(reminderDaysBefore, defaultReminderDays) {
+  const days = dueThresholds(reminderDaysBefore, defaultReminderDays);
+  return days.length > 0 ? Math.max(...days) : 0;
+}
+
+function isDueEntry(entry) {
+  return entry.state === "due-soon" || entry.state === "overdue";
+}
+
+function dueNoticeApplies(record) {
+  return (
+    record.renewalType !== "FIXED_TERM" &&
+    record.noticePeriodDays != null &&
+    Number.isInteger(record.noticePeriodDays) &&
+    record.noticePeriodDays > 0
+  );
+}
+
+function dueUpcoming(field, date, daysLeft, window, key, today) {
+  return dueEntry(field, date, daysLeft, daysLeft <= window ? "due-soon" : "later", { key, date, today });
+}
+
+function dueContractEntries(record, ctx) {
+  if (record.status === "CANCELLED") return [];
+  const end = dueDay(record.endDate);
+  if (!end) return [];
+  const { today } = ctx;
+  const window = dueSoonWindow(record.reminderDaysBefore, ctx.defaultReminderDays);
+  if (dueNoticeApplies(record)) {
+    const deadline = dueAddDays(end, -record.noticePeriodDays);
+    const days = dueDaysBetween(today, deadline);
+    if (days >= 0) return [dueUpcoming("noticeDeadline", deadline, days, window, "cancelBy", today)];
+  }
+  const daysLeft = dueDaysBetween(today, end);
+  if (daysLeft >= 0) {
+    if (record.renewalType === "AUTO_RENEW") return [dueEntry("endDate", end, daysLeft, "later", { key: "renews", date: end, today })];
+    return [dueUpcoming("endDate", end, daysLeft, window, record.renewalType === "FIXED_TERM" ? "ends" : "expires", today)];
+  }
+  if (record.renewalType === "FIXED_TERM") return [dueEntry("endDate", end, daysLeft, "ended", { key: "ended", date: end, today })];
+  if (record.renewalType === "AUTO_RENEW") return [dueEntry("endDate", end, daysLeft, "needs-new-end-date", { key: "needsNewEndDate" })];
+  return [dueEntry("endDate", end, daysLeft, "overdue", { key: "expiredAgo", days: -daysLeft })];
+}
+
+function dueWarrantyEntries(record, ctx) {
+  const end = dueDay(record.warrantyEndDate);
+  if (!end) return [];
+  const daysLeft = dueDaysBetween(ctx.today, end);
+  if (daysLeft < 0) return [dueEntry("warrantyEndDate", end, daysLeft, "lapsed", { key: "lapsed", date: end, today: ctx.today })];
+  return [dueUpcoming("warrantyEndDate", end, daysLeft, dueSoonWindow(record.reminderDaysBefore, ctx.defaultReminderDays), "ends", ctx.today)];
+}
+
+const DUE_VEHICLE_FIELDS = [
+  { field: "regoExpiry", due: "regoDue", passed: "regoExpiredAgo" },
+  { field: "insuranceExpiry", due: "insuranceDue", passed: "insuranceExpiredAgo" },
+  { field: "nextServiceDue", due: "serviceDue", passed: "serviceOverdue" },
+];
+
+function dueVehicleEntries(record, ctx) {
+  if (record.archivedAt != null) return [];
+  const window = dueSoonWindow(record.reminderDaysBefore, ctx.defaultReminderDays);
+  const entries = [];
+  for (const { field, due, passed } of DUE_VEHICLE_FIELDS) {
+    if (record.coveredFields?.includes(field)) {
+      const ended = dueDay(record.fixedTermCoverEnds?.[field]);
+      const daysLeft = ended ? dueDaysBetween(ctx.today, ended) : 0;
+      if (ended && daysLeft < 0) entries.push(dueEntry(field, ended, daysLeft, "overdue", { key: passed, days: -daysLeft }));
+      continue;
+    }
+    const date = dueDay(record[field]);
+    if (!date) continue;
+    const daysLeft = dueDaysBetween(ctx.today, date);
+    entries.push(
+      daysLeft < 0
+        ? dueEntry(field, date, daysLeft, "overdue", { key: passed, days: -daysLeft })
+        : dueUpcoming(field, date, daysLeft, window, due, ctx.today),
+    );
+  }
+  return entries;
+}
+
+function dueTenancyEntries(record, ctx) {
+  if (record.coveredFields?.includes("leaseEnd")) {
+    const ended = dueDay(record.fixedTermCoverEnds?.leaseEnd);
+    const daysLeft = ended ? dueDaysBetween(ctx.today, ended) : 0;
+    return ended && daysLeft < 0 ? [dueEntry("leaseEnd", ended, daysLeft, "needs-new-end-date", { key: "leaseEnded" })] : [];
+  }
+  const end = dueDay(record.leaseEnd);
+  if (!end) return [];
+  const daysLeft = dueDaysBetween(ctx.today, end);
+  if (daysLeft < 0) return [dueEntry("leaseEnd", end, daysLeft, "needs-new-end-date", { key: "leaseEnded" })];
+  return [dueUpcoming("leaseEnd", end, daysLeft, dueSoonWindow(record.reminderDaysBefore, ctx.defaultReminderDays), "leaseEnds", ctx.today)];
+}
+
+// Every Due entry of a record, soonest first (a Vehicle's ties keep rego,
+// insurance, service order). Trips are never Due.
+function dueEntries(record, ctx) {
+  const entries =
+    record.kind === "contract" ? dueContractEntries(record, ctx)
+    : record.kind === "warranty" ? dueWarrantyEntries(record, ctx)
+    : record.kind === "vehicle" ? dueVehicleEntries(record, ctx)
+    : record.kind === "tenancy" ? dueTenancyEntries(record, ctx)
+    : [];
+  return entries.sort((a, b) => a.daysLeft - b.daysLeft);
+}
+
+// The entries that get local Reminders, as the web's reminderEntries: today
+// or ahead and not Ended, Lapsed or waiting on a new date, and never an
+// auto-renewing Contract's end date (it just renews).
+function dueReminderEntries(record, ctx) {
+  return dueEntries(record, ctx).filter(
+    (entry) =>
+      entry.daysLeft >= 0 &&
+      (entry.state === "due-soon" || entry.state === "later") &&
+      !(record.kind === "contract" && record.renewalType === "AUTO_RENEW" && entry.field === "endDate"),
+  );
+}
+
+// ─── Local rows as Due records ────────────────────────────────────────────────
+
+// A local row's date for the policy: as stored, or its leading YYYY-MM-DD
+// when it was saved in some other shape (older rows, imports).
+function rowDueDate(value) {
+  if (value == null || value === "") return null;
+  return dueDay(String(value)) ?? dueDay(String(value).slice(0, 10));
+}
+
+function contractDueRecord(row) {
+  return {
+    kind: "contract",
+    endDate: rowDueDate(row.end_date),
+    noticePeriodDays: row.notice_period_days == null || row.notice_period_days === "" ? null : Number(row.notice_period_days),
+    renewalType: row.renewal_type ?? "MANUAL_RENEWAL",
+    status: row.status ?? "ACTIVE",
+    reminderDaysBefore: row.reminder_days_before,
+  };
+}
+
+function warrantyDueRecord(row) {
+  return { kind: "warranty", warrantyEndDate: rowDueDate(row.warranty_end_date), reminderDaysBefore: row.reminder_days_before };
+}
+
+// A Covered rego/insurance date goes through vehicleOwnDates (#456/#487): null
+// while the Contract Covers it, or the fixed-term Contract's end once ended.
+function vehicleDueRecordFor(row) {
+  const own = vehicleOwnDates(row);
+  return {
+    kind: "vehicle",
+    regoExpiry: rowDueDate(own.rego_expiry),
+    insuranceExpiry: rowDueDate(own.insurance_expiry),
+    nextServiceDue: rowDueDate(own.next_service_due),
+    reminderDaysBefore: row.reminder_days_before,
+    archivedAt: isArchived(row) ? row.archived_at : null,
+  };
+}
+
+// #457 — a Tenancy's linked Contract Covers it when its end date is the
+// lease end and it is not Cancelled, in Trash or awaiting review, as on the
+// web (isCoveringTenancy): the Contract's entries stand in for the lease end.
+function tenancyCoveringContract(row) {
+  if (!row.contract_id) return null;
+  const contract = cache.contracts.find((c) => c.id === row.contract_id);
+  if (!contract || contract.deleted_at || contract.status === "CANCELLED" || Number(contract.extraction_pending ?? 0) === 1) return null;
+  const end = rowDueDate(contract.end_date);
+  return end && end === rowDueDate(row.lease_end) ? contract : null;
+}
+
+function tenancyDueRecordFor(row) {
+  const cover = tenancyCoveringContract(row);
+  return {
+    kind: "tenancy",
+    leaseEnd: rowDueDate(row.lease_end),
+    reminderDaysBefore: row.reminder_days_before,
+    ...(cover
+      ? { coveredFields: ["leaseEnd"], ...(cover.renewal_type === "FIXED_TERM" ? { fixedTermCoverEnds: { leaseEnd: rowDueDate(cover.end_date) } } : {}) }
+      : {}),
+  };
+}
+
+function dueRecordFor(type, row) {
+  if (type === "contracts") return contractDueRecord(row);
+  if (type === "products") return warrantyDueRecord(row);
+  if (type === "vehicles") return vehicleDueRecordFor(row);
+  if (type === "rentalAgreements") return tenancyDueRecordFor(row);
+  return null;
+}
+
+function dueEntriesFor(type, row, ctx = dueContext()) {
+  const record = dueRecordFor(type, row);
+  return record ? dueEntries(record, ctx) : [];
+}
+
 // #456 - Covers, hand-ported from src/lib/covers.ts. A Contract linked to a
 // Vehicle, in a Covering Category, not cancelled, trashed or awaiting review,
 // and with an end date, supplies the Vehicle's rego or insurance date. With several, the one
@@ -1082,72 +1420,58 @@ function vehicleOwnDates(row) {
   return own;
 }
 
+// #386 — whether a record needs attention, from the Due policy as on the
+// web's Needs attention: its Due entries (due soon or overdue) first, else
+// the Housekeeping of a record waiting on its new end date. Ended Contracts
+// and Lapsed Warranties leave the queue. Needs review comes first (#412).
 function attentionForRecord(type, row) {
   if (["contracts", "products"].includes(type) && Number(row.extraction_pending ?? 0) === 1) {
     // #412 — Needs review is Housekeeping: a neutral badge, as in the web app.
-    return { tone: "neutral", label: "Needs review", meta: "Confirm details before reminders run" };
+    return { tone: "neutral", label: "Needs review", meta: "Confirm details before reminders run", daysLeft: null };
   }
-  if (type === "contracts") {
-    const days = daysUntil(row.end_date);
-    if (days == null || row.status !== "ACTIVE") return null;
-    if (days < 0) return { tone: "danger", label: "Expired", meta: `Ended ${Math.abs(days)} days ago` };
-    if (days <= 30) return { tone: "warning", label: "Due soon", meta: `Ends in ${days} days` };
-  }
-  if (type === "products") {
-    const days = daysUntil(row.warranty_end_date);
-    if (days == null) return null;
-    if (days < 0) return { tone: "danger", label: "Warranty expired", meta: `${Math.abs(days)} days ago` };
-    if (days <= 30) return { tone: "warning", label: "Warranty", meta: `Ends in ${days} days` };
-  }
-  if (type === "vehicles") {
-    if (isArchived(row)) return null;
-    const own = vehicleOwnDates(row);
-    const rego = daysUntil(own.rego_expiry);
-    const insurance = daysUntil(own.insurance_expiry);
-    const service = daysUntil(own.next_service_due);
-    const urgent = [
-      rego != null && rego <= 30 ? ["Rego", rego] : null,
-      insurance != null && insurance <= 30 ? ["Insurance", insurance] : null,
-      service != null && service <= 30 ? ["Service", service] : null,
-    ].filter(Boolean);
-    if (urgent.length === 0) return null;
-    const expired = urgent.some((entry) => entry[1] < 0);
+  // Only a rented Property's current Tenancy has a Due lease end (#388, #355).
+  if (type === "rentalAgreements" && !isCurrentTenancy(row)) return null;
+  const entries = dueEntriesFor(type, row);
+  const due = entries.filter(isDueEntry);
+  if (due.length > 0) {
+    const overdue = due.some((entry) => entry.state === "overdue");
     return {
-      tone: expired ? "danger" : "warning",
-      label: expired ? "Vehicle overdue" : "Vehicle due",
-      meta: urgent.map(([label, days]) => `${label} ${days < 0 ? `${Math.abs(days)}d overdue` : `in ${days}d`}`).join(" · "),
+      tone: overdue ? "danger" : "warning",
+      label: overdue ? "Overdue" : "Due soon",
+      meta: due.map((entry) => entry.label).join(" · "),
+      daysLeft: due[0].daysLeft,
     };
   }
-  if (type === "rentalAgreements") {
-    const days = daysUntil(row.lease_end);
-    if (days == null) return null;
-    if (days < 0) return { tone: "danger", label: "Lease ended", meta: `${Math.abs(days)} days ago` };
-    if (days <= 45) return { tone: "warning", label: "Lease ending", meta: `Ends in ${days} days` };
-  }
+  const tidy = entries.find((entry) => entry.state === "needs-new-end-date");
+  if (tidy) return { tone: "neutral", label: "Needs new end date", meta: tidy.label, daysLeft: tidy.daysLeft };
   return null;
 }
+
+// A Tenancy whose lease end can be Due: its Property is rented, not
+// Archived, and this is that Property's current (most recent) lease.
+function isCurrentTenancy(row) {
+  const property = cache.properties.find((candidate) => candidate.id === row.property_id);
+  if (!property || isArchived(property) || Number(property.is_rented ?? 0) !== 1) return false;
+  return currentTenancyFor(property.id)?.id === row.id;
+}
+
+const ATTENTION_TONE_ORDER = { danger: 0, warning: 1, neutral: 2 };
 
 function buildAttentionItems() {
   const rows = [
     ...cache.contracts.map((row) => ({ type: "contracts", row })),
     ...cache.products.map((row) => ({ type: "products", row })),
     ...(moduleEnabled("vehicles") ? activeRows(cache.vehicles).map((row) => ({ type: "vehicles", row })) : []),
-    // A Tenancy's lease end stops being Due once its Property is Archived (#355).
-    ...(moduleEnabled("properties")
-      ? cache.rentalAgreements
-          .filter((row) => !isArchived(cache.properties.find((property) => property.id === row.property_id)))
-          .map((row) => ({ type: "rentalAgreements", row }))
-      : []),
-    ...(moduleEnabled("trips") ? cache.trips.map((row) => ({ type: "trips", row })) : []),
+    ...(moduleEnabled("properties") ? cache.rentalAgreements.map((row) => ({ type: "rentalAgreements", row })) : []),
   ];
+  // Due first (overdue, then due soon), then Housekeeping; soonest first in each.
   return rows
     .map((item) => ({ ...item, attention: attentionForRecord(item.type, item.row) }))
     .filter((item) => item.attention)
-    .sort((a, b) => {
-      const aDanger = a.attention.tone === "danger" ? 0 : 1;
-      const bDanger = b.attention.tone === "danger" ? 0 : 1;
-      return aDanger - bDanger || String(a.attention.meta).localeCompare(String(b.attention.meta));
-    });
+    .sort((a, b) =>
+      ATTENTION_TONE_ORDER[a.attention.tone] - ATTENTION_TONE_ORDER[b.attention.tone] ||
+      (a.attention.daysLeft ?? 0) - (b.attention.daysLeft ?? 0) ||
+      String(recordTitle(a.type, a.row)).localeCompare(String(recordTitle(b.type, b.row))));
 }
 
 async function storeFile(ownerType, ownerId, file) {
@@ -1610,53 +1934,60 @@ function renderCalendar() {
   `;
 }
 
-// The web Due policy's window (src/lib/duePolicy.ts dueSoonWindow): a record
-// is Due soon within its largest Reminder threshold (default 30,14,7,1).
-function dueSoonWindowDays(thresholds) {
-  const days = parseReminderDays(thresholds);
-  return days.length > 0 ? Math.max(...days) : 0;
-}
+// Upcoming's label for each kind of Due entry.
+const UPCOMING_LABELS = {
+  noticeDeadline: "Notice deadline",
+  endDate: "Contract ends",
+  warrantyEndDate: "Warranty ends",
+  regoExpiry: "Rego expiry",
+  insuranceExpiry: "Insurance expiry",
+  nextServiceDue: "Service due",
+  leaseEnd: "Lease end",
+};
 
-// #476, #402 — Upcoming runs from today with no history, as on the web:
-// anything Overdue is in Needs attention instead. Only a Due entry is ever
-// Due soon, with the same rules as the web's Due policy + statusTone: inside
-// the record's own Reminder window, never for a Cancelled Contract, never for
-// an auto-renewing Contract's end date (it just renews), and never for a
-// Contract/Warranty still held for review. A Trip segment is a plain neutral
-// date. The web lists Trip segments, not the Trip itself, and a segment stays
-// while any of it is ahead (its end, or its start when it has none); once it
-// has begun it sorts at today and says "In progress", keeping its real start
-// date on the card.
+// #476, #402, #386 — Upcoming runs from today with no history, as on the
+// web: anything Overdue is in Needs attention instead. Contracts,
+// Warranties, Vehicles and the current Tenancy list their Due policy entries
+// that are today or ahead (a Contract's notice deadline while it's ahead,
+// else its end date), and only a due-soon entry is coloured. A Contract or
+// Warranty still held for review is listed but never coloured. A Trip
+// segment is a plain neutral date. The web lists Trip segments, not the Trip
+// itself, and a segment stays while any of it is ahead (its end, or its
+// start when it has none); once it has begun it sorts at today and says "In
+// progress", keeping its real start date on the card.
 function calendarEvents() {
   const today = localTermToday();
+  const ctx = dueContext();
   const events = [];
-  const add = (date, label, title, type, id, { dueWindow = null, lastDate = date } = {}) => {
+  const add = (date, label, title, type, id, { tone = "neutral", lastDate = date } = {}) => {
     if (!date) return;
     const days = daysUntil(date);
     const lastDays = daysUntil(lastDate);
     if (days == null || lastDays == null || lastDays < 0) return;
     const inProgress = days < 0;
-    const tone = dueWindow != null && !inProgress && days <= dueWindow ? "warning" : "neutral";
     const day = String(date).slice(0, 10);
-    events.push({ date: day, sortDate: inProgress ? today : day, inProgress, label, title, type, id, days: Math.max(days, 0), tone });
+    events.push({ date: day, sortDate: inProgress ? today : day, inProgress, label, title, type, id, days: Math.max(days, 0), tone: inProgress ? "neutral" : tone });
   };
   const held = (row) => Number(row.extraction_pending ?? 0) === 1;
-  for (const row of cache.contracts) {
-    if (row.status === "CANCELLED") continue;
-    const due = !held(row) && row.renewal_type !== "AUTO_RENEW";
-    add(row.end_date, "Contract ends", recordTitle("contracts", row), "contracts", row.id, { dueWindow: due ? dueSoonWindowDays(row.reminder_days_before) : null });
-  }
-  for (const row of cache.products) {
-    add(row.warranty_end_date, "Warranty ends", recordTitle("products", row), "products", row.id, { dueWindow: held(row) ? null : dueSoonWindowDays(row.reminder_days_before) });
-  }
-  for (const row of activeRows(cache.vehicles)) {
-    // #456 — a Covered rego/insurance date is the Covering Contract's, which
-    // has its own "Contract ends" event, so the Vehicle lists only its own.
-    const own = vehicleOwnDates(row);
-    const dueWindow = dueSoonWindowDays(row.reminder_days_before);
-    add(own.rego_expiry, "Rego expiry", recordTitle("vehicles", row), "vehicles", row.id, { dueWindow });
-    add(own.insurance_expiry, "Insurance expiry", recordTitle("vehicles", row), "vehicles", row.id, { dueWindow });
-    add(own.next_service_due, "Service due", recordTitle("vehicles", row), "vehicles", row.id, { dueWindow });
+  const addEntries = (type, row, { open = { type, id: row.id }, title = recordTitle(type, row) } = {}) => {
+    for (const entry of dueEntriesFor(type, row, ctx)) {
+      if (entry.daysLeft < 0) continue;
+      const tone = entry.state === "due-soon" && !held(row) ? "warning" : "neutral";
+      add(entry.date, UPCOMING_LABELS[entry.field] ?? entry.field, title, open.type, open.id, { tone });
+    }
+  };
+  for (const row of cache.contracts) addEntries("contracts", row);
+  for (const row of cache.products) addEntries("products", row);
+  // #456 — a Covered rego/insurance date is the Covering Contract's, which
+  // has its own event, so the Vehicle lists only its own.
+  for (const row of activeRows(cache.vehicles)) addEntries("vehicles", row);
+  // #388, #457 — the current Tenancy's lease end, unless its Contract Covers it.
+  if (moduleEnabled("properties")) {
+    for (const row of cache.rentalAgreements) {
+      if (!isCurrentTenancy(row)) continue;
+      const property = cache.properties.find((candidate) => candidate.id === row.property_id);
+      addEntries("rentalAgreements", row, { open: { type: "properties", id: property.id }, title: recordTitle("properties", property) });
+    }
   }
   for (const row of cache.tripSegments) {
     add(row.start_date, typeLabel(row.type), recordTitle("tripSegments", row), "tripSegments", row.id, { lastDate: row.end_date || row.start_date });
@@ -1692,7 +2023,7 @@ function renderReminders() {
   // #412 — only a record whose reminders can run counts as due soon or
   // overdue; one missing its date or thresholds is "Missing setup" instead.
   const dueSoon = targets.filter((target) => target.health.enabled && ["danger", "warning"].includes(target.health.tone));
-  const missing = targets.filter((target) => !target.health.enabled);
+  const missing = targets.filter((target) => target.health.missing);
   const scheduleable = reminderNotifications().length;
   return `
     <section class="hero-card">
@@ -1742,17 +2073,35 @@ function renderReminderCard(target) {
   `;
 }
 
+// #386 — a Reminder target per Due entry, from the Due policy as on the
+// web's Reminder schedule: a Contract reminds for its notice deadline while
+// it's ahead, then its end date unless it auto-renews; nothing reminds once
+// its date has passed; a Cancelled Contract has none. A Covered date (#456,
+// #457) is the Covering Contract's to remind about.
 function reminderTargets() {
+  const ctx = dueContext();
   return [
-    ...cache.contracts.map((row) => reminderTarget("contracts", row, "Contract", row.end_date, row.reminder_days_before)),
-    ...cache.products.map((row) => reminderTarget("products", row, "Warranty", row.warranty_end_date, row.reminder_days_before)),
-    ...activeRows(cache.vehicles).flatMap((row) => vehicleReminderTargets("vehicles", row)),
-    ...leaseReminderTargets(),
+    ...cache.contracts.flatMap((row) => recordReminderTargets("contracts", row, "Contract", ctx)),
+    ...cache.products.flatMap((row) => recordReminderTargets("products", row, "Warranty", ctx)),
+    ...activeRows(cache.vehicles).flatMap((row) => vehicleReminderTargets("vehicles", row, ctx)),
+    ...leaseReminderTargets(ctx),
   ].sort((a, b) => {
     const aDate = a.health.sortDate ?? "9999-12-31";
     const bDate = b.health.sortDate ?? "9999-12-31";
     return aDate.localeCompare(bDate);
   });
+}
+
+// A Contract's or Warranty's targets: one for its current Due entry.
+function recordReminderTargets(type, row, kind, ctx = dueContext()) {
+  if (type === "contracts" && row.status === "CANCELLED") return [];
+  const dateField = type === "contracts" ? row.end_date : row.warranty_end_date;
+  if (Number(row.extraction_pending ?? 0) === 1) return [reminderTarget(type, row, kind, null, dateField)];
+  const record = dueRecordFor(type, row);
+  const entries = dueEntries(record, ctx);
+  if (entries.length === 0) return [reminderTarget(type, row, kind, null, dateField)];
+  const remindable = dueReminderEntries(record, ctx);
+  return entries.map((entry) => reminderTarget(type, row, kind, entry, dateField, remindable.some((candidate) => candidate.field === entry.field)));
 }
 
 // Record types whose save or delete changes the scheduled local Reminders.
@@ -1778,70 +2127,131 @@ function currentTenancyFor(propertyId) {
 
 // A Vehicle's rego, insurance and service Reminders, leaving out a date a
 // Covering Contract supplies (#456): that Contract's own Reminder stands in.
-function vehicleReminderTargets(type, row) {
+// Once a fixed-term Covering Contract has ended, the Vehicle reminds from
+// its end date again (vehicleOwnDates, #487).
+function vehicleReminderTargets(type, row, ctx = dueContext()) {
+  const record = vehicleDueRecordFor(row);
+  const entries = dueEntries(record, ctx);
+  const remindable = dueReminderEntries(record, ctx);
   const covered = vehicleCovers(row.id);
-  // A Covered date has no Reminder of its own, unless its fixed-term Contract
-  // has ended: then the Vehicle reminds from the Contract's end date.
-  const own = (field, kind) => {
-    const cover = covered.get(field);
-    if (!cover) return reminderTarget(type, row, kind, row[field], row.reminder_days_before);
-    return coverEnded(cover) ? reminderTarget(type, row, kind, cover.end_date, row.reminder_days_before) : null;
+  const target = (field, dueField, kind) => {
+    const entry = entries.find((candidate) => candidate.field === dueField);
+    if (entry) return reminderTarget(type, row, kind, entry, row[field], remindable.some((candidate) => candidate.field === entry.field));
+    if (covered.has(field)) return null;
+    return reminderTarget(type, row, kind, null, row[field]);
   };
   return [
-    own("rego_expiry", "Rego"),
-    own("insurance_expiry", "Insurance"),
-    reminderTarget(type, row, "Service", row.next_service_due, row.reminder_days_before),
+    target("rego_expiry", "regoExpiry", "Rego"),
+    target("insurance_expiry", "insuranceExpiry", "Insurance"),
+    target("next_service_due", "nextServiceDue", "Service"),
   ].filter(Boolean);
 }
 
-function leaseReminderTargets() {
+// A rented Property's current Tenancy, for its lease end (#388). While its
+// linked Contract Covers it (#457) the Contract reminds instead, and past
+// its lease end it needs a new one rather than a Reminder.
+function leaseReminderTargets(ctx = dueContext()) {
   if (!moduleEnabled("properties")) return [];
   return activeRows(cache.properties)
     .filter((property) => Number(property.is_rented ?? 0) === 1)
     .flatMap((property) => {
       const tenancy = currentTenancyFor(property.id);
       if (!tenancy?.lease_end) return [];
-      const target = reminderTarget("rentalAgreements", tenancy, "Lease", tenancy.lease_end, tenancy.reminder_days_before);
-      // A Tenancy opens on its Property, and past its lease end it needs a new one rather than a Reminder.
-      const ended = (daysUntil(tenancy.lease_end) ?? 0) < 0;
+      const record = tenancyDueRecordFor(tenancy);
+      const [entry] = dueEntries(record, ctx);
+      if (!entry) return record.coveredFields ? [] : [{ ...reminderTarget("rentalAgreements", tenancy, "Lease", null, tenancy.lease_end), title: recordTitle("properties", property), open: { type: "properties", id: property.id } }];
+      const target = reminderTarget("rentalAgreements", tenancy, "Lease", entry, tenancy.lease_end, dueReminderEntries(record, ctx).some((candidate) => candidate.field === entry.field));
       return [
         {
           ...target,
           title: recordTitle("properties", property),
           open: { type: "properties", id: property.id },
-          health: ended
-            ? { ...target.health, enabled: false, tone: "neutral", label: "Lease ended", summary: "Set the new lease end.", nextReminderDate: null }
-            : target.health,
+          health:
+            entry.state === "needs-new-end-date"
+              ? { ...target.health, enabled: false, missing: false, tone: "neutral", label: "Lease ended", summary: "Set the new lease end.", nextReminderDate: null }
+              : target.health,
         },
       ];
     });
 }
 
-function reminderTarget(type, row, kind, dueDate, thresholds) {
+// One Reminder target: `entry` is its Due entry (null when the record has
+// no readable date), `rawDate` the stored date, and `remindable` whether the
+// entry gets Reminders at all.
+function reminderTarget(type, row, kind, entry, rawDate, remindable = false) {
   const field = reminderFieldForKind(kind);
   const heldForReview = ["contracts", "products"].includes(type) && Number(row.extraction_pending ?? 0) === 1;
+  const thresholds = dueThresholds(row.reminder_days_before);
   const health = heldForReview
     ? {
         enabled: false,
+        // #412 — it can't run until confirmed, so it counts as Missing setup.
+        missing: true,
         tone: "neutral",
         label: "Held",
         summary: "Details need review; reminders are held until confirmed.",
         nextReminderDate: null,
-        sortDate: String(dueDate ?? "9999-12-31").slice(0, 10),
+        sortDate: String(rawDate ?? "9999-12-31").slice(0, 10),
       }
-    : reminderHealth(dueDate, thresholds);
+    : entryReminderHealth(entry, rawDate, thresholds, remindable);
   const logs = reminderLogsFor(type, row.id, field);
   return {
     type,
     row,
     kind,
     field,
-    dueDate,
+    entry,
+    dueDate: entry?.date ?? null,
+    thresholds,
     health: {
       ...health,
       lastScheduled: latestReminderLog(logs, "SCHEDULED"),
       lastFailure: latestReminderLog(logs, "FAILED"),
     },
+  };
+}
+
+// Why an entry that has a date gets no Reminder.
+const QUIET_ENTRY_LABELS = {
+  later: ["Renews", "Renews automatically, so its end date needs no reminder."],
+  ended: ["Ended", "Fixed term has ended; nothing to remind about."],
+  lapsed: ["Lapsed", "Warranty has lapsed; nothing to remind about."],
+  "needs-new-end-date": ["Needs new end date", "Renewed automatically; set the new end date."],
+};
+
+// "Due 2099-03-15", or "Cancel by …" for a notice deadline, in the shell's date style.
+function entryDueText(entry) {
+  return `${entry.field === "noticeDeadline" ? "Cancel by" : "Due"} ${readableDate(entry.date)}`;
+}
+
+function entryReminderHealth(entry, rawDate, thresholds, remindable) {
+  if (!entry) {
+    if (!rawDate) return { enabled: false, missing: true, tone: "neutral", label: "No date", summary: "Add a target date before reminders can be planned.", nextReminderDate: null, sortDate: null };
+    return { enabled: false, missing: true, tone: "neutral", label: "Invalid date", summary: "The saved date could not be read.", nextReminderDate: null, sortDate: null };
+  }
+  if (thresholds.length === 0) return { enabled: false, missing: true, tone: "neutral", label: "No thresholds", summary: "Add comma-separated reminder days, for example 30,14,7,1.", nextReminderDate: null, sortDate: entry.date };
+  const listed = [...thresholds].sort((a, b) => b - a);
+  if (entry.state === "overdue") {
+    return { enabled: true, missing: false, tone: "danger", label: "Overdue", summary: `${entryDueText(entry)}; thresholds ${listed.join(", ")} days.`, nextReminderDate: null, sortDate: entry.date };
+  }
+  if (!remindable) {
+    const [label, summary] = QUIET_ENTRY_LABELS[entry.state] ?? ["No reminder", entry.label];
+    return { enabled: false, missing: false, tone: "neutral", label, summary: `${entry.label}. ${summary}`, nextReminderDate: null, sortDate: entry.date };
+  }
+  const nextThreshold = listed.find((threshold) => threshold <= entry.daysLeft);
+  const nextReminderDate = nextThreshold == null ? localTermToday() : dueAddDays(entry.date, -nextThreshold);
+  const dueSoon = entry.state === "due-soon";
+  return {
+    enabled: true,
+    missing: false,
+    tone: dueSoon ? "warning" : "neutral",
+    label: dueSoon ? "Due soon" : "Planned",
+    summary:
+      nextThreshold == null
+        ? `${entryDueText(entry)}; all configured reminder thresholds have passed.`
+        : `${entryDueText(entry)}; next reminder ${nextReminderDate} (${nextThreshold} days before).`,
+    nextReminderDate,
+    sortDate: nextReminderDate,
   };
 }
 
@@ -1880,28 +2290,6 @@ function reminderDeliverySummary(health) {
   return parts.length > 0 ? parts.join(" · ") : "No local delivery history yet.";
 }
 
-function reminderHealth(dueDate, thresholdsText) {
-  const thresholds = parseReminderDays(thresholdsText);
-  if (!dueDate) return { enabled: false, tone: "neutral", label: "No date", summary: "Add a target date before reminders can be planned.", nextReminderDate: null, sortDate: null };
-  if (thresholds.length === 0) return { enabled: false, tone: "neutral", label: "No thresholds", summary: "Add comma-separated reminder days, for example 30,14,7,1.", nextReminderDate: null, sortDate: String(dueDate).slice(0, 10) };
-  const days = daysUntil(dueDate);
-  if (days == null) return { enabled: false, tone: "neutral", label: "Invalid date", summary: "The saved date could not be read.", nextReminderDate: null, sortDate: null };
-  const dueLabel = readableDate(dueDate);
-  if (days < 0) return { enabled: true, tone: "danger", label: "Overdue", summary: `Due ${dueLabel}; thresholds ${thresholds.join(", ")} days.`, nextReminderDate: null, sortDate: dueLabel };
-  const nextThreshold = thresholds.find((threshold) => threshold <= days);
-  const nextReminderDate = nextThreshold == null ? readableDate(nowIso()) : addDaysIso(dueDate, -nextThreshold);
-  const label = days <= 30 ? "Due soon" : "Planned";
-  const tone = days <= 30 ? "warning" : "neutral";
-  return {
-    enabled: true,
-    tone,
-    label,
-    summary: nextThreshold == null ? `Due ${dueLabel}; all configured reminder thresholds have passed.` : `Due ${dueLabel}; next reminder ${nextReminderDate} (${nextThreshold} days before).`,
-    nextReminderDate,
-    sortDate: nextReminderDate,
-  };
-}
-
 function parseReminderDays(value) {
   return String(value || "30,14,7,1")
     .split(",")
@@ -1924,9 +2312,9 @@ function reminderNotifications() {
 }
 
 function reminderNotificationPlans(target) {
-  if (!target.health.enabled || !target.dueDate) return [];
+  if (!target.health.enabled || !target.dueDate || target.entry?.state === "overdue") return [];
   const title = target.title ?? recordTitle(target.type, target.row);
-  return parseReminderDays(target.row.reminder_days_before)
+  return target.thresholds
     .map((threshold) => {
       const reminderDate = addDaysIso(target.dueDate, -threshold);
       const at = notificationDate(reminderDate);
@@ -1937,7 +2325,9 @@ function reminderNotificationPlans(target) {
         body:
           target.kind === "Lease"
             ? `Lease for ${title} ends ${readableDate(target.dueDate)} (${threshold} days to go).`
-            : `${target.kind} is due ${readableDate(target.dueDate)} (${threshold} days to go).`,
+            : target.entry?.field === "noticeDeadline"
+              ? `Cancel by ${readableDate(target.dueDate)} or it renews (${threshold} days to go).`
+              : `${target.kind} is due ${readableDate(target.dueDate)} (${threshold} days to go).`,
         schedule: { at },
         channelId: REMINDER_CHANNEL_ID,
         extra: {
@@ -2828,10 +3218,11 @@ function renderRecordReminderHealth(type, row) {
   if (isArchived(row)) return "";
   const targets =
     type === "contracts"
-      ? [reminderTarget(type, row, "Contract", row.end_date, row.reminder_days_before)]
+      ? recordReminderTargets(type, row, "Contract")
       : type === "products"
-        ? [reminderTarget(type, row, "Warranty", row.warranty_end_date, row.reminder_days_before)]
+        ? recordReminderTargets(type, row, "Warranty")
         : vehicleReminderTargets(type, row);
+  if (targets.length === 0) return "";
   return `
     <div class="subsection">
       <h3>Reminder health</h3>
