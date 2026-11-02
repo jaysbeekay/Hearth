@@ -98,7 +98,7 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   start date. The iOS and Android shell is unchanged.
 - **Search opens on something useful, and Documents stops overloading
   "type" (#366).** Before you type, Search shows the last five records you
-  opened in this browser (only their ids are kept locally; titles come from
+  opened in this browser (only their kind and id are kept locally; titles come from
   the server, so a deleted record drops out) and the first three Due rows
   from Needs attention. Its chips are down to Due soon, Needs review and
   Important; No document and Missing key details stay on the list pages'
@@ -142,6 +142,11 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 - **Scanned contract category (#519 follow-up).** A scanned title such as
   "Mobile phone warranty" is now guessed as Warranty rather than Telecom or
   Utility.
+- **Search suggestions (#520 follow-up).** Pressing Cmd/Ctrl-K while
+  Search is open reloads Recently viewed and Needs attention instead of
+  leaving them blank, a one-character query shows the "type at least 2
+  characters" hint instead of the suggestions, and typing or picking a chip
+  clears the highlighted row so Enter can't open a row from the old list.
 
 ## [0.20.1] - 2026-10-31
 
