@@ -8,7 +8,9 @@ import { bannerClass } from "@/lib/ui";
  * Whether a message should be announced (toast or scroll) again: it's a
  * different message, or the same one from a new submission. `attempt` is the
  * action's returned state, a new object per submission, so failing twice
- * with the same error still brings the second failure into view.
+ * with the same error still brings the second failure into view. A caller
+ * that omits it gets each distinct message once: pass a fresh `attempt`
+ * wherever a repeated identical error must show again.
  */
 export function isNewMessage(
   message: string,
