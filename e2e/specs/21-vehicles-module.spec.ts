@@ -49,7 +49,7 @@ test.describe.serial("Vehicles module", () => {
     await page.getByRole("button", { name: "Add service record" }).click();
     await page.waitForURL(/\/vehicles\/(?!new$)[^/]+$/);
 
-    const row = page.locator("div.rounded-xl.border.border-border.bg-surface", {
+    const row = page.locator("div.rounded-lg.border.border-border.bg-surface", {
       hasText: "Test Service Record",
     });
     const editHref = await row.getByRole("link", { name: "Edit" }).getAttribute("href");
@@ -61,7 +61,7 @@ test.describe.serial("Vehicles module", () => {
   test("upload a document to the service record", async ({ page }) => {
     await page.goto(`/vehicles/${vehicleId}`);
 
-    const row = page.locator("div.rounded-xl.border.border-border.bg-surface", {
+    const row = page.locator("div.rounded-lg.border.border-border.bg-surface", {
       hasText: "Test Service Record",
     });
     await row.locator('input[type="file"]').setInputFiles({
@@ -96,11 +96,11 @@ test.describe.serial("Vehicles module", () => {
     expect(fs.existsSync(fileDir)).toBe(true);
 
     await page.goto(`/vehicles/${vehicleId}`);
-    const row = page.locator("div.rounded-xl.border.border-border.bg-surface", {
+    const row = page.locator("div.rounded-lg.border.border-border.bg-surface", {
       hasText: "Updated Service Record",
     });
     await row.getByRole("button", { name: "Delete", exact: true }).click();
-    await page.getByRole("button", { name: "Move to Trash" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
 
     // Soft-deleted: gone from the active list, but the files are untouched.
     await expect(page.locator("body")).not.toContainText("Updated Service Record");
@@ -133,7 +133,7 @@ test.describe.serial("Vehicles module", () => {
     await page.getByRole("button", { name: "Add service record" }).click();
     await page.waitForURL(/\/vehicles\/(?!new$)[^/]+$/);
 
-    const row = page.locator("div.rounded-xl.border.border-border.bg-surface", {
+    const row = page.locator("div.rounded-lg.border.border-border.bg-surface", {
       hasText: "Test Purchase Record",
     });
     await expect(row).toContainText("Purchase");
@@ -147,7 +147,7 @@ test.describe.serial("Vehicles module", () => {
     await expect(row).toContainText("Document uploaded.");
 
     await row.getByRole("button", { name: "Delete", exact: true }).click();
-    await page.getByRole("button", { name: "Move to Trash" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
     await expect(page.locator("body")).not.toContainText("Test Purchase Record");
   });
 
@@ -263,7 +263,7 @@ test.describe.serial("Vehicles module", () => {
     await page.goto(`/vehicles/${vehicleId}`);
     await page.getByRole("button", { name: "More actions" }).click();
     await page.getByRole("button", { name: "Delete", exact: true }).click();
-    await page.getByRole("button", { name: "Move to Trash" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
     await page.waitForURL(/\/vehicles$/);
 
     await expect(page.locator("body")).not.toContainText("Test Vehicle");

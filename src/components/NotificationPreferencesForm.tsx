@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { updateNotificationPreferences, type ActionState } from "@/lib/actions/auth";
 import { FormMessage } from "@/components/FormMessage";
-import { compactButtonClass } from "@/lib/buttonStyles";
+import { buttonClass } from "@/lib/ui";
 
 export function NotificationPreferencesForm({ emailReminders }: { emailReminders: boolean }) {
   const [state, formAction] = useActionState<ActionState, FormData>(updateNotificationPreferences, null);
@@ -21,7 +21,7 @@ export function NotificationPreferencesForm({ emailReminders }: { emailReminders
         <label htmlFor="emailReminders" className="text-sm">
           Email me reminders (contracts, warranties, vehicles)
         </label>
-        <button type="submit" className={`ml-auto ${compactButtonClass()}`}>
+        <button type="submit" className={`ml-auto ${buttonClass("secondary")}`}>
           Save
         </button>
       </div>

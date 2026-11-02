@@ -7,12 +7,13 @@ import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormMessage } from "@/components/FormMessage";
 import { Field } from "@/components/FormField";
-import { inputClass } from "@/components/SelectWrapper";
+import { inputClass, textareaClass } from "@/components/SelectWrapper";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
 import { applyIfEmpty, extractionMessage } from "@/lib/autoFillHighlight";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
 import { DateInput } from "@/components/DateInput";
+import { Card } from "@/components/ui/Card";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -79,13 +80,14 @@ export function RentalAgreementForm({
       const res = await fetch("/api/home/lease-extract", { method: "POST", body });
       if (!res.ok) throw new Error("Extraction failed");
 
-      const { fields, source } = (await res.json()) as {
+      const { fields, source, textUnavailable } = (await res.json()) as {
         fields: ExtractedFields;
         source: "byok" | "heuristic" | "llm" | "none";
+        textUnavailable?: boolean;
       };
       const filledCount = Object.keys(fields).length;
       if (filledCount > 0) applyExtractedFields(fields);
-      setScanMessage(extractionMessage(source, filledCount));
+      setScanMessage(extractionMessage(source, filledCount, textUnavailable));
     } catch {
       setScanMessage("Couldn't scan this document. You can still fill in the fields manually.");
     } finally {
@@ -96,7 +98,7 @@ export function RentalAgreementForm({
   return (
     <form action={formAction} className="space-y-6">
       {!agreement && (
-        <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
+        <Card className="space-y-2">
           <p className="flex items-center gap-2 text-sm font-medium">
             <Upload size={16} />
             Save time: upload the tenancy agreement and Hearth fills in the details
@@ -112,7 +114,7 @@ export function RentalAgreementForm({
               {scanMessage}
             </p>
           )}
-        </div>
+        </Card>
       )}
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -222,7 +224,7 @@ export function RentalAgreementForm({
           name="notes"
           rows={3}
           defaultValue={state?.values?.notes ?? agreement?.notes ?? ""}
-          className={inputClass}
+          className={textareaClass}
         />
       </Field>
 

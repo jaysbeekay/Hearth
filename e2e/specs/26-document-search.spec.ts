@@ -107,7 +107,7 @@ test("filename substring search finds documents across contract, rental statemen
   ]);
 
   await page.goto(`/wealth/portfolios/${portfolioId}/holdings/${holdingId}`);
-  const tradeRow = page.locator("div.rounded-xl.border.border-border.bg-surface.p-4", { hasText: "Buy" });
+  const tradeRow = page.locator("div.rounded-lg.border.border-border.bg-surface.p-4", { hasText: "Buy" });
   await tradeRow.locator('input[type="file"]').setInputFiles({
     name: `confirmation_${tradeFragment}_note.pdf`,
     mimeType: "application/pdf",
@@ -161,7 +161,7 @@ test("trashing a contract removes its document from search, and permanently dele
   await page.goto(`/contracts/${contractId}`);
   await page.getByRole("button", { name: "More actions" }).click();
   await page.getByRole("button", { name: "Delete", exact: true }).click();
-  await page.getByRole("button", { name: "Move to Trash", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
   await page.waitForURL(/\/contracts$/);
 
   // Asserting absence via getByText(filename) would false-positive: the

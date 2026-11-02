@@ -10,6 +10,8 @@ import { documentFileHref } from "@/lib/documents/kinds";
 import { LIVE_DOCUMENT_WHERE as LIVE } from "@/lib/documents/liveDocuments";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { chipClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Documents" };
 
@@ -27,14 +29,6 @@ const PAGE_SIZE = 20;
 // contribution, which can't happen with real DB-level pagination but no
 // longer risks loading thousands of rows either.
 const PER_TABLE_CAP = 100;
-
-function chipClass(active: boolean) {
-  return `rounded-full border px-3 py-1 text-xs font-medium ${
-    active
-      ? "border-accent bg-accent/10 text-accent"
-      : "border-border text-muted hover:border-accent/50"
-  }`;
-}
 
 interface TypeSource {
   type: string;
@@ -415,10 +409,10 @@ export default async function DocumentsPage({
   }
 
   return (
-    <div className="space-y-6">
+    <PageShell width="list">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Documents</h1>
+          <h1 className="text-2xl font-medium">Documents</h1>
           <p className="text-sm text-muted">
             {showAll
               ? "Every uploaded document, including anything still waiting to be filed."
@@ -464,7 +458,7 @@ export default async function DocumentsPage({
               href={`/documents?page=${page - 1}${type ? `&type=${encodeURIComponent(type)}` : ""}${showAll ? "&view=all" : ""}`}
               className="inline-flex items-center gap-1 text-sm text-accent hover:underline"
             >
-              <ChevronLeft size={14} aria-hidden />
+              <ChevronLeft size={16} aria-hidden />
               Newer
             </Link>
           ) : (
@@ -476,11 +470,11 @@ export default async function DocumentsPage({
               className="inline-flex items-center gap-1 text-sm text-accent hover:underline"
             >
               Older
-              <ChevronRight size={14} aria-hidden />
+              <ChevronRight size={16} aria-hidden />
             </Link>
           )}
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

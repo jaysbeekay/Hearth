@@ -39,6 +39,12 @@ describe("statusTone", () => {
     expect(statusTone(status)).toBe(tone);
   });
 
+  it("falls back to a styled neutral banner for a status outside the union", () => {
+    const stray = "something-new" as RecordStatus;
+    expect(statusTone(stray)).toBe("neutral");
+    expect(statusBannerClass(statusTone(stray))).not.toBe("");
+  });
+
   it("colours only Overdue and Due soon", () => {
     const coloured = ALL_STATUSES.filter((s) => ["danger", "warning"].includes(statusTone(s)));
     expect(coloured.sort()).toEqual(["due-soon", "overdue"]);

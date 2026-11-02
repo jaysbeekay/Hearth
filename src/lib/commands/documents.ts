@@ -32,7 +32,7 @@ import type { Prisma } from "@/generated/prisma/client";
 /** A permanent delete was asked for a Document that isn't in Trash. */
 export class DocumentNotInTrashError extends Error {
   constructor() {
-    super("Move the document to Trash before deleting it permanently.");
+    super("Only a document in Recently deleted can be deleted permanently.");
     this.name = "DocumentNotInTrashError";
   }
 }

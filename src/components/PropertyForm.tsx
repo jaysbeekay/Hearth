@@ -15,9 +15,10 @@ import {
   type QueuedOperation,
 } from "@/lib/offlineQueue";
 import { Field } from "@/components/FormField";
-import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
+import { SelectWrapper, inputClass, textareaClass, selectClass } from "@/components/SelectWrapper";
 import { OCCUPANCY_STATUSES } from "@/lib/validation/home";
 import { OCCUPANCY_STATUS_LABELS } from "@/lib/utils";
+import { bannerClass, overlayClass, inlineLinkClass } from "@/lib/ui";
 
 interface GeocodeSuggestion {
   display_name: string;
@@ -85,7 +86,7 @@ export function PropertyForm({
       className="space-y-6"
     >
       {pendingOp && (
-        <p className="rounded-lg border border-dashed border-warning/40 bg-warning/10 px-4 py-2 text-sm text-warning">
+        <p className={bannerClass("warning")}>
           Editing an offline entry that hasn&apos;t synced yet — saving updates it in place.
         </p>
       )}
@@ -122,12 +123,12 @@ export function PropertyForm({
       </div>
 
       {occupancyStatus === "RENTED" && (
-        <p className="rounded-lg border border-dashed border-border bg-hover px-4 py-2 text-sm text-muted">
+        <p className={bannerClass("neutral", "text-muted")}>
           {property ? (
             property.isRented ? (
               <>
                 This property already has a tenancy —{" "}
-                <Link href={`/home/${property.id}/rental`} className="text-accent hover:underline">
+                <Link href={`/home/${property.id}/rental`} className={inlineLinkClass}>
                   view it
                 </Link>
                 .
@@ -136,7 +137,7 @@ export function PropertyForm({
               <>
                 This property has no tenancy (rent, statements, reconciliation) yet
                 —{" "}
-                <Link href={`/home/${property.id}/rental`} className="text-accent hover:underline">
+                <Link href={`/home/${property.id}/rental`} className={inlineLinkClass}>
                   set it up
                 </Link>
                 .
@@ -169,7 +170,7 @@ export function PropertyForm({
           name="notes"
           rows={4}
           defaultValue={effectiveValues?.notes ?? property?.notes ?? ""}
-          className={inputClass}
+          className={textareaClass}
         />
       </Field>
 
@@ -289,7 +290,7 @@ function AddressFields({
           <input type="hidden" name="lat" value={lat ?? ""} />
           <input type="hidden" name="lng" value={lng ?? ""} />
           {showSuggestions && visibleSuggestions.length > 0 && (
-            <ul className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-border bg-surface shadow-md">
+            <ul className={overlayClass("absolute z-10 mt-1 w-full overflow-hidden")}>
               {visibleSuggestions.map((s) => (
                 <li key={`${s.lat},${s.lng}`}>
                   <button

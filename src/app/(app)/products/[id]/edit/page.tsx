@@ -6,6 +6,9 @@ import { isModuleEnabled } from "@/lib/modules/enablement";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
+import { propertyLinkTargets } from "@/lib/linkTargets";
 
 export default async function EditProductPage({
   params,
@@ -20,27 +23,25 @@ export default async function EditProductPage({
   ]);
   if (!product || product.deletedAt) notFound();
 
-  const properties = homeEnabled
-    ? await prisma.property.findMany({ select: { id: true, label: true }, orderBy: { label: "asc" } })
-    : [];
+  const properties = homeEnabled ? await propertyLinkTargets(product.propertyId) : [];
 
   const boundAction = updateProduct.bind(null, product.id);
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="form">
       <BackLink href={`/products/${product.id}`} label={product.description} />
       <div>
-        <h1 className="text-2xl font-semibold">Edit warranty</h1>
+        <h1 className="text-2xl font-medium">Edit warranty</h1>
         <p className="text-sm text-muted">{product.description}</p>
       </div>
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <Card>
         <ProductForm
           action={boundAction}
           product={product}
           properties={properties}
           homeEnabled={homeEnabled}
         />
-      </div>
-    </div>
+      </Card>
+    </PageShell>
   );
 }

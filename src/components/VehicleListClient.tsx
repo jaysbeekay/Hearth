@@ -21,6 +21,8 @@ import {
   type ListFilters,
 } from "@/lib/recordFilters";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
+import { emptyStateClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
 type VehicleWithCount = VehicleModel & { _count: { items: number }; contracts: CoveringContractRow[] };
 
@@ -55,7 +57,7 @@ export function VehicleListClient({ vehicles, archivedVehicles = [], filters, co
   }, [router]);
 
   return (
-    <div className="space-y-6">
+    <PageShell width="list">
       <ListPageHeader
         title={MODULE_REGISTRY.VEHICLES.label}
         exportPath="/api/export/vehicles"
@@ -106,7 +108,7 @@ export function VehicleListClient({ vehicles, archivedVehicles = [], filters, co
 
       {vehicles.length === 0 ? (
         pendingOps.length === 0 && (
-          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
+          <p className={emptyStateClass()}>
             {filtered
               ? "No vehicles match these filters."
               : "No vehicles yet. Add your first vehicle to start tracking registration, insurance, and service history."}
@@ -140,6 +142,6 @@ export function VehicleListClient({ vehicles, archivedVehicles = [], filters, co
           </div>
         </details>
       )}
-    </div>
+    </PageShell>
   );
 }

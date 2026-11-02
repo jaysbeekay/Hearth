@@ -245,7 +245,7 @@ export async function deleteVehicleItem(vehicleId: string, itemId: string): Prom
   } catch (error) {
     return commandError(error, "Service record not found.");
   }
-  return { success: "Service record moved to Trash." };
+  return { success: "Service record deleted." };
 }
 
 export async function restoreVehicleItem(itemId: string): Promise<ActionState> {

@@ -6,6 +6,7 @@ import { ExpiryBadge } from "@/components/ExpiryBadge";
 import { StatusPill } from "@/components/StatusPill";
 import { vehicleDue, type DueContext } from "@/lib/dueRecords";
 import { withVehicleCovers, type CoveringContractRow } from "@/lib/covers";
+import { cardClass } from "@/lib/ui";
 
 export function VehicleCard({
   vehicle: row,
@@ -30,7 +31,7 @@ export function VehicleCard({
   return (
     <Link
       href={`/vehicles/${vehicle.id}`}
-      className="block min-w-0 rounded-lg border border-border bg-surface p-4 transition hover:border-accent/50"
+      className={cardClass({ interactive: true }, "block min-w-0")}
     >
       <div className="min-w-0">
         {subtitle && <p className="truncate text-sm text-muted">{subtitle}</p>}
