@@ -18,7 +18,10 @@ const nextConfig: NextConfig = {
   agentRules: false,
   // ssh2 (used by the SFTP backup destination) ships a non-ESM asset that
   // Turbopack can't bundle into server chunks — load it natively instead.
-  serverExternalPackages: ["ssh2", "ssh2-sftp-client", "yahoo-finance2"],
+  // pdfkit reads its standard-font metrics (js/data/*.afm) from disk next to
+  // its own source; bundled into a server chunk those files are left behind
+  // and every PDF export 500s with ENOENT Helvetica.afm (#523).
+  serverExternalPackages: ["ssh2", "ssh2-sftp-client", "yahoo-finance2", "pdfkit"],
   experimental: {
     // Document/photo uploads go through Server Actions and are validated
     // against MAX_UPLOAD_BYTES (15MB) in application code. Next's own
