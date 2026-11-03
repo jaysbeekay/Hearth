@@ -8,8 +8,8 @@
 # the unprivileged `node` user, the three document-extraction binaries are
 # present, every external module the server bundle requires resolves from the
 # standalone output (a missed trace only fails at the first request that needs
-# it, so nothing else would catch it), and every MCP tool answers without an
-# error result.
+# it, so nothing else would catch it), pdfkit renders a PDF from its own
+# package, and every MCP tool answers without an error result.
 #
 # With <previous-release-image>, it first starts that image on a second volume
 # to create a database the way a current install has one, then starts <image>
@@ -111,6 +111,26 @@ check_running_image() { # check_running_image <container>
     if (missing.length) { console.error("unresolvable server externals:", missing); process.exit(1); }
     console.log("-- " + names.length + " server externals resolve");
   ' || fail "the standalone output is missing a module the server requires"
+
+  # PDF export (#523): pdfkit must stay a server external, because a bundled
+  # pdfkit loses its .afm font files and every ?format=pdf export returns 500.
+  # Check that the server requires it from node_modules, and that it renders
+  # a PDF in its standard font from there. (The libsql musl binding needs no
+  # check of its own: /api/health above queries the database through it.)
+  docker exec "$c" node -e '
+    const { execSync } = require("child_process");
+    try { execSync(String.raw`grep -rqF "require("pdfkit")" /app/.next/server`); }
+    catch { console.error("pdfkit is bundled into the server, not required from node_modules"); process.exit(1); }
+    const PDFDocument = require(require.resolve("pdfkit", { paths: ["/app"] }));
+    const doc = new PDFDocument();
+    const chunks = [];
+    doc.on("data", (c) => chunks.push(c)).on("end", () => {
+      const pdf = Buffer.concat(chunks);
+      if (pdf.subarray(0, 4).toString() !== "%PDF") { console.error("pdfkit output is not a PDF"); process.exit(1); }
+      console.log("-- pdfkit is external and renders a PDF (" + pdf.length + " bytes)");
+    });
+    doc.font("Helvetica").text("docker smoke").end();
+  ' || fail "PDF export would fail: pdfkit or its font files are missing"
 
   mcp '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"docker-smoke","version":"1"}}}' >/dev/null \
     || fail "MCP initialize failed"
