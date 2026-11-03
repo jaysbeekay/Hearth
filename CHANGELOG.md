@@ -22,6 +22,11 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   HTTPS; setup for Claude Code, Claude Desktop, the OpenAI Codex CLI and Open
   WebUI (and why ChatGPT connectors can't connect yet); and the `Accept` header for
   hand-rolled clients. Server-only; the iOS and Android shell is unchanged.
+- **nginx overwrites `X-Forwarded-For`.** The HTTPS compose file's nginx
+  used to append to a client-supplied `X-Forwarded-For`, and Hearth's rate
+  limits (sign-in, password reset, MCP tokens) key on the header's first
+  entry, so a client could pick its own throttle bucket. nginx now sets it
+  to the real client address, as does the mTLS example config.
 
 ### Changed
 
