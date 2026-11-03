@@ -206,6 +206,11 @@ export default async function SpendPage({
             </span>
             <ChevronDown size={16} aria-hidden className="shrink-0 text-muted transition-transform group-open:rotate-180" />
           </summary>
+          {/* #532 review — a scenario, not money already committed. */}
+          <p className="border-t border-border px-4 py-2 text-xs text-muted">
+            Not in Next 12 months. The amount is what these would cost for the rest of the year if each is renewed at
+            its current price.
+          </p>
           <ul className="divide-y divide-border border-t border-border">
             {renewals.contracts.map((c) => (
               <li key={c.id}>

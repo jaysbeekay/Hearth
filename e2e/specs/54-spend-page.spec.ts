@@ -89,4 +89,5 @@ test("Spend lists manual renewals ending within the year beside Next 12 months",
   await expect(renewals.locator("summary")).toContainText(/^\+ .+ from \d+ contracts? ending within 12 months/);
   await renewals.locator("summary").click();
   await expect(renewals.getByRole("link", { name: new RegExp(title) })).toHaveAttribute("href", contractUrl);
+  await expect(renewals.getByText(/if each is renewed at its current price/)).toBeVisible();
 });

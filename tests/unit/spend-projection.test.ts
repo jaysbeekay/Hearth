@@ -94,4 +94,28 @@ describe("manualRenewalsAhead", () => {
     const free = contract({ endDate: day("2027-02-01"), cost: null });
     expect(manualRenewalsAhead([free], "AUD", rates, NOW)).toEqual({ amount: 0, contracts: [free] });
   });
+
+  // #532 review — edge cases.
+  it("counts a contract ending today from tomorrow", () => {
+    const c = contract({ endDate: day("2026-11-02") });
+    const { amount, contracts } = manualRenewalsAhead([c], "AUD", rates, NOW);
+    expect(contracts).toEqual([c]);
+    expect(amount).toBeCloseTo((1200 * 364) / 365, 6);
+  });
+
+  it("lists a renewal with no billing frequency or an unconvertible currency but adds nothing for it", () => {
+    const noFrequency = contract({ endDate: day("2027-02-01"), billingFrequency: null });
+    const unconvertible = contract({ endDate: day("2027-03-01"), currency: "XYZ" });
+    expect(manualRenewalsAhead([unconvertible, noFrequency], "AUD", rates, NOW)).toEqual({
+      amount: 0,
+      contracts: [noFrequency, unconvertible],
+    });
+  });
+
+  it("still adds up to the full year across a leap day", () => {
+    const now = new Date(Date.UTC(2027, 10, 2));
+    const c = contract({ endDate: day("2028-01-15") });
+    const total = nextTwelveMonthsSpend([c], "AUD", rates, now) + manualRenewalsAhead([c], "AUD", rates, now).amount;
+    expect(total).toBeCloseTo(1200, 6);
+  });
 });
