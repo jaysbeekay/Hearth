@@ -49,4 +49,5 @@ export const DOCUMENTS_TABS = {
   inbox: { href: "/documents/inbox", label: "Inbox" },
   filed: { href: "/documents", label: "Filed" },
   all: { href: "/documents?view=all", label: "All" },
+  imports: { href: "/documents/imports", label: "Imports" },
 } as const;
