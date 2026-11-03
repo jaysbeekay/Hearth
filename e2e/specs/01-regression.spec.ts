@@ -73,8 +73,6 @@ test("create a contract end-to-end", async ({ page }) => {
   await page.locator("#title").fill("Regression Test Contract");
   await page.locator("#category").selectOption("OTHER");
   await page.locator("#provider").fill("Regression Test Provider");
-  const category = page.locator('select[name="category"]');
-  if (await category.count()) await category.selectOption({ index: 1 });
   await page.locator("main button[type=submit]").click();
   // Exclude "new" itself: we're already on /contracts/new when this is
   // called, which a bare /\/contracts\/[^/]+$/ also matches — so without the

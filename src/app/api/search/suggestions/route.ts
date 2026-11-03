@@ -8,6 +8,7 @@ import { currentTenancy, LIVE_TENANCY_AGREEMENTS } from "@/lib/dueRecords";
 import { COVERING_CONTRACTS } from "@/lib/covers";
 import {
   buildContractAttentionItems,
+  buildExtractionReviewItems,
   buildTenancyAttentionItems,
   buildVehicleAttentionItems,
   buildWarrantyAttentionItems,
@@ -78,19 +79,24 @@ export async function GET(request: NextRequest) {
     ]),
   ]);
 
-  // The same Due rows the dashboard leads with (src/lib/needsAttention.ts).
+  // The top of the dashboard's Needs attention queue (src/lib/needsAttention.ts):
+  // Due rows, then record housekeeping (a passed auto-renew end date, unconfirmed
+  // scanned details). Household-wide nudges (inbox, reminder setup) stay on the dashboard.
   const [contracts, products, vehicles, properties] = await Promise.all([
     prisma.contract.findMany({
       where: { deletedAt: null },
+      orderBy: { endDate: "asc" },
       include: { _count: { select: { documents: { where: { deletedAt: null } } } } },
     }),
     prisma.product.findMany({
       where: { deletedAt: null },
+      orderBy: { warrantyEndDate: "asc" },
       include: { _count: { select: { documents: { where: { deletedAt: null } } } } },
     }),
     enabled.has("VEHICLES")
       ? prisma.vehicle.findMany({
           where: { deletedAt: null, archivedAt: null },
+          orderBy: { createdAt: "desc" },
           include: { contracts: COVERING_CONTRACTS },
         })
       : [],
@@ -122,12 +128,13 @@ export async function GET(request: NextRequest) {
     ...buildWarrantyAttentionItems(products, due),
     ...buildVehicleAttentionItems(vehicles, due),
     ...buildTenancyAttentionItems(tenancies, due),
+    ...buildExtractionReviewItems(contracts, products),
   ]);
 
   return NextResponse.json(
     {
       recent: orderRecent(recent, recentGroups.flat()),
-      attention: attentionSuggestions(attention.due, prefs),
+      attention: attentionSuggestions(attention, prefs),
     },
     { headers: { "Cache-Control": "no-store" } },
   );

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { restorableFromTrash } from "@/lib/trash";
 import { auth } from "@/lib/auth";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { ContractListClient } from "@/components/ContractListClient";
@@ -108,7 +109,7 @@ export default async function ContractsPage({
     getUserPreferences(),
     auth(),
     // #514 review — an empty list says how many are in Trash.
-    prisma.contract.count({ where: { deletedAt: { not: null } } }),
+    prisma.contract.count({ where: restorableFromTrash() }),
   ]);
   const contracts = dueFilter ? allContracts.filter(dueFilter.matches) : allContracts;
 

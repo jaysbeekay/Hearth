@@ -376,7 +376,7 @@ describe("Reminder health reports the channels the scheduler sends on", () => {
     const h = await health(vehicle);
     expect(h.channels).toEqual({ email: false, ntfy: false, webhook: true });
     // Not "On the next check" for an email that never goes: the next one is the 14-day Reminder.
-    expect(h.nextReminder).toEqual({ kind: "on", date: day(addDays(rego, -14)) });
+    expect(h.nextReminder).toEqual({ kind: "on", date: day(addDays(rego, -14)), by: ["WEBHOOK"] });
   });
 
   it("counts email once someone gets reminder emails", async () => {
@@ -384,7 +384,9 @@ describe("Reminder health reports the channels the scheduler sends on", () => {
 
     const h = await health(vehicle);
     expect(h.channels).toEqual({ email: true, ntfy: false, webhook: true });
-    expect(h.nextReminder).toEqual({ kind: "next-check" });
+    // Only email is catching up on the 30-day Reminder; webhook already sent
+    // it, so the summary mustn't say webhook sends this one too (#516 review).
+    expect(h.nextReminder).toEqual({ kind: "next-check", by: ["EMAIL"] });
   });
 
   it("with only email set up and nobody receiving it, delivery isn't ready", async () => {

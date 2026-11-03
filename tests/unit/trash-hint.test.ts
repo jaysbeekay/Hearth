@@ -1,9 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { TrashHint } from "@/components/TrashHint";
+import { restorableFromTrash, TRASH_RETENTION_DAYS } from "@/lib/trash";
 
 // #514 review — an empty Contracts or Warranties list says how many of its
 // records are in Trash, so it doesn't read as "the household has none".
@@ -27,6 +28,27 @@ describe("TrashHint", () => {
     for (const name of ["ContractListClient", "ProductListClient"]) {
       const source = readFileSync(path.join(root, "src", "components", `${name}.tsx`), "utf8");
       expect(source).toMatch(/\{!filtered && <TrashHint count=\{trashCount\}/);
+    }
+  });
+});
+
+describe("restorableFromTrash", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("counts only rows still inside the retention window, not ones about to be purged", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-02T12:00:00Z"));
+    const cutoff = restorableFromTrash().deletedAt.gte;
+    expect(cutoff.toISOString()).toBe(new Date(Date.parse("2026-11-02T12:00:00Z") - TRASH_RETENTION_DAYS * 86_400_000).toISOString());
+  });
+
+  it("is what the empty Contracts and Warranties pages count", () => {
+    const root = path.join(__dirname, "..", "..");
+    for (const [page, model] of [["contracts", "contract"], ["products", "product"]]) {
+      const source = readFileSync(path.join(root, "src", "app", "(app)", page, "page.tsx"), "utf8");
+      expect(source).toContain(`prisma.${model}.count({ where: restorableFromTrash() })`);
     }
   });
 });

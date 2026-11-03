@@ -154,10 +154,17 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   ("Due soon · 2"), counted with the current search, category, status and
   other chips kept, with zero counts muted, replacing the separate row of summary counts
   and its "added this week" figure. On a phone the search box sits beside a
-  "Filters" button that opens a bottom sheet with the category and status
-  selects and the chips, so the first record is on the first screen. Links
+  "Filters" button that opens a bottom sheet (the category and status
+  selects and the chips on Contracts, the chips on Warranties), so the
+  first record is on the first screen. Links
   from the dashboard still pre-select the right chip. The iOS and Android
   shell is unchanged.
+- **Spending lists the manual renewals coming up.** Under the tiles, a
+  folded line reads "+ $X from N contracts ending within 12 months (renew
+  manually)": what those contracts would cost for the rest of the year if
+  renewed on the same terms, which "Next 12 months" leaves out until you
+  renew. Open it for each contract and its end date, linked to the
+  contract. The iOS and Android shell is unchanged.
 - **Spending leads with what's useful (#367).** The "Tax-deductible / mo"
   tile is hidden when nothing is tax-deductible. Contracts with a cost but
   no billing frequency, which the dashboard and Spending both leave out of
@@ -170,7 +177,7 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   start date. The iOS and Android shell is unchanged.
 - **Search opens on something useful, and Documents stops overloading
   "type" (#366).** Before you type, Search shows the last five records you
-  opened in this browser (only their ids are kept locally; titles come from
+  opened in this browser (only their kind and id are kept locally; titles come from
   the server, so a deleted record drops out) and the first three Due rows
   from Needs attention. Its chips are down to Due soon, Needs review and
   Important; No document and Missing key details stay on the list pages'
@@ -191,8 +198,6 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   date pickers follow the browser's language. The Property form was already
   short and is unchanged, and so is the iOS and Android shell.
 
-### Fixed
-
 - **Standalone Upcoming no longer marks a Trip date overdue (#476).** Trip
   dates and past events leave Upcoming, as on the web: it starts from today,
   and anything Overdue is in Needs attention instead. Only a Contract,
@@ -203,6 +208,35 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **Recently deleted count on empty lists (#514 follow-up).** An empty
+  Contracts or Warranties list no longer counts records past the 30-day
+  Trash window, which are purged the next time Trash opens.
+- **Document rows (#515 follow-up).** A picked Document type shows straight
+  away instead of jumping back until the save lands, and goes back only if
+  the save fails. After a failed "Add document" upload, picking the same
+  file again retries it. A Warranty with none of its details filled in no
+  longer shows an empty details card.
+- **Reminder card and thresholds hint (#516 follow-up).** "Next reminder …
+  by" names only the channels sending that Reminder, not every configured
+  one: a channel that already sent a threshold, or is catching up, runs on
+  its own schedule. The hint under the Reminder presets follows the
+  scheduler for a custom value with no whole days (such as 1.5): it shows
+  the household default that applies, not "No Reminders will be sent".
+- **Filters sheet (#517 follow-up).** Widening the window past the phone
+  layout while the Filters sheet is open closes it, instead of leaving the
+  page unclickable behind an invisible dialog, and the Filters button
+  tells screen readers whether its sheet is open.
+- **Scanned contract category (#519 follow-up).** A scanned title such as
+  "Mobile phone warranty" is now guessed as Warranty rather than Telecom or
+  Utility.
+- **Search suggestions (#520 follow-up).** Pressing Cmd/Ctrl-K while
+  Search is open reloads Recently viewed and Needs attention instead of
+  leaving them blank, a one-character query shows the "type at least 2
+  characters" hint instead of the suggestions, and typing or picking a chip
+  clears the highlighted row so Enter can't open a row from the old list.
+  Needs attention in Search is now the top three of the dashboard's queue,
+  so record housekeeping (unconfirmed scanned details, a passed auto-renew
+  end date) fills in when fewer than three things are due.
 - **Inventory writes follow the record rules (#471).** Creating, deleting,
   restoring and permanently deleting an Inventory item now go through record
   commands, from the forms, import, offline sync and Trash retention alike.
