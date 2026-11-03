@@ -226,33 +226,22 @@ export interface DuplicateHint {
  * Likely existing records for each pending proposal, matched on an
  * identifier (contract number, serial number) or on name plus maker. Only a
  * hint for the reviewer: nothing is merged.
+ *
+ * One pass over each kind's live records (narrow columns only), looking each
+ * record's keys up in maps built from the proposals, so the cost is
+ * O(records + proposals) rather than records × proposals.
  */
 export async function findImportDuplicates(
   proposals: { id: string; kind: McpImportKind; data: string }[],
 ): Promise<Map<string, DuplicateHint[]>> {
-  const kinds = new Set(proposals.map((p) => p.kind));
-  const [contracts, products, items] = await Promise.all([
-    kinds.has("CONTRACT")
-      ? prisma.contract.findMany({
-          where: { deletedAt: null },
-          select: { id: true, title: true, provider: true, contractNumber: true },
-        })
-      : [],
-    kinds.has("PRODUCT")
-      ? prisma.product.findMany({
-          where: { deletedAt: null },
-          select: { id: true, description: true, manufacturer: true, model: true, serialNumber: true },
-        })
-      : [],
-    kinds.has("INVENTORY_ITEM")
-      ? prisma.inventoryItem.findMany({
-          where: { deletedAt: null },
-          select: { id: true, label: true, brand: true, model: true, serialNumber: true },
-        })
-      : [],
-  ]);
-
-  const result = new Map<string, DuplicateHint[]>();
+  // Normalised key → ids of the proposals that carry it.
+  const index = new Map<string, string[]>();
+  const add = (key: string, id: string) => {
+    const ids = index.get(key);
+    if (ids) ids.push(id);
+    else index.set(key, [id]);
+  };
+  const kinds = new Set<McpImportKind>();
   for (const proposal of proposals) {
     let data: Record<string, unknown>;
     try {
@@ -260,37 +249,64 @@ export async function findImportDuplicates(
     } catch {
       continue;
     }
-    let hints: DuplicateHint[] = [];
-    if (proposal.kind === "CONTRACT") {
-      hints = contracts
-        .filter(
-          (c) =>
-            (norm(data.contractNumber) && norm(c.contractNumber) === norm(data.contractNumber)) ||
-            (norm(c.title) === norm(data.title) && norm(c.provider) === norm(data.provider)),
-        )
-        .map((c) => ({ href: `/contracts/${c.id}`, label: `${c.title} · ${c.provider}` }));
-    } else if (proposal.kind === "PRODUCT") {
-      hints = products
-        .filter(
-          (p) =>
-            (norm(data.serialNumber) && norm(p.serialNumber) === norm(data.serialNumber)) ||
-            (norm(p.description) === norm(data.description) &&
-              norm(p.manufacturer) === norm(data.manufacturer) &&
-              norm(p.model) === norm(data.model)),
-        )
-        .map((p) => ({ href: `/products/${p.id}`, label: p.description }));
-    } else {
-      hints = items
-        .filter(
-          (i) =>
-            (norm(data.serialNumber) && norm(i.serialNumber) === norm(data.serialNumber)) ||
-            (norm(i.label) === norm(data.label) && norm(i.brand) === norm(data.brand) && norm(i.model) === norm(data.model)),
-        )
-        .map((i) => ({ href: `/inventory/${i.id}`, label: i.label }));
+    kinds.add(proposal.kind);
+    for (const key of matchKeys(proposal.kind, data)) add(key, proposal.id);
+  }
+
+  const result = new Map<string, DuplicateHint[]>();
+  const hint = (keys: string[], dup: DuplicateHint) => {
+    const ids = new Set(keys.flatMap((key) => index.get(key) ?? []));
+    for (const id of ids) {
+      const hints = result.get(id) ?? [];
+      if (hints.length < MAX_DUPLICATE_HINTS) hints.push(dup);
+      result.set(id, hints);
     }
-    if (hints.length > 0) result.set(proposal.id, hints);
+  };
+
+  if (kinds.has("CONTRACT")) {
+    const contracts = await prisma.contract.findMany({
+      where: { deletedAt: null },
+      select: { id: true, title: true, provider: true, contractNumber: true },
+    });
+    for (const c of contracts) {
+      hint(matchKeys("CONTRACT", c), { href: `/contracts/${c.id}`, label: `${c.title} · ${c.provider}` });
+    }
+  }
+  if (kinds.has("PRODUCT")) {
+    const products = await prisma.product.findMany({
+      where: { deletedAt: null },
+      select: { id: true, description: true, manufacturer: true, model: true, serialNumber: true },
+    });
+    for (const p of products) hint(matchKeys("PRODUCT", p), { href: `/products/${p.id}`, label: p.description });
+  }
+  if (kinds.has("INVENTORY_ITEM")) {
+    const items = await prisma.inventoryItem.findMany({
+      where: { deletedAt: null },
+      select: { id: true, label: true, brand: true, model: true, serialNumber: true },
+    });
+    for (const i of items) hint(matchKeys("INVENTORY_ITEM", i), { href: `/inventory/${i.id}`, label: i.label });
   }
   return result;
+}
+
+const MAX_DUPLICATE_HINTS = 5;
+
+// The keys a record or proposal matches on: its identifier, and its name
+// plus maker (plus model for products and items). Matching keys = likely
+// duplicate. Kind-prefixed so a contract never matches a product.
+function matchKeys(kind: McpImportKind, data: Record<string, unknown>): string[] {
+  const keys: string[] = [];
+  const key = (...parts: unknown[]) => `${kind}\u0000${parts.map(norm).join("\u0000")}`;
+  if (kind === "CONTRACT") {
+    if (norm(data.contractNumber)) keys.push(key("number", data.contractNumber));
+    keys.push(key("name", data.title, data.provider));
+  } else {
+    if (norm(data.serialNumber)) keys.push(key("serial", data.serialNumber));
+    const name = kind === "PRODUCT" ? data.description : data.label;
+    const maker = kind === "PRODUCT" ? data.manufacturer : data.brand;
+    keys.push(key("name", name, maker, data.model));
+  }
+  return keys;
 }
 
 /** For the Documents tabs: how many proposals are waiting. */
