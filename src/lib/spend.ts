@@ -195,6 +195,49 @@ export function nextTwelveMonthsSpend(
   return total;
 }
 
+/**
+ * The Contracts that renew manually and end inside the next 12 months, and
+ * what they would cost for the rest of that year if renewed on the same
+ * terms. "Next 12 months" leaves that part out because nothing commits the
+ * household to it yet; the Spend page shows it beside the total so the drop
+ * is explained and the renewals that need a decision are listed.
+ */
+export function manualRenewalsAhead<C extends {
+  cost: number | null;
+  currency: string;
+  billingFrequency: string | null;
+  startDate: Date | null;
+  endDate: Date | null;
+  renewalType: string | null;
+}>(
+  contracts: C[],
+  targetCurrency: string,
+  rateMap: Map<string, number>,
+  now: Date = new Date(),
+): { amount: number; contracts: C[] } {
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const horizon = today + YEAR_DAYS * DAY_MS;
+  let amount = 0;
+  const ending: C[] = [];
+  for (const c of contracts) {
+    if (c.renewalType !== "MANUAL_RENEWAL" || c.endDate == null) continue;
+    const end = c.endDate.getTime();
+    // Ends today or later, and before the year is out.
+    if (end < today || end >= horizon) continue;
+    ending.push(c);
+    if (c.cost == null) continue;
+    const converted = convertAmount(c.cost, c.currency, targetCurrency, rateMap);
+    if (converted == null) continue;
+    const monthly = monthlyEquivalent(converted, c.billingFrequency);
+    if (monthly <= 0) continue;
+    const from = Math.max(end + DAY_MS, c.startDate?.getTime() ?? today);
+    if (horizon <= from) continue;
+    amount += monthly * 12 * ((horizon - from) / DAY_MS / YEAR_DAYS);
+  }
+  ending.sort((a, b) => a.endDate!.getTime() - b.endDate!.getTime());
+  return { amount, contracts: ending };
+}
+
 /** #367 — whether every bucket is the same, so the timeline shows no change. */
 export function timelineIsFlat(buckets: { total: number }[]): boolean {
   return buckets.every((b) => Math.abs(b.total - buckets[0].total) < 0.005);

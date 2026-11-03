@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { restorableFromTrash } from "@/lib/trash";
 import { auth } from "@/lib/auth";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { ProductListClient } from "@/components/ProductListClient";
@@ -102,7 +103,7 @@ export default async function ProductsPage({
     getUserPreferences(),
     auth(),
     // #514 review — an empty list says how many are in Trash.
-    prisma.product.count({ where: { deletedAt: { not: null } } }),
+    prisma.product.count({ where: restorableFromTrash() }),
   ]);
   const products = dueFilter ? allProducts.filter(dueFilter.matches) : allProducts;
   // Hidden while a list filter is on (see ProductListClient), so not loaded either.

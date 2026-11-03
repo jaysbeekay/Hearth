@@ -10,6 +10,16 @@ import { bannerRepeatsBadge, type DueEntry } from "@/lib/dueRecords";
 const root = path.join(__dirname, "..", "..");
 const read = (rel: string) => readFileSync(path.join(root, rel), "utf8");
 
+// Every .tsx file under src/, as repo-relative paths, so a check covers
+// src/app and src/components/ui as well as the top-level components.
+function tsxFiles(dir: string): string[] {
+  return readdirSync(path.join(root, dir)).flatMap((name) => {
+    const rel = path.join(dir, name);
+    if (statSync(path.join(root, rel)).isDirectory()) return name === "generated" ? [] : tsxFiles(rel);
+    return name.endsWith(".tsx") ? [rel] : [];
+  });
+}
+
 function pages(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const full = path.join(dir, name);
@@ -47,13 +57,11 @@ describe("forms", () => {
 
 describe("selects", () => {
   it("styles every native select with the shared input look", () => {
-    const dir = path.join(root, "src", "components");
-    const unstyled = readdirSync(dir)
-      .filter((f) => f.endsWith(".tsx"))
+    const unstyled = tsxFiles("src")
       .flatMap((f) =>
         // The opening tag runs to the first <option or {, which is where its
         // children start; a className set to anything but the shared helpers fails.
-        [...read(`src/components/${f}`).matchAll(/<select\b[\s\S]*?(?=<option|\n\s*\{)/g)]
+        [...read(f).matchAll(/<select\b[\s\S]*?(?=<option|\n\s*\{)/g)]
           .filter((m) => !/className=\{(selectClass|inputClass|fieldClass\(|selectClassName|pillClass\()/.test(m[0]))
           .map(() => f),
       );
@@ -119,12 +127,9 @@ describe("FormMessage on a repeated failure (#514 review)", () => {
   });
 
   it("every action-state FormMessage passes its state as the attempt", () => {
-    const sources = readdirSync(path.join(root, "src", "components"))
-      .filter((name) => name.endsWith(".tsx"))
-      .map((name) => read(path.join("src", "components", name)));
-    const missing = sources
-      .flatMap((source) => source.match(/<FormMessage error=\{\w+\?\.error\}[^>]*>/g) ?? [])
-      .filter((tag) => !tag.includes("attempt="));
-    expect(missing).toEqual([]);
+    const tags = tsxFiles("src").flatMap((f) => read(f).match(/<FormMessage\s[^>]*\berror=\{[^}]*\}[^>]*>/g) ?? []);
+    // Guard against the pattern going stale and matching nothing.
+    expect(tags.length).toBeGreaterThan(10);
+    expect(tags.filter((tag) => !tag.includes("attempt="))).toEqual([]);
   });
 });

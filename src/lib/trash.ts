@@ -32,6 +32,15 @@ function expiryCutoff(): Date {
   return new Date(Date.now() - TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000);
 }
 
+/**
+ * Rows still restorable from Trash: deleted, and not yet past the retention
+ * window (expired rows are purged the next time Trash loads). For counts
+ * shown outside Trash, so they never promise a record that is about to go.
+ */
+export function restorableFromTrash(): { deletedAt: { gte: Date } } {
+  return { deletedAt: { gte: expiryCutoff() } };
+}
+
 const expired = (cutoff: Date) => ({ where: { deletedAt: { lt: cutoff } }, select: { id: true } });
 
 // Documents in Trash past their window, every kind (#396). Each is purged

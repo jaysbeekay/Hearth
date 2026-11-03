@@ -168,16 +168,25 @@ test.describe.serial("Vehicles module", () => {
   // expiry fields.
   test("setting a next service date surfaces a service reminder", async ({ page }) => {
     const soon = new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10);
+    const regoDue = new Date(Date.now() + 60 * 86_400_000).toISOString().slice(0, 10);
 
     await page.goto(`/vehicles/${vehicleId}/edit`);
+    await openFormSections(page);
     await page.locator("#nextServiceDue").fill(soon);
+    // A second date, so the card has to hold both (#516 review).
+    await page.locator("#regoExpiry").fill(regoDue);
     await page.getByRole("button", { name: "Save changes" }).click();
     await page.waitForURL(/\/vehicles\/(?!new$)[^/]+$/);
 
     await expect(page.getByText("Next service due")).toBeVisible();
     // #360 — one Reminder card lists each of the Vehicle's dates.
+    // The nearest box around the heading that holds the date lines.
+    const reminderCard = page
+      .getByRole("heading", { name: "Reminder health" })
+      .locator("xpath=ancestor::*[.//li][1]");
     await expect(page.getByRole("heading", { name: "Reminder health" })).toHaveCount(1);
-    await expect(page.locator("main li", { hasText: /^Service: / })).toBeVisible();
+    await expect(reminderCard.locator("li", { hasText: /^Service: / })).toBeVisible();
+    await expect(reminderCard.locator("li", { hasText: /^Registration: / })).toBeVisible();
 
     await page.goto("/vehicles");
     const card = page.locator("a", { hasText: VEHICLE_LABEL });
@@ -192,6 +201,8 @@ test.describe.serial("Vehicles module", () => {
   test.describe.serial("a Contract that Covers the Vehicle", () => {
     let policyId: string;
     const policyTitle = "Covers E2E Policy";
+    // The service test above also typed in a rego date, so the hint names both.
+    const BOTH_HINT = "Add the insurance policy or the registration as a contract to track cost and documents.";
 
     test("with no covering Contract, the manual date stays with a hint", async ({ page }) => {
       await page.goto(`/vehicles/${vehicleId}/edit`);
@@ -200,7 +211,7 @@ test.describe.serial("Vehicles module", () => {
       await page.waitForURL(/\/vehicles\/(?!new$)[^/]+$/);
 
       await expect(page.getByText("Insurance expiry")).toBeVisible();
-      await expect(page.getByText("Add the insurance policy as a contract to track cost and documents.")).toBeVisible();
+      await expect(page.getByText(BOTH_HINT)).toBeVisible();
       await expect(insuranceReminderLine(page)).toBeVisible();
     });
 
@@ -233,7 +244,9 @@ test.describe.serial("Vehicles module", () => {
         "href",
         `/contracts/${policyId}`,
       );
-      await expect(page.getByText("Add the insurance policy as a contract to track cost and documents.")).toHaveCount(0);
+      // Only the rego date is still typed in, so the hint names only it.
+      await expect(page.getByText("Add the registration as a contract to track cost and documents.")).toBeVisible();
+      await expect(page.getByText(/the insurance policy/)).toHaveCount(0);
       // The Contract's Reminders replace the Vehicle's own for this date.
       await expect(insuranceReminderLine(page)).toHaveCount(0);
       await expect(page.getByRole("link", { name: "Add insurance" })).toHaveCount(0);
@@ -260,7 +273,7 @@ test.describe.serial("Vehicles module", () => {
 
       await page.goto(`/vehicles/${vehicleId}`);
       await expect(page.getByRole("link", { name: `From ${policyTitle}` })).toHaveCount(0);
-      await expect(page.getByText("Add the insurance policy as a contract to track cost and documents.")).toBeVisible();
+      await expect(page.getByText(BOTH_HINT)).toBeVisible();
       await expect(insuranceReminderLine(page)).toBeVisible();
       await expect(page.getByRole("link", { name: "Add insurance" })).toBeVisible();
     });

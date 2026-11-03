@@ -66,9 +66,28 @@ describe("search suggestions", () => {
       entry,
       href: `/contracts/${id}`,
     }));
-    const suggestions = attentionSuggestions(items, { dateFormat: "DD/MM/YYYY" });
+    const suggestions = attentionSuggestions({ due: items, housekeeping: [] }, { dateFormat: "DD/MM/YYYY" });
     expect(suggestions.map((s) => s.id)).toEqual(["a", "b", "c"]);
     expect(suggestions[0].subtitle).toMatch(/^Expired 3 days ago · Acme$/);
     expect(suggestions[1].subtitle).toBe("Expired 3 days ago");
+  });
+
+  // #520 review — the top three of the queue, so housekeeping fills in when
+  // fewer than three things are due.
+  it("fills up with housekeeping after the Due rows", () => {
+    const row = (id: string, group: "due" | "housekeeping"): AttentionItem => ({
+      id,
+      kind: "contract",
+      group,
+      title: `Contract ${id}`,
+      subtitle: group === "housekeeping" ? "Some auto-filled details haven't been confirmed yet." : undefined,
+      href: `/contracts/${id}`,
+    });
+    const suggestions = attentionSuggestions(
+      { due: [row("due-1", "due")], housekeeping: [row("tidy-1", "housekeeping"), row("tidy-2", "housekeeping"), row("tidy-3", "housekeeping")] },
+      { dateFormat: "DD/MM/YYYY" },
+    );
+    expect(suggestions.map((s) => s.id)).toEqual(["due-1", "tidy-1", "tidy-2"]);
+    expect(suggestions[1].subtitle).toBe("Some auto-filled details haven't been confirmed yet.");
   });
 });

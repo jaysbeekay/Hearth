@@ -5,6 +5,7 @@ import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import {
   monthlyEquivalent,
   formatCurrency,
+  formatDate,
   sumByYear,
   financialYearLabel,
   CATEGORY_LABELS,
@@ -14,6 +15,7 @@ import {
   buildYearlyTimeline,
   buildCategoryBreakdown,
   monthlySpend,
+  manualRenewalsAhead,
   nextTwelveMonthsSpend,
   timelineIsFlat,
 } from "@/lib/spend";
@@ -35,7 +37,7 @@ export default async function SpendPage({
   const { view: rawView } = await searchParams;
   const view = rawView === "yearly" ? "yearly" : "monthly";
 
-  const [enabledModules, { preferredCurrency, region }] = await Promise.all([
+  const [enabledModules, { preferredCurrency, region, dateFormat }] = await Promise.all([
     getEnabledModuleKeys(),
     getUserPreferences(),
   ]);
@@ -44,6 +46,8 @@ export default async function SpendPage({
     prisma.contract.findMany({
       where: { status: "ACTIVE", deletedAt: null },
       select: {
+        id: true,
+        title: true,
         category: true,
         cost: true,
         billingFrequency: true,
@@ -82,6 +86,8 @@ export default async function SpendPage({
   const { total: monthlyTotal, unconvertedCurrencies } = monthlySpend(contracts, preferredCurrency, rateMap);
   const hasUnconverted = unconvertedCurrencies.length > 0;
   const nextTwelveMonths = nextTwelveMonthsSpend(contracts, preferredCurrency, rateMap);
+  // The renewals "Next 12 months" leaves out, shown under the tiles.
+  const renewals = manualRenewalsAhead(contracts, preferredCurrency, rateMap);
   // #367 — the same exclusion the dashboard flags under Missing key details:
   // a cost with no billing frequency adds nothing to the monthly figure.
   const noFrequencyCount = contracts.filter((c) => c.cost != null && c.billingFrequency == null).length;
@@ -185,6 +191,41 @@ export default async function SpendPage({
           </Card>
         )}
       </div>
+
+      {/* Manual renewals inside the year: left out of "Next 12 months" until
+          renewed, listed here so the drop is explained and they get a decision. */}
+      {renewals.contracts.length > 0 && (
+        <details className={cardClass({ padding: "none" }, "group")}>
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm [&::-webkit-details-marker]:hidden">
+            <span>
+              {renewals.amount > 0 && (
+                <>+ {formatCurrency(renewals.amount, preferredCurrency, undefined, region, { showCode: true })} from </>
+              )}
+              {renewals.contracts.length === 1 ? "1 contract" : `${renewals.contracts.length} contracts`} ending within 12
+              months <span className="text-muted">(renew manually)</span>
+            </span>
+            <ChevronDown size={16} aria-hidden className="shrink-0 text-muted transition-transform group-open:rotate-180" />
+          </summary>
+          {/* #532 review — a scenario, not money already committed. */}
+          <p className="border-t border-border px-4 py-2 text-xs text-muted">
+            Not in Next 12 months. The amount is what these would cost for the rest of the year if each is renewed at
+            its current price.
+          </p>
+          <ul className="divide-y divide-border border-t border-border">
+            {renewals.contracts.map((c) => (
+              <li key={c.id}>
+                <Link
+                  href={`/contracts/${c.id}`}
+                  className="flex items-center justify-between gap-3 px-4 py-2 text-sm hover:bg-hover"
+                >
+                  <span className="min-w-0 truncate">{c.title}</span>
+                  <span className="shrink-0 text-xs text-muted">Ends {formatDate(c.endDate, dateFormat)}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
 
       {/* Category breakdown */}
       {categoryBreakdown.length > 0 && (
