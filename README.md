@@ -527,12 +527,19 @@ its tool disappears on the next connection.
   are in memory and reset on restart. The address check runs before the
   token check, so a locked-out address is refused even with a valid token
   until the window passes — put clients that share an address (behind the
-  same NAT) on a trusted network, and make sure your reverse proxy
-  overwrites `X-Forwarded-For`, which the throttle keys on. Without a
-  proxy setting `X-Forwarded-For` or `X-Real-IP`, every client counts as
-  the same address, so ten wrong tokens from anywhere lock out every MCP
-  client for 15 minutes. Put the endpoint behind a reverse proxy before
-  exposing it beyond your LAN.
+  same NAT) on a trusted network.
+- **The throttle trusts `X-Forwarded-For`.** It keys on the header's first
+  entry, so it is only as good as the proxy in front of Hearth. The HTTPS
+  compose file's nginx overwrites the header with the real client address.
+  If you use your own reverse proxy, make it overwrite (not append to)
+  `X-Forwarded-For`, or a client can send its own value and rotate past the
+  throttle. With the plain compose file, port 3000 is reached directly: a
+  client can set the header itself, and honest clients that don't all
+  share one bucket, so ten wrong tokens from anywhere lock out every MCP
+  client for 15 minutes. Use the HTTPS compose file or your own proxy before
+  exposing the endpoint beyond your LAN. The counters live in the one
+  Hearth process, so they don't add up across replicas; the token, not the
+  throttle, is the security boundary.
 - **The import scope adds a review queue, not write access.** A proposal
   can't change or delete anything, but an agent steered by injected text
   could fill the queue with junk or plausible-looking records — read each
