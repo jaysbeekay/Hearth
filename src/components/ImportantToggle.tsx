@@ -51,7 +51,7 @@ export function ImportantToggle({
         });
       }}
       className={cn(
-        "inline-flex h-11 w-11 items-center justify-center rounded-md hover:bg-hover",
+        "inline-flex h-11 w-11 items-center justify-center rounded-lg hover:bg-hover",
         optimistic ? "text-warning" : "text-muted",
       )}
     >

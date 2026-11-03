@@ -459,7 +459,7 @@ const BACKUP_TABLES = [
 ];
 
 function isSecondaryRoute(route) {
-  return ["more", "search", "spend", "calendar", "reminders", "import", "assistant", "settings", "help"].includes(route);
+  return ["more", "search", "spend", "calendar", "reminders", "import", "assistant", "settings", "help", "trash"].includes(route);
 }
 
 // #355 — Archived: the household no longer has this Vehicle or Property (sold,
@@ -851,13 +851,17 @@ function dateInputValue(value) {
   return value ? String(value).slice(0, 10) : "";
 }
 
+// Calendar days from today (device-local) to a date, as the web's Due policy
+// counts them (duePolicy.ts daysBetween): both days go through Date.UTC, so a
+// 23- or 25-hour DST day can't add or drop one.
 function daysUntil(value) {
   if (!value) return null;
-  const target = new Date(`${String(value).slice(0, 10)}T12:00:00`);
-  if (Number.isNaN(target.getTime())) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value));
+  if (!match) return null;
+  const target = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  if (Number.isNaN(target)) return null;
   const today = new Date();
-  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12, 0, 0);
-  return Math.ceil((target.getTime() - start.getTime()) / 86400000);
+  return Math.round((target - Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())) / 86400000);
 }
 
 function money(amount, currency = "AUD") {
@@ -1012,71 +1016,463 @@ function hasDocument(type, id) {
   return docsFor(ownerTypeForRecordType(type), id).length > 0;
 }
 
+// ─── Due policy (#386, ADR 0002) ─────────────────────────────────────────────
+// Hand-ported from src/lib/duePolicy.ts, which can't be imported here. It
+// takes the same records (camelCase, as in the web) and gives the same
+// entries: which dated obligations a record has, how many days each has left,
+// its state and its badge text. tests/fixtures/due-policy-cases.json pins
+// both: vitest runs it against the web module and the standalone suite runs
+// it against this port, so a rule changed on one side only fails a suite.
+// Lists, Needs attention, Upcoming and local Reminders all ask dueEntries();
+// a standalone install is one household on one device, so "today" is the
+// device's day (dueContext).
+const DUE_DAY_MS = 86400000;
+const DUE_DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const DUE_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
+const DUE_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const DEFAULT_REMINDER_DAYS = "30,14,7,1";
+
+function dueValidTimeZone(timeZone) {
+  if (!timeZone) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// The calendar day `now` falls on in `timeZone` (an invalid zone counts as UTC).
+function dueHouseholdDay(now, timeZone) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: dueValidTimeZone(timeZone) ? timeZone : "UTC",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const part = (type) => Number(parts.find((p) => p.type === type)?.value);
+  const pad = (n, width = 2) => String(n).padStart(width, "0");
+  return `${pad(part("year"), 4)}-${pad(part("month"))}-${pad(part("day"))}`;
+}
+
+// What every Due question on this device is asked with.
+function dueContext() {
+  return { today: localTermToday(), defaultReminderDays: DEFAULT_REMINDER_DAYS };
+}
+
+function dueUtcMidnight(y, m, d) {
+  const date = new Date(0);
+  date.setUTCFullYear(y, m - 1, d);
+  return date.getTime();
+}
+
+function dueDayOf(ms) {
+  const date = new Date(ms);
+  const year = date.getUTCFullYear();
+  if (Number.isNaN(year) || year < 0 || year > 9999) return null;
+  const pad = (n, width = 2) => String(n).padStart(width, "0");
+  return `${pad(year, 4)}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
+}
+
+// A stored date's calendar day (its UTC date), or null when it isn't one.
+function dueDay(value) {
+  if (value == null || value === "") return null;
+  if (value instanceof Date) return dueDayOf(value.getTime());
+  if (typeof value !== "string") return null;
+  if (DUE_DAY_PATTERN.test(value)) {
+    const [y, m, d] = value.split("-").map(Number);
+    return dueDayOf(dueUtcMidnight(y, m, d)) === value ? value : null;
+  }
+  if (DUE_TIMESTAMP_PATTERN.test(value)) return dueDayOf(new Date(value).getTime());
+  return null;
+}
+
+function dueDayNumber(day) {
+  const [y, m, d] = day.split("-").map(Number);
+  return dueUtcMidnight(y, m, d) / DUE_DAY_MS;
+}
+
+function dueAddDays(day, days) {
+  return dueDayOf((dueDayNumber(day) + days) * DUE_DAY_MS) ?? day;
+}
+
+function dueDaysBetween(from, to) {
+  return dueDayNumber(to) - dueDayNumber(from);
+}
+
+// "3 Nov", or "3 Nov 2027" when it isn't this year.
+function dueDateText(day, today) {
+  const [, m, d] = day.split("-").map(Number);
+  const short = `${d} ${DUE_MONTHS[m - 1] ?? ""}`;
+  return day.slice(0, 4) === today.slice(0, 4) ? short : `${short} ${day.slice(0, 4)}`;
+}
+
+const DUE_VERBS = {
+  cancelBy: "Cancel by",
+  renews: "Renews",
+  expires: "Expires",
+  ends: "Ends",
+  regoDue: "Rego due",
+  insuranceDue: "Insurance due",
+  serviceDue: "Service due",
+  leaseEnds: "Lease ends",
+  ended: "Ended",
+  lapsed: "Lapsed",
+};
+
+function dueLabelText(label) {
+  const ago = (days) => (days === 1 ? "yesterday" : `${days} days ago`);
+  switch (label.key) {
+    case "expiredAgo":
+      return `Expired ${ago(label.days)}`;
+    case "regoExpiredAgo":
+      return `Rego expired ${ago(label.days)}`;
+    case "insuranceExpiredAgo":
+      return `Insurance expired ${ago(label.days)}`;
+    case "serviceOverdue":
+      return `Service overdue by ${label.days} ${label.days === 1 ? "day" : "days"}`;
+    case "needsNewEndDate":
+      return "Needs new end date";
+    case "leaseEnded":
+      return "Lease ended — set the new lease end";
+    default: {
+      const on = label.date === label.today ? "today" : dueDateText(label.date, label.today);
+      return `${DUE_VERBS[label.key]} ${on}`;
+    }
+  }
+}
+
+function dueEntry(field, date, daysLeft, state, labelParts) {
+  return { field, date, daysLeft, state, label: dueLabelText(labelParts) };
+}
+
+// Thresholds as the web's parseThresholds reads them, whole days only.
+function dueWholeDayThresholds(value) {
+  if (!value || !String(value).trim()) return [];
+  const days = String(value)
+    .split(",")
+    .map((part) => Number(part.trim()))
+    .filter((n) => Number.isFinite(n) && n >= 0 && Number.isInteger(n));
+  return Array.from(new Set(days)).sort((a, b) => a - b);
+}
+
+// A record's Reminder thresholds, ascending: its own, else the default's.
+function dueThresholds(reminderDaysBefore, defaultReminderDays = DEFAULT_REMINDER_DAYS) {
+  const own = dueWholeDayThresholds(reminderDaysBefore);
+  return own.length > 0 ? own : dueWholeDayThresholds(defaultReminderDays);
+}
+
+// How far ahead a record becomes Due: its largest Reminder threshold.
+function dueSoonWindow(reminderDaysBefore, defaultReminderDays) {
+  const days = dueThresholds(reminderDaysBefore, defaultReminderDays);
+  return days.length > 0 ? Math.max(...days) : 0;
+}
+
+function isDueEntry(entry) {
+  return entry.state === "due-soon" || entry.state === "overdue";
+}
+
+function dueNoticeApplies(record) {
+  return (
+    record.renewalType !== "FIXED_TERM" &&
+    record.noticePeriodDays != null &&
+    Number.isInteger(record.noticePeriodDays) &&
+    record.noticePeriodDays > 0
+  );
+}
+
+function dueUpcoming(field, date, daysLeft, window, key, today) {
+  return dueEntry(field, date, daysLeft, daysLeft <= window ? "due-soon" : "later", { key, date, today });
+}
+
+function dueContractEntries(record, ctx) {
+  if (record.status === "CANCELLED") return [];
+  const end = dueDay(record.endDate);
+  if (!end) return [];
+  const { today } = ctx;
+  const window = dueSoonWindow(record.reminderDaysBefore, ctx.defaultReminderDays);
+  if (dueNoticeApplies(record)) {
+    const deadline = dueAddDays(end, -record.noticePeriodDays);
+    const days = dueDaysBetween(today, deadline);
+    if (days >= 0) return [dueUpcoming("noticeDeadline", deadline, days, window, "cancelBy", today)];
+  }
+  const daysLeft = dueDaysBetween(today, end);
+  if (daysLeft >= 0) {
+    if (record.renewalType === "AUTO_RENEW") return [dueEntry("endDate", end, daysLeft, "later", { key: "renews", date: end, today })];
+    return [dueUpcoming("endDate", end, daysLeft, window, record.renewalType === "FIXED_TERM" ? "ends" : "expires", today)];
+  }
+  if (record.renewalType === "FIXED_TERM") return [dueEntry("endDate", end, daysLeft, "ended", { key: "ended", date: end, today })];
+  if (record.renewalType === "AUTO_RENEW") return [dueEntry("endDate", end, daysLeft, "needs-new-end-date", { key: "needsNewEndDate" })];
+  return [dueEntry("endDate", end, daysLeft, "overdue", { key: "expiredAgo", days: -daysLeft })];
+}
+
+function dueWarrantyEntries(record, ctx) {
+  const end = dueDay(record.warrantyEndDate);
+  if (!end) return [];
+  const daysLeft = dueDaysBetween(ctx.today, end);
+  if (daysLeft < 0) return [dueEntry("warrantyEndDate", end, daysLeft, "lapsed", { key: "lapsed", date: end, today: ctx.today })];
+  return [dueUpcoming("warrantyEndDate", end, daysLeft, dueSoonWindow(record.reminderDaysBefore, ctx.defaultReminderDays), "ends", ctx.today)];
+}
+
+const DUE_VEHICLE_FIELDS = [
+  { field: "regoExpiry", due: "regoDue", passed: "regoExpiredAgo" },
+  { field: "insuranceExpiry", due: "insuranceDue", passed: "insuranceExpiredAgo" },
+  { field: "nextServiceDue", due: "serviceDue", passed: "serviceOverdue" },
+];
+
+function dueVehicleEntries(record, ctx) {
+  if (record.archivedAt != null) return [];
+  const window = dueSoonWindow(record.reminderDaysBefore, ctx.defaultReminderDays);
+  const entries = [];
+  for (const { field, due, passed } of DUE_VEHICLE_FIELDS) {
+    if (record.coveredFields?.includes(field)) {
+      const ended = dueDay(record.fixedTermCoverEnds?.[field]);
+      const daysLeft = ended ? dueDaysBetween(ctx.today, ended) : 0;
+      if (ended && daysLeft < 0) entries.push(dueEntry(field, ended, daysLeft, "overdue", { key: passed, days: -daysLeft }));
+      continue;
+    }
+    const date = dueDay(record[field]);
+    if (!date) continue;
+    const daysLeft = dueDaysBetween(ctx.today, date);
+    entries.push(
+      daysLeft < 0
+        ? dueEntry(field, date, daysLeft, "overdue", { key: passed, days: -daysLeft })
+        : dueUpcoming(field, date, daysLeft, window, due, ctx.today),
+    );
+  }
+  return entries;
+}
+
+function dueTenancyEntries(record, ctx) {
+  if (record.coveredFields?.includes("leaseEnd")) {
+    const ended = dueDay(record.fixedTermCoverEnds?.leaseEnd);
+    const daysLeft = ended ? dueDaysBetween(ctx.today, ended) : 0;
+    return ended && daysLeft < 0 ? [dueEntry("leaseEnd", ended, daysLeft, "needs-new-end-date", { key: "leaseEnded" })] : [];
+  }
+  const end = dueDay(record.leaseEnd);
+  if (!end) return [];
+  const daysLeft = dueDaysBetween(ctx.today, end);
+  if (daysLeft < 0) return [dueEntry("leaseEnd", end, daysLeft, "needs-new-end-date", { key: "leaseEnded" })];
+  return [dueUpcoming("leaseEnd", end, daysLeft, dueSoonWindow(record.reminderDaysBefore, ctx.defaultReminderDays), "leaseEnds", ctx.today)];
+}
+
+// Every Due entry of a record, soonest first (a Vehicle's ties keep rego,
+// insurance, service order). Trips are never Due.
+function dueEntries(record, ctx) {
+  const entries =
+    record.kind === "contract" ? dueContractEntries(record, ctx)
+    : record.kind === "warranty" ? dueWarrantyEntries(record, ctx)
+    : record.kind === "vehicle" ? dueVehicleEntries(record, ctx)
+    : record.kind === "tenancy" ? dueTenancyEntries(record, ctx)
+    : [];
+  return entries.sort((a, b) => a.daysLeft - b.daysLeft);
+}
+
+// The entries that get local Reminders, as the web's reminderEntries: today
+// or ahead and not Ended, Lapsed or waiting on a new date, and never an
+// auto-renewing Contract's end date (it just renews).
+function dueReminderEntries(record, ctx) {
+  return dueEntries(record, ctx).filter(
+    (entry) =>
+      entry.daysLeft >= 0 &&
+      (entry.state === "due-soon" || entry.state === "later") &&
+      !(record.kind === "contract" && record.renewalType === "AUTO_RENEW" && entry.field === "endDate"),
+  );
+}
+
+// ─── Local rows as Due records ────────────────────────────────────────────────
+
+// A local row's date for the policy, under the web's input contract: the
+// shell stores YYYY-MM-DD (forms and imports normalise to it), and anything
+// the web would read as no date is no date here too.
+function rowDueDate(value) {
+  if (value == null || value === "") return null;
+  return dueDay(String(value));
+}
+
+function contractDueRecord(row) {
+  return {
+    kind: "contract",
+    endDate: rowDueDate(row.end_date),
+    noticePeriodDays: row.notice_period_days == null || row.notice_period_days === "" ? null : Number(row.notice_period_days),
+    renewalType: row.renewal_type ?? "MANUAL_RENEWAL",
+    status: row.status ?? "ACTIVE",
+    reminderDaysBefore: row.reminder_days_before,
+  };
+}
+
+function warrantyDueRecord(row) {
+  return { kind: "warranty", warrantyEndDate: rowDueDate(row.warranty_end_date), reminderDaysBefore: row.reminder_days_before };
+}
+
+// A Covered rego/insurance date goes through vehicleOwnDates (#456/#487): null
+// while the Contract Covers it, or the fixed-term Contract's end once ended.
+function vehicleDueRecordFor(row) {
+  const own = vehicleOwnDates(row);
+  return {
+    kind: "vehicle",
+    regoExpiry: rowDueDate(own.rego_expiry),
+    insuranceExpiry: rowDueDate(own.insurance_expiry),
+    nextServiceDue: rowDueDate(own.next_service_due),
+    reminderDaysBefore: row.reminder_days_before,
+    archivedAt: isArchived(row) ? row.archived_at : null,
+  };
+}
+
+// #457 — a Tenancy's linked Contract Covers it when its end date is the
+// lease end and it is not Cancelled, in Trash or awaiting review, as on the
+// web (isCoveringTenancy): the Contract's entries stand in for the lease end.
+function tenancyCoveringContract(row) {
+  if (!row.contract_id) return null;
+  const contract = cache.contracts.find((c) => c.id === row.contract_id);
+  if (!contract || contract.deleted_at || contract.status === "CANCELLED" || Number(contract.extraction_pending ?? 0) === 1) return null;
+  const end = rowDueDate(contract.end_date);
+  return end && end === rowDueDate(row.lease_end) ? contract : null;
+}
+
+function tenancyDueRecordFor(row) {
+  const cover = tenancyCoveringContract(row);
+  return {
+    kind: "tenancy",
+    leaseEnd: rowDueDate(row.lease_end),
+    reminderDaysBefore: row.reminder_days_before,
+    ...(cover
+      ? { coveredFields: ["leaseEnd"], ...(cover.renewal_type === "FIXED_TERM" ? { fixedTermCoverEnds: { leaseEnd: rowDueDate(cover.end_date) } } : {}) }
+      : {}),
+  };
+}
+
+function dueRecordFor(type, row) {
+  if (type === "contracts") return contractDueRecord(row);
+  if (type === "products") return warrantyDueRecord(row);
+  if (type === "vehicles") return vehicleDueRecordFor(row);
+  if (type === "rentalAgreements") return tenancyDueRecordFor(row);
+  return null;
+}
+
+function dueEntriesFor(type, row, ctx = dueContext()) {
+  const record = dueRecordFor(type, row);
+  return record ? dueEntries(record, ctx) : [];
+}
+
+// #456 - Covers, hand-ported from src/lib/covers.ts. A Contract linked to a
+// Vehicle, in a Covering Category, not cancelled, trashed or awaiting review,
+// and with an end date, supplies the Vehicle's rego or insurance date. With several, the one
+// ending last wins, then the one entered last. The Vehicle's own dates are
+// never changed, so cancelling the Contract brings the manual date back.
+const COVERED_VEHICLE_FIELDS = new Map([
+  ["CAR_INSURANCE", "insurance_expiry"],
+  ["REGISTRATION", "rego_expiry"],
+]);
+
+// A stored date or timestamp as milliseconds; missing or unreadable sorts first.
+function timeOf(value) {
+  const time = value ? Date.parse(String(value)) : NaN;
+  return Number.isNaN(time) ? 0 : time;
+}
+
+function vehicleCovers(vehicleId) {
+  const winners = new Map();
+  for (const contract of cache.contracts) {
+    const field = COVERED_VEHICLE_FIELDS.get(contract.category);
+    if (contract.vehicle_id !== vehicleId || !field || contract.deleted_at || contract.status === "CANCELLED" || Number(contract.extraction_pending ?? 0) === 1 || !contract.end_date) continue;
+    const current = winners.get(field);
+    // Same order as the web's compareCovers: later end (full timestamp), then
+    // entered later, then id.
+    const order = current
+      ? timeOf(contract.end_date) - timeOf(current.end_date) ||
+        timeOf(contract.created_at) - timeOf(current.created_at) ||
+        String(contract.id).localeCompare(String(current.id))
+      : 1;
+    if (order > 0) winners.set(field, contract);
+  }
+  return winners;
+}
+
+// The Vehicle's own dates with the Covered ones left out: those are the
+// Contract's to remind about, so the Vehicle has no Due entry for them.
+// The date the Vehicle shows for a field: the Covering Contract's end date, else its own.
+function vehicleDerivedDate(row, field) {
+  return vehicleCovers(row.id).get(field)?.end_date ?? row[field];
+}
+
+// A detail line for a rego or insurance date: where a Covered date comes from,
+// or the hint to add the policy as a Contract when it was typed in by hand.
+function vehicleDateLine(row, field) {
+  const cover = vehicleCovers(row.id).get(field);
+  const date = readableDate(vehicleDerivedDate(row, field));
+  if (cover) return `${date} · From ${cover.title}`;
+  const thing = field === "rego_expiry" ? "registration" : "policy";
+  return row[field] ? `${date} · Add the ${thing} as a contract to track cost and documents` : date;
+}
+
+// #487 review — a fixed-term Covering Contract just ends (never Due), so once
+// its end date has passed the Vehicle is uncovered and its date is Overdue
+// from that day, as in the web's Due policy (fixedTermCoverEnds).
+function coverEnded(cover) {
+  if (!cover || cover.renewal_type !== "FIXED_TERM") return false;
+  const days = daysUntil(cover.end_date);
+  return days != null && days < 0;
+}
+
+function vehicleOwnDates(row) {
+  const own = { ...row };
+  for (const [field, cover] of vehicleCovers(row.id)) own[field] = coverEnded(cover) ? cover.end_date : null;
+  return own;
+}
+
+// #386 — whether a record needs attention, from the Due policy as on the
+// web's Needs attention: its Due entries (due soon or overdue) first, else
+// the Housekeeping of a record waiting on its new end date. Ended Contracts
+// and Lapsed Warranties leave the queue. Needs review comes first (#412).
 function attentionForRecord(type, row) {
   if (["contracts", "products"].includes(type) && Number(row.extraction_pending ?? 0) === 1) {
     // #412 — Needs review is Housekeeping: a neutral badge, as in the web app.
-    return { tone: "neutral", label: "Needs review", meta: "Confirm details before reminders run" };
+    return { tone: "neutral", label: "Needs review", meta: "Confirm details before reminders run", daysLeft: null };
   }
-  if (type === "contracts") {
-    const days = daysUntil(row.end_date);
-    if (days == null || row.status !== "ACTIVE") return null;
-    if (days < 0) return { tone: "danger", label: "Expired", meta: `Ended ${Math.abs(days)} days ago` };
-    if (days <= 30) return { tone: "warning", label: "Due soon", meta: `Ends in ${days} days` };
-  }
-  if (type === "products") {
-    const days = daysUntil(row.warranty_end_date);
-    if (days == null) return null;
-    if (days < 0) return { tone: "danger", label: "Warranty expired", meta: `${Math.abs(days)} days ago` };
-    if (days <= 30) return { tone: "warning", label: "Warranty", meta: `Ends in ${days} days` };
-  }
-  if (type === "vehicles") {
-    if (isArchived(row)) return null;
-    const rego = daysUntil(row.rego_expiry);
-    const insurance = daysUntil(row.insurance_expiry);
-    const service = daysUntil(row.next_service_due);
-    const urgent = [
-      rego != null && rego <= 30 ? ["Rego", rego] : null,
-      insurance != null && insurance <= 30 ? ["Insurance", insurance] : null,
-      service != null && service <= 30 ? ["Service", service] : null,
-    ].filter(Boolean);
-    if (urgent.length === 0) return null;
-    const expired = urgent.some((entry) => entry[1] < 0);
+  // Only a rented Property's current Tenancy has a Due lease end (#388, #355).
+  if (type === "rentalAgreements" && !isCurrentTenancy(row)) return null;
+  const entries = dueEntriesFor(type, row);
+  const due = entries.filter(isDueEntry);
+  if (due.length > 0) {
+    const overdue = due.some((entry) => entry.state === "overdue");
     return {
-      tone: expired ? "danger" : "warning",
-      label: expired ? "Vehicle overdue" : "Vehicle due",
-      meta: urgent.map(([label, days]) => `${label} ${days < 0 ? `${Math.abs(days)}d overdue` : `in ${days}d`}`).join(" · "),
+      tone: overdue ? "danger" : "warning",
+      label: overdue ? "Overdue" : "Due soon",
+      meta: due.map((entry) => entry.label).join(" · "),
+      daysLeft: due[0].daysLeft,
     };
   }
-  if (type === "rentalAgreements") {
-    const days = daysUntil(row.lease_end);
-    if (days == null) return null;
-    if (days < 0) return { tone: "danger", label: "Lease ended", meta: `${Math.abs(days)} days ago` };
-    if (days <= 45) return { tone: "warning", label: "Lease ending", meta: `Ends in ${days} days` };
-  }
+  const tidy = entries.find((entry) => entry.state === "needs-new-end-date");
+  if (tidy) return { tone: "neutral", label: "Needs new end date", meta: tidy.label, daysLeft: tidy.daysLeft };
   return null;
 }
+
+// A Tenancy whose lease end can be Due: its Property is rented, not
+// Archived, and this is that Property's current (most recent) lease.
+function isCurrentTenancy(row) {
+  const property = cache.properties.find((candidate) => candidate.id === row.property_id);
+  if (!property || isArchived(property) || Number(property.is_rented ?? 0) !== 1) return false;
+  return currentTenancyFor(property.id)?.id === row.id;
+}
+
+const ATTENTION_TONE_ORDER = { danger: 0, warning: 1, neutral: 2 };
 
 function buildAttentionItems() {
   const rows = [
     ...cache.contracts.map((row) => ({ type: "contracts", row })),
     ...cache.products.map((row) => ({ type: "products", row })),
     ...(moduleEnabled("vehicles") ? activeRows(cache.vehicles).map((row) => ({ type: "vehicles", row })) : []),
-    // A Tenancy's lease end stops being Due once its Property is Archived (#355).
-    ...(moduleEnabled("properties")
-      ? cache.rentalAgreements
-          .filter((row) => !isArchived(cache.properties.find((property) => property.id === row.property_id)))
-          .map((row) => ({ type: "rentalAgreements", row }))
-      : []),
-    ...(moduleEnabled("trips") ? cache.trips.map((row) => ({ type: "trips", row })) : []),
+    ...(moduleEnabled("properties") ? cache.rentalAgreements.map((row) => ({ type: "rentalAgreements", row })) : []),
   ];
+  // Due first (overdue, then due soon), then Housekeeping; soonest first in each.
   return rows
     .map((item) => ({ ...item, attention: attentionForRecord(item.type, item.row) }))
     .filter((item) => item.attention)
-    .sort((a, b) => {
-      const aDanger = a.attention.tone === "danger" ? 0 : 1;
-      const bDanger = b.attention.tone === "danger" ? 0 : 1;
-      return aDanger - bDanger || String(a.attention.meta).localeCompare(String(b.attention.meta));
-    });
+    .sort((a, b) =>
+      ATTENTION_TONE_ORDER[a.attention.tone] - ATTENTION_TONE_ORDER[b.attention.tone] ||
+      (a.attention.daysLeft ?? 0) - (b.attention.daysLeft ?? 0) ||
+      String(recordTitle(a.type, a.row)).localeCompare(String(recordTitle(b.type, b.row))));
 }
 
 async function storeFile(ownerType, ownerId, file) {
@@ -1313,12 +1709,13 @@ async function render() {
     assistant: "Assistant",
     settings: "Settings",
     help: "Help",
+    trash: "Recently deleted documents",
     detail: "Details",
     form: state.form?.type === "contractRenewal" ? "Renew contract" : state.form?.id ? "Edit record" : "Add record",
   };
   viewTitle.textContent = titleMap[route] ?? "Hearth";
   viewKicker.textContent = route === "dashboard" ? "Standalone" : "Private local records";
-  const canGoBack = ["detail", "form", "search", "more", "spend", "calendar", "reminders", "import", "assistant", "settings", "help"].includes(route);
+  const canGoBack = ["detail", "form", "search", "more", "spend", "calendar", "reminders", "import", "assistant", "settings", "help", "trash"].includes(route);
   backButton.classList.toggle("is-hidden", !canGoBack);
   backButton.toggleAttribute("aria-hidden", !canGoBack);
   backButton.disabled = !canGoBack;
@@ -1345,6 +1742,7 @@ async function render() {
   if (route === "assistant") mobileView.innerHTML = renderAssistant();
   if (route === "settings") mobileView.innerHTML = renderSettings();
   if (route === "help") mobileView.innerHTML = renderHelp();
+  if (route === "trash") mobileView.innerHTML = renderTrash(await query("SELECT * FROM documents WHERE deleted_at IS NOT NULL"));
   if (route === "detail") mobileView.innerHTML = renderDetail();
   if (route === "form") mobileView.innerHTML = renderForm();
   mobileView.focus({ preventScroll: true });
@@ -1438,6 +1836,7 @@ function renderMore() {
     { title: "Reminders", copy: "Thresholds and reminder health for expiry-based records.", nav: "reminders" },
     { title: "Import", copy: "Upload documents into the standalone inbox.", nav: "import" },
     { title: "Assistant", copy: "Search-style local assistant for records on this phone.", nav: "assistant" },
+    { title: "Recently deleted documents", copy: "Restore Documents from Trash.", nav: "trash" },
     { title: "Settings", copy: "Mode, storage, modules and standalone limitations.", nav: "settings" },
     { title: "Help", copy: "Mobile guidance, privacy model, import limits and connected-mode notes.", nav: "help" },
   ];
@@ -1521,51 +1920,103 @@ function spendRows(contracts) {
   return [...categories.entries()].sort((a, b) => b[1] - a[1]);
 }
 
+const CALENDAR_LIMIT = 80;
+
 function renderCalendar() {
-  const events = calendarEvents();
+  const all = calendarEvents();
+  const events = all.slice(0, CALENDAR_LIMIT);
   return `
     <section class="hero-card">
       <p class="kicker">Upcoming</p>
-      <h2>${events.length} date${events.length === 1 ? "" : "s"} on the radar</h2>
+      <h2>${all.length} date${all.length === 1 ? "" : "s"} on the radar</h2>
       <p>Renewals, warranties, rego, insurance, trips and bookings from local records.</p>
     </section>
     <section class="list">
       ${events.length === 0 ? empty("No upcoming dates", "Add end dates, warranty dates, trip dates or vehicle expiry dates to see them here.") : events.map(renderCalendarEvent).join("")}
+      ${all.length > events.length ? `<p class="card-meta calendar-more">Showing the next ${events.length} of ${all.length} dates.</p>` : ""}
     </section>
   `;
 }
 
+// Upcoming's label for each kind of Due entry.
+const UPCOMING_LABELS = {
+  noticeDeadline: "Notice deadline",
+  endDate: "Contract ends",
+  warrantyEndDate: "Warranty ends",
+  regoExpiry: "Rego expiry",
+  insuranceExpiry: "Insurance expiry",
+  nextServiceDue: "Service due",
+  leaseEnd: "Lease end",
+};
+
+// #476, #402, #386 — Upcoming runs from today with no history, as on the
+// web: anything Overdue is in Needs attention instead. Contracts,
+// Warranties, Vehicles and the current Tenancy list their Due policy entries
+// that are today or ahead (a Contract's notice deadline while it's ahead,
+// else its end date), and only a due-soon entry is coloured. A Contract or
+// Warranty still held for review is listed but never coloured. A Trip
+// segment is a plain neutral date. The web lists Trip segments, not the Trip
+// itself, and a segment stays while any of it is ahead (its end, or its
+// start when it has none); once it has begun it sorts at today and says "In
+// progress", keeping its real start date on the card.
 function calendarEvents() {
+  const today = localTermToday();
+  const ctx = dueContext();
   const events = [];
-  const add = (date, label, title, type, id, tone = "neutral") => {
+  const add = (date, label, title, type, id, { tone = "neutral", lastDate = date } = {}) => {
     if (!date) return;
     const days = daysUntil(date);
-    if (days == null || days < -30) return;
-    events.push({ date: String(date).slice(0, 10), label, title, type, id, days, tone });
+    const lastDays = daysUntil(lastDate);
+    if (days == null || lastDays == null || lastDays < 0) return;
+    const inProgress = days < 0;
+    const day = String(date).slice(0, 10);
+    events.push({ date: day, sortDate: inProgress ? today : day, inProgress, label, title, type, id, days: Math.max(days, 0), tone: inProgress ? "neutral" : tone });
   };
-  for (const row of cache.contracts) add(row.end_date, "Contract ends", recordTitle("contracts", row), "contracts", row.id);
-  for (const row of cache.products) add(row.warranty_end_date, "Warranty ends", recordTitle("products", row), "products", row.id);
-  for (const row of activeRows(cache.vehicles)) {
-    add(row.rego_expiry, "Rego expiry", recordTitle("vehicles", row), "vehicles", row.id);
-    add(row.insurance_expiry, "Insurance expiry", recordTitle("vehicles", row), "vehicles", row.id);
-    add(row.next_service_due, "Service due", recordTitle("vehicles", row), "vehicles", row.id);
+  const held = (row) => Number(row.extraction_pending ?? 0) === 1;
+  const addEntries = (type, row, { open = { type, id: row.id }, title = recordTitle(type, row) } = {}) => {
+    for (const entry of dueEntriesFor(type, row, ctx)) {
+      if (entry.daysLeft < 0) continue;
+      const tone = entry.state === "due-soon" && !held(row) ? "warning" : "neutral";
+      add(entry.date, UPCOMING_LABELS[entry.field] ?? entry.field, title, open.type, open.id, { tone });
+    }
+  };
+  for (const row of cache.contracts) addEntries("contracts", row);
+  for (const row of cache.products) addEntries("products", row);
+  // #456 — a Covered rego/insurance date is the Covering Contract's, which
+  // has its own event, so the Vehicle lists only its own.
+  for (const row of activeRows(cache.vehicles)) addEntries("vehicles", row);
+  // #388, #457 — the current Tenancy's lease end, unless its Contract Covers it.
+  if (moduleEnabled("properties")) {
+    for (const row of cache.rentalAgreements) {
+      if (!isCurrentTenancy(row)) continue;
+      const property = cache.properties.find((candidate) => candidate.id === row.property_id);
+      addEntries("rentalAgreements", row, { open: { type: "properties", id: property.id }, title: recordTitle("properties", property) });
+    }
   }
-  for (const row of cache.trips) add(row.start_date, "Trip starts", recordTitle("trips", row), "trips", row.id);
-  for (const row of cache.tripSegments) add(row.start_date, typeLabel(row.type), recordTitle("tripSegments", row), "tripSegments", row.id);
-  return events.sort((a, b) => a.date.localeCompare(b.date)).slice(0, 80);
+  for (const row of cache.tripSegments) {
+    add(row.start_date, typeLabel(row.type), recordTitle("tripSegments", row), "tripSegments", row.id, { lastDate: row.end_date || row.start_date });
+  }
+  // Deterministic order: by the day it sorts on, then real start, label, title, id.
+  return events.sort((a, b) =>
+    a.sortDate.localeCompare(b.sortDate) ||
+    a.date.localeCompare(b.date) ||
+    String(a.label).localeCompare(String(b.label)) ||
+    String(a.title).localeCompare(String(b.title)) ||
+    String(a.id).localeCompare(String(b.id)));
 }
 
 function renderCalendarEvent(event) {
-  const badgeTone = event.days < 0 ? "danger" : event.days <= 30 ? "warning" : "";
-  const relative = event.days < 0 ? `${Math.abs(event.days)}d overdue` : event.days === 0 ? "Today" : `In ${event.days}d`;
+  const badgeTone = event.tone === "neutral" ? "" : event.tone;
+  const relative = event.inProgress ? "In progress" : event.days === 0 ? "Today" : `In ${event.days}d`;
+  const when = event.inProgress ? `Since ${readableDate(event.date)}` : readableDate(event.date);
   return `
-    <button class="record-card ${badgeTone === "danger" ? "danger-card" : badgeTone === "warning" ? "warning-card" : ""}" data-open-record="${escapeAttr(event.type)}" data-id="${escapeAttr(event.id)}">
+    <button class="record-card ${badgeTone === "warning" ? "warning-card" : ""}" data-open-record="${escapeAttr(event.type)}" data-id="${escapeAttr(event.id)}">
       <div class="badge-row">
         <span class="badge ${escapeAttr(badgeTone)}">${escapeHtml(relative)}</span>
         <span class="badge">${escapeHtml(event.label)}</span>
       </div>
       <h3>${escapeHtml(event.title)}</h3>
-      <p class="card-meta">${escapeHtml(readableDate(event.date))}</p>
+      <p class="card-meta">${escapeHtml(when)}</p>
     </button>
   `;
 }
@@ -1576,7 +2027,7 @@ function renderReminders() {
   // #412 — only a record whose reminders can run counts as due soon or
   // overdue; one missing its date or thresholds is "Missing setup" instead.
   const dueSoon = targets.filter((target) => target.health.enabled && ["danger", "warning"].includes(target.health.tone));
-  const missing = targets.filter((target) => !target.health.enabled);
+  const missing = targets.filter((target) => target.health.missing);
   const scheduleable = reminderNotifications().length;
   return `
     <section class="hero-card">
@@ -1626,21 +2077,35 @@ function renderReminderCard(target) {
   `;
 }
 
+// #386 — a Reminder target per Due entry, from the Due policy as on the
+// web's Reminder schedule: a Contract reminds for its notice deadline while
+// it's ahead, then its end date unless it auto-renews; nothing reminds once
+// its date has passed; a Cancelled Contract has none. A Covered date (#456,
+// #457) is the Covering Contract's to remind about.
 function reminderTargets() {
+  const ctx = dueContext();
   return [
-    ...cache.contracts.map((row) => reminderTarget("contracts", row, "Contract", row.end_date, row.reminder_days_before)),
-    ...cache.products.map((row) => reminderTarget("products", row, "Warranty", row.warranty_end_date, row.reminder_days_before)),
-    ...activeRows(cache.vehicles).flatMap((row) => [
-      reminderTarget("vehicles", row, "Rego", row.rego_expiry, row.reminder_days_before),
-      reminderTarget("vehicles", row, "Insurance", row.insurance_expiry, row.reminder_days_before),
-      reminderTarget("vehicles", row, "Service", row.next_service_due, row.reminder_days_before),
-    ]),
-    ...leaseReminderTargets(),
+    ...cache.contracts.flatMap((row) => recordReminderTargets("contracts", row, "Contract", ctx)),
+    ...cache.products.flatMap((row) => recordReminderTargets("products", row, "Warranty", ctx)),
+    ...activeRows(cache.vehicles).flatMap((row) => vehicleReminderTargets("vehicles", row, ctx)),
+    ...leaseReminderTargets(ctx),
   ].sort((a, b) => {
     const aDate = a.health.sortDate ?? "9999-12-31";
     const bDate = b.health.sortDate ?? "9999-12-31";
     return aDate.localeCompare(bDate);
   });
+}
+
+// A Contract's or Warranty's targets: one for its current Due entry.
+function recordReminderTargets(type, row, kind, ctx = dueContext()) {
+  if (type === "contracts" && row.status === "CANCELLED") return [];
+  const dateField = type === "contracts" ? row.end_date : row.warranty_end_date;
+  if (Number(row.extraction_pending ?? 0) === 1) return [reminderTarget(type, row, kind, null, dateField)];
+  const record = dueRecordFor(type, row);
+  const entries = dueEntries(record, ctx);
+  if (entries.length === 0) return [reminderTarget(type, row, kind, null, dateField)];
+  const remindable = dueReminderEntries(record, ctx);
+  return entries.map((entry) => reminderTarget(type, row, kind, entry, dateField, remindable.some((candidate) => candidate.field === entry.field)));
 }
 
 // Record types whose save or delete changes the scheduled local Reminders.
@@ -1664,54 +2129,133 @@ function currentTenancyFor(propertyId) {
     }, null);
 }
 
-function leaseReminderTargets() {
+// A Vehicle's rego, insurance and service Reminders, leaving out a date a
+// Covering Contract supplies (#456): that Contract's own Reminder stands in.
+// Once a fixed-term Covering Contract has ended, the Vehicle reminds from
+// its end date again (vehicleOwnDates, #487).
+function vehicleReminderTargets(type, row, ctx = dueContext()) {
+  const record = vehicleDueRecordFor(row);
+  const entries = dueEntries(record, ctx);
+  const remindable = dueReminderEntries(record, ctx);
+  const covered = vehicleCovers(row.id);
+  const target = (field, dueField, kind) => {
+    const entry = entries.find((candidate) => candidate.field === dueField);
+    if (entry) return reminderTarget(type, row, kind, entry, row[field], remindable.some((candidate) => candidate.field === entry.field));
+    if (covered.has(field)) return null;
+    return reminderTarget(type, row, kind, null, row[field]);
+  };
+  return [
+    target("rego_expiry", "regoExpiry", "Rego"),
+    target("insurance_expiry", "insuranceExpiry", "Insurance"),
+    target("next_service_due", "nextServiceDue", "Service"),
+  ].filter(Boolean);
+}
+
+// A rented Property's current Tenancy, for its lease end (#388). While its
+// linked Contract Covers it (#457) the Contract reminds instead, and past
+// its lease end it needs a new one rather than a Reminder.
+function leaseReminderTargets(ctx = dueContext()) {
   if (!moduleEnabled("properties")) return [];
   return activeRows(cache.properties)
     .filter((property) => Number(property.is_rented ?? 0) === 1)
     .flatMap((property) => {
       const tenancy = currentTenancyFor(property.id);
       if (!tenancy?.lease_end) return [];
-      const target = reminderTarget("rentalAgreements", tenancy, "Lease", tenancy.lease_end, tenancy.reminder_days_before);
-      // A Tenancy opens on its Property, and past its lease end it needs a new one rather than a Reminder.
-      const ended = (daysUntil(tenancy.lease_end) ?? 0) < 0;
+      const record = tenancyDueRecordFor(tenancy);
+      const [entry] = dueEntries(record, ctx);
+      if (!entry) return record.coveredFields ? [] : [{ ...reminderTarget("rentalAgreements", tenancy, "Lease", null, tenancy.lease_end), title: recordTitle("properties", property), open: { type: "properties", id: property.id } }];
+      const target = reminderTarget("rentalAgreements", tenancy, "Lease", entry, tenancy.lease_end, dueReminderEntries(record, ctx).some((candidate) => candidate.field === entry.field));
       return [
         {
           ...target,
           title: recordTitle("properties", property),
           open: { type: "properties", id: property.id },
-          health: ended
-            ? { ...target.health, enabled: false, tone: "neutral", label: "Lease ended", summary: "Set the new lease end.", nextReminderDate: null }
-            : target.health,
+          health:
+            entry.state === "needs-new-end-date"
+              ? { ...target.health, enabled: false, missing: false, tone: "neutral", label: "Lease ended", summary: "Set the new lease end.", nextReminderDate: null }
+              : target.health,
         },
       ];
     });
 }
 
-function reminderTarget(type, row, kind, dueDate, thresholds) {
+// One Reminder target: `entry` is its Due entry (null when the record has
+// no readable date), `rawDate` the stored date, and `remindable` whether the
+// entry gets Reminders at all.
+function reminderTarget(type, row, kind, entry, rawDate, remindable = false) {
   const field = reminderFieldForKind(kind);
   const heldForReview = ["contracts", "products"].includes(type) && Number(row.extraction_pending ?? 0) === 1;
+  const thresholds = dueThresholds(row.reminder_days_before);
   const health = heldForReview
     ? {
         enabled: false,
+        // #412 — it can't run until confirmed, so it counts as Missing setup.
+        missing: true,
         tone: "neutral",
         label: "Held",
         summary: "Details need review; reminders are held until confirmed.",
         nextReminderDate: null,
-        sortDate: String(dueDate ?? "9999-12-31").slice(0, 10),
+        sortDate: String(rawDate ?? "9999-12-31").slice(0, 10),
       }
-    : reminderHealth(dueDate, thresholds);
+    : entryReminderHealth(entry, rawDate, thresholds, remindable);
   const logs = reminderLogsFor(type, row.id, field);
   return {
     type,
     row,
     kind,
     field,
-    dueDate,
+    entry,
+    dueDate: entry?.date ?? null,
+    thresholds,
     health: {
       ...health,
       lastScheduled: latestReminderLog(logs, "SCHEDULED"),
       lastFailure: latestReminderLog(logs, "FAILED"),
     },
+  };
+}
+
+// Why an entry that has a date gets no Reminder.
+const QUIET_ENTRY_LABELS = {
+  later: ["Renews", "Renews automatically, so its end date needs no reminder."],
+  ended: ["Ended", "Fixed term has ended; nothing to remind about."],
+  lapsed: ["Lapsed", "Warranty has lapsed; nothing to remind about."],
+  "needs-new-end-date": ["Needs new end date", "Renewed automatically; set the new end date."],
+};
+
+// "Due 2099-03-15", or "Cancel by …" for a notice deadline, in the shell's date style.
+function entryDueText(entry) {
+  return `${entry.field === "noticeDeadline" ? "Cancel by" : "Due"} ${readableDate(entry.date)}`;
+}
+
+function entryReminderHealth(entry, rawDate, thresholds, remindable) {
+  if (!entry) {
+    if (!rawDate) return { enabled: false, missing: true, tone: "neutral", label: "No date", summary: "Add a target date before reminders can be planned.", nextReminderDate: null, sortDate: null };
+    return { enabled: false, missing: true, tone: "neutral", label: "Invalid date", summary: "The saved date could not be read.", nextReminderDate: null, sortDate: null };
+  }
+  if (thresholds.length === 0) return { enabled: false, missing: true, tone: "neutral", label: "No thresholds", summary: "Add comma-separated reminder days, for example 30,14,7,1.", nextReminderDate: null, sortDate: entry.date };
+  const listed = [...thresholds].sort((a, b) => b - a);
+  if (entry.state === "overdue") {
+    return { enabled: true, missing: false, tone: "danger", label: "Overdue", summary: `${entryDueText(entry)}; thresholds ${listed.join(", ")} days.`, nextReminderDate: null, sortDate: entry.date };
+  }
+  if (!remindable) {
+    const [label, summary] = QUIET_ENTRY_LABELS[entry.state] ?? ["No reminder", entry.label];
+    return { enabled: false, missing: false, tone: "neutral", label, summary: `${entry.label}. ${summary}`, nextReminderDate: null, sortDate: entry.date };
+  }
+  const nextThreshold = listed.find((threshold) => threshold <= entry.daysLeft);
+  const nextReminderDate = nextThreshold == null ? localTermToday() : dueAddDays(entry.date, -nextThreshold);
+  const dueSoon = entry.state === "due-soon";
+  return {
+    enabled: true,
+    missing: false,
+    tone: dueSoon ? "warning" : "neutral",
+    label: dueSoon ? "Due soon" : "Planned",
+    summary:
+      nextThreshold == null
+        ? `${entryDueText(entry)}; all configured reminder thresholds have passed.`
+        : `${entryDueText(entry)}; next reminder ${nextReminderDate} (${nextThreshold} days before).`,
+    nextReminderDate,
+    sortDate: nextReminderDate,
   };
 }
 
@@ -1750,28 +2294,6 @@ function reminderDeliverySummary(health) {
   return parts.length > 0 ? parts.join(" · ") : "No local delivery history yet.";
 }
 
-function reminderHealth(dueDate, thresholdsText) {
-  const thresholds = parseReminderDays(thresholdsText);
-  if (!dueDate) return { enabled: false, tone: "neutral", label: "No date", summary: "Add a target date before reminders can be planned.", nextReminderDate: null, sortDate: null };
-  if (thresholds.length === 0) return { enabled: false, tone: "neutral", label: "No thresholds", summary: "Add comma-separated reminder days, for example 30,14,7,1.", nextReminderDate: null, sortDate: String(dueDate).slice(0, 10) };
-  const days = daysUntil(dueDate);
-  if (days == null) return { enabled: false, tone: "neutral", label: "Invalid date", summary: "The saved date could not be read.", nextReminderDate: null, sortDate: null };
-  const dueLabel = readableDate(dueDate);
-  if (days < 0) return { enabled: true, tone: "danger", label: "Overdue", summary: `Due ${dueLabel}; thresholds ${thresholds.join(", ")} days.`, nextReminderDate: null, sortDate: dueLabel };
-  const nextThreshold = thresholds.find((threshold) => threshold <= days);
-  const nextReminderDate = nextThreshold == null ? readableDate(nowIso()) : addDaysIso(dueDate, -nextThreshold);
-  const label = days <= 30 ? "Due soon" : "Planned";
-  const tone = days <= 30 ? "warning" : "neutral";
-  return {
-    enabled: true,
-    tone,
-    label,
-    summary: nextThreshold == null ? `Due ${dueLabel}; all configured reminder thresholds have passed.` : `Due ${dueLabel}; next reminder ${nextReminderDate} (${nextThreshold} days before).`,
-    nextReminderDate,
-    sortDate: nextReminderDate,
-  };
-}
-
 function parseReminderDays(value) {
   return String(value || "30,14,7,1")
     .split(",")
@@ -1794,9 +2316,9 @@ function reminderNotifications() {
 }
 
 function reminderNotificationPlans(target) {
-  if (!target.health.enabled || !target.dueDate) return [];
+  if (!target.health.enabled || !target.dueDate || target.entry?.state === "overdue") return [];
   const title = target.title ?? recordTitle(target.type, target.row);
-  return parseReminderDays(target.row.reminder_days_before)
+  return target.thresholds
     .map((threshold) => {
       const reminderDate = addDaysIso(target.dueDate, -threshold);
       const at = notificationDate(reminderDate);
@@ -1807,7 +2329,9 @@ function reminderNotificationPlans(target) {
         body:
           target.kind === "Lease"
             ? `Lease for ${title} ends ${readableDate(target.dueDate)} (${threshold} days to go).`
-            : `${target.kind} is due ${readableDate(target.dueDate)} (${threshold} days to go).`,
+            : target.entry?.field === "noticeDeadline"
+              ? `Cancel by ${readableDate(target.dueDate)} or it renews (${threshold} days to go).`
+              : `${target.kind} is due ${readableDate(target.dueDate)} (${threshold} days to go).`,
         schedule: { at },
         channelId: REMINDER_CHANNEL_ID,
         extra: {
@@ -2085,6 +2609,13 @@ function renderSettings() {
       </div>
       <div class="list compact-list">
         ${OPTIONAL_MODULES.map(renderModuleSetting).join("")}
+      </div>
+    </section>
+    <section class="card form-card">
+      <h2>Recently deleted documents</h2>
+      <p class="muted">Deleted Documents stay on this phone for ${TRASH_RETENTION_DAYS} days, and can be restored until then.</p>
+      <div class="actions">
+        <button data-nav="trash">Open recently deleted documents</button>
       </div>
     </section>
     <section class="card form-card">
@@ -2366,7 +2897,7 @@ function recordMeta(type, row) {
     return [row.manufacturer, row.model, row.warranty_end_date ? `Warranty ${readableDate(row.warranty_end_date)}` : null, money(row.price, row.currency)].filter(Boolean).join(" · ");
   }
   if (type === "vehicles") {
-    return [[row.make, row.model].filter(Boolean).join(" "), row.license_plate, row.rego_expiry ? `Rego ${readableDate(row.rego_expiry)}` : null].filter(Boolean).join(" · ");
+    return [[row.make, row.model].filter(Boolean).join(" "), row.license_plate, vehicleDerivedDate(row, "rego_expiry") ? `Rego ${readableDate(vehicleDerivedDate(row, "rego_expiry"))}` : null].filter(Boolean).join(" · ");
   }
   if (type === "vehicleItems") {
     return [row.type, row.provider, readableDate(row.date), money(row.cost, row.currency)].filter(Boolean).join(" · ");
@@ -2443,6 +2974,7 @@ function renderDetail() {
       ${renderRecordReminderHealth(type, row)}
     </section>
     ${type === "contracts" ? renderPreviousTerms(row.id) : ""}
+    ${type === "vehicles" ? renderVehicleContracts(row) : ""}
     ${type === "vehicles" ? renderChildRecords("Service records", "vehicleItems", cache.vehicleItems.filter((item) => item.vehicle_id === row.id), row.id, "No service records", "Track services, repairs and roadworthies here.") : ""}
     ${type === "properties" ? renderPropertyRentalSummary(row.id) : ""}
     ${type === "properties" ? renderChildRecords("Warranties", "products", cache.products.filter((item) => item.property_id === row.id), row.id, "No warranties linked", "Register a warranty to this home so it shows up here.") : ""}
@@ -2564,8 +3096,8 @@ function renderDetailRows(type, row) {
       ["Colour", row.colour],
       ["Plate", row.license_plate],
       ["VIN", row.vin],
-      ["Rego expiry", readableDate(row.rego_expiry)],
-      ["Insurance", readableDate(row.insurance_expiry)],
+      ["Rego expiry", vehicleDateLine(row, "rego_expiry")],
+      ["Insurance", vehicleDateLine(row, "insurance_expiry")],
       ["Next service due", readableDate(row.next_service_due)],
       ["Reminder thresholds", row.reminder_days_before || "30,14,7,1"],
       ["Notes", row.notes],
@@ -2697,14 +3229,11 @@ function renderRecordReminderHealth(type, row) {
   if (isArchived(row)) return "";
   const targets =
     type === "contracts"
-      ? [reminderTarget(type, row, "Contract", row.end_date, row.reminder_days_before)]
+      ? recordReminderTargets(type, row, "Contract")
       : type === "products"
-        ? [reminderTarget(type, row, "Warranty", row.warranty_end_date, row.reminder_days_before)]
-        : [
-            reminderTarget(type, row, "Rego", row.rego_expiry, row.reminder_days_before),
-            reminderTarget(type, row, "Insurance", row.insurance_expiry, row.reminder_days_before),
-            reminderTarget(type, row, "Service", row.next_service_due, row.reminder_days_before),
-          ];
+        ? recordReminderTargets(type, row, "Warranty")
+        : vehicleReminderTargets(type, row);
+  if (targets.length === 0) return "";
   return `
     <div class="subsection">
       <h3>Reminder health</h3>
@@ -2742,6 +3271,30 @@ function renderLinkedInventoryItems(productId) {
   `;
 }
 
+// #456 - the Vehicle's linked Contracts, with shortcuts that open the Contract
+// form linked to it. A shortcut goes once a Covering Contract is in place.
+function renderVehicleContracts(vehicle) {
+  const covered = vehicleCovers(vehicle.id);
+  const linked = cache.contracts.filter((contract) => contract.vehicle_id === vehicle.id);
+  const shortcut = (label, category) =>
+    `<button data-form-type="contracts" data-parent-id="${escapeAttr(vehicle.id)}" data-default-category="${escapeAttr(category)}">${escapeHtml(label)}</button>`;
+  return `
+    <section class="card form-card">
+      <div class="section-title">
+        <h2>Contracts linked to this vehicle</h2>
+      </div>
+      <div class="actions">
+        ${covered.has("insurance_expiry") ? "" : shortcut("Add insurance", "CAR_INSURANCE")}
+        ${covered.has("rego_expiry") ? "" : shortcut("Add registration", "REGISTRATION")}
+        <button data-form-type="contracts" data-parent-id="${escapeAttr(vehicle.id)}">Add contract</button>
+      </div>
+      <div class="list">
+        ${linked.length === 0 ? empty("No contracts linked", "Add the insurance or registration as a contract to track its cost and documents.") : linked.map((row) => renderRecordCard("contracts", row)).join("")}
+      </div>
+    </section>
+  `;
+}
+
 function renderChildRecords(title, type, rows, parentId, emptyTitle, emptyCopy) {
   return `
     <section class="card form-card">
@@ -2760,6 +3313,9 @@ function renderDocuments() {
   const docs = filteredDocuments();
   const inboxDocs = filteredInboxDocuments();
   return `
+    <section class="actions actions-wrap">
+      <button data-nav="trash">Recently deleted documents</button>
+    </section>
     ${renderInboxImportSection()}
     <section class="chips" aria-label="Document filters">
       ${documentChip("all", "All")}
@@ -3086,6 +3642,24 @@ function renderForm() {
   `;
 }
 
+// Contract Categories, as on the web (src/lib/validation/contract.ts). CAR_INSURANCE
+// and REGISTRATION Cover a linked Vehicle's insurance and rego dates (#456).
+const CONTRACT_CATEGORIES = ["RENTAL", "CAR_INSURANCE", "REGISTRATION", "HOME_INSURANCE", "STRATA_INSURANCE", "HEALTH_INSURANCE", "LIFE_INSURANCE", "UTILITY", "TELECOM", "SUBSCRIPTION", "LOAN", "WARRANTY", "OTHER"];
+
+// A Covered date shows read-only with its Contract; the manual date still
+// rides along in a hidden field so saving keeps it for when the Contract stops Covering.
+function vehicleDateField(label, name, column, row) {
+  const cover = row ? vehicleCovers(row.id).get(column) : null;
+  if (!cover) return `<label>${escapeHtml(label)}<input name="${name}" type="date" value="${escapeAttr(dateInputValue(row?.[column]))}" /></label>`;
+  return `<div><span>${escapeHtml(label)}</span><input name="${name}" type="hidden" value="${escapeAttr(dateInputValue(row[column]))}" /><p class="muted">${escapeHtml(readableDate(cover.end_date))} · From ${escapeHtml(cover.title)}</p></div>`;
+}
+
+// The Categories, plus a saved value that isn't one of them (the field used to
+// be free text), so editing never rewrites it to the first option.
+function categoryChoices(current) {
+  return current && !CONTRACT_CATEGORIES.includes(current) ? [...CONTRACT_CATEGORIES, current] : CONTRACT_CATEGORIES;
+}
+
 function formFields(type, row) {
   if (type === "contracts") {
     return `
@@ -3093,7 +3667,7 @@ function formFields(type, row) {
         <label>Title<input name="title" value="${escapeAttr(row?.title)}" required /></label>
         <label>Provider<input name="provider" value="${escapeAttr(row?.provider)}" required /></label>
         <label>Contract number<input name="contractNumber" value="${escapeAttr(row?.contract_number)}" /></label>
-        <label>Category<input name="category" value="${escapeAttr(row?.category ?? "OTHER")}" /></label>
+        <label>Category<select name="category">${options(categoryChoices(row?.category), row?.category ?? state.form?.defaultCategory ?? "OTHER")}</select></label>
         <label>Status<select name="status">${options(["ACTIVE", "CANCELLED", "EXPIRED"], row?.status ?? "ACTIVE")}</select></label>
         <label>Start date<input name="startDate" type="date" value="${escapeAttr(dateInputValue(row?.start_date))}" /></label>
         <label>End date<input name="endDate" type="date" value="${escapeAttr(dateInputValue(row?.end_date))}" /></label>
@@ -3101,6 +3675,7 @@ function formFields(type, row) {
         <label>Billing<select name="billingFrequency">${options(["", "WEEKLY", "FORTNIGHTLY", "MONTHLY", "QUARTERLY", "ANNUALLY", "ONE_OFF"], row?.billing_frequency ?? "")}</select></label>
         <label>Reminder thresholds (days before)<input name="reminderDaysBefore" inputmode="numeric" value="${escapeAttr(row?.reminder_days_before ?? "30,14,7,1")}" placeholder="30,14,7,1" /></label>
         <label class="checkbox-row"><input name="needsReview" type="checkbox" ${Number(row?.extraction_pending ?? 0) === 1 ? "checked" : ""} /> Needs review — hold reminders until confirmed</label>
+        ${moduleEnabled("vehicles") ? `<label>Linked vehicle<select name="vehicleId"><option value="">Not linked</option>${cache.vehicles.map((vehicle) => `<option value="${escapeAttr(vehicle.id)}" ${vehicle.id === (row ? row.vehicle_id : state.form?.parentId) ? "selected" : ""}>${escapeHtml(recordTitle("vehicles", vehicle))}</option>`).join("")}</select></label>` : ""}
         <label>Contact email<input name="contactEmail" type="email" value="${escapeAttr(row?.contact_email)}" /></label>
         <label>Notes<textarea name="notes">${escapeHtml(row?.notes)}</textarea></label>
       </div>
@@ -3136,8 +3711,8 @@ function formFields(type, row) {
         <label>Colour<input name="colour" value="${escapeAttr(row?.colour)}" /></label>
         <label>Plate<input name="licensePlate" value="${escapeAttr(row?.license_plate)}" /></label>
         <label>VIN<input name="vin" value="${escapeAttr(row?.vin)}" /></label>
-        <label>Rego expiry<input name="regoExpiry" type="date" value="${escapeAttr(dateInputValue(row?.rego_expiry))}" /></label>
-        <label>Insurance expiry<input name="insuranceExpiry" type="date" value="${escapeAttr(dateInputValue(row?.insurance_expiry))}" /></label>
+        ${vehicleDateField("Rego expiry", "regoExpiry", "rego_expiry", row)}
+        ${vehicleDateField("Insurance expiry", "insuranceExpiry", "insurance_expiry", row)}
         <label>Next service due<input name="nextServiceDue" type="date" value="${escapeAttr(dateInputValue(row?.next_service_due))}" /></label>
         <label>Reminder thresholds (days before)<input name="reminderDaysBefore" inputmode="numeric" value="${escapeAttr(row?.reminder_days_before ?? "30,14,7,1")}" placeholder="30,14,7,1" /></label>
         <label>Notes<textarea name="notes">${escapeHtml(row?.notes)}</textarea></label>
@@ -3420,17 +3995,19 @@ async function saveContract(form) {
     reminderDaysOrDefault(fieldValue(form, "reminderDaysBefore")),
     extractionPending,
     extractionConfirmedAt,
+    // Without the select (Vehicles hidden) the saved link is kept.
+    form.elements.namedItem("vehicleId") ? valueOrNull(fieldValue(form, "vehicleId")) : existing?.vehicle_id ?? null,
     nowIso(),
   ];
   if (exists) {
     await run(
-      "UPDATE contracts SET title = ?, category = ?, provider = ?, contract_number = ?, start_date = ?, end_date = ?, cost = ?, billing_frequency = ?, status = ?, contact_email = ?, notes = ?, reminder_days_before = ?, extraction_pending = ?, extraction_confirmed_at = ?, updated_at = ?, version = version + 1 WHERE id = ?",
+      "UPDATE contracts SET title = ?, category = ?, provider = ?, contract_number = ?, start_date = ?, end_date = ?, cost = ?, billing_frequency = ?, status = ?, contact_email = ?, notes = ?, reminder_days_before = ?, extraction_pending = ?, extraction_confirmed_at = ?, vehicle_id = ?, updated_at = ?, version = version + 1 WHERE id = ?",
       [...values, id],
     );
   } else {
     await run(
-      "INSERT INTO contracts (id, title, category, provider, contract_number, start_date, end_date, cost, currency, billing_frequency, status, contact_email, notes, reminder_days_before, extraction_pending, extraction_confirmed_at, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)",
-      [id, ...values.slice(0, 7), defaultCurrency(), ...values.slice(7, 14), values[14], values[14]],
+      "INSERT INTO contracts (id, title, category, provider, contract_number, start_date, end_date, cost, currency, billing_frequency, status, contact_email, notes, reminder_days_before, extraction_pending, extraction_confirmed_at, vehicle_id, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)",
+      [id, ...values.slice(0, 7), defaultCurrency(), ...values.slice(7, 15), values[15], values[15]],
     );
   }
   await maybeStoreFormFile(form, "contract", id);
@@ -4099,7 +4676,7 @@ async function maybeStoreFormFile(form, ownerType, id) {
 async function deleteRecord(type, id) {
   const row = getRecord(type, id);
   if (!row) return;
-  const confirmed = window.confirm(`Delete "${recordTitle(type, row)}"? Its documents go to Trash for ${TRASH_RETENTION_DAYS} days, then their files are deleted.`);
+  const confirmed = window.confirm(`Delete "${recordTitle(type, row)}"? Its documents are kept for ${TRASH_RETENTION_DAYS} days, then their files are deleted.`);
   if (!confirmed) return;
   await softDeleteRecord(type, id);
   if (state.localRemindersEnabled && REMINDER_RECORD_TYPES.includes(type)) {
@@ -4200,21 +4777,127 @@ async function deleteDocument(id) {
   if (!doc) return;
   await trashDocument(id);
   await syncDocumentHeads(doc.owner_type, doc.owner_id);
-  showStandaloneStatus(`"${doc.filename}" moved to Trash.`, true, { run: () => restoreDocument(id) });
+  showStandaloneStatus(`"${doc.filename}" deleted.`, true, { run: () => restoreDocument(id) });
   await render();
 }
 
-async function restoreDocument(id) {
-  const [doc] = await query("SELECT owner_type, owner_id, filename FROM documents WHERE id = ? AND deleted_at IS NOT NULL", [id]);
-  if (!doc) return;
-  // A live Document under a deleted record would be unreachable.
-  if (!getRecord(recordTypeForOwnerType(doc.owner_type), doc.owner_id)) {
-    throw new Error(`Can't restore "${doc.filename}": the record it belonged to was deleted.`);
-  }
-  await run("UPDATE documents SET deleted_at = NULL, version = version + 1 WHERE id = ?", [id]);
-  await syncDocumentHeads(doc.owner_type, doc.owner_id);
-  showStandaloneStatus("Document restored.", true);
+// Recently deleted (#488): Documents in Trash, newest first. A Document whose
+// record was deleted is listed too, as it is kept for the same 30 days, but it
+// can't be restored until the record is (restoreDocument refuses). The days
+// left are clamped so a clock behind the data can't promise more than 30.
+function trashDaysLeft(doc) {
+  const expires = Date.parse(doc.deleted_at) + TRASH_RETENTION_DAYS * DAY_MS;
+  const days = Math.ceil((expires - Date.now()) / DAY_MS);
+  return Number.isFinite(days) ? Math.min(TRASH_RETENTION_DAYS, Math.max(0, days)) : TRASH_RETENTION_DAYS;
+}
+
+function renderTrash(trashed) {
+  const docs = [...trashed].sort((a, b) => String(b.deleted_at).localeCompare(String(a.deleted_at)));
+  return `
+    <section>
+      <p class="muted">Deleted Documents are kept for ${TRASH_RETENTION_DAYS} days, then deleted for good. One whose record was also deleted can't be restored here, only deleted.</p>
+    </section>
+    <section class="list" aria-label="Recently deleted documents">
+      ${docs.length === 0 ? empty("Nothing recently deleted", `Documents you delete are kept here for ${TRASH_RETENTION_DAYS} days.`) : docs.map(renderTrashedDocument).join("")}
+    </section>
+  `;
+}
+
+function renderTrashedDocument(doc) {
+  const owner = getRecord(recordTypeForOwnerType(doc.owner_type), doc.owner_id);
+  const days = trashDaysLeft(doc);
+  const name = escapeAttr(doc.filename);
+  // The shell can't bring a deleted record back, so its Documents can only go.
+  return `
+    <article class="record-card">
+      <h3>${escapeHtml(doc.filename)}</h3>
+      <p class="card-meta">${owner ? escapeHtml(ownerLabel(doc)) : `${escapeHtml(typeLabel(doc.owner_type))} · Its record was deleted`}</p>
+      <p class="card-meta">Deleted ${escapeHtml(readableDate(doc.deleted_at) ?? "")} · ${days === 0 ? "Will be deleted soon" : `${days} day${days === 1 ? "" : "s"} left`}</p>
+      <div class="actions actions-wrap">
+        ${owner ? `<button data-restore-document="${escapeAttr(doc.id)}" aria-label="Restore ${name}">Restore</button>` : ""}
+        <button class="danger" data-purge-document="${escapeAttr(doc.id)}" aria-label="Delete permanently, ${name}">Delete permanently</button>
+      </div>
+    </article>
+  `;
+}
+
+// One restore or permanent delete at a time. A Restore tapped while a purge is
+// deleting the file would otherwise race it, so taps are ignored and the
+// buttons disabled until it finishes.
+let trashBusy = false;
+
+function setTrashBusy(busy) {
+  trashBusy = busy;
+  mobileView.querySelectorAll("[data-restore-document], [data-purge-document]").forEach((button) => {
+    button.disabled = busy;
+  });
+}
+
+async function showStaleTrashRow() {
+  hideStandaloneStatus();
+  showStandaloneStatus("Already restored or removed.");
   await render();
+}
+
+async function purgeTrashedDocument(id) {
+  if (trashBusy) return;
+  setTrashBusy(true);
+  try {
+    const [doc] = await query("SELECT owner_type, owner_id, filename FROM documents WHERE id = ? AND deleted_at IS NOT NULL", [id]);
+    if (!doc) {
+      await showStaleTrashRow();
+      return;
+    }
+    if (!window.confirm(`Permanently delete "${doc.filename}"? This is the only copy of it on this phone. Its file is removed and it can't be undone.`)) return;
+    // The same purge the 30-day cleanup uses: file and row together, chain relinked.
+    if (!(await purgeDocument(id))) {
+      await showStaleTrashRow();
+      return;
+    }
+    await syncDocumentHeads(doc.owner_type, doc.owner_id);
+    hideStandaloneStatus();
+    showStandaloneStatus("Deleted permanently.", true);
+    await render();
+  } finally {
+    setTrashBusy(false);
+  }
+}
+
+// `fromList`: tapped on the Recently deleted screen, not from an Undo toast.
+// Then no earlier Undo is left on the result, and a row that's gone says so.
+async function restoreDocument(id, fromList = false) {
+  if (trashBusy) return;
+  setTrashBusy(true);
+  try {
+    const [doc] = await query("SELECT owner_type, owner_id, filename, storage_key FROM documents WHERE id = ? AND deleted_at IS NOT NULL", [id]);
+    if (!doc) {
+      if (fromList || state.route === "trash") await showStaleTrashRow();
+      return;
+    }
+    // A live Document under a deleted record would be unreachable.
+    if (!getRecord(recordTypeForOwnerType(doc.owner_type), doc.owner_id)) {
+      throw new Error(`Can't restore "${doc.filename}": the record it belonged to was deleted.`);
+    }
+    // Never bring back a row whose bytes are gone (e.g. the app was killed
+    // between a purge deleting the file and deleting the row): it would be a
+    // live Document that can't be opened. It stays in Trash and is purged.
+    let present;
+    try {
+      present = await storedFileExists(doc.storage_key);
+    } catch (error) {
+      throw new Error(`Can't restore "${doc.filename}" yet: ${error.message}`);
+    }
+    if (!present) {
+      throw new Error(`Can't restore "${doc.filename}": its file is no longer on this phone.`);
+    }
+    await run("UPDATE documents SET deleted_at = NULL, version = version + 1 WHERE id = ?", [id]);
+    await syncDocumentHeads(doc.owner_type, doc.owner_id);
+    if (fromList) hideStandaloneStatus();
+    showStandaloneStatus("Document restored.", true);
+    await render();
+  } finally {
+    setTrashBusy(false);
+  }
 }
 
 // is_head is kept in step for older builds that still read it; this build
@@ -4242,21 +4925,44 @@ async function deleteStoredFile(storageKey) {
   }
 }
 
+// Whether a stored file is still there. A definite "not found" means
+// missing. Any other stat error can't prove the file is there, so it throws
+// and the Restore is refused with a "try again", instead of guessing
+// "present" and bringing back a row with no bytes. No stat on this platform
+// counts as present.
+async function storedFileExists(storageKey) {
+  if (!Filesystem?.stat || !storageKey) return true;
+  try {
+    await Filesystem.stat({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${storageKey}` });
+    return true;
+  } catch (error) {
+    if (/not.?found|does not exist|no such file|enoent/i.test(String(error?.message ?? error))) return false;
+    throw new Error("Couldn't check that its file is still on this phone. Try again.");
+  }
+}
+
 // Deletes a Trash entry's file and row together. It re-reads the row, so the
 // chain is relinked from what is saved now, not from a list read earlier.
+// Order: file first, then the row in one transaction. If the app dies in
+// between, the row is still in Trash with no file: Restore refuses it
+// (storedFileExists) and the next purge removes it (a missing file is fine).
 async function purgeDocument(id) {
   const [doc] = await query("SELECT * FROM documents WHERE id = ? AND deleted_at IS NOT NULL", [id]);
   if (!doc) return null;
-  // A file an Inbox entry still points at stays.
+  // A file an Inbox entry or any other Document row (another version, a
+  // duplicate import) still points at stays: only this row goes.
   const inbox = await query("SELECT id FROM inbox_documents WHERE storage_key = ? AND deleted_at IS NULL LIMIT 1", [doc.storage_key]);
-  if (inbox.length === 0) await deleteStoredFile(doc.storage_key);
+  const shared = await query("SELECT id FROM documents WHERE storage_key = ? AND id <> ? LIMIT 1", [doc.storage_key, doc.id]);
+  if (inbox.length === 0 && shared.length === 0) await deleteStoredFile(doc.storage_key);
   // The next version now follows this one's older version, so the chain stays whole.
   await SQLite.executeSet({
     database: DB,
     transaction: true,
     set: [
-      { statement: "UPDATE documents SET supersedes_id = ?, version = version + 1 WHERE supersedes_id = ?", values: [doc.supersedes_id ?? null, doc.id] },
-      { statement: "DELETE FROM documents WHERE id = ?", values: [doc.id] },
+      // Both only act while the row is still in Trash, so a Restore that got
+      // in first leaves the live row and its chain alone.
+      { statement: "UPDATE documents SET supersedes_id = ?, version = version + 1 WHERE supersedes_id = ? AND EXISTS (SELECT 1 FROM documents WHERE id = ? AND deleted_at IS NOT NULL)", values: [doc.supersedes_id ?? null, doc.id, doc.id] },
+      { statement: "DELETE FROM documents WHERE id = ? AND deleted_at IS NOT NULL", values: [doc.id] },
     ],
   });
   return doc;
@@ -4689,16 +5395,17 @@ function routeTo(route) {
   state.detail = null;
   state.detailBack = null;
   state.form = null;
-  state.backTo = isSecondaryRoute(route) ? (previousRoute === "more" ? "more" : "dashboard") : null;
+  if (route === "trash") hideStandaloneStatus();
+  state.backTo = isSecondaryRoute(route) ? (previousRoute === "more" || (route === "trash" && ["documents", "settings"].includes(previousRoute)) ? previousRoute : "dashboard") : null;
   render().catch((error) => showStandaloneStatus(error.message || "Could not open screen."));
 }
 
-function openForm(type, id = "", parentId = "") {
+function openForm(type, id = "", parentId = "", defaultCategory = "") {
   if (!recordTypeEnabled(type)) {
     showStandaloneStatus(`${typeLabel(type)} is hidden. Show it again from Settings first.`);
     return;
   }
-  state.form = { type, id: id || null, parentId: parentId || null };
+  state.form = { type, id: id || null, parentId: parentId || null, defaultCategory: defaultCategory || null };
   state.detailBack = null;
   state.backTo = state.route === "detail" ? "detail" : state.route;
   state.route = "form";
@@ -4834,7 +5541,7 @@ mobileView.addEventListener("click", async (event) => {
     return;
   }
   if (button.dataset.formType) {
-    openForm(button.dataset.formType, button.dataset.id, button.dataset.parentId);
+    openForm(button.dataset.formType, button.dataset.id, button.dataset.parentId, button.dataset.defaultCategory);
     return;
   }
   if (button.dataset.openRecord) {
@@ -4866,6 +5573,20 @@ mobileView.addEventListener("click", async (event) => {
   }
   if (button.dataset.openInboxDocument) {
     await openInboxDocument(button.dataset.openInboxDocument).catch((error) => showStandaloneStatus(error.message || "Could not open document."));
+    return;
+  }
+  if (button.dataset.restoreDocument) {
+    await restoreDocument(button.dataset.restoreDocument, true).catch((error) => {
+      hideStandaloneStatus();
+      showStandaloneStatus(error?.message || "Could not restore.");
+    });
+    return;
+  }
+  if (button.dataset.purgeDocument) {
+    await purgeTrashedDocument(button.dataset.purgeDocument).catch((error) => {
+      hideStandaloneStatus();
+      showStandaloneStatus(error?.message || "Could not delete.");
+    });
     return;
   }
   if (button.dataset.deleteDocument) {

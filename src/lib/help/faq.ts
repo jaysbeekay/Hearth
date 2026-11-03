@@ -1,6 +1,6 @@
 // Help page FAQ (#362). Wherever an answer names a page, a tab or a
 // Settings section, it's written in [[double brackets]], as one label or a
-// " → " path ("[[Settings → Household & System → Modules]]"). The Help page
+// " → " path ("[[Settings → Household → Modules]]"). The Help page
 // shows those in bold, and tests/unit/help-faq-labels.test.ts checks every
 // one against the real labels in nav-items.ts and src/lib/routeLabels.ts,
 // so a renamed page can't leave Help pointing at something that's gone.
@@ -21,11 +21,11 @@ export const FAQ_SECTIONS: FaqSection[] = [
     entries: [
       {
         q: "What are modules, and can I turn them on or off later?",
-        a: "[[Travel]], [[Properties]], [[Vehicles]], [[Inventory]] and [[Wealth]] are optional modules you can turn on at first-run setup or any time afterwards from [[Settings → Household & System → Modules]]. Turning a module off hides it from navigation but keeps its data — nothing is deleted. [[Contracts]], [[Warranties]] and [[Documents]] are always on.",
+        a: "[[Travel]], [[Properties]], [[Vehicles]], [[Inventory]] and [[Wealth]] are optional modules you can turn on at first-run setup or any time afterwards from [[Settings → Household → Modules]]. Turning a module off hides it from navigation but keeps its data — nothing is deleted. [[Contracts]], [[Warranties]] and [[Documents]] are always on.",
       },
       {
         q: "How do I invite another household member?",
-        a: "From [[Settings → Household & System → Household members]]. If email (SMTP) is configured, they get an invite link that expires after 48 hours and set their own password. Otherwise, you set a temporary password for them directly. There's no public sign-up — every account is invited by an admin.",
+        a: "From [[Settings → Household → Members]]. If email (SMTP) is configured, they get an invite link that expires after 48 hours and set their own password. Otherwise, you set a temporary password for them directly. There's no public sign-up — every account is invited by an admin.",
       },
       {
         q: "What's the difference between Admin, Member, and Read-only roles?",
@@ -50,7 +50,7 @@ export const FAQ_SECTIONS: FaqSection[] = [
       },
       {
         q: "Is my document sent anywhere when using AI extraction?",
-        a: "Only if you've configured a cloud AI provider yourself, in [[Settings → Household & System → System settings → AI document extraction]]. In that case, the document is sent directly to that provider using your own API key. Without one, extraction stays local — either the built-in rules or an optional local Ollama server you point at.",
+        a: "Only if you've configured a cloud AI provider yourself, in [[Settings → Household → AI & privacy → AI document extraction]]. In that case, the document is sent directly to that provider using your own API key. Without one, extraction stays local — either the built-in rules or an optional local Ollama server you point at.",
       },
       {
         q: "What happens to a document I upload without attaching it to a record?",
@@ -80,7 +80,7 @@ export const FAQ_SECTIONS: FaqSection[] = [
     entries: [
       {
         q: "Where can backups be stored?",
-        a: "S3-compatible storage (AWS S3, Backblaze B2, Cloudflare R2, MinIO, etc.), SFTP, or a local folder on the server. Only one destination is active at a time, chosen in [[Settings → Household & System → Backups]].",
+        a: "S3-compatible storage (AWS S3, Backblaze B2, Cloudflare R2, MinIO, etc.), SFTP, or a local folder on the server. Only one destination is active at a time, chosen in [[Settings → Household → Backups]].",
       },
       {
         q: "Are backups encrypted?",
@@ -105,11 +105,11 @@ export const FAQ_SECTIONS: FaqSection[] = [
       },
       {
         q: "How do I reset a forgotten password?",
-        a: "If email (SMTP) is configured for your household, use \"Forgot your password?\" on the sign-in page. If it isn't, ask your household admin to set a new password for you from [[Settings → Household & System → Household members]].",
+        a: "If email (SMTP) is configured for your household, use \"Forgot your password?\" on the sign-in page. If it isn't, ask your household admin to set a new password for you from [[Settings → Household → Members]].",
       },
       {
         q: "Can I create my own account?",
-        a: "No — accounts are invite-only. An admin adds you from [[Settings → Household & System → Household members]], or (if GitHub sign-in is enabled) you can sign in with GitHub once an admin has invited your email address.",
+        a: "No — accounts are invite-only. An admin adds you from [[Settings → Household → Members]], or (if GitHub sign-in is enabled) you can sign in with GitHub once an admin has invited your email address.",
       },
     ],
   },
@@ -131,11 +131,11 @@ export const FAQ_SECTIONS: FaqSection[] = [
     entries: [
       {
         q: "A module I turned on isn't showing up in navigation.",
-        a: "Check it's actually on in [[Settings → Household & System → Modules]] — turning it on there is what adds it to the navigation. [[Contracts]], [[Warranties]] and [[Documents]] are always shown.",
+        a: "Check it's actually on in [[Settings → Household → Modules]] — turning it on there is what adds it to the navigation. [[Contracts]], [[Warranties]] and [[Documents]] are always shown.",
       },
       {
         q: "The Assistant isn't in my navigation.",
-        a: "[[Assistant]] only appears once a chat AI provider is configured for the household, in [[Settings → Household & System → System settings → AI Assistant]].",
+        a: "[[Assistant]] only appears once a chat AI provider is configured for the household, in [[Settings → Household → AI & privacy → AI Assistant]].",
       },
       {
         q: "A record another household member added doesn't show up for me.",

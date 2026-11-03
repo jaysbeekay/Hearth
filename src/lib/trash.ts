@@ -11,10 +11,13 @@ import {
   purgePropertyValuation,
 } from "@/lib/commands/home";
 import { purgeTrade } from "@/lib/commands/wealth";
+import { purgeInventoryItem, ItemNotInTrashError, PurgeFilesPendingError } from "@/lib/commands/inventory";
+import { RecordNotFoundError } from "@/lib/commands/shared";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { purgeDocument, removeOwnerDocumentFiles } from "@/lib/commands/documents";
+import { purgeDocument } from "@/lib/commands/documents";
 import { DOCUMENT_KIND_MODULE, type OwnedDocumentKind } from "@/lib/documents/kinds";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
+import { retireOrphanedStages } from "@/lib/items/syncLegacyItem";
 import type { ModuleKey } from "@/lib/modules/registry";
 
 // #287 — how long a soft-deleted record sits in Trash before it's purged for
@@ -27,6 +30,15 @@ export const TRASH_RETENTION_DAYS = 30;
 
 function expiryCutoff(): Date {
   return new Date(Date.now() - TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+}
+
+/**
+ * Rows still restorable from Trash: deleted, and not yet past the retention
+ * window (expired rows are purged the next time Trash loads). For counts
+ * shown outside Trash, so they never promise a record that is about to go.
+ */
+export function restorableFromTrash(): { deletedAt: { gte: Date } } {
+  return { deletedAt: { gte: expiryCutoff() } };
 }
 
 const expired = (cutoff: Date) => ({ where: { deletedAt: { lt: cutoff } }, select: { id: true } });
@@ -124,9 +136,23 @@ export async function purgeExpiredTrash(): Promise<void> {
     await purgeTrip(t.id);
   }
   for (const i of inventoryItems) {
-    await removeOwnerDocumentFiles("INVENTORY_ITEM", i.id);
-    await prisma.inventoryItem.delete({ where: { id: i.id } });
+    // Skips an item restored since it was listed rather than purging it (#522).
+    try {
+      await purgeInventoryItem(i.id, { deletedBefore: cutoff });
+    } catch (error) {
+      // A restored item is skipped; one whose files couldn't be removed is
+      // deleted, and the document-store reconciliation sweeps its files.
+      const handled =
+        error instanceof RecordNotFoundError ||
+        error instanceof ItemNotInTrashError ||
+        error instanceof PurgeFilesPendingError;
+      if (!handled) throw error;
+    }
   }
+  // #445 review: a retirement that failed above (or in an earlier run, or in
+  // a manual purge) is retried here, since its legacy source is already gone.
+  try { await retireOrphanedStages(); }
+  catch (error) { console.error("[items] couldn't retire orphaned staged rows", error); }
 }
 
 export interface TrashEntry {

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import type { TripModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
+import { FormActions } from "@/components/FormActions";
 import { FormMessage } from "@/components/FormMessage";
 import {
   makeOfflineAwareAction,
@@ -14,8 +15,9 @@ import {
   type QueuedOperation,
 } from "@/lib/offlineQueue";
 import { Field } from "@/components/FormField";
-import { inputClass } from "@/components/SelectWrapper";
+import { inputClass, textareaClass } from "@/components/SelectWrapper";
 import { DateInput } from "@/components/DateInput";
+import { bannerClass } from "@/lib/ui";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -24,9 +26,12 @@ function toDateInputValue(date: Date | null | undefined) {
 
 export function TripForm({
   action,
+  cancelHref,
   trip,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
+  /** Where Cancel goes: the same place as the page's BackLink. */
+  cancelHref: string;
   trip?: TripModel;
 }) {
   const offlineAwareAction = makeOfflineAwareAction(
@@ -72,7 +77,7 @@ export function TripForm({
       className="space-y-6"
     >
       {pendingOp && (
-        <p className="rounded-lg border border-dashed border-warning/40 bg-warning/10 px-4 py-2 text-sm text-warning">
+        <p className={bannerClass("warning")}>
           Editing an offline entry that hasn&apos;t synced yet — saving updates it in place.
         </p>
       )}
@@ -123,15 +128,15 @@ export function TripForm({
           name="notes"
           rows={4}
           defaultValue={effectiveValues?.notes ?? trip?.notes ?? ""}
-          className={inputClass}
+          className={textareaClass}
         />
       </Field>
 
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
 
-      <div className="flex justify-end gap-3">
+      <FormActions cancelHref={cancelHref}>
         <SubmitButton>{pendingOp || trip ? "Save changes" : "Add trip"}</SubmitButton>
-      </div>
+      </FormActions>
     </form>
   );
 }

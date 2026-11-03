@@ -178,6 +178,7 @@ describe("Due rows follow the Due policy (#384)", () => {
           insuranceExpiry: inDays(90),
           nextServiceDue: inDays(5),
           reminderDaysBefore: null,
+          contracts: [],
         },
       ],
       ctx,
@@ -195,6 +196,7 @@ describe("Due rows follow the Due policy (#384)", () => {
       agreementId,
       tenantName: "Sam",
       leaseEnd,
+      contract: null,
     });
     const items = buildTenancyAttentionItems([tenancy("soon", inDays(10)), tenancy("ended", inDays(-1))], ctx);
     expect(items.map((i) => [i.id, i.group])).toEqual([
@@ -205,17 +207,36 @@ describe("Due rows follow the Due policy (#384)", () => {
   });
 
   it("a Tenancy's own Reminder thresholds set its due-soon window (#388)", () => {
-    const lease = { propertyId: "p", propertyLabel: "Flat", agreementId: "a", tenantName: null, leaseEnd: inDays(50) };
+    const lease = { propertyId: "p", propertyLabel: "Flat", agreementId: "a", tenantName: null, leaseEnd: inDays(50), contract: null };
     expect(buildTenancyAttentionItems([lease], ctx)).toEqual([]);
     expect(buildTenancyAttentionItems([{ ...lease, reminderDaysBefore: "60,30" }], ctx).map((i) => i.group)).toEqual([
       "due",
     ]);
   });
+
+  it("a Tenancy whose linked Contract Covers its lease end has one Due row: the Contract's (#457)", () => {
+    const rows = (contractEndInDays: number) => {
+      const linked = contract("lease", contractEndInDays);
+      const lease = {
+        propertyId: "p",
+        propertyLabel: "Flat",
+        agreementId: "a",
+        tenantName: null,
+        leaseEnd: inDays(10),
+        contract: { ...linked, extractionPending: false, deletedAt: null },
+      };
+      return [...buildContractAttentionItems([linked], ctx), ...buildTenancyAttentionItems([lease], ctx)].map((i) => i.id);
+    };
+    // Ending on the lease end, the Contract Covers it: one row, the Contract's.
+    expect(rows(10)).toEqual(["lease"]);
+    // Ending on another day inside the window, it doesn't: two obligations, two rows.
+    expect(rows(20)).toEqual(["lease", "lease-a"]);
+  });
 });
 
 describe("Reminder failure rows", () => {
   it("a failed lease Reminder links to its Property (#388)", () => {
-    const lease = { propertyId: "p1", propertyLabel: "Flat", agreementId: "t1", tenantName: null, leaseEnd: inDays(10) };
+    const lease = { propertyId: "p1", propertyLabel: "Flat", agreementId: "t1", tenantName: null, leaseEnd: inDays(10), contract: null };
     const items = buildReminderFailureItems(
       [{ ownerType: "TENANCY", ownerId: "t1", error: "HTTP 500" }],
       [],

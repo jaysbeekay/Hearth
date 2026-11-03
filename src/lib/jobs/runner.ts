@@ -5,6 +5,7 @@ import { readDocument, readProductDocument, readInboxDocument } from "@/lib/stor
 import { runExpirationCheck } from "@/lib/notifications/scheduler";
 import { runBackup } from "@/lib/backup/scheduler";
 import { runEmailIngestion } from "@/lib/emailIngestion/scheduler";
+import { syncLegacyDocument } from "@/lib/items/syncLegacyDocument";
 
 // #250 — REMINDER_CHECK/BACKUP_RUN/EMAIL_INGEST join PRICE_REFRESH/
 // OCR_DOCUMENT on this same DB-leased runner, replacing the direct
@@ -142,7 +143,12 @@ async function processOcr(payload: { kind: "contract" | "product" | "inbox"; id:
   const buffer = payload.kind === "contract" ? await readDocument(payload.ownerId!, payload.storedName) : payload.kind === "product" ? await readProductDocument(payload.ownerId!, payload.storedName) : await readInboxDocument(payload.storedName);
   const text = await extractSearchableText(buffer, payload.mimeType);
   if (payload.kind === "contract") await prisma.document.update({ where: { id: payload.id }, data: { extractedText: text, extractionStatus: text ? "COMPLETED" : "FAILED" } });
-  else if (payload.kind === "product") await prisma.productDocument.update({ where: { id: payload.id }, data: { extractedText: text, extractionStatus: text ? "COMPLETED" : "FAILED" } });
+  else if (payload.kind === "product") {
+    await prisma.productDocument.update({ where: { id: payload.id }, data: { extractedText: text, extractionStatus: text ? "COMPLETED" : "FAILED" } });
+    // Not caught (#445 review): a failed mirror fails the job, so it is
+    // retried rather than leaving the staged copy with stale text.
+    await syncLegacyDocument("PRODUCT", payload.id);
+  }
   else await prisma.inboxDocument.update({ where: { id: payload.id }, data: { extractedText: text, extractionStatus: text ? "COMPLETED" : "FAILED" } });
 }
 

@@ -5,11 +5,14 @@ import {
   dayToDate,
   liveFailures,
   REMINDER_CHANNELS,
+  type ReminderChannel,
   reminderPlan,
   type ReminderPlan,
   type ReminderRecord,
 } from "@/lib/notifications/reminderSchedule";
 import type { DueContext, VehicleDueField } from "@/lib/duePolicy";
+import { COVERING_CONTRACTS } from "@/lib/covers";
+import { tenancyDueRecord, vehicleDueRecord } from "@/lib/dueRecords";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenancies } from "@/lib/tenancies";
 import type { NotificationOwnerType } from "@/generated/prisma/enums";
@@ -19,7 +22,10 @@ import type { NotificationLog } from "@/generated/prisma/client";
  * When the next Reminder goes out: on the next scheduler check (a catch-up
  * is waiting), or on a future day. Never a day in the past (#381).
  */
-export type NextReminder = { kind: "next-check" } | { kind: "on"; date: Date };
+export type NextReminder = ({ kind: "next-check" } | { kind: "on"; date: Date }) & {
+  /** The channels that send this one: where their schedules differ, only some do (#516 review). */
+  by: ReminderChannel[];
+};
 
 export interface ReminderHealth {
   /** True when a Reminder can still go out for this record: it has a Reminder entry and thresholds, and isn't on hold. */
@@ -60,12 +66,19 @@ function summarize(
   if (planned) {
     // With nothing configured yet, show what would happen once a channel is.
     const considered = channelList(channels);
-    const schedules = (considered.length > 0 ? considered : [...REMINDER_CHANNELS]).map((c) => planned.schedule[c]);
-    if (schedules.some((s) => s.sendNow != null)) {
-      nextReminder = { kind: "next-check" };
+    const schedules = (considered.length > 0 ? considered : [...REMINDER_CHANNELS]).map((channel) => ({
+      channel,
+      ...planned.schedule[channel],
+    }));
+    const sendingNow = schedules.filter((s) => s.sendNow != null).map((s) => s.channel);
+    if (sendingNow.length > 0) {
+      nextReminder = { kind: "next-check", by: sendingNow };
     } else {
       const days = schedules.map((s) => s.nextReminderOn).filter((d): d is string => d != null).sort();
-      if (days.length > 0) nextReminder = { kind: "on", date: dayToDate(days[0]) };
+      if (days.length > 0) {
+        const by = schedules.filter((s) => s.nextReminderOn === days[0]).map((s) => s.channel);
+        nextReminder = { kind: "on", date: dayToDate(days[0]), by };
+      }
     }
   }
 
@@ -193,6 +206,7 @@ export async function getHouseholdReminderHealth(): Promise<HouseholdReminderHea
           archivedAt: null,
           OR: [{ regoExpiry: { not: null } }, { insuranceExpiry: { not: null } }, { nextServiceDue: { not: null } }],
         },
+        include: { contracts: COVERING_CONTRACTS },
       }),
       getCurrentTenancies(),
     ]);
@@ -230,12 +244,12 @@ export async function getHouseholdReminderHealth(): Promise<HouseholdReminderHea
       check("PRODUCT", { kind: "warranty", ...p }, productLogs.get(p.id) ?? [], p.description, `/products/${p.id}`);
     }
     for (const v of vehicles) {
-      check("VEHICLE", { kind: "vehicle", ...v }, vehicleLogs.get(v.id) ?? [], v.label, `/vehicles/${v.id}`);
+      check("VEHICLE", vehicleDueRecord(v), vehicleLogs.get(v.id) ?? [], v.label, `/vehicles/${v.id}`);
     }
     for (const { propertyId, propertyLabel, tenancy } of tenancies) {
       check(
         "TENANCY",
-        { kind: "tenancy", ...tenancy },
+        tenancyDueRecord(tenancy),
         tenancyLogs.get(tenancy.id) ?? [],
         `${propertyLabel} — Lease`,
         `/home/${propertyId}`,

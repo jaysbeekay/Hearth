@@ -8,6 +8,7 @@ import {
   contractMissingParts,
   contractRules,
   inventoryRules,
+  filtersForChip,
   isChipActive,
   legacyListRedirect,
   listHref,
@@ -233,6 +234,16 @@ describe("URL vocabulary", () => {
     const missing = toggleListFilter(soon, "missingDetails");
     expect(isChipActive(missing, "missingDetails")).toBe(true);
     expect(isChipActive(toggleListFilter(missing, "missingDetails"), "missingDetails")).toBe(false);
+  });
+
+  it("counts a chip under the list it opens from here (#517 review)", () => {
+    const current = { due: "soon" as const, review: true as const };
+    // Active: the list on screen.
+    expect(filtersForChip(current, "dueSoon")).toEqual(current);
+    expect(filtersForChip(current, "review")).toEqual(current);
+    // Inactive: added to the others, and a due chip replaces another.
+    expect(filtersForChip(current, "noDocument")).toEqual({ ...current, noDocument: true });
+    expect(filtersForChip(current, "overdue")).toEqual({ due: "overdue", review: true });
   });
 });
 

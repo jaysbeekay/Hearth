@@ -152,3 +152,93 @@ export function monthlySpend(
   }
   return { total, unconvertedCurrencies: [...unconverted].sort() };
 }
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const YEAR_DAYS = 365;
+
+/**
+ * #367 — what the household's contracts cost over the next 12 months if
+ * nothing changes: an auto-renewing contract (or one with no end date) runs
+ * all year; a fixed-term or manually renewed one only counts up to its end
+ * date; one that hasn't started counts from its start date. Dates are
+ * calendar days at UTC midnight (see the note at the top of this file).
+ */
+export function nextTwelveMonthsSpend(
+  contracts: {
+    cost: number | null;
+    currency: string;
+    billingFrequency: string | null;
+    startDate: Date | null;
+    endDate: Date | null;
+    renewalType: string | null;
+  }[],
+  targetCurrency: string,
+  rateMap: Map<string, number>,
+  now: Date = new Date(),
+): number {
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const horizon = today + YEAR_DAYS * DAY_MS;
+  let total = 0;
+  for (const c of contracts) {
+    if (c.cost == null) continue;
+    const converted = convertAmount(c.cost, c.currency, targetCurrency, rateMap);
+    if (converted == null) continue;
+    const monthly = monthlyEquivalent(converted, c.billingFrequency);
+    if (monthly <= 0) continue;
+    const from = Math.max(today, c.startDate?.getTime() ?? today);
+    const runsOn = c.renewalType === "AUTO_RENEW" || c.endDate == null;
+    // The end date is the last day covered, so count through it.
+    const to = runsOn ? horizon : Math.min(horizon, c.endDate!.getTime() + DAY_MS);
+    if (to <= from) continue;
+    total += monthly * 12 * ((to - from) / DAY_MS / YEAR_DAYS);
+  }
+  return total;
+}
+
+/**
+ * The Contracts that renew manually and end inside the next 12 months, and
+ * what they would cost for the rest of that year if renewed on the same
+ * terms. "Next 12 months" leaves that part out because nothing commits the
+ * household to it yet; the Spend page shows it beside the total so the drop
+ * is explained and the renewals that need a decision are listed.
+ */
+export function manualRenewalsAhead<C extends {
+  cost: number | null;
+  currency: string;
+  billingFrequency: string | null;
+  startDate: Date | null;
+  endDate: Date | null;
+  renewalType: string | null;
+}>(
+  contracts: C[],
+  targetCurrency: string,
+  rateMap: Map<string, number>,
+  now: Date = new Date(),
+): { amount: number; contracts: C[] } {
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const horizon = today + YEAR_DAYS * DAY_MS;
+  let amount = 0;
+  const ending: C[] = [];
+  for (const c of contracts) {
+    if (c.renewalType !== "MANUAL_RENEWAL" || c.endDate == null) continue;
+    const end = c.endDate.getTime();
+    // Ends today or later, and before the year is out.
+    if (end < today || end >= horizon) continue;
+    ending.push(c);
+    if (c.cost == null) continue;
+    const converted = convertAmount(c.cost, c.currency, targetCurrency, rateMap);
+    if (converted == null) continue;
+    const monthly = monthlyEquivalent(converted, c.billingFrequency);
+    if (monthly <= 0) continue;
+    const from = Math.max(end + DAY_MS, c.startDate?.getTime() ?? today);
+    if (horizon <= from) continue;
+    amount += monthly * 12 * ((horizon - from) / DAY_MS / YEAR_DAYS);
+  }
+  ending.sort((a, b) => a.endDate!.getTime() - b.endDate!.getTime());
+  return { amount, contracts: ending };
+}
+
+/** #367 — whether every bucket is the same, so the timeline shows no change. */
+export function timelineIsFlat(buckets: { total: number }[]): boolean {
+  return buckets.every((b) => Math.abs(b.total - buckets[0].total) < 0.005);
+}

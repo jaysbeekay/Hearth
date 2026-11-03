@@ -7,6 +7,7 @@ import { ListFilterChips } from "@/components/ListFilterChips";
 import { VehicleCard } from "@/components/VehicleCard";
 import { PendingRecordCard } from "@/components/PendingRecordCard";
 import type { VehicleModel } from "@/generated/prisma/models";
+import type { CoveringContractRow } from "@/lib/covers";
 import type { DueContext } from "@/lib/duePolicy";
 import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
@@ -20,8 +21,10 @@ import {
   type ListFilters,
 } from "@/lib/recordFilters";
 import { MODULE_REGISTRY } from "@/lib/modules/registry";
+import { emptyStateClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
-type VehicleWithCount = VehicleModel & { _count: { items: number } };
+type VehicleWithCount = VehicleModel & { _count: { items: number }; contracts: CoveringContractRow[] };
 
 interface Props {
   vehicles: VehicleWithCount[];
@@ -53,11 +56,15 @@ export function VehicleListClient({ vehicles, archivedVehicles = [], filters, co
     return () => window.removeEventListener("offline-sync-complete", onSyncComplete);
   }, [router]);
 
+  // #406 — a list with nothing in it yet shows one sentence and one button:
+  // no Export, search or filter chips until there is something to act on.
+  const nothingYet = !filtered && vehicles.length === 0 && archivedVehicles.length === 0 && pendingOps.length === 0;
+
   return (
-    <div className="space-y-6">
+    <PageShell width="list">
       <ListPageHeader
         title={MODULE_REGISTRY.VEHICLES.label}
-        exportPath="/api/export/vehicles"
+        exportPath={nothingYet ? undefined : "/api/export/vehicles"}
         action={canWrite ? { href: "/vehicles/new", label: "Add vehicle", online } : undefined}
       />
 
@@ -105,7 +112,7 @@ export function VehicleListClient({ vehicles, archivedVehicles = [], filters, co
 
       {vehicles.length === 0 ? (
         pendingOps.length === 0 && (
-          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
+          <p className={emptyStateClass()}>
             {filtered
               ? "No vehicles match these filters."
               : "No vehicles yet. Add your first vehicle to start tracking registration, insurance, and service history."}
@@ -139,6 +146,6 @@ export function VehicleListClient({ vehicles, archivedVehicles = [], filters, co
           </div>
         </details>
       )}
-    </div>
+    </PageShell>
   );
 }
