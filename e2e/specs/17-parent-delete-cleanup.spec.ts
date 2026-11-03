@@ -20,6 +20,7 @@ test("deleting a contract moves it to Trash without touching its files, until pe
 }) => {
   await page.goto("/contracts/new");
   await page.locator("#title").fill("Delete Test Contract");
+  await page.locator("#category").selectOption("OTHER");
   await page.locator("#provider").fill("Test Provider");
   await page.locator("main button[type=submit]").click();
   await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);

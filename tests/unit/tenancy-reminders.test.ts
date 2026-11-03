@@ -317,7 +317,7 @@ describe("Reminder health", () => {
     });
     expect(health.enabled).toBe(true);
     expect(health.thresholds).toEqual([1, 7, 14, 30]);
-    expect(health.nextReminder).toEqual({ kind: "on", date: new Date(`${addDays(leaseEnd, -30)}T00:00:00.000Z`) });
+    expect(health.nextReminder).toEqual({ kind: "on", date: new Date(`${addDays(leaseEnd, -30)}T00:00:00.000Z`), by: ["EMAIL", "NTFY", "WEBHOOK"] });
   });
 
   it("a catch-up shows as the next check", async () => {
@@ -327,7 +327,7 @@ describe("Reminder health", () => {
       ownerId: tenancy.id,
       record: { kind: "tenancy", ...tenancy },
     });
-    expect(health.nextReminder).toEqual({ kind: "next-check" });
+    expect(health.nextReminder).toEqual({ kind: "next-check", by: ["EMAIL", "NTFY", "WEBHOOK"] });
   });
 
   it("the household roll-up lists a lease whose last delivery failed", async () => {

@@ -71,7 +71,8 @@ describe("Help FAQ labels", () => {
   it("catches a label that doesn't exist", () => {
     expect(unresolved(["Settings", "Users"])).not.toBeNull();
     expect(unresolved(["Purchases & warranties"])).not.toBeNull();
-    expect(unresolved(["Settings", "Household & System", "System settings", "No such section"])).not.toBeNull();
-    expect(unresolved(["Settings", "Household & System", "System settings", "AI Assistant"])).toBeNull();
+    expect(unresolved(["Settings", "Household & System"])).not.toBeNull();
+    expect(unresolved(["Settings", "Household", "AI & privacy", "No such section"])).not.toBeNull();
+    expect(unresolved(["Settings", "Household", "AI & privacy", "AI Assistant"])).toBeNull();
   });
 });

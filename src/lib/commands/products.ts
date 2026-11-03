@@ -13,6 +13,7 @@ import { assertLinksLive, newLinks } from "@/lib/commands/links";
 import type { ClearablePatch } from "@/lib/validation/fullFormUpdate";
 import type { ProductInput } from "@/lib/validation/product";
 import type { Prisma } from "@/generated/prisma/client";
+import { retireStagedProduct, syncLegacyProduct } from "@/lib/items/syncLegacyItem";
 
 // Record commands for Products (Items), as for Contracts in
 // commands/contracts.ts (ADR 0003): every write to `product` goes through
@@ -92,6 +93,7 @@ async function writeProduct(id: string, actorId: string, options: UpdateOptions,
       tx.product.updateMany({ where: { id, ...guard }, data: { ...patch, updatedById: actorId } }),
     );
     if (write.alsoInTransaction) await write.alsoInTransaction(tx);
+    await syncLegacyProduct(tx, id);
   });
   revalidateProduct(id);
 }
@@ -100,10 +102,16 @@ export async function createProductCommand(
   input: ProductInput,
   actorId: string,
   extra?: ProductExtractionFields,
+  // Runs in the create's transaction (the MCP import approval links its
+  // proposal here, #529); throwing rolls the new record back.
+  alsoInTransaction?: (tx: Prisma.TransactionClient, created: { id: string }) => Promise<unknown>,
 ) {
   const product = await prisma.$transaction(async (tx) => {
     await assertLinksLive(input, tx);
-    return tx.product.create({ data: { ...input, ...extra, createdById: actorId } });
+    const created = await tx.product.create({ data: { ...input, ...extra, createdById: actorId } });
+    if (alsoInTransaction) await alsoInTransaction(tx, created);
+    await syncLegacyProduct(tx, created.id);
+    return created;
   });
   revalidatePath("/products");
   revalidatePath("/dashboard");
@@ -150,7 +158,10 @@ export async function confirmProductExtractionCommand(
 // #287 — soft-delete: see the equivalent comment on deleteContractCommand.
 export async function deleteProductCommand(id: string) {
   await findProduct(id);
-  await prisma.product.update({ where: { id }, data: { deletedAt: new Date() } });
+  await prisma.$transaction(async (tx) => {
+    await tx.product.update({ where: { id }, data: { deletedAt: new Date() } });
+    await syncLegacyProduct(tx, id);
+  });
   revalidatePath("/products");
   revalidatePath("/dashboard");
   revalidatePath("/settings/trash");
@@ -158,7 +169,10 @@ export async function deleteProductCommand(id: string) {
 
 export async function restoreProductCommand(id: string) {
   await findProduct(id);
-  await prisma.product.update({ where: { id }, data: { deletedAt: null } });
+  await prisma.$transaction(async (tx) => {
+    await tx.product.update({ where: { id }, data: { deletedAt: null } });
+    await syncLegacyProduct(tx, id);
+  });
   revalidateProduct(id);
   revalidatePath("/settings/trash");
 }
@@ -172,11 +186,21 @@ export async function permanentlyDeleteProductCommand(id: string) {
 // Trash retention (src/lib/trash.ts) can call it from a page render.
 export async function purgeProduct(id: string) {
   await findProduct(id);
+  const staged = await prisma.item.findUnique({ where: { legacyProductId: id }, select: { id: true } });
+  const linked = await prisma.inventoryItem.findMany({ where: { warrantyProductId: id }, select: { id: true } });
   await prisma.product.delete({ where: { id } });
-  // Files first, straight after the row: if clearing the log below throws,
-  // the files mustn't be left orphaned with no row pointing at them (#413).
-  await removeOwnerDocumentFiles("PRODUCT", id);
-  // NotificationLog is polymorphic across owners (#201), so it doesn't
-  // cascade with the row; clear it explicitly.
-  await clearNotificationLogs("PRODUCT", id);
+  try {
+    // Files first, straight after the row: if clearing the log below throws,
+    // the files mustn't be left orphaned with no row pointing at them (#413).
+    await removeOwnerDocumentFiles("PRODUCT", id);
+    // NotificationLog is polymorphic across owners (#201), so it doesn't
+    // cascade with the row; clear it explicitly.
+    await clearNotificationLogs("PRODUCT", id);
+  } finally {
+    // Product purge clears the old link. Rehome surviving Inventory items in
+    // the staging tables; the legacy operation above remains authoritative.
+    // In a finally (#445 review), so a failed file or log cleanup can't leave
+    // a staged Item behind for a Product that no longer exists.
+    await retireStagedProduct(id, staged?.id ?? null, linked.map((source) => source.id));
+  }
 }

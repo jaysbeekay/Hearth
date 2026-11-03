@@ -520,6 +520,27 @@ describe("Review follow-ups", () => {
       expect(await delegates[kind].count({ where })).toBe(0);
     },
   );
+
+  it("refuses to set the type of a Document whose record, or the record above it, is in Trash (#515 review)", async () => {
+    const p = db.prisma;
+    const contract = await createOwner("CONTRACT");
+    const onContract = await addDocumentCommand("CONTRACT", contract.ownerId, { file: pdf() });
+    await setDocumentCategoryCommand("CONTRACT", onContract.id, "RECEIPT", { ownerId: contract.ownerId });
+    await p.contract.update({ where: { id: contract.ownerId }, data: { deletedAt: new Date() } });
+    await expect(
+      setDocumentCategoryCommand("CONTRACT", onContract.id, "MANUAL", { ownerId: contract.ownerId }),
+    ).rejects.toBeInstanceOf(RecordNotFoundError);
+    expect((await findDocument("CONTRACT", onContract.id))?.category).toBe("RECEIPT");
+
+    const segment = await createOwner("TRIP_SEGMENT");
+    const onSegment = await addDocumentCommand("TRIP_SEGMENT", segment.ownerId, { file: pdf() });
+    const { tripId } = await p.tripSegment.findUniqueOrThrow({ where: { id: segment.ownerId } });
+    await p.trip.update({ where: { id: tripId }, data: { deletedAt: new Date() } });
+    await expect(
+      setDocumentCategoryCommand("TRIP_SEGMENT", onSegment.id, "RECEIPT", { ownerId: segment.ownerId }),
+    ).rejects.toBeInstanceOf(RecordNotFoundError);
+    expect((await findDocument("TRIP_SEGMENT", onSegment.id))?.category).toBeNull();
+  });
 });
 
 describe("Document actions", () => {

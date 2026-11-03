@@ -3,6 +3,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { DocumentsExplorer, type DocRow } from "@/components/DocumentsExplorer";
+import { pendingImportCount } from "@/lib/mcp/imports";
 import { DocumentsTabs, DocumentsUploadActions } from "@/components/DocumentsTabs";
 import { documentsEmptyMessage } from "@/lib/documents/emptyMessage";
 import { auth } from "@/lib/auth";
@@ -408,6 +409,8 @@ export default async function DocumentsPage({
     emptyMessage = canWrite ? null : "No documents uploaded yet.";
   }
 
+  const importsCount = await pendingImportCount();
+
   return (
     <PageShell width="list">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -427,12 +430,18 @@ export default async function DocumentsPage({
         inboxCount={inboxCount}
         filedCount={filedCount}
         allCount={totalCount}
+        importsCount={importsCount}
       />
 
       {totalCount > 0 && (
-        <div className="flex flex-wrap gap-2">
+        // #366 — which area a Document belongs to; its Document type is the
+        // select below.
+        <div role="group" aria-labelledby="documents-belongs-to" className="flex flex-wrap items-center gap-2">
+          <span id="documents-belongs-to" className="text-sm text-muted">
+            Belongs to
+          </span>
           <Link href={showAll ? "/documents?view=all" : "/documents"} className={chipClass(!type)}>
-            All types ({showAll ? totalCount : filedCount})
+            All ({showAll ? totalCount : filedCount})
           </Link>
           {activeSources.map((s) => (
             <Link

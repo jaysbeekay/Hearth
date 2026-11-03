@@ -1,5 +1,6 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
 import { ADMIN_AUTH_FILE } from "../env";
+import { openFormSections } from "../formSections";
 
 // #394 — MCP's Contract tools and whats_due answer from the Due policy, and
 // spend_summary matches the dashboard. /api/mcp is gated on MCP_TOKEN, set to
@@ -55,6 +56,8 @@ test("a Contract's notice deadline drives upcoming_renewals and whats_due", asyn
   const title = `MCP Notice Contract ${Date.now()}`;
   await page.goto("/contracts/new");
   await page.locator("#title").fill(title);
+  await page.locator("#category").selectOption("OTHER");
+  await openFormSections(page);
   await page.locator("#provider").fill("MCP Provider");
   await page.locator("#endDate").fill(isoInDays(40));
   await page.selectOption("#renewalType", "AUTO_RENEW");
@@ -82,6 +85,8 @@ test("a Contract's notice deadline drives upcoming_renewals and whats_due", asyn
 test("spend_summary gives the dashboard's and the Spending page's monthly figure", async ({ page, request }) => {
   await page.goto("/contracts/new");
   await page.locator("#title").fill(`MCP Spend Contract ${Date.now()}`);
+  await page.locator("#category").selectOption("OTHER");
+  await openFormSections(page);
   await page.locator("#provider").fill("MCP Provider");
   await page.locator("#endDate").fill(isoInDays(200));
   await page.locator("#cost").fill("25");

@@ -42,6 +42,7 @@ test("crossing a reminder threshold delivers a webhook notification", async ({ p
     const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
     await page.goto("/contracts/new");
     await page.locator("#title").fill("Webhook Notification Test Contract");
+    await page.locator("#category").selectOption("OTHER");
     await page.locator("#provider").fill("Test Provider");
     await page.locator("#endDate").fill(tomorrow);
     await page.locator("main button[type=submit]").click();
@@ -77,6 +78,7 @@ test("the test reminder button reports no delivery channel when email/ntfy aren'
   // this stays accurate even after the webhook test above runs first.
   await page.goto("/contracts/new");
   await page.locator("#title").fill("Reminder Button Test Contract");
+  await page.locator("#category").selectOption("OTHER");
   await page.locator("#provider").fill("Test Provider");
   const end = new Date(Date.now() + 20 * 86_400_000).toISOString().slice(0, 10);
   await page.locator("#endDate").fill(end);

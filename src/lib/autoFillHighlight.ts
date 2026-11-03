@@ -32,6 +32,10 @@ export function markAutoFilled(
   source: "heuristic" | "ai" = "heuristic",
 ) {
   if (!el) return;
+  // #361 — a field filled inside a collapsed form section must not stay
+  // hidden from review: open the section it sits in.
+  const section = el.closest("details");
+  if (section) section.open = true;
   const classes = AUTOFILL_CLASSES[source];
   el.classList.add(...classes);
 
@@ -92,7 +96,7 @@ export function isAiExtractionSource(source: ExtractionSource) {
 export const TEXT_EXTRACTION_UNAVAILABLE_MESSAGE =
   "Text extraction isn't available on this server (pdftotext or tesseract isn't installed), " +
   "so nothing was auto-filled. The file still attaches — fill the fields in manually, or ask an " +
-  "admin to add an AI key in System settings.";
+  "admin to add an AI key in Settings → Household → AI & privacy.";
 
 export function extractionMessage(
   source: ExtractionSource,

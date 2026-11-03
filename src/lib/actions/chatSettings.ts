@@ -39,7 +39,9 @@ export async function saveChatSettings(
     return { error: error instanceof Error ? error.message : "Failed to save assistant settings." };
   }
 
-  revalidatePath("/settings/app");
+  // #363 — these settings show on more than one Settings page (the
+  // Household tab summarises them), so refresh the whole section.
+  revalidatePath("/settings", "layout");
   return { success: "AI Assistant settings saved." };
 }
 
@@ -54,6 +56,8 @@ export async function removeChatSettings(): Promise<ActionState> {
     return { error: error instanceof Error ? error.message : "Failed to remove assistant settings." };
   }
 
-  revalidatePath("/settings/app");
+  // #363 — these settings show on more than one Settings page (the
+  // Household tab summarises them), so refresh the whole section.
+  revalidatePath("/settings", "layout");
   return { success: "AI Assistant settings removed." };
 }

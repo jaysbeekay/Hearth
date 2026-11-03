@@ -35,6 +35,7 @@ import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
 import { buttonClass, menuItemClass, cardClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
+import { RememberRecentRecord } from "@/components/RememberRecentRecord";
 
 export default async function ProductDetailPage({
   params,
@@ -64,6 +65,16 @@ export default async function ProductDetailPage({
   if (!product || product.deletedAt) notFound();
   const trashedLinks = await getTrashedVersionLinks("PRODUCT", [product.id]);
 
+  const hasDetails = [
+    product.manufacturer,
+    product.model,
+    product.vendor,
+    product.serialNumber,
+    product.barcode,
+    product.purchaseDate,
+    product.warrantyEndDate,
+    product.price,
+  ].some((v) => v != null && String(v).trim() !== "");
   const pendingReview = product.extractionPending
     ? await getPendingExtractionReview("PRODUCT", product.id)
     : [];
@@ -82,6 +93,7 @@ export default async function ProductDetailPage({
 
   return (
     <PageShell width="detail">
+      <RememberRecentRecord kind="warranty" id={id} />
       <div>
         <BackLink href="/products" label="Warranties" />
       </div>
@@ -112,7 +124,7 @@ export default async function ProductDetailPage({
                 <ConfirmForm
                   action={deleteProduct.bind(null, product.id)}
                   undo={{ action: restoreProduct.bind(null, product.id), href: `/products/${product.id}` }}
-                  confirmText="Delete this warranty? Its documents are kept, and you can restore it within 30 days from Settings → Recently deleted."
+                  confirmText="Delete this warranty? Its documents are kept, and you can restore it within 30 days from Settings → Household → Recently deleted."
                   className={menuItemClass({ destructive: true })}
                   offline={{ entity: "product", entityId: product.id, label: `Delete warranty: ${product.description}` }}
                 >
@@ -153,21 +165,24 @@ export default async function ProductDetailPage({
         <ExtractionReviewPanel fields={pendingReview} action={reviewProductExtraction.bind(null, product.id)} />
       )}
 
-      <Card>
-        <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">
-          <Detail label="Brand" value={product.manufacturer ?? "—"} />
-          <Detail label="Model" value={product.model ?? "—"} />
-          <Detail label="Vendor / retailer" value={product.vendor ?? "—"} />
-          <Detail label="Serial number" value={product.serialNumber ?? "—"} copyable />
-          <Detail label="Barcode" value={product.barcode ?? "—"} copyable />
-          <Detail label="Purchase date" value={formatDate(product.purchaseDate, dateFormat)} />
-          <Detail label="Warranty end date" value={formatDate(product.warrantyEndDate, dateFormat)} />
-          <Detail
-            label="Price"
-            value={product.price != null ? formatCurrency(product.price, product.currency, undefined, region) : "—"}
-          />
-        </dl>
-      </Card>
+      {/* #405 — empty fields aren't shown, so a card with none of them isn't either. */}
+      {hasDetails && (
+        <Card>
+          <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">
+            <Detail label="Brand" value={product.manufacturer ?? "—"} />
+            <Detail label="Model" value={product.model ?? "—"} />
+            <Detail label="Vendor / retailer" value={product.vendor ?? "—"} />
+            <Detail label="Serial number" value={product.serialNumber ?? "—"} copyable />
+            <Detail label="Barcode" value={product.barcode ?? "—"} copyable />
+            <Detail label="Purchase date" value={formatDate(product.purchaseDate, dateFormat)} />
+            <Detail label="Warranty end date" value={formatDate(product.warrantyEndDate, dateFormat)} />
+            <Detail
+              label="Price"
+              value={product.price != null ? formatCurrency(product.price, product.currency, undefined, region) : "—"}
+            />
+          </dl>
+        </Card>
+      )}
 
       {product.warrantyEndDate && (
         <ReminderHealthCard

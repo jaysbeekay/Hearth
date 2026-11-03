@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { ADMIN_AUTH_FILE } from "../env";
+import { openFormSections } from "../formSections";
 
 // Phase 5 of the UX-study delivery plan (#199-#212): permanent regression
 // coverage for the net-new features Phases 0-4 shipped, which until now had
@@ -17,6 +18,8 @@ test("reminder health card reports no delivery channel configured, and the test 
 }) => {
   await page.goto("/contracts/new");
   await page.locator("#title").fill("Reminder Health Regression Contract");
+  await page.locator("#category").selectOption("OTHER");
+  await openFormSections(page);
   await page.locator("#provider").fill("Regression Provider");
   const end = new Date(Date.now() + 20 * 86_400_000).toISOString().slice(0, 10);
   await page.locator("#endDate").fill(end);
@@ -43,6 +46,8 @@ test("reminder health card reports no delivery channel configured, and the test 
 test("starring a document marks it Important and the star persists after reload", async ({ page }) => {
   await page.goto("/contracts/new");
   await page.locator("#title").fill("Important Flag Regression Contract");
+  await page.locator("#category").selectOption("OTHER");
+  await openFormSections(page);
   await page.locator("#provider").fill("Regression Provider");
   await Promise.all([
     page.waitForURL(/\/contracts\/(?!new$)[^/]+$/),
@@ -68,6 +73,8 @@ test("starring a document marks it Important and the star persists after reload"
 test("the No document filter chip on the Contracts list filters correctly", async ({ page }) => {
   await page.goto("/contracts/new");
   await page.locator("#title").fill("Filter Regression - Has Document");
+  await page.locator("#category").selectOption("OTHER");
+  await openFormSections(page);
   await page.locator("#provider").fill("Regression Provider");
   await Promise.all([
     page.waitForURL(/\/contracts\/(?!new$)[^/]+$/),
@@ -83,6 +90,8 @@ test("the No document filter chip on the Contracts list filters correctly", asyn
 
   await page.goto("/contracts/new");
   await page.locator("#title").fill("Filter Regression - Missing Document");
+  await page.locator("#category").selectOption("OTHER");
+  await openFormSections(page);
   await page.locator("#provider").fill("Regression Provider");
   await Promise.all([
     page.waitForURL(/\/contracts\/(?!new$)[^/]+$/),
@@ -107,6 +116,8 @@ test("global search Important filter finds a starred contract's document", async
   const title = `Search Important Regression Contract ${Date.now()}`;
   await page.goto("/contracts/new");
   await page.locator("#title").fill(title);
+  await page.locator("#category").selectOption("OTHER");
+  await openFormSections(page);
   await page.locator("#provider").fill("Regression Provider");
   await Promise.all([
     page.waitForURL(/\/contracts\/(?!new$)[^/]+$/),
@@ -141,6 +152,8 @@ test("copying an identifier from a detail page shows a confirmation state", asyn
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/contracts/new");
   await page.locator("#title").fill("Copy Button Regression Contract");
+  await page.locator("#category").selectOption("OTHER");
+  await openFormSections(page);
   await page.locator("#provider").fill("Regression Provider");
   await page.locator("#contractNumber").fill("REGRESSION-POLICY-99887766");
   await Promise.all([
@@ -161,6 +174,8 @@ test("uploading a file identical to an already-filed document is flagged as a po
 
   await page.goto("/contracts/new");
   await page.locator("#title").fill("Duplicate Source Contract");
+  await page.locator("#category").selectOption("OTHER");
+  await openFormSections(page);
   await page.locator("#provider").fill("Regression Provider");
   await Promise.all([
     page.waitForURL(/\/contracts\/(?!new$)[^/]+$/),

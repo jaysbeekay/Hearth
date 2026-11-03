@@ -1,7 +1,16 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { describeThresholds, presetFor, thresholdsHint } from "@/components/ReminderThresholdsField";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import {
+  ReminderThresholdsField,
+  describeThresholds,
+  hasOwnThresholds,
+  presetFor,
+  thresholdsHint,
+} from "@/components/ReminderThresholdsField";
+import { reminderThresholds } from "@/lib/notifications/reminderSchedule";
 import { reminderSummary } from "@/lib/notifications/reminderSummary";
 import type { ReminderHealth } from "@/lib/notifications/health";
 
@@ -23,7 +32,30 @@ describe("presetFor", () => {
   });
 });
 
+describe("hasOwnThresholds (#361)", () => {
+  it("reads a stored copy of the household default as the default", () => {
+    expect(hasOwnThresholds("", "30,14,7,1")).toBe(false);
+    expect(hasOwnThresholds(null, "30,14,7,1")).toBe(false);
+    expect(hasOwnThresholds("30,14,7,1", "30,14,7,1")).toBe(false);
+    expect(hasOwnThresholds("1, 7,14 ,30", "30,14,7,1")).toBe(false);
+  });
+
+  it("spots a record's own thresholds", () => {
+    expect(hasOwnThresholds("7", "30,14,7,1")).toBe(true);
+    expect(hasOwnThresholds("60,30", "30,14,7,1")).toBe(true);
+    expect(hasOwnThresholds("30,14,7,1", "14,7")).toBe(true);
+  });
+});
+
 describe("thresholdsHint", () => {
+  it("agrees with the scheduler when a custom value has no whole days (#516 review)", () => {
+    // "1.5" is valid input but holds no whole day, so the household default applies.
+    expect(reminderThresholds("1.5", "30,14,7,1")).toEqual([1, 7, 14, 30]);
+    expect(thresholdsHint("1.5", "30,14,7,1", "the date")).toBe(
+      "Reminders 30, 14, 7 and 1 days before the date · shows in Needs attention from 30 days out.",
+    );
+  });
+
   it("shows the household default when the record has none of its own", () => {
     expect(thresholdsHint("", "30,14,7,1", "the end date")).toBe(
       "Reminders 30, 14, 7 and 1 days before the end date · shows in Needs attention from 30 days out.",
@@ -49,7 +81,7 @@ const base: ReminderHealth = {
   enabled: true,
   onHold: false,
   thresholds: [1, 7, 14, 30],
-  nextReminder: { kind: "on", date: new Date("2026-09-20T00:00:00Z") },
+  nextReminder: { kind: "on", date: new Date("2026-09-20T00:00:00Z"), by: ["EMAIL"] },
   channels: { email: true, ntfy: false, webhook: false },
   deliveryReady: true,
   lastSent: null,
@@ -64,6 +96,16 @@ describe("reminderSummary", () => {
     });
   });
 
+  it("names only the channels sending the next one (#516 review)", () => {
+    const both = { ...base, channels: { email: true, ntfy: true, webhook: false } };
+    expect(reminderSummary({ ...both, nextReminder: { ...base.nextReminder!, by: ["NTFY"] } }).text).toBe(
+      "Next reminder 20 Sep 2026 by ntfy · thresholds 30/14/7/1",
+    );
+    expect(reminderSummary({ ...both, nextReminder: { ...base.nextReminder!, by: ["EMAIL", "NTFY"] } }).text).toBe(
+      "Next reminder 20 Sep 2026 by email + ntfy · thresholds 30/14/7/1",
+    );
+  });
+
   it("leaves the channel out when none is configured (the card says so once)", () => {
     const health = { ...base, deliveryReady: false, channels: { email: false, ntfy: false, webhook: false } };
     expect(reminderSummary(health).text).toMatch(/^Next reminder .* · thresholds 30\/14\/7\/1$/);
@@ -71,7 +113,7 @@ describe("reminderSummary", () => {
   });
 
   it("puts a pending catch-up, a hold and a failure first", () => {
-    expect(reminderSummary({ ...base, nextReminder: { kind: "next-check" } }).text).toBe(
+    expect(reminderSummary({ ...base, nextReminder: { kind: "next-check", by: ["EMAIL"] } }).text).toBe(
       "Next reminder on the next check by email · thresholds 30/14/7/1",
     );
     expect(reminderSummary({ ...base, onHold: true, enabled: false })).toEqual({
@@ -117,8 +159,36 @@ describe("Reminder forms", () => {
     "%s uses the presets, not a free-text thresholds field",
     (form) => {
       const source = readFileSync(path.join(root, "src", "components", `${form}.tsx`), "utf8");
-      expect(source).toContain("<ReminderThresholdsField");
+      // The record's stored value goes in, so it round-trips, and the
+      // household default goes in, so the hint can show it (#516 review).
+      expect(source).toMatch(
+        /<ReminderThresholdsField\s+defaultValue=\{[^}]*\??\.reminderDaysBefore \?\? ""\}\s+householdDefault=\{defaultReminderDays\}/,
+      );
       expect(source).not.toMatch(/<input[^>]*id="reminderDaysBefore"/);
     },
   );
+});
+
+describe("ReminderThresholdsField as rendered (#516 review)", () => {
+  const render = (defaultValue: string) =>
+    renderToStaticMarkup(createElement(ReminderThresholdsField, { defaultValue, householdDefault: "30,14,7,1" }));
+  const submitted = (html: string) => /name="reminderDaysBefore" value="([^"]*)"/.exec(html)?.[1];
+
+  it("submits a stored custom value exactly as it was stored", () => {
+    for (const stored of ["60, 30", "30,14,7", "0", "1.5"]) {
+      expect(submitted(render(stored))).toBe(stored);
+    }
+  });
+
+  it("submits the presets' values, and nothing of its own for the default", () => {
+    expect(submitted(render("7"))).toBe("7");
+    expect(submitted(render("1"))).toBe("1");
+    expect(submitted(render(""))).toBe("");
+    // A stored copy of the household default reads, and saves, as the default.
+    expect(submitted(render("1,7,14,30"))).toBe("");
+  });
+
+  it("shows the household default's thresholds in its hint when the record has none", () => {
+    expect(render("")).toContain("Reminders 30, 14, 7 and 1 days before the date");
+  });
 });
