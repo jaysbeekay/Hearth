@@ -151,7 +151,7 @@ interface FormEntry {
 
 // What each in-flight save sent, to put back if it fails. Keyed by the form
 // element, so it's dropped with the form.
-const sentData = new WeakMap<HTMLFormElement, FormData>();
+const sentData = new WeakMap<Element, FormData>();
 
 type Entries = ReadonlyMap<HTMLFormElement, FormEntry>;
 
