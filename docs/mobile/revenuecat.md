@@ -136,7 +136,7 @@ on #399 so the release has evidence, not just this document.
 | Sandbox purchase, then a production build | Sandbox purchase doesn't carry over |
 | Unlocked, then airplane mode and relaunch | Still opens (SDK-cached entitlement) |
 | No network on first paywall open | "Could not load purchase details", no crash, recovers when online |
-| Refund issued in the store | Entitlement goes inactive after RevenueCat syncs; the app locks at the next launch or resume (the shell checks the entitlement only when opening standalone mode, not while a session is open) |
+| Refund issued in the store | Entitlement goes inactive after RevenueCat syncs; the app locks at the next cold launch (the shell checks the entitlement only when it opens standalone mode at launch, not on resume or while a session is open) |
 
 **Dependencies**
 - [ ] Standalone backup/restore is production-safe (#226, #500), because a paying user's data then lives only on the device.
