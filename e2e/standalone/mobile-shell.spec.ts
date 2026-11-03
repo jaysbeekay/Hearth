@@ -1315,6 +1315,13 @@ async function withContractDocuments(page: import("@playwright/test").Page) {
 
 // Reloads the shell with fixture flags for the mock, kept in the URL's query
 // string (on top of any set earlier) so they reach the reloaded page reliably.
+// A plain reload, for tests that change seeded rows or the clock (no flags).
+async function reloadStandalone(page: import("@playwright/test").Page) {
+  await page.reload();
+  await page.getByRole("button", { name: "Use on this device" }).click();
+  await expect(page.locator("#standalone-screen")).toBeVisible();
+}
+
 async function reloadWithTestFlags(page: import("@playwright/test").Page, flags: Record<string, string>) {
   const url = new URL(page.url());
   for (const [key, value] of Object.entries(flags)) url.searchParams.set(key, value);
