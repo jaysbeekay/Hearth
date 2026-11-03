@@ -5,14 +5,17 @@ import { Upload } from "lucide-react";
 import type { RentalAgreementModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
+import { FormActions } from "@/components/FormActions";
+import { ReminderThresholdsField } from "@/components/ReminderThresholdsField";
 import { FormMessage } from "@/components/FormMessage";
 import { Field } from "@/components/FormField";
-import { inputClass } from "@/components/SelectWrapper";
+import { inputClass, textareaClass } from "@/components/SelectWrapper";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { FileDropZone } from "@/components/FileDropZone";
 import { applyIfEmpty, extractionMessage } from "@/lib/autoFillHighlight";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
 import { DateInput } from "@/components/DateInput";
+import { Card } from "@/components/ui/Card";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -25,17 +28,20 @@ type ExtractedFields = Partial<
 
 export function RentalAgreementForm({
   action,
+  cancelHref,
   agreement,
   propertyId,
   defaultCurrency,
   defaultReminderDays,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
+  /** Where Cancel goes: the same place as the page's BackLink. */
+  cancelHref: string;
   agreement?: RentalAgreementModel;
   propertyId?: string;
   defaultCurrency?: string;
   /** The household default Reminder thresholds, which a blank field uses (#388). */
-  defaultReminderDays?: string;
+  defaultReminderDays: string;
 }) {
   const offlineAwareAction = makeOfflineAwareAction(
     action,
@@ -79,13 +85,14 @@ export function RentalAgreementForm({
       const res = await fetch("/api/home/lease-extract", { method: "POST", body });
       if (!res.ok) throw new Error("Extraction failed");
 
-      const { fields, source } = (await res.json()) as {
+      const { fields, source, textUnavailable } = (await res.json()) as {
         fields: ExtractedFields;
         source: "byok" | "heuristic" | "llm" | "none";
+        textUnavailable?: boolean;
       };
       const filledCount = Object.keys(fields).length;
       if (filledCount > 0) applyExtractedFields(fields);
-      setScanMessage(extractionMessage(source, filledCount));
+      setScanMessage(extractionMessage(source, filledCount, textUnavailable));
     } catch {
       setScanMessage("Couldn't scan this document. You can still fill in the fields manually.");
     } finally {
@@ -96,7 +103,7 @@ export function RentalAgreementForm({
   return (
     <form action={formAction} className="space-y-6">
       {!agreement && (
-        <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
+        <Card className="space-y-2">
           <p className="flex items-center gap-2 text-sm font-medium">
             <Upload size={16} />
             Save time: upload the tenancy agreement and Hearth fills in the details
@@ -112,7 +119,7 @@ export function RentalAgreementForm({
               {scanMessage}
             </p>
           )}
-        </div>
+        </Card>
       )}
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -199,21 +206,13 @@ export function RentalAgreementForm({
           />
         </Field>
 
-        <Field
-          label="Reminder thresholds (days before)"
-          htmlFor="reminderDaysBefore"
-          hint={`Days before the lease end, comma-separated. Leave blank to use the household default${
-            defaultReminderDays ? ` (${defaultReminderDays})` : ""
-          }.`}
-        >
-          <input
-            id="reminderDaysBefore"
-            name="reminderDaysBefore"
+        <div className="md:col-span-2">
+          <ReminderThresholdsField
             defaultValue={state?.values?.reminderDaysBefore ?? agreement?.reminderDaysBefore ?? ""}
-            placeholder={defaultReminderDays || "30,14,7,1"}
-            className={inputClass}
+            householdDefault={defaultReminderDays}
+            before="the lease ends"
           />
-        </Field>
+        </div>
       </div>
 
       <Field label="Notes" htmlFor="notes">
@@ -222,15 +221,15 @@ export function RentalAgreementForm({
           name="notes"
           rows={3}
           defaultValue={state?.values?.notes ?? agreement?.notes ?? ""}
-          className={inputClass}
+          className={textareaClass}
         />
       </Field>
 
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
 
-      <div className="flex justify-end gap-3">
+      <FormActions cancelHref={cancelHref}>
         <SubmitButton>{agreement ? "Save changes" : "Add tenancy"}</SubmitButton>
-      </div>
+      </FormActions>
     </form>
   );
 }

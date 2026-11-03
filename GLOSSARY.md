@@ -23,7 +23,7 @@ The state of a Warranty whose end date has passed. The Item itself is unaffected
 _Avoid_: Expired (for Warranties)
 
 **Archived**:
-The state of an Item, Vehicle or Property the household no longer has, because it was sold, given away, thrown out, or its lease ended. It is always set deliberately, never by a date passing, and its history is kept. An Archived Vehicle or Property has no Due entries or Reminders; Contracts Linked to it keep their own, since a Contract is its own Due source. It is not in Trash: it stays in its list, under Archived, and can be restored.
+The state of an Item, Vehicle or Property the household no longer has, because it was sold, given away, thrown out, or its lease ended. It is always set deliberately, never by a date passing, and its history is kept. An Archived Vehicle or Property has no Due entries or Reminders; Contracts Linked to it keep their own, since a Contract is its own Due source. It is not in Recently deleted: it stays in its list, under Archived, and can be restored.
 _Avoid_: Expired (for things owned), deleted
 
 **Property**:
@@ -74,7 +74,7 @@ The general relationship between a Contract or Item and the Vehicle or Property 
 _Avoid_: Attached to, belongs to
 
 **Covers**:
-The narrower case of Linked to where the Contract's end date is the linked Vehicle, Property or Item's expiry, as with insurance, registration or recurring-billed device cover. The covered thing shows that end date and has no expiry or Reminders of its own.
+The narrower case of Linked to where the Contract's end date is the linked Vehicle, Property or Item's expiry, as with insurance, registration or recurring-billed device cover. A Tenancy's linked Contract Covers it when it ends on the lease end; the lease end then has no Due entry of its own. The covered thing shows that end date and has no expiry or Reminders of its own. A Contract Covers only while it is not Cancelled, not in Trash, not awaiting review and has an end date; when several Cover the same date the one ending last sets it and the others keep their own Reminders. When a Contract stops Covering, the thing's own manual date applies again, which may be out of date or already past, so the Contract page says which date resumes and links to edit it. Likewise, when a Contract starts Covering a date the thing already had a different value for, the Contract page names both dates and says the thing's own date no longer sends Reminders.
 
 **Tenancy**:
 A Property the household lets out to a tenant, with its rent, bond and lease dates. It is income, not a Contract: rent the household pays is a Contract with Category Rental instead.
@@ -105,7 +105,7 @@ A buy or sell of a Holding. Cost basis is worked out from Trades, not stored.
 ### Documents
 
 **Document**:
-A file attached to a Contract, an Item, or one of a record's entries: a Service record, Maintenance record, Trip segment, Rental statement or Trade. Every Document behaves the same way wherever it is attached: it can be starred, replaced by a newer version, and moved to Trash.
+A file attached to a Contract, an Item, or one of a record's entries: a Service record, Maintenance record, Trip segment, Rental statement or Trade. Every Document behaves the same way wherever it is attached: it can be starred, replaced by a newer version, and deleted.
 _Avoid_: Attachment, file
 
 **Inbox**:

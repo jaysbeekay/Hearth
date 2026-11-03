@@ -10,6 +10,7 @@ import type { ModuleKey } from "@/lib/modules/registry";
 import { Dialog } from "@/components/Dialog";
 import { InboxCountBadge, inboxLinkLabel } from "@/components/InboxCountBadge";
 import { SignOutButton } from "@/components/SignOutButton";
+import { sheetClass, buttonClass } from "@/lib/ui";
 
 function isActive(href: string, pathname: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -137,7 +138,7 @@ export function BottomNav({
         }}
         label="More navigation options"
         backdropClassName="fixed inset-0 z-40 flex items-end bg-black/40 md:hidden"
-        panelClassName="max-h-[90dvh] w-full overflow-y-auto rounded-t-2xl border-t border-border bg-surface p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+        panelClassName={sheetClass("max-h-[90dvh] overflow-y-auto p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]")}
       >
         <>
           <div className="mb-3 flex items-center justify-between">
@@ -148,14 +149,14 @@ export function BottomNav({
                 setMoreOpen(false);
               }}
               aria-label="Close"
-              className="flex size-11 items-center justify-center rounded-full hover:bg-hover"
+              className={buttonClass("quiet", { icon: true })}
             >
-              <X size={18} />
+              <X size={20} />
             </button>
           </div>
           {overflowModules.length > 0 && (
             <>
-              <p className="mb-1.5 text-xs font-semibold text-muted">Modules</p>
+              <p className="mb-1.5 text-xs font-medium text-muted">Modules</p>
               <div className="mb-3 grid grid-cols-3 gap-2">
                 {overflowModules.map(({ href, label, icon }) => (
                   <MoreLink key={href} href={href} label={label} icon={icon} active={isActive(href, pathname)} />
@@ -164,7 +165,7 @@ export function BottomNav({
             </>
           )}
 
-          <p className="mb-1.5 text-xs font-semibold text-muted">Tools</p>
+          <p className="mb-1.5 text-xs font-medium text-muted">Tools</p>
           <div className="grid grid-cols-3 gap-2">
             {overflowTools.map(({ href, label, icon }) => (
               <MoreLink key={href} href={href} label={label} icon={icon} active={isActive(href, pathname)} />

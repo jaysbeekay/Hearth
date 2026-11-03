@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ChevronDown, Plus } from "lucide-react";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { cn } from "@/lib/utils";
-import { exportMenuItemClass, linkButtonClass, toolbarButtonClass } from "@/lib/buttonStyles";
+import { buttonClass, menuItemClass, overlayClass } from "@/lib/ui";
 
 export interface ListPageAction {
   href: string;
@@ -31,14 +31,14 @@ export function ListPageHeader({
   return (
     <div className="space-y-3 md:flex md:items-center md:justify-between md:gap-4 md:space-y-0">
       <div className="flex items-center justify-between gap-2">
-        <h1 className="text-2xl font-semibold">{title}</h1>
+        <h1 className="text-2xl font-medium">{title}</h1>
         {exportPath && (
           <div className="md:hidden">
             <DetailOverflowMenu label="More list actions">
-              <a href={`${exportPath}?format=csv`} download className={exportMenuItemClass}>
+              <a href={`${exportPath}?format=csv`} download className={menuItemClass()}>
                 Export CSV
               </a>
-              <a href={`${exportPath}?format=pdf`} download className={exportMenuItemClass}>
+              <a href={`${exportPath}?format=pdf`} download className={menuItemClass()}>
                 Export PDF
               </a>
             </DetailOverflowMenu>
@@ -49,12 +49,12 @@ export function ListPageHeader({
         <div className={cn("items-center gap-2", action ? "flex" : "hidden md:flex")}>
           {exportPath && (
             <details className="relative hidden md:block">
-              <summary className={toolbarButtonClass}>
-                Export <ChevronDown size={14} />
+              <summary className={buttonClass("secondary", {}, "list-none")}>
+                Export <ChevronDown size={16} />
               </summary>
-              <div className="absolute right-0 z-10 mt-1 w-28 overflow-hidden rounded-lg border border-border bg-surface shadow-md">
-                <a href={`${exportPath}?format=csv`} download className={exportMenuItemClass}>CSV</a>
-                <a href={`${exportPath}?format=pdf`} download className={exportMenuItemClass}>PDF</a>
+              <div className={overlayClass("absolute right-0 z-10 mt-1 w-28 overflow-hidden")}>
+                <a href={`${exportPath}?format=csv`} download className={menuItemClass()}>CSV</a>
+                <a href={`${exportPath}?format=pdf`} download className={menuItemClass()}>PDF</a>
               </div>
             </details>
           )}
@@ -65,8 +65,8 @@ export function ListPageHeader({
               tabIndex={!online ? -1 : undefined}
               className={cn(
                 action.variant === "secondary"
-                  ? cn(toolbarButtonClass, !online && "pointer-events-none opacity-40")
-                  : linkButtonClass("primary", { online }),
+                  ? cn(buttonClass("secondary"), !online && "pointer-events-none opacity-40")
+                  : buttonClass("primary", { online }),
                 "w-full justify-center whitespace-nowrap md:w-auto",
               )}
             >

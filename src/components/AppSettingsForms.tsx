@@ -3,12 +3,15 @@
 import { useActionState, useState } from "react";
 import { testSmtpSettings, testNtfySettings, testOllamaConnection } from "@/lib/actions/app-settings";
 import type { ActionState } from "@/lib/actions/auth";
-import { SubmitButton } from "@/components/SubmitButton";
+import { GroupedSubmit } from "@/components/SaveChangesGroup";
+import { withConnectionErrors } from "@/lib/withConnectionErrors";
+import { SchedulePicker } from "@/components/SchedulePicker";
 import { FormMessage } from "@/components/FormMessage";
 import { Field } from "@/components/FormField";
 import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 import { TestConnectionButton } from "@/components/TestConnectionButton";
 import { BACKUP_DESTINATION_LABELS, type BackupDestinationChoice } from "@/lib/backupDestination";
+import { bannerClass } from "@/lib/ui";
 
 const checkboxClass = "size-4 rounded border-border accent-accent";
 
@@ -43,11 +46,11 @@ export function SmtpForm({
   };
   appUrlConfigured: boolean;
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  const [state, formAction] = useActionState<ActionState, FormData>(withConnectionErrors(action), null);
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} data-save-group className="space-y-4">
       {!appUrlConfigured && (
-        <p className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
+        <p className={bannerClass("warning")}>
           APP_URL isn&apos;t set — password-reset and invitation links in emails will point to
           http://localhost:3000 and won&apos;t work for recipients. Set APP_URL to this
           app&apos;s real address (see .env.example).
@@ -76,7 +79,7 @@ export function SmtpForm({
           </div>
         </Field>
       </div>
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
       {current.host && current.user && (
         <p className="text-xs text-muted">
           Testing sends against the saved settings — save your changes first if you just edited them.
@@ -88,7 +91,7 @@ export function SmtpForm({
         ) : (
           <span />
         )}
-        <SubmitButton>Save email settings</SubmitButton>
+        <GroupedSubmit state={state}>Save email settings</GroupedSubmit>
       </div>
     </form>
   );
@@ -112,9 +115,9 @@ export function EmailIngestForm({
     passwordIsSet: boolean;
   };
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  const [state, formAction] = useActionState<ActionState, FormData>(withConnectionErrors(action), null);
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} data-save-group className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="IMAP host" htmlFor="emailIngestHost">
           <input id="emailIngestHost" name="emailIngestHost" defaultValue={current.host} placeholder="imap.example.com" className={inputClass} />
@@ -138,7 +141,7 @@ export function EmailIngestForm({
           </div>
         </Field>
       </div>
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
       {current.host && current.user && (
         <p className="text-xs text-muted">
           Testing connects against the saved settings — save your changes first if you just edited
@@ -151,7 +154,7 @@ export function EmailIngestForm({
         ) : (
           <span />
         )}
-        <SubmitButton>Save email ingestion settings</SubmitButton>
+        <GroupedSubmit state={state}>Save email ingestion settings</GroupedSubmit>
       </div>
     </form>
   );
@@ -166,9 +169,9 @@ export function NtfyForm({
   action: (s: ActionState, f: FormData) => Promise<ActionState>;
   current: { url: string; topic: string; tokenIsSet: boolean };
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  const [state, formAction] = useActionState<ActionState, FormData>(withConnectionErrors(action), null);
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} data-save-group className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="ntfy server URL" htmlFor="ntfyUrl" hint="Default: https://ntfy.sh">
           <input id="ntfyUrl" name="ntfyUrl" defaultValue={current.url} placeholder="https://ntfy.sh" className={inputClass} />
@@ -180,7 +183,7 @@ export function NtfyForm({
           <SensitiveField id="ntfyToken" name="ntfyToken" isSet={current.tokenIsSet} />
         </Field>
       </div>
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
       {current.url && current.topic && (
         <p className="text-xs text-muted">
           Testing sends against the saved settings — save your changes first if you just edited them.
@@ -192,7 +195,7 @@ export function NtfyForm({
         ) : (
           <span />
         )}
-        <SubmitButton>Save ntfy settings</SubmitButton>
+        <GroupedSubmit state={state}>Save ntfy settings</GroupedSubmit>
       </div>
     </form>
   );
@@ -207,9 +210,9 @@ export function OllamaForm({
   action: (s: ActionState, f: FormData) => Promise<ActionState>;
   current: { baseUrl: string; model: string };
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  const [state, formAction] = useActionState<ActionState, FormData>(withConnectionErrors(action), null);
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} data-save-group className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Ollama base URL" htmlFor="ollamaBaseUrl">
           <input id="ollamaBaseUrl" name="ollamaBaseUrl" defaultValue={current.baseUrl} placeholder="http://localhost:11434" className={inputClass} />
@@ -218,7 +221,7 @@ export function OllamaForm({
           <input id="ollamaModel" name="ollamaModel" defaultValue={current.model} placeholder="llama3" className={inputClass} />
         </Field>
       </div>
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
       {current.baseUrl && (
         <p className="text-xs text-muted">
           Testing connects using the saved settings — save your changes first if you just edited them.
@@ -230,7 +233,7 @@ export function OllamaForm({
         ) : (
           <span />
         )}
-        <SubmitButton>Save Ollama settings</SubmitButton>
+        <GroupedSubmit state={state}>Save Ollama settings</GroupedSubmit>
       </div>
     </form>
   );
@@ -245,9 +248,9 @@ export function BarcodeForm({
   action: (s: ActionState, f: FormData) => Promise<ActionState>;
   current: { enabled: boolean; apiKeyIsSet: boolean };
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  const [state, formAction] = useActionState<ActionState, FormData>(withConnectionErrors(action), null);
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} data-save-group className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="" htmlFor="barcodeEnabled">
           <div className="flex items-center gap-2 pt-1">
@@ -259,9 +262,9 @@ export function BarcodeForm({
           <SensitiveField id="barcodeApiKey" name="barcodeApiKey" isSet={current.apiKeyIsSet} />
         </Field>
       </div>
-      <FormMessage error={state?.error} success={state?.success} />
-      <div className="flex justify-end">
-        <SubmitButton>Save barcode settings</SubmitButton>
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
+      <div className="flex justify-end empty:hidden">
+        <GroupedSubmit state={state}>Save barcode settings</GroupedSubmit>
       </div>
     </form>
   );
@@ -299,11 +302,11 @@ export function BackupDestinationForm({
     };
   };
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  const [state, formAction] = useActionState<ActionState, FormData>(withConnectionErrors(action), null);
   const [destination, setDestination] = useState<BackupDestinationChoice>(current.destination);
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} data-save-group className="space-y-4">
       <Field label="Backup destination" htmlFor="destination">
         <SelectWrapper>
           <select
@@ -381,51 +384,73 @@ export function BackupDestinationForm({
         </div>
       )}
 
-      <FormMessage error={state?.error} success={state?.success} />
-      <div className="flex justify-end">
-        <SubmitButton>Save backup destination</SubmitButton>
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
+      <div className="flex justify-end empty:hidden">
+        <GroupedSubmit state={state}>Save backup destination</GroupedSubmit>
       </div>
     </form>
   );
 }
 
 // ─── Schedules ───────────────────────────────────────────────────────────────
+// #363 — plain-language pickers that write the cron string. The scheduler
+// re-reads them every minute (src/instrumentation.ts), so no restart.
 
-export function ScheduleForm({
+export function ReminderScheduleForm({
   action,
   current,
+  serverTimeZone,
 }: {
   action: (s: ActionState, f: FormData) => Promise<ActionState>;
-  current: {
-    reminderCron: string;
-    reminderDefaultDays: string;
-    backupCron: string;
-    retentionCount: number;
-  };
+  current: { cron: string; defaultDays: string };
+  serverTimeZone: string;
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  const [state, formAction] = useActionState<ActionState, FormData>(withConnectionErrors(action), null);
   return (
-    <form action={formAction} className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Reminder cron" htmlFor="reminderCron" hint="When to send reminders (cron syntax)">
-          <input id="reminderCron" name="reminderCron" defaultValue={current.reminderCron} placeholder="0 8 * * *" className={inputClass} />
-        </Field>
-        <Field label="Default reminder thresholds" htmlFor="reminderDefaultDays" hint="Days before the date, comma-separated, e.g. 30,14,7,1">
-          <input id="reminderDefaultDays" name="reminderDefaultDays" defaultValue={current.reminderDefaultDays} placeholder="30,14,7,1" className={inputClass} />
-        </Field>
-        <Field label="Backup cron" htmlFor="backupCron" hint="When to run automatic backups">
-          <input id="backupCron" name="backupCron" defaultValue={current.backupCron} placeholder="0 3 * * *" className={inputClass} />
-        </Field>
-        <Field label="Backup retention" htmlFor="retentionCount" hint="Number of backups to keep per destination">
-          <input id="retentionCount" name="retentionCount" type="number" min={1} defaultValue={current.retentionCount} className={inputClass} />
-        </Field>
+    <form action={formAction} data-save-group className="space-y-4">
+      <SchedulePicker
+        id="reminderCron"
+        name="reminderCron"
+        label="Check for reminders"
+        defaultCron={current.cron}
+        hint={`Times are in the server's timezone (${serverTimeZone}).`}
+      />
+      <Field label="Default reminder thresholds" htmlFor="reminderDefaultDays" hint="Days before the date, comma-separated, e.g. 30,14,7,1. Used by records that don't set their own.">
+        <input id="reminderDefaultDays" name="reminderDefaultDays" defaultValue={current.defaultDays} placeholder="30,14,7,1" className={inputClass} />
+      </Field>
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
+      <div className="flex justify-end empty:hidden">
+        <GroupedSubmit state={state}>Save reminder schedule</GroupedSubmit>
       </div>
-      <p className="text-xs text-warning">
-        Cron schedule changes take effect after the next server restart.
-      </p>
-      <FormMessage error={state?.error} success={state?.success} />
-      <div className="flex justify-end">
-        <SubmitButton>Save schedule settings</SubmitButton>
+    </form>
+  );
+}
+
+export function BackupScheduleForm({
+  action,
+  current,
+  serverTimeZone,
+}: {
+  action: (s: ActionState, f: FormData) => Promise<ActionState>;
+  current: { cron: string; retentionCount: number };
+  serverTimeZone: string;
+}) {
+  const [state, formAction] = useActionState<ActionState, FormData>(withConnectionErrors(action), null);
+  return (
+    <form action={formAction} data-save-group className="space-y-4">
+      <SchedulePicker
+        id="backupCron"
+        name="backupCron"
+        label="Run automatic backups"
+        defaultCron={current.cron}
+        hint={`Times are in the server's timezone (${serverTimeZone}).`}
+      />
+      <Field label="Backup retention" htmlFor="retentionCount" hint="Number of backups to keep per destination">
+        <input id="retentionCount" name="retentionCount" type="number" min={1} defaultValue={current.retentionCount} className={inputClass} />
+      </Field>
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
+      <div className="flex justify-end empty:hidden">
+        <GroupedSubmit state={state}>Save backup schedule</GroupedSubmit>
       </div>
     </form>
   );
@@ -446,9 +471,9 @@ export function HouseholdTimeZoneForm({
   /** From householdTimeZoneChoices(current), so `current` is always listed. */
   choices: { common: string[]; others: string[] };
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  const [state, formAction] = useActionState<ActionState, FormData>(withConnectionErrors(action), null);
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} data-save-group className="space-y-4">
       <Field label="Timezone" htmlFor="householdTimeZone">
         <SelectWrapper>
           <select id="householdTimeZone" name="householdTimeZone" defaultValue={current} className={selectClass}>
@@ -470,9 +495,9 @@ export function HouseholdTimeZoneForm({
           </select>
         </SelectWrapper>
       </Field>
-      <FormMessage error={state?.error} success={state?.success} />
-      <div className="flex justify-end">
-        <SubmitButton>Save timezone</SubmitButton>
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
+      <div className="flex justify-end empty:hidden">
+        <GroupedSubmit state={state}>Save timezone</GroupedSubmit>
       </div>
     </form>
   );
@@ -487,9 +512,9 @@ export function AviationStackForm({
   action: (s: ActionState, f: FormData) => Promise<ActionState>;
   isKeySet: boolean;
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  const [state, formAction] = useActionState<ActionState, FormData>(withConnectionErrors(action), null);
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} data-save-group className="space-y-4">
       <Field
         label="API key"
         htmlFor="aviationstackApiKey"
@@ -497,9 +522,9 @@ export function AviationStackForm({
       >
         <SensitiveField id="aviationstackApiKey" name="aviationstackApiKey" isSet={isKeySet} />
       </Field>
-      <FormMessage error={state?.error} success={state?.success} />
-      <div className="flex justify-end">
-        <SubmitButton>Save</SubmitButton>
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
+      <div className="flex justify-end empty:hidden">
+        <GroupedSubmit state={state}>Save</GroupedSubmit>
       </div>
     </form>
   );

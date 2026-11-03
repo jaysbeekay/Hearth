@@ -5,13 +5,27 @@ import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import {
   monthlyEquivalent,
   formatCurrency,
+  formatDate,
   sumByYear,
   financialYearLabel,
   CATEGORY_LABELS,
 } from "@/lib/utils";
-import { buildMonthlyTimeline, buildYearlyTimeline, buildCategoryBreakdown, monthlySpend } from "@/lib/spend";
+import {
+  buildMonthlyTimeline,
+  buildYearlyTimeline,
+  buildCategoryBreakdown,
+  monthlySpend,
+  manualRenewalsAhead,
+  nextTwelveMonthsSpend,
+  timelineIsFlat,
+} from "@/lib/spend";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { refreshFxRates, getFxRateMap, convertAmount } from "@/lib/fx";
+import { Card } from "@/components/ui/Card";
+import { Banner } from "@/components/ui/Banner";
+import { ChevronDown } from "lucide-react";
+import { cardClass, chipClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Spending" };
 
@@ -23,7 +37,7 @@ export default async function SpendPage({
   const { view: rawView } = await searchParams;
   const view = rawView === "yearly" ? "yearly" : "monthly";
 
-  const [enabledModules, { preferredCurrency, region }] = await Promise.all([
+  const [enabledModules, { preferredCurrency, region, dateFormat }] = await Promise.all([
     getEnabledModuleKeys(),
     getUserPreferences(),
   ]);
@@ -32,6 +46,8 @@ export default async function SpendPage({
     prisma.contract.findMany({
       where: { status: "ACTIVE", deletedAt: null },
       select: {
+        id: true,
+        title: true,
         category: true,
         cost: true,
         billingFrequency: true,
@@ -39,6 +55,7 @@ export default async function SpendPage({
         endDate: true,
         currency: true,
         isTaxDeductible: true,
+        renewalType: true,
       },
     }),
     enabledModules.has("HOME")
@@ -68,7 +85,12 @@ export default async function SpendPage({
   // The same figure as the dashboard and spend_summary (#394).
   const { total: monthlyTotal, unconvertedCurrencies } = monthlySpend(contracts, preferredCurrency, rateMap);
   const hasUnconverted = unconvertedCurrencies.length > 0;
-  const annualTotal = monthlyTotal * 12;
+  const nextTwelveMonths = nextTwelveMonthsSpend(contracts, preferredCurrency, rateMap);
+  // The renewals "Next 12 months" leaves out, shown under the tiles.
+  const renewals = manualRenewalsAhead(contracts, preferredCurrency, rateMap);
+  // #367 — the same exclusion the dashboard flags under Missing key details:
+  // a cost with no billing frequency adds nothing to the monthly figure.
+  const noFrequencyCount = contracts.filter((c) => c.cost != null && c.billingFrequency == null).length;
 
   const taxDeductibleMonthly = convertedContracts
     .filter((c) => c.isTaxDeductible)
@@ -117,10 +139,12 @@ export default async function SpendPage({
 
   const timeline = view === "yearly" ? yearlyTimeline : monthlyTimeline;
   const maxTotal = Math.max(...timeline.map((b) => b.total), 1);
+  const flat = timelineIsFlat(timeline);
+  const showTax = taxDeductibleMonthly > 0;
 
   return (
-    <div className="max-w-3xl space-y-8">
-      <h1 className="text-2xl font-semibold">Spending</h1>
+    <PageShell width="list">
+      <h1 className="text-2xl font-medium">Spending</h1>
 
       {hasUnconverted && (
         <p className="text-xs text-warning">
@@ -132,88 +156,80 @@ export default async function SpendPage({
       {/* Summary tiles. #403 — formatCurrency joins the code with a no-break
           space, so the whole amount is one unbreakable word; wrap-anywhere
           (unlike break-words) reliably breaks it inside the narrow tile. */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <div className="min-w-0 rounded-xl border border-border bg-surface p-4">
+      {noFrequencyCount > 0 && (
+        <Banner tone="warning" className="text-sm">
+          {noFrequencyCount === 1
+            ? "1 contract has a cost but no billing frequency, so it isn't counted here or on the dashboard. "
+            : `${noFrequencyCount} contracts have a cost but no billing frequency, so they aren't counted here or on the dashboard. `}
+          <Link href="/contracts?missing=details" className="font-medium underline">
+            Set the billing frequency
+          </Link>
+        </Banner>
+      )}
+
+      <div className={`grid grid-cols-2 gap-4 ${showTax ? "sm:grid-cols-3" : ""}`}>
+        <Card className="min-w-0">
           <p className="text-xs text-muted">Monthly recurring</p>
-          <p className="mt-1 wrap-anywhere text-xl font-semibold sm:text-2xl">
+          <p className="mt-1 wrap-anywhere text-xl font-medium sm:text-2xl">
             {formatCurrency(monthlyTotal, preferredCurrency, undefined, region, { showCode: true })}
           </p>
-        </div>
-        <div className="min-w-0 rounded-xl border border-border bg-surface p-4">
-          <p className="text-xs text-muted">Annual projection</p>
-          <p className="mt-1 wrap-anywhere text-xl font-semibold sm:text-2xl">
-            {formatCurrency(annualTotal, preferredCurrency, undefined, region, { showCode: true })}
+        </Card>
+        <Card className="min-w-0">
+          <p className="text-xs text-muted">Next 12 months</p>
+          <p className="mt-1 wrap-anywhere text-xl font-medium sm:text-2xl">
+            {formatCurrency(nextTwelveMonths, preferredCurrency, undefined, region, { showCode: true })}
           </p>
-        </div>
-        <div className="min-w-0 rounded-xl border border-border bg-surface p-4">
-          <p className="text-xs text-muted">Tax-deductible / mo</p>
-          <p className="mt-1 wrap-anywhere text-xl font-semibold sm:text-2xl">
-            {formatCurrency(taxDeductibleMonthly, preferredCurrency, undefined, region, { showCode: true })}
-          </p>
-        </div>
+          <p className="mt-1 text-xs text-muted">Contracts that don&apos;t auto-renew count up to their end date.</p>
+        </Card>
+        {/* #367 — no tile for a total of zero. */}
+        {showTax && (
+          <Card className="min-w-0">
+            <p className="text-xs text-muted">Tax-deductible / mo</p>
+            <p className="mt-1 wrap-anywhere text-xl font-medium sm:text-2xl">
+              {formatCurrency(taxDeductibleMonthly, preferredCurrency, undefined, region, { showCode: true })}
+            </p>
+          </Card>
+        )}
       </div>
 
-      {/* Timeline chart */}
-      <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-medium">
-            Recurring cost — {view === "yearly" ? "last 5 years" : "last 12 months"}
-          </h2>
-          <div className="flex rounded-lg border border-border p-0.5 text-xs">
-            <Link
-              href="/spend?view=monthly"
-              className={`rounded-md px-2.5 py-1 font-medium ${
-                view === "monthly" ? "bg-accent/10 text-accent" : "text-muted hover:text-foreground"
-              }`}
-            >
-              Monthly
-            </Link>
-            <Link
-              href="/spend?view=yearly"
-              className={`rounded-md px-2.5 py-1 font-medium ${
-                view === "yearly" ? "bg-accent/10 text-accent" : "text-muted hover:text-foreground"
-              }`}
-            >
-              Yearly
-            </Link>
-          </div>
-        </div>
-        <div className="space-y-2">
-          {view === "yearly"
-            ? yearlyTimeline.map((bucket) => (
-                <div key={bucket.year} className="flex items-center gap-3">
-                  <span className="w-16 shrink-0 text-right text-xs text-muted">{bucket.year}</span>
-                  <div className="flex-1 rounded-full bg-muted/10 h-5 overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-accent/70 transition-all"
-                      style={{ width: `${(bucket.total / maxTotal) * 100}%` }}
-                    />
-                  </div>
-                  <span className="w-20 shrink-0 text-xs text-muted">
-                    {formatCurrency(bucket.total, preferredCurrency, undefined, region, { showCode: true })}
-                  </span>
-                </div>
-              ))
-            : monthlyTimeline.map((bucket) => (
-                <div key={bucket.month} className="flex items-center gap-3">
-                  <span className="w-16 shrink-0 text-right text-xs text-muted">{bucket.month}</span>
-                  <div className="flex-1 rounded-full bg-muted/10 h-5 overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-accent/70 transition-all"
-                      style={{ width: `${(bucket.total / maxTotal) * 100}%` }}
-                    />
-                  </div>
-                  <span className="w-20 shrink-0 text-xs text-muted">
-                    {formatCurrency(bucket.total, preferredCurrency, undefined, region, { showCode: true })}
-                  </span>
-                </div>
-              ))}
-        </div>
-      </section>
+      {/* Manual renewals inside the year: left out of "Next 12 months" until
+          renewed, listed here so the drop is explained and they get a decision. */}
+      {renewals.contracts.length > 0 && (
+        <details className={cardClass({ padding: "none" }, "group")}>
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm [&::-webkit-details-marker]:hidden">
+            <span>
+              {renewals.amount > 0 && (
+                <>+ {formatCurrency(renewals.amount, preferredCurrency, undefined, region, { showCode: true })} from </>
+              )}
+              {renewals.contracts.length === 1 ? "1 contract" : `${renewals.contracts.length} contracts`} ending within 12
+              months <span className="text-muted">(renew manually)</span>
+            </span>
+            <ChevronDown size={16} aria-hidden className="shrink-0 text-muted transition-transform group-open:rotate-180" />
+          </summary>
+          {/* #532 review — a scenario, not money already committed. */}
+          <p className="border-t border-border px-4 py-2 text-xs text-muted">
+            Not in Next 12 months. The amount is what these would cost for the rest of the year if each is renewed at
+            its current price.
+          </p>
+          <ul className="divide-y divide-border border-t border-border">
+            {renewals.contracts.map((c) => (
+              <li key={c.id}>
+                <Link
+                  href={`/contracts/${c.id}`}
+                  className="flex items-center justify-between gap-3 px-4 py-2 text-sm hover:bg-hover"
+                >
+                  <span className="min-w-0 truncate">{c.title}</span>
+                  <span className="shrink-0 text-xs text-muted">Ends {formatDate(c.endDate, dateFormat)}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
 
       {/* Category breakdown */}
       {categoryBreakdown.length > 0 && (
-        <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+        <Card as="section">
           <h2 className="mb-4 font-medium">Recurring cost by category</h2>
           <div className="space-y-2">
             {categoryBreakdown.map((bucket) => {
@@ -223,9 +239,9 @@ export default async function SpendPage({
                   <span className="w-28 shrink-0 truncate text-xs text-muted">
                     {CATEGORY_LABELS[bucket.category] ?? bucket.category}
                   </span>
-                  <div className="flex-1 rounded-full bg-muted/10 h-5 overflow-hidden">
+                  <div className="flex-1 h-5 overflow-hidden rounded-lg bg-muted/10">
                     <div
-                      className="h-full rounded-full bg-accent/70 transition-all"
+                      className="h-full rounded-lg bg-accent/70"
                       style={{ width: `${pct}%` }}
                     />
                   </div>
@@ -236,12 +252,82 @@ export default async function SpendPage({
               );
             })}
           </div>
-        </section>
+        </Card>
       )}
+
+      {/* Timeline — #367: folded, since for most households it barely
+          changes; the breakdown above is the useful view. Opens when the
+          Monthly/Yearly toggle was used. */}
+      <details open={rawView ? true : undefined} className={cardClass({ padding: "none" }, "group")}>
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 [&::-webkit-details-marker]:hidden">
+          <h2 className="font-medium">
+            Recurring cost over time
+          </h2>
+          <ChevronDown size={16} aria-hidden className="shrink-0 text-muted transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="px-4 pb-4">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <p className="text-sm text-muted">{view === "yearly" ? "Last 5 years" : "Last 12 months"}</p>
+            <div className="flex gap-2">
+              <Link
+                href="/spend?view=monthly"
+                className={chipClass(view === "monthly")}
+              >
+                Monthly
+              </Link>
+              <Link
+                href="/spend?view=yearly"
+                className={chipClass(view === "yearly")}
+              >
+                Yearly
+              </Link>
+            </div>
+          </div>
+          {flat ? (
+            <p className="text-sm text-muted">
+              No change {view === "yearly" ? "in the last 5 years" : "in the last 12 months"}: about{" "}
+              {formatCurrency(timeline[0]?.total ?? 0, preferredCurrency, undefined, region, { showCode: true })}{" "}
+              {view === "yearly" ? "a year" : "a month"}. This chart only shows when contracts start or end.
+            </p>
+          ) : (
+          <div className="space-y-2">
+            {view === "yearly"
+              ? yearlyTimeline.map((bucket) => (
+                  <div key={bucket.year} className="flex items-center gap-3">
+                    <span className="w-16 shrink-0 text-right text-xs text-muted">{bucket.year}</span>
+                    <div className="flex-1 h-5 overflow-hidden rounded-lg bg-muted/10">
+                      <div
+                        className="h-full rounded-lg bg-accent/70"
+                        style={{ width: `${(bucket.total / maxTotal) * 100}%` }}
+                      />
+                    </div>
+                    <span className="w-20 shrink-0 text-xs text-muted">
+                      {formatCurrency(bucket.total, preferredCurrency, undefined, region, { showCode: true })}
+                    </span>
+                  </div>
+                ))
+              : monthlyTimeline.map((bucket) => (
+                  <div key={bucket.month} className="flex items-center gap-3">
+                    <span className="w-16 shrink-0 text-right text-xs text-muted">{bucket.month}</span>
+                    <div className="flex-1 h-5 overflow-hidden rounded-lg bg-muted/10">
+                      <div
+                        className="h-full rounded-lg bg-accent/70"
+                        style={{ width: `${(bucket.total / maxTotal) * 100}%` }}
+                      />
+                    </div>
+                    <span className="w-20 shrink-0 text-xs text-muted">
+                      {formatCurrency(bucket.total, preferredCurrency, undefined, region, { showCode: true })}
+                    </span>
+                  </div>
+                ))}
+          </div>
+          )}
+        </div>
+      </details>
 
       {/* Actuals by year */}
       {actualsByYear.length > 0 && (
-        <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+        <Card as="section">
           <h2 className="mb-3 font-medium">Actuals by financial year</h2>
           <div className="overflow-x-auto">
             {/* #403 — pl-4 + nowrap keep the amount columns from running into
@@ -285,8 +371,8 @@ export default async function SpendPage({
               </tbody>
             </table>
           </div>
-        </section>
+        </Card>
       )}
-    </div>
+    </PageShell>
   );
 }

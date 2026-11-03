@@ -1,3 +1,4 @@
+import { isTextExtractionUnavailableFor } from "@/lib/documents/textExtraction";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -63,5 +64,8 @@ export async function POST(
         ? await extractInvoiceFields(text, options)
         : await extractInventoryItemFields(text, options);
 
-  return NextResponse.json({ fields, source });
+  // #480 — the inbox stored its text at upload; if that came back empty because
+  // this server has no pdftotext/tesseract, say so rather than "found nothing".
+  const textUnavailable = !text.trim() && (await isTextExtractionUnavailableFor(doc.mimeType));
+  return NextResponse.json({ fields, source, textUnavailable });
 }

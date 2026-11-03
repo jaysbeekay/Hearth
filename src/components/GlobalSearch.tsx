@@ -5,20 +5,26 @@ import { useRouter } from "next/navigation";
 import { Search, X, Loader2 } from "lucide-react";
 import type { SearchResult } from "@/app/api/search/route";
 import { toggleListFilter, writeListFilters, type ToggleableFilter } from "@/lib/recordFilters";
+import { overlayClass, chipClass, buttonClass } from "@/lib/ui";
+import { formatRecentParam, readRecentRecords } from "@/lib/recentRecords";
 
 const OPEN_EVENT = "hearth:open-search";
 
 // #205/#395 — memory-fragment filters, sent with the same URL parameters as
 // the list pages (src/lib/recordFilters.ts). Single-select: picking one
 // clears any other, since they express mutually-relevant "what am I looking
-// for" states rather than a combinable checklist.
+// for" states rather than a combinable checklist. #366 — three plain ones;
+// No document and Missing key details stay on the list pages' filter rows.
 const SEARCH_FILTERS: { value: ToggleableFilter; label: string }[] = [
   { value: "dueSoon", label: "Due soon" },
   { value: "review", label: "Needs review" },
-  { value: "noDocument", label: "No document attached" },
   { value: "important", label: "Important" },
-  { value: "missingDetails", label: "Missing key details" },
 ];
+
+interface Suggestions {
+  recent: SearchResult[];
+  attention: SearchResult[];
+}
 
 export function openGlobalSearch() {
   window.dispatchEvent(new Event(OPEN_EVENT));
@@ -30,8 +36,12 @@ export function GlobalSearch() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<ToggleableFilter | null>(null);
   const [groups, setGroups] = useState<Record<string, SearchResult[]>>({});
+  const [suggestions, setSuggestions] = useState<Suggestions | null>(null);
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  // #520 review — bumped on every open, so Cmd/Ctrl-K while Search is
+  // already open refetches the suggestions it just cleared.
+  const [openCount, setOpenCount] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
@@ -53,7 +63,9 @@ export function GlobalSearch() {
       setQuery("");
       setFilter(null);
       setGroups({});
+      setSuggestions(null);
       setActiveIndex(-1);
+      setOpenCount((n) => n + 1);
       setOpen(true);
     };
     const onKeyDown = (e: KeyboardEvent) => {
@@ -91,6 +103,26 @@ export function GlobalSearch() {
 
   const textOk = query.trim().length >= 2;
 
+  // #366 — before anything is typed: Recently viewed and Needs attention.
+  useEffect(() => {
+    if (!open) return;
+    const params = new URLSearchParams();
+    const recent = readRecentRecords();
+    if (recent.length > 0) params.set("recent", formatRecentParam(recent));
+    let cancelled = false;
+    fetch(`/api/search/suggestions?${params.toString()}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: Partial<Suggestions> | null) => {
+        if (!cancelled && data) setSuggestions({ recent: data.recent ?? [], attention: data.attention ?? [] });
+      })
+      .catch(() => {
+        // Offline or signed out: Search just opens empty.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, openCount]);
+
   useEffect(() => {
     if (!open || (!textOk && !filter)) {
       return;
@@ -113,7 +145,18 @@ export function GlobalSearch() {
 
   if (!open) return null;
 
-  const groupEntries = textOk || filter ? Object.entries(groups) : [];
+  const searching = textOk || filter !== null;
+  const suggestionEntries: [string, SearchResult[]][] = [
+    ["Recently viewed", suggestions?.recent ?? []],
+    ["Needs attention", suggestions?.attention ?? []],
+  ];
+  // #520 review — suggestions are only for an empty box; a one-character
+  // query shows the "type at least 2 characters" hint instead.
+  const groupEntries = searching
+    ? Object.entries(groups)
+    : query.trim() === ""
+      ? suggestionEntries.filter(([, results]) => results.length > 0)
+      : [];
   const flatResults = groupEntries.flatMap(([, results]) => results);
   const hasResults = flatResults.length > 0;
   const showEmpty = !loading && (textOk || filter) && !hasResults;
@@ -128,11 +171,11 @@ export function GlobalSearch() {
         role="dialog"
         aria-label="Search"
         aria-modal="true"
-        className="w-full max-w-lg overflow-hidden rounded-xl border border-border bg-surface shadow-xl"
+        className={overlayClass("w-full max-w-lg overflow-hidden")}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-          <Search size={18} className="shrink-0 text-muted" />
+          <Search size={20} className="shrink-0 text-muted" />
           <input
             ref={inputRef}
             role="combobox"
@@ -140,7 +183,12 @@ export function GlobalSearch() {
             aria-controls="global-search-listbox"
             aria-activedescendant={activeIndex >= 0 ? `global-search-option-${activeIndex}` : undefined}
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              // #520 review — the list may switch (suggestions to results),
+              // so a highlighted row from the old list mustn't carry over.
+              setActiveIndex(-1);
+              setQuery(e.target.value);
+            }}
             onKeyDown={(e) => {
               if (e.key === "ArrowDown") {
                 e.preventDefault();
@@ -190,7 +238,7 @@ export function GlobalSearch() {
               }
             }}
             aria-label="Close search"
-            className="shrink-0 rounded-md p-1 text-muted hover:bg-hover"
+            className={buttonClass("quiet", { icon: true }, "shrink-0 text-muted")}
           >
             <X size={16} />
           </button>
@@ -205,7 +253,10 @@ export function GlobalSearch() {
               }}
               type="button"
               aria-pressed={filter === f.value}
-              onClick={() => setFilter((current) => (current === f.value ? null : f.value))}
+              onClick={() => {
+                setActiveIndex(-1);
+                setFilter((current) => (current === f.value ? null : f.value));
+              }}
               onKeyDown={(e) => {
                 if (e.key !== "Tab") return;
                 if (e.shiftKey && i === 0) {
@@ -216,11 +267,7 @@ export function GlobalSearch() {
                   closeButtonRef.current?.focus();
                 }
               }}
-              className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
-                filter === f.value
-                  ? "border-accent bg-accent/10 text-accent"
-                  : "border-border text-muted hover:bg-hover"
-              }`}
+              className={chipClass(filter === f.value)}
             >
               {f.label}
             </button>
@@ -236,20 +283,20 @@ export function GlobalSearch() {
             ? "Searching…"
             : showEmpty
               ? "No results"
-              : hasResults
+              : hasResults && searching
                 ? `${flatResults.length} result${flatResults.length === 1 ? "" : "s"} in ${groupEntries.length} group${groupEntries.length === 1 ? "" : "s"}`
                 : ""}
         </p>
 
         <div id="global-search-listbox" role="listbox" className="max-h-[60vh] overflow-y-auto p-2">
-          {!textOk && !filter && (
+          {!searching && groupEntries.length === 0 && (
             <p className="px-3 py-6 text-center text-sm text-muted">
               Type at least 2 characters, or pick a filter, to search.
             </p>
           )}
           {loading && (
             <p className="flex items-center justify-center gap-2 px-3 py-6 text-center text-sm text-muted">
-              <Loader2 size={14} className="animate-spin" aria-hidden /> Searching…
+              <Loader2 size={16} className="animate-spin" aria-hidden /> Searching…
             </p>
           )}
           {showEmpty && (
@@ -282,7 +329,7 @@ export function GlobalSearch() {
                     <span className="truncate text-sm font-medium">{r.title}</span>
                     {r.subtitle && <span className="truncate text-xs text-muted">{r.subtitle}</span>}
                     {r.matchedInDocument && (
-                      <span className="text-[11px] italic text-muted">Matched inside an attached document</span>
+                      <span className="text-xs italic text-muted">Matched inside an attached document</span>
                     )}
                   </button>
                 );

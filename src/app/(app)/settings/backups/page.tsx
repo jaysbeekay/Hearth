@@ -11,15 +11,20 @@ import {
   getSftpConfig,
   getLocalConfig,
   isAppSettingSet,
+  getServerDefaultTimeZone,
 } from "@/lib/appSettings";
-import { saveBackupDestination } from "@/lib/actions/app-settings";
-import { BackupDestinationForm } from "@/components/AppSettingsForms";
+import { saveBackupDestination, saveBackupSchedule } from "@/lib/actions/app-settings";
+import { BackupDestinationForm, BackupScheduleForm } from "@/components/AppSettingsForms";
+import { SaveChangesGroup } from "@/components/SaveChangesGroup";
+import { describeSchedule } from "@/lib/cronSchedule";
 import { BACKUP_DESTINATION_LABELS } from "@/lib/backupDestination";
 import { BackupNowForm } from "@/components/BackupNowForm";
 import { formatTimestamp, humanFileSize } from "@/lib/utils";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { BackLink } from "@/components/BackLink";
 import { SETTINGS_ROUTES, settingsBackLink } from "@/lib/routeLabels";
+import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: SETTINGS_ROUTES.backups.label };
 
@@ -56,18 +61,18 @@ export default async function BackupsPage() {
   ]);
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <PageShell width="form">
       <BackLink {...settingsBackLink(SETTINGS_ROUTES.backups)} />
-      <h1 className="text-2xl font-semibold">{SETTINGS_ROUTES.backups.label}</h1>
+      <h1 className="text-2xl font-medium">{SETTINGS_ROUTES.backups.label}</h1>
 
-      <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <Card as="section">
         <h2 className="mb-3 font-medium">Status</h2>
         <ul className="space-y-1 text-sm">
           <li>
             Encryption: {isEncryptionConfigured() ? "configured" : "not configured"}
           </li>
           <li>Backup destination: {BACKUP_DESTINATION_LABELS[destination]}</li>
-          <li>Schedule: {backupSchedule.cron}</li>
+          <li>Schedule: {describeSchedule(backupSchedule.cron)}</li>
           <li>Retention: last {backupSchedule.retentionCount} backups</li>
         </ul>
 
@@ -84,41 +89,55 @@ export default async function BackupsPage() {
             <BackupNowForm />
           </div>
         )}
-      </section>
+      </Card>
 
-      <section className="rounded-xl border border-border bg-surface p-4 md:p-6 space-y-4">
-        <div>
-          <h2 className="font-medium">Backup destination</h2>
-          <p className="text-xs text-muted mt-0.5">
-            Where encrypted database backups are written. Choose one destination.
-          </p>
-        </div>
-        <BackupDestinationForm
-          action={saveBackupDestination}
-          current={{
-            destination,
-            local: { path: local.path },
-            s3: {
-              endpoint: s3.endpoint,
-              region: s3.region,
-              bucket: s3.bucket,
-              accessKeyId: s3.accessKeyId,
-              forcePathStyle: s3.forcePathStyle,
-              secretKeyIsSet: s3SecretIsSet,
-            },
-            sftp: {
-              host: sftp.host,
-              port: sftp.port,
-              username: sftp.username,
-              remotePath: sftp.remotePath,
-              passwordIsSet: sftpPasswordIsSet,
-              privateKeyIsSet: sftpPrivateKeyIsSet,
-            },
-          }}
-        />
-      </section>
+      <SaveChangesGroup>
+        <Card as="section" className="space-y-4">
+          <div>
+            <h2 className="font-medium">Backup destination</h2>
+            <p className="text-xs text-muted mt-0.5">
+              Where encrypted database backups are written. Choose one destination.
+            </p>
+          </div>
+          <BackupDestinationForm
+            action={saveBackupDestination}
+            current={{
+              destination,
+              local: { path: local.path },
+              s3: {
+                endpoint: s3.endpoint,
+                region: s3.region,
+                bucket: s3.bucket,
+                accessKeyId: s3.accessKeyId,
+                forcePathStyle: s3.forcePathStyle,
+                secretKeyIsSet: s3SecretIsSet,
+              },
+              sftp: {
+                host: sftp.host,
+                port: sftp.port,
+                username: sftp.username,
+                remotePath: sftp.remotePath,
+                passwordIsSet: sftpPasswordIsSet,
+                privateKeyIsSet: sftpPrivateKeyIsSet,
+              },
+            }}
+          />
+        </Card>
 
-      <section className="rounded-xl border border-border bg-surface p-4 md:p-6">
+        <Card as="section" className="space-y-4">
+          <div>
+            <h2 className="font-medium">Schedule</h2>
+            <p className="text-xs text-muted mt-0.5">When automatic backups run, and how many to keep.</p>
+          </div>
+          <BackupScheduleForm
+            action={saveBackupSchedule}
+            current={{ cron: backupSchedule.cron, retentionCount: backupSchedule.retentionCount }}
+            serverTimeZone={getServerDefaultTimeZone()}
+          />
+        </Card>
+      </SaveChangesGroup>
+
+      <Card as="section">
         <h2 className="mb-3 font-medium">Recent runs</h2>
         {logs.length === 0 ? (
           <p className="text-sm text-muted">No backups have run yet.</p>
@@ -149,7 +168,7 @@ export default async function BackupsPage() {
             ))}
           </ul>
         )}
-      </section>
-    </div>
+      </Card>
+    </PageShell>
   );
 }

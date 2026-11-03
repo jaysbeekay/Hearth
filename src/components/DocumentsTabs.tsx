@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { Upload } from "lucide-react";
 import { TakePhotoButton } from "@/components/TakePhotoButton";
-import { compactButtonClass } from "@/lib/buttonStyles";
 import { DOCUMENTS_TABS } from "@/lib/routeLabels";
+import { buttonClass } from "@/lib/ui";
 
 // Shared tab strip connecting /documents and /documents/inbox, so the two
 // routes read as one workflow (upload → inbox → filed) instead of a page
@@ -18,11 +18,14 @@ export function DocumentsTabs({
   inboxCount,
   filedCount,
   allCount,
+  importsCount = 0,
 }: {
-  active: "inbox" | "filed" | "all";
+  active: "inbox" | "filed" | "all" | "imports";
   inboxCount: number;
   filedCount: number;
   allCount: number;
+  /** Pending MCP import proposals (#529); the tab shows only when there are some. */
+  importsCount?: number;
 }) {
   return (
     <div className="flex gap-6 border-b border-border">
@@ -35,6 +38,11 @@ export function DocumentsTabs({
       <Link href={DOCUMENTS_TABS.all.href} className={tabClass(active === "all")}>
         {DOCUMENTS_TABS.all.label} ({allCount})
       </Link>
+      {(importsCount > 0 || active === "imports") && (
+        <Link href={DOCUMENTS_TABS.imports.href} className={tabClass(active === "imports")}>
+          {DOCUMENTS_TABS.imports.label} ({importsCount})
+        </Link>
+      )}
     </div>
   );
 }
@@ -44,9 +52,9 @@ export function DocumentsTabs({
 // In the page flow rather than floating, so they never cover a row.
 export function DocumentsUploadActions() {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <TakePhotoButton />
-      <Link href="/import" className={`${compactButtonClass("secondary")} gap-2`}>
+      <Link href="/import" className={`${buttonClass("secondary")} gap-2`}>
         <Upload size={16} />
         Upload
       </Link>

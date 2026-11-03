@@ -167,13 +167,26 @@ jobs:
             -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" \
             | awk -F': ' '/SHA256:/ {print $2; exit}' | tr -d ':' | tr 'A-F' 'a-f')
           test -n "$KEY_SHA" || { echo "::error::Could not read the release key's certificate digest"; exit 1; }
-          APK_SHA=$("$APKSIGNER" verify --print-certs "$APK" \
-            | awk -F': ' '/Signer #1 certificate SHA-256 digest/ {print $2; exit}')
-          [ "$APK_SHA" = "$KEY_SHA" ] || { echo "::error::APK is not signed with the release key"; exit 1; }
+          echo "Release key certificate SHA-256: $KEY_SHA"
+          # Match the digest anywhere in apksigner's output rather than on one
+          # exact label, so a change in its wording can't fail a good build.
+          # Certificate digests are public (they ship inside every APK), so
+          # printing them on failure is safe and makes a mismatch diagnosable.
+          APK_CERTS=$("$APKSIGNER" verify --print-certs "$APK" | tr 'A-F' 'a-f' | tr -d ':')
+          if ! grep -q "$KEY_SHA" <<< "$APK_CERTS"; then
+            echo "apksigner ($APKSIGNER) reported:"
+            grep -i 'signer\|digest\|scheme' <<< "$APK_CERTS" || echo "$APK_CERTS"
+            echo "::error::APK is not signed with the release key"
+            exit 1
+          fi
           jarsigner -verify "$AAB" >/dev/null || { echo "::error::AAB signature does not verify"; exit 1; }
-          AAB_SHA=$(keytool -printcert -jarfile "$AAB" \
-            | awk -F': ' '/SHA256:/ {print $2; exit}' | tr -d ':' | tr 'A-F' 'a-f')
-          [ "$AAB_SHA" = "$KEY_SHA" ] || { echo "::error::AAB is not signed with the release key"; exit 1; }
+          AAB_CERTS=$(keytool -printcert -jarfile "$AAB" | tr 'A-F' 'a-f' | tr -d ':')
+          if ! grep -q "$KEY_SHA" <<< "$AAB_CERTS"; then
+            echo "keytool -printcert reported:"
+            grep -i 'sha256\|owner' <<< "$AAB_CERTS" || echo "$AAB_CERTS"
+            echo "::error::AAB is not signed with the release key"
+            exit 1
+          fi
           echo "APK and AAB are signed with the release key ($KEY_SHA)."
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { extractText } from "@/lib/documents/textExtraction";
+import { extractTextDetailed } from "@/lib/documents/textExtraction";
 import { extractContractFields } from "@/lib/documents/fieldExtraction";
 import { getByokConfig } from "@/lib/ai/extract";
 import { readValidatedUploadDetails, UploadRejectedError } from "@/lib/uploadValidation";
@@ -52,8 +52,8 @@ export async function POST(request: NextRequest) {
     }
     throw error;
   }
-  const [text, byokUser] = await Promise.all([
-    extractText(buffer, mimeType),
+  const [{ text, unavailable: textUnavailable }, byokUser] = await Promise.all([
+    extractTextDetailed(buffer, mimeType),
     getByokConfig(),
   ]);
   const { fields, source } = await extractContractFields(text, {
@@ -62,5 +62,7 @@ export async function POST(request: NextRequest) {
     byokUser,
   });
 
-  return NextResponse.json({ fields, source });
+  // #480 — textUnavailable lets the form say why nothing was auto-filled
+  // (no pdftotext/tesseract on this server) instead of "found nothing".
+  return NextResponse.json({ fields, source, textUnavailable });
 }

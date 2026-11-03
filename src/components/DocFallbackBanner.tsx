@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
+import { Banner } from "@/components/ui/Banner";
 
 // Shown once, right after creating a record, when the file the user
 // attached couldn't be saved directly to it (#203) — driven by the
@@ -11,7 +12,7 @@ export function DocFallbackBanner({ docFallback }: { docFallback?: string }) {
   if (docFallback !== "inbox" && docFallback !== "failed") return null;
 
   return (
-    <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
+    <Banner tone="warning" className="flex items-start gap-2">
       <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden />
       {docFallback === "inbox" ? (
         <p>
@@ -25,6 +26,6 @@ export function DocFallbackBanner({ docFallback }: { docFallback?: string }) {
       ) : (
         <p>This record saved, but we couldn&apos;t save your document. Please try uploading it again below.</p>
       )}
-    </div>
+    </Banner>
   );
 }

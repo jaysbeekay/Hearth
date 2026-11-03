@@ -2,23 +2,29 @@ import Link from "next/link";
 import { createContract } from "@/lib/actions/contracts";
 import { ContractForm } from "@/components/ContractForm";
 import { getUserPreferences } from "@/lib/userPreferences";
+import { getReminderConfig } from "@/lib/appSettings";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import { prisma } from "@/lib/prisma";
 import { BackLink } from "@/components/BackLink";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
+import { CONTRACT_CATEGORIES } from "@/lib/validation/contract";
+import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
+import { inlineLinkClass } from "@/lib/ui";
 
 export default async function NewContractPage({
   searchParams,
 }: {
-  searchParams: Promise<{ propertyId?: string; vehicleId?: string }>;
+  searchParams: Promise<{ propertyId?: string; vehicleId?: string; category?: string }>;
 }) {
   redirectIfReadOnly(await auth(), "/contracts");
-  const [{ preferredCurrency }, homeEnabled, vehiclesEnabled, { propertyId, vehicleId }] = await Promise.all([
+  const [{ preferredCurrency }, homeEnabled, vehiclesEnabled, { propertyId, vehicleId, category }, { defaultDays }] = await Promise.all([
     getUserPreferences(),
     isModuleEnabled("HOME"),
     isModuleEnabled("VEHICLES"),
     searchParams,
+    getReminderConfig(),
   ]);
   const properties = homeEnabled
     ? await prisma.property.findMany({
@@ -36,34 +42,36 @@ export default async function NewContractPage({
     : [];
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="form">
       <BackLink href="/contracts" label="Contracts" />
       <div>
-        <h1 className="text-2xl font-semibold">Add a contract</h1>
+        <h1 className="text-2xl font-medium">Add a contract</h1>
         <p className="text-sm text-muted">
           Capture the key details so you never miss a renewal or cancellation deadline.
         </p>
         <p className="mt-1 text-xs text-muted">
           Contracts have a term or a recurring cost — insurance, a phone plan, a lease, a loan.
           For something you bought that&apos;s under warranty, try{" "}
-          <Link href="/products/new" className="text-accent hover:underline">
+          <Link href="/products/new" className={inlineLinkClass}>
             add a warranty
           </Link>{" "}
           instead.
         </p>
       </div>
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
-        <ContractForm
+      <Card>
+        <ContractForm cancelHref="/contracts"
+          defaultReminderDays={defaultDays}
           action={createContract}
           defaultCurrency={preferredCurrency}
           properties={properties}
           vehicles={vehicles}
           defaultPropertyId={propertyId}
           defaultVehicleId={vehicleId}
+          defaultCategory={category && CONTRACT_CATEGORIES.some((c) => c === category) ? category : undefined}
           homeEnabled={homeEnabled}
           vehiclesEnabled={vehiclesEnabled}
         />
-      </div>
-    </div>
+      </Card>
+    </PageShell>
   );
 }

@@ -5,20 +5,24 @@ import { isDue } from "@/lib/duePolicy";
 import { ExpiryBadge } from "@/components/ExpiryBadge";
 import { StatusPill } from "@/components/StatusPill";
 import { vehicleDue, type DueContext } from "@/lib/dueRecords";
+import { withVehicleCovers, type CoveringContractRow } from "@/lib/covers";
+import { cardClass } from "@/lib/ui";
 
 export function VehicleCard({
-  vehicle,
+  vehicle: row,
   due,
   dateFormat,
   missing,
 }: {
-  vehicle: VehicleModel & { _count?: { items: number; contracts?: number } };
+  vehicle: VehicleModel & { _count?: { items: number; contracts?: number }; contracts: CoveringContractRow[] };
   /** #384 — the household's today and default thresholds, for the Due policy. */
   due: DueContext;
   dateFormat?: string;
   /** #395 — which key details are missing, shown when the list is filtered to them. */
   missing?: string[];
 }) {
+  // A date a Covering Contract supplies shows as that Contract's end date (#456).
+  const vehicle = withVehicleCovers(row);
   const subtitle = [vehicle.make, vehicle.model, vehicle.year, vehicle.licensePlate]
     .filter(Boolean)
     .join(" · ");
@@ -27,7 +31,7 @@ export function VehicleCard({
   return (
     <Link
       href={`/vehicles/${vehicle.id}`}
-      className="block min-w-0 rounded-lg border border-border bg-surface p-4 transition hover:border-accent/50"
+      className={cardClass({ interactive: true }, "block min-w-0")}
     >
       <div className="min-w-0">
         {subtitle && <p className="truncate text-sm text-muted">{subtitle}</p>}
