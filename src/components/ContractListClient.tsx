@@ -134,10 +134,16 @@ export function ContractListClient({
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   // #517 review: every other way of changing the list cancels a pending
   // search auto-submit first. Otherwise it fires up to 400 ms later and puts
-  // back a q= that a chip, select, pill or Clear all just changed.
+  // back a q= that a chip, select, pill or Clear all just changed. The search
+  // box is uncontrolled, so it is also reset to the q= being navigated to;
+  // otherwise it keeps showing typed text the list no longer applies.
   const navigate = useCallback(
     (href: string) => {
       clearTimeout(searchTimeout.current);
+      const search = formRef.current?.elements.namedItem("q");
+      if (search instanceof HTMLInputElement) {
+        search.value = new URL(href, window.location.href).searchParams.get("q") ?? "";
+      }
       router.push(href);
     },
     [router],
