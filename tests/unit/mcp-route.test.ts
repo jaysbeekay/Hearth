@@ -95,6 +95,16 @@ describe("/api/mcp", () => {
     });
   });
 
+  it("caps security-log rows when wrong tokens arrive from rotating addresses", async () => {
+    // No proxy: a client sets its own X-Forwarded-For per request.
+    for (let i = 0; i < 100; i += 1) {
+      expect((await POST(request("wrong", `198.51.100.${i}`))).status).toBe(401);
+    }
+    const cap = RATE_LIMITS.mcpAuthLog.limit;
+    expect(await prisma.securityEventLog.count()).toBe(cap);
+    expect(await prisma.securityEventLog.count({ where: { detail: { contains: "logging paused" } } })).toBe(1);
+  });
+
   it("also blocks a valid token from a locked-out address (documented trade-off), but not from another address", async () => {
     for (let i = 0; i < AUTH_LIMIT; i += 1) await POST(request("wrong"));
     expect((await POST(request("token-a"))).status).toBe(429);

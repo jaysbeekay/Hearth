@@ -86,6 +86,10 @@ export const RATE_LIMITS = {
   // household's paperwork in one sitting; the pending-queue cap
   // (MAX_PENDING_IMPORTS) bounds the total either way.
   mcpImport: { limit: 100, windowMs: 60 * 60_000 },
+  // Security-log rows for MCP auth failures, across all addresses. Without a
+  // proxy a client can rotate X-Forwarded-For past mcpAuth, so this keeps a
+  // wrong-token flood from writing unbounded rows and burying the log.
+  mcpAuthLog: { limit: 30, windowMs: 15 * 60_000 },
 } as const satisfies Record<string, RateLimitRule>;
 
 export type RateLimitName = keyof typeof RATE_LIMITS;

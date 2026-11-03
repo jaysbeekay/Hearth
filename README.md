@@ -523,7 +523,10 @@ its tool disappears on the next connection.
   your reverse proxy, or keep it on the LAN/VPN (e.g. Tailscale).
 - **Wrong tokens are throttled** per client address (10 per 15 minutes), and
   each one is recorded in Settings → Security as "MCP request with a wrong
-  token". Each valid token is capped at 300 requests per 5 minutes. Counters
+  token", plus one "MCP requests throttled" when an address is locked out.
+  Those log rows are capped at 30 per 15 minutes across all addresses, so a
+  flood can't bury the rest of the log; the last row says logging paused.
+  Each valid token is capped at 300 requests per 5 minutes. Counters
   are in memory and reset on restart. The address check runs before the
   token check, so a locked-out address is refused even with a valid token
   until the window passes — put clients that share an address (behind the
