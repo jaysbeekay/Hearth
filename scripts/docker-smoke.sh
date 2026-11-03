@@ -118,9 +118,11 @@ check_running_image() { # check_running_image <container>
   # a PDF in its standard font from there. (The libsql musl binding needs no
   # check of its own: /api/health above queries the database through it.)
   docker exec "$c" node -e '
-    const { execSync } = require("child_process");
-    try { execSync(String.raw`grep -rqF "require("pdfkit")" /app/.next/server`); }
-    catch { console.error("pdfkit is bundled into the server, not required from node_modules"); process.exit(1); }
+    const fs = require("fs");
+    const external = fs.readdirSync("/app/.next/server", { recursive: true })
+      .filter((f) => f.endsWith(".js"))
+      .some((f) => fs.readFileSync("/app/.next/server/" + f, "utf8").includes("require(\"pdfkit\")"));
+    if (!external) { console.error("pdfkit is bundled into the server, not required from node_modules"); process.exit(1); }
     const PDFDocument = require(require.resolve("pdfkit", { paths: ["/app"] }));
     const doc = new PDFDocument();
     const chunks = [];
