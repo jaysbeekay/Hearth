@@ -9,7 +9,16 @@
 // Pure and free of runtime imports beyond the policy, so client components
 // (the list cards) can use it with a DueContext handed down from the server.
 
-import { dueEntries, isDue, type DateInput, type DueContext, type DueEntry, type DueState } from "@/lib/duePolicy";
+import { coveredFieldsOf, fixedTermCoverEndsOf, vehicleCovers, type CoveringContractRow } from "@/lib/covers";
+import {
+  dueEntries,
+  isDue,
+  type DateInput,
+  type DueContext,
+  type DueEntry,
+  type DueRecord,
+  type DueState,
+} from "@/lib/duePolicy";
 
 export type { DueContext, DueEntry, DueState };
 
@@ -32,7 +41,13 @@ export interface VehicleDueRow {
   nextServiceDue: DateInput;
   reminderDaysBefore?: string | null;
   /**
-   * #355 — an Archived Vehicle has no Due entries. Required, not optional,
+   * The Vehicle's linked Contracts that may Cover it (`COVERING_CONTRACTS`
+   * in src/lib/covers.ts). Required, so a query can't forget them and give
+   * the Vehicle a second Reminder stream next to its Covering Contract's.
+   */
+  contracts: CoveringContractRow[];
+  /**
+   * #355 - an Archived Vehicle has no Due entries. Required, not optional,
    * so a query that forgets to select it fails to type-check instead of
    * quietly bringing a sold Vehicle's dates back.
    */
@@ -65,18 +80,27 @@ export function warrantyDue(row: WarrantyDueRow, ctx: DueContext): DueEntry[] {
   );
 }
 
+/**
+ * A Vehicle as a Due record: the dates a Covering Contract supplies (#456)
+ * are left out of its own entries, since the Contract's entries stand in.
+ * Reminders, health and the lists all build the record here.
+ */
+export function vehicleDueRecord(row: VehicleDueRow): Extract<DueRecord, { kind: "vehicle" }> {
+  const covers = vehicleCovers(row.contracts);
+  return {
+    kind: "vehicle",
+    regoExpiry: row.regoExpiry,
+    insuranceExpiry: row.insuranceExpiry,
+    nextServiceDue: row.nextServiceDue,
+    reminderDaysBefore: row.reminderDaysBefore,
+    coveredFields: coveredFieldsOf(covers),
+    fixedTermCoverEnds: fixedTermCoverEndsOf(covers),
+    archivedAt: row.archivedAt,
+  };
+}
+
 export function vehicleDue(row: VehicleDueRow, ctx: DueContext): DueEntry[] {
-  return dueEntries(
-    {
-      kind: "vehicle",
-      regoExpiry: row.regoExpiry,
-      insuranceExpiry: row.insuranceExpiry,
-      nextServiceDue: row.nextServiceDue,
-      reminderDaysBefore: row.reminderDaysBefore,
-      archivedAt: row.archivedAt,
-    },
-    ctx,
-  );
+  return dueEntries(vehicleDueRecord(row), ctx);
 }
 
 export function tenancyDue(row: TenancyDueRow, ctx: DueContext): DueEntry[] {

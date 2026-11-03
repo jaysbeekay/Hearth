@@ -331,13 +331,23 @@ export default async function PropertyDetailPage({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-medium">Contracts and warranties linked to this property</h2>
           {canWrite && (
-            <Link
-              href={`/contracts/new?propertyId=${property.id}`}
-              className={buttonClass("secondary")}
-            >
-              <Plus size={16} />
-              Add contract
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* #456 - a shortcut that opens the contract form linked to this property. */}
+              <Link
+                href={`/contracts/new?propertyId=${property.id}&category=HOME_INSURANCE`}
+                className={buttonClass("secondary")}
+              >
+                <Plus size={16} />
+                Add insurance
+              </Link>
+              <Link
+                href={`/contracts/new?propertyId=${property.id}`}
+                className={buttonClass("secondary")}
+              >
+                <Plus size={16} />
+                Add contract
+              </Link>
+            </div>
           )}
         </div>
         {linkedContracts.length === 0 && linkedProducts.length === 0 ? (

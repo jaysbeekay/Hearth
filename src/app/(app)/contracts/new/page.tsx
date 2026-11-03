@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { BackLink } from "@/components/BackLink";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
+import { CONTRACT_CATEGORIES } from "@/lib/validation/contract";
 import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/ui/PageShell";
 import { inlineLinkClass } from "@/lib/ui";
@@ -15,10 +16,10 @@ import { inlineLinkClass } from "@/lib/ui";
 export default async function NewContractPage({
   searchParams,
 }: {
-  searchParams: Promise<{ propertyId?: string; vehicleId?: string }>;
+  searchParams: Promise<{ propertyId?: string; vehicleId?: string; category?: string }>;
 }) {
   redirectIfReadOnly(await auth(), "/contracts");
-  const [{ preferredCurrency }, homeEnabled, vehiclesEnabled, { propertyId, vehicleId }, { defaultDays }] = await Promise.all([
+  const [{ preferredCurrency }, homeEnabled, vehiclesEnabled, { propertyId, vehicleId, category }, { defaultDays }] = await Promise.all([
     getUserPreferences(),
     isModuleEnabled("HOME"),
     isModuleEnabled("VEHICLES"),
@@ -66,6 +67,7 @@ export default async function NewContractPage({
           vehicles={vehicles}
           defaultPropertyId={propertyId}
           defaultVehicleId={vehicleId}
+          defaultCategory={category && CONTRACT_CATEGORIES.some((c) => c === category) ? category : undefined}
           homeEnabled={homeEnabled}
           vehiclesEnabled={vehiclesEnabled}
         />

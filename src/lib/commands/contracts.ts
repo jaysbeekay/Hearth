@@ -57,10 +57,18 @@ async function findLiveContract(id: string, client: ContractClient = prisma) {
   return contract;
 }
 
+// A Covering Contract supplies its Vehicle's rego or insurance date (#456), so
+// any change to a Contract can change what the Vehicle pages show.
+function revalidateVehicles() {
+  revalidatePath("/vehicles");
+  revalidatePath("/vehicles/[id]", "page");
+}
+
 function revalidateContract(id: string) {
   revalidatePath("/contracts");
   revalidatePath(`/contracts/${id}`);
   revalidatePath("/dashboard");
+  revalidateVehicles();
 }
 
 // A patch that moves either date mustn't leave the end date before the
@@ -123,6 +131,7 @@ export async function createContractCommand(
   });
   revalidatePath("/contracts");
   revalidatePath("/dashboard");
+  revalidateVehicles();
   return contract;
 }
 
@@ -276,6 +285,7 @@ export async function deleteContractCommand(id: string) {
   await prisma.contract.update({ where: { id }, data: { deletedAt: new Date() } });
   revalidatePath("/contracts");
   revalidatePath("/dashboard");
+  revalidateVehicles();
   revalidatePath("/settings/trash");
 }
 
