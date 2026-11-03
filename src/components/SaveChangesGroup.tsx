@@ -149,6 +149,10 @@ interface FormEntry {
   failed: boolean;
 }
 
+// What each in-flight save sent, to put back if it fails. Keyed by the form
+// element, so it's dropped with the form.
+const sentData = new WeakMap<HTMLFormElement, FormData>();
+
 type Entries = ReadonlyMap<HTMLFormElement, FormEntry>;
 
 function groupForm(target: EventTarget | null): HTMLFormElement | null {
@@ -179,9 +183,6 @@ export function SaveChangesGroup({ children }: { children: React.ReactNode }) {
   // Bumped when a form's values change without an edit we track (React
   // resetting a form after its action), so the bar re-reads them.
   const [, setVersion] = useState(0);
-  // What each in-flight save sent, to put back if it fails. Only read in
-  // event handlers and effects, never while rendering.
-  const sentData = useRef(new Map<HTMLFormElement, FormData>());
   const bump = useCallback(() => {
     setVersion((v) => v + 1);
   }, []);
@@ -203,7 +204,7 @@ export function SaveChangesGroup({ children }: { children: React.ReactNode }) {
     const form = groupForm(event.target);
     if (!form) return;
     const sent = snapshot(form);
-    sentData.current.set(form, new FormData(form));
+    sentData.set(form, new FormData(form));
     // No edits while it saves: React resets the form when the action
     // returns, which would silently drop anything typed in the meantime.
     form.inert = true;
@@ -221,8 +222,8 @@ export function SaveChangesGroup({ children }: { children: React.ReactNode }) {
     () => ({
       settled: (form, ok) => {
         form.inert = false;
-        const sent = sentData.current.get(form);
-        sentData.current.delete(form);
+        const sent = sentData.get(form);
+        sentData.delete(form);
         if (!ok && sent) {
           restore(form, sent);
           // And again in case React's reset lands after this.
