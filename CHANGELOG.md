@@ -79,6 +79,27 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   selects and the chips, so the first record is on the first screen. Links
   from the dashboard still pre-select the right chip. The iOS and Android
   shell is unchanged.
+- **Spending leads with what's useful (#367).** The "Tax-deductible / mo"
+  tile is hidden when nothing is tax-deductible. Contracts with a cost but
+  no billing frequency, which the dashboard and Spending both leave out of
+  the monthly figure, are now flagged here too, with a link to fill them
+  in. The category breakdown comes first; the timeline is folded under
+  "Recurring cost over time" and says so plainly when nothing changed
+  instead of drawing identical bars. "Annual projection" (monthly × 12) is
+  now "Next 12 months": a fixed-term or manually renewed contract counts
+  only up to its end date, and one that hasn't started counts from its
+  start date. The iOS and Android shell is unchanged.
+- **Search opens on something useful, and Documents stops overloading
+  "type" (#366).** Before you type, Search shows the last five records you
+  opened in this browser (only their ids are kept locally; titles come from
+  the server, so a deleted record drops out) and the first three Due rows
+  from Needs attention. Its chips are down to Due soon, Needs review and
+  Important; No document and Missing key details stay on the list pages'
+  filter rows, and `/api/search` still takes every filter. On Documents,
+  the area chips are labelled "Belongs to" (with "All" instead of "All
+  types"), the table has separate "Document type" and "Belongs to" columns
+  with one pill each, and each mobile card labels both. The iOS and Android
+  shell is unchanged.
 - **Shorter Contract, Warranty and Vehicle forms (#361).** Only the fields
   that drive Reminders and Spend show up front. The rest sit in a "More
   details" section, and the thresholds sit in a "Reminders" section. A
@@ -90,6 +111,28 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   Warranty photo upload moves into More details. Preferences explains that
   date pickers follow the browser's language. The Property form was already
   short and is unchanged, and so is the iOS and Android shell.
+
+### Fixed
+
+- **Standalone Upcoming no longer marks a Trip date overdue (#476).** Trip
+  dates and past events leave Upcoming, as on the web: it starts from today,
+  and anything Overdue is in Needs attention instead. Only a Contract,
+  Warranty or Vehicle date is ever Due soon; a Trip segment is a plain
+  neutral date, listed from today while any of it is still ahead. The web
+  lists Trip segments rather than the Trip itself, and so does the shell now.
+  The due-soon window and Contract rule differences (#386) are tracked there.
+
+### Fixed
+
+- **Inventory writes follow the record rules (#471).** Creating, deleting,
+  restoring and permanently deleting an Inventory item now go through record
+  commands, from the forms, import, offline sync and Trash retention alike.
+  A new item can no longer be linked to a Warranty in Trash (the form, and
+  an offline create, now say "That warranty doesn't exist or has been
+  deleted."), and other save failures are no longer misreported as a
+  missing warranty. Deleting an item that's already in Trash, for example
+  by replaying an offline delete, no longer restarts its 30-day Trash
+  clock. Restoring an item now refreshes its own page.
 
 ## [0.20.1] - 2026-10-31
 

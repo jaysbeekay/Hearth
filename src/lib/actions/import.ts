@@ -17,12 +17,11 @@ import { addDocumentCommand, purgeDocument, supersedeDocumentCommand } from "@/l
 import { documentCommandError } from "@/lib/documents/commandErrors";
 import { createContractCommand } from "@/lib/commands/contracts";
 import { createProductCommand } from "@/lib/commands/products";
+import { createInventoryItemCommand } from "@/lib/commands/inventory";
 import { RecordValidationError } from "@/lib/commands/shared";
 import { extractionFieldsFromForm } from "@/lib/documents/extractionConfirmation";
 import { saveExtractionReviewFieldsFromForm } from "@/lib/documents/extractionReview";
 import { parseDocumentCategory } from "@/lib/documents/categories";
-import { withStagedFileMoves } from "@/lib/items/stagedFileMoves";
-import { syncLegacyInventory } from "@/lib/items/syncLegacyItem";
 
 function formToInventoryItemInput(formData: FormData) {
   return {
@@ -133,11 +132,14 @@ export async function importInventoryItem(formData: FormData): Promise<ImportRes
     if (rejection) return { error: rejection };
   }
 
-  const item = await withStagedFileMoves(() => prisma.$transaction(async (tx) => {
-    const created = await tx.inventoryItem.create({ data: { ...parsed.data, createdById: user.id } });
-    await syncLegacyInventory(tx, created.id);
-    return created;
-  }));
+  let item;
+  try {
+    item = await createInventoryItemCommand(parsed.data, user.id);
+  } catch (error) {
+    // A link to a warranty that's missing or in Trash (#471).
+    if (error instanceof RecordValidationError) return { error: error.message };
+    throw error;
+  }
 
   if (file instanceof File && file.size > 0) {
     await addDocumentCommand("INVENTORY_ITEM", item.id, {

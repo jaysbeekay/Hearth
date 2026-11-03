@@ -2,21 +2,26 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { formToInventoryItemInput } from "@/lib/formMappers";
-import { prisma } from "@/lib/prisma";
 import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
 import { inventoryItemSchema } from "@/lib/validation/inventory";
-import { addDocumentCommand, removeOwnerDocumentFiles } from "@/lib/commands/documents";
-import { updateInventoryItemCommand } from "@/lib/commands/inventory";
+import { addDocumentCommand } from "@/lib/commands/documents";
+import {
+  createInventoryItemCommand,
+  deleteInventoryItemCommand,
+  permanentlyDeleteInventoryItemCommand,
+  PurgeFilesPendingError,
+  restoreInventoryItemCommand,
+  updateInventoryItemCommand,
+} from "@/lib/commands/inventory";
 import { RecordNotFoundError, RecordValidationError, StaleEditError } from "@/lib/commands/shared";
 import { formDataToStringValues } from "@/lib/form-state";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import type { ActionState } from "@/lib/actions/auth";
 import { describeUploadRejection } from "@/lib/uploadValidation";
 import { parseDocumentCategory } from "@/lib/documents/categories";
-import { withStagedFileMoves } from "@/lib/items/stagedFileMoves";
-import { syncLegacyInventory, purgeLegacyInventoryStage } from "@/lib/items/syncLegacyItem";
 import { itemCutoverReadiness } from "@/lib/items/cutoverReadiness";
 
 const INVENTORY_ITEM_FORM_FIELDS = [
@@ -68,15 +73,16 @@ async function createInventoryItemWithDestination(
     if (rejection) return { error: rejection };
   }
 
+  // The command refuses a link to a warranty that's missing or in Trash
+  // (#471); any other failure is a real error, not a warranty problem.
   let item;
   try {
-    item = await withStagedFileMoves(() => prisma.$transaction(async (tx) => {
-      const created = await tx.inventoryItem.create({ data: { ...parsed.data, createdById: user.id } });
-      await syncLegacyInventory(tx, created.id);
-      return created;
-    }));
-  } catch {
-    return { error: "Linked warranty no longer exists.", values: formDataToStringValues(formData, INVENTORY_ITEM_FORM_FIELDS) };
+    item = await createInventoryItemCommand(parsed.data, user.id);
+  } catch (error) {
+    if (error instanceof RecordValidationError) {
+      return { error: error.message, values: formDataToStringValues(formData, INVENTORY_ITEM_FORM_FIELDS) };
+    }
+    throw error;
   }
 
   if (file instanceof File && file.size > 0) {
@@ -86,8 +92,6 @@ async function createInventoryItemWithDestination(
     });
   }
 
-  revalidatePath("/inventory");
-  revalidatePath("/items");
   if (itemRoute && process.env.ITEMS_PREVIEW === "1" && (await itemCutoverReadiness()).ready) {
     const mapping = await prisma.itemLegacyInventory.findUnique({ where: { inventoryItemId: item.id } });
     if (mapping) redirect(`/items/${mapping.itemId}`);
@@ -131,7 +135,6 @@ async function updateInventoryItemWithDestination(
     throw error;
   }
 
-  revalidatePath("/items");
   if (itemRoute && process.env.ITEMS_PREVIEW === "1" && (await itemCutoverReadiness()).ready) {
     const mapping = await prisma.itemLegacyInventory.findUnique({ where: { inventoryItemId: itemId } });
     if (mapping) {
@@ -151,51 +154,41 @@ export async function updateCatalogItem(itemId: string, state: ActionState, form
 }
 
 // #287 — soft-delete: see the equivalent comment on deleteContract (contracts.ts).
+// Deleting an item that's already in Trash is a no-op (#471).
 export async function deleteInventoryItem(itemId: string): Promise<ActionState> {
   await requireUser();
-
-  const existing = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
-  if (!existing) return { error: "Item not found." };
-
-  await withStagedFileMoves(() => prisma.$transaction(async (tx) => {
-    await tx.inventoryItem.update({ where: { id: itemId }, data: { deletedAt: new Date() } });
-    await syncLegacyInventory(tx, itemId);
-  }));
-
-  revalidatePath("/inventory");
-  revalidatePath("/settings/trash");
+  try {
+    await deleteInventoryItemCommand(itemId);
+  } catch (error) {
+    if (error instanceof RecordNotFoundError) return { error: "Item not found." };
+    throw error;
+  }
   redirect("/inventory");
 }
 
 export async function restoreInventoryItem(itemId: string): Promise<ActionState> {
   await requireUser();
-
-  const existing = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
-  if (!existing) return { error: "Item not found." };
-
-  await withStagedFileMoves(() => prisma.$transaction(async (tx) => {
-    await tx.inventoryItem.update({ where: { id: itemId }, data: { deletedAt: null } });
-    await syncLegacyInventory(tx, itemId);
-  }));
-
-  revalidatePath("/inventory");
-  revalidatePath("/settings/trash");
+  try {
+    await restoreInventoryItemCommand(itemId);
+  } catch (error) {
+    if (error instanceof RecordNotFoundError) return { error: "Item not found." };
+    throw error;
+  }
   return { success: "Restored." };
 }
 
 export async function permanentlyDeleteInventoryItem(itemId: string): Promise<ActionState> {
   await requireUser();
-
-  const existing = await prisma.inventoryItem.findUnique({ where: { id: itemId } });
-  if (!existing) return { error: "Item not found." };
-
-  const documentIds = (await prisma.inventoryItemDocument.findMany({ where: { inventoryItemId: itemId }, select: { id: true } })).map((doc) => doc.id);
-  await removeOwnerDocumentFiles("INVENTORY_ITEM", itemId);
-  await prisma.inventoryItem.delete({ where: { id: itemId } });
-  try { await purgeLegacyInventoryStage(itemId, documentIds); }
-  catch (error) { console.error("[items] couldn't retire staged Inventory item %s", itemId, error); }
-
-  revalidatePath("/settings/trash");
+  try {
+    await permanentlyDeleteInventoryItemCommand(itemId);
+  } catch (error) {
+    // The item is gone; only its files are left for the scheduled cleanup.
+    if (error instanceof PurgeFilesPendingError) {
+      return { success: "Deleted permanently. Its files will be cleaned up shortly." };
+    }
+    if (error instanceof RecordNotFoundError) return { error: "Item not found." };
+    if (error instanceof RecordValidationError) return { error: error.message };
+    throw error;
+  }
   return { success: "Deleted permanently." };
 }
-
