@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { ADMIN_AUTH_FILE, UPLOADS_DIR } from "../env";
 import { openFormSections } from "../formSections";
 
@@ -163,21 +163,130 @@ test.describe.serial("Vehicles module", () => {
   // expiry fields.
   test("setting a next service date surfaces a service reminder", async ({ page }) => {
     const soon = new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10);
+    const regoDue = new Date(Date.now() + 60 * 86_400_000).toISOString().slice(0, 10);
 
     await page.goto(`/vehicles/${vehicleId}/edit`);
+    await openFormSections(page);
     await page.locator("#nextServiceDue").fill(soon);
+    // A second date, so the card has to hold both (#516 review).
+    await page.locator("#regoExpiry").fill(regoDue);
     await page.getByRole("button", { name: "Save changes" }).click();
     await page.waitForURL(/\/vehicles\/(?!new$)[^/]+$/);
 
     await expect(page.getByText("Next service due")).toBeVisible();
     // #360 — one Reminder card lists each of the Vehicle's dates.
+    // The nearest box around the heading that holds the date lines.
+    const reminderCard = page
+      .getByRole("heading", { name: "Reminder health" })
+      .locator("xpath=ancestor::*[.//li][1]");
     await expect(page.getByRole("heading", { name: "Reminder health" })).toHaveCount(1);
-    await expect(page.locator("main li", { hasText: /^Service: / })).toBeVisible();
+    await expect(reminderCard.locator("li", { hasText: /^Service: / })).toBeVisible();
+    await expect(reminderCard.locator("li", { hasText: /^Registration: / })).toBeVisible();
 
     await page.goto("/vehicles");
     const card = page.locator("a", { hasText: "Test Vehicle" });
     // #384 — the Due policy's label for a service date inside its window.
     await expect(card.getByText(/^Service due \d{1,2} [A-Z][a-z]{2}( \d{4})?$/)).toBeVisible();
+  });
+
+  // #360 - one Reminder card per Vehicle, with a line per date it reminds about.
+  const insuranceReminderLine = (page: Page) => page.locator("li", { hasText: /^Insurance: / });
+
+  // #456 - a Contract that Covers the Vehicle supplies its insurance date.
+  test.describe.serial("a Contract that Covers the Vehicle", () => {
+    let policyId: string;
+    const policyTitle = "Covers E2E Policy";
+    // The service test above also typed in a rego date, so the hint names both.
+    const BOTH_HINT = "Add the insurance policy or the registration as a contract to track cost and documents.";
+
+    test("with no covering Contract, the manual date stays with a hint", async ({ page }) => {
+      await page.goto(`/vehicles/${vehicleId}/edit`);
+      await page.locator("#insuranceExpiry").fill("2031-01-01");
+      await page.getByRole("button", { name: "Save changes" }).click();
+      await page.waitForURL(/\/vehicles\/(?!new$)[^/]+$/);
+
+      await expect(page.getByText("Insurance expiry")).toBeVisible();
+      await expect(page.getByText(BOTH_HINT)).toBeVisible();
+      await expect(insuranceReminderLine(page)).toBeVisible();
+    });
+
+    test("Add insurance opens the contract form pre-linked, as car insurance", async ({ page }) => {
+      await page.goto(`/vehicles/${vehicleId}`);
+      await page.getByRole("link", { name: "Add insurance" }).click();
+      await page.waitForURL(/\/contracts\/new\?/);
+
+      await expect(page.locator("#category")).toHaveValue("CAR_INSURANCE");
+      await expect(page.getByLabel("Linked to")).toHaveValue(`vehicle:${vehicleId}`);
+
+      await page.locator("#title").fill(policyTitle);
+      await page.locator("#provider").fill("Allianz");
+      await page.locator("#endDate").fill("2031-06-15");
+      await page.locator("main button[type=submit]").click();
+      await page.waitForURL(/\/contracts\/(?!new)[^/?]+(\?.*)?$/);
+      policyId = new URL(page.url()).pathname.split("/").pop()!;
+
+      // #487 review - it says which of the Vehicle's own dates it replaced; that
+      // date (1 Jan 2031) is earlier than the policy's end, so check it.
+      const notice = page.getByRole("status").filter({ hasText: "This contract now sets the vehicle's insurance date" });
+      await expect(notice).toContainText("no longer sends reminders");
+      await expect(notice).toContainText("check this contract's end date is right");
+      await expect(notice.getByRole("link", { name: /^Edit / })).toHaveAttribute("href", `/vehicles/${vehicleId}/edit`);
+    });
+
+    test("the Vehicle shows the date as derived, read-only, with one Reminder stream", async ({ page }) => {
+      await page.goto(`/vehicles/${vehicleId}`);
+      await expect(page.getByRole("link", { name: `From ${policyTitle}` })).toHaveAttribute(
+        "href",
+        `/contracts/${policyId}`,
+      );
+      // Only the rego date is still typed in, so the hint names only it.
+      await expect(page.getByText("Add the registration as a contract to track cost and documents.")).toBeVisible();
+      await expect(page.getByText(/the insurance policy/)).toHaveCount(0);
+      // The Contract's Reminders replace the Vehicle's own for this date.
+      await expect(insuranceReminderLine(page)).toHaveCount(0);
+      await expect(page.getByRole("link", { name: "Add insurance" })).toHaveCount(0);
+
+      await page.goto(`/contracts/${policyId}`);
+      await expect(page.getByText("Covers its insurance date")).toBeVisible();
+
+      await page.goto(`/vehicles/${vehicleId}/edit`);
+      await expect(page.locator("input#insuranceExpiry")).toHaveCount(0);
+      await expect(page.getByRole("link", { name: `From ${policyTitle}` })).toBeVisible();
+    });
+
+    test("saving the Vehicle keeps its manual date for when the Contract is cancelled", async ({ page }) => {
+      await page.goto(`/vehicles/${vehicleId}/edit`);
+      await page.getByRole("button", { name: "Save changes" }).click();
+      await page.waitForURL(/\/vehicles\/(?!new$)[^/]+$/);
+
+      await page.goto(`/contracts/${policyId}/edit`);
+      await page.selectOption("#status", "CANCELLED");
+      await page.locator("main button[type=submit]").click();
+      await page.waitForURL(new RegExp(`/contracts/${policyId}(\\?.*)?$`));
+      // The Contract page says which of the Vehicle's own dates applies again.
+      await expect(page.getByText("will apply again")).toBeVisible();
+
+      await page.goto(`/vehicles/${vehicleId}`);
+      await expect(page.getByRole("link", { name: `From ${policyTitle}` })).toHaveCount(0);
+      await expect(page.getByText(BOTH_HINT)).toBeVisible();
+      await expect(insuranceReminderLine(page)).toBeVisible();
+      await expect(page.getByRole("link", { name: "Add insurance" })).toBeVisible();
+    });
+
+    test("a Registration Contract Covers the rego date the same way", async ({ page }) => {
+      await page.goto(`/vehicles/${vehicleId}`);
+      await page.getByRole("link", { name: "Add registration" }).click();
+      await expect(page.locator("#category")).toHaveValue("REGISTRATION");
+      await page.locator("#title").fill("Covers E2E Rego");
+      await page.locator("#provider").fill("Transport Dept");
+      await page.locator("#endDate").fill("2031-08-20");
+      await page.locator("main button[type=submit]").click();
+      await page.waitForURL(/\/contracts\/(?!new)[^/?]+(\?.*)?$/);
+
+      await page.goto(`/vehicles/${vehicleId}`);
+      await expect(page.getByText("Rego expiry")).toBeVisible();
+      await expect(page.getByRole("link", { name: "From Covers E2E Rego" })).toBeVisible();
+    });
   });
 
   test("delete the vehicle", async ({ page }) => {

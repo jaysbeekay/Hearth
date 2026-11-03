@@ -19,8 +19,9 @@ test("switching region changes number formatting, and resets cleanly", async ({ 
 
   await page.goto("/settings");
   await page.locator("#region").selectOption("de-DE");
-  await page.locator('form:has(#region) button[type="submit"]').click();
-  await expect(page.locator("body")).toContainText("Save preferences");
+  // #363 — one Save changes per Settings tab.
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.locator("#main").getByText("Preferences saved.")).toBeVisible();
 
   await page.goto("/contracts");
   await page.getByText("Region Format Test Contract").click();
@@ -32,6 +33,7 @@ test("switching region changes number formatting, and resets cleanly", async ({ 
   // Reset back to the default so this test doesn't leak state into later runs.
   await page.goto("/settings");
   await page.locator("#region").selectOption("en-AU");
-  await page.locator('form:has(#region) button[type="submit"]').click();
-  await expect(page.locator("body")).toContainText("Save preferences");
+  // #363 — one Save changes per Settings tab.
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.locator("#main").getByText("Preferences saved.")).toBeVisible();
 });

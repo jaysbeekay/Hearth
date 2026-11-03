@@ -10,9 +10,17 @@ test("the new-contract form fits in two phone screens and folds the optional fie
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/contracts/new");
   const moreDetails = page.locator("details[data-form-section]", { hasText: "More details" });
+  const reminders = page.locator("details[data-form-section]", { hasText: "Reminders" });
   await expect(moreDetails).not.toHaveAttribute("open", "");
+  // The section itself is folded, not just its field (#519 review): the
+  // default preset's input is hidden either way.
+  await expect(reminders).not.toHaveAttribute("open", "");
+  // The optional fields sit inside the folded sections.
+  for (const id of ["contractNumber", "contactName", "notes"]) {
+    await expect(moreDetails.locator(`#${id}`)).toHaveCount(1);
+  }
+  await expect(reminders.locator("#reminderDaysBefore")).toHaveCount(1);
   await expect(page.locator("#contractNumber")).toBeHidden();
-  await expect(page.locator("#reminderDaysBefore")).toBeHidden();
 
   const formHeight = await page.locator("main form").evaluate((el) => el.getBoundingClientRect().height);
   expect(formHeight).toBeLessThanOrEqual(844 * 2);
@@ -56,5 +64,5 @@ test("editing a contract opens the sections that hold its values", async ({ page
   await expect(page.locator("#contractNumber")).toBeVisible();
   await expect(page.locator("#contractNumber")).toHaveValue("SEC-123");
   // No thresholds of its own: Reminders stays folded.
-  await expect(page.locator("#reminderDaysBefore")).toBeHidden();
+  await expect(page.locator("details[data-form-section]", { hasText: "Reminders" })).not.toHaveAttribute("open", "");
 });

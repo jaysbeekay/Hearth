@@ -20,6 +20,8 @@ const EVENT_LABELS: Record<SecurityEventType, string> = {
   TOTP_DISABLED: "Two-factor authentication disabled",
   ROLE_CHANGED: "Role changed",
   USER_DELETED: "User removed",
+  MCP_AUTH_FAILED: "MCP request with a wrong token",
+  MCP_THROTTLED: "MCP requests throttled",
 };
 
 // Events a household member should notice, not just an admin auditing the
@@ -27,6 +29,8 @@ const EVENT_LABELS: Record<SecurityEventType, string> = {
 const CONCERNING_EVENTS = new Set<SecurityEventType>([
   "LOGIN_FAILED",
   "LOGIN_THROTTLED",
+  "MCP_AUTH_FAILED",
+  "MCP_THROTTLED",
 ]);
 
 export default async function SecurityLogPage() {
@@ -45,8 +49,8 @@ export default async function SecurityLogPage() {
       <BackLink {...settingsBackLink(SETTINGS_ROUTES.security)} />
       <h1 className="text-2xl font-medium">{SETTINGS_ROUTES.security.label}</h1>
       <p className="text-sm text-muted">
-        Auth-relevant events across the household — failed and throttled sign-ins, password
-        and role changes, two-factor disablement, and account removal. The most recent 100
+        Auth-relevant events across the household — failed and throttled sign-ins and MCP
+        requests, password and role changes, two-factor disablement, and account removal. The most recent 100
         events.
       </p>
 

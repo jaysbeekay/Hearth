@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { setDocumentCategoryAction } from "@/lib/actions/documents";
 import { useCanWrite } from "@/components/CanWriteProvider";
@@ -32,6 +32,11 @@ export function DocumentTypeSelect({
   const [pending, startTransition] = useTransition();
   const label = documentCategoryLabel(category);
   const known = label ? (category ?? "") : "";
+  // The picked type shows straight away, not after the save and refresh;
+  // it goes back only if the save fails. A new value from the server (a
+  // refresh after someone else's change) replaces it.
+  const [picked, setPicked] = useState({ server: known, value: known });
+  if (picked.server !== known) setPicked({ server: known, value: known });
 
   if (!canWrite) {
     return label ? <span className={pillClass()}>{label}</span> : null;
@@ -40,20 +45,26 @@ export function DocumentTypeSelect({
   return (
     <select
       aria-label={`Document type for ${filename}`}
-      value={known}
+      value={picked.value}
       disabled={pending}
       onClick={(e) => { e.stopPropagation(); }}
       onChange={(e) => {
         const next = e.currentTarget.value;
+        const previous = picked.value;
+        setPicked({ server: known, value: next });
         startTransition(async () => {
           const result = await setDocumentCategoryAction(kind, documentId, ownerId, next);
-          if (result?.error) showToast(result.error, "error");
-          else router.refresh();
+          if (result?.error) {
+            setPicked({ server: known, value: previous });
+            showToast(result.error, "error");
+          } else {
+            router.refresh();
+          }
         });
       }}
       className={pillClass("neutral", "cursor-pointer border-0 outline-none focus:ring-1 focus:ring-accent")}
     >
-      {!known && <option value="">Set type</option>}
+      {!picked.value && <option value="">Set type</option>}
       {DOCUMENT_CATEGORIES.map((c) => (
         <option key={c} value={c}>
           {documentCategoryLabel(c)}

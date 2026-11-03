@@ -57,7 +57,7 @@ test.describe("signed in", () => {
   });
 
   test("#346: document-extraction settings don't pre-select a cloud provider", async ({ page }) => {
-    await page.goto("/settings/app");
+    await page.goto("/settings/ai");
     await expect(page.locator("#provider")).toHaveValue("");
     await expect(page.getByText(/Documents will be sent to/)).toHaveCount(0);
     await expect(page.locator("#apiKey")).toHaveCount(0);

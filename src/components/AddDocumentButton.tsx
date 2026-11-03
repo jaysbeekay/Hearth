@@ -36,6 +36,9 @@ export function AddDocumentButton({
       formRef.current?.reset();
     } else if (state?.error) {
       showToast(state.error, "error");
+      // Clear the picked file, or choosing the same one again to retry
+      // doesn't fire change and nothing uploads.
+      formRef.current?.reset();
     }
   }, [state]);
 

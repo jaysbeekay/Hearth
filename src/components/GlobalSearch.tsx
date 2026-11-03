@@ -39,6 +39,9 @@ export function GlobalSearch() {
   const [suggestions, setSuggestions] = useState<Suggestions | null>(null);
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  // #520 review — bumped on every open, so Cmd/Ctrl-K while Search is
+  // already open refetches the suggestions it just cleared.
+  const [openCount, setOpenCount] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
@@ -62,6 +65,7 @@ export function GlobalSearch() {
       setGroups({});
       setSuggestions(null);
       setActiveIndex(-1);
+      setOpenCount((n) => n + 1);
       setOpen(true);
     };
     const onKeyDown = (e: KeyboardEvent) => {
@@ -117,7 +121,7 @@ export function GlobalSearch() {
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, openCount]);
 
   useEffect(() => {
     if (!open || (!textOk && !filter)) {
@@ -146,9 +150,13 @@ export function GlobalSearch() {
     ["Recently viewed", suggestions?.recent ?? []],
     ["Needs attention", suggestions?.attention ?? []],
   ];
+  // #520 review — suggestions are only for an empty box; a one-character
+  // query shows the "type at least 2 characters" hint instead.
   const groupEntries = searching
     ? Object.entries(groups)
-    : suggestionEntries.filter(([, results]) => results.length > 0);
+    : query.trim() === ""
+      ? suggestionEntries.filter(([, results]) => results.length > 0)
+      : [];
   const flatResults = groupEntries.flatMap(([, results]) => results);
   const hasResults = flatResults.length > 0;
   const showEmpty = !loading && (textOk || filter) && !hasResults;
@@ -175,7 +183,12 @@ export function GlobalSearch() {
             aria-controls="global-search-listbox"
             aria-activedescendant={activeIndex >= 0 ? `global-search-option-${activeIndex}` : undefined}
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              // #520 review — the list may switch (suggestions to results),
+              // so a highlighted row from the old list mustn't carry over.
+              setActiveIndex(-1);
+              setQuery(e.target.value);
+            }}
             onKeyDown={(e) => {
               if (e.key === "ArrowDown") {
                 e.preventDefault();
@@ -240,7 +253,10 @@ export function GlobalSearch() {
               }}
               type="button"
               aria-pressed={filter === f.value}
-              onClick={() => setFilter((current) => (current === f.value ? null : f.value))}
+              onClick={() => {
+                setActiveIndex(-1);
+                setFilter((current) => (current === f.value ? null : f.value));
+              }}
               onKeyDown={(e) => {
                 if (e.key !== "Tab") return;
                 if (e.shiftKey && i === 0) {

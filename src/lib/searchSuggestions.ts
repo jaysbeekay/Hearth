@@ -22,8 +22,13 @@ export function orderRecent(recent: RecentRecord[], found: SearchResult[]): Sear
 }
 
 /** The first Due rows, each saying when in the viewer's date format. */
-export function attentionSuggestions(due: AttentionItem[], prefs: DueLabelPreferences): SearchResult[] {
-  return due.slice(0, ATTENTION_SUGGESTION_LIMIT).map((item) => ({
+// #520 review — the top of the queue as the dashboard orders it: Due rows
+// first, then housekeeping when fewer than three things are due.
+export function attentionSuggestions(
+  queue: { due: AttentionItem[]; housekeeping: AttentionItem[] },
+  prefs: DueLabelPreferences,
+): SearchResult[] {
+  return [...queue.due, ...queue.housekeeping].slice(0, ATTENTION_SUGGESTION_LIMIT).map((item) => ({
     id: item.id,
     title: item.title,
     subtitle: [item.entry ? formatDueLabel(item.entry, prefs) : undefined, item.subtitle].filter(Boolean).join(" · ") || undefined,

@@ -67,6 +67,42 @@ test("Search opens on Recently viewed and Needs attention", async ({ page }) => 
   await expect(again.getByRole("group", { name: "Recently viewed" })).toHaveCount(0);
 });
 
+// #520 review — a partial query hides the suggestions, typing clears a
+// highlighted row, and Cmd/Ctrl-K while open brings the suggestions back.
+test("Search suggestions follow the box and reopen on Ctrl-K", async ({ page }) => {
+  // Own setup so the test runs alone: an overdue contract, viewed once, gives
+  // both Recently viewed and Needs attention something to show.
+  await page.goto("/contracts/new");
+  await page.locator("#title").fill(`Ctrl-K Contract ${Date.now()}`);
+  await page.locator("#category").selectOption("OTHER");
+  await page.locator("#provider").fill("Suggestions Provider");
+  await page.locator("#endDate").fill(isoInDays(-2));
+  await Promise.all([
+    page.waitForURL(/\/contracts\/(?!new$)[^/]+$/),
+    page.locator("main button[type=submit]").click(),
+  ]);
+
+  await page.goto("/dashboard");
+  const dialog = await openSearch(page);
+  const box = page.getByRole("combobox");
+  const recent = dialog.getByRole("group", { name: "Recently viewed" });
+  const attention = dialog.getByRole("group", { name: "Needs attention" });
+  const anySuggestions = recent.or(attention).first();
+  await expect(anySuggestions).toBeVisible();
+
+  await box.press("ArrowDown");
+  await expect(box).toHaveAttribute("aria-activedescendant", "global-search-option-0");
+  await box.fill("x");
+  await expect(box).not.toHaveAttribute("aria-activedescendant", /.+/);
+  await expect(recent).toHaveCount(0);
+  await expect(attention).toHaveCount(0);
+  await expect(dialog.getByText("Type at least 2 characters")).toBeVisible();
+
+  await box.press("ControlOrMeta+k");
+  await expect(box).toHaveValue("");
+  await expect(anySuggestions).toBeVisible();
+});
+
 test("Documents separates Belongs to from Document type", async ({ page }) => {
   const stamp = Date.now();
   await page.goto("/contracts/new");
