@@ -4,9 +4,10 @@ import { useActionState } from "react";
 import { updateNotificationPreferences, type ActionState } from "@/lib/actions/auth";
 import { FormMessage } from "@/components/FormMessage";
 import { GroupedSubmit } from "@/components/SaveChangesGroup";
+import { withConnectionErrors } from "@/lib/withConnectionErrors";
 
 export function NotificationPreferencesForm({ emailReminders }: { emailReminders: boolean }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(updateNotificationPreferences, null);
+  const [state, formAction] = useActionState<ActionState, FormData>(withConnectionErrors(updateNotificationPreferences), null);
 
   return (
     <form action={formAction} data-save-group className="space-y-2">

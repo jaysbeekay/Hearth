@@ -74,7 +74,9 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   before it's saved, and the old "restart the server" note is gone since the
   scheduler re-reads it every minute. Settings pages have one sticky "Save
   changes" bar that saves each section you edited, instead of a Save button
-  per form; a section only counts as saved once its save succeeds. One-off
+  per form; a section only counts as saved once its save succeeds, is locked
+  while it saves, and keeps what you typed if the server can't be reached
+  (instead of the error page). One-off
   actions (change password, add a webhook, test connection) keep their own
   buttons.
   The iOS and Android shell is unchanged.

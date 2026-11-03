@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { ADMIN_AUTH_FILE, MEMBER_AUTH_FILE } from "../env";
 
 // #363 — Settings is two tabs, My account and Household; the old "System
@@ -192,6 +192,139 @@ test.describe("as an admin", () => {
         await save.click();
         await expect(scheduleForm).toContainText("Reminder schedule saved.");
       }
+    }
+  });
+});
+
+// #525 review — the save bar under a dropped connection, a slow save, and
+// back/forward navigation. Each restores the ntfy topic it changed.
+test.describe("the save bar when saving goes wrong", () => {
+  test.use({ storageState: ADMIN_AUTH_FILE });
+
+  const isAction = (req: { method(): string; headers(): Record<string, string> }) =>
+    req.method() === "POST" && req.headers()["next-action"] !== undefined;
+
+  async function editTopic(page: Page, value: string) {
+    const save = page.getByRole("button", { name: "Save changes" });
+    await expect(async () => {
+      await page.locator("#ntfyTopic").fill(value);
+      await expect(save).toBeEnabled({ timeout: 1000 });
+    }).toPass({ timeout: 15_000 });
+  }
+
+  async function restoreTopic(page: Page, original: string) {
+    await page.unrouteAll({ behavior: "ignoreErrors" });
+    await page.goto("/settings/reminders");
+    if ((await page.locator("#ntfyTopic").inputValue()) === original) return;
+    await editTopic(page, original);
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await expect(page.getByText("Push notification settings saved.").first()).toBeVisible();
+  }
+
+  test("a dropped connection keeps the page and the edit, and the save can be retried", async ({ page }) => {
+    await page.goto("/settings/reminders");
+    const original = await page.locator("#ntfyTopic").inputValue();
+    const topic = `e2e-offline-topic-${Date.now()}`;
+    const save = page.getByRole("button", { name: "Save changes" });
+    const bar = page.getByRole("region", { name: "Unsaved changes" });
+    const ntfyForm = page.locator("form").filter({ has: page.locator("#ntfyTopic") });
+    try {
+      await editTopic(page, topic);
+      await page.route("**/settings/reminders", (route) =>
+        isAction(route.request()) ? route.abort("internetdisconnected") : route.continue(),
+      );
+      await save.click();
+
+      // Still the Settings page, with the typed value, a message and Save on.
+      await expect(ntfyForm).toContainText("Couldn't reach the server");
+      await expect(page.locator("#ntfyTopic")).toHaveValue(topic);
+      await expect(bar).toContainText("Some changes weren't saved.");
+      await expect(save).toBeEnabled();
+
+      await page.unrouteAll({ behavior: "ignoreErrors" });
+      await save.click();
+      await expect(ntfyForm).toContainText("Push notification settings saved.");
+      await expect(bar).toContainText("No unsaved changes.");
+      await page.reload();
+      await expect(page.locator("#ntfyTopic")).toHaveValue(topic);
+    } finally {
+      await restoreTopic(page, original);
+    }
+  });
+
+  test("a section can't be edited while its save is in flight, so nothing typed is lost", async ({ page }) => {
+    await page.goto("/settings/reminders");
+    const original = await page.locator("#ntfyTopic").inputValue();
+    const topic = `e2e-slow-topic-${Date.now()}`;
+    const save = page.getByRole("button", { name: "Save changes" });
+    const bar = page.getByRole("region", { name: "Unsaved changes" });
+    const ntfyForm = page.locator("form").filter({ has: page.locator("#ntfyTopic") });
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    try {
+      await editTopic(page, topic);
+      await page.route("**/settings/reminders", async (route) => {
+        if (!isAction(route.request())) return route.continue();
+        const response = await route.fetch();
+        await held;
+        await route.fulfill({ response });
+      });
+      await save.click();
+
+      await expect(bar).toContainText("Saving…");
+      await expect(bar.getByRole("button")).toBeDisabled();
+      // The section is inert until its action returns.
+      await expect(ntfyForm).toHaveJSProperty("inert", true);
+
+      release();
+      await expect(ntfyForm).toContainText("Push notification settings saved.");
+      await expect(ntfyForm).toHaveJSProperty("inert", false);
+      await expect(page.locator("#ntfyTopic")).toHaveValue(topic);
+      await expect(bar).toContainText("No unsaved changes.");
+
+      // Editing again afterwards works as normal.
+      await page.locator("#ntfyTopic").fill(`${topic}-2`);
+      await expect(bar).toContainText("You have unsaved changes.");
+    } finally {
+      release();
+      await restoreTopic(page, original);
+    }
+  });
+
+  test("back and forward show what's saved, not a stale unsaved state", async ({ page }) => {
+    await page.goto("/settings/reminders");
+    const original = await page.locator("#ntfyTopic").inputValue();
+    const topic = `e2e-history-topic-${Date.now()}`;
+    const save = page.getByRole("button", { name: "Save changes" });
+    const bar = page.getByRole("region", { name: "Unsaved changes" });
+    try {
+      await editTopic(page, topic);
+      await save.click();
+      await expect(page.getByText("Push notification settings saved.").first()).toBeVisible();
+
+      await page.getByRole("link", { name: "Dashboard" }).first().click();
+      await page.waitForURL(/\/dashboard/);
+      await page.goBack();
+      await page.waitForURL(/\/settings\/reminders$/);
+      await expect(page.locator("#ntfyTopic")).toHaveValue(topic);
+      await expect(bar).toContainText("No unsaved changes.");
+
+      // An unsaved edit left behind doesn't come back as "saved", and the
+      // bar agrees with whatever the field shows on return.
+      await page.locator("#ntfyTopic").fill(`${topic}-unsaved`);
+      await expect(bar).toContainText("You have unsaved changes.");
+      await page.goForward();
+      await page.waitForURL(/\/dashboard/);
+      await page.goBack();
+      await page.waitForURL(/\/settings\/reminders$/);
+      const shown = await page.locator("#ntfyTopic").inputValue();
+      await expect(bar).toContainText(shown === topic ? "No unsaved changes." : "You have unsaved changes.");
+      await page.reload();
+      await expect(page.locator("#ntfyTopic")).toHaveValue(topic);
+    } finally {
+      await restoreTopic(page, original);
     }
   });
 });

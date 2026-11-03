@@ -11,6 +11,7 @@ import {
 } from "@/lib/ai/types";
 import { CHAT_PROVIDER_DEFAULT_MODELS } from "@/lib/ai/chat/types";
 import { GroupedSubmit } from "@/components/SaveChangesGroup";
+import { withConnectionErrors } from "@/lib/withConnectionErrors";
 import { FormMessage } from "@/components/FormMessage";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
@@ -26,7 +27,7 @@ export function ChatSettingsForm({
   model: string | null;
   apiKeyIsSet: boolean;
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(saveChatSettings, null);
+  const [state, formAction] = useActionState<ActionState, FormData>(withConnectionErrors(saveChatSettings), null);
   const configured = Boolean(provider);
   // #346 — nothing is pre-selected when no provider is saved: defaulting to
   // the first provider read as "your data is already going there".

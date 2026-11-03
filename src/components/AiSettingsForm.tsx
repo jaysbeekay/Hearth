@@ -11,6 +11,7 @@ import {
   type AiProviderId,
 } from "@/lib/ai/types";
 import { GroupedSubmit } from "@/components/SaveChangesGroup";
+import { withConnectionErrors } from "@/lib/withConnectionErrors";
 import { FormMessage } from "@/components/FormMessage";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
@@ -26,7 +27,7 @@ export function AiSettingsForm({
   model: string | null;
   apiKeyIsSet: boolean;
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(saveAiSettings, null);
+  const [state, formAction] = useActionState<ActionState, FormData>(withConnectionErrors(saveAiSettings), null);
   const configured = Boolean(provider);
   // #346 — nothing is pre-selected when no provider is saved: defaulting to
   // the first provider read as "your data is already going there".

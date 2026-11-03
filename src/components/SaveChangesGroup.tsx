@@ -118,6 +118,26 @@ function snapshot(form: HTMLFormElement, mode: Mode = "current"): string {
   return JSON.stringify(pairs);
 }
 
+/**
+ * Puts what a failed save sent back into the form: React resets a form's
+ * uncontrolled fields after its action returns, even with an error, which
+ * would otherwise throw away what was typed.
+ */
+function restore(form: HTMLFormElement, sent: FormData) {
+  for (const el of form.elements) {
+    if (el instanceof HTMLInputElement) {
+      if (!el.name || ["hidden", "file", "submit", "button"].includes(el.type)) continue;
+      if (el.type === "checkbox" || el.type === "radio") el.checked = sent.getAll(el.name).includes(el.value);
+      else el.value = String(sent.get(el.name) ?? "");
+    } else if (el instanceof HTMLTextAreaElement) {
+      if (el.name) el.value = String(sent.get(el.name) ?? "");
+    } else if (el instanceof HTMLSelectElement && el.name) {
+      const values = sent.getAll(el.name);
+      for (const option of el.options) option.selected = values.includes(option.value);
+    }
+  }
+}
+
 interface FormEntry {
   /** The values as of the last successful save (or as the page loaded). */
   baseline: string;
@@ -159,6 +179,9 @@ export function SaveChangesGroup({ children }: { children: React.ReactNode }) {
   // Bumped when a form's values change without an edit we track (React
   // resetting a form after its action), so the bar re-reads them.
   const [, setVersion] = useState(0);
+  // What each in-flight save sent, to put back if it fails. Only read in
+  // event handlers and effects, never while rendering.
+  const sentData = useRef(new Map<HTMLFormElement, FormData>());
   const bump = useCallback(() => {
     setVersion((v) => v + 1);
   }, []);
@@ -180,6 +203,10 @@ export function SaveChangesGroup({ children }: { children: React.ReactNode }) {
     const form = groupForm(event.target);
     if (!form) return;
     const sent = snapshot(form);
+    sentData.current.set(form, new FormData(form));
+    // No edits while it saves: React resets the form when the action
+    // returns, which would silently drop anything typed in the meantime.
+    form.inert = true;
     const fresh = newEntry(form);
     setEntries((current) =>
       update(current, form, (e) => ({ ...e, inFlight: sent, editsAtSubmit: e.edits }), fresh),
@@ -193,7 +220,18 @@ export function SaveChangesGroup({ children }: { children: React.ReactNode }) {
   const api = useMemo<SaveGroupApi>(
     () => ({
       settled: (form, ok) => {
-        // Read now: React has already reset the form to its new defaults.
+        form.inert = false;
+        const sent = sentData.current.get(form);
+        sentData.current.delete(form);
+        if (!ok && sent) {
+          restore(form, sent);
+          // And again in case React's reset lands after this.
+          setTimeout(() => {
+            restore(form, sent);
+            bump();
+          }, 0);
+        }
+        // Read now: after a success React has reset the form to its new defaults.
         const after = snapshot(form);
         setEntries((current) =>
           update(current, form, (e) => {
@@ -207,7 +245,7 @@ export function SaveChangesGroup({ children }: { children: React.ReactNode }) {
         );
       },
     }),
-    [],
+    [bump],
   );
 
   useEffect(() => {

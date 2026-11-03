@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { testSmtpSettings, testNtfySettings, testOllamaConnection } from "@/lib/actions/app-settings";
 import type { ActionState } from "@/lib/actions/auth";
 import { GroupedSubmit } from "@/components/SaveChangesGroup";
+import { withConnectionErrors } from "@/lib/withConnectionErrors";
 import { SchedulePicker } from "@/components/SchedulePicker";
 import { FormMessage } from "@/components/FormMessage";
 import { Field } from "@/components/FormField";
@@ -45,7 +46,7 @@ export function SmtpForm({
   };
   appUrlConfigured: boolean;
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  const [state, formAction] = useActionState<ActionState, FormData>(withConnectionErrors(action), null);
   return (
     <form action={formAction} data-save-group className="space-y-4">
       {!appUrlConfigured && (
@@ -114,7 +115,7 @@ export function EmailIngestForm({
     passwordIsSet: boolean;
   };
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  const [state, formAction] = useActionState<ActionState, FormData>(withConnectionErrors(action), null);
   return (
     <form action={formAction} data-save-group className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
@@ -168,7 +169,7 @@ export function NtfyForm({
   action: (s: ActionState, f: FormData) => Promise<ActionState>;
   current: { url: string; topic: string; tokenIsSet: boolean };
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  const [state, formAction] = useActionState<ActionState, FormData>(withConnectionErrors(action), null);
   return (
     <form action={formAction} data-save-group className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
@@ -209,7 +210,7 @@ export function OllamaForm({
   action: (s: ActionState, f: FormData) => Promise<ActionState>;
   current: { baseUrl: string; model: string };
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  const [state, formAction] = useActionState<ActionState, FormData>(withConnectionErrors(action), null);
   return (
     <form action={formAction} data-save-group className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
@@ -247,7 +248,7 @@ export function BarcodeForm({
   action: (s: ActionState, f: FormData) => Promise<ActionState>;
   current: { enabled: boolean; apiKeyIsSet: boolean };
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  const [state, formAction] = useActionState<ActionState, FormData>(withConnectionErrors(action), null);
   return (
     <form action={formAction} data-save-group className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2">
@@ -301,7 +302,7 @@ export function BackupDestinationForm({
     };
   };
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  const [state, formAction] = useActionState<ActionState, FormData>(withConnectionErrors(action), null);
   const [destination, setDestination] = useState<BackupDestinationChoice>(current.destination);
 
   return (
@@ -404,7 +405,7 @@ export function ReminderScheduleForm({
   current: { cron: string; defaultDays: string };
   serverTimeZone: string;
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  const [state, formAction] = useActionState<ActionState, FormData>(withConnectionErrors(action), null);
   return (
     <form action={formAction} data-save-group className="space-y-4">
       <SchedulePicker
@@ -434,7 +435,7 @@ export function BackupScheduleForm({
   current: { cron: string; retentionCount: number };
   serverTimeZone: string;
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  const [state, formAction] = useActionState<ActionState, FormData>(withConnectionErrors(action), null);
   return (
     <form action={formAction} data-save-group className="space-y-4">
       <SchedulePicker
@@ -470,7 +471,7 @@ export function HouseholdTimeZoneForm({
   /** From householdTimeZoneChoices(current), so `current` is always listed. */
   choices: { common: string[]; others: string[] };
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  const [state, formAction] = useActionState<ActionState, FormData>(withConnectionErrors(action), null);
   return (
     <form action={formAction} data-save-group className="space-y-4">
       <Field label="Timezone" htmlFor="householdTimeZone">
@@ -511,7 +512,7 @@ export function AviationStackForm({
   action: (s: ActionState, f: FormData) => Promise<ActionState>;
   isKeySet: boolean;
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
+  const [state, formAction] = useActionState<ActionState, FormData>(withConnectionErrors(action), null);
   return (
     <form action={formAction} data-save-group className="space-y-4">
       <Field

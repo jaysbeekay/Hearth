@@ -13,6 +13,7 @@ import { CurrencySelect } from "@/components/CurrencySelect";
 import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 import { FormMessage } from "@/components/FormMessage";
 import { GroupedSubmit } from "@/components/SaveChangesGroup";
+import { withConnectionErrors } from "@/lib/withConnectionErrors";
 
 export function PreferencesForm({
   dateFormat,
@@ -32,7 +33,7 @@ export function PreferencesForm({
     return tz === EXPLICIT_UTC_TIME_ZONE ? "UTC" : tz;
   };
 
-  const [state, formAction] = useActionState<ActionState, FormData>(updateUserPreferences, null);
+  const [state, formAction] = useActionState<ActionState, FormData>(withConnectionErrors(updateUserPreferences), null);
 
   return (
     // #403 — the settings container caps at max-w-4xl, so a 4-column row is too
