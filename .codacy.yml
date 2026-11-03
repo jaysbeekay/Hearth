@@ -11,7 +11,10 @@ exclude_paths:
   - "tests/**"
   - "prisma/migrations/**"
   # Only the argv-driven #380 maintenance scripts; the rest of scripts/
-  # (including the itemStageGuard.ts safety check) stays analysed.
+  # stays analysed. itemStageGuard.ts is listed because its whole job is to
+  # realpath operator-supplied paths (Codacy's non-literal fs rule); its
+  # behaviour is pinned by tests/unit/itemStageGuard.test.ts.
+  - "scripts/itemStageGuard.ts"
   - "scripts/audit-item-merge.mjs"
   - "scripts/backfill-items.ts"
   - "scripts/backfill-item-documents.ts"
