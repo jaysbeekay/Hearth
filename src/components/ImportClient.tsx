@@ -637,12 +637,12 @@ export function ImportClient({
                           id={`${row.id}-title`}
                           value={row.contract.title}
                           disabled={row.status === "saving"}
-                          onChange={(e) =>
+                          onChange={(e) => {
                             editRow(row.id, {
                               contract: { ...row.contract, title: e.target.value },
                               contractAutoFilled: { ...row.contractAutoFilled, title: false },
-                            })
-                          }
+                            });
+                          }}
                           className={fieldClass(row.contractAutoFilled.title)}
                         />
                       </RowField>
@@ -734,9 +734,9 @@ export function ImportClient({
                         vehiclesEnabled={vehiclesEnabled}
                         recordNoun="contract"
                         disabled={row.status === "saving"}
-                        onChange={({ propertyId, vehicleId }) =>
-                          editRow(row.id, { contractPropertyId: propertyId, contractVehicleId: vehicleId })
-                        }
+                        onChange={({ propertyId, vehicleId }) => {
+                          editRow(row.id, { contractPropertyId: propertyId, contractVehicleId: vehicleId });
+                        }}
                         hintLinksInNewTab
                         wrapperClassName={ROW_FIELD_WRAPPER}
                         labelClassName={ROW_FIELD_LABEL}
@@ -828,7 +828,9 @@ export function ImportClient({
                         homeEnabled={homeEnabled}
                         recordNoun="warranty"
                         disabled={row.status === "saving"}
-                        onChange={({ propertyId }) => editRow(row.id, { productPropertyId: propertyId })}
+                        onChange={({ propertyId }) => {
+                          editRow(row.id, { productPropertyId: propertyId });
+                        }}
                         hintLinksInNewTab
                         wrapperClassName={ROW_FIELD_WRAPPER}
                         labelClassName={ROW_FIELD_LABEL}
