@@ -13,15 +13,20 @@ import { MAX_SNOOZE_DAYS, snoozeKey, type SnoozeKind } from "@/lib/snooze";
 
 const NOT_FOUND: Record<SnoozeKind, string> = { contract: "Contract", warranty: "Warranty", vehicle: "Vehicle" };
 
-const PATHS: Record<SnoozeKind, (id: string) => string> = {
-  contract: (id) => `/contracts/${id}`,
-  warranty: (id) => `/products/${id}`,
-  vehicle: (id) => `/vehicles/${id}`,
-};
+function listPath(kind: SnoozeKind) {
+  switch (kind) {
+    case "contract":
+      return "/contracts";
+    case "warranty":
+      return "/products";
+    case "vehicle":
+      return "/vehicles";
+  }
+}
 
 function revalidate(kind: SnoozeKind, id: string) {
-  revalidatePath(PATHS[kind](id));
-  revalidatePath(PATHS[kind](id).replace(/\/[^/]+$/, ""));
+  revalidatePath(`${listPath(kind)}/${id}`);
+  revalidatePath(listPath(kind));
   revalidatePath("/dashboard");
   revalidatePath("/calendar");
 }

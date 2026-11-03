@@ -64,7 +64,9 @@ export function SnoozeButton({
       <button
         ref={triggerRef}
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setOpen(true);
+        }}
         aria-label={`Snooze ${title}`}
         className={className ?? buttonClass("secondary")}
       >
@@ -79,7 +81,12 @@ export function SnoozeButton({
           It leaves Needs attention and its reminders pause until then. Renewing it or changing its dates ends the
           snooze.
         </p>
-        <form action={submit} className="mt-4 space-y-4">
+        <form
+          action={(formData) => {
+            void submit(formData);
+          }}
+          className="mt-4 space-y-4"
+        >
           <input type="hidden" name="kind" value={kind} />
           <input type="hidden" name="id" value={recordId} />
           <div className="flex flex-wrap gap-2">
@@ -181,7 +188,9 @@ export function SnoozedNotice({
       {canWrite && (
         <button
           type="button"
-          onClick={unsnooze}
+          onClick={() => {
+            void unsnooze();
+          }}
           disabled={pending}
           className={`${buttonClass("secondary")} disabled:opacity-50`}
         >
