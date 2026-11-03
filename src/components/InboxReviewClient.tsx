@@ -706,12 +706,12 @@ export function InboxReviewClient({
                       id={`${doc.id}-title`}
                       value={row.contract.title}
                       disabled={row.status === "saving"}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         editRow(doc.id, {
                           contract: { ...row.contract, title: e.target.value },
                           contractAutoFilled: { ...row.contractAutoFilled, title: false },
-                        })
-                      }
+                        });
+                      }}
                       className={fieldClass(row.contractAutoFilled.title, rowIsAi)}
                     />
                   </RowField>
@@ -734,9 +734,9 @@ export function InboxReviewClient({
                       id={`${doc.id}-category`}
                       value={row.contract.category}
                       disabled={row.status === "saving"}
-                      onChange={(e) =>
-                        editRow(doc.id, { contract: { ...row.contract, category: e.target.value } })
-                      }
+                      onChange={(e) => {
+                        editRow(doc.id, { contract: { ...row.contract, category: e.target.value } });
+                      }}
                       className={fieldClass(false)}
                     >
                       {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
@@ -799,9 +799,9 @@ export function InboxReviewClient({
                     vehiclesEnabled={vehiclesEnabled}
                     recordNoun="contract"
                     disabled={row.status === "saving"}
-                    onChange={({ propertyId, vehicleId }) =>
-                      editRow(doc.id, { contractPropertyId: propertyId, contractVehicleId: vehicleId })
-                    }
+                    onChange={({ propertyId, vehicleId }) => {
+                      editRow(doc.id, { contractPropertyId: propertyId, contractVehicleId: vehicleId });
+                    }}
                     hintLinksInNewTab
                     wrapperClassName={ROW_FIELD_WRAPPER}
                     labelClassName={ROW_FIELD_LABEL}
@@ -893,7 +893,9 @@ export function InboxReviewClient({
                     homeEnabled={homeEnabled}
                     recordNoun="warranty"
                     disabled={row.status === "saving"}
-                    onChange={({ propertyId }) => editRow(doc.id, { productPropertyId: propertyId })}
+                    onChange={({ propertyId }) => {
+                      editRow(doc.id, { productPropertyId: propertyId });
+                    }}
                     hintLinksInNewTab
                     wrapperClassName={ROW_FIELD_WRAPPER}
                     labelClassName={ROW_FIELD_LABEL}
