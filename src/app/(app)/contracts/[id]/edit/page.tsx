@@ -1,11 +1,15 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { getReminderConfig } from "@/lib/appSettings";
 import { updateContract } from "@/lib/actions/contracts";
 import { ContractForm } from "@/components/ContractForm";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { Card } from "@/components/ui/Card";
+import { PageShell } from "@/components/ui/PageShell";
+import { propertyLinkTargets, vehicleLinkTargets } from "@/lib/linkTargets";
 
 export default async function EditContractPage({
   params,
@@ -14,31 +18,31 @@ export default async function EditContractPage({
 }) {
   const { id } = await params;
   redirectIfReadOnly(await auth(), `/contracts/${id}`);
-  const [contract, homeEnabled, vehiclesEnabled] = await Promise.all([
+  const [contract, homeEnabled, vehiclesEnabled, { defaultDays }] = await Promise.all([
     prisma.contract.findUnique({ where: { id } }),
     isModuleEnabled("HOME"),
     isModuleEnabled("VEHICLES"),
+    getReminderConfig(),
   ]);
   if (!contract || contract.deletedAt) notFound();
 
-  const properties = homeEnabled
-    ? await prisma.property.findMany({ select: { id: true, label: true }, orderBy: { label: "asc" } })
-    : [];
-  const vehicles = vehiclesEnabled
-    ? await prisma.vehicle.findMany({ select: { id: true, label: true }, orderBy: { label: "asc" } })
-    : [];
+  const [properties, vehicles] = await Promise.all([
+    homeEnabled ? propertyLinkTargets(contract.propertyId) : [],
+    vehiclesEnabled ? vehicleLinkTargets(contract.vehicleId) : [],
+  ]);
 
   const boundAction = updateContract.bind(null, contract.id);
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="form">
       <BackLink href={`/contracts/${contract.id}`} label={contract.title} />
       <div>
-        <h1 className="text-2xl font-semibold">Edit contract</h1>
+        <h1 className="text-2xl font-medium">Edit contract</h1>
         <p className="text-sm text-muted">{contract.title}</p>
       </div>
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
-        <ContractForm
+      <Card>
+        <ContractForm cancelHref={`/contracts/${contract.id}`}
+          defaultReminderDays={defaultDays}
           action={boundAction}
           contract={contract}
           properties={properties}
@@ -46,7 +50,7 @@ export default async function EditContractPage({
           homeEnabled={homeEnabled}
           vehiclesEnabled={vehiclesEnabled}
         />
-      </div>
-    </div>
+      </Card>
+    </PageShell>
   );
 }

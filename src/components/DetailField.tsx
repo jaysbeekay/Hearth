@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Copy, Check } from "lucide-react";
+import { buttonClass } from "@/lib/ui";
 
 // #210 — shared detail field row, replacing the byte-identical `Detail`
 // function that was copy-pasted across every record detail page. Consistent
@@ -13,22 +15,27 @@ export function DetailField({
   value,
   copyable = false,
   note,
+  noteHref,
 }: {
   label: string;
   value: string;
   copyable?: boolean;
   /** A short muted line under the value, such as a Contract's cost change (#353). */
   note?: string;
+  /** Makes the note a link, such as a derived date's "From … policy →" (#456). */
+  noteHref?: string;
 }) {
   const [copied, setCopied] = useState(false);
   const isEmpty = value === "—" || value.trim() === "";
+  // #405 — an empty field isn't shown at all, rather than as a dash.
+  if (isEmpty) return null;
 
   return (
     <div className="min-w-0">
       <dt className="text-xs text-muted">{label}</dt>
       <dd className="flex items-center gap-1 text-sm font-medium">
         <span className="min-w-0 break-words">{value}</span>
-        {copyable && !isEmpty && (
+        {copyable && (
           <button
             type="button"
             onClick={() => {
@@ -38,13 +45,29 @@ export function DetailField({
               });
             }}
             aria-label={copied ? `Copied ${label}` : `Copy ${label}`}
-            className="shrink-0 rounded p-1 text-muted hover:bg-hover hover:text-foreground"
+            className={buttonClass("quiet", { icon: true }, "shrink-0 text-muted hover:text-foreground")}
           >
-            {copied ? <Check size={13} /> : <Copy size={13} />}
+            {copied ? <Check size={16} /> : <Copy size={16} />}
           </button>
         )}
       </dd>
-      {note && <dd className="text-xs text-muted">{note}</dd>}
+      {note && (
+        <dd className="text-xs text-muted">
+          {noteHref ? (
+            <Link href={noteHref} className="inline-flex min-h-11 items-center text-accent hover:underline">
+              {note.endsWith(" →") ? (
+                <>
+                  {note.slice(0, -2)} <span aria-hidden="true">&nbsp;→</span>
+                </>
+              ) : (
+                note
+              )}
+            </Link>
+          ) : (
+            note
+          )}
+        </dd>
+      )}
     </div>
   );
 }

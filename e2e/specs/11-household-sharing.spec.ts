@@ -69,9 +69,9 @@ test.describe("household-wide sharing", () => {
 
     // Deleting is not admin-gated: a member who can edit a shared record can
     // also remove it, subject only to the READONLY role.
-    await page.getByRole("button", { name: "More actions" }).click();
+    await page.getByRole("button", { name: "More actions", exact: true }).click();
     await page.getByRole("button", { name: /Delete/ }).click();
-    await page.getByRole("button", { name: "Move to Trash" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
 
     await page.waitForURL(/\/inventory$/);
     await expect(page.locator("body")).not.toContainText("Member-edited Drill");
@@ -88,6 +88,7 @@ test("the calendar shows records created by other household members", async ({ b
   // A contract with an end date is enough to produce a calendar entry.
   await adminPage.goto("/contracts/new");
   await adminPage.locator("#title").fill("Admin Household Policy");
+  await adminPage.locator("#category").selectOption("OTHER");
   await adminPage.locator("#provider").fill("Shared Insurer");
   // Within the calendar's default 30-day horizon (#288) so it shows up
   // without the member having to pick a wider horizon.

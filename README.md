@@ -123,7 +123,7 @@ security notes.
 - AI extraction pre-fills service record details when you upload a receipt or invoice
 
 **Passkeys**
-- Register Face ID, Touch ID, or a security key as an alternative to your password from **Settings → Security**
+- Register Face ID, Touch ID, or a security key as an alternative to your password from **Settings → My account → Sign-in and security**
 - Passkeys are per-user and opt-in — passwords continue to work normally
 - Signing in with a passkey appears as a second button on the login page
 - Requires `APP_URL` to be set to the correct hostname (used as the WebAuthn Relying Party ID)
@@ -164,21 +164,27 @@ security notes.
 | --- | --- |
 | ![Vehicle detail](docs/screenshots/vehicle-detail.png) | ![Properties](docs/screenshots/home-list.png) |
 
-| Property detail — map | Settings — modules |
+| Property detail | Settings — modules |
 | --- | --- |
 | ![Property detail](docs/screenshots/property-detail.png) | ![Settings — modules](docs/screenshots/settings-modules.png) |
+
+_The property detail screenshot was captured without network access, so it doesn't show the map. The page shows a map once a property's address has been geocoded and the tile server can be reached._
 
 | Spending | Contract — linked tenancy |
 | --- | --- |
 | ![Spending](docs/screenshots/spend.png) | ![Contract — linked tenancy](docs/screenshots/contract-rental-link.png) |
 
-| Settings — personal account | Settings — household & system |
+| Settings — My account | Settings — Household |
 | --- | --- |
-| ![Settings — personal](docs/screenshots/settings-personal.png) | ![Settings — household & system](docs/screenshots/settings-household-system.png) |
+| ![Settings — My account](docs/screenshots/settings-personal.png) | ![Settings — Household](docs/screenshots/settings-household-tab.png) |
 
-| Settings — household members | Settings — AI provider |
+| Settings — Reminders & channels | Settings — reminder schedule |
 | --- | --- |
-| ![Settings — household](docs/screenshots/settings-household.png) | ![Settings — AI](docs/screenshots/settings-ai.png) |
+| ![Settings — Reminders & channels](docs/screenshots/settings-reminders.png) | ![Settings — reminder schedule](docs/screenshots/settings-reminders-schedule.png) |
+
+| Settings — Members | Settings — AI & privacy |
+| --- | --- |
+| ![Settings — Members](docs/screenshots/settings-household.png) | ![Settings — AI & privacy](docs/screenshots/settings-ai.png) |
 
 | Two-factor setup | Two-factor recovery codes |
 | --- | --- |
@@ -203,6 +209,18 @@ security notes.
 | Warranties | Contract — renew |
 | --- | --- |
 | ![Warranties](docs/screenshots/products-list.png) | ![Contract — renew](docs/screenshots/contract-renew.png) |
+
+| Dashboard — dark | Contract detail — dark |
+| --- | --- |
+| ![Dashboard in dark mode](docs/screenshots/dashboard-dark.png) | ![Contract detail in dark mode](docs/screenshots/contract-detail-dark.png) |
+
+| Contracts — dark | Settings — dark |
+| --- | --- |
+| ![Contracts list in dark mode](docs/screenshots/contracts-list-dark.png) | ![Settings in dark mode](docs/screenshots/settings-personal-dark.png) |
+
+| Mobile — contracts | Mobile — contract filters |
+| --- | --- |
+| ![Contracts list on a phone](docs/screenshots/mobile-contracts.png) | ![The Filters sheet on a phone](docs/screenshots/mobile-contracts-filters.png) |
 
 ## Tech stack
 
@@ -307,6 +325,7 @@ services:
       NTFY_TOKEN: ${NTFY_TOKEN:-}
       CRON_SECRET: ${CRON_SECRET:-}
       MCP_TOKEN: ${MCP_TOKEN:-}
+      MCP_TOKENS: ${MCP_TOKENS:-}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-}
       BARCODE_LOOKUP_ENABLED: ${BARCODE_LOOKUP_ENABLED:-}
@@ -454,17 +473,27 @@ a tool-calling model like Hermes — can answer questions about your household
 data in natural language ("what's renewing this month?", "how much am I
 spending on insurance?", "what's my net worth?").
 
-It's disabled by default. Set `MCP_TOKEN` in `.env` (any random string, e.g.
-from `openssl rand -base64 32`) to enable it — requests must send it as
-`Authorization: Bearer <token>`. Leaving it unset makes the endpoint 404,
-same as `CRON_SECRET`/`/api/cron`.
+It's disabled by default. Set `MCP_TOKEN` in `.env` (any long random string,
+e.g. from `openssl rand -base64 32`) to enable it — requests must send it as
+`Authorization: Bearer <token>`. With neither `MCP_TOKEN` nor `MCP_TOKENS`
+(below) set, the endpoint 404s, same as `CRON_SECRET`/`/api/cron`.
+
+To give each client its own token, set `MCP_TOKENS` instead of (or as well
+as) `MCP_TOKEN`: a comma-separated list of `label:token` pairs, e.g.
+`MCP_TOKENS="claude-code:<token>,ollama:<token>"`. Labels are letters,
+digits, `-` and `_`. Labels and tokens must both be unique (`default` is
+reserved for `MCP_TOKEN` when it's set); a repeated label or token is ignored. Removing one entry revokes that client without touching
+the others; restart the container after any change. The server log records
+one line per tool call naming the label (`[mcp] claude-code called
+whats_due from <address>`), without the call's arguments.
 
 The server is read-only — no tool ever modifies data or returns account
 credentials or uploaded document file contents (only document metadata:
-filename, type, size). Contracts and products are always exposed; the rest
-mirror whichever optional modules (Travel, Vehicles, Home, Inventory, Wealth)
-this household has enabled, same as the in-app AI Assistant — disable a
-module and its tool disappears on the next connection.
+filename, type, size), and every tool carries the MCP `readOnlyHint`
+annotation. Contracts and products are always exposed; the rest mirror
+whichever optional modules (Travel, Vehicles, Home, Inventory, Wealth) this
+household has enabled, same as the in-app AI Assistant — disable a module and
+its tool disappears on the next connection.
 
 | Tool | Purpose |
 | --- | --- |
@@ -481,23 +510,58 @@ module and its tool disappears on the next connection.
 | `list_inventory_items` *(Inventory)* | List catalogued household items, optionally filtered by search text. |
 | `net_worth` *(Wealth)* | Household net worth: share/crypto, property, and inventory value, with per-holding gain/loss. |
 
-Point your MCP client at `http://<host>:3000/api/mcp` with the bearer token.
-For a tool that speaks MCP-over-HTTP directly, a config block looks like:
+### Security notes
 
-```json
-{
-  "mcpServers": {
-    "hearth": {
-      "url": "http://<host>:3000/api/mcp",
-      "headers": { "Authorization": "Bearer <your MCP_TOKEN>" }
-    }
-  }
-}
+- **A token reads everything the tools expose** — contract numbers, contact
+  details, notes, tenant names and rent, net worth — for whoever holds it,
+  independent of user roles. Treat it like a household password.
+- **Use HTTPS off your LAN.** Over plain `http://` the token and every answer
+  travel in cleartext. Reach the endpoint through the HTTPS compose file or
+  your reverse proxy, or keep it on the LAN/VPN (e.g. Tailscale).
+- **Wrong tokens are throttled** per client address (10 per 15 minutes), and
+  each one is recorded in Settings → Security as "MCP request with a wrong
+  token", plus one "MCP requests throttled" when an address is locked out.
+  Those log rows are capped at 30 per 15 minutes across all addresses, so a
+  flood can't bury the rest of the log; the last row says logging paused.
+  Each valid token is capped at 300 requests per 5 minutes. Counters
+  are in memory and reset on restart. The address check runs before the
+  token check, so a locked-out address is refused even with a valid token
+  until the window passes — put clients that share an address (behind the
+  same NAT) on a trusted network.
+- **The throttle trusts `X-Forwarded-For`.** It keys on the header's first
+  entry, so it is only as good as the proxy in front of Hearth. The HTTPS
+  compose file's nginx overwrites the header with the real client address.
+  If you use your own reverse proxy, make it overwrite (not append to)
+  `X-Forwarded-For`, or a client can send its own value and rotate past the
+  throttle. With the plain compose file, port 3000 is reached directly: a
+  client can set the header itself, and honest clients that don't all
+  share one bucket, so ten wrong tokens from anywhere lock out every MCP
+  client for 15 minutes. Use the HTTPS compose file or your own proxy before
+  exposing the endpoint beyond your LAN. The counters live in the one
+  Hearth process, so they don't add up across replicas; the token, not the
+  throttle, is the security boundary.
+- **Notes are passed to the agent as-is.** The server tells clients to treat
+  free-text fields as data, not instructions, but if the same agent also has
+  write-capable tools from other servers, keep its confirmations on.
+
+### Connecting a client
+
+The endpoint is a stateless streamable-HTTP MCP server at
+`https://<your-host>/api/mcp` (or `http://<host>:3000/api/mcp` on the LAN).
+
+**Claude Code:**
+
+```bash
+claude mcp add --transport http hearth https://hearth.example.com/api/mcp \
+  --header "Authorization: Bearer <your token>"
 ```
 
-If your agent only speaks stdio-based MCP servers (common for local
-Ollama tool-calling setups), bridge it with
-[`mcp-remote`](https://github.com/geelen/mcp-remote) instead:
+Run `/mcp` inside Claude Code to check the tools are listed.
+
+**Claude Desktop**, or any agent that only speaks stdio MCP servers (common
+for local Ollama tool-calling setups): bridge it with
+[`mcp-remote`](https://github.com/geelen/mcp-remote) in
+`claude_desktop_config.json` (or your agent's equivalent), then restart it:
 
 ```json
 {
@@ -505,19 +569,78 @@ Ollama tool-calling setups), bridge it with
     "hearth": {
       "command": "npx",
       "args": [
+        "-y",
         "mcp-remote",
-        "http://<host>:3000/api/mcp",
+        "https://hearth.example.com/api/mcp",
         "--header",
-        "Authorization: Bearer <your MCP_TOKEN>"
-      ]
+        "Authorization:${HEARTH_AUTH}"
+      ],
+      "env": { "HEARTH_AUTH": "Bearer <your token>" }
     }
   }
 }
 ```
 
-Adjust the exact syntax for whatever client/agent you're running — the
-endpoint itself is a standard streamable-HTTP MCP server, so anything that
-speaks MCP over HTTP (or can be bridged to it) will work.
+Keeping the header value in `env` avoids argument-quoting problems with the
+space in it. `mcp-remote` refuses plain `http://` to anything but localhost
+unless you add `--allow-http`.
+
+**OpenAI Codex CLI** speaks streamable HTTP natively and reads the token from
+an environment variable (it adds the `Bearer ` prefix itself, so the variable
+holds just the token):
+
+```bash
+export HEARTH_MCP_TOKEN="<your token>"
+codex mcp add hearth --url https://hearth.example.com/api/mcp \
+  --bearer-token-env-var HEARTH_MCP_TOKEN
+```
+
+or the equivalent in `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.hearth]
+url = "https://hearth.example.com/api/mcp"
+bearer_token_env_var = "HEARTH_MCP_TOKEN"
+```
+
+**Open WebUI** (v0.6.31 or later) supports MCP over streamable HTTP natively.
+As an admin, open Settings → Admin → Integrations, and under External Tool
+Servers add a connection with Type **MCP (Streamable HTTP)**, the Hearth URL,
+and Auth **Bearer** with your token in the Key field (leaving Key empty sends
+an empty header and Hearth answers 401). If Open WebUI runs in Docker on the
+same host as Hearth, use `http://host.docker.internal:3000/api/mcp` rather
+than `localhost`. Any Open WebUI user the tool server is made available to
+can read the household data Hearth exposes, so check its access settings and
+give it its own `MCP_TOKENS` entry so you can revoke it separately.
+
+**ChatGPT** (custom connectors in developer mode) isn't supported yet. Its
+connectors authenticate with OAuth or not at all, and can't send a static
+bearer token, which is the only auth Hearth accepts. Don't work around this by
+exposing `/api/mcp` without a token. It also needs a publicly reachable HTTPS
+URL.
+
+**Other HTTP clients** use a config block like:
+
+```json
+{
+  "mcpServers": {
+    "hearth": {
+      "url": "https://hearth.example.com/api/mcp",
+      "headers": { "Authorization": "Bearer <your token>" }
+    }
+  }
+}
+```
+
+To test by hand, send JSON-RPC with both `Accept` types the transport
+requires:
+
+```bash
+curl -s -X POST https://hearth.example.com/api/mcp \
+  -H "Authorization: Bearer $MCP_TOKEN" -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
 
 ## Auto-filling fields from a document
 
@@ -555,9 +678,9 @@ or to a cloud AI provider you've explicitly opted into below.
 
 ## Bring your own AI key
 
-Each user can optionally connect their own API key for a cloud AI provider —
-Anthropic Claude, Google Gemini, or OpenAI — from **Settings → AI document
-extraction**. When configured, it's used as a third extraction stage: if the
+An admin can optionally connect the household's own API key for a cloud AI provider —
+Anthropic Claude, Google Gemini, or OpenAI — from **Settings → Household → AI &
+privacy** (admin only). When configured, it's used as a third extraction stage: if the
 local heuristics can't confidently parse an uploaded document, the document's
 raw bytes (PDF or photo, not the OCR'd text) are sent directly to your chosen
 provider's API using your key, which generally extracts fields far more
@@ -630,7 +753,7 @@ on a schedule. Each backup:
 3. Uploads the encrypted file to a single active destination — **S3-
    compatible object storage** (AWS S3, Backblaze B2, Cloudflare R2, MinIO,
    etc.), **SFTP**, or a **local filesystem path** — chosen from a
-   "Backup destination" dropdown in Settings → System settings. Only one
+   "Backup destination" dropdown in Settings → Household → Backups. Only one
    destination runs at a time; switching the dropdown doesn't discard the
    other destinations' previously-saved credentials, it just makes them
    inactive.
@@ -639,7 +762,7 @@ on a schedule. Each backup:
 
 Backups stay fully disabled until `ENCRYPTION_KEY` is set — there's no way
 to write an unencrypted backup, even locally. With encryption configured,
-pick a destination and fill in its fields in Settings → System settings
+pick a destination and fill in its fields in Settings → Household → Backups
 (`BACKUP_S3_*`, `BACKUP_SFTP_*`, `BACKUP_LOCAL_PATH` env vars just
 pre-populate those fields, they don't select the destination). See
 [`.env.example`](.env.example) for the full list of backup-related
@@ -647,7 +770,7 @@ variables and their defaults.
 
 Backups run on `BACKUP_CRON_SCHEDULE` (default daily at 03:00) via the
 same built-in scheduler used for reminders, can be triggered manually from
-**Settings → Database backups** (admin only), or triggered externally via
+**Settings → Household → Backups** (admin only), or triggered externally via
 `POST /api/backup` with header `x-cron-secret: <CRON_SECRET>` (same secret
 as `/api/cron`; leaving `CRON_SECRET` unset disables both endpoints).
 Recent backup runs (destination, status, size, any error) are shown on
@@ -669,7 +792,7 @@ The app can notify other platforms — e.g. [Home Assistant](https://www.home-as
 or an MCP agent — when a contract, product warranty, vehicle date or
 tenancy's lease end is approaching,
 on the same schedule and thresholds as email/push reminders. Manage
-endpoints from **Settings → Webhooks** (admin only): add a URL, optionally
+endpoints from **Settings → Household → Integrations** (admin only): add a URL, optionally
 set a signing secret, enable/disable, send a test delivery, and review the
 last 10 deliveries (success/failure, HTTP status, timestamp).
 
@@ -766,6 +889,7 @@ for the full list with defaults. Notable ones:
 | `CRON_SECRET` | Optional. If set, enables `POST /api/cron` (with header `x-cron-secret`) so an external scheduler can trigger the check instead of/alongside the built-in one. |
 | `AUTH_TRUST_HOST` | Set to `true` when running behind a reverse proxy (e.g. nginx) — see "Locking down access with nginx + mTLS" above. |
 | `MCP_TOKEN` | Optional. If set, enables `GET/POST /api/mcp`, a read-only MCP server for querying contracts from an LLM agent — see "Querying contracts from an LLM (MCP)" above. |
+| `MCP_TOKENS` | Optional. Comma-separated `label:token` pairs, one per MCP client, so each can be revoked on its own and is named in the access log. Enables the endpoint like `MCP_TOKEN`; both can be set. |
 | `OLLAMA_BASE_URL` / `OLLAMA_MODEL` | Optional. Set both to enable the local-LLM fallback for document auto-fill when heuristics can't confidently parse a scan — see "Auto-filling fields from a document" above. |
 | `AI_EGRESS_PROXY_URL` | Optional. Routes outbound AI provider calls (document extraction and the chat assistant) through a local agent-firewall proxy such as Pipelock, instead of calling the provider directly — see "Routing AI traffic through an agent firewall" above. |
 | `BARCODE_LOOKUP_ENABLED` | Optional. Set to `true` to look up a scanned product barcode online and auto-fill its name/manufacturer — see "Barcode scanning for products" above. |
@@ -777,7 +901,7 @@ for the full list with defaults. Notable ones:
 | `BLOCK_PRIVATE_NETWORK_TARGETS` | Optional. Set to `true` to refuse outbound requests (webhooks, ntfy, Ollama) to addresses on your own network. Off by default — LAN IPs and local hostnames are supported destinations. Cloud instance-metadata addresses are always refused either way. |
 | `SETUP_TOKEN` | Optional. Generate with `openssl rand -hex 16`. If set, the first-run setup screen also asks for this value, so a server that's reachable before you've created your account can't be claimed by someone else — see "Security notes" below. Ignored once setup is complete. |
 | `BACKUP_CRON_SCHEDULE` / `BACKUP_RETENTION_COUNT` | Optional. Schedule (cron syntax, default daily at 03:00) and how many backups to keep per destination (default 7). |
-| `BACKUP_S3_*` | Optional. Pre-populates the S3-compatible backup fields (`BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY`, plus `BACKUP_S3_ENDPOINT`/`BACKUP_S3_REGION`/`BACKUP_S3_FORCE_PATH_STYLE` for non-AWS providers) — still requires picking "S3-compatible storage" in Settings → System settings' backup destination dropdown to activate it. See "Database backups" above. |
+| `BACKUP_S3_*` | Optional. Pre-populates the S3-compatible backup fields (`BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY`, plus `BACKUP_S3_ENDPOINT`/`BACKUP_S3_REGION`/`BACKUP_S3_FORCE_PATH_STYLE` for non-AWS providers) — still requires picking "S3-compatible storage" in the backup destination dropdown under Settings → Household → Backups to activate it. See "Database backups" above. |
 | `BACKUP_SFTP_*` | Optional. Pre-populates the SFTP backup fields (`BACKUP_SFTP_HOST`, `BACKUP_SFTP_USERNAME`, plus `BACKUP_SFTP_PASSWORD` or `BACKUP_SFTP_PRIVATE_KEY`) — still requires picking "SFTP" in the backup destination dropdown to activate it. See "Database backups" above. |
 | `BACKUP_LOCAL_PATH` | Optional. Pre-populates the local-filesystem backup path — still requires picking "Local filesystem" in the backup destination dropdown to activate it. See "Database backups" above. |
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | Optional. Set both to show a "Sign in with GitHub" button on the login page. Sign-up stays invite-only — GitHub sign-in only works for an email that already has an admin-invited Hearth account. |
@@ -799,7 +923,7 @@ threshold.
 
 ## Security notes
 
-- New users can only be created by an existing admin (Settings → Users) —
+- New users can only be created by an existing admin (Settings → Household → Members) —
   there's no public registration, since this app stores sensitive personal
   and financial data.
 - **First-run setup is a race you can lose.** Until the first account exists,
@@ -882,10 +1006,53 @@ captures the functionality that shipped in it.
 both `latest` and `vx.y.z`, whenever a `vx.y.z` git tag is pushed — it does
 **not** run on an ordinary push to `main`, so `:latest` only ever moves on a
 real release. A tag created via `release.yml`'s manual dispatch (rather
-than a `git push` of the tag) doesn't trigger this workflow automatically —
+than a `git push` of the tag) doesn't trigger tag-push workflows by itself —
 GitHub Actions doesn't fire push-triggered workflows for refs created by its
-own token — so also run `docker-publish.yml` manually against the new tag
-in that case.
+own token (this is why v0.19.2 had no Docker image or Android build). So in
+that case `release.yml` dispatches `docker-publish.yml` and
+`android-build.yml` against the new tag itself (it has `actions: write` for
+this). Pushing the tag locally needs no extra step.
+
+Either way, `release.yml`'s `artifacts` job then waits for both builds to
+finish and checks that the signed `app-release.apk`/`app-release.aab` are
+attached to the Release and that `jaysbeekay/hearth:vx.y.z` is on Docker Hub.
+A green release run means the artifacts were published; if a build fails, the
+release run fails too and its summary links the failed run.
+
+`release.yml` only runs from `main` (manual dispatch) or a pushed `v*` tag,
+and validates the version as `x.y.z` (optionally `-suffix`).
+
+`android-build.yml` signs **only tag runs** (`refs/tags/v*`) and only if the
+signing secrets exist; it then attaches the signed APK/AAB to the release. A
+tag run with no signing secrets fails on purpose rather than publish an
+unsigned build. Any other ref (a branch dispatch, for instance) builds
+**unsigned** artifacts, named `hearth-release-apk-unsigned` /
+`hearth-release-aab-unsigned`, kept for 7 days. Docker `latest` only moves
+when the tag is the highest stable release.
+
+**Re-running an old tag does not pick up fixes.** A workflow run on a tag uses
+that tag's own copy of the workflow files, so re-running a release whose
+workflows were broken (such as v0.19.2) fails the same way. Cut a new patch
+release instead (v0.20.0 was the first built this way).
+
+`android-check.yml` runs the Gradle/R8 release build on pull requests that
+touch Android inputs (and weekly, opening an issue if it fails), so breakage
+shows up before release.
+
+**One-time owner setup for the `release` environment.** The signing and
+Docker Hub jobs run in a GitHub environment named `release` on tag runs:
+
+1. Settings -> Environments -> New environment: `release`.
+2. Deployment branches and tags -> Selected branches and tags -> add a tag
+   rule `v*`, so only release tags can read its secrets.
+3. Move `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
+   `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`, `DOCKERHUB_USERNAME` and
+   `DOCKERHUB_TOKEN` into the environment's secrets.
+4. Delete the repository-level copies of those secrets.
+
+Until step 4 the jobs keep working from repo-level secrets. Once done, a
+manual `docker-publish.yml` dispatch from `main` can no longer log in to
+Docker Hub; run it against a tag.
 
 ## License
 

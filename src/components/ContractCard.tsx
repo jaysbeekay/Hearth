@@ -2,12 +2,14 @@ import Link from "next/link";
 import type { ContractModel } from "@/generated/prisma/models";
 import { ExpiryBadge } from "@/components/ExpiryBadge";
 import { contractDue, headlineEntry, type DueContext } from "@/lib/dueRecords";
+import { isCovering } from "@/lib/covers";
 import {
   CATEGORY_LABELS,
   BILLING_LABELS,
   formatCurrency,
   formatDate,
 } from "@/lib/utils";
+import { cardClass } from "@/lib/ui";
 
 export function ContractCard({
   contract,
@@ -16,7 +18,7 @@ export function ContractCard({
   region,
   missing,
 }: {
-  contract: ContractModel & { _count?: { documents: number } };
+  contract: ContractModel & { _count?: { documents: number }; vehicle?: { label: string } | null };
   /** #384 — the household's today and default thresholds, for the Due policy. */
   due: DueContext;
   dateFormat?: string;
@@ -31,7 +33,7 @@ export function ContractCard({
   return (
     <Link
       href={`/contracts/${contract.id}`}
-      className="block min-w-0 rounded-lg border border-border bg-surface p-4 transition hover:border-accent/50"
+      className={cardClass({ interactive: true }, "block min-w-0")}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -58,6 +60,10 @@ export function ContractCard({
           </span>
         )}
       </div>
+
+      {contract.vehicle && isCovering(contract) && (
+        <p className="mt-1 truncate text-xs text-muted">Covers {contract.vehicle.label}</p>
+      )}
 
       {missing && missing.length > 0 && (
         <p className="mt-1 text-xs font-medium text-muted">{missing.join(" · ")}</p>

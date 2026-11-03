@@ -13,7 +13,8 @@ import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { auth } from "@/lib/auth";
 import { isSmtpConfigured, isNtfyConfigured, getDueContext } from "@/lib/appSettings";
 import { addDays, calendarDayOf } from "@/lib/duePolicy";
-import { currentTenancy, LIVE_TENANCY_AGREEMENTS } from "@/lib/dueRecords";
+import { currentTenancy, LIVE_TENANCY_AGREEMENTS, vehicleDueRecord } from "@/lib/dueRecords";
+import { COVERING_CONTRACTS } from "@/lib/covers";
 import { getCurrentReminderFailures } from "@/lib/notifications/logs";
 import { getDocumentStats } from "@/lib/documents/stats";
 import {
@@ -31,8 +32,9 @@ import {
 import { contractRules, productRules, vehicleRules } from "@/lib/recordFilters";
 import { NeedsAttentionQueue } from "@/components/NeedsAttentionQueue";
 import { TakePhotoButton } from "@/components/TakePhotoButton";
-import { compactButtonClass } from "@/lib/buttonStyles";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
+import { buttonClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -59,7 +61,11 @@ export default async function DashboardPage() {
         include: { _count: { select: { documents: { where: { deletedAt: null } } } } },
       }),
       enabledModules.has("VEHICLES")
-        ? prisma.vehicle.findMany({ where: { deletedAt: null, archivedAt: null }, orderBy: { createdAt: "desc" } })
+        ? prisma.vehicle.findMany({
+            where: { deletedAt: null, archivedAt: null },
+            include: { contracts: COVERING_CONTRACTS },
+            orderBy: { createdAt: "desc" },
+          })
         : [],
       enabledModules.has("TRAVEL")
         ? prisma.trip.findMany({
@@ -94,7 +100,7 @@ export default async function DashboardPage() {
     {
       CONTRACT: new Map(contracts.map((c) => [c.id, { kind: "contract" as const, ...c }])),
       PRODUCT: new Map(products.map((p) => [p.id, { kind: "warranty" as const, ...p }])),
-      VEHICLE: new Map(vehicles.map((v) => [v.id, { kind: "vehicle" as const, ...v }])),
+      VEHICLE: new Map(vehicles.map((v) => [v.id, vehicleDueRecord(v)])),
       TENANCY: new Map(
         properties.flatMap((property) => {
           const tenancy = currentTenancy(property);
@@ -173,19 +179,19 @@ export default async function DashboardPage() {
   const canWrite = sessionCanWrite(session);
 
   return (
-    <div className="space-y-6">
+    <PageShell width="list">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Dashboard</h1>
+          <h1 className="text-2xl font-medium">Dashboard</h1>
           <p className="text-sm text-muted">
             What&apos;s due, what it costs, and what needs attention.
           </p>
         </div>
         {/* Read-only members can't add or upload, so they get none of these (#400). */}
         {canWrite && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <TakePhotoButton />
-            <Link href="/import" className={`${compactButtonClass("secondary")} gap-2`}>
+            <Link href="/import" className={`${buttonClass("secondary")} gap-2`}>
               <Upload size={16} />
               {/* Shortened on phones so it fits beside Take photo and Add. */}
               <span>
@@ -227,13 +233,13 @@ export default async function DashboardPage() {
       )}
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold">Needs attention</h2>
+        <h2 className="text-base font-medium">Needs attention</h2>
         <NeedsAttentionQueue due={attention.due} housekeeping={attention.housekeeping} canWrite={canWrite} />
       </section>
 
       {enabledModules.has("TRAVEL") && upcomingTrips.length > 0 && (
         <section className="space-y-3">
-          <h2 className="text-lg font-semibold">Upcoming trips</h2>
+          <h2 className="text-base font-medium">Upcoming trips</h2>
           <div className="grid gap-3 md:grid-cols-2">
             {upcomingTrips.map((trip) => (
               <TripCard key={trip.id} trip={trip} />
@@ -241,6 +247,6 @@ export default async function DashboardPage() {
           </div>
         </section>
       )}
-    </div>
+    </PageShell>
   );
 }

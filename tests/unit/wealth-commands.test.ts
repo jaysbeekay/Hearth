@@ -693,7 +693,7 @@ describe("Wealth server actions", () => {
       `REDIRECT /wealth/portfolios/${portfolio.id}/holdings/${holding.id}`,
     );
     const trade = await db.prisma.trade.findFirstOrThrow({ where: { holdingId: holding.id } });
-    expect(await deleteTrade(holding.id, trade.id)).toEqual({ success: "Trade moved to Trash." });
+    expect(await deleteTrade(holding.id, trade.id)).toEqual({ success: "Trade deleted." });
     expect(
       await importTrades(portfolio.id, [{ ticker: "IVV", type: "BUY", date: "2025-01-02", units: 3, pricePerUnit: 1, fees: 0, currency: "AUD" }]),
     ).toEqual({ success: "Imported 1 trade." });

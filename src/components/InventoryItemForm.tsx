@@ -6,10 +6,11 @@ import { Upload } from "lucide-react";
 import type { InventoryItemModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
+import { FormActions } from "@/components/FormActions";
 import { FormMessage } from "@/components/FormMessage";
 import { Field } from "@/components/FormField";
 import { INVENTORY_ITEM_CATEGORIES } from "@/lib/validation/inventory";
-import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
+import { SelectWrapper, inputClass, textareaClass, selectClass } from "@/components/SelectWrapper";
 import { FileDropZone } from "@/components/FileDropZone";
 import { applyIfEmpty, markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 import {
@@ -20,6 +21,8 @@ import {
   type QueuedOperation,
 } from "@/lib/offlineQueue";
 import { DateInput } from "@/components/DateInput";
+import { bannerClass } from "@/lib/ui";
+import { Card } from "@/components/ui/Card";
 
 const CATEGORY_LABELS: Record<string, string> = {
   APPLIANCE: "Appliance",
@@ -42,10 +45,13 @@ type ExtractedFields = Partial<Record<"category" | "label" | "brand" | "model" |
 
 export function InventoryItemForm({
   action,
+  cancelHref,
   item,
   products = [],
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
+  /** Where Cancel goes: the same place as the page's BackLink. */
+  cancelHref: string;
   item?: InventoryItemModel;
   products?: { id: string; description: string }[];
 }) {
@@ -118,13 +124,14 @@ export function InventoryItemForm({
       const res = await fetch("/api/inventory/extract", { method: "POST", body });
       if (!res.ok) throw new Error("Extraction failed");
 
-      const { fields, source } = (await res.json()) as {
+      const { fields, source, textUnavailable } = (await res.json()) as {
         fields: ExtractedFields;
         source: "byok" | "heuristic" | "llm" | "none";
+        textUnavailable?: boolean;
       };
       const filledCount = Object.keys(fields).length;
       if (filledCount > 0) applyExtractedFields(fields);
-      setScanMessage(extractionMessage(source, filledCount));
+      setScanMessage(extractionMessage(source, filledCount, textUnavailable));
     } catch {
       setScanMessage("Couldn't scan this document. You can still attach it and fill in fields manually.");
     } finally {
@@ -142,12 +149,12 @@ export function InventoryItemForm({
       className="space-y-6"
     >
       {pendingOp && (
-        <p className="rounded-lg border border-dashed border-warning/40 bg-warning/10 px-4 py-2 text-sm text-warning">
+        <p className={bannerClass("warning")}>
           Editing an offline entry that hasn&apos;t synced yet — saving updates it in place.
         </p>
       )}
       {!item && (
-        <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
+        <Card className="space-y-2">
           <p className="flex items-center gap-2 text-sm font-medium">
             <Upload size={16} />
             Save time: upload a receipt or invoice and Hearth fills in the details
@@ -158,7 +165,7 @@ export function InventoryItemForm({
             onFileSelected={handleFileChange}
           />
           {scanning && (
-            <p role="status" aria-live="polite" className="text-xs text-muted animate-pulse">
+            <p role="status" aria-live="polite" className="text-xs text-muted">
               Scanning document…
             </p>
           )}
@@ -167,7 +174,7 @@ export function InventoryItemForm({
               {scanMessage}
             </p>
           )}
-        </div>
+        </Card>
       )}
 
       <Field label="Label" htmlFor="label" required>
@@ -201,7 +208,7 @@ export function InventoryItemForm({
       </Field>
 
       <div className="grid grid-cols-2 gap-4">
-        <Field label="Brand / Manufacturer" htmlFor="brand">
+        <Field label="Brand" htmlFor="brand">
           <input
             ref={brandRef}
             id="brand"
@@ -222,7 +229,7 @@ export function InventoryItemForm({
         </Field>
       </div>
 
-      <Field label="Serial Number" htmlFor="serialNumber">
+      <Field label="Serial number" htmlFor="serialNumber">
         <input
           ref={serialNumberRef}
           id="serialNumber"
@@ -233,7 +240,7 @@ export function InventoryItemForm({
       </Field>
 
       <div className="grid grid-cols-2 gap-4">
-        <Field label="Purchase Date" htmlFor="purchaseDate">
+        <Field label="Purchase date" htmlFor="purchaseDate">
           <DateInput
             ref={purchaseDateRef}
             id="purchaseDate"
@@ -243,7 +250,7 @@ export function InventoryItemForm({
           />
         </Field>
 
-        <Field label="Purchase Price" htmlFor="purchasePrice">
+        <Field label="Purchase price" htmlFor="purchasePrice">
           <input
             ref={purchasePriceRef}
             id="purchasePrice"
@@ -274,7 +281,7 @@ export function InventoryItemForm({
           name="notes"
           rows={3}
           defaultValue={effectiveValues?.notes ?? item?.notes ?? ""}
-          className={inputClass}
+          className={textareaClass}
         />
       </Field>
 
@@ -312,11 +319,11 @@ export function InventoryItemForm({
         </Field>
       </fieldset>
 
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
 
-      <div className="flex justify-end gap-3">
+      <FormActions cancelHref={cancelHref}>
         <SubmitButton>{pendingOp || item ? "Save changes" : "Add item"}</SubmitButton>
-      </div>
+      </FormActions>
     </form>
   );
 }

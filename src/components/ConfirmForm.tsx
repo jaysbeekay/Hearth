@@ -4,9 +4,8 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { showToast } from "@/components/Toast";
 import { deleteOperation, enqueueOperation, OfflineQueueRefusedError } from "@/lib/offlineQueue";
-import { buttonVariants, compactButtonClass } from "@/lib/buttonStyles";
-import { cn } from "@/lib/utils";
 import { Dialog } from "@/components/Dialog";
+import { buttonClass } from "@/lib/ui";
 
 export function ConfirmForm({
   action,
@@ -24,7 +23,7 @@ export function ConfirmForm({
   // #298: names the actual destructive verb + object ("Remove Alex")
   // instead of a generic "Confirm" that doesn't say what pressing it does.
   // Ignored when `undo` is set: a trash-backed delete always says
-  // "Move to Trash" (#362).
+  // "Delete" (#362).
   actionLabel?: string;
   children: React.ReactNode;
   className?: string;
@@ -39,7 +38,7 @@ export function ConfirmForm({
   offline?: { entity: string; entityId: string; label: string; parentId?: string; kind?: string };
   // #371 — for trash-backed deletes: the success toast offers Undo, which
   // calls the matching restore action. #362 — the confirm button then says
-  // "Move to Trash" and the toast "Moved to Trash", whatever the record. `href` is where to go back to when
+  // "Delete" and the toast "Moved to Recently deleted.", whatever the record. `href` is where to go back to when
   // the delete navigated away (deleting from a record's own detail page).
   undo?: { action: () => Promise<unknown>; href?: string };
 }) {
@@ -53,8 +52,8 @@ export function ConfirmForm({
     triggerRef.current?.focus();
   }
 
-  const confirmLabel = undo ? "Move to Trash" : actionLabel;
-  const doneMessage = successMessage ?? (undo ? "Moved to Trash." : "Removed.");
+  const confirmLabel = undo ? "Delete" : actionLabel;
+  const doneMessage = successMessage ?? (undo ? "Moved to Recently deleted." : "Removed.");
   const destructive = /\b(delete|remove|trash|discard|permanently)\b/i.test(confirmLabel);
 
   function showDoneToast() {
@@ -78,7 +77,7 @@ export function ConfirmForm({
             if (undo.href) router.push(undo.href);
             else router.refresh();
           } catch {
-            showToast("Couldn't restore it — find it in Settings → Trash.", "error");
+            showToast("Couldn't restore it — find it in Settings → Household → Recently deleted.", "error");
           }
         },
       },
@@ -106,7 +105,7 @@ export function ConfirmForm({
         <p id="confirm-dialog-text" className="text-sm text-foreground">
           {confirmText}
         </p>
-        {destructive && !/household/i.test(confirmText) && (
+        {destructive && !mentionsHousehold(confirmText) && (
           <p className="mt-2 text-xs text-muted">
             This affects shared household data for everyone with access.
           </p>
@@ -116,7 +115,7 @@ export function ConfirmForm({
             type="button"
             disabled={pending}
             onClick={close}
-            className={`${compactButtonClass()} disabled:opacity-50`}
+            className={`${buttonClass("secondary")} disabled:opacity-50`}
           >
             Cancel
           </button>
@@ -179,10 +178,7 @@ export function ConfirmForm({
                 setPending(false);
               }
             }}
-            className={cn(
-              "inline-flex min-h-11 items-center justify-center rounded-lg px-3 text-sm font-medium disabled:opacity-50",
-              buttonVariants.danger,
-            )}
+            className={buttonClass("danger")}
           >
             {pending ? "Working…" : confirmLabel}
           </button>
@@ -190,4 +186,10 @@ export function ConfirmForm({
       </Dialog>
     </>
   );
+}
+
+// A confirmation that already explains the household-wide effect doesn't need
+// the generic note; a "Settings → Household → …" path doesn't count as one.
+function mentionsHousehold(text: string): boolean {
+  return /household/i.test(text.replaceAll("Settings → Household", ""));
 }

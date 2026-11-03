@@ -20,6 +20,7 @@ test("deleting a contract moves it to Trash without touching its files, until pe
 }) => {
   await page.goto("/contracts/new");
   await page.locator("#title").fill("Delete Test Contract");
+  await page.locator("#category").selectOption("OTHER");
   await page.locator("#provider").fill("Test Provider");
   await page.locator("main button[type=submit]").click();
   await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
@@ -39,9 +40,9 @@ test("deleting a contract moves it to Trash without touching its files, until pe
   expect(fs.readdirSync(fileDir).length).toBeGreaterThan(0);
 
   await page.goto(`/contracts/${contractId}`);
-  await page.getByRole("button", { name: "More actions" }).click();
+  await page.getByRole("button", { name: "More actions", exact: true }).click();
   await page.getByRole("button", { name: "Delete", exact: true }).click();
-  await page.getByRole("button", { name: "Move to Trash", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
   await page.waitForURL(/\/contracts$/);
 
   // Soft-deleted: gone from the active list, but the files are untouched.
@@ -85,9 +86,9 @@ test("deleting a product moves it to Trash without touching its files, until per
   expect(fs.readdirSync(fileDir).length).toBeGreaterThan(0);
 
   await page.goto(`/products/${productId}`);
-  await page.getByRole("button", { name: "More actions" }).click();
+  await page.getByRole("button", { name: "More actions", exact: true }).click();
   await page.getByRole("button", { name: "Delete", exact: true }).click();
-  await page.getByRole("button", { name: "Move to Trash", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
   await page.waitForURL(/\/products$/);
 
   await expect(page.locator("body")).not.toContainText("Delete Test Product");

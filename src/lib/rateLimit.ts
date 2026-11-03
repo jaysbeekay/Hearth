@@ -76,6 +76,16 @@ export const RATE_LIMITS = {
   chat: { limit: 60, windowMs: 5 * 60_000 },
   // Daily companion to chat, same rationale as documentExtractionDaily.
   chatDaily: { limit: 500, windowMs: 24 * 60 * 60_000 },
+  // Wrong MCP bearer tokens, per client address. /api/mcp skips the session
+  // login, so this is its brute-force guard; same budget as password guessing.
+  mcpAuth: { limit: 10, windowMs: 15 * 60_000 },
+  // Requests per authorized MCP token. An agent makes a handful of calls per
+  // question, so 300 in 5 minutes only stops a runaway loop.
+  mcpRequests: { limit: 300, windowMs: 5 * 60_000 },
+  // Security-log rows for MCP auth failures, across all addresses. Without a
+  // proxy a client can rotate X-Forwarded-For past mcpAuth, so this keeps a
+  // wrong-token flood from writing unbounded rows and burying the log.
+  mcpAuthLog: { limit: 30, windowMs: 15 * 60_000 },
 } as const satisfies Record<string, RateLimitRule>;
 
 export type RateLimitName = keyof typeof RATE_LIMITS;

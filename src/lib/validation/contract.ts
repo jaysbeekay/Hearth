@@ -4,6 +4,7 @@ import { reminderDaysBeforeField } from "@/lib/validation/reminderThresholds";
 export const CONTRACT_CATEGORIES = [
   "RENTAL",
   "CAR_INSURANCE",
+  "REGISTRATION",
   "HOME_INSURANCE",
   "STRATA_INSURANCE",
   "HEALTH_INSURANCE",
@@ -36,7 +37,8 @@ const emptyToUndefined = (val: unknown) =>
 // record and contractPatchSchema for a partial update.
 export const contractBaseSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(200),
-  category: z.enum(CONTRACT_CATEGORIES),
+  // #361 — no default: the form starts on "Choose a category".
+  category: z.enum(CONTRACT_CATEGORIES, { message: "Choose a category" }),
   provider: z.string().trim().min(1, "Provider/company is required").max(200),
   contractNumber: z.preprocess(emptyToUndefined, z.string().trim().max(100).optional()),
   startDate: z.preprocess(emptyToUndefined, z.coerce.date().optional()),

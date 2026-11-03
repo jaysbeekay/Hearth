@@ -10,11 +10,13 @@ import {
   AI_PROVIDERS_WITHOUT_API_KEY,
   type AiProviderId,
 } from "@/lib/ai/types";
-import { SubmitButton } from "@/components/SubmitButton";
+import { GroupedSubmit } from "@/components/SaveChangesGroup";
+import { withConnectionErrors } from "@/lib/withConnectionErrors";
 import { FormMessage } from "@/components/FormMessage";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 import { TestConnectionButton } from "@/components/TestConnectionButton";
+import { bannerClass } from "@/lib/ui";
 
 export function AiSettingsForm({
   provider,
@@ -25,7 +27,7 @@ export function AiSettingsForm({
   model: string | null;
   apiKeyIsSet: boolean;
 }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(saveAiSettings, null);
+  const [state, formAction] = useActionState<ActionState, FormData>(withConnectionErrors(saveAiSettings), null);
   const configured = Boolean(provider);
   // #346 — nothing is pre-selected when no provider is saved: defaulting to
   // the first provider read as "your data is already going there".
@@ -34,7 +36,7 @@ export function AiSettingsForm({
 
   return (
     <div className="space-y-4">
-      <form action={formAction} className="space-y-3">
+      <form action={formAction} data-save-group className="space-y-3">
         <div className="space-y-1">
           <label htmlFor="provider" className="text-sm font-medium">
             Provider
@@ -61,7 +63,7 @@ export function AiSettingsForm({
           <>
             {needsApiKey ? (
               <div className="space-y-1">
-                <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
+                <p className={bannerClass("warning")}>
                   Documents will be sent to {AI_PROVIDER_LABELS[selected]} for processing.
                 </p>
                 <label htmlFor="apiKey" className="text-sm font-medium">
@@ -78,11 +80,8 @@ export function AiSettingsForm({
               </div>
             ) : (
               <p className="text-xs text-muted">
-                No API key needed — Ollama uses the base URL configured in{" "}
-                <a href="/settings/app" className="text-accent hover:underline">
-                  System settings
-                </a>
-                .
+                No API key needed — Ollama uses the base URL set under Local AI (Ollama) on this
+                page.
               </p>
             )}
 
@@ -104,14 +103,14 @@ export function AiSettingsForm({
           </>
         )}
 
-        <FormMessage error={state?.error} success={state?.success} />
+        <FormMessage attempt={state} error={state?.error} success={state?.success} />
         <div className="flex items-center justify-between">
           {selected === "OLLAMA" ? (
             <TestConnectionButton action={testOllamaConnection} label="Test connection" />
           ) : (
             <span />
           )}
-          {selected !== "" && <SubmitButton>{configured ? "Update" : "Save"}</SubmitButton>}
+          <GroupedSubmit state={state} show={selected !== ""}>{configured ? "Update" : "Save"}</GroupedSubmit>
         </div>
       </form>
 
@@ -122,7 +121,7 @@ export function AiSettingsForm({
           actionLabel="Remove settings"
           className="inline-flex items-center gap-2 text-sm text-muted hover:text-danger"
         >
-          <Trash2 size={14} />
+          <Trash2 size={16} />
           Remove
         </ConfirmForm>
       )}

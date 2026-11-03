@@ -3,17 +3,17 @@
 import { useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import { ListPageHeader } from "@/components/ListPageHeader";
-import { linkButtonClass, toolbarButtonClass } from "@/lib/buttonStyles";
 import { useRouter } from "next/navigation";
 import { Plus, X, Upload } from "lucide-react";
 import { ProductCard } from "@/components/ProductCard";
 import { InventoryCard } from "@/components/InventoryCard";
 import { PendingRecordCard } from "@/components/PendingRecordCard";
-import { ListSummaryStrip } from "@/components/ListSummaryStrip";
+import { ListFilterSheet } from "@/components/ListFilterSheet";
 import { ListFilterChips, ListFilterHiddenInputs } from "@/components/ListFilterChips";
 import type { InventoryItemModel, ProductModel } from "@/generated/prisma/models";
 import {
   hasListFilters,
+  isChipActive,
   listHref,
   productMissingParts,
   toggleListFilter,
@@ -25,6 +25,10 @@ import type { DueContext } from "@/lib/duePolicy";
 import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
 import { usePendingCreates } from "@/lib/usePendingCreates";
+import { buttonClass, chipClass, emptyStateClass, inputClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
+import { TrashHint } from "@/components/TrashHint";
+import { cn } from "@/lib/utils";
 
 const CHIPS: { chip: ToggleableFilter; label: string; onlyWhenActive?: boolean }[] = [
   { chip: "dueSoon", label: "Due soon" },
@@ -40,7 +44,7 @@ interface Props {
   products: ProductModel[];
   inventoryItems?: (InventoryItemModel & { _count: { documents: number } })[];
   inventoryEnabled?: boolean;
-  /** #395 — household-wide, from the server; never recounted here. */
+  /** From the server: each chip's list length, search and filters kept; never recounted here. */
   counts: ListFilterCounts;
   /** #384 — the household's today and default thresholds, for each card's Due badge. */
   due: DueContext;
@@ -49,6 +53,8 @@ interface Props {
   dateFormat?: string;
   region?: string;
   canWrite?: boolean;
+  /** Records of this list in Trash, for the empty state's hint. */
+  trashCount?: number;
 }
 
 export function ProductListClient({
@@ -62,11 +68,31 @@ export function ProductListClient({
   dateFormat,
   region,
   canWrite = true,
+  trashCount = 0,
 }: Props) {
   const online = useOnlineStatus();
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // A pending search submit must not fire after the list unmounts (e.g. the
+  // user typed, then followed an Add link before the 400 ms tick).
+  useEffect(() => () => { clearTimeout(searchTimeout.current); }, []);
+  // #517 review: every other way of changing the list cancels a pending
+  // search auto-submit first. Otherwise it fires up to 400 ms later and puts
+  // back a q= that a chip, select, pill or Clear all just changed. The search
+  // box is uncontrolled, so it is also reset to the q= being navigated to;
+  // otherwise it keeps showing typed text the list no longer applies.
+  const navigate = useCallback(
+    (href: string) => {
+      clearTimeout(searchTimeout.current);
+      const search = formRef.current?.elements.namedItem("q");
+      if (search instanceof HTMLInputElement) {
+        search.value = new URL(href, window.location.href).searchParams.get("q") ?? "";
+      }
+      router.push(href);
+    },
+    [router],
+  );
   const { pendingOps, refresh: refreshPending } = usePendingCreates("product");
 
   useEffect(() => {
@@ -80,6 +106,7 @@ export function ProductListClient({
   }, [router]);
 
   const filtered = Boolean(q || hasListFilters(filters));
+  const activeFilters = CHIPS.filter(({ chip }) => isChipActive(filters, chip)).length;
   // Inventory items don't take part in the list filters, so while one is on
   // the page shows only the Warranties its count describes (#395).
   const showInventorySection =
@@ -87,69 +114,56 @@ export function ProductListClient({
 
   const toggleFilter = useCallback(
     (chip: ToggleableFilter) => {
-      router.push(listHref("/products", toggleListFilter(filters, chip), { q }));
+      navigate(listHref("/products", toggleListFilter(filters, chip), { q }));
     },
-    [filters, q, router],
+    [filters, q, navigate],
   );
 
-  const summary = [
-    {
-      label: "due soon",
-      value: counts.dueSoon ?? 0,
-      status: "due-soon" as const,
-      onClick: () => {
-        toggleFilter("dueSoon");
-      },
-    },
-    {
-      label: "lapsed",
-      value: counts.lapsed ?? 0,
-      status: "lapsed" as const,
-      onClick: () => {
-        toggleFilter("lapsed");
-      },
-    },
-    {
-      label: "needs review",
-      value: counts.review ?? 0,
-      status: "needs-review" as const,
-      onClick: () => {
-        toggleFilter("review");
-      },
-    },
-    { label: "added this week", value: counts.recentlyAdded ?? 0 },
-  ];
+  // #406 — a list with nothing in it yet shows one sentence and one button:
+  // no Export, search or filter chips until there is something to act on.
+  const nothingYet = !filtered && products.length === 0 && pendingOps.length === 0;
 
   return (
-    <div className="space-y-6">
+    <PageShell width="list">
       <ListPageHeader
         title="Warranties"
-        exportPath="/api/export/products"
+        exportPath={nothingYet ? undefined : "/api/export/products"}
         action={canWrite ? { href: "/products/new", label: "Add warranty", online } : undefined}
       />
 
-      <form ref={formRef} className="flex flex-col gap-3 md:flex-row" method="GET">
-        <ListFilterHiddenInputs filters={filters} />
-        <input
-          type="search"
-          name="q"
-          defaultValue={q}
-          placeholder="Search by description, brand, model, vendor, serial number, or barcode…"
-          onChange={() => {
-            clearTimeout(searchTimeout.current);
-            searchTimeout.current = setTimeout(() => formRef.current?.requestSubmit(), 400);
-          }}
-          className="flex-1 min-h-11 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-accent"
-        />
-        <button
-          type="submit"
-          className={toolbarButtonClass}
-        >
-          Filter
-        </button>
-      </form>
-
-      <ListFilterChips filters={filters} chips={CHIPS} onToggle={toggleFilter} />
+      {!nothingYet && (
+        <div className="flex flex-col gap-3">
+          {/* #365 — no Filter button: the search submits as you type (or on
+              Enter). Below md the chips move into the Filters sheet. */}
+          <div className="flex gap-2 md:gap-3">
+            <form ref={formRef} className="flex min-w-0 flex-1" method="GET">
+              <ListFilterHiddenInputs filters={filters} />
+              <input
+                type="search"
+                name="q"
+                defaultValue={q}
+                aria-label="Search warranties"
+                placeholder="Search by description, brand, model, vendor, serial number, or barcode…"
+                onChange={() => {
+                  clearTimeout(searchTimeout.current);
+                  searchTimeout.current = setTimeout(() => formRef.current?.requestSubmit(), 400);
+                }}
+                className={cn(inputClass, "min-w-0 flex-1")}
+              />
+            </form>
+            <ListFilterSheet active={activeFilters}>
+              <ListFilterChips filters={filters} chips={CHIPS} counts={counts} onToggle={toggleFilter} />
+            </ListFilterSheet>
+          </div>
+          <ListFilterChips
+            filters={filters}
+            chips={CHIPS}
+            counts={counts}
+            onToggle={toggleFilter}
+            className="hidden md:flex"
+          />
+        </div>
+      )}
 
       {filtered && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -160,24 +174,22 @@ export function ProductListClient({
             <button
               type="button"
               onClick={() => {
-                router.push(listHref("/products", filters));
+                navigate(listHref("/products", filters));
               }}
-              className="flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-xs hover:bg-hover"
+              className={chipClass(true)}
             >
-              &quot;{q}&quot; <X size={12} />
+              &quot;{q}&quot; <X size={16} />
             </button>
           )}
           <button
             type="button"
-            onClick={() => router.push("/products")}
+            onClick={() => { navigate("/products"); }}
             className="text-xs text-muted underline hover:text-foreground"
           >
             Clear all
           </button>
         </div>
       )}
-
-      {!filtered && products.length > 0 && <ListSummaryStrip items={summary} />}
 
       {pendingOps.length > 0 && (
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
@@ -196,19 +208,20 @@ export function ProductListClient({
 
       {products.length === 0 ? (
         pendingOps.length === 0 && (
-          <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border p-10 text-center">
+          <div className={emptyStateClass("flex flex-col items-center gap-3")}>
             <p className="text-sm text-muted">
               {filtered
                 ? "No warranties match your search or filters."
                 : "No warranties yet. Add one manually, or upload an invoice and we'll fill in the details."}
             </p>
+            {!filtered && <TrashHint count={trashCount} singular="warranty" plural="warranties" />}
             {!filtered && canWrite && (
               <div className="flex flex-wrap items-center justify-center gap-2">
-                <Link href="/products/new" className={linkButtonClass("primary")}>
+                <Link href="/products/new" className={buttonClass("primary")}>
                   <Plus size={16} />
                   Add warranty
                 </Link>
-                <Link href="/import" className={linkButtonClass("secondary")}>
+                <Link href="/import" className={buttonClass("secondary")}>
                   <Upload size={16} />
                   Upload a document
                 </Link>
@@ -235,7 +248,7 @@ export function ProductListClient({
         <section className="space-y-3 border-t border-border pt-6">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold">Inventory items</h2>
+              <h2 className="text-base font-medium">Inventory items</h2>
               <p className="text-sm text-muted">Household purchases and valuables catalogued separately from warranties.</p>
             </div>
             {canWrite && (
@@ -243,7 +256,7 @@ export function ProductListClient({
                 href="/inventory/new"
                 aria-disabled={!online}
                 tabIndex={!online ? -1 : undefined}
-                className={`${linkButtonClass("secondary", { online })} shrink-0 whitespace-nowrap`}
+                className={`${buttonClass("secondary", { online })} shrink-0 whitespace-nowrap`}
               >
                 <Plus size={16} />
                 Add item
@@ -251,7 +264,7 @@ export function ProductListClient({
             )}
           </div>
           {inventoryItems.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted">
+            <p className={emptyStateClass()}>
               No inventory items yet.
             </p>
           ) : (
@@ -263,6 +276,6 @@ export function ProductListClient({
           )}
         </section>
       )}
-    </div>
+    </PageShell>
   );
 }

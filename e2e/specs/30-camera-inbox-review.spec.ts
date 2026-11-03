@@ -85,7 +85,7 @@ test("capturing a document saves it to the Inbox, and classifying it with extrac
   await expect(page.getByText("Saved to your Inbox for review.")).toBeVisible();
 
   await page.goto("/documents/inbox");
-  const row = page.locator("div.rounded-xl.border.border-border.bg-surface", {
+  const row = page.locator("div.rounded-lg.border.border-border.bg-surface", {
     hasText: filename,
   });
   await expect(row).toBeVisible();

@@ -70,9 +70,9 @@ test.describe.serial("Inventory warranty linking", () => {
     page,
   }) => {
     await page.goto(`/products/${productId}`);
-    await page.getByRole("button", { name: "More actions" }).click();
+    await page.getByRole("button", { name: "More actions", exact: true }).click();
     await page.getByRole("button", { name: "Delete", exact: true }).click();
-    await page.getByRole("button", { name: "Move to Trash", exact: true }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
     await page.waitForURL(/\/products$/);
 
     // Permanently delete from Trash so the FK's SetNull actually fires

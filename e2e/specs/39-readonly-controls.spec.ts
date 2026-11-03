@@ -62,7 +62,7 @@ let db: Client;
 // Buttons that write. Names are matched whole, so a record whose title
 // happens to start with "Delete" (a link, not a button) can't trip this.
 const WRITE_BUTTON =
-  /^(Edit|Delete.*|Remove.*|More actions|Upload|Save.*|Discard.*|Confirm.*|Send test reminder|Unlink|Link|Restore.*|Mark .*|Unmark .*|Cancel|Not renewing\? Mark as cancelled|Stop tracking tenancy|Take photo|Keep as separate document|Attach as new version|Refresh|Add.*|New .*|Import.*)$/;
+  /^(Edit|Delete.*|Remove.*|More actions.*|Upload|Save.*|Discard.*|Confirm.*|Send test reminder|Unlink|Link|Restore.*|Mark .*|Unmark .*|Cancel|Not renewing\? Mark as cancelled|Stop tracking tenancy|Take photo|Keep as separate document|Attach as new version|Refresh|Add.*|New .*|Import.*)$/;
 // Links that lead to a write: by name for the actions whose target is the
 // record itself, and by href for every create, edit and import page.
 const WRITE_LINK =
@@ -97,9 +97,12 @@ async function signIn(browser: Browser, email: string, password: string): Promis
 }
 
 async function uploadFirst(page: Page, name: string) {
-  await page.locator('input[type="file"][name="file"]').first().setInputFiles({ name, mimeType: "application/pdf", buffer: PDF });
-  const submit = page.locator('form:has(input[name="file"]) button[type="submit"]').first();
-  await submit.click();
+  const form = page.locator('form:has(input[type="file"][name="file"])').first();
+  await form.locator('input[type="file"][name="file"]').setInputFiles({ name, mimeType: "application/pdf", buffer: PDF });
+  // An entry row's "Add document" (#405) uploads as soon as a file is
+  // chosen; a record page's upload form has its own submit button.
+  const submit = form.locator('button[type="submit"]');
+  if ((await submit.count()) > 0) await submit.click();
   await expect(page.locator("main")).toContainText(name, { timeout: 30_000 });
 }
 
@@ -164,6 +167,7 @@ test.describe("read-only member (#400)", () => {
     // actions), with a Document, and auto-filled details awaiting review.
     await page.goto("/contracts/new");
     await page.locator("#title").fill(`RO Contract ${stamp}`);
+    await page.locator("#category").selectOption("OTHER");
     await page.locator("#provider").fill("RO Insurer");
     await page.locator("#endDate").fill(daysFromNow(10));
     await submit(page, /\/contracts\/(?!new$)[^/]+$/);
@@ -209,7 +213,7 @@ test.describe("read-only member (#400)", () => {
     await uploadFirst(page, `ro-repair-${stamp}.pdf`);
     await page.locator('input[name="value"]').fill("750000");
     await page.getByRole("button", { name: "Save valuation" }).click();
-    await expect(page.getByRole("button", { name: /^Move valuation from .* to Trash$/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^More actions for valuation / })).toBeVisible();
     await page.goto(`/home/${ids.property}/rental/agreements/new`);
     await page.locator("#weeklyRent").fill("500");
     await page.locator("#tenantName").fill("RO Tenant");
@@ -289,9 +293,9 @@ test.describe("read-only member (#400)", () => {
     await page.locator("#description").fill(`RO Trashed ${stamp}`);
     await submit(page, /\/products\/(?!new$)[^/]+$/);
     ids.trashedProduct = lastSegment(page);
-    await page.getByRole("button", { name: "More actions" }).click();
+    await page.getByRole("button", { name: "More actions", exact: true }).click();
     await page.getByRole("button", { name: /^Delete$/ }).click();
-    await page.getByRole("button", { name: "Move to Trash" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
     await page.waitForURL(/\/products$/);
 
     // Positive control: the same checks do find the admin's controls.
@@ -380,7 +384,7 @@ test.describe("read-only member (#400)", () => {
 
     await page.goto("/settings");
     await expect(main.getByRole("heading", { name: "Profile" })).toBeVisible();
-    await expect(main.getByRole("button", { name: "Save preferences" })).toBeVisible();
+    await expect(main.getByRole("button", { name: "Save changes" })).toBeVisible();
     await expect(main.getByRole("button", { name: "Update password" })).toBeVisible();
     await expect(main.getByRole("link", { name: "Passkeys", exact: true })).toBeVisible();
     await expect(main.getByRole("button", { name: "Enable two-factor authentication" })).toBeVisible();

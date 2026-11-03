@@ -18,7 +18,7 @@ import { ArchivedNotice } from "@/components/ArchivedNotice";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailField as Detail } from "@/components/DetailField";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
-import { DocumentUploadForm } from "@/components/DocumentUploadForm";
+import { AddDocumentButton } from "@/components/AddDocumentButton";
 import { DocumentList } from "@/components/DocumentList";
 import { getTrashedVersionLinks } from "@/lib/documents/trashedVersionLinks";
 import { RecordMeta } from "@/components/RecordMeta";
@@ -29,11 +29,16 @@ import { VEHICLE_ITEM_TYPE_LABELS, formatCurrency, formatDate } from "@/lib/util
 import { getUserPreferences } from "@/lib/userPreferences";
 import { getHouseholdMemberCount } from "@/lib/household";
 import { getDueContext } from "@/lib/appSettings";
-import { vehicleDue } from "@/lib/dueRecords";
+import { vehicleDue, vehicleDueRecord } from "@/lib/dueRecords";
+import { withVehicleCovers } from "@/lib/covers";
 import { DetailStatusBanner } from "@/components/DetailStatusBanner";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { Card } from "@/components/ui/Card";
+import { buttonClass, menuItemClass, emptyStateClass, inlineLinkClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
+import { RememberRecentRecord } from "@/components/RememberRecentRecord";
 
 const ITEM_ICONS: Record<string, LucideIcon> = {
   SERVICE: Wrench,
@@ -72,10 +77,30 @@ export default async function VehicleDetailPage({
   ]);
   if (!vehicle || vehicle.deletedAt) notFound();
 
+  // #456 - a date a Covering Contract supplies shows as that Contract's end
+  // date and is the Contract's to remind about, so the Vehicle has no
+  // Reminder health or Due row of its own for it.
+  const withCovers = withVehicleCovers({ ...vehicle, contracts: linkedContracts });
+  const coverFor = (field: "regoExpiry" | "insuranceExpiry") => withCovers.covers.find((c) => c.field === field);
+  const regoCover = coverFor("regoExpiry");
+  const insuranceCover = coverFor("insuranceExpiry");
+  const dueRow = vehicleDueRecord({ ...vehicle, contracts: linkedContracts });
+  // The hint for a typed-in date no Contract Covers: said once, naming the
+  // right thing for each date, and a link to the pre-linked form for writers.
+  const hintFor = (field: "regoExpiry" | "insuranceExpiry") =>
+    withCovers.coveredFields.includes(field) ||
+    !(field === "regoExpiry" ? vehicle.regoExpiry : vehicle.insuranceExpiry)
+      ? null
+      : field;
+  const hintInsurance = hintFor("insuranceExpiry");
+  const hintRego = hintFor("regoExpiry");
+  const newContract = (category: string) => `/contracts/new?vehicleId=${vehicle.id}&category=${category}`;
+
   const healthFor = (field: "regoExpiry" | "insuranceExpiry" | "nextServiceDue", date: Date | null) =>
-    // An Archived Vehicle has no Reminders to report on (#355).
-    date && !vehicle.archivedAt
-      ? getReminderHealth({ ownerType: "VEHICLE", ownerId: vehicle.id, field, record: { kind: "vehicle", ...vehicle } })
+    // An Archived Vehicle has no Reminders to report on (#355); a Covered date
+    // is the Contract's to remind about (#456).
+    date && !vehicle.archivedAt && !withCovers.coveredFields.includes(field)
+      ? getReminderHealth({ ownerType: "VEHICLE", ownerId: vehicle.id, field, record: dueRow })
       : null;
   const [regoHealth, insuranceHealth, serviceHealth] = await Promise.all([
     healthFor("regoExpiry", vehicle.regoExpiry),
@@ -95,21 +120,22 @@ export default async function VehicleDetailPage({
   });
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="detail">
+      <RememberRecentRecord kind="vehicle" id={id} />
       <div>
         <BackLink href="/vehicles" label="Vehicles" />
       </div>
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">{vehicle.label}</h1>
+          <h1 className="text-2xl font-medium">{vehicle.label}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {canWrite && (
             <>
               <Link
                 href={`/vehicles/${vehicle.id}/edit`}
-                className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+                className={buttonClass("secondary")}
               >
                 <Pencil size={16} />
                 Edit
@@ -121,14 +147,14 @@ export default async function VehicleDetailPage({
                     noun="vehicle"
                     action={archiveVehicle.bind(null, vehicle.id)}
                     undo={unarchiveVehicle.bind(null, vehicle.id)}
-                    className="flex min-h-11 w-full items-center gap-2 px-4 py-2 text-sm hover:bg-hover"
+                    className={menuItemClass()}
                   />
                 )}
                 <ConfirmForm
                   action={deleteVehicle.bind(null, vehicle.id)}
                   undo={{ action: restoreVehicle.bind(null, vehicle.id), href: `/vehicles/${vehicle.id}` }}
-                  confirmText="Move this vehicle to Trash? Its service records and documents are kept, and you can restore it within 30 days from Settings → Trash."
-                  className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
+                  confirmText="Delete this vehicle? Its service records and documents are kept, and you can restore it within 30 days from Settings → Household → Recently deleted."
+                  className={menuItemClass({ destructive: true })}
                   offline={{ entity: "vehicle", entityId: vehicle.id, label: `Delete vehicle: ${vehicle.label}` }}
                 >
                   <Trash2 size={16} />
@@ -152,7 +178,7 @@ export default async function VehicleDetailPage({
               mode="restore"
               noun="vehicle"
               action={unarchiveVehicle.bind(null, vehicle.id)}
-              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+              className={buttonClass("secondary")}
             />
           )}
         </ArchivedNotice>
@@ -161,14 +187,14 @@ export default async function VehicleDetailPage({
       {/* #384 — one row per Due entry (rego, insurance, service), each with
           its own state from the Due policy. An Archived Vehicle has none. */}
       <DetailStatusBanner
-        entries={vehicleDue(vehicle, due)}
+        entries={vehicleDue({ ...vehicle, contracts: linkedContracts }, due)}
         hasDocuments
         documentsHref={`/vehicles/${vehicle.id}`}
         editHref={`/vehicles/${vehicle.id}/edit`}
         renewLabel="Update dates"
       />
 
-      <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+      <Card>
         <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">
           {vehicle.make && <Detail label="Make" value={vehicle.make} />}
           {vehicle.model && <Detail label="Model" value={vehicle.model} />}
@@ -176,13 +202,20 @@ export default async function VehicleDetailPage({
           {vehicle.licensePlate && (
             <Detail label="Licence plate" value={vehicle.licensePlate} copyable />
           )}
-          {vehicle.regoExpiry && (
-            <Detail label="Rego expiry" value={formatDate(vehicle.regoExpiry, dateFormat)} />
+          {withCovers.regoExpiry && (
+            <Detail
+              label="Rego expiry"
+              value={formatDate(withCovers.regoExpiry, dateFormat)}
+              note={regoCover ? `From ${regoCover.contract.title} →` : undefined}
+              noteHref={regoCover ? `/contracts/${regoCover.contract.id}` : undefined}
+            />
           )}
-          {vehicle.insuranceExpiry && (
+          {withCovers.insuranceExpiry && (
             <Detail
               label="Insurance expiry"
-              value={formatDate(vehicle.insuranceExpiry, dateFormat)}
+              value={formatDate(withCovers.insuranceExpiry, dateFormat)}
+              note={insuranceCover ? `From ${insuranceCover.contract.title} →` : undefined}
+              noteHref={insuranceCover ? `/contracts/${insuranceCover.contract.id}` : undefined}
             />
           )}
           {vehicle.nextServiceDue && (
@@ -191,51 +224,96 @@ export default async function VehicleDetailPage({
           {vehicle.vin && <Detail label="VIN" value={vehicle.vin} copyable />}
           {vehicle.colour && <Detail label="Colour" value={vehicle.colour} />}
         </dl>
+        {(hintInsurance || hintRego) && (
+          <p className="mt-4 text-xs text-muted">
+            Add{" "}
+            {hintInsurance && (canWrite ? (
+              <Link href={newContract("CAR_INSURANCE")} className={inlineLinkClass}>
+                the insurance policy
+              </Link>
+            ) : (
+              "the insurance policy"
+            ))}
+            {hintInsurance && hintRego && " or "}
+            {hintRego && (canWrite ? (
+              <Link href={newContract("REGISTRATION")} className={inlineLinkClass}>
+                the registration
+              </Link>
+            ) : (
+              "the registration"
+            ))}{" "}
+            as a contract to track cost and documents.
+          </p>
+        )}
+        {withCovers.covers.some((c) => c.count > 1) && (
+          <p className="mt-2 text-xs text-muted">
+            More than one contract covers the same date: the one ending last sets it, and the others keep their own reminders.
+          </p>
+        )}
         {vehicle.notes && (
           <p className="mt-4 whitespace-pre-wrap text-sm text-foreground">{vehicle.notes}</p>
         )}
-      </div>
+      </Card>
 
-      {regoHealth && (
-        <ReminderHealthCard
-          title="Registration reminder"
-          health={regoHealth}
-          dateFormat={dateFormat}
-          testTarget={{ kind: "vehicle", id: vehicle.id, field: "regoExpiry" }}
-        />
-      )}
-      {insuranceHealth && (
-        <ReminderHealthCard
-          title="Insurance reminder"
-          health={insuranceHealth}
-          dateFormat={dateFormat}
-          testTarget={{ kind: "vehicle", id: vehicle.id, field: "insuranceExpiry" }}
-        />
-      )}
-      {serviceHealth && (
-        <ReminderHealthCard
-          title="Service reminder"
-          health={serviceHealth}
-          dateFormat={dateFormat}
-          testTarget={{ kind: "vehicle", id: vehicle.id, field: "nextServiceDue" }}
-        />
-      )}
+      {/* #360 — one card for all three dates. */}
+      <ReminderHealthCard
+        dateFormat={dateFormat}
+        entries={[
+          regoHealth && {
+            label: "Registration",
+            health: regoHealth,
+            testTarget: { kind: "vehicle", id: vehicle.id, field: "regoExpiry" } as const,
+          },
+          insuranceHealth && {
+            label: "Insurance",
+            health: insuranceHealth,
+            testTarget: { kind: "vehicle", id: vehicle.id, field: "insuranceExpiry" } as const,
+          },
+          serviceHealth && {
+            label: "Service",
+            health: serviceHealth,
+            testTarget: { kind: "vehicle", id: vehicle.id, field: "nextServiceDue" } as const,
+          },
+        ].filter((entry) => !!entry)}
+      />
 
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-medium">Contracts and warranties linked to this vehicle</h2>
           {canWrite && (
-            <Link
-              href={`/contracts/new?vehicleId=${vehicle.id}`}
-              className="flex items-center gap-2 whitespace-nowrap rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
-            >
-              <Plus size={16} />
-              Add contract
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* #456 - shortcuts for the two things a contract can Cover; each
+                  goes away once a Covering Contract is in place. */}
+              {!insuranceCover && (
+                <Link
+                  href={`/contracts/new?vehicleId=${vehicle.id}&category=CAR_INSURANCE`}
+                  className={buttonClass("secondary")}
+                >
+                  <Plus size={16} />
+                  Add insurance
+                </Link>
+              )}
+              {!regoCover && (
+                <Link
+                  href={`/contracts/new?vehicleId=${vehicle.id}&category=REGISTRATION`}
+                  className={buttonClass("secondary")}
+                >
+                  <Plus size={16} />
+                  Add registration
+                </Link>
+              )}
+              <Link
+                href={`/contracts/new?vehicleId=${vehicle.id}`}
+                className={buttonClass("secondary")}
+              >
+                <Plus size={16} />
+                Add contract
+              </Link>
+            </div>
           )}
         </div>
         {linkedContracts.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted">
+          <p className={emptyStateClass()}>
             No contracts or warranties linked yet.
           </p>
         ) : (
@@ -253,7 +331,7 @@ export default async function VehicleDetailPage({
           {canWrite && (
             <Link
               href={`/vehicles/${vehicle.id}/items/new`}
-              className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+              className={buttonClass("secondary")}
             >
               <Plus size={16} />
               Add service record
@@ -262,7 +340,7 @@ export default async function VehicleDetailPage({
         </div>
 
         {items.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
+          <p className={emptyStateClass()}>
             No service records yet. Add a service, repair or roadworthy to start tracking.
           </p>
         ) : (
@@ -270,9 +348,8 @@ export default async function VehicleDetailPage({
             {items.map((item) => {
               const Icon = ITEM_ICONS[item.type] ?? Tag;
               return (
-                <div
+                <Card
                   key={item.id}
-                  className="rounded-xl border border-border bg-surface p-4 md:p-6"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="flex min-w-0 items-start gap-3">
@@ -292,20 +369,22 @@ export default async function VehicleDetailPage({
                         <>
                           <Link
                             href={`/vehicles/${vehicle.id}/items/${item.id}/edit`}
-                            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+                            className={buttonClass("secondary")}
                           >
                             <Pencil size={16} />
                             Edit
                           </Link>
-                          <ConfirmForm
-                            action={deleteVehicleItem.bind(null, vehicle.id, item.id)}
-                            undo={{ action: restoreVehicleItem.bind(null, item.id) }}
-                            confirmText={`Move "${item.title}" to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash.`}
-                            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
-                          >
-                            <Trash2 size={16} />
-                            Delete
-                          </ConfirmForm>
+                          <DetailOverflowMenu label={`More actions for ${item.title}`}>
+                            <ConfirmForm
+                              action={deleteVehicleItem.bind(null, vehicle.id, item.id)}
+                              undo={{ action: restoreVehicleItem.bind(null, item.id) }}
+                              confirmText={`Delete "${item.title}"? Its documents are kept, and you can restore it within 30 days from Settings → Household → Recently deleted.`}
+                              className={menuItemClass({ destructive: true })}
+                            >
+                              <Trash2 size={16} />
+                              Delete
+                            </ConfirmForm>
+                          </DetailOverflowMenu>
                         </>
                       )}
                     </div>
@@ -325,16 +404,18 @@ export default async function VehicleDetailPage({
                     </p>
                   )}
 
-                  <div className="mt-4 border-t border-border pt-4">
-                    <h3 className="mb-2 text-sm font-medium">Documents</h3>
-                    <DocumentList kind="VEHICLE_ITEM" ownerId={item.id} documents={item.documents} trashedLinks={trashedLinks.get(item.id)} />
-                    {canWrite && (
-                      <div className="mt-3">
-                        <DocumentUploadForm action={addDocumentAction.bind(null, "VEHICLE_ITEM", item.id)} />
+                  {(canWrite || item.documents.length > 0) && (
+                    <div className="mt-4 space-y-2 border-t border-border pt-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="text-sm font-medium">Documents</h3>
+                        {canWrite && <AddDocumentButton action={addDocumentAction.bind(null, "VEHICLE_ITEM", item.id)} recordName={item.title} />}
                       </div>
-                    )}
-                  </div>
-                </div>
+                      {item.documents.length > 0 && (
+                        <DocumentList kind="VEHICLE_ITEM" ownerId={item.id} documents={item.documents} trashedLinks={trashedLinks.get(item.id)} />
+                      )}
+                    </div>
+                  )}
+                </Card>
               );
             })}
           </div>
@@ -348,6 +429,6 @@ export default async function VehicleDetailPage({
         updatedAt={vehicle.updatedAt}
         memberCount={memberCount}
       />
-    </div>
+    </PageShell>
   );
 }

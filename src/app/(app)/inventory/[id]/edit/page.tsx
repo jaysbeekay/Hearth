@@ -7,6 +7,9 @@ import { InventoryItemForm } from "@/components/InventoryItemForm";
 import { auth } from "@/lib/auth";
 import { redirectIfReadOnly } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { PageShell } from "@/components/ui/PageShell";
+import { Card } from "@/components/ui/Card";
+import { inTrashLabel } from "@/lib/trashWording";
 
 export const metadata: Metadata = { title: "Edit Item" };
 
@@ -31,15 +34,17 @@ export default async function EditInventoryItemPage({
       select: { id: true, description: true, deletedAt: true },
       orderBy: { description: "asc" },
     })
-  ).map((p) => ({ id: p.id, description: p.deletedAt ? `${p.description} (in Trash)` : p.description }));
+  ).map((p) => ({ id: p.id, description: p.deletedAt ? inTrashLabel(p.description) : p.description }));
 
   return (
-    <div className="max-w-xl space-y-6">
+    <PageShell width="form">
       <div>
         <BackLink href={`/inventory/${id}`} label={item.label} />
       </div>
-      <h1 className="text-2xl font-semibold">Edit item</h1>
-      <InventoryItemForm action={updateInventoryItem.bind(null, id)} item={item} products={products} />
-    </div>
+      <h1 className="text-2xl font-medium">Edit item</h1>
+      <Card>
+        <InventoryItemForm cancelHref={`/inventory/${id}`} action={updateInventoryItem.bind(null, id)} item={item} products={products} />
+      </Card>
+    </PageShell>
   );
 }

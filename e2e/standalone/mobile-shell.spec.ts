@@ -11,6 +11,11 @@ test.beforeEach(async ({ page }) => {
   });
 
   await page.addInitScript(() => {
+    // Fixture flags ("hearth-test-*") come from the page URL's query string,
+    // set by reloadWithTestFlags. Not localStorage: Chromium sometimes loses a
+    // file:// localStorage write made just before a reload (about 1 in 10),
+    // and the reloaded page then starts with the default fixtures.
+    const testFlag = (key: string) => new URLSearchParams(location.search).get(key);
     const preferences = new Map<string, string>();
     const sqliteRuns: { statement: string; values: unknown[]; transaction?: boolean }[] = [];
     const scheduledNotifications: unknown[] = [];
@@ -253,13 +258,13 @@ test.beforeEach(async ({ page }) => {
           uploaded_at: "2099-01-01T00:00:00.000Z",
         },
         // #455 — Documents for the Trash tests, picked by
-        // localStorage "hearth-test-doc-versions" (see docVersionRows).
-        ...docVersionRows(localStorage.getItem("hearth-test-doc-versions") ?? ""),
+        // the "hearth-test-doc-versions" flag (see docVersionRows).
+        ...docVersionRows(testFlag("hearth-test-doc-versions") ?? ""),
         // #353 — Broadband Plan's paperwork: the prior Term's (linked to
         // term-1), the current policy, and a newer receipt. Only for the
         // tests that ask (withContractDocuments), since the document tests
         // count what's listed.
-        ...(localStorage.getItem("hearth-test-contract-documents") !== "1" ? [] : [
+        ...(testFlag("hearth-test-contract-documents") !== "1" ? [] : [
           ["document-contract-2097", "broadband-2097.pdf", "POLICY", "2097-07-01T00:00:00.000Z"],
           ["document-contract-2098", "broadband-2098.pdf", "POLICY", "2098-07-01T00:00:00.000Z"],
           ["document-contract-receipt", "broadband-receipt.pdf", "RECEIPT", "2099-01-02T00:00:00.000Z"],
@@ -443,9 +448,9 @@ test.beforeEach(async ({ page }) => {
       const sql = statement.trim();
       // Tenancy edits and deletes land in the rows, so a resync of local
       // Reminders sees them (#388); a deleted contract goes too (#455), and
-      // so does archiving a Vehicle or Property (#355).
+      // so does archiving a Vehicle or Property (#355); a saved contract's link (#456).
       const rowUpdate = /^UPDATE (rental_agreements|contracts|vehicles|properties) SET (.+) WHERE id = \?$/i.exec(sql);
-      if (rowUpdate && (rowUpdate[1] !== "contracts" || /deleted_at = \?/.test(rowUpdate[2]))) {
+      if (rowUpdate && (rowUpdate[1] !== "contracts" || /deleted_at = \?|vehicle_id = \?/.test(rowUpdate[2]))) {
         const table = rowUpdate[1];
         const id = values[values.length - 1];
         const columns = [...rowUpdate[2].matchAll(/(\w+) = \?/g)].map((m) => m[1]);
@@ -457,6 +462,18 @@ test.beforeEach(async ({ page }) => {
           });
           if (row.deleted_at) rowsByTable[table] = rows.filter((candidate) => candidate !== row);
         }
+      }
+      // A saved contract lands in the rows, so the next render reads back what the form wrote (#456).
+      const contractInsert = /^INSERT INTO contracts \(([^)]+)\) VALUES \(([^)]+)\)$/i.exec(sql);
+      if (contractInsert) {
+        const columns = contractInsert[1].split(",").map((column) => column.trim());
+        const placeholders = contractInsert[2].split(",").map((placeholder) => placeholder.trim());
+        let next = 0;
+        const row: Record<string, unknown> = {};
+        columns.forEach((column, index) => {
+          row[column] = placeholders[index] === "?" ? values[next++] : Number(placeholders[index]);
+        });
+        (rowsByTable.contracts as Record<string, unknown>[]).push(row);
       }
       if (/^(UPDATE|DELETE FROM|INSERT( OR REPLACE)? INTO) documents\b/i.test(sql)) applyDocumentStatement(sql, values);
       if (/INSERT OR REPLACE INTO local_profile/i.test(statement)) {
@@ -523,7 +540,7 @@ test.beforeEach(async ({ page }) => {
       throw new Error(`Mock: unhandled documents statement: ${sql}`);
     }
 
-    (window as Window & { Capacitor?: unknown; __hearthStandaloneTest?: unknown }).__hearthStandaloneTest = { sqliteRuns, scheduledNotifications, fileWrites, fileDeletes };
+    (window as Window & { Capacitor?: unknown; __hearthStandaloneTest?: unknown }).__hearthStandaloneTest = { sqliteRuns, scheduledNotifications, fileWrites, fileDeletes, rowsByTable };
     (window as Window & { Capacitor?: unknown; __hearthStandaloneTest?: unknown }).Capacitor = {
       getPlatform: () => "ios",
       Plugins: {
@@ -569,16 +586,16 @@ test.beforeEach(async ({ page }) => {
           // "hearth-test-missing-files": comma-separated storage keys whose
           // file is gone (e.g. the app died mid-purge).
           stat: async (args: { path?: string }) => {
-            const missing = (localStorage.getItem("hearth-test-missing-files") ?? "").split(",").filter(Boolean);
+            const missing = (testFlag("hearth-test-missing-files") ?? "").split(",").filter(Boolean);
             if (missing.some((key) => args.path?.endsWith(`/${key}`))) throw new Error("File does not exist");
             // "hearth-test-stat-error": stat fails for a reason other than "not found".
-            if (localStorage.getItem("hearth-test-stat-error")) throw new Error("Disk error");
+            if (testFlag("hearth-test-stat-error")) throw new Error("Disk error");
             return { type: "file", size: 1024 };
           },
           deleteFile: async (args: { directory?: string; path?: string }) => {
-            const delay = Number(localStorage.getItem("hearth-test-delete-file-delay") ?? 0);
+            const delay = Number(testFlag("hearth-test-delete-file-delay") ?? 0);
             if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
-            const failure = localStorage.getItem("hearth-test-delete-file-error");
+            const failure = testFlag("hearth-test-delete-file-error");
             if (failure === "missing") throw new Error("File does not exist");
             if (failure === "other") throw new Error("Disk error");
             fileDeletes.push(args);
@@ -1059,6 +1076,144 @@ test("standalone inventory item links to a warranty, and the warranty lists it b
   await expect(page.locator(".list").getByRole("button", { name: /Camera/ })).toBeVisible();
 });
 
+test("standalone Upcoming has no history and colours only Due dates, never a Trip date (#476)", async ({ page }) => {
+  // The fixtures are dated 2099: fix the clock at 2099-09-06 and add rows around it.
+  await page.addInitScript(() => {
+    const rows = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest.rowsByTable;
+    const updated_at = "2099-01-01T00:00:00.000Z";
+    const contract = { category: "OTHER", status: "ACTIVE", end_date: "2099-09-01", cost: 20, currency: "AUD", billing_frequency: "MONTHLY", reminder_days_before: "30,14,7,1", updated_at };
+    rows.contracts.push(
+      { ...contract, id: "contract-2", title: "Gym Membership", renewal_type: "MANUAL_RENEWAL" },
+      { ...contract, id: "contract-3", title: "Fixed Hire", renewal_type: "FIXED_TERM" },
+      { ...contract, id: "contract-4", title: "Auto Streaming", renewal_type: "AUTO_RENEW" },
+    );
+    rows.products.push({ id: "product-2", description: "Old Kettle", warranty_end_date: "2099-09-01", currency: "AUD", reminder_days_before: "30,14,7,1", updated_at });
+    rows.vehicles.push({ id: "vehicle-2", label: "Old Ute", rego_expiry: "2099-09-01", reminder_days_before: "30,14,7,1", updated_at });
+    rows.trip_segments.push(
+      { id: "trip-segment-2", trip_id: "trip-1", type: "ACCOMMODATION", title: "Tokyo Hotel", start_date: "2099-09-05", end_date: "2099-09-13", currency: "AUD", updated_at },
+      { id: "trip-segment-3", trip_id: "trip-1", type: "FLIGHT", title: "Flight to Bali", start_date: "2099-09-09", currency: "AUD", updated_at },
+      // Began yesterday and ends today: still in progress.
+      { id: "trip-segment-4", trip_id: "trip-1", type: "CAR_RENTAL", title: "Kyoto Car", start_date: "2099-09-05", end_date: "2099-09-06", currency: "AUD", updated_at },
+      // Began yesterday with no end date: over.
+      { id: "trip-segment-5", trip_id: "trip-1", type: "ACTIVITY", title: "Sumo Tickets", start_date: "2099-09-05", currency: "AUD", updated_at },
+    );
+    // Due-soon parity with the web Due policy (window = largest Reminder threshold).
+    const soon = { ...contract, end_date: "2099-09-16", renewal_type: "MANUAL_RENEWAL" };
+    rows.contracts.push(
+      { ...soon, id: "contract-5", title: "Due Insurance" },
+      { ...soon, id: "contract-6", title: "Cancelled Phone", status: "CANCELLED" },
+      { ...soon, id: "contract-7", title: "Renewing Music", renewal_type: "AUTO_RENEW" },
+      { ...soon, id: "contract-8", title: "Short Window Plan", reminder_days_before: "7,1" },
+      { ...soon, id: "contract-9", title: "Unreviewed Scan", extraction_pending: 1 },
+    );
+  });
+  await page.clock.setFixedTime(new Date("2099-09-06T12:00:00"));
+  await reloadStandalone(page);
+
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="calendar"]').click();
+  const card = (text: string) => page.locator(".record-card").filter({ hasText: text });
+
+  // Past events are not shown, as on the web: a segment that began 5 days
+  // ago, and Contract, Warranty and Vehicle dates already past. The Trip
+  // itself is never listed, only its segments.
+  for (const gone of ["Flight to Tokyo", "Japan Holiday", "Gym Membership", "Fixed Hire", "Auto Streaming", "Old Kettle", "Old Ute"]) {
+    await expect(card(gone)).toHaveCount(0);
+  }
+
+  // A stay that began yesterday and ends next week is still ahead: it sorts
+  // at today but says In progress and keeps its real start date. Neutral.
+  const stay = card("Tokyo Hotel");
+  await expect(stay).toContainText("In progress");
+  await expect(stay).toContainText("Since 2099-09-05");
+  await expect(stay).not.toHaveClass(/warning-card|danger-card/);
+  await expect(card("Kyoto Car")).toContainText("In progress");
+  await expect(card("Sumo Tickets")).toHaveCount(0);
+
+  // In-progress segments come first, in a stable order, before later dates.
+  const titles = await page.locator(".record-card h3").allTextContents();
+  expect(titles.indexOf("Tokyo Hotel")).toBeLessThan(titles.indexOf("Flight to Bali"));
+  expect(titles.indexOf("Kyoto Car")).toBeLessThan(titles.indexOf("Flight to Bali"));
+
+  // Due soon only for an eligible Due entry inside its own Reminder window.
+  await expect(card("Due Insurance")).toHaveClass(/warning-card/);
+  await expect(card("Cancelled Phone")).toHaveCount(0);
+  for (const neutral of ["Renewing Music", "Short Window Plan", "Unreviewed Scan"]) {
+    await expect(card(neutral)).toContainText("In 10d");
+    await expect(card(neutral)).not.toHaveClass(/warning-card|danger-card/);
+  }
+
+  // A segment starting in 3 days is a neutral date, not Due soon.
+  const soon = card("Flight to Bali");
+  await expect(soon).toContainText("In 3d");
+  await expect(soon).not.toHaveClass(/warning-card|danger-card/);
+  await expect(soon.locator(".badge").first()).not.toHaveClass(/warning|danger/);
+
+  // Overdue stays visible where the shell shows it: Needs attention.
+  await page.locator(".bottom-nav").getByRole("button", { name: "Contracts" }).click();
+  await page.getByRole("button", { name: "Needs attention" }).click();
+  await expect(card("Gym Membership")).toHaveCount(1);
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-record-type="vehicles"]').click();
+  await page.getByRole("button", { name: "Needs attention" }).click();
+  await expect(card("Old Ute")).toHaveCount(1);
+
+  // No Reminder card or count is made for a Trip.
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="reminders"]').click();
+  await expect(card("Japan Holiday")).toHaveCount(0);
+});
+
+test.describe("standalone Upcoming across a DST change and a dense itinerary (#476)", () => {
+  // Sydney's clocks go forward at 02:00 on Sunday 2099-10-04 (a 23-hour day).
+  test.use({ timezoneId: "Australia/Sydney" });
+
+  test("counts whole days across DST and says when the list is capped", async ({ page }) => {
+    await page.addInitScript(() => {
+      const rows = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest.rowsByTable;
+      const updated_at = "2099-01-01T00:00:00.000Z";
+      rows.trip_segments.push({ id: "dst-1", trip_id: "trip-1", type: "FLIGHT", title: "Across DST", start_date: "2099-10-05", currency: "AUD", updated_at });
+      for (let i = 0; i < 85; i += 1) {
+        rows.trip_segments.push({ id: `dense-${String(i).padStart(2, "0")}`, trip_id: "trip-1", type: "ACTIVITY", title: `Dense ${String(i).padStart(2, "0")}`, start_date: "2099-10-10", currency: "AUD", updated_at });
+      }
+    });
+    // Just before midnight, the night before the change.
+    await page.clock.setFixedTime(new Date("2099-10-03T23:30:00+10:00"));
+    await reloadStandalone(page);
+    await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+    await page.locator('#mobile-view button[data-nav="calendar"]').click();
+
+    await expect(page.locator(".record-card").filter({ hasText: "Across DST" })).toContainText("In 2d");
+    await expect(page.locator(".record-card")).toHaveCount(80);
+    await expect(page.locator(".calendar-more")).toContainText(/Showing the next 80 of \d+ dates/);
+    // Same-day entries keep a stable order (label, then title).
+    const dense = (await page.locator(".record-card h3").allTextContents()).filter((t) => t.startsWith("Dense"));
+    expect(dense).toEqual([...dense].sort());
+  });
+});
+
+test.describe("standalone Upcoming across a DST fall-back (#476)", () => {
+  // Los Angeles' clocks go back at 02:00 on Sunday 2099-11-01 (a 25-hour day).
+  test.use({ timezoneId: "America/Los_Angeles" });
+
+  test("counts calendar days across a 25-hour day, as the web does", async ({ page }) => {
+    await page.addInitScript(() => {
+      const rows = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest.rowsByTable;
+      const updated_at = "2099-01-01T00:00:00.000Z";
+      rows.trip_segments.push({ id: "fallback-1", trip_id: "trip-1", type: "FLIGHT", title: "After fall-back", start_date: "2099-11-09", currency: "AUD", updated_at });
+      // Exactly 7 calendar days away, with a 7-day window: Due soon on the web.
+      rows.contracts.push({ id: "fallback-contract", title: "Seven Day Plan", category: "OTHER", status: "ACTIVE", renewal_type: "MANUAL_RENEWAL", end_date: "2099-11-07", cost: 20, currency: "AUD", billing_frequency: "MONTHLY", reminder_days_before: "7,1", updated_at });
+    });
+    await page.clock.setFixedTime(new Date("2099-10-31T23:30:00-07:00"));
+    await reloadStandalone(page);
+    await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+    await page.locator('#mobile-view button[data-nav="calendar"]').click();
+
+    await expect(page.locator(".record-card").filter({ hasText: "After fall-back" })).toContainText("In 9d");
+    await expect(page.locator(".record-card").filter({ hasText: "Seven Day Plan" })).toHaveClass(/warning-card/);
+  });
+});
+
 test("standalone vehicle service-due date feeds the detail page, calendar and reminders", async ({ page }) => {
   await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
   await page.locator('#mobile-view button[data-record-type="vehicles"]').click();
@@ -1070,6 +1225,153 @@ test("standalone vehicle service-due date feeds the detail page, calendar and re
   await expect(
     page.locator(".record-card").filter({ hasText: "Family Car" }).filter({ hasText: "Service" }),
   ).toHaveCount(1);
+});
+
+// #456 - the Category used to be free text; a saved value that isn't a Category survives an edit.
+test("standalone contract form keeps a saved Category that isn't in the list (#456)", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "Contracts" }).click();
+  await page.getByRole("button", { name: /Broadband Plan/ }).click();
+  await page.locator('button[data-form-type="contracts"][data-id]').first().click();
+  await expect(page.locator('select[name="category"]')).toHaveValue("UTILITIES");
+});
+
+// #456 - a Contract that Covers a Vehicle supplies its insurance date, as on the web.
+test("standalone Add insurance opens the contract form linked to the vehicle, and a Covering Contract supplies the date (#456)", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-record-type="vehicles"]').click();
+  await page.getByRole("button", { name: /Family Car/ }).click();
+  // With no covering Contract the typed-in date stays, with its hint.
+  await expect(page.getByText(/Add the policy as a contract to track cost and documents/).first()).toBeVisible();
+
+  await page.getByRole("button", { name: "Add insurance" }).click();
+  await expect(page.locator('select[name="category"]')).toHaveValue("CAR_INSURANCE");
+  await expect(page.locator('select[name="vehicleId"]')).toHaveValue("vehicle-1");
+  await page.locator('input[name="title"]').fill("Allianz policy");
+  await page.locator('input[name="provider"]').fill("Allianz");
+  await page.locator('input[name="endDate"]').fill("2099-09-09");
+  await page.locator('form[data-save-type="contracts"]').getByRole("button", { name: "Save" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Saved");
+  const insert = (await sqliteRuns(page)).find((run) => run.statement.startsWith("INSERT INTO contracts"));
+  expect(insert?.values).toContain("CAR_INSURANCE");
+  expect(insert?.values).toContain("vehicle-1");
+
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-record-type="vehicles"]').click();
+  await page.getByRole("button", { name: /Family Car/ }).click();
+  await expect(page.getByText(/From Allianz policy/).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add insurance" })).toHaveCount(0);
+
+  // The Vehicle has no Reminder of its own for insurance: the Contract's stands in.
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="reminders"]').click();
+  await expect(
+    page.locator(".record-card").filter({ hasText: "Family Car" }).filter({ hasText: "Insurance" }),
+  ).toHaveCount(0);
+  await expect(
+    page.locator(".record-card").filter({ hasText: "Family Car" }).filter({ hasText: "Rego" }),
+  ).toHaveCount(1);
+});
+
+// #487 review - an ended fixed-term policy is a lapse: the Vehicle is Overdue from its end date.
+test("standalone a Vehicle whose fixed-term Covering Contract has ended needs attention (#487)", async ({ page }) => {
+  await page.addInitScript(() => {
+    const rows = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest.rowsByTable;
+    const updated_at = "2099-01-01T00:00:00.000Z";
+    rows.vehicles.push(
+      { id: "vehicle-8", label: "Running Ute", reminder_days_before: "30,14,7,1", created_at: updated_at, updated_at },
+      { id: "vehicle-9", label: "Lapsed Ute", reminder_days_before: "30,14,7,1", created_at: updated_at, updated_at },
+    );
+    const policy = { category: "CAR_INSURANCE", provider: "Allianz", status: "ACTIVE", renewal_type: "FIXED_TERM", currency: "AUD", reminder_days_before: "30,14,7,1", created_at: updated_at, updated_at };
+    rows.contracts.push(
+      { ...policy, id: "contract-running", title: "Running policy", vehicle_id: "vehicle-8", end_date: "2099-12-01" },
+      { ...policy, id: "contract-lapsed", title: "Lapsed policy", vehicle_id: "vehicle-9", end_date: "2099-09-01" },
+    );
+  });
+  await page.clock.setFixedTime(new Date("2099-09-06T12:00:00"));
+  await reloadStandalone(page);
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-record-type="vehicles"]').click();
+  await page.getByRole("button", { name: "Needs attention" }).click();
+  const card = (text: string) => page.locator(".record-card").filter({ hasText: text });
+  await expect(card("Lapsed Ute")).toHaveCount(1);
+  await expect(card("Running Ute")).toHaveCount(0);
+});
+
+// #476 + #456 - one Reminder stream per date across Upcoming, Needs attention
+// and local Reminders: a Covered rego/insurance date is listed once, as the
+// Covering Contract's own event; a Contract that doesn't Cover leaves the
+// Vehicle's own date in place.
+test("standalone Upcoming lists a Covered vehicle date once, as the Contract's (#476, #456)", async ({ page }) => {
+  await page.addInitScript(() => {
+    const rows = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest.rowsByTable;
+    const updated_at = "2099-01-01T00:00:00.000Z";
+    // Own dates inside the Due-soon window, so a leaked Vehicle event would also be coloured.
+    const ute = { rego_expiry: "2099-09-12", insurance_expiry: "2099-09-14", reminder_days_before: "30,14,7,1", created_at: updated_at, updated_at };
+    rows.vehicles.push(
+      { ...ute, id: "vehicle-active", label: "Active Ute" },
+      { ...ute, id: "vehicle-cancelled", label: "Cancelled Ute" },
+      { ...ute, id: "vehicle-review", label: "Review Ute" },
+      { ...ute, id: "vehicle-ended", label: "Ended Ute" },
+      { ...ute, id: "vehicle-unlinked", label: "Unlinked Ute" },
+    );
+    const policy = { category: "CAR_INSURANCE", provider: "Allianz", status: "ACTIVE", renewal_type: "MANUAL_RENEWAL", end_date: "2099-09-20", currency: "AUD", reminder_days_before: "30,14,7,1", created_at: updated_at, updated_at };
+    rows.contracts.push(
+      { ...policy, id: "cover-active", title: "Active policy", vehicle_id: "vehicle-active" },
+      { ...policy, id: "cover-cancelled", title: "Cancelled policy", vehicle_id: "vehicle-cancelled", status: "CANCELLED" },
+      { ...policy, id: "cover-review", title: "Review policy", vehicle_id: "vehicle-review", extraction_pending: 1 },
+      // A fixed-term policy that ended 5 days ago: the Vehicle is uncovered and Overdue from that day (#487).
+      { ...policy, id: "cover-ended", title: "Ended policy", vehicle_id: "vehicle-ended", renewal_type: "FIXED_TERM", end_date: "2099-09-01" },
+      // Unlinked from its Vehicle: it Covers nothing, so the manual date resumes.
+      { ...policy, id: "cover-unlinked", title: "Unlinked policy", vehicle_id: null },
+    );
+    rows.trip_segments.push({ id: "trip-segment-cover", trip_id: "trip-1", type: "ACCOMMODATION", title: "Covers Hotel", start_date: "2099-09-05", end_date: "2099-09-08", currency: "AUD", updated_at });
+  });
+  await page.clock.setFixedTime(new Date("2099-09-06T12:00:00"));
+  await reloadStandalone(page);
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="calendar"]').click();
+  const card = (text: string) => page.locator(".record-card").filter({ hasText: text });
+  const vehicleEvent = (label: string, event: string) => card(label).filter({ hasText: event });
+
+  // Active cover: only the Contract's event, Due soon by its own window.
+  await expect(card("Active policy")).toHaveCount(1);
+  await expect(card("Active policy")).toContainText("Contract ends");
+  await expect(card("Active policy")).toHaveClass(/warning-card/);
+  await expect(vehicleEvent("Active Ute", "Insurance expiry")).toHaveCount(0);
+  // Rego has no Covering Contract, so the Vehicle's own date stays.
+  await expect(vehicleEvent("Active Ute", "Rego expiry")).toHaveCount(1);
+  await expect(vehicleEvent("Active Ute", "Rego expiry")).toContainText("In 6d");
+
+  // Cancelled, under review or unlinked: no Cover, so the Vehicle's own date is listed.
+  for (const label of ["Cancelled Ute", "Review Ute", "Unlinked Ute"]) {
+    await expect(vehicleEvent(label, "Insurance expiry")).toHaveCount(1);
+    await expect(vehicleEvent(label, "Insurance expiry")).toHaveClass(/warning-card/);
+  }
+  await expect(card("Cancelled policy")).toHaveCount(0);
+  await expect(card("Review policy")).not.toHaveClass(/warning-card|danger-card/);
+
+  // Ended fixed-term cover: the lapse is Overdue, so it is in Needs attention, not Upcoming.
+  await expect(vehicleEvent("Ended Ute", "Insurance expiry")).toHaveCount(0);
+  await expect(card("Ended policy")).toHaveCount(0);
+
+  // An in-progress Trip segment sits alongside, neutral.
+  await expect(card("Covers Hotel")).toContainText("In progress");
+  await expect(card("Covers Hotel")).not.toHaveClass(/warning-card|danger-card/);
+
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-record-type="vehicles"]').click();
+  await page.getByRole("button", { name: "Needs attention" }).click();
+  await expect(card("Ended Ute")).toHaveCount(1);
+  await expect(card("Ended Ute")).toContainText("Vehicle overdue");
+
+  // Local Reminders: the Covered Vehicle has none of its own for insurance; the others do.
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="reminders"]').click();
+  await expect(card("Active Ute").filter({ hasText: "Insurance" })).toHaveCount(0);
+  await expect(card("Active Ute").filter({ hasText: "Rego" })).toHaveCount(1);
+  for (const label of ["Cancelled Ute", "Review Ute", "Unlinked Ute"]) {
+    await expect(card(label).filter({ hasText: "Insurance" })).toHaveCount(1);
+  }
 });
 
 test("standalone schedules a local Reminder for a tenancy's lease end (#388)", async ({ page }) => {
@@ -1201,6 +1503,16 @@ async function withContractDocuments(page: import("@playwright/test").Page) {
   await reloadWithTestFlags(page, { "hearth-test-contract-documents": "1" });
 }
 
+// Reloads the shell with fixture flags for the mock, kept in the URL's query
+// string (on top of any set earlier) so they reach the reloaded page reliably.
+async function reloadWithTestFlags(page: import("@playwright/test").Page, flags: Record<string, string>) {
+  const url = new URL(page.url());
+  for (const [key, value] of Object.entries(flags)) url.searchParams.set(key, value);
+  await page.goto(url.toString());
+  await page.getByRole("button", { name: "Use on this device" }).click();
+  await expect(page.locator("#standalone-screen")).toBeVisible();
+}
+
 async function openBroadbandRenewal(page: import("@playwright/test").Page) {
   await page.locator(".bottom-nav").getByRole("button", { name: "Contracts" }).click();
   await page.getByRole("button", { name: /Broadband Plan/ }).click();
@@ -1298,43 +1610,6 @@ test("standalone Previous terms opens the prior Term's document (#353)", async (
 // the Trash entry is purged, and the chain survives a trashed version.
 type ShellPage = import("@playwright/test").Page;
 
-async function reloadOnce(page: ShellPage) {
-  await page.reload();
-  await page.getByRole("button", { name: "Use on this device" }).click();
-  await expect(page.locator("#standalone-screen")).toBeVisible();
-}
-
-// The mock reads its "hearth-test-*" fixture flags from localStorage while
-// the page starts. Chromium sometimes drops file:// localStorage across a
-// reload (seen ~1 reload in 6: the reloaded page has none of the flags, so it
-// starts with the default fixtures and the assertion that follows fails or
-// times out, as in #496's CI). So every reload re-sets the flags this test
-// has asked for, checks the reloaded page really has them, and redoes both if
-// not; it fails loudly rather than run against the wrong fixtures.
-const testFlags = new WeakMap<ShellPage, Record<string, string>>();
-
-async function reloadStandalone(page: ShellPage) {
-  const flags = testFlags.get(page) ?? {};
-  const keys = Object.keys(flags);
-  for (let attempt = 1; attempt <= 5; attempt += 1) {
-    if (keys.length > 0) {
-      await page.evaluate((entries) => {
-        for (const [key, value] of Object.entries(entries)) localStorage.setItem(key, value);
-      }, flags);
-    }
-    await reloadOnce(page);
-    if (keys.length === 0) return;
-    const seen = await page.evaluate((names) => names.map((key) => localStorage.getItem(key)), keys);
-    if (seen.every((value, i) => value === flags[keys[i]])) return;
-  }
-  throw new Error(`Test flags did not survive the reload: ${JSON.stringify(flags)}`);
-}
-
-async function reloadWithTestFlags(page: ShellPage, flags: Record<string, string>) {
-  testFlags.set(page, { ...(testFlags.get(page) ?? {}), ...flags });
-  await reloadStandalone(page);
-}
-
 // `now` fixes the device clock before the reload, for the purge tests (the
 // fixtures are dated 2099, so with the real clock nothing is ever purged).
 async function withDocumentVersions(page: ShellPage, mode: string, options: { now?: string; deleteFileError?: string; deleteFileDelay?: string } = {}) {
@@ -1382,7 +1657,7 @@ test("standalone Delete moves a Document to Trash with an Undo and keeps its fil
   const status = page.locator("#standalone-status");
   await expect(status).toHaveAttribute("role", "status");
   await expect(status).toHaveAttribute("aria-live", "polite");
-  await expect(status).toContainText('"insurance.pdf" moved to Trash.');
+  await expect(status).toContainText('"insurance.pdf" deleted.');
   await expect(card).toHaveCount(0);
   let state = await shellTestState(page);
   expect(state.runs.some((run) => run.statement.startsWith("UPDATE documents SET deleted_at = ?") && run.values.includes("document-1"))).toBe(true);
@@ -1476,7 +1751,7 @@ test("standalone deleting a record puts its Documents in Trash and says so (#455
   });
   await page.locator('button[data-delete-record="contracts"][data-id="contract-1"]').click();
   await expect(page.locator("#standalone-status")).toContainText("Deleted.");
-  expect(message).toContain("Trash for 30 days");
+  expect(message).toContain("kept for 30 days");
   const state = await shellTestState(page);
   const trashed = state.runs.filter((run) => run.statement.startsWith("UPDATE documents SET deleted_at = ?")).map((run) => run.values[1]);
   expect(trashed.sort()).toEqual(["version-1", "version-2", "version-3"]);
@@ -1487,7 +1762,7 @@ test("standalone Undo refuses to restore a Document under a deleted record (#455
   await withDocumentVersions(page, "1");
   await openBroadbandPlan(page);
   await documentCard(page, "lease-v3.pdf").getByRole("button", { name: "Delete" }).click();
-  await expect(page.locator("#standalone-status")).toContainText("moved to Trash");
+  await expect(page.locator("#standalone-status")).toContainText("deleted.");
   page.once("dialog", (dialog) => void dialog.accept());
   await page.locator('button[data-delete-record="contracts"][data-id="contract-1"]').click();
   await expect(page.locator("#standalone-status")).toContainText("Deleted.");

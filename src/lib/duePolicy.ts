@@ -113,6 +113,13 @@ export type DueRecord =
        */
       coveredFields?: VehicleDueField[];
       /**
+       * #487 review — the end date of a Covered field whose Covering Contract
+       * is fixed-term. Such a Contract just ends ("Ended", never Due), so once
+       * that date has passed the Vehicle is uncovered: the field gets an
+       * Overdue entry from that date instead of staying silent.
+       */
+      fixedTermCoverEnds?: Partial<Record<VehicleDueField, DateInput>>;
+      /**
        * Set once the household no longer has the Vehicle (Archived, #355):
        * it has no Due entries, so no Reminders, and drops out of Needs
        * attention, Upcoming and iCal. Any non-null value counts.
@@ -397,7 +404,12 @@ function vehicleEntries(record: Extract<DueRecord, { kind: "vehicle" }>, ctx: Du
   const window = dueSoonWindow(record.reminderDaysBefore, ctx.defaultReminderDays);
   const entries: DueEntry[] = [];
   for (const { field, due, passed } of VEHICLE_FIELDS) {
-    if (record.coveredFields?.includes(field)) continue;
+    if (record.coveredFields?.includes(field)) {
+      const ended = toDay(record.fixedTermCoverEnds?.[field]);
+      const daysLeft = ended ? daysBetween(ctx.today, ended) : 0;
+      if (ended && daysLeft < 0) entries.push(makeEntry(field, ended, daysLeft, "overdue", { key: passed, days: -daysLeft }));
+      continue;
+    }
     const date = toDay(record[field]);
     if (!date) continue;
     const daysLeft = daysBetween(ctx.today, date);

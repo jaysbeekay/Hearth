@@ -19,7 +19,7 @@ import { createPropertyValuation, deletePropertyValuation, restorePropertyValuat
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailField as Detail } from "@/components/DetailField";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
-import { DocumentUploadForm } from "@/components/DocumentUploadForm";
+import { AddDocumentButton } from "@/components/AddDocumentButton";
 import { DocumentList } from "@/components/DocumentList";
 import { getTrashedVersionLinks } from "@/lib/documents/trashedVersionLinks";
 import { RecordMeta } from "@/components/RecordMeta";
@@ -46,6 +46,12 @@ import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
 import { ReminderHealthCard } from "@/components/ReminderHealthCard";
 import { getReminderHealth } from "@/lib/notifications/health";
+import { Card } from "@/components/ui/Card";
+import { Pill } from "@/components/ui/Pill";
+import { Banner } from "@/components/ui/Banner";
+import { buttonClass, menuItemClass, emptyStateClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
+import { RememberRecentRecord } from "@/components/RememberRecentRecord";
 
 const ITEM_ICONS: Record<string, LucideIcon> = {
   MAINTENANCE: Wrench,
@@ -119,7 +125,8 @@ export default async function PropertyDetailPage({
   });
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="detail">
+      <RememberRecentRecord kind="property" id={id} />
       <div>
         <BackLink href="/home" label="Properties" />
       </div>
@@ -129,17 +136,17 @@ export default async function PropertyDetailPage({
           <p className="text-sm text-muted">
             {formatPropertyAddress(property) || "No address set"}
           </p>
-          <h1 className="text-2xl font-semibold">{property.label}</h1>
-          <span className="mt-1 inline-block rounded-full bg-muted/10 px-2 py-0.5 text-xs font-medium text-muted">
+          <h1 className="text-2xl font-medium">{property.label}</h1>
+          <Pill className="mt-1">
             {OCCUPANCY_STATUS_LABELS[property.occupancyStatus] ?? property.occupancyStatus}
-          </span>
+          </Pill>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {canWrite && (
             <>
               <Link
                 href={`/home/${property.id}/edit`}
-                className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+                className={buttonClass("secondary")}
               >
                 <Pencil size={16} />
                 Edit
@@ -151,14 +158,14 @@ export default async function PropertyDetailPage({
                     noun="property"
                     action={archiveProperty.bind(null, property.id)}
                     undo={unarchiveProperty.bind(null, property.id)}
-                    className="flex min-h-11 w-full items-center gap-2 px-4 py-2 text-sm hover:bg-hover"
+                    className={menuItemClass()}
                   />
                 )}
                 <ConfirmForm
                   action={deleteProperty.bind(null, property.id)}
                   undo={{ action: restoreProperty.bind(null, property.id), href: `/home/${property.id}` }}
-                  confirmText="Move this property to Trash? Its maintenance records and documents are kept, and you can restore it within 30 days from Settings → Trash."
-                  className="flex w-full items-center gap-2 px-4 py-2 text-sm text-danger hover:bg-danger/10"
+                  confirmText="Delete this property? Its maintenance records and documents are kept, and you can restore it within 30 days from Settings → Household → Recently deleted."
+                  className={menuItemClass({ destructive: true })}
                   offline={{ entity: "property", entityId: property.id, label: `Delete property: ${property.label}` }}
                 >
                   <Trash2 size={16} />
@@ -182,7 +189,7 @@ export default async function PropertyDetailPage({
               mode="restore"
               noun="property"
               action={unarchiveProperty.bind(null, property.id)}
-              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+              className={buttonClass("secondary")}
             />
           )}
         </ArchivedNotice>
@@ -210,10 +217,10 @@ export default async function PropertyDetailPage({
       )}
 
       {property.notes && (
-        <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+        <Card>
           <h2 className="mb-2 font-medium">Notes</h2>
           <p className="whitespace-pre-wrap text-sm text-foreground">{property.notes}</p>
-        </div>
+        </Card>
       )}
 
       <div className="space-y-3">
@@ -222,7 +229,7 @@ export default async function PropertyDetailPage({
           {canWrite && (
             <Link
               href={`/home/${property.id}/items/new`}
-              className="flex items-center gap-2 whitespace-nowrap rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+              className={buttonClass("secondary")}
             >
               <Plus size={16} />
               Add maintenance record
@@ -231,7 +238,7 @@ export default async function PropertyDetailPage({
         </div>
 
         {items.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
+          <p className={emptyStateClass()}>
             No maintenance records yet. Add maintenance, an improvement or a repair to start tracking.
           </p>
         ) : (
@@ -239,9 +246,8 @@ export default async function PropertyDetailPage({
             {items.map((item) => {
               const Icon = ITEM_ICONS[item.type] ?? Tag;
               return (
-                <div
+                <Card
                   key={item.id}
-                  className="rounded-xl border border-border bg-surface p-4 md:p-6"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="flex min-w-0 items-start gap-3">
@@ -253,9 +259,9 @@ export default async function PropertyDetailPage({
                         <p className="flex flex-wrap items-center gap-2 font-medium">
                           {item.title}
                           {item.isTaxDeductible && (
-                            <span className="rounded-full bg-muted/10 px-2 py-0.5 text-xs font-normal text-muted">
+                            <Pill>
                               Tax deductible
-                            </span>
+                            </Pill>
                           )}
                         </p>
                         {item.provider && (
@@ -268,20 +274,22 @@ export default async function PropertyDetailPage({
                         <>
                           <Link
                             href={`/home/${property.id}/items/${item.id}/edit`}
-                            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+                            className={buttonClass("secondary")}
                           >
                             <Pencil size={16} />
                             Edit
                           </Link>
-                          <ConfirmForm
-                            action={deleteHomeItem.bind(null, property.id, item.id)}
-                            undo={{ action: restoreHomeItem.bind(null, item.id) }}
-                            confirmText={`Move "${item.title}" to Trash? Its documents are kept, and you can restore it within 30 days from Settings → Trash.`}
-                            className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-danger hover:bg-danger/10"
-                          >
-                            <Trash2 size={16} />
-                            Delete
-                          </ConfirmForm>
+                          <DetailOverflowMenu label={`More actions for ${item.title}`}>
+                            <ConfirmForm
+                              action={deleteHomeItem.bind(null, property.id, item.id)}
+                              undo={{ action: restoreHomeItem.bind(null, item.id) }}
+                              confirmText={`Delete "${item.title}"? Its documents are kept, and you can restore it within 30 days from Settings → Household → Recently deleted.`}
+                              className={menuItemClass({ destructive: true })}
+                            >
+                              <Trash2 size={16} />
+                              Delete
+                            </ConfirmForm>
+                          </DetailOverflowMenu>
                         </>
                       )}
                     </div>
@@ -301,16 +309,18 @@ export default async function PropertyDetailPage({
                     </p>
                   )}
 
-                  <div className="mt-4 border-t border-border pt-4">
-                    <h3 className="mb-2 text-sm font-medium">Documents</h3>
-                    <DocumentList kind="HOME_ITEM" ownerId={item.id} documents={item.documents} trashedLinks={trashedLinks.get(item.id)} />
-                    {canWrite && (
-                      <div className="mt-3">
-                        <DocumentUploadForm action={addDocumentAction.bind(null, "HOME_ITEM", item.id)} />
+                  {(canWrite || item.documents.length > 0) && (
+                    <div className="mt-4 space-y-2 border-t border-border pt-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="text-sm font-medium">Documents</h3>
+                        {canWrite && <AddDocumentButton action={addDocumentAction.bind(null, "HOME_ITEM", item.id)} recordName={item.title} />}
                       </div>
-                    )}
-                  </div>
-                </div>
+                      {item.documents.length > 0 && (
+                        <DocumentList kind="HOME_ITEM" ownerId={item.id} documents={item.documents} trashedLinks={trashedLinks.get(item.id)} />
+                      )}
+                    </div>
+                  )}
+                </Card>
               );
             })}
           </div>
@@ -321,17 +331,27 @@ export default async function PropertyDetailPage({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-medium">Contracts and warranties linked to this property</h2>
           {canWrite && (
-            <Link
-              href={`/contracts/new?propertyId=${property.id}`}
-              className="flex items-center gap-2 whitespace-nowrap rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
-            >
-              <Plus size={16} />
-              Add contract
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* #456 - a shortcut that opens the contract form linked to this property. */}
+              <Link
+                href={`/contracts/new?propertyId=${property.id}&category=HOME_INSURANCE`}
+                className={buttonClass("secondary")}
+              >
+                <Plus size={16} />
+                Add insurance
+              </Link>
+              <Link
+                href={`/contracts/new?propertyId=${property.id}`}
+                className={buttonClass("secondary")}
+              >
+                <Plus size={16} />
+                Add contract
+              </Link>
+            </div>
           )}
         </div>
         {linkedContracts.length === 0 && linkedProducts.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted">
+          <p className={emptyStateClass()}>
             No contracts or warranties linked yet.
           </p>
         ) : (
@@ -350,22 +370,22 @@ export default async function PropertyDetailPage({
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <TrendingUp size={18} className="text-muted" />
+            <TrendingUp size={16} className="text-muted" />
             <h2 className="font-medium">Property valuations</h2>
           </div>
         </div>
 
         {valuationStale && (
-          <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/10 p-3 text-sm text-foreground">
+          <Banner className="flex items-center gap-2">
             <AlertTriangle size={16} className="shrink-0" />
             {latestValuation
               ? "Valuation is over 12 months old — consider updating."
               : "No valuation recorded yet — add one to include this property in your net worth."}
-          </div>
+          </Banner>
         )}
 
         {property.valuations.length > 0 && (
-          <div className="rounded-xl border border-border bg-surface divide-y divide-border">
+          <Card padding="none" className="divide-y divide-border">
             {property.valuations.map((v) => (
               <div key={v.id} className="flex items-center justify-between gap-4 p-4">
                 <div>
@@ -376,36 +396,38 @@ export default async function PropertyDetailPage({
                   {v.notes && <p className="mt-0.5 text-xs text-foreground">{v.notes}</p>}
                 </div>
                 {canWrite && (
-                  <ConfirmForm
-                    action={deletePropertyValuation.bind(null, property.id, v.id)}
-                    undo={{ action: restorePropertyValuation.bind(null, v.id) }}
-                    offline={{
-                      entity: "propertyValuation",
-                      entityId: v.id,
-                      parentId: property.id,
-                      label: `Delete valuation: ${formatDate(v.valuedAt, dateFormat)}`,
-                    }}
-                    confirmText="Move this valuation to Trash? You can restore it within 30 days from Settings → Trash."
-                    ariaLabel={`Move valuation from ${formatDate(v.valuedAt, dateFormat)} to Trash`}
-                    className="rounded-lg border border-border p-2 text-danger hover:bg-danger/10"
-                  >
-                    <Trash2 size={14} />
-                  </ConfirmForm>
+                  <DetailOverflowMenu label={`More actions for valuation ${formatDate(v.valuedAt, dateFormat)}`}>
+                    <ConfirmForm
+                      action={deletePropertyValuation.bind(null, property.id, v.id)}
+                      undo={{ action: restorePropertyValuation.bind(null, v.id) }}
+                      offline={{
+                        entity: "propertyValuation",
+                        entityId: v.id,
+                        parentId: property.id,
+                        label: `Delete valuation: ${formatDate(v.valuedAt, dateFormat)}`,
+                      }}
+                      confirmText="Delete this valuation? You can restore it within 30 days from Settings → Household → Recently deleted."
+                      className={menuItemClass({ destructive: true })}
+                    >
+                      <Trash2 size={16} />
+                      Delete
+                    </ConfirmForm>
+                  </DetailOverflowMenu>
                 )}
               </div>
             ))}
-          </div>
+          </Card>
         )}
 
         {canWrite && (
-          <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+          <Card>
             <h3 className="mb-3 text-sm font-medium">Add valuation</h3>
             <PropertyValuationForm
               action={createPropertyValuation.bind(null, property.id)}
               propertyId={property.id}
               defaultCurrency={preferredCurrency}
             />
-          </div>
+          </Card>
         )}
       </div>
 
@@ -416,10 +438,10 @@ export default async function PropertyDetailPage({
           agreement is created, so existing tracking stays visible even if
           occupancyStatus later changes). */}
       {(property.occupancyStatus === "RENTED" || property.isRented) && (
-        <div className="rounded-xl border border-border bg-surface p-4 md:p-6">
+        <Card>
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <Home size={18} className="text-muted" />
+              <Home size={16} className="text-muted" />
               <h2 className="font-medium">Tenancy</h2>
             </div>
             {property.isRented ? (
@@ -432,7 +454,7 @@ export default async function PropertyDetailPage({
             ) : (
               <Link
                 href={`/home/${property.id}/rental`}
-                className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+                className={buttonClass("secondary")}
               >
                 Set up rental tracking
               </Link>
@@ -443,7 +465,7 @@ export default async function PropertyDetailPage({
               This property is rented — track statements and reconcile rent income.
             </p>
           )}
-        </div>
+        </Card>
       )}
 
       {tenancy && leaseReminderHealth && (
@@ -462,6 +484,6 @@ export default async function PropertyDetailPage({
         updatedAt={property.updatedAt}
         memberCount={memberCount}
       />
-    </div>
+    </PageShell>
   );
 }
