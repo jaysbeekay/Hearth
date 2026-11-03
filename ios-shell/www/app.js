@@ -1145,10 +1145,34 @@ async function storeInboxFile(file) {
 const scannedFileText = new WeakMap();
 // A form's scanned file, used when its file input has nothing chosen.
 const scannedFormFiles = new WeakMap();
+// Native OCR runs off the main thread but can still be slow on a long PDF.
+// Past this, an import or upload goes ahead without text rather than hang.
+const RECOGNIZE_TEXT_TIMEOUT_MS = 30000;
+// Set once from HearthScan.isAvailable() when standalone mode opens, so the
+// Scan button only shows on a device that can actually scan.
+let scannerAvailable = false;
+
+async function checkScannerAvailability() {
+  if (!HearthScan) return;
+  try {
+    const result = await HearthScan.isAvailable();
+    scannerAvailable = result?.scanner === true;
+  } catch {
+    scannerAvailable = false;
+  }
+}
+
+function withTimeout(promise, ms, message) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
 
 function documentFileInput(required = false) {
   const input = `<input name="file" type="file" accept=".pdf,.doc,.docx,image/jpeg,image/png,image/webp,image/heic" ${required ? "required " : ""}/>`;
-  if (!HearthScan) return input;
+  if (!HearthScan || !scannerAvailable) return input;
   return `${input}
       <button type="button" class="secondary" data-scan-document>Scan with camera</button>
       <p class="muted" data-scan-summary hidden></p>`;
@@ -1164,7 +1188,7 @@ function cleanExtractedText(text) {
 async function recognizeDocumentText(base64, mimeType) {
   if (!HearthScan || !RECOGNIZABLE_MIME_TYPES.has(mimeType)) return null;
   try {
-    const result = await HearthScan.recognizeText({ data: base64, mimeType });
+    const result = await withTimeout(HearthScan.recognizeText({ data: base64, mimeType }), RECOGNIZE_TEXT_TIMEOUT_MS, "Reading text took too long.");
     return cleanExtractedText(result?.text);
   } catch {
     return null;
@@ -1192,9 +1216,11 @@ async function scanIntoForm(form) {
     input.required = false;
   }
   const pages = Number(result.pageCount ?? 0);
+  const skipped = Number(result.skippedPages ?? 0);
   const summary = form.querySelector("[data-scan-summary]");
   if (summary) {
-    summary.textContent = `Scanned ${pages} page${pages === 1 ? "" : "s"}${text ? "" : " (no text found)"}. It's attached when you save.`;
+    const kept = skipped > 0 ? ` (the first ${pages}; ${skipped} more page${skipped === 1 ? " was" : "s were"} left out)` : "";
+    summary.textContent = `Scanned ${pages} page${pages === 1 ? "" : "s"}${kept}${text ? "" : " (no text found)"}. It's attached when you save.`;
     summary.hidden = false;
   }
   const filled = prefillFromScan(form, text);
@@ -1483,6 +1509,7 @@ async function openStandalone() {
 }
 
 async function enterStandaloneApp() {
+  await checkScannerAvailability();
   show("standalone");
   await prefSet(MODE_KEY, "standalone");
   await initDb();
@@ -5034,7 +5061,14 @@ mobileView.addEventListener("click", async (event) => {
   const button = event.target.closest("button");
   if (!button) return;
   if (button.dataset.scanDocument !== undefined) {
-    await scanIntoForm(button.closest("form")).catch((error) => showStandaloneStatus(error.message || "Could not scan."));
+    // One scanner at a time: a second tap while the camera opens is ignored.
+    if (button.disabled) return;
+    button.disabled = true;
+    try {
+      await scanIntoForm(button.closest("form")).catch((error) => showStandaloneStatus(error.message || "Could not scan."));
+    } finally {
+      button.disabled = false;
+    }
     return;
   }
   if (button.dataset.readDocumentText) {

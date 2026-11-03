@@ -6,19 +6,24 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.pdf.PdfRenderer;
+import android.graphics.pdf.content.PdfPageTextContent;
 import android.net.Uri;
+import android.os.Build;
 import android.os.ParcelFileDescriptor;
 import android.text.TextUtils;
 import android.util.Base64;
 import androidx.activity.result.ActivityResult;
 import androidx.activity.result.IntentSenderRequest;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.RequiresApi;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.GoogleApiAvailabilityLight;
 import com.google.android.gms.tasks.Tasks;
 import com.google.mlkit.vision.common.InputImage;
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanner;
@@ -56,9 +61,14 @@ public class HearthScanPlugin extends Plugin {
     private static final int MAX_SCAN_PAGES = 10;
     // Longest edge, in pixels, of a PDF page or photo handed to OCR.
     private static final int MAX_OCR_DIMENSION = 2000;
+    // Below this, a PDF's text layer is treated as missing (a scanned PDF).
+    // Same threshold as HearthScanPlugin.swift.
+    private static final int MIN_TEXT_LAYER_LENGTH = 40;
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private TextRecognizer recognizer;
+    // One scanner at a time; a second call while one is open is refused.
+    private boolean scanInProgress = false;
 
     private synchronized TextRecognizer recognizer() {
         if (recognizer == null) recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
@@ -68,15 +78,23 @@ public class HearthScanPlugin extends Plugin {
     @PluginMethod
     public void isAvailable(PluginCall call) {
         JSObject result = new JSObject();
-        // Whether the Play services scanner module can run is only known when
-        // a scan starts; scanDocument rejects if it can't.
-        result.put("scanner", true);
+        // The scanner UI ships in Google Play services. Without them there's
+        // nothing to launch, so the shell hides its Scan button. Other
+        // failures (too little RAM, module download) still surface when a
+        // scan starts, as a rejected scanDocument.
+        int playServices = GoogleApiAvailabilityLight.getInstance().isGooglePlayServicesAvailable(getContext());
+        result.put("scanner", playServices == ConnectionResult.SUCCESS);
         result.put("textRecognition", true);
         call.resolve(result);
     }
 
     @PluginMethod
     public void scanDocument(PluginCall call) {
+        if (scanInProgress) {
+            call.reject("A scan is already in progress.", "BUSY");
+            return;
+        }
+        scanInProgress = true;
         GmsDocumentScannerOptions options = new GmsDocumentScannerOptions.Builder()
             .setGalleryImportAllowed(false)
             .setPageLimit(MAX_SCAN_PAGES)
@@ -94,11 +112,15 @@ public class HearthScanPlugin extends Plugin {
                     .createIntent(getContext(), new IntentSenderRequest.Builder(intentSender).build());
                 startActivityForResult(call, intent, "handleScanResult");
             })
-            .addOnFailureListener(error -> call.reject("Document scanning isn't available on this device: " + error.getMessage(), "UNAVAILABLE"));
+            .addOnFailureListener(error -> {
+                scanInProgress = false;
+                call.reject("Document scanning isn't available on this device: " + error.getMessage(), "UNAVAILABLE");
+            });
     }
 
     @ActivityCallback
     private void handleScanResult(PluginCall call, ActivityResult result) {
+        scanInProgress = false;
         if (call == null) return;
         if (result.getResultCode() == Activity.RESULT_CANCELED) {
             JSObject cancelled = new JSObject();
@@ -176,8 +198,10 @@ public class HearthScanPlugin extends Plugin {
         }
     }
 
-    // No Android API reads a PDF's text layer, so every page is rendered and
-    // OCR'd — text PDFs and scans alike, first MAX_OCR_PAGES pages only.
+    // Text layer first, like HearthScanPlugin.swift, so a text PDF reads the
+    // same on both platforms. PdfRenderer only exposes the text layer from
+    // API 35 (getTextContents); older devices, and PDFs whose layer is
+    // missing or negligible, render the first MAX_OCR_PAGES pages and OCR them.
     private String pdfText(byte[] bytes) throws Exception {
         File temp = File.createTempFile("hearth-ocr", ".pdf", getContext().getCacheDir());
         try {
@@ -189,6 +213,10 @@ public class HearthScanPlugin extends Plugin {
                 ParcelFileDescriptor descriptor = ParcelFileDescriptor.open(temp, ParcelFileDescriptor.MODE_READ_ONLY);
                 PdfRenderer renderer = new PdfRenderer(descriptor)
             ) {
+                if (Build.VERSION.SDK_INT >= 35) {
+                    String layer = textLayer(renderer);
+                    if (layer.trim().length() >= MIN_TEXT_LAYER_LENGTH) return layer;
+                }
                 for (int index = 0; index < renderer.getPageCount() && index < MAX_OCR_PAGES; index++) {
                     try (PdfRenderer.Page page = renderer.openPage(index)) {
                         int longest = Math.max(page.getWidth(), page.getHeight());
@@ -212,6 +240,19 @@ public class HearthScanPlugin extends Plugin {
             //noinspection ResultOfMethodCallIgnored
             temp.delete();
         }
+    }
+
+    @RequiresApi(35)
+    private static String textLayer(PdfRenderer renderer) {
+        List<String> pages = new ArrayList<>();
+        for (int index = 0; index < renderer.getPageCount(); index++) {
+            try (PdfRenderer.Page page = renderer.openPage(index)) {
+                List<String> parts = new ArrayList<>();
+                for (PdfPageTextContent content : page.getTextContents()) parts.add(content.getText());
+                pages.add(TextUtils.join("\n", parts));
+            }
+        }
+        return TextUtils.join("\n", pages);
     }
 
     // Runs on the executor thread, never the main thread (Tasks.await).

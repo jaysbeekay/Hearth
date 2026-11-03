@@ -574,9 +574,14 @@ test.beforeEach(async ({ page }) => {
         // ask (withHearthScan): without it the shell hides Scan and Read text.
         // Read from the URL's query string, not localStorage: a file://
         // localStorage write made just before a reload is sometimes lost.
-        ...(new URLSearchParams(location.search).get("hearth-test-hearth-scan") !== "1" ? {} : {
+        // "no-scanner" mimics a device without a document camera (or, on
+        // Android, without Play services): text recognition only.
+        ...(!["1", "no-scanner"].includes(new URLSearchParams(location.search).get("hearth-test-hearth-scan") ?? "") ? {} : {
           HearthScan: {
-            isAvailable: async () => ({ scanner: true, textRecognition: true }),
+            isAvailable: async () => ({
+              scanner: new URLSearchParams(location.search).get("hearth-test-hearth-scan") === "1",
+              textRecognition: true,
+            }),
             scanDocument: async () => ({
               cancelled: false,
               pdf: btoa("%PDF-1.7\n% scanned on device\n"),
@@ -1564,9 +1569,9 @@ test("standalone purge keeps the row when the file can't be deleted, and retries
   await expect.poll(async () => deletedDocuments((await shellTestState(page)).runs)).toEqual(["version-3", "version-2"]);
 });
 
-async function withHearthScan(page: import("@playwright/test").Page) {
+async function withHearthScan(page: import("@playwright/test").Page, mode: "1" | "no-scanner" = "1") {
   const url = new URL(page.url());
-  url.searchParams.set("hearth-test-hearth-scan", "1");
+  url.searchParams.set("hearth-test-hearth-scan", mode);
   await page.goto(url.toString());
   await page.getByRole("button", { name: "Use on this device" }).click();
   await expect(page.locator("#standalone-screen")).toBeVisible();
@@ -1579,6 +1584,13 @@ function standaloneRuns(page: import("@playwright/test").Page) {
 }
 
 test("standalone hides on-device scanning when the native plugin is absent", async ({ page }) => {
+  await page.getByRole("button", { name: "Contract", exact: true }).click();
+  await expect(page.locator("form[data-save-type='contracts'] input[name='file']")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Scan with camera" })).toHaveCount(0);
+});
+
+test("standalone hides the Scan button on a device that can't scan", async ({ page }) => {
+  await withHearthScan(page, "no-scanner");
   await page.getByRole("button", { name: "Contract", exact: true }).click();
   await expect(page.locator("form[data-save-type='contracts'] input[name='file']")).toBeVisible();
   await expect(page.getByRole("button", { name: "Scan with camera" })).toHaveCount(0);

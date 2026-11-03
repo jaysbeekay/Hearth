@@ -23,6 +23,9 @@ public class HearthScanPlugin: CAPPlugin, CAPBridgedPlugin, VNDocumentCameraView
 
     // Same cap as the server's OCR pass (src/lib/documents/textExtraction.ts).
     static let maxOcrPages = 5
+    // VisionKit's camera has no page limit, so only the first pages are
+    // kept: the same cap as the Android scanner's setPageLimit.
+    static let maxScanPages = 10
     // Below this, a PDF's text layer is treated as missing (a scanned PDF).
     static let minTextLayerLength = 40
     // Longest edge of a scanned page as stored in the PDF; keeps a few pages
@@ -83,20 +86,27 @@ public class HearthScanPlugin: CAPPlugin, CAPBridgedPlugin, VNDocumentCameraView
     // MARK: - VNDocumentCameraViewControllerDelegate
 
     public func documentCameraViewController(_ controller: VNDocumentCameraViewController, didFinishWith scan: VNDocumentCameraScan) {
-        var pages: [UIImage] = []
-        for index in 0..<scan.pageCount {
-            pages.append(scan.imageOfPage(at: index))
+        // Shrink each page as it's read so only one full-resolution image is
+        // in memory at a time; a long booklet would otherwise risk a memory
+        // kill mid-scan.
+        let kept = min(scan.pageCount, Self.maxScanPages)
+        var compressed: [UIImage] = []
+        for index in 0..<kept {
+            autoreleasepool {
+                compressed.append(Self.compressedPage(scan.imageOfPage(at: index)))
+            }
         }
+        let skipped = scan.pageCount - kept
         controller.dismiss(animated: true)
         guard let call = takePendingScanCall() else { return }
         workQueue.async {
-            let compressed = pages.map { Self.compressedPage($0) }
             let pdf = Self.pdfData(from: compressed)
             let text = compressed.prefix(Self.maxOcrPages).map { Self.recognize($0) }.joined(separator: "\n")
             call.resolve([
                 "cancelled": false,
                 "pdf": pdf.base64EncodedString(),
                 "pageCount": compressed.count,
+                "skippedPages": skipped,
                 "text": text
             ])
         }
