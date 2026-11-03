@@ -32,12 +32,23 @@ import { auth } from "@/lib/auth";
 import { removeOwnerDocumentFiles } from "@/lib/commands/documents";
 import { reconcileDocumentStore } from "@/lib/documentStore";
 import "@/lib/storage"; // registers each kind's reconcile target
+import { purgeLegacyInventoryStage, syncLegacyInventory } from "@/lib/items/syncLegacyItem";
+import { syncLegacyDocument } from "@/lib/items/syncLegacyDocument";
+import { itemCutoverReadiness } from "@/lib/items/cutoverReadiness";
 
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
 vi.mock("@/lib/commands/documents", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/commands/documents")>();
   return { ...actual, removeOwnerDocumentFiles: vi.fn(actual.removeOwnerDocumentFiles) };
+});
+vi.mock("@/lib/items/syncLegacyItem", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/items/syncLegacyItem")>();
+  return {
+    ...actual,
+    purgeLegacyInventoryStage: vi.fn(actual.purgeLegacyInventoryStage),
+    syncLegacyInventory: vi.fn(actual.syncLegacyInventory),
+  };
 });
 vi.mock("next/navigation", () => ({
   redirect: vi.fn((url: string) => {
@@ -302,5 +313,83 @@ describe("Inventory permanent delete", () => {
     expect(await purgeInventoryItem(item.id)).toBe(true);
     await expect(purgeInventoryItem(item.id)).rejects.toBeInstanceOf(RecordNotFoundError);
     expect(await permanentlyDeleteInventoryItem(item.id)).toEqual({ error: "Item not found." });
+  });
+});
+
+// #380 × #471: the staged Item mirror lives inside the Inventory record
+// commands, so every writer (form, import, sync, Trash) keeps the stage in
+// step exactly once per write.
+describe("Inventory commands keep the staged Item mirror in step (#380)", () => {
+  const link = (inventoryItemId: string) =>
+    db.prisma.itemLegacyInventory.findUnique({ where: { inventoryItemId }, include: { item: true } });
+
+  it("create, update, delete and restore each mirror the item", async () => {
+    const item = await createInventoryItemCommand(itemInput(), actorId);
+    const staged = await link(item.id);
+    expect(staged?.item).toMatchObject({ description: "Drill", deletedAt: null });
+
+    const { updateInventoryItemCommand } = await import("@/lib/commands/inventory");
+    await updateInventoryItemCommand(item.id, { label: "Cordless drill" }, actorId);
+    expect((await link(item.id))?.item.description).toBe("Cordless drill");
+
+    await deleteInventoryItemCommand(item.id);
+    expect((await link(item.id))?.item.deletedAt).not.toBeNull();
+    await restoreInventoryItemCommand(item.id);
+    expect((await link(item.id))?.item.deletedAt).toBeNull();
+    expect(await db.prisma.itemLegacyInventory.count()).toBe(1);
+    expect((await itemCutoverReadiness()).problems).toEqual([]);
+    expect(revalidatePath).toHaveBeenCalledWith("/items");
+  });
+
+  it("import and a sync replay mirror the items they create", async () => {
+    const imported = await importInventoryItem(formData({ label: "Ladder" }));
+    expect(imported).toMatchObject({ success: "Saved" });
+    const { results } = await replay([
+      { id: "op-1", entity: "inventoryItem", operation: "create", formValues: { label: "Saw" } },
+    ]);
+    expect(results).toEqual([expect.objectContaining({ id: "op-1", success: true })]);
+    const items = await db.prisma.inventoryItem.findMany();
+    expect(items.map((i) => i.label).sort()).toEqual(["Ladder", "Saw"]);
+    for (const source of items) expect(await link(source.id)).not.toBeNull();
+    expect((await itemCutoverReadiness()).problems).toEqual([]);
+  });
+
+  it("a permanent delete retires the staged item and its staged Documents", async () => {
+    const item = await createInventoryItemCommand(itemInput(), actorId);
+    await attachFile(item.id);
+    const doc = await db.prisma.inventoryItemDocument.findFirstOrThrow({ where: { inventoryItemId: item.id } });
+    await syncLegacyDocument("INVENTORY_ITEM", doc.id);
+    expect(await db.prisma.itemDocument.count()).toBe(1);
+    await deleteInventoryItemCommand(item.id);
+
+    expect(await permanentlyDeleteInventoryItem(item.id)).toEqual({ success: "Deleted permanently." });
+    expect(await link(item.id)).toBeNull();
+    expect(await db.prisma.item.count()).toBe(0);
+    expect(await db.prisma.itemDocument.count()).toBe(0);
+    expect((await itemCutoverReadiness()).problems).toEqual([]);
+  });
+
+  it("a failed stage retirement doesn't fail the purge, and Trash retention repairs the stage", async () => {
+    const item = await createInventoryItemCommand(itemInput(), actorId);
+    await deleteInventoryItemCommand(item.id);
+    vi.mocked(purgeLegacyInventoryStage).mockRejectedValueOnce(new Error("disk full"));
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    expect(await permanentlyDeleteInventoryItem(item.id)).toEqual({ success: "Deleted permanently." });
+    expect(await row(item.id)).toBeNull();
+    expect(error).toHaveBeenCalled();
+    expect((await itemCutoverReadiness()).ready).toBe(false);
+
+    await purgeExpiredTrash();
+    expect(await db.prisma.itemLegacyInventory.count()).toBe(0);
+    expect((await itemCutoverReadiness()).problems).toEqual([]);
+    error.mockRestore();
+  });
+
+  it("a failing mirror rolls the legacy write back, so the two never disagree", async () => {
+    const item = await createInventoryItemCommand(itemInput(), actorId);
+    vi.mocked(syncLegacyInventory).mockRejectedValueOnce(new Error("mirror failed"));
+    await expect(deleteInventoryItemCommand(item.id)).rejects.toThrow("mirror failed");
+    expect((await row(item.id))?.deletedAt).toBeNull();
   });
 });

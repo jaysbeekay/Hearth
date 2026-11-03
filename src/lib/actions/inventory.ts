@@ -1,6 +1,8 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { formToInventoryItemInput } from "@/lib/formMappers";
 import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
@@ -20,6 +22,7 @@ import { isModuleEnabled } from "@/lib/modules/enablement";
 import type { ActionState } from "@/lib/actions/auth";
 import { describeUploadRejection } from "@/lib/uploadValidation";
 import { parseDocumentCategory } from "@/lib/documents/categories";
+import { itemCutoverReadiness } from "@/lib/items/cutoverReadiness";
 
 const INVENTORY_ITEM_FORM_FIELDS = [
   "label",
@@ -49,9 +52,10 @@ async function requireUser() {
   return session.user;
 }
 
-export async function createInventoryItem(
+async function createInventoryItemWithDestination(
   _prevState: ActionState,
   formData: FormData,
+  itemRoute: boolean,
 ): Promise<ActionState> {
   const user = await requireUser();
 
@@ -88,13 +92,27 @@ export async function createInventoryItem(
     });
   }
 
+  if (itemRoute && process.env.ITEMS_PREVIEW === "1" && (await itemCutoverReadiness()).ready) {
+    const mapping = await prisma.itemLegacyInventory.findUnique({ where: { inventoryItemId: item.id } });
+    if (mapping) redirect(`/items/${mapping.itemId}`);
+  }
   redirect(`/inventory/${item.id}`);
 }
 
-export async function updateInventoryItem(
+export async function createInventoryItem(state: ActionState, formData: FormData): Promise<ActionState> {
+  return createInventoryItemWithDestination(state, formData, false);
+}
+
+/** The Item preview uses the existing canonical Inventory write transaction. */
+export async function createCatalogItem(state: ActionState, formData: FormData): Promise<ActionState> {
+  return createInventoryItemWithDestination(state, formData, true);
+}
+
+async function updateInventoryItemWithDestination(
   itemId: string,
   _prevState: ActionState,
   formData: FormData,
+  itemRoute: boolean,
 ): Promise<ActionState> {
   const user = await requireUser();
 
@@ -117,7 +135,22 @@ export async function updateInventoryItem(
     throw error;
   }
 
+  if (itemRoute && process.env.ITEMS_PREVIEW === "1" && (await itemCutoverReadiness()).ready) {
+    const mapping = await prisma.itemLegacyInventory.findUnique({ where: { inventoryItemId: itemId } });
+    if (mapping) {
+      revalidatePath(`/items/${mapping.itemId}`);
+      redirect(`/items/${mapping.itemId}`);
+    }
+  }
   redirect(`/inventory/${itemId}`);
+}
+
+export async function updateInventoryItem(itemId: string, state: ActionState, formData: FormData): Promise<ActionState> {
+  return updateInventoryItemWithDestination(itemId, state, formData, false);
+}
+
+export async function updateCatalogItem(itemId: string, state: ActionState, formData: FormData): Promise<ActionState> {
+  return updateInventoryItemWithDestination(itemId, state, formData, true);
 }
 
 // #287 — soft-delete: see the equivalent comment on deleteContract (contracts.ts).
