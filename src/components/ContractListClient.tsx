@@ -132,6 +132,9 @@ export function ContractListClient({
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // A pending search submit must not fire after the list unmounts (e.g. the
+  // user typed, then followed an Add link before the 400 ms tick).
+  useEffect(() => () => clearTimeout(searchTimeout.current), []);
   // #517 review: every other way of changing the list cancels a pending
   // search auto-submit first. Otherwise it fires up to 400 ms later and puts
   // back a q= that a chip, select, pill or Clear all just changed. The search
