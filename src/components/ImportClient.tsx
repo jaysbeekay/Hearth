@@ -104,7 +104,7 @@ interface Row {
 
 let nextId = 0;
 
-type ScanResult = { fields: Record<string, string>; source: ExtractionSource };
+type ScanResult = { fields: Partial<Record<string, string>>; source: ExtractionSource };
 
 interface ImportScan {
   guessedType: "CONTRACT" | "PRODUCT" | "INVENTORY" | null;
@@ -131,6 +131,20 @@ export function reviewScreenHref(added: number) {
   return `/review?added=${added}`;
 }
 
+/** A scanned type's entry, read without indexing by a runtime key. */
+function forType<T>(byType: Partial<Record<EntityType, T>>, type: EntityType): T | undefined {
+  switch (type) {
+    case "CONTRACT":
+      return byType.CONTRACT;
+    case "PRODUCT":
+      return byType.PRODUCT;
+    case "INVENTORY":
+      return byType.INVENTORY;
+    default:
+      return undefined;
+  }
+}
+
 /** The row filed as `type`: that type's scan source, message and auto-filled state (#358). */
 function withType(row: Row, type: EntityType): Row {
   const autoFilled =
@@ -144,9 +158,9 @@ function withType(row: Row, type: EntityType): Row {
   return {
     ...row,
     type,
-    source: type === "INBOX" ? "none" : (row.sources[type] ?? "none"),
+    source: forType(row.sources, type) ?? "none",
     extractionUsed: Object.values(autoFilled).some(Boolean),
-    scanMessage: type === "INBOX" ? undefined : row.scanMessages[type],
+    scanMessage: forType(row.scanMessages, type),
   };
 }
 
@@ -309,7 +323,7 @@ export function ImportClient({
         inventoryAutoFilled: {},
       };
       setRows((prev) => [...prev, row]);
-      scanRow(id, file);
+      void scanRow(id, file);
     }
   }
 
