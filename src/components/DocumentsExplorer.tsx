@@ -290,7 +290,9 @@ export function DocumentsExplorer({
       {preview && (
         <DocumentPreviewModal
           doc={{ ...preview, id: shareable(preview) ? preview.id : undefined }}
-          onClose={() => setPreview(null)}
+          onClose={() => {
+            setPreview(null);
+          }}
         />
       )}
     </div>

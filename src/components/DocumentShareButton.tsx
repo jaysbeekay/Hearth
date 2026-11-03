@@ -150,7 +150,9 @@ export function DocumentShareButton({
     <>
       <button
         type="button"
-        onClick={onShare}
+        onClick={() => {
+          void onShare();
+        }}
         disabled={pending}
         aria-label={labelled ? undefined : `Share ${filename}`}
         className={
@@ -162,7 +164,13 @@ export function DocumentShareButton({
         <Share2 size={16} aria-hidden={labelled || undefined} />
         {labelled && "Share"}
       </button>
-      <Dialog open={manual != null} onClose={() => setManual(null)} label="Share link">
+      <Dialog
+        open={manual != null}
+        onClose={() => {
+          setManual(null);
+        }}
+        label="Share link"
+      >
         <p className="text-sm">
           Copy this link to share {filename}. It works for {manual?.hours} hours.
         </p>
@@ -170,11 +178,19 @@ export function DocumentShareButton({
           readOnly
           value={manual?.url ?? ""}
           aria-label="Share link"
-          onFocus={(e) => e.currentTarget.select()}
+          onFocus={(e) => {
+            e.currentTarget.select();
+          }}
           className={`${inputClass} mt-3 w-full`}
         />
         <div className="mt-4 flex justify-end">
-          <button type="button" onClick={() => setManual(null)} className={buttonClass("secondary")}>
+          <button
+            type="button"
+            onClick={() => {
+              setManual(null);
+            }}
+            className={buttonClass("secondary")}
+          >
             Done
           </button>
         </div>
@@ -187,20 +203,23 @@ export function DocumentShareButton({
 export function ShareLinkRevokeButton({ linkId, filename }: { linkId: string; filename: string }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
+  async function revoke() {
+    setPending(true);
+    try {
+      const result = await revokeDocumentShareLink(linkId);
+      showToast(result.error ?? "Link revoked.", result.error ? "error" : "success");
+      router.refresh();
+    } finally {
+      setPending(false);
+    }
+  }
   return (
     <button
       type="button"
       disabled={pending}
       aria-label={`Revoke the link to ${filename}`}
-      onClick={async () => {
-        setPending(true);
-        try {
-          const result = await revokeDocumentShareLink(linkId);
-          showToast(result.error ?? "Link revoked.", result.error ? "error" : "success");
-          router.refresh();
-        } finally {
-          setPending(false);
-        }
+      onClick={() => {
+        void revoke();
       }}
       className={`${buttonClass("secondary")} disabled:opacity-50`}
     >
