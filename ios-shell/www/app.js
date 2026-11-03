@@ -4317,7 +4317,13 @@ async function restoreDocument(id, fromList = false) {
     // Never bring back a row whose bytes are gone (e.g. the app was killed
     // between a purge deleting the file and deleting the row): it would be a
     // live Document that can't be opened. It stays in Trash and is purged.
-    if (!(await storedFileExists(doc.storage_key))) {
+    let present;
+    try {
+      present = await storedFileExists(doc.storage_key);
+    } catch (error) {
+      throw new Error(`Can't restore "${doc.filename}" yet: ${error.message}`);
+    }
+    if (!present) {
       throw new Error(`Can't restore "${doc.filename}": its file is no longer on this phone.`);
     }
     await run("UPDATE documents SET deleted_at = NULL, version = version + 1 WHERE id = ?", [id]);
@@ -4355,16 +4361,19 @@ async function deleteStoredFile(storageKey) {
   }
 }
 
-// Whether a stored file is still there. Only a definite "not found" counts as
-// missing; anything else (or no stat on this platform) is treated as present
-// so a transient error never blocks a Restore.
+// Whether a stored file is still there. A definite "not found" means
+// missing. Any other stat error can't prove the file is there, so it throws
+// and the Restore is refused with a "try again", instead of guessing
+// "present" and bringing back a row with no bytes. No stat on this platform
+// counts as present.
 async function storedFileExists(storageKey) {
   if (!Filesystem?.stat || !storageKey) return true;
   try {
     await Filesystem.stat({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${storageKey}` });
     return true;
   } catch (error) {
-    return !/not.?found|does not exist|no such file|enoent/i.test(String(error?.message ?? error));
+    if (/not.?found|does not exist|no such file|enoent/i.test(String(error?.message ?? error))) return false;
+    throw new Error("Couldn't check that its file is still on this phone. Try again.");
   }
 }
 

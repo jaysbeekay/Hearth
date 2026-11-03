@@ -571,6 +571,8 @@ test.beforeEach(async ({ page }) => {
           stat: async (args: { path?: string }) => {
             const missing = (localStorage.getItem("hearth-test-missing-files") ?? "").split(",").filter(Boolean);
             if (missing.some((key) => args.path?.endsWith(`/${key}`))) throw new Error("File does not exist");
+            // "hearth-test-stat-error": stat fails for a reason other than "not found".
+            if (localStorage.getItem("hearth-test-stat-error")) throw new Error("Disk error");
             return { type: "file", size: 1024 };
           },
           deleteFile: async (args: { directory?: string; path?: string }) => {
@@ -1731,6 +1733,19 @@ test("standalone Recently deleted restores a middle version without splitting th
   const state = await shellTestState(page);
   expect(state.runs.some((run) => run.statement.includes("deleted_at = NULL") && run.values.includes("version-2"))).toBe(true);
   expect(state.runs.some((run) => /INTO documents/i.test(run.statement))).toBe(false);
+});
+
+// #496 review: a stat error that isn't a definite "not found" can't prove the
+// file is there, so Restore is refused (and can be retried), never guessed.
+test("standalone Restore refuses when the file check fails for another reason (#488)", async ({ page }) => {
+  await withDocumentVersions(page, "middle");
+  await reloadWithTestFlags(page, { "hearth-test-stat-error": "1" });
+  await openRecentlyDeleted(page);
+  await page.getByRole("button", { name: "Restore lease-v2.pdf" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Couldn't check that its file is still on this phone. Try again.");
+  await expect(page.locator("#standalone-status")).not.toContainText("Document restored.");
+  expect((await savedDocuments(page)).find((row) => row.id === "version-2")?.deleted_at).toBeTruthy();
+  await expect(trashRows(page).filter({ hasText: "lease-v2.pdf" })).toHaveCount(1);
 });
 
 test("standalone Restore refuses a Document whose file is gone, so no live row points at missing bytes (#488)", async ({ page }) => {
