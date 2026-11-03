@@ -20,8 +20,10 @@ test("triggering /api/cron runs and reports the reminder check", async ({ reques
   expect(body.triggered).toBe("REMINDER_CHECK");
   // "ALREADY_PENDING" would mean a previous run's job was still queued —
   // acceptable, but the common case is that this request's own enqueue won
-  // the claim and ran it to completion.
-  expect(["DONE", "FAILED", "ALREADY_PENDING"]).toContain(body.status);
+  // the claim and ran it to completion. "RUNNING" means the built-in ticker
+  // (src/instrumentation.ts) claimed this request's job first, so this
+  // request's runPendingJobs found nothing to claim: the lease doing its job.
+  expect(["DONE", "FAILED", "ALREADY_PENDING", "RUNNING"]).toContain(body.status);
 });
 
 test("two /api/cron triggers in quick succession don't double-enqueue the reminder check", async ({
