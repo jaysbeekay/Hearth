@@ -1144,6 +1144,28 @@ test.describe("standalone Upcoming across a DST change and a dense itinerary (#4
   });
 });
 
+test.describe("standalone Upcoming across a DST fall-back (#476)", () => {
+  // Los Angeles' clocks go back at 02:00 on Sunday 2099-11-01 (a 25-hour day).
+  test.use({ timezoneId: "America/Los_Angeles" });
+
+  test("counts calendar days across a 25-hour day, as the web does", async ({ page }) => {
+    await page.addInitScript(() => {
+      const rows = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest.rowsByTable;
+      const updated_at = "2099-01-01T00:00:00.000Z";
+      rows.trip_segments.push({ id: "fallback-1", trip_id: "trip-1", type: "FLIGHT", title: "After fall-back", start_date: "2099-11-09", currency: "AUD", updated_at });
+      // Exactly 7 calendar days away, with a 7-day window: Due soon on the web.
+      rows.contracts.push({ id: "fallback-contract", title: "Seven Day Plan", category: "OTHER", status: "ACTIVE", renewal_type: "MANUAL_RENEWAL", end_date: "2099-11-07", cost: 20, currency: "AUD", billing_frequency: "MONTHLY", reminder_days_before: "7,1", updated_at });
+    });
+    await page.clock.setFixedTime(new Date("2099-10-31T23:30:00-07:00"));
+    await reloadStandalone(page);
+    await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+    await page.locator('#mobile-view button[data-nav="calendar"]').click();
+
+    await expect(page.locator(".record-card").filter({ hasText: "After fall-back" })).toContainText("In 9d");
+    await expect(page.locator(".record-card").filter({ hasText: "Seven Day Plan" })).toHaveClass(/warning-card/);
+  });
+});
+
 test("standalone vehicle service-due date feeds the detail page, calendar and reminders", async ({ page }) => {
   await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
   await page.locator('#mobile-view button[data-record-type="vehicles"]').click();
