@@ -132,7 +132,7 @@ export default async function VehicleDetailPage({
                 <ConfirmForm
                   action={deleteVehicle.bind(null, vehicle.id)}
                   undo={{ action: restoreVehicle.bind(null, vehicle.id), href: `/vehicles/${vehicle.id}` }}
-                  confirmText="Delete this vehicle? Its service records and documents are kept, and you can restore it within 30 days from Settings → Recently deleted."
+                  confirmText="Delete this vehicle? Its service records and documents are kept, and you can restore it within 30 days from Settings → Household → Recently deleted."
                   className={menuItemClass({ destructive: true })}
                   offline={{ entity: "vehicle", entityId: vehicle.id, label: `Delete vehicle: ${vehicle.label}` }}
                 >
@@ -302,7 +302,7 @@ export default async function VehicleDetailPage({
                             <ConfirmForm
                               action={deleteVehicleItem.bind(null, vehicle.id, item.id)}
                               undo={{ action: restoreVehicleItem.bind(null, item.id) }}
-                              confirmText={`Delete "${item.title}"? Its documents are kept, and you can restore it within 30 days from Settings → Recently deleted.`}
+                              confirmText={`Delete "${item.title}"? Its documents are kept, and you can restore it within 30 days from Settings → Household → Recently deleted.`}
                               className={menuItemClass({ destructive: true })}
                             >
                               <Trash2 size={16} />

@@ -216,8 +216,8 @@ export function buildReminderNudgeItem(): AttentionItem {
     group: "housekeeping",
     title: "Reminders aren't configured",
     subtitle: "Hearth can email or push a reminder before things come due.",
-    href: "/settings/app",
-    action: { label: "Configure reminders", href: "/settings/app" },
+    href: "/settings/reminders",
+    action: { label: "Configure reminders", href: "/settings/reminders" },
     badge: "Not configured",
   };
 }
