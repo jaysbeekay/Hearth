@@ -720,12 +720,12 @@ export function InboxReviewClient({
                       id={`${doc.id}-provider`}
                       value={row.contract.provider}
                       disabled={row.status === "saving"}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         editRow(doc.id, {
                           contract: { ...row.contract, provider: e.target.value },
                           contractAutoFilled: { ...row.contractAutoFilled, provider: false },
-                        })
-                      }
+                        });
+                      }}
                       className={fieldClass(row.contractAutoFilled.provider, rowIsAi)}
                     />
                   </RowField>
@@ -751,12 +751,12 @@ export function InboxReviewClient({
                       id={`${doc.id}-cost`}
                       value={row.contract.cost}
                       disabled={row.status === "saving"}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         editRow(doc.id, {
                           contract: { ...row.contract, cost: e.target.value },
                           contractAutoFilled: { ...row.contractAutoFilled, cost: false },
-                        })
-                      }
+                        });
+                      }}
                       inputMode="decimal"
                       className={fieldClass(row.contractAutoFilled.cost, rowIsAi)}
                     />
@@ -767,12 +767,12 @@ export function InboxReviewClient({
                       type="date"
                       value={row.contract.startDate}
                       disabled={row.status === "saving"}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         editRow(doc.id, {
                           contract: { ...row.contract, startDate: e.target.value },
                           contractAutoFilled: { ...row.contractAutoFilled, startDate: false },
-                        })
-                      }
+                        });
+                      }}
                       className={fieldClass(row.contractAutoFilled.startDate, rowIsAi)}
                     />
                   </RowField>
@@ -782,12 +782,12 @@ export function InboxReviewClient({
                       type="date"
                       value={row.contract.endDate}
                       disabled={row.status === "saving"}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         editRow(doc.id, {
                           contract: { ...row.contract, endDate: e.target.value },
                           contractAutoFilled: { ...row.contractAutoFilled, endDate: false },
-                        })
-                      }
+                        });
+                      }}
                       className={fieldClass(row.contractAutoFilled.endDate, rowIsAi)}
                     />
                   </RowField>
@@ -819,12 +819,12 @@ export function InboxReviewClient({
                       id={`${doc.id}-description`}
                       value={row.product.description}
                       disabled={row.status === "saving"}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         editRow(doc.id, {
                           product: { ...row.product, description: e.target.value },
                           productAutoFilled: { ...row.productAutoFilled, description: false },
-                        })
-                      }
+                        });
+                      }}
                       className={fieldClass(row.productAutoFilled.description, rowIsAi)}
                     />
                   </RowField>
@@ -833,12 +833,12 @@ export function InboxReviewClient({
                       id={`${doc.id}-manufacturer`}
                       value={row.product.manufacturer}
                       disabled={row.status === "saving"}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         editRow(doc.id, {
                           product: { ...row.product, manufacturer: e.target.value },
                           productAutoFilled: { ...row.productAutoFilled, manufacturer: false },
-                        })
-                      }
+                        });
+                      }}
                       className={fieldClass(row.productAutoFilled.manufacturer, rowIsAi)}
                     />
                   </RowField>
@@ -847,12 +847,12 @@ export function InboxReviewClient({
                       id={`${doc.id}-price`}
                       value={row.product.price}
                       disabled={row.status === "saving"}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         editRow(doc.id, {
                           product: { ...row.product, price: e.target.value },
                           productAutoFilled: { ...row.productAutoFilled, price: false },
-                        })
-                      }
+                        });
+                      }}
                       inputMode="decimal"
                       className={fieldClass(row.productAutoFilled.price, rowIsAi)}
                     />
@@ -863,12 +863,12 @@ export function InboxReviewClient({
                       type="date"
                       value={row.product.purchaseDate}
                       disabled={row.status === "saving"}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         editRow(doc.id, {
                           product: { ...row.product, purchaseDate: e.target.value },
                           productAutoFilled: { ...row.productAutoFilled, purchaseDate: false },
-                        })
-                      }
+                        });
+                      }}
                       className={fieldClass(row.productAutoFilled.purchaseDate, rowIsAi)}
                     />
                   </RowField>
@@ -878,12 +878,12 @@ export function InboxReviewClient({
                       type="date"
                       value={row.product.warrantyEndDate}
                       disabled={row.status === "saving"}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         editRow(doc.id, {
                           product: { ...row.product, warrantyEndDate: e.target.value },
                           productAutoFilled: { ...row.productAutoFilled, warrantyEndDate: false },
-                        })
-                      }
+                        });
+                      }}
                       className={fieldClass(row.productAutoFilled.warrantyEndDate, rowIsAi)}
                     />
                   </RowField>
@@ -913,12 +913,12 @@ export function InboxReviewClient({
                       id={`${doc.id}-label`}
                       value={row.inventory.label}
                       disabled={row.status === "saving"}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         editRow(doc.id, {
                           inventory: { ...row.inventory, label: e.target.value },
                           inventoryAutoFilled: { ...row.inventoryAutoFilled, label: false },
-                        })
-                      }
+                        });
+                      }}
                       className={fieldClass(row.inventoryAutoFilled.label, rowIsAi)}
                     />
                   </RowField>
@@ -927,12 +927,12 @@ export function InboxReviewClient({
                       id={`${doc.id}-brand`}
                       value={row.inventory.brand}
                       disabled={row.status === "saving"}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         editRow(doc.id, {
                           inventory: { ...row.inventory, brand: e.target.value },
                           inventoryAutoFilled: { ...row.inventoryAutoFilled, brand: false },
-                        })
-                      }
+                        });
+                      }}
                       className={fieldClass(row.inventoryAutoFilled.brand, rowIsAi)}
                     />
                   </RowField>
@@ -941,12 +941,12 @@ export function InboxReviewClient({
                       id={`${doc.id}-inv-category`}
                       value={row.inventory.category}
                       disabled={row.status === "saving"}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         editRow(doc.id, {
                           inventory: { ...row.inventory, category: e.target.value },
                           inventoryAutoFilled: { ...row.inventoryAutoFilled, category: false },
-                        })
-                      }
+                        });
+                      }}
                       className={fieldClass(row.inventoryAutoFilled.category, rowIsAi)}
                     >
                       {INVENTORY_ITEM_CATEGORIES.map((cat) => (
@@ -961,12 +961,12 @@ export function InboxReviewClient({
                       id={`${doc.id}-purchasePrice`}
                       value={row.inventory.purchasePrice}
                       disabled={row.status === "saving"}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         editRow(doc.id, {
                           inventory: { ...row.inventory, purchasePrice: e.target.value },
                           inventoryAutoFilled: { ...row.inventoryAutoFilled, purchasePrice: false },
-                        })
-                      }
+                        });
+                      }}
                       inputMode="decimal"
                       className={fieldClass(row.inventoryAutoFilled.purchasePrice, rowIsAi)}
                     />
