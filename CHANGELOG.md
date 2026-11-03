@@ -247,6 +247,28 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   by replaying an offline delete, no longer restarts its 30-day Trash
   clock. Restoring an item now refreshes its own page.
 
+- **Docker image is about 74% smaller (#518).** The amd64 image goes from
+  698 MiB to about 180 MiB compressed. The runner now ships Next's
+  standalone output instead of the project's full production `node_modules`.
+  File ownership is set as files are copied, rather than by a `chown -R`
+  that wrote every file a second time. The Prisma CLI for `prisma migrate
+  deploy` is installed by itself under `/opt/migrate` (`docker/migrate/`).
+  Migrations still run automatically at container start, and existing
+  `./data` volumes upgrade in place. glibc-only native binaries that could
+  never load on Alpine are dropped, and the APK index cache no longer lands
+  in the image. A new `Docker image` workflow builds the image on relevant
+  PRs, fails if the image exceeds a 200 MiB budget, and runs a container smoke test
+  (`scripts/docker-smoke.sh`) covering a fresh install and an upgrade from
+  the latest release. `docker-publish.yml` runs the same checks before it
+  pushes.
+
+### Fixed
+
+- **PDF export returned 500 in the Docker image (#523).** Every "Export
+  PDF" failed with `ENOENT … Helvetica.afm`, because webpack bundled
+  `pdfkit` and left its font data behind. `pdfkit` is now a server external
+  package, so its data files ship with it.
+
 ## [0.20.1] - 2026-10-31
 
 ### Fixed

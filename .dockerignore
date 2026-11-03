@@ -11,3 +11,32 @@ data
 .gitignore
 README.md
 npm-debug.log*
+**/node_modules
+
+# Not inputs to `next build`. Keeping them out of the build context means an
+# edit to the mobile shell, docs or tests doesn't bust the `COPY . .` layer
+# cache, and local native build output (android/ alone can be ~90 MB) isn't
+# uploaded to the builder (#518). None of this changes the runtime image.
+android
+ios
+ios-shell
+capacitor.config.ts
+e2e
+tests
+coverage
+playwright-report
+test-results
+playwright.config.ts
+playwright.standalone.config.ts
+vitest.config.ts
+docs
+deploy
+nginx
+docker-compose*.yml
+render.yaml
+vercel.json
+.github
+.claude
+.codex
+.agents
+*.md
