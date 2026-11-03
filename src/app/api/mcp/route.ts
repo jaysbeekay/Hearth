@@ -7,6 +7,7 @@ import {
   clientAddress,
   consumeRateLimit,
   recordFailedAttempt,
+  RATE_LIMITS,
   type RateLimitResult,
 } from "@/lib/rateLimit";
 import { logSecurityEvent } from "@/lib/securityEventLog";
@@ -55,6 +56,25 @@ async function logToolCalls(request: NextRequest, label: string, address: string
   }
 }
 
+// Security-log rows for auth failures are capped across all addresses
+// (mcpAuthLog): a client rotating X-Forwarded-For on a proxy-less install
+// could otherwise write a row per request and push real events off the
+// Settings → Security list. Past the cap, one row says logging is paused.
+async function logAuthFailure(type: "MCP_AUTH_FAILED" | "MCP_THROTTLED", address: string) {
+  const budget = checkRateLimit("mcpAuthLog", "all");
+  if (!budget.allowed) return;
+  consumeRateLimit("mcpAuthLog", "all");
+  if (checkRateLimit("mcpAuthLog", "all").allowed) {
+    await logSecurityEvent({ type, address, detail: address });
+  } else {
+    await logSecurityEvent({
+      type: "MCP_THROTTLED",
+      address,
+      detail: `${address}; too many MCP auth failures, logging paused for up to ${Math.ceil(RATE_LIMITS.mcpAuthLog.windowMs / 60_000)} minutes`,
+    });
+  }
+}
+
 async function handle(request: NextRequest) {
   const tokens = configuredMcpTokens();
   const address = clientAddress(request.headers);
@@ -68,12 +88,10 @@ async function handle(request: NextRequest) {
   if (!result.ok) {
     if (result.status === 401) {
       recordFailedAttempt("mcpAuth", address);
-      await logSecurityEvent({ type: "MCP_AUTH_FAILED", address, detail: address });
+      await logAuthFailure("MCP_AUTH_FAILED", address);
       // Record the lockout once, when this failure crosses the limit, rather
-      // than once per throttled request — bounded however hard it's hammered.
-      if (!checkRateLimit("mcpAuth", address).allowed) {
-        await logSecurityEvent({ type: "MCP_THROTTLED", address, detail: address });
-      }
+      // than once per throttled request.
+      if (!checkRateLimit("mcpAuth", address).allowed) await logAuthFailure("MCP_THROTTLED", address);
     }
     return NextResponse.json({ error: result.error }, { status: result.status });
   }

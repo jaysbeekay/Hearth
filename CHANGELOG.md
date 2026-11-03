@@ -12,7 +12,8 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 - **MCP server hardening.** `/api/mcp` now compares bearer tokens in
   constant time, throttles wrong tokens per client address (10 per 15
   minutes, recorded in Settings → Security as "MCP request with a wrong
-  token" and "MCP requests throttled"), and caps each valid token at 300
+  token" and "MCP requests throttled", at most 30 rows per 15 minutes so a
+  flood can't bury the log), and caps each valid token at 300
   requests per 5 minutes. A new optional `MCP_TOKENS` variable takes
   `label:token` pairs so each client gets its own revocable token, and the
   server log names the label on every tool call. Every tool now carries the

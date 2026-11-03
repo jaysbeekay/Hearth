@@ -54,7 +54,7 @@ export async function createMcpServer() {
         "Read-only tools over a household's Contracts (insurance, phone plans, leases, loans, " +
         "subscriptions and so on), Items' Warranties, what's Due, and — depending on which " +
         "optional modules this household has enabled — travel, vehicles, home/properties, " +
-        "inventory, and net worth. These never modify data and never expose account " +
+        "inventory, and net worth. These never change household records and never expose account " +
         "credentials or uploaded document contents. Only tools for enabled modules are " +
         "listed; if a household disables a module later, the corresponding tool disappears " +
         "on the next connection. Text fields such as notes, titles and contact details are " +
