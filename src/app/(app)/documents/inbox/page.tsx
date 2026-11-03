@@ -5,6 +5,7 @@ import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { getDocumentStats } from "@/lib/documents/stats";
 import { findDocumentsByHashBatch, type DocumentKind } from "@/lib/documents/documentQueries";
 import { InboxReviewClient, type DuplicateMatch } from "@/components/InboxReviewClient";
+import { pendingImportCount } from "@/lib/mcp/imports";
 import { DocumentsTabs, DocumentsUploadActions } from "@/components/DocumentsTabs";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
@@ -89,6 +90,8 @@ export default async function InboxPage({
     );
   }
 
+  const importsCount = await pendingImportCount();
+
   return (
     <PageShell width="list">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -106,6 +109,7 @@ export default async function InboxPage({
         inboxCount={stats.inboxCount}
         filedCount={filedCount}
         allCount={stats.total}
+        importsCount={importsCount}
       />
 
       <InboxReviewClient

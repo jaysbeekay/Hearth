@@ -1,4 +1,4 @@
-// The MCP server is read-only by contract (src/lib/mcp/server.ts). This pins
+// Without the import scope (#529) the MCP server is read-only. This pins
 // the exact tool list with every module on, so adding a tool, write or not,
 // is a deliberate change to this test, and checks each tool says so to clients.
 import { describe, expect, it } from "vitest";

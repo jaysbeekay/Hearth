@@ -56,11 +56,17 @@ function revalidateInventoryItem(id: string, warrantyIds: (string | null | undef
   }
 }
 
-export async function createInventoryItemCommand(input: InventoryItemInput, actorId: string) {
+export async function createInventoryItemCommand(
+  input: InventoryItemInput,
+  actorId: string,
+  alsoInTransaction?: (tx: Db, created: { id: string }) => Promise<unknown>,
+) {
   await assertModuleEnabled("INVENTORY");
   const item = await prisma.$transaction(async (tx) => {
     if (input.warrantyProductId) await assertWarrantyLive(tx, input.warrantyProductId);
-    return tx.inventoryItem.create({ data: { ...input, createdById: actorId } });
+    const created = await tx.inventoryItem.create({ data: { ...input, createdById: actorId } });
+    if (alsoInTransaction) await alsoInTransaction(tx, created);
+    return created;
   });
   revalidateInventoryItem(item.id, [item.warrantyProductId]);
   return item;

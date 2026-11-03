@@ -32,6 +32,7 @@ services:
       CRON_SECRET: ${CRON_SECRET:-}
       MCP_TOKEN: ${MCP_TOKEN:-}
       MCP_TOKENS: ${MCP_TOKENS:-}
+      MCP_IMPORT_LABELS: ${MCP_IMPORT_LABELS:-}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-}
       # Optional: route AI provider calls through a local agent-firewall proxy

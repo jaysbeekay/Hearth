@@ -202,6 +202,10 @@ _The property detail screenshot was captured without network access, so it doesn
 | --- | --- |
 | ![Mobile dashboard](docs/screenshots/mobile-dashboard.png) | ![Form validation error](docs/screenshots/error-state-form.png) |
 
+| Documents — MCP imports | |
+| --- | --- |
+| ![Documents — MCP imports](docs/screenshots/mcp-imports.png) | |
+
 | Settings — security log | Upcoming |
 | --- | --- |
 | ![Settings — security log](docs/screenshots/settings-security.png) | ![Upcoming](docs/screenshots/upcoming.png) |
@@ -326,6 +330,7 @@ services:
       CRON_SECRET: ${CRON_SECRET:-}
       MCP_TOKEN: ${MCP_TOKEN:-}
       MCP_TOKENS: ${MCP_TOKENS:-}
+      MCP_IMPORT_LABELS: ${MCP_IMPORT_LABELS:-}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-}
       BARCODE_LOOKUP_ENABLED: ${BARCODE_LOOKUP_ENABLED:-}
@@ -487,10 +492,12 @@ the others; restart the container after any change. The server log records
 one line per tool call naming the label (`[mcp] claude-code called
 whats_due from <address>`), without the call's arguments.
 
-The server is read-only — no tool ever modifies data or returns account
-credentials or uploaded document file contents (only document metadata:
-filename, type, size), and every tool carries the MCP `readOnlyHint`
-annotation. Contracts and products are always exposed; the rest mirror
+By default the server is read-only — no tool ever modifies data or returns
+account credentials or uploaded document file contents (only document
+metadata: filename, type, size), and every read tool carries the MCP
+`readOnlyHint` annotation. Tokens you grant the import scope can also
+propose new records, which wait for a household member's approval (see
+"Importing records over MCP" below). Contracts and products are always exposed; the rest mirror
 whichever optional modules (Travel, Vehicles, Home, Inventory, Wealth) this
 household has enabled, same as the in-app AI Assistant — disable a module and
 its tool disappears on the next connection.
@@ -540,9 +547,53 @@ its tool disappears on the next connection.
   exposing the endpoint beyond your LAN. The counters live in the one
   Hearth process, so they don't add up across replicas; the token, not the
   throttle, is the security boundary.
+- **The import scope adds a review queue, not write access.** A proposal
+  can't change or delete anything, but an agent steered by injected text
+  could fill the queue with junk or plausible-looking records — read each
+  one before approving, and only grant the scope to agents you use for
+  importing.
 - **Notes are passed to the agent as-is.** The server tells clients to treat
   free-text fields as data, not instructions, but if the same agent also has
   write-capable tools from other servers, keep its confirmations on.
+
+### Importing records over MCP
+
+An agent can help load existing paperwork — say, contracts from a broker's
+email or a spreadsheet of purchases — without being able to write anything
+itself. Grant the import scope to specific tokens by label:
+
+```bash
+MCP_TOKENS="claude-code:<token>,ollama:<token>"
+MCP_IMPORT_LABELS="claude-code"   # "default" means MCP_TOKEN
+```
+
+Those tokens (and only those) also see these tools:
+
+| Tool | Proposes |
+| --- | --- |
+| `propose_import_contract` | A contract: title, category, provider, renewal type, plus optional number, dates, cost, contacts and notes. |
+| `propose_import_product` | A product/warranty: description, plus optional maker, model, serial, dates, price and notes. |
+| `propose_import_inventory_item` *(Inventory)* | An inventory item: label, plus optional category, brand, model, serial, purchase details, location and notes. |
+
+A proposal is validated against the same rules as the app's own form (an
+invalid field is reported back to the agent by name) and then **waits in
+Documents → Imports**. Nothing is saved until a household member approves
+it there; approval re-validates it and creates the record exactly as the
+form would, so Due dates and reminders work as usual. Each proposal shows
+every field in full, which token proposed it, and a warning when it looks
+like a record you already have: a contract with the same contract number,
+or the same title and provider; a product or inventory item with the same
+serial number, or the same name, maker and model. The same check runs
+across the queue itself, so an agent that proposes one contract twice gets
+both cards flagged, and a bulk approval creates only the first and skips
+the look-alikes (approve one on its own if both are real). Approving never
+merges; reject the duplicate instead.
+
+Limits: proposals never link to existing properties, vehicles or warranties
+(add the link after approving), documents can't be attached over MCP, each
+token can make 100 proposals an hour, and the queue holds at most 200
+pending proposals. READONLY members can see the queue but not approve or
+reject.
 
 ### Connecting a client
 
@@ -890,6 +941,7 @@ for the full list with defaults. Notable ones:
 | `AUTH_TRUST_HOST` | Set to `true` when running behind a reverse proxy (e.g. nginx) — see "Locking down access with nginx + mTLS" above. |
 | `MCP_TOKEN` | Optional. If set, enables `GET/POST /api/mcp`, a read-only MCP server for querying contracts from an LLM agent — see "Querying contracts from an LLM (MCP)" above. |
 | `MCP_TOKENS` | Optional. Comma-separated `label:token` pairs, one per MCP client, so each can be revoked on its own and is named in the access log. Enables the endpoint like `MCP_TOKEN`; both can be set. |
+| `MCP_IMPORT_LABELS` | Optional. Comma-separated token labels (`default` for `MCP_TOKEN`) allowed to propose records for import over MCP. Proposals wait in Documents → Imports for approval. Unset keeps every token read-only. |
 | `OLLAMA_BASE_URL` / `OLLAMA_MODEL` | Optional. Set both to enable the local-LLM fallback for document auto-fill when heuristics can't confidently parse a scan — see "Auto-filling fields from a document" above. |
 | `AI_EGRESS_PROXY_URL` | Optional. Routes outbound AI provider calls (document extraction and the chat assistant) through a local agent-firewall proxy such as Pipelock, instead of calling the provider directly — see "Routing AI traffic through an agent firewall" above. |
 | `BARCODE_LOOKUP_ENABLED` | Optional. Set to `true` to look up a scanned product barcode online and auto-fill its name/manufacturer — see "Barcode scanning for products" above. |
