@@ -497,7 +497,9 @@ export function ImportClient({
                   <select
                     id={`${inputId}-bulk-type`}
                     value={bulk.type}
-                    onChange={(e) => setBulk({ ...bulk, type: e.target.value as BulkPatch["type"] })}
+                    onChange={(e) => {
+                      setBulk({ ...bulk, type: e.target.value as BulkPatch["type"] });
+                    }}
                     className={fieldClass(false)}
                   >
                     <option value="">No change</option>
@@ -514,7 +516,9 @@ export function ImportClient({
                   <select
                     id={`${inputId}-bulk-category`}
                     value={bulk.category}
-                    onChange={(e) => setBulk({ ...bulk, category: e.target.value })}
+                    onChange={(e) => {
+                      setBulk({ ...bulk, category: e.target.value });
+                    }}
                     className={fieldClass(false)}
                   >
                     <option value="">No change</option>
@@ -533,7 +537,9 @@ export function ImportClient({
                     <select
                       id={`${inputId}-bulk-link`}
                       value={bulk.link}
-                      onChange={(e) => setBulk({ ...bulk, link: e.target.value })}
+                      onChange={(e) => {
+                        setBulk({ ...bulk, link: e.target.value });
+                      }}
                       className={fieldClass(false)}
                     >
                       <option value="">No change</option>
@@ -574,7 +580,9 @@ export function ImportClient({
                       <input
                         type="checkbox"
                         checked={row.selected === true}
-                        onChange={(e) => updateRow(row.id, { selected: e.target.checked })}
+                        onChange={(e) => {
+                          updateRow(row.id, { selected: e.target.checked });
+                        }}
                         aria-label={`Select ${row.file.name}`}
                       />
                     )}
