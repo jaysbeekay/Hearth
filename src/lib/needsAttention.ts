@@ -1,6 +1,14 @@
 import type { Contract, Product, Vehicle } from "@/generated/prisma/client";
 import { isDue, type DueContext, type DueEntry } from "@/lib/duePolicy";
-import { contractDue, tenancyDue, vehicleDue, warrantyDue, type ContractDueRow } from "@/lib/dueRecords";
+import {
+  contractDue,
+  tenancyDue,
+  vehicleDue,
+  warrantyDue,
+  type ContractDueRow,
+  type TenancyDueRow,
+  type VehicleDueRow,
+} from "@/lib/dueRecords";
 import { contractRules, listHref, productRules } from "@/lib/recordFilters";
 
 export type AttentionKind = "contract" | "warranty" | "vehicle" | "property" | "system";
@@ -139,7 +147,11 @@ const VEHICLE_ACTIONS = new Map<string, string>([
   ["nextServiceDue", "Book service"],
 ]);
 
-type AttentionVehicle = Pick<Vehicle, "id" | "label" | "regoExpiry" | "insuranceExpiry" | "nextServiceDue" | "reminderDaysBefore" | "archivedAt">;
+type AttentionVehicle = Pick<
+  Vehicle,
+  "id" | "label" | "regoExpiry" | "insuranceExpiry" | "nextServiceDue" | "reminderDaysBefore" | "archivedAt"
+> &
+  Pick<VehicleDueRow, "contracts">;
 
 /** One row per Due entry: a Vehicle's rego, insurance and service are separate dates, each with its own state. */
 export function buildVehicleAttentionItems(vehicles: AttentionVehicle[], ctx: DueContext): AttentionItem[] {
@@ -169,6 +181,8 @@ export interface AttentionTenancy {
   leaseEnd: Date | null;
   /** Its own Reminder thresholds, which set its due-soon window (#388). */
   reminderDaysBefore?: string | null;
+  /** #457 — the linked Contract, which Covers the lease end when its end date is the same day. */
+  contract: TenancyDueRow["contract"];
 }
 
 /**
@@ -216,8 +230,8 @@ export function buildReminderNudgeItem(): AttentionItem {
     group: "housekeeping",
     title: "Reminders aren't configured",
     subtitle: "Hearth can email or push a reminder before things come due.",
-    href: "/settings/app",
-    action: { label: "Configure reminders", href: "/settings/app" },
+    href: "/settings/reminders",
+    action: { label: "Configure reminders", href: "/settings/reminders" },
     badge: "Not configured",
   };
 }

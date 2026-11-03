@@ -99,7 +99,10 @@ export default async function ContractsPage({
   const [allContracts, counts, { dateFormat, region }, session, trashCount] = await Promise.all([
     prisma.contract.findMany({
       where,
-      include: { _count: { select: { documents: { where: { deletedAt: null } } } } },
+      include: {
+        _count: { select: { documents: { where: { deletedAt: null } } } },
+        vehicle: { select: { label: true } },
+      },
       orderBy: [{ status: "asc" }, { endDate: "asc" }],
     }),
     contractCounts(query, filters, due),

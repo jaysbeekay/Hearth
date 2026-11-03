@@ -11,8 +11,10 @@ import {
   purgePropertyValuation,
 } from "@/lib/commands/home";
 import { purgeTrade } from "@/lib/commands/wealth";
+import { purgeInventoryItem, ItemNotInTrashError, PurgeFilesPendingError } from "@/lib/commands/inventory";
+import { RecordNotFoundError } from "@/lib/commands/shared";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { purgeDocument, removeOwnerDocumentFiles } from "@/lib/commands/documents";
+import { purgeDocument } from "@/lib/commands/documents";
 import { DOCUMENT_KIND_MODULE, type OwnedDocumentKind } from "@/lib/documents/kinds";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import type { ModuleKey } from "@/lib/modules/registry";
@@ -133,8 +135,18 @@ export async function purgeExpiredTrash(): Promise<void> {
     await purgeTrip(t.id);
   }
   for (const i of inventoryItems) {
-    await removeOwnerDocumentFiles("INVENTORY_ITEM", i.id);
-    await prisma.inventoryItem.delete({ where: { id: i.id } });
+    // Skips an item restored since it was listed rather than purging it (#522).
+    try {
+      await purgeInventoryItem(i.id, { deletedBefore: cutoff });
+    } catch (error) {
+      // A restored item is skipped; one whose files couldn't be removed is
+      // deleted, and the document-store reconciliation sweeps its files.
+      const handled =
+        error instanceof RecordNotFoundError ||
+        error instanceof ItemNotInTrashError ||
+        error instanceof PurgeFilesPendingError;
+      if (!handled) throw error;
+    }
   }
 }
 

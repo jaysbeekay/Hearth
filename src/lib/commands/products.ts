@@ -100,10 +100,15 @@ export async function createProductCommand(
   input: ProductInput,
   actorId: string,
   extra?: ProductExtractionFields,
+  // Runs in the create's transaction (the MCP import approval links its
+  // proposal here, #529); throwing rolls the new record back.
+  alsoInTransaction?: (tx: Prisma.TransactionClient, created: { id: string }) => Promise<unknown>,
 ) {
   const product = await prisma.$transaction(async (tx) => {
     await assertLinksLive(input, tx);
-    return tx.product.create({ data: { ...input, ...extra, createdById: actorId } });
+    const created = await tx.product.create({ data: { ...input, ...extra, createdById: actorId } });
+    if (alsoInTransaction) await alsoInTransaction(tx, created);
+    return created;
   });
   revalidatePath("/products");
   revalidatePath("/dashboard");

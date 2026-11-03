@@ -5,6 +5,7 @@ import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { getDueContext } from "@/lib/appSettings";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { currentTenancy, LIVE_TENANCY_AGREEMENTS } from "@/lib/dueRecords";
+import { COVERING_CONTRACTS } from "@/lib/covers";
 import {
   buildContractAttentionItems,
   buildExtractionReviewItems,
@@ -93,7 +94,11 @@ export async function GET(request: NextRequest) {
       include: { _count: { select: { documents: { where: { deletedAt: null } } } } },
     }),
     enabled.has("VEHICLES")
-      ? prisma.vehicle.findMany({ where: { deletedAt: null, archivedAt: null }, orderBy: { createdAt: "desc" } })
+      ? prisma.vehicle.findMany({
+          where: { deletedAt: null, archivedAt: null },
+          orderBy: { createdAt: "desc" },
+          include: { contracts: COVERING_CONTRACTS },
+        })
       : [],
     enabled.has("HOME")
       ? prisma.property.findMany({
@@ -113,6 +118,7 @@ export async function GET(request: NextRequest) {
             tenantName: tenancy.tenantName,
             leaseEnd: tenancy.leaseEnd,
             reminderDaysBefore: tenancy.reminderDaysBefore,
+            contract: tenancy.contract,
           },
         ]
       : [];

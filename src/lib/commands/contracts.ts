@@ -57,10 +57,18 @@ async function findLiveContract(id: string, client: ContractClient = prisma) {
   return contract;
 }
 
+// A Covering Contract supplies its Vehicle's rego or insurance date (#456), so
+// any change to a Contract can change what the Vehicle pages show.
+function revalidateVehicles() {
+  revalidatePath("/vehicles");
+  revalidatePath("/vehicles/[id]", "page");
+}
+
 function revalidateContract(id: string) {
   revalidatePath("/contracts");
   revalidatePath(`/contracts/${id}`);
   revalidatePath("/dashboard");
+  revalidateVehicles();
 }
 
 // A patch that moves either date mustn't leave the end date before the
@@ -116,13 +124,19 @@ export async function createContractCommand(
   input: ContractInput,
   actorId: string,
   extra?: ContractExtractionFields,
+  // Runs in the create's transaction (the MCP import approval links its
+  // proposal here, #529); throwing rolls the new record back.
+  alsoInTransaction?: (tx: Prisma.TransactionClient, created: { id: string }) => Promise<unknown>,
 ) {
   const contract = await prisma.$transaction(async (tx) => {
     await assertLinksLive(input, tx);
-    return tx.contract.create({ data: { ...input, ...extra, createdById: actorId } });
+    const created = await tx.contract.create({ data: { ...input, ...extra, createdById: actorId } });
+    if (alsoInTransaction) await alsoInTransaction(tx, created);
+    return created;
   });
   revalidatePath("/contracts");
   revalidatePath("/dashboard");
+  revalidateVehicles();
   return contract;
 }
 
@@ -276,6 +290,7 @@ export async function deleteContractCommand(id: string) {
   await prisma.contract.update({ where: { id }, data: { deletedAt: new Date() } });
   revalidatePath("/contracts");
   revalidatePath("/dashboard");
+  revalidateVehicles();
   revalidatePath("/settings/trash");
 }
 

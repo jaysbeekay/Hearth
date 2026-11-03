@@ -227,3 +227,47 @@ test("a zero-count active chip turns off", async ({ page }) => {
   await expect(main.getByRole("button", { name: "Missing key details · 0", pressed: false }).first()).toBeVisible();
   await expect(main.getByText(`Chip Zero Complete ${stamp}`)).toBeVisible();
 });
+
+// #517 review — a search still waiting to auto-submit must not fire after a
+// pill or Clear all has changed the list, and put back a q= it just removed.
+test("removing the search before the auto-submit fires keeps it removed", async ({ page }) => {
+  // The toolbar only renders once there is a record, so the race needs one.
+  await createContract(page, { title: `Debounce Race ${Date.now()}` });
+  await page.goto("/products/new");
+  await page.locator("#description").fill(`Debounce Race ${Date.now()}`);
+  await page.locator("main button[type=submit]").click();
+  await page.waitForURL(/\/products\/(?!new$)[^/]+$/);
+
+  // The page clock is paused while typing and clicking, so the 400 ms timer
+  // cannot fire before the click; runFor then fires it if it was not
+  // cancelled. Without the pause a slow click could let the timer win and the
+  // test would pass with or without the fix.
+  await page.clock.install();
+  const pauseAfterLoad = async () => {
+    await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+  };
+
+  await page.goto("/contracts?q=Stale");
+  await pauseAfterLoad();
+  const contractSearch = page.getByPlaceholder("Search by title, provider, or number…");
+  await contractSearch.fill("Stale typed");
+  await page.locator("main").getByRole("button", { name: '"Stale"', exact: true }).click();
+  await page.waitForURL((url) => url.pathname === "/contracts" && !url.searchParams.has("q"));
+  // The search box follows the list: no typed text the list does not apply.
+  await expect(contractSearch).toHaveValue("");
+  await page.clock.runFor(1000);
+  await page.waitForTimeout(500);
+  expect(new URL(page.url()).searchParams.has("q")).toBe(false);
+
+  await page.clock.resume();
+  await page.goto("/products?q=Stale");
+  await pauseAfterLoad();
+  const productSearch = page.locator('main input[name="q"]');
+  await productSearch.fill("Stale typed");
+  await page.locator("main").getByRole("button", { name: "Clear all", exact: true }).click();
+  await page.waitForURL((url) => url.pathname === "/products" && !url.searchParams.has("q"));
+  await expect(productSearch).toHaveValue("");
+  await page.clock.runFor(1000);
+  await page.waitForTimeout(500);
+  expect(new URL(page.url()).searchParams.has("q")).toBe(false);
+});

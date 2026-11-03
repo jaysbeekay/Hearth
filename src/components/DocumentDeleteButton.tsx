@@ -27,7 +27,7 @@ export function DocumentDeleteButton({
       <ConfirmForm
         action={deleteDocumentAction.bind(null, kind, documentId, ownerId)}
         undo={{ action: restoreDocumentAction.bind(null, kind, documentId) }}
-        confirmText={`Delete ${filename}? You can restore it within 30 days from Settings → Recently deleted.`}
+        confirmText={`Delete ${filename}? You can restore it within 30 days from Settings → Household → Recently deleted.`}
         ariaLabel={`Delete ${filename}`}
         className={className}
         offline={{

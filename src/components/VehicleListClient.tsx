@@ -7,6 +7,7 @@ import { ListFilterChips } from "@/components/ListFilterChips";
 import { VehicleCard } from "@/components/VehicleCard";
 import { PendingRecordCard } from "@/components/PendingRecordCard";
 import type { VehicleModel } from "@/generated/prisma/models";
+import type { CoveringContractRow } from "@/lib/covers";
 import type { DueContext } from "@/lib/duePolicy";
 import { cachePageData } from "@/lib/offlineCache";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
@@ -23,7 +24,7 @@ import { MODULE_REGISTRY } from "@/lib/modules/registry";
 import { emptyStateClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
 
-type VehicleWithCount = VehicleModel & { _count: { items: number } };
+type VehicleWithCount = VehicleModel & { _count: { items: number }; contracts: CoveringContractRow[] };
 
 interface Props {
   vehicles: VehicleWithCount[];
