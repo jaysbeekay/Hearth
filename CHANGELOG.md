@@ -9,6 +9,16 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Share a Document (#374).** Every Document row (on each record's page and
+  in Documents) has Share beside Preview, and the preview gains Share and
+  Download. Where the browser can share files (phones, some desktops) the
+  file itself goes to the share sheet. Elsewhere Share makes a link that
+  opens the Document without signing in for 24 hours, and copies it; the
+  toast offers Revoke. Links are recorded in the Security log, listed there
+  under Shared links for an admin to revoke, stop working as soon as the
+  Document or its record goes to Trash, and are cleared a day after they
+  expire. Read-only members can share the file but can't make links. Only
+  a hash of each link's token is stored.
 - **Import records over MCP, with approval (#529).** Tokens listed in the
   new `MCP_IMPORT_LABELS` get `propose_import_contract`,
   `propose_import_product` and (with Inventory on)

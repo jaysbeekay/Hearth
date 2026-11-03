@@ -81,6 +81,8 @@ enum SecurityEventType {
   USER_DELETED
   MCP_AUTH_FAILED
   MCP_THROTTLED
+  DOCUMENT_SHARE_LINK_CREATED
+  DOCUMENT_SHARE_LINK_REVOKED
 }
 
 enum ProductDocumentKind {
@@ -226,6 +228,7 @@ model User {
   inboxDocuments        InboxDocument[]
   chatThreads           ChatThread[]
   passwordResetTokens   PasswordResetToken[]
+  documentShareLinks    DocumentShareLink[]   @relation("DocumentShareLinksCreated")
   totpSecret            String?
   totpEnabled           Boolean              @default(false)
   totpRecoveryCodes     String?
@@ -757,6 +760,28 @@ model SecurityEventLog {
 
   @@index([createdAt])
   @@map("security_event_logs")
+}
+
+// #374 — a link that serves one Document without a session, for sharing it
+// from a browser that can't share the file itself. Only a hash of the token
+// is stored. A link works until it expires or is revoked, and only while the
+// Document (and its record) is live; the Document can be of any kind, so
+// `documentId` isn't a foreign key (cuids are unique across the kinds).
+model DocumentShareLink {
+  id           String    @id @default(cuid())
+  tokenHash    String    @unique
+  documentId   String
+  createdById  String?
+  createdBy    User?     @relation("DocumentShareLinksCreated", fields: [createdById], references: [id], onDelete: SetNull)
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  openCount    Int       @default(0)
+  lastOpenedAt DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([documentId])
+  @@index([expiresAt])
+  @@map("document_share_links")
 }
 
 model ModuleEnablement {
