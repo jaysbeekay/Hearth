@@ -10,6 +10,11 @@ function pdfBytes(): Buffer {
   return Buffer.from("%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n");
 }
 
+// Unique per run of this file. A failed test retries the whole serial group,
+// which creates the vehicle again in the same DB; a fixed label then matched
+// both cards and the retry failed on a strict-mode violation.
+const VEHICLE_LABEL = `Test Vehicle ${Date.now().toString(36)}`;
+
 test.describe.serial("Vehicles module", () => {
   let vehicleId: string;
   let itemId: string;
@@ -28,7 +33,7 @@ test.describe.serial("Vehicles module", () => {
   test("create a vehicle", async ({ page }) => {
     await page.goto("/vehicles/new");
     await openFormSections(page);
-    await page.locator("#label").fill("Test Vehicle");
+    await page.locator("#label").fill(VEHICLE_LABEL);
     await page.locator("#make").fill("Toyota");
     await page.locator("#model").fill("Camry");
     await page.locator("#year").fill("2020");
@@ -39,7 +44,7 @@ test.describe.serial("Vehicles module", () => {
 
     vehicleId = new URL(page.url()).pathname.split("/").pop()!;
     expect(vehicleId).toBeTruthy();
-    await expect(page.locator("body")).toContainText("Test Vehicle");
+    await expect(page.locator("body")).toContainText(VEHICLE_LABEL);
   });
 
   test("add a service record to the vehicle", async ({ page }) => {
@@ -175,7 +180,7 @@ test.describe.serial("Vehicles module", () => {
     await expect(page.locator("main li", { hasText: /^Service: / })).toBeVisible();
 
     await page.goto("/vehicles");
-    const card = page.locator("a", { hasText: "Test Vehicle" });
+    const card = page.locator("a", { hasText: VEHICLE_LABEL });
     // #384 — the Due policy's label for a service date inside its window.
     await expect(card.getByText(/^Service due \d{1,2} [A-Z][a-z]{2}( \d{4})?$/)).toBeVisible();
   });
@@ -283,6 +288,6 @@ test.describe.serial("Vehicles module", () => {
     await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
     await page.waitForURL(/\/vehicles$/);
 
-    await expect(page.locator("body")).not.toContainText("Test Vehicle");
+    await expect(page.locator("body")).not.toContainText(VEHICLE_LABEL);
   });
 });
