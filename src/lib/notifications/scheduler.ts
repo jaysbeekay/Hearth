@@ -15,6 +15,8 @@ import type { NotificationOwnerType } from "@/generated/prisma/enums";
 import { env, isAppUrlConfigured } from "@/lib/env";
 import type { ReminderInput } from "@/lib/notifications/reminderContent";
 import type { DueEntry, VehicleDueField } from "@/lib/duePolicy";
+import { COVERING_CONTRACTS } from "@/lib/covers";
+import { vehicleDueRecord } from "@/lib/dueRecords";
 
 type ReminderContent = Omit<ReminderInput, "dateFormat" | "appUrl">;
 
@@ -164,6 +166,7 @@ export async function runExpirationCheck(now: Date = new Date()) {
       // #355 — an Archived Vehicle gets no Reminders.
       archivedAt: null,
     },
+    include: { contracts: COVERING_CONTRACTS },
   });
   const vehicleLogs = await getNotificationLogsByOwner(
     "VEHICLE",
@@ -172,7 +175,7 @@ export async function runExpirationCheck(now: Date = new Date()) {
   for (const vehicle of vehicles) {
     const sentLog = (vehicleLogs.get(vehicle.id) ?? []).map(toSentLogRow);
     // Rego, insurance and service are separate entries with their own Reminders.
-    const plan = reminderPlan({ kind: "vehicle", ...vehicle }, ctx, sentLog);
+    const plan = reminderPlan(vehicleDueRecord(vehicle), ctx, sentLog);
     await remind("VEHICLE", vehicle.id, plan, (entry) => {
       const field = entry.field as VehicleDueField;
       // #352 — vehicles have their own wording and /vehicles link.

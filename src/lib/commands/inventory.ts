@@ -60,11 +60,16 @@ function revalidateInventoryItem(id: string, warrantyIds: (string | null | undef
   }
 }
 
-export async function createInventoryItemCommand(input: InventoryItemInput, actorId: string) {
+export async function createInventoryItemCommand(
+  input: InventoryItemInput,
+  actorId: string,
+  alsoInTransaction?: (tx: Db, created: { id: string }) => Promise<unknown>,
+) {
   await assertModuleEnabled("INVENTORY");
   const item = await withStagedFileMoves(() => prisma.$transaction(async (tx) => {
     if (input.warrantyProductId) await assertWarrantyLive(tx, input.warrantyProductId);
     const created = await tx.inventoryItem.create({ data: { ...input, createdById: actorId } });
+    if (alsoInTransaction) await alsoInTransaction(tx, created);
     // #380 staging: mirror into the staged Item tables in the same transaction.
     await syncLegacyInventory(tx, created.id);
     return created;

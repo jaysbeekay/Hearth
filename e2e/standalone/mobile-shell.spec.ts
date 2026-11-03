@@ -440,9 +440,9 @@ test.beforeEach(async ({ page }) => {
       const sql = statement.trim();
       // Tenancy edits and deletes land in the rows, so a resync of local
       // Reminders sees them (#388); a deleted contract goes too (#455), and
-      // so does archiving a Vehicle or Property (#355).
+      // so does archiving a Vehicle or Property (#355); a saved contract's link (#456).
       const rowUpdate = /^UPDATE (rental_agreements|contracts|vehicles|properties) SET (.+) WHERE id = \?$/i.exec(sql);
-      if (rowUpdate && (rowUpdate[1] !== "contracts" || /deleted_at = \?/.test(rowUpdate[2]))) {
+      if (rowUpdate && (rowUpdate[1] !== "contracts" || /deleted_at = \?|vehicle_id = \?/.test(rowUpdate[2]))) {
         const table = rowUpdate[1];
         const id = values[values.length - 1];
         const columns = [...rowUpdate[2].matchAll(/(\w+) = \?/g)].map((m) => m[1]);
@@ -454,6 +454,18 @@ test.beforeEach(async ({ page }) => {
           });
           if (row.deleted_at) rowsByTable[table] = rows.filter((candidate) => candidate !== row);
         }
+      }
+      // A saved contract lands in the rows, so the next render reads back what the form wrote (#456).
+      const contractInsert = /^INSERT INTO contracts \(([^)]+)\) VALUES \(([^)]+)\)$/i.exec(sql);
+      if (contractInsert) {
+        const columns = contractInsert[1].split(",").map((column) => column.trim());
+        const placeholders = contractInsert[2].split(",").map((placeholder) => placeholder.trim());
+        let next = 0;
+        const row: Record<string, unknown> = {};
+        columns.forEach((column, index) => {
+          row[column] = placeholders[index] === "?" ? values[next++] : Number(placeholders[index]);
+        });
+        (rowsByTable.contracts as Record<string, unknown>[]).push(row);
       }
       if (/^(UPDATE|DELETE FROM|INSERT( OR REPLACE)? INTO) documents\b/i.test(sql)) applyDocumentStatement(sql, values);
       if (/INSERT OR REPLACE INTO local_profile/i.test(statement)) {
@@ -1184,6 +1196,153 @@ test("standalone vehicle service-due date feeds the detail page, calendar and re
   ).toHaveCount(1);
 });
 
+// #456 - the Category used to be free text; a saved value that isn't a Category survives an edit.
+test("standalone contract form keeps a saved Category that isn't in the list (#456)", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "Contracts" }).click();
+  await page.getByRole("button", { name: /Broadband Plan/ }).click();
+  await page.locator('button[data-form-type="contracts"][data-id]').first().click();
+  await expect(page.locator('select[name="category"]')).toHaveValue("UTILITIES");
+});
+
+// #456 - a Contract that Covers a Vehicle supplies its insurance date, as on the web.
+test("standalone Add insurance opens the contract form linked to the vehicle, and a Covering Contract supplies the date (#456)", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-record-type="vehicles"]').click();
+  await page.getByRole("button", { name: /Family Car/ }).click();
+  // With no covering Contract the typed-in date stays, with its hint.
+  await expect(page.getByText(/Add the policy as a contract to track cost and documents/).first()).toBeVisible();
+
+  await page.getByRole("button", { name: "Add insurance" }).click();
+  await expect(page.locator('select[name="category"]')).toHaveValue("CAR_INSURANCE");
+  await expect(page.locator('select[name="vehicleId"]')).toHaveValue("vehicle-1");
+  await page.locator('input[name="title"]').fill("Allianz policy");
+  await page.locator('input[name="provider"]').fill("Allianz");
+  await page.locator('input[name="endDate"]').fill("2099-09-09");
+  await page.locator('form[data-save-type="contracts"]').getByRole("button", { name: "Save" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Saved");
+  const insert = (await sqliteRuns(page)).find((run) => run.statement.startsWith("INSERT INTO contracts"));
+  expect(insert?.values).toContain("CAR_INSURANCE");
+  expect(insert?.values).toContain("vehicle-1");
+
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-record-type="vehicles"]').click();
+  await page.getByRole("button", { name: /Family Car/ }).click();
+  await expect(page.getByText(/From Allianz policy/).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add insurance" })).toHaveCount(0);
+
+  // The Vehicle has no Reminder of its own for insurance: the Contract's stands in.
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="reminders"]').click();
+  await expect(
+    page.locator(".record-card").filter({ hasText: "Family Car" }).filter({ hasText: "Insurance" }),
+  ).toHaveCount(0);
+  await expect(
+    page.locator(".record-card").filter({ hasText: "Family Car" }).filter({ hasText: "Rego" }),
+  ).toHaveCount(1);
+});
+
+// #487 review - an ended fixed-term policy is a lapse: the Vehicle is Overdue from its end date.
+test("standalone a Vehicle whose fixed-term Covering Contract has ended needs attention (#487)", async ({ page }) => {
+  await page.addInitScript(() => {
+    const rows = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest.rowsByTable;
+    const updated_at = "2099-01-01T00:00:00.000Z";
+    rows.vehicles.push(
+      { id: "vehicle-8", label: "Running Ute", reminder_days_before: "30,14,7,1", created_at: updated_at, updated_at },
+      { id: "vehicle-9", label: "Lapsed Ute", reminder_days_before: "30,14,7,1", created_at: updated_at, updated_at },
+    );
+    const policy = { category: "CAR_INSURANCE", provider: "Allianz", status: "ACTIVE", renewal_type: "FIXED_TERM", currency: "AUD", reminder_days_before: "30,14,7,1", created_at: updated_at, updated_at };
+    rows.contracts.push(
+      { ...policy, id: "contract-running", title: "Running policy", vehicle_id: "vehicle-8", end_date: "2099-12-01" },
+      { ...policy, id: "contract-lapsed", title: "Lapsed policy", vehicle_id: "vehicle-9", end_date: "2099-09-01" },
+    );
+  });
+  await page.clock.setFixedTime(new Date("2099-09-06T12:00:00"));
+  await reloadStandalone(page);
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-record-type="vehicles"]').click();
+  await page.getByRole("button", { name: "Needs attention" }).click();
+  const card = (text: string) => page.locator(".record-card").filter({ hasText: text });
+  await expect(card("Lapsed Ute")).toHaveCount(1);
+  await expect(card("Running Ute")).toHaveCount(0);
+});
+
+// #476 + #456 - one Reminder stream per date across Upcoming, Needs attention
+// and local Reminders: a Covered rego/insurance date is listed once, as the
+// Covering Contract's own event; a Contract that doesn't Cover leaves the
+// Vehicle's own date in place.
+test("standalone Upcoming lists a Covered vehicle date once, as the Contract's (#476, #456)", async ({ page }) => {
+  await page.addInitScript(() => {
+    const rows = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest.rowsByTable;
+    const updated_at = "2099-01-01T00:00:00.000Z";
+    // Own dates inside the Due-soon window, so a leaked Vehicle event would also be coloured.
+    const ute = { rego_expiry: "2099-09-12", insurance_expiry: "2099-09-14", reminder_days_before: "30,14,7,1", created_at: updated_at, updated_at };
+    rows.vehicles.push(
+      { ...ute, id: "vehicle-active", label: "Active Ute" },
+      { ...ute, id: "vehicle-cancelled", label: "Cancelled Ute" },
+      { ...ute, id: "vehicle-review", label: "Review Ute" },
+      { ...ute, id: "vehicle-ended", label: "Ended Ute" },
+      { ...ute, id: "vehicle-unlinked", label: "Unlinked Ute" },
+    );
+    const policy = { category: "CAR_INSURANCE", provider: "Allianz", status: "ACTIVE", renewal_type: "MANUAL_RENEWAL", end_date: "2099-09-20", currency: "AUD", reminder_days_before: "30,14,7,1", created_at: updated_at, updated_at };
+    rows.contracts.push(
+      { ...policy, id: "cover-active", title: "Active policy", vehicle_id: "vehicle-active" },
+      { ...policy, id: "cover-cancelled", title: "Cancelled policy", vehicle_id: "vehicle-cancelled", status: "CANCELLED" },
+      { ...policy, id: "cover-review", title: "Review policy", vehicle_id: "vehicle-review", extraction_pending: 1 },
+      // A fixed-term policy that ended 5 days ago: the Vehicle is uncovered and Overdue from that day (#487).
+      { ...policy, id: "cover-ended", title: "Ended policy", vehicle_id: "vehicle-ended", renewal_type: "FIXED_TERM", end_date: "2099-09-01" },
+      // Unlinked from its Vehicle: it Covers nothing, so the manual date resumes.
+      { ...policy, id: "cover-unlinked", title: "Unlinked policy", vehicle_id: null },
+    );
+    rows.trip_segments.push({ id: "trip-segment-cover", trip_id: "trip-1", type: "ACCOMMODATION", title: "Covers Hotel", start_date: "2099-09-05", end_date: "2099-09-08", currency: "AUD", updated_at });
+  });
+  await page.clock.setFixedTime(new Date("2099-09-06T12:00:00"));
+  await reloadStandalone(page);
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="calendar"]').click();
+  const card = (text: string) => page.locator(".record-card").filter({ hasText: text });
+  const vehicleEvent = (label: string, event: string) => card(label).filter({ hasText: event });
+
+  // Active cover: only the Contract's event, Due soon by its own window.
+  await expect(card("Active policy")).toHaveCount(1);
+  await expect(card("Active policy")).toContainText("Contract ends");
+  await expect(card("Active policy")).toHaveClass(/warning-card/);
+  await expect(vehicleEvent("Active Ute", "Insurance expiry")).toHaveCount(0);
+  // Rego has no Covering Contract, so the Vehicle's own date stays.
+  await expect(vehicleEvent("Active Ute", "Rego expiry")).toHaveCount(1);
+  await expect(vehicleEvent("Active Ute", "Rego expiry")).toContainText("In 6d");
+
+  // Cancelled, under review or unlinked: no Cover, so the Vehicle's own date is listed.
+  for (const label of ["Cancelled Ute", "Review Ute", "Unlinked Ute"]) {
+    await expect(vehicleEvent(label, "Insurance expiry")).toHaveCount(1);
+    await expect(vehicleEvent(label, "Insurance expiry")).toHaveClass(/warning-card/);
+  }
+  await expect(card("Cancelled policy")).toHaveCount(0);
+  await expect(card("Review policy")).not.toHaveClass(/warning-card|danger-card/);
+
+  // Ended fixed-term cover: the lapse is Overdue, so it is in Needs attention, not Upcoming.
+  await expect(vehicleEvent("Ended Ute", "Insurance expiry")).toHaveCount(0);
+  await expect(card("Ended policy")).toHaveCount(0);
+
+  // An in-progress Trip segment sits alongside, neutral.
+  await expect(card("Covers Hotel")).toContainText("In progress");
+  await expect(card("Covers Hotel")).not.toHaveClass(/warning-card|danger-card/);
+
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-record-type="vehicles"]').click();
+  await page.getByRole("button", { name: "Needs attention" }).click();
+  await expect(card("Ended Ute")).toHaveCount(1);
+  await expect(card("Ended Ute")).toContainText("Vehicle overdue");
+
+  // Local Reminders: the Covered Vehicle has none of its own for insurance; the others do.
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="reminders"]').click();
+  await expect(card("Active Ute").filter({ hasText: "Insurance" })).toHaveCount(0);
+  await expect(card("Active Ute").filter({ hasText: "Rego" })).toHaveCount(1);
+  for (const label of ["Cancelled Ute", "Review Ute", "Unlinked Ute"]) {
+    await expect(card(label).filter({ hasText: "Insurance" })).toHaveCount(1);
+  }
+});
+
 test("standalone schedules a local Reminder for a tenancy's lease end (#388)", async ({ page }) => {
   await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
   await page.locator('#mobile-view button[data-nav="reminders"]').click();
@@ -1315,6 +1474,13 @@ async function withContractDocuments(page: import("@playwright/test").Page) {
 
 // Reloads the shell with fixture flags for the mock, kept in the URL's query
 // string (on top of any set earlier) so they reach the reloaded page reliably.
+// A plain reload, for tests that change seeded rows or the clock (no flags).
+async function reloadStandalone(page: import("@playwright/test").Page) {
+  await page.reload();
+  await page.getByRole("button", { name: "Use on this device" }).click();
+  await expect(page.locator("#standalone-screen")).toBeVisible();
+}
+
 async function reloadWithTestFlags(page: import("@playwright/test").Page, flags: Record<string, string>) {
   const url = new URL(page.url());
   for (const [key, value] of Object.entries(flags)) url.searchParams.set(key, value);

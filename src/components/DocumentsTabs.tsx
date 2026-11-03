@@ -18,11 +18,14 @@ export function DocumentsTabs({
   inboxCount,
   filedCount,
   allCount,
+  importsCount = 0,
 }: {
-  active: "inbox" | "filed" | "all";
+  active: "inbox" | "filed" | "all" | "imports";
   inboxCount: number;
   filedCount: number;
   allCount: number;
+  /** Pending MCP import proposals (#529); the tab shows only when there are some. */
+  importsCount?: number;
 }) {
   return (
     <div className="flex gap-6 border-b border-border">
@@ -35,6 +38,11 @@ export function DocumentsTabs({
       <Link href={DOCUMENTS_TABS.all.href} className={tabClass(active === "all")}>
         {DOCUMENTS_TABS.all.label} ({allCount})
       </Link>
+      {(importsCount > 0 || active === "imports") && (
+        <Link href={DOCUMENTS_TABS.imports.href} className={tabClass(active === "imports")}>
+          {DOCUMENTS_TABS.imports.label} ({importsCount})
+        </Link>
+      )}
     </div>
   );
 }

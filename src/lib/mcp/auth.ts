@@ -74,6 +74,20 @@ export function checkMcpAuth(tokens: McpToken[], authorization: string | null): 
   return { ok: true, label: matched };
 }
 
+/**
+ * MCP_IMPORT_LABELS: comma-separated token labels granted the import scope
+ * (#529) — "default" for MCP_TOKEN, or a label from MCP_TOKENS. Unset means
+ * every token stays read-only.
+ */
+export function parseImportLabels(value: string | undefined): Set<string> {
+  return new Set(
+    (value ?? "")
+      .split(",")
+      .map((label) => label.trim())
+      .filter((label) => LABEL.test(label)),
+  );
+}
+
 let cached: { key: string; tokens: McpToken[] } | null = null;
 
 /**

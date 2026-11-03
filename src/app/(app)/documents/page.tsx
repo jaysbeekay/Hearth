@@ -3,6 +3,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { DocumentsExplorer, type DocRow } from "@/components/DocumentsExplorer";
+import { pendingImportCount } from "@/lib/mcp/imports";
 import { DocumentsTabs, DocumentsUploadActions } from "@/components/DocumentsTabs";
 import { documentsEmptyMessage } from "@/lib/documents/emptyMessage";
 import { auth } from "@/lib/auth";
@@ -408,6 +409,8 @@ export default async function DocumentsPage({
     emptyMessage = canWrite ? null : "No documents uploaded yet.";
   }
 
+  const importsCount = await pendingImportCount();
+
   return (
     <PageShell width="list">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -427,6 +430,7 @@ export default async function DocumentsPage({
         inboxCount={inboxCount}
         filedCount={filedCount}
         allCount={totalCount}
+        importsCount={importsCount}
       />
 
       {totalCount > 0 && (

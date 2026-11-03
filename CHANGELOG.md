@@ -7,6 +7,21 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+### Added
+
+- **Import records over MCP, with approval (#529).** Tokens listed in the
+  new `MCP_IMPORT_LABELS` get `propose_import_contract`,
+  `propose_import_product` and (with Inventory on)
+  `propose_import_inventory_item`. A proposal is validated against the
+  form's own schema and queued; it becomes a record only when a household
+  member approves it in the new Documents → Imports tab, which shows every
+  field, the proposing token and likely duplicates (of existing records or of other pending
+  proposals; bulk approval skips look-alikes), with single and bulk
+  approve/reject. Proposals never carry record links or documents, are
+  capped at 100 per token per hour and 200 pending, and READONLY members
+  can see the queue but can't approve or reject. Server-only; the iOS and
+  Android shell is unchanged.
+
 ### Security
 
 - **MCP server hardening.** `/api/mcp` now compares bearer tokens in
@@ -292,6 +307,38 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   release.
 
 ### Added
+
+- **Covers: a Contract can supply a Vehicle's insurance and rego dates (#456).**
+  A new **Vehicle registration** Contract category joins Car insurance. A
+  Contract Covers a Vehicle when it is linked to it, in one of those two
+  categories, not cancelled or in Trash, and has an end date. Its end date
+  then *is* the Vehicle's insurance expiry (car insurance) or rego expiry
+  (registration): the Vehicle page shows the date read-only with a link ("From
+  Allianz policy →") and the list shows the same date, the Vehicle's own Due entry and Reminders for
+  that date are switched off so only the Contract's fire, and the Vehicle's
+  edit form shows the date read-only. With several Covering Contracts the one
+  ending last wins; when the Contract is cancelled, trashed, unlinked or
+  loses its end date, the Vehicle's manual date takes over again (nothing is
+  overwritten). With no covering Contract the manual date stays, with the hint
+  "Add the policy as a contract to track cost and documents". The Vehicle
+  page gets "Add insurance" and "Add registration" shortcuts (and the
+  Property page "Add insurance") that open the contract form pre-linked and
+  pre-categorised, and a registration Contract's cost shows in Spending. The
+  Assistant and MCP report the same derived dates (and which Contract supplies
+  them), calendar feeds leave the Vehicle's duplicate event out, and the
+  standalone shell follows the same rules, with a Category picker, a vehicle
+  link on its contract form and the same shortcuts. No schema migration.
+  A Contract awaiting review never Covers, so an unconfirmed extraction can't
+  replace a typed-in date. When a Contract is cancelled, unlinked or
+  re-categorised, its page says which of the Vehicle's own dates applies
+  again (and when it has already passed). Contract pages and cards say
+  Covers the Vehicle, search finds registration Contracts for rego and
+  registration, the vehicle records export gains the effective and own
+  rego and insurance dates, and the Assistant's needs-attention vehicle list
+  now uses the same Due policy as What's due. A fixed-term Covering Contract
+  that has passed its end date has simply ended, so the Vehicle's date shows
+  as Overdue from that end date (web and standalone shell) instead of the
+  lapse going unannounced; a renewal entered as a new Contract takes over.
 
 - **Archive a Vehicle or Property you no longer have (#355).** Archive (in
   the record's More actions menu, with Undo) marks a Vehicle as sold or a

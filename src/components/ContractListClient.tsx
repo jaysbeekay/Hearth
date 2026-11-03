@@ -99,7 +99,7 @@ function StatusSelect({ value, onChange }: { value?: string; onChange: SelectCha
 }
 
 interface Props {
-  contracts: ContractModel[];
+  contracts: (ContractModel & { vehicle?: { label: string } | null })[];
   /** From the server: each chip's list length, search and filters kept; never recounted here. */
   counts: ListFilterCounts;
   /** #384 — the household's today and default thresholds, for each card's Due badge. */
