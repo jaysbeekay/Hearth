@@ -16,10 +16,13 @@ const RULES: [ContractCategory, RegExp][] = [
   ["LOAN", /\b(loan|mortgage|home finance|vehicle finance)\b/i],
   // Before the bare utility and telecom words: "Mobile phone warranty" is a
   // warranty, not a phone plan (#519 review).
-  ["WARRANTY", /\b(warranty|extended cover|service plan)\b/i],
+  ["WARRANTY", /\b(warranty|extended cover)\b/i],
   ["TELECOM", /\b(mobile|broadband|internet|fibre|fiber|nbn|phone plan|sim only|cellular)\b/i],
   ["UTILITY", /\b(electricity|energy|gas|water|power|utilities)\b/i],
   ["SUBSCRIPTION", /\b(subscription|membership|streaming|netflix|spotify|disney\+?|youtube premium)\b/i],
+  // A bare "service plan" is a warranty only when nothing above names the
+  // service: "Internet service plan" stays Telecom (#532 review).
+  ["WARRANTY", /\bservice plan\b/i],
 ];
 
 /** A Category guess from scanned text, or undefined when nothing matches. */

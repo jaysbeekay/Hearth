@@ -223,7 +223,7 @@ export function manualRenewalsAhead<C extends {
     if (c.renewalType !== "MANUAL_RENEWAL" || c.endDate == null) continue;
     const end = c.endDate.getTime();
     // Ends today or later, and before the year is out.
-    if (end < today || end + DAY_MS >= horizon) continue;
+    if (end < today || end >= horizon) continue;
     ending.push(c);
     if (c.cost == null) continue;
     const converted = convertAmount(c.cost, c.currency, targetCurrency, rateMap);

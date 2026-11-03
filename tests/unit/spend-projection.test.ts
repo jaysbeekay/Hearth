@@ -112,6 +112,14 @@ describe("manualRenewalsAhead", () => {
     });
   });
 
+  it("lists a renewal ending on the window's last day, at no cost this year", () => {
+    const lastDay = contract({ endDate: day("2027-11-01") });
+    const pastWindow = contract({ endDate: day("2027-11-02") });
+    const { amount, contracts } = manualRenewalsAhead([lastDay, pastWindow], "AUD", rates, NOW);
+    expect(contracts).toEqual([lastDay]);
+    expect(amount).toBeCloseTo(0, 6);
+  });
+
   it("still adds up to the full year across a leap day", () => {
     const now = new Date(Date.UTC(2027, 10, 2));
     const c = contract({ endDate: day("2028-01-15") });

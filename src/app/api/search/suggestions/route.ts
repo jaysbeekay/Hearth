@@ -84,13 +84,17 @@ export async function GET(request: NextRequest) {
   const [contracts, products, vehicles, properties] = await Promise.all([
     prisma.contract.findMany({
       where: { deletedAt: null },
+      orderBy: { endDate: "asc" },
       include: { _count: { select: { documents: { where: { deletedAt: null } } } } },
     }),
     prisma.product.findMany({
       where: { deletedAt: null },
+      orderBy: { warrantyEndDate: "asc" },
       include: { _count: { select: { documents: { where: { deletedAt: null } } } } },
     }),
-    enabled.has("VEHICLES") ? prisma.vehicle.findMany({ where: { deletedAt: null, archivedAt: null } }) : [],
+    enabled.has("VEHICLES")
+      ? prisma.vehicle.findMany({ where: { deletedAt: null, archivedAt: null }, orderBy: { createdAt: "desc" } })
+      : [],
     enabled.has("HOME")
       ? prisma.property.findMany({
           where: { deletedAt: null, archivedAt: null, isRented: true },

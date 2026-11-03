@@ -38,6 +38,12 @@ describe("guessContractCategory", () => {
     expect(guessContractCategory("Bosch", "Power drill extended warranty")).toBe("WARRANTY");
   });
 
+  it("keeps a named service's plan in its own category (#532 review)", () => {
+    expect(guessContractCategory("Telstra", "Internet service plan")).toBe("TELECOM");
+    expect(guessContractCategory("Netflix", "Netflix service plan")).toBe("SUBSCRIPTION");
+    expect(guessContractCategory("Apple", "Laptop service plan")).toBe("WARRANTY");
+  });
+
   it("leaves the choice to the person when nothing matches", () => {
     expect(guessContractCategory("Acme Pty Ltd", "Agreement")).toBeUndefined();
     expect(guessContractCategory(undefined, "")).toBeUndefined();
