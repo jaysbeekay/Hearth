@@ -106,7 +106,7 @@ purchases against the new project.
 Before committing new keys, check that this returns nothing:
 
 ```bash
-git grep -nE 'sk_|BEGIN PRIVATE KEY|"type": "service_account"' -- ios-shell ios android
+git grep -nE 'sk_[A-Za-z0-9]|BEGIN PRIVATE KEY|"type": "service_account"' -- ios-shell ios android
 ```
 
 ## Release checklist
