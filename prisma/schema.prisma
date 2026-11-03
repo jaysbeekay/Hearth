@@ -78,6 +78,8 @@ enum SecurityEventType {
   TOTP_DISABLED
   ROLE_CHANGED
   USER_DELETED
+  MCP_AUTH_FAILED
+  MCP_THROTTLED
 }
 
 enum ProductDocumentKind {

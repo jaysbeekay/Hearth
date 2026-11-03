@@ -7,6 +7,28 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+### Security
+
+- **MCP server hardening.** `/api/mcp` now compares bearer tokens in
+  constant time, throttles wrong tokens per client address (10 per 15
+  minutes, recorded in Settings → Security as "MCP request with a wrong
+  token" and "MCP requests throttled", at most 30 rows per 15 minutes so a
+  flood can't bury the log), and caps each valid token at 300
+  requests per 5 minutes. A new optional `MCP_TOKENS` variable takes
+  `label:token` pairs so each client gets its own revocable token, and the
+  server log names the label on every tool call. Every tool now carries the
+  MCP `readOnlyHint` annotation, the server's instructions tell agents to
+  treat free-text fields as data rather than instructions, and a unit test
+  pins the exact read-only tool list. The README's MCP section now covers
+  HTTPS; setup for Claude Code, Claude Desktop, the OpenAI Codex CLI and Open
+  WebUI (and why ChatGPT connectors can't connect yet); and the `Accept` header for
+  hand-rolled clients. Server-only; the iOS and Android shell is unchanged.
+- **nginx overwrites `X-Forwarded-For`.** The HTTPS compose file's nginx
+  used to append to a client-supplied `X-Forwarded-For`, and Hearth's rate
+  limits (sign-in, password reset, MCP tokens) key on the header's first
+  entry, so a client could pick its own throttle bucket. nginx now sets it
+  to the real client address, as does the mTLS example config.
+
 ### Changed
 
 - **One set of shared UI rules (#411).** The app now draws from one type
