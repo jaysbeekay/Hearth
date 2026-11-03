@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
-import { copyFile, mkdir, readFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 
 /**
@@ -57,6 +57,12 @@ export async function applyStagedFileMoves(moves: StagedFileMove[]) {
         if (digest(await readFile(move.from)) !== digest(await readFile(move.to))) {
           throw new Error("a different file is already at the destination");
         }
+      }
+      // #445 review: a rehomed file is no longer referenced from its old
+      // Item directory, so drop it there. Only ever a staged copy under
+      // <uploads>/items, never a legacy file.
+      if (path.resolve(move.from) !== path.resolve(move.to) && path.basename(path.dirname(path.dirname(move.from))) === "items") {
+        await rm(move.from, { force: true });
       }
     } catch (error) {
       console.error("[items] couldn't copy staged Document %s", move.documentId, error);

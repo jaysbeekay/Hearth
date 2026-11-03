@@ -33,7 +33,10 @@ function real(p: string): string {
 
 type Env = Record<string, string | undefined>;
 
-const fromUrl = (url: string | undefined) => (url?.startsWith("file:") ? url.slice("file:".length) : undefined);
+// A SQLite URL can carry query parameters (file:/srv/hearth/app.db?mode=rwc);
+// they aren't part of the path, so drop them before comparing (#445 review).
+const fromUrl = (url: string | undefined) =>
+  url?.startsWith("file:") ? url.slice("file:".length).split("?")[0] : undefined;
 
 function resolveAll(paths: (string | undefined)[], cwd: string): string[] {
   return paths.filter((p): p is string => Boolean(p)).map((p) => real(path.resolve(cwd, p)));

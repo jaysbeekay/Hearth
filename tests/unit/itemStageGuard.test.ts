@@ -22,6 +22,11 @@ describe("item stage backfill target guard", () => {
     expect(() => assertDisposableTargets([path.join(live, "uploads", "items")], env)).toThrow(/Refusing/);
   });
 
+  it("recognises a live DATABASE_URL that carries SQLite query parameters", () => {
+    const withQuery = { ...env, DATABASE_URL: `file:${path.join(live, "app.db")}?mode=rwc` };
+    expect(() => assertDisposableTargets([path.join(live, "app.db")], withQuery)).toThrow(/Refusing/);
+  });
+
   it("allows the primary only with the explicit backup confirmation", () => {
     expect(() =>
       assertDisposableTargets([path.join(live, "app.db")], { ...env, ITEM_STAGE_PRIMARY: "yes" }),

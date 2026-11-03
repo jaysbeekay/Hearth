@@ -15,7 +15,7 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import { purgeDocument, removeOwnerDocumentFiles } from "@/lib/commands/documents";
 import { DOCUMENT_KIND_MODULE, type OwnedDocumentKind } from "@/lib/documents/kinds";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
-import { purgeLegacyInventoryStage } from "@/lib/items/syncLegacyItem";
+import { purgeLegacyInventoryStage, retireOrphanedStages } from "@/lib/items/syncLegacyItem";
 import type { ModuleKey } from "@/lib/modules/registry";
 
 // #287 — how long a soft-deleted record sits in Trash before it's purged for
@@ -131,6 +131,10 @@ export async function purgeExpiredTrash(): Promise<void> {
     try { await purgeLegacyInventoryStage(i.id, documentIds); }
     catch (error) { console.error("[items] couldn't retire staged Inventory item %s", i.id, error); }
   }
+  // #445 review: a retirement that failed above (or in an earlier run, or in
+  // a manual purge) is retried here, since its legacy source is already gone.
+  try { await retireOrphanedStages(); }
+  catch (error) { console.error("[items] couldn't retire orphaned staged rows", error); }
 }
 
 export interface TrashEntry {

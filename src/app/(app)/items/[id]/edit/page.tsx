@@ -8,6 +8,7 @@ import { isModuleEnabled } from "@/lib/modules/enablement";
 import { itemCutoverReadiness } from "@/lib/items/cutoverReadiness";
 import { updateCatalogItem } from "@/lib/actions/inventory";
 import { InventoryItemForm } from "@/components/InventoryItemForm";
+import { inTrashLabel } from "@/lib/trashWording";
 
 export default async function EditItemPage({ params }: { params: Promise<{ id: string }> }) {
   if (process.env.ITEMS_PREVIEW !== "1" || !(await itemCutoverReadiness()).ready) redirect("/products");
@@ -24,7 +25,7 @@ export default async function EditItemPage({ params }: { params: Promise<{ id: s
   const products = (await prisma.product.findMany({ where: source.warrantyProductId
     ? { OR: [{ deletedAt: null }, { id: source.warrantyProductId }] }
     : { deletedAt: null }, select: { id: true, description: true, deletedAt: true }, orderBy: { description: "asc" } }))
-    .map((product) => ({ id: product.id, description: product.deletedAt ? `${product.description} (in Trash)` : product.description }));
+    .map((product) => ({ id: product.id, description: product.deletedAt ? inTrashLabel(product.description) : product.description }));
   return <div className="max-w-xl space-y-6">
     <BackLink href={`/items/${id}`} label={item.description} />
     <header><h1 className="text-2xl font-medium">Edit Item</h1>{inventory.length > 1 && <p className="text-sm text-muted">This Item combines {inventory.length} inventory records. Edits apply to the oldest linked record; review its merge conflicts after saving.</p>}</header>

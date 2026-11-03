@@ -145,8 +145,9 @@ async function processOcr(payload: { kind: "contract" | "product" | "inbox"; id:
   if (payload.kind === "contract") await prisma.document.update({ where: { id: payload.id }, data: { extractedText: text, extractionStatus: text ? "COMPLETED" : "FAILED" } });
   else if (payload.kind === "product") {
     await prisma.productDocument.update({ where: { id: payload.id }, data: { extractedText: text, extractionStatus: text ? "COMPLETED" : "FAILED" } });
-    try { await syncLegacyDocument("PRODUCT", payload.id); }
-    catch (error) { console.error("[items] couldn't mirror extracted Document %s", payload.id, error); }
+    // Not caught (#445 review): a failed mirror fails the job, so it is
+    // retried rather than leaving the staged copy with stale text.
+    await syncLegacyDocument("PRODUCT", payload.id);
   }
   else await prisma.inboxDocument.update({ where: { id: payload.id }, data: { extractedText: text, extractionStatus: text ? "COMPLETED" : "FAILED" } });
 }

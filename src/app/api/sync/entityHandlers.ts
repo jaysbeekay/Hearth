@@ -388,6 +388,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
         return created;
       }));
       revalidatePath("/inventory");
+      revalidatePath("/items");
       return { id: item.id };
     },
     update: async (id, data, ctx) => {
@@ -402,6 +403,7 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
         await syncLegacyInventory(tx, id);
       }));
       revalidatePath("/inventory");
+      revalidatePath("/items");
       revalidatePath("/settings/trash");
     },
     saveFile: async (itemId, file) => {

@@ -27,4 +27,17 @@ describe("legacy Item source merge", () => {
     expect(result.conflicts).toContain("description");
     expect(result.deletedAt).toEqual(new Date("2026-02-01"));
   });
+
+  // #445 review: the Trash rule covers any source, not only the Product.
+  it("keeps the Item in Trash when only a linked Inventory item is trashed", () => {
+    const result = mergeItemSources(
+      { id: "product", description: "Fridge" },
+      [
+        { id: "kept", createdAt: new Date("2025-01-01"), description: "Fridge" },
+        { id: "trashed", createdAt: new Date("2025-02-01"), description: "Fridge", deletedAt: new Date("2026-03-01") },
+      ],
+    );
+
+    expect(result.deletedAt).toEqual(new Date("2026-03-01"));
+  });
 });

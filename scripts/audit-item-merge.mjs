@@ -41,8 +41,10 @@ try {
     trashedInventoryDocuments: await count("SELECT COUNT(*) AS count FROM inventory_item_documents WHERE deletedAt IS NOT NULL"),
   };
 
-  // Only count conflicts where Inventory has a value: it is the chosen winner.
-  // A Product value still needs explicit preservation or audit before removal.
+  // Per field, the linked Products whose nonblank values disagree across the
+  // Product and all of its InventoryItems: the same rule mergeItemSources
+  // uses to flag a conflict, including two InventoryItems that disagree while
+  // the Product is blank (#445 review).
   const pairs = {
     description: ["label", "description"],
     manufacturer: ["brand", "manufacturer"],
@@ -57,11 +59,17 @@ try {
     await Promise.all(Object.entries(pairs).map(async ([name, [inventory, product]]) => [
       name,
       await count(`
-      SELECT COUNT(*) AS count FROM inventory_items i
-      JOIN products p ON p.id = i.warrantyProductId
-      WHERE i."${inventory}" IS NOT NULL AND i."${inventory}" != ''
-        AND p."${product}" IS NOT NULL AND p."${product}" != ''
-        AND i."${inventory}" != p."${product}"`),
+      SELECT COUNT(*) AS count FROM (
+        SELECT productId FROM (
+          SELECT i.warrantyProductId AS productId, i."${inventory}" AS value
+          FROM inventory_items i WHERE i.warrantyProductId IS NOT NULL
+          UNION ALL
+          SELECT p.id AS productId, p."${product}" AS value FROM products p
+          WHERE EXISTS (SELECT 1 FROM inventory_items i WHERE i.warrantyProductId = p.id)
+        )
+        WHERE value IS NOT NULL AND value != ''
+        GROUP BY productId HAVING COUNT(DISTINCT value) > 1
+      )`),
     ])),
   );
 

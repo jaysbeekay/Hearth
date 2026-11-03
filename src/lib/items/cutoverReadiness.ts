@@ -49,6 +49,15 @@ export async function itemCutoverReadiness() {
   for (const link of links) {
     if (!inventoryIds.has(link.inventoryItemId)) problems.push(`Item link ${link.inventoryItemId} has an absent InventoryItem`);
   }
+  // #445 review: a standalone Item (no Product) stands for exactly one
+  // unlinked InventoryItem. Otherwise two sources can share one Item while an
+  // orphan row makes up the count.
+  const linksPerItem = new Map<string, number>();
+  for (const link of links) linksPerItem.set(link.itemId, (linksPerItem.get(link.itemId) ?? 0) + 1);
+  for (const item of items) {
+    const count = linksPerItem.get(item.id) ?? 0;
+    if (!item.legacyProductId && count !== 1) problems.push(`Standalone Item ${item.id} has ${count} InventoryItem links`);
+  }
   const stagedDocument = new Map(itemDocuments.map((doc) => [`${doc.sourceKind}:${doc.sourceDocumentId}`, doc]));
   for (const doc of productDocuments) {
     if (stagedDocument.get(`PRODUCT:${doc.id}`)?.itemId !== productItem.get(doc.productId)) problems.push(`ProductDocument ${doc.id} has no correctly owned Item copy`);

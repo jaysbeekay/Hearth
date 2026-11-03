@@ -108,6 +108,8 @@ async function main() {
     async function verifyDocument(kind: "PRODUCT" | "INVENTORY_ITEM", doc: {
       id: string; storedName: string; filename: string; size: number; deletedAt: Date | null;
       isImportant: boolean; supersedesId: string | null; productId?: string; inventoryItemId?: string;
+      mimeType: string; sha256: string | null; category: string | null; uploadedAt: Date;
+      kind?: string; extractedText?: string | null; extractionStatus?: string;
     }) {
       const stage = docsBySource.get(`${kind}:${doc.id}`);
       const ownerId = kind === "PRODUCT" ? doc.productId! : doc.inventoryItemId!;
@@ -115,6 +117,16 @@ async function main() {
       if (!stage || stage.itemId !== expectedItem) { problems.push(`${kind} Document ${doc.id} is missing or incorrectly owned`); return; }
       if (stage.filename !== doc.filename || stage.size !== doc.size || stage.isImportant !== doc.isImportant ||
           stage.deletedAt?.getTime() !== doc.deletedAt?.getTime()) problems.push(`${kind} Document ${doc.id} metadata differs`);
+      // #445 review: every other field the backfill copies, with the same
+      // defaults it uses for Inventory Documents (no kind or extraction).
+      const copied = {
+        mimeType: doc.mimeType, sha256: doc.sha256, category: doc.category, uploadedAt: doc.uploadedAt,
+        kind: doc.kind ?? "OTHER", extractedText: doc.extractedText ?? null,
+        extractionStatus: doc.extractionStatus ?? "PENDING",
+      };
+      for (const [name, expected] of Object.entries(copied)) {
+        if (!same(stage[name as keyof typeof stage], expected)) problems.push(`${kind} Document ${doc.id} field ${name} differs`);
+      }
       const predecessor = doc.supersedesId ? docsBySource.get(`${kind}:${doc.supersedesId}`) : null;
       if (stage.supersedesId !== (predecessor?.id ?? null)) problems.push(`${kind} Document ${doc.id} version link differs`);
       const source = path.join(uploadsPath, kind === "PRODUCT" ? "products" : "inventory-items", path.basename(ownerId), path.basename(doc.storedName));

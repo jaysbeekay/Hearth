@@ -1,6 +1,6 @@
 /** #380 copy-only Document backfill; run after backfill-items.ts on a DB copy. */
 import { createHash, randomUUID } from "node:crypto";
-import { copyFile, mkdir, readFile, stat } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rm, stat } from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
 import { PrismaClient } from "../src/generated/prisma/client";
@@ -19,6 +19,8 @@ async function main() {
   const prisma = new PrismaClient({ adapter: new PrismaLibSql({ url: `file:${databasePath}` }) });
   let copied = 0;
   let versionLinks = 0;
+  let removedStale = 0;
+  const seen = new Set<string>();
 
   async function copyDocument(sourceKind: "PRODUCT" | "INVENTORY_ITEM", ownerId: string, itemId: string, doc: {
     id: string; filename: string; storedName: string; mimeType: string; size: number;
@@ -49,7 +51,11 @@ async function main() {
       extractionStatus: doc.extractionStatus ?? "PENDING", sha256: doc.sha256,
       category: doc.category, isImportant: doc.isImportant, deletedAt: doc.deletedAt,
       uploadedAt: doc.uploadedAt,
+      // Cleared on every run; the pass below restores the links that still
+      // exist, so a purged predecessor can't leave a stale link (#445 review).
+      supersedesId: null,
     };
+    seen.add(`${sourceKind}:${doc.id}`);
     await prisma.itemDocument.upsert({ where: key, create: { id: randomUUID(), sourceKind, sourceDocumentId: doc.id, ...data }, update: data });
     copied++;
   }
@@ -66,6 +72,15 @@ async function main() {
         for (const doc of docs) await copyDocument("INVENTORY_ITEM", source.inventoryItemId, item.id, doc);
       }
     }
+    // #445 review: a staged row whose legacy Document no longer exists (a
+    // purge whose stage cleanup failed) is removed with its copied file, so a
+    // rerun repairs the stage instead of leaving it for the verifier.
+    for (const stale of await prisma.itemDocument.findMany({ select: { id: true, sourceKind: true, sourceDocumentId: true, itemId: true, storedName: true } })) {
+      if (seen.has(`${stale.sourceKind}:${stale.sourceDocumentId}`)) continue;
+      await prisma.itemDocument.delete({ where: { id: stale.id } });
+      await rm(path.join(uploadsPath, "items", path.basename(stale.itemId), path.basename(stale.storedName)), { force: true });
+      removedStale++;
+    }
     // Version links are set after all rows exist, including those whose
     // predecessor appeared later in iteration order.
     const staged = await prisma.itemDocument.findMany({ select: { id: true, sourceKind: true, sourceDocumentId: true } });
@@ -80,7 +95,7 @@ async function main() {
       const predecessor = bySource.get(`INVENTORY_ITEM:${doc.supersedesId}`);
       if (id && predecessor) { await prisma.itemDocument.update({ where: { id }, data: { supersedesId: predecessor } }); versionLinks++; }
     }
-    console.log(JSON.stringify({ copiedDocuments: copied, restoredVersionLinks: versionLinks, note: "Legacy rows and files remain until the Item cutover." }, null, 2));
+    console.log(JSON.stringify({ copiedDocuments: copied, restoredVersionLinks: versionLinks, removedStaleDocuments: removedStale, note: "Legacy rows and files remain until the Item cutover." }, null, 2));
   } finally {
     await prisma.$disconnect();
   }

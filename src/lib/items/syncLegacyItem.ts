@@ -4,9 +4,9 @@ import type { Prisma } from "@/generated/prisma/client";
 import { mergeItemSources } from "@/lib/items/mergeSources";
 import { prisma } from "@/lib/prisma";
 import { removeItemDocumentFiles } from "@/lib/storage";
-import { removeStagedLegacyDocument } from "@/lib/items/syncLegacyDocument";
+import { removeStagedLegacyDocument, syncLegacyDocument } from "@/lib/items/syncLegacyDocument";
 import { env } from "@/lib/env";
-import { queueStagedFileMove } from "@/lib/items/stagedFileMoves";
+import { queueStagedFileMove, withStagedFileMoves } from "@/lib/items/stagedFileMoves";
 
 type Tx = Prisma.TransactionClient;
 
@@ -48,14 +48,17 @@ export async function syncLegacyProduct(tx: Tx, productId: string) {
     price: source.purchasePrice, currency: source.currency, notes: source.notes,
   })));
   const preferred = [...inventory].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id))[0];
+  // Every nullable field is coalesced to null: Prisma skips an undefined
+  // field on update, so clearing the last legacy value would otherwise leave
+  // the staged Item stale (#445 review).
   const data = {
     description: merged.fields.description ?? product.description,
-    manufacturer: merged.fields.manufacturer, model: merged.fields.model,
-    vendor: product.vendor, serialNumber: merged.fields.serialNumber,
-    barcode: product.barcode, purchaseDate: merged.fields.purchaseDate,
-    price: merged.fields.price, currency: merged.fields.currency ?? product.currency,
-    category: preferred?.category, location: preferred?.location,
-    propertyId: product.propertyId, notes: merged.fields.notes,
+    manufacturer: merged.fields.manufacturer ?? null, model: merged.fields.model ?? null,
+    vendor: product.vendor, serialNumber: merged.fields.serialNumber ?? null,
+    barcode: product.barcode, purchaseDate: merged.fields.purchaseDate ?? null,
+    price: merged.fields.price ?? null, currency: merged.fields.currency ?? product.currency,
+    category: preferred?.category ?? null, location: preferred?.location ?? null,
+    propertyId: product.propertyId, notes: merged.fields.notes ?? null,
     createdById: product.createdById, deletedAt: merged.deletedAt,
     mergeConflictFields: merged.conflicts.length ? JSON.stringify(merged.conflicts) : null,
   };
@@ -114,5 +117,61 @@ export async function purgeLegacyInventoryStage(inventoryItemId: string, documen
   } else {
     await prisma.item.delete({ where: { id: mapping.itemId } });
     await removeItemDocumentFiles(mapping.itemId);
+  }
+}
+
+/**
+ * Retire the stage of a hard-deleted Product: drop its staged Item and rehome
+ * the InventoryItems that pointed at it as standalone Items. Best-effort and
+ * never throws; the legacy delete has already happened.
+ */
+export async function retireStagedProduct(productId: string, stagedItemId: string | null, linkedInventoryIds: string[]) {
+  try {
+    if (stagedItemId) {
+      await prisma.item.delete({ where: { id: stagedItemId } });
+      await removeItemDocumentFiles(stagedItemId);
+    }
+    for (const sourceId of linkedInventoryIds) {
+      await withStagedFileMoves(() => prisma.$transaction((tx) => syncLegacyInventory(tx, sourceId)));
+      const docs = await prisma.inventoryItemDocument.findMany({ where: { inventoryItemId: sourceId }, select: { id: true } });
+      for (const doc of docs) await syncLegacyDocument("INVENTORY_ITEM", doc.id);
+    }
+  } catch (error) {
+    console.error("[items] couldn't finish staged Product purge %s", productId, error);
+  }
+}
+
+/**
+ * #445 review: a purge whose stage cleanup failed used to leave staged rows
+ * behind for good, since the legacy source was gone. Trash retention calls
+ * this on every run, so a failed retirement is retried: any staged Item whose
+ * Product is gone, and any Inventory link whose InventoryItem is gone, is
+ * retired the same way the purge would have.
+ */
+export async function retireOrphanedStages() {
+  const productItems = await prisma.item.findMany({ where: { legacyProductId: { not: null } }, select: { id: true, legacyProductId: true } });
+  const liveProducts = new Set((await prisma.product.findMany({
+    where: { id: { in: productItems.map((item) => item.legacyProductId!) } }, select: { id: true },
+  })).map((product) => product.id));
+  for (const item of productItems) {
+    if (liveProducts.has(item.legacyProductId!)) continue;
+    const links = await prisma.itemLegacyInventory.findMany({ where: { itemId: item.id }, select: { inventoryItemId: true } });
+    const surviving = await prisma.inventoryItem.findMany({ where: { id: { in: links.map((link) => link.inventoryItemId) } }, select: { id: true } });
+    await retireStagedProduct(item.legacyProductId!, item.id, surviving.map((source) => source.id));
+  }
+
+  const links = await prisma.itemLegacyInventory.findMany({ select: { inventoryItemId: true, itemId: true } });
+  const liveInventory = new Set((await prisma.inventoryItem.findMany({
+    where: { id: { in: links.map((link) => link.inventoryItemId) } }, select: { id: true },
+  })).map((source) => source.id));
+  for (const link of links) {
+    if (liveInventory.has(link.inventoryItemId)) continue;
+    const staged = await prisma.itemDocument.findMany({ where: { itemId: link.itemId, sourceKind: "INVENTORY_ITEM" }, select: { sourceDocumentId: true } });
+    const liveDocs = new Set((await prisma.inventoryItemDocument.findMany({
+      where: { id: { in: staged.map((doc) => doc.sourceDocumentId) } }, select: { id: true },
+    })).map((doc) => doc.id));
+    const goneDocs = staged.map((doc) => doc.sourceDocumentId).filter((id) => !liveDocs.has(id));
+    try { await purgeLegacyInventoryStage(link.inventoryItemId, goneDocs); }
+    catch (error) { console.error("[items] couldn't retire staged Inventory item %s", link.inventoryItemId, error); }
   }
 }

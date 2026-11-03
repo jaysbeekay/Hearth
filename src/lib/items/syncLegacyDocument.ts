@@ -62,10 +62,22 @@ export async function syncLegacyDocument(kind: LegacyKind, id: string) {
     deletedAt: source.deletedAt, uploadedAt: source.uploadedAt,
     supersedesId: previous?.id ?? null,
   };
-  await prisma.itemDocument.upsert({
+  const staged = await prisma.itemDocument.upsert({
     where: { sourceKind_sourceDocumentId: { sourceKind: kind, sourceDocumentId: id } },
     create: { id: randomUUID(), sourceKind: kind, sourceDocumentId: id, ...data }, update: data,
   });
+  // #445 review: a newer version mirrored before this one couldn't link to
+  // it then. Link any staged successors now, so the chain doesn't depend on
+  // the order the versions were mirrored in.
+  const successors = kind === "PRODUCT"
+    ? await prisma.productDocument.findMany({ where: { supersedesId: id }, select: { id: true } })
+    : await prisma.inventoryItemDocument.findMany({ where: { supersedesId: id }, select: { id: true } });
+  if (successors.length) {
+    await prisma.itemDocument.updateMany({
+      where: { sourceKind: kind, sourceDocumentId: { in: successors.map((successor) => successor.id) } },
+      data: { supersedesId: staged.id },
+    });
+  }
 }
 
 export async function removeStagedLegacyDocument(kind: LegacyKind, id: string) {

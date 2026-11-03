@@ -6,8 +6,12 @@ through the existing InventoryItem transaction, which mirrors them back to the
 stage. It does not replace the existing routes.
 
 On a stopped installation, copy both the SQLite database and uploads tree to
-scratch paths. Run these commands against the copies, substituting absolute
-paths:
+scratch paths. Copy the database's `-wal` and `-shm` sidecar files with it if
+they exist (`SQLITE_JOURNAL_MODE=WAL` keeps recent writes there until a
+checkpoint), or take the copy with SQLite's own backup instead, for example
+`sqlite3 /path/to/app.db ".backup /absolute/copy.db"`. A copy of `app.db`
+alone can be missing data. Run these commands against the copies,
+substituting absolute paths:
 
 Use the inline `DATABASE_URL=...` prefix for `prisma migrate deploy` only;
 don't `export` it. The backfills treat whatever this shell's `DATABASE_URL`

@@ -553,6 +553,8 @@ export async function setDocumentCategoryCommand(
     await config.delegate(tx).update({ where: { id }, data: { category } });
     return liveOwner;
   });
+  // #445 review: the staged Item copy carries the category too.
+  await mirrorStagedDocument(kind, id);
   revalidate(owner.paths);
 }
 

@@ -29,8 +29,10 @@ import { itemCutoverReadiness } from "@/lib/items/cutoverReadiness";
 
 describe("Item cutover readiness", () => {
   beforeEach(() => {
-    rows.inventory[0].warrantyProductId = "product";
-    rows.links[0].itemId = "item";
+    rows.inventory.splice(0, rows.inventory.length, { id: "inventory", warrantyProductId: "product" });
+    rows.items.splice(0, rows.items.length, { id: "item", legacyProductId: "product" });
+    rows.links.splice(0, rows.links.length, { inventoryItemId: "inventory", itemId: "item" });
+    rows.inventoryDocuments.splice(0, rows.inventoryDocuments.length, { id: "inventory-doc", inventoryItemId: "inventory" });
     rows.itemDocuments[1].itemId = "item";
   });
 
@@ -39,7 +41,8 @@ describe("Item cutover readiness", () => {
   });
 
   it("blocks a wrong Inventory link even when every table count matches", async () => {
-    rows.inventory[0].warrantyProductId = null;
+    // Only the link changes, so every expected/actual count still matches.
+    rows.links[0].itemId = "different-item";
     const result = await itemCutoverReadiness();
     expect(result.ready).toBe(false);
     expect(result.problems).toContain("InventoryItem inventory points to the wrong Item");
@@ -50,5 +53,18 @@ describe("Item cutover readiness", () => {
     const result = await itemCutoverReadiness();
     expect(result.ready).toBe(false);
     expect(result.problems).toContain("InventoryItemDocument inventory-doc has no correctly owned Item copy");
+  });
+
+  // #445 review: two unlinked InventoryItems sharing one standalone Item, with
+  // an orphan standalone Item making up the count, must not pass.
+  it("blocks two InventoryItems sharing one standalone Item", async () => {
+    rows.inventory.push({ id: "loose-a", warrantyProductId: null }, { id: "loose-b", warrantyProductId: null });
+    rows.items.push({ id: "standalone", legacyProductId: null }, { id: "orphan", legacyProductId: null });
+    rows.links.push({ inventoryItemId: "loose-a", itemId: "standalone" }, { inventoryItemId: "loose-b", itemId: "standalone" });
+    const result = await itemCutoverReadiness();
+    expect(result.actual).toMatchObject({ items: result.expected.items, links: result.expected.links });
+    expect(result.ready).toBe(false);
+    expect(result.problems).toContain("Standalone Item standalone has 2 InventoryItem links");
+    expect(result.problems).toContain("Standalone Item orphan has 0 InventoryItem links");
   });
 });

@@ -1,7 +1,7 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import path from "path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { queueStagedFileMove, withStagedFileMoves } from "@/lib/items/stagedFileMoves";
 
 // #445 review: staged Document copies happen after the legacy write commits,
@@ -10,9 +10,14 @@ describe("staged Item Document file moves", () => {
   const root = mkdtempSync(path.join(tmpdir(), "hearth-staged-moves-"));
   const from = path.join(root, "items", "old", "a.pdf");
   const to = path.join(root, "items", "new", "a.pdf");
-  mkdirSync(path.dirname(from), { recursive: true });
-  writeFileSync(from, "bytes");
 
+  // Each test starts from the source file only: a successful rehome removes
+  // it, and no test relies on another having created the destination.
+  beforeEach(() => {
+    rmSync(path.join(root, "items"), { recursive: true, force: true });
+    mkdirSync(path.dirname(from), { recursive: true });
+    writeFileSync(from, "bytes");
+  });
   afterEach(() => vi.restoreAllMocks());
 
   it("copies only after the write resolves", async () => {
@@ -23,6 +28,8 @@ describe("staged Item Document file moves", () => {
     });
     expect(result).toBe("committed");
     expect(readFileSync(to, "utf8")).toBe("bytes");
+    // The old Item directory no longer references it.
+    expect(existsSync(from)).toBe(false);
   });
 
   it("copies nothing when the write throws", async () => {
@@ -34,6 +41,7 @@ describe("staged Item Document file moves", () => {
       }),
     ).rejects.toThrow("rolled back");
     expect(existsSync(other)).toBe(false);
+    expect(existsSync(from)).toBe(true);
   });
 
   it("keeps the legacy write when the staged copy is missing, and logs it", async () => {
@@ -50,12 +58,19 @@ describe("staged Item Document file moves", () => {
 
   it("accepts an identical file already at the destination and logs a different one", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    mkdirSync(path.dirname(to), { recursive: true });
+    writeFileSync(to, "bytes");
     await withStagedFileMoves(async () => queueStagedFileMove({ documentId: "same", from, to }));
     expect(error).not.toHaveBeenCalled();
+    expect(readFileSync(to, "utf8")).toBe("bytes");
+
+    writeFileSync(from, "bytes");
     writeFileSync(to, "other bytes");
     await withStagedFileMoves(async () => queueStagedFileMove({ documentId: "differs", from, to }));
     expect(error).toHaveBeenCalledWith(expect.any(String), "differs", expect.anything());
     expect(readFileSync(to, "utf8")).toBe("other bytes");
+    // A refused copy keeps the source.
+    expect(existsSync(from)).toBe(true);
   });
 
   it("never copies when the writer isn't wrapped", () => {

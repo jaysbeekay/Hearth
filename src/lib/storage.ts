@@ -146,6 +146,16 @@ registerReconcileTarget({
       select: { storedName: true },
     }),
 });
+// #445 review: the staged Item store gets the same orphan cleanup and
+// missing-file report as every other owned-Document store.
+registerReconcileTarget({
+  kind: "item",
+  store: itemStore,
+  parentDir: path.join(path.resolve(env.uploadsDir), "items"),
+  flat: false,
+  listOwnerDocuments: (ownerId) =>
+    prisma.itemDocument.findMany({ where: { itemId: ownerId }, select: { storedName: true } }),
+});
 registerReconcileTarget({
   kind: "trade",
   store: tradeStore,

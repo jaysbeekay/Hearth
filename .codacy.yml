@@ -10,4 +10,9 @@ exclude_paths:
   - "e2e/**"
   - "tests/**"
   - "prisma/migrations/**"
-  - "scripts/**"
+  # Only the argv-driven #380 maintenance scripts; the rest of scripts/
+  # (including the itemStageGuard.ts safety check) stays analysed.
+  - "scripts/audit-item-merge.mjs"
+  - "scripts/backfill-items.ts"
+  - "scripts/backfill-item-documents.ts"
+  - "scripts/verify-item-stage.ts"
