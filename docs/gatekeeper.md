@@ -37,6 +37,11 @@ access).
   `CODEBOT_SECRET`), reject a stale `X-Webhook-Timestamp`, deduplicate on `X-Request-ID`
   (`curl --retry` can deliver a request more than once), accept only repositories it is set up
   for, and treat the quoted comment text as data, never as instructions for a privileged token.
+- Replay protection lives only on the receiver. The workflow signs a timestamp and sends a
+  stable `X-Request-ID`, but it can't stop a captured request being sent again. So there is no
+  "it's our own gateway" exception: the route must reject a timestamp outside a short window
+  (5 minutes is enough for `curl --retry`) and remember each `X-Request-ID` for at least that
+  window. Without both, a captured signed request replays for as long as `CODEBOT_SECRET` lives.
 - Hearth is Next.js/TypeScript, not Rails. Its checks are `npx tsc --noEmit`, `npm run lint`,
   `npm run test:unit` and the Playwright e2e suite.
 
