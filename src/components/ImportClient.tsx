@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Upload, FileText, X, Check, Loader2 } from "lucide-react";
 import { importContract, importProduct, importInventoryItem, saveToInbox } from "@/lib/actions/import";
 import { CATEGORY_LABELS } from "@/lib/utils";
@@ -52,6 +53,15 @@ interface InventoryFields {
   purchasePrice: string;
 }
 
+interface BulkPatch {
+  type: EntityType | "";
+  category: string;
+  /** "property:<id>", "vehicle:<id>", "none:" to clear, or "" for no change. */
+  link: string;
+}
+
+const EMPTY_BULK: BulkPatch = { type: "", category: "", link: "" };
+
 interface Row {
   id: string;
   file: File;
@@ -67,6 +77,16 @@ interface Row {
   extractionUsed: boolean;
   // #359 — the person changed a field or link on this row before saving.
   edited?: boolean;
+  // #358 — the one scan's source and message for each type the row could be
+  // filed as, so switching type never scans again.
+  sources: Partial<Record<EntityType, ExtractionSource>>;
+  scanMessages: Partial<Record<EntityType, string>>;
+  /** #358 — ticked for "Apply to selected". */
+  selected?: boolean;
+  /** Bumped by "Apply to selected" so the (uncontrolled) Linked to field shows the new link. */
+  linkVersion: number;
+  /** Set once saved, for the review screen. */
+  recordId?: string;
   contract: ContractFields;
   // #327 — link a filed policy/warranty to a home or vehicle during review,
   // instead of only being settable later via Edit. Kept outside
@@ -82,31 +102,59 @@ interface Row {
   inventoryAutoFilled: Partial<Record<keyof InventoryFields, boolean>>;
 }
 
-const EXTRACT_URLS: Partial<Record<EntityType, string>> = {
-  CONTRACT: "/api/documents/extract",
-  PRODUCT: "/api/products/extract",
-  INVENTORY: "/api/inventory/extract",
-};
-
 let nextId = 0;
 
-async function extract(type: EntityType, file: File) {
-  const url = EXTRACT_URLS[type];
-  if (!url) return { fields: {} as Record<string, string>, source: "none" as ExtractionSource };
+type ScanResult = { fields: Record<string, string>; source: ExtractionSource };
+
+interface ImportScan {
+  guessedType: "CONTRACT" | "PRODUCT" | "INVENTORY" | null;
+  results: Partial<Record<"CONTRACT" | "PRODUCT" | "INVENTORY", ScanResult>>;
+  textUnavailable: boolean;
+}
+
+// #358 — one scan per file: its type is guessed and fields come back for
+// every type it could be filed as (src/lib/documents/importExtraction.ts).
+async function scanFile(file: File): Promise<ImportScan | null> {
   const body = new FormData();
   body.append("file", file);
-  const res = await fetch(url, { method: "POST", body });
-  if (!res.ok) return { fields: {} as Record<string, string>, source: "none" as ExtractionSource };
-  const data = (await res.json()) as {
-    fields: Record<string, string>;
-    source?: ExtractionSource;
-    textUnavailable?: boolean;
-  };
+  try {
+    const res = await fetch("/api/import/extract", { method: "POST", body });
+    if (!res.ok) return null;
+    return (await res.json()) as ImportScan;
+  } catch {
+    return null;
+  }
+}
+
+/** Where "Save all" goes when some records were saved with details to check (#358). */
+export function reviewScreenHref(added: number) {
+  return `/review?added=${added}`;
+}
+
+/** The row filed as `type`: that type's scan source, message and auto-filled state (#358). */
+function withType(row: Row, type: EntityType): Row {
+  const autoFilled =
+    type === "CONTRACT"
+      ? row.contractAutoFilled
+      : type === "PRODUCT"
+        ? row.productAutoFilled
+        : type === "INVENTORY"
+          ? row.inventoryAutoFilled
+          : {};
   return {
-    fields: data.fields,
-    source: data.source ?? "none",
-    textUnavailable: data.textUnavailable === true,
+    ...row,
+    type,
+    source: type === "INBOX" ? "none" : (row.sources[type] ?? "none"),
+    extractionUsed: Object.values(autoFilled).some(Boolean),
+    scanMessage: type === "INBOX" ? undefined : row.scanMessages[type],
   };
+}
+
+/** Whether a saved row's record is held for a quick check (it was saved unconfirmed). */
+function needsCheck(row: Row) {
+  if (row.type === "CONTRACT") return row.extractionUsed && !confirmedOnSave(row, row.contractAutoFilled);
+  if (row.type === "PRODUCT") return row.extractionUsed && !confirmedOnSave(row, row.productAutoFilled);
+  return false;
 }
 
 function confirmedOnSave(row: Row, autoFilled: Partial<Record<string, boolean>>) {
@@ -151,7 +199,9 @@ export function ImportClient({
 }) {
   const homeEnabled = enabledModules.includes("HOME");
   const vehiclesEnabled = enabledModules.includes("VEHICLES");
+  const router = useRouter();
   const [rows, setRows] = useState<Row[]>([]);
+  const [bulk, setBulk] = useState<BulkPatch>(EMPTY_BULK);
   const [dragOver, setDragOver] = useState(false);
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -167,78 +217,72 @@ export function ImportClient({
     updateRow(id, { ...patch, edited: true });
   }
 
-  async function scanRow(id: string, type: EntityType, file: File) {
-    if (type === "INBOX") {
-      updateRow(id, { status: "ready", scanMessage: undefined });
-      return;
-    }
+  async function scanRow(id: string, file: File) {
     updateRow(id, { status: "scanning" });
-    const { fields, source, textUnavailable } = await extract(type, file);
-    const filledCount = Object.keys(fields).length;
-    const scanMessage = extractionMessage(source, filledCount, textUnavailable);
-    const extractionUsed = filledCount > 0;
-    if (type === "CONTRACT") {
-      updateRow(id, {
-        status: "ready",
-        scanMessage,
-        source,
-        extractionUsed,
-        contract: {
-          title: fields.title ?? file.name.replace(/\.[^.]+$/, ""),
-          provider: fields.provider ?? "",
-          category: "OTHER",
-          cost: fields.cost ?? "",
-          startDate: fields.startDate ?? "",
-          endDate: fields.endDate ?? "",
-        },
-        contractAutoFilled: {
-          title: Boolean(fields.title),
-          provider: Boolean(fields.provider),
-          cost: Boolean(fields.cost),
-          startDate: Boolean(fields.startDate),
-          endDate: Boolean(fields.endDate),
-        },
-      });
-    } else if (type === "PRODUCT") {
-      updateRow(id, {
-        status: "ready",
-        scanMessage,
-        source,
-        extractionUsed,
-        product: {
-          description: fields.description ?? file.name.replace(/\.[^.]+$/, ""),
-          manufacturer: fields.manufacturer ?? "",
-          price: fields.price ?? "",
-          purchaseDate: fields.purchaseDate ?? "",
-          warrantyEndDate: "",
-        },
-        productAutoFilled: {
-          description: Boolean(fields.description),
-          manufacturer: Boolean(fields.manufacturer),
-          price: Boolean(fields.price),
-          purchaseDate: Boolean(fields.purchaseDate),
-        },
-      });
-    } else {
-      updateRow(id, {
-        status: "ready",
-        scanMessage,
-        source,
-        extractionUsed,
-        inventory: {
-          label: fields.label ?? file.name.replace(/\.[^.]+$/, ""),
-          category: fields.category ?? "OTHER",
-          brand: fields.brand ?? "",
-          purchasePrice: fields.purchasePrice ?? "",
-        },
-        inventoryAutoFilled: {
-          label: Boolean(fields.label),
-          category: Boolean(fields.category),
-          brand: Boolean(fields.brand),
-          purchasePrice: Boolean(fields.purchasePrice),
-        },
-      });
-    }
+    const scan = await scanFile(file);
+    const baseName = file.name.replace(/\.[^.]+$/, "");
+    const empty: ScanResult = { fields: {}, source: "none" };
+    const c = scan?.results.CONTRACT ?? empty;
+    const p = scan?.results.PRODUCT ?? empty;
+    const inv = scan?.results.INVENTORY ?? empty;
+    const textUnavailable = scan?.textUnavailable === true;
+    const message = (r: ScanResult) => extractionMessage(r.source, Object.keys(r.fields).length, textUnavailable);
+    const guessed = scan?.guessedType === "INVENTORY" && !inventoryEnabled ? "PRODUCT" : scan?.guessedType;
+    const type: EntityType = guessed ?? "CONTRACT";
+    const sources = { CONTRACT: c.source, PRODUCT: p.source, INVENTORY: inv.source };
+    const scanMessages = { CONTRACT: message(c), PRODUCT: message(p), INVENTORY: message(inv) };
+    setRows((prev) =>
+      prev.map((r) => {
+        if (r.id !== id) return r;
+        const next: Row = {
+          ...r,
+          status: "ready",
+          sources,
+          scanMessages,
+          contract: {
+            title: c.fields.title ?? baseName,
+            provider: c.fields.provider ?? "",
+            category: "OTHER",
+            cost: c.fields.cost ?? "",
+            startDate: c.fields.startDate ?? "",
+            endDate: c.fields.endDate ?? "",
+          },
+          contractAutoFilled: {
+            title: Boolean(c.fields.title),
+            provider: Boolean(c.fields.provider),
+            cost: Boolean(c.fields.cost),
+            startDate: Boolean(c.fields.startDate),
+            endDate: Boolean(c.fields.endDate),
+          },
+          product: {
+            description: p.fields.description ?? baseName,
+            manufacturer: p.fields.manufacturer ?? "",
+            price: p.fields.price ?? "",
+            purchaseDate: p.fields.purchaseDate ?? "",
+            warrantyEndDate: "",
+          },
+          productAutoFilled: {
+            description: Boolean(p.fields.description),
+            manufacturer: Boolean(p.fields.manufacturer),
+            price: Boolean(p.fields.price),
+            purchaseDate: Boolean(p.fields.purchaseDate),
+          },
+          inventory: {
+            label: inv.fields.label ?? baseName,
+            category: inv.fields.category ?? "OTHER",
+            brand: inv.fields.brand ?? "",
+            purchasePrice: inv.fields.purchasePrice ?? "",
+          },
+          inventoryAutoFilled: {
+            label: Boolean(inv.fields.label),
+            category: Boolean(inv.fields.category),
+            brand: Boolean(inv.fields.brand),
+            purchasePrice: Boolean(inv.fields.purchasePrice),
+          },
+        };
+        return withType(next, type);
+      }),
+    );
   }
 
   function addFiles(files: FileList | File[]) {
@@ -251,6 +295,9 @@ export function ImportClient({
         status: "scanning",
         source: "none",
         extractionUsed: false,
+        sources: {},
+        scanMessages: {},
+        linkVersion: 0,
         contract: { title: "", provider: "", category: "OTHER", cost: "", startDate: "", endDate: "" },
         contractPropertyId: "",
         contractVehicleId: "",
@@ -262,7 +309,7 @@ export function ImportClient({
         inventoryAutoFilled: {},
       };
       setRows((prev) => [...prev, row]);
-      scanRow(id, "CONTRACT", file);
+      scanRow(id, file);
     }
   }
 
@@ -270,7 +317,8 @@ export function ImportClient({
     setRows((prev) => prev.filter((r) => r.id !== id));
   }
 
-  async function saveRow(row: Row) {
+  // `quiet`: Save all reports once at the end instead of a toast per file.
+  async function saveRow(row: Row, quiet = false): Promise<boolean> {
     updateRow(row.id, { status: "saving", error: undefined });
     const formData = new FormData();
     formData.append("file", row.file);
@@ -312,18 +360,60 @@ export function ImportClient({
     if (result.error) {
       updateRow(row.id, { status: "error", error: result.error });
       showToast(`${row.file.name}: ${result.error}`, "error");
-    } else {
-      updateRow(row.id, { status: "saved", href: result.href });
-      showToast(`Saved ${row.file.name}`);
+      return false;
+    }
+    updateRow(row.id, { status: "saved", href: result.href, recordId: result.id });
+    if (!quiet) showToast(`Saved ${row.file.name}`);
+    return true;
+  }
+
+  // #358 — saves every ready row, then lands on the one review screen when
+  // any record was saved with details to check; otherwise just says so.
+  async function saveAll() {
+    let added = 0;
+    let toCheck = 0;
+    for (const row of rows) {
+      if (row.status === "ready" || row.status === "error") {
+        if (await saveRow(row, true)) {
+          added += 1;
+          if (needsCheck(row)) toCheck += 1;
+        }
+      }
+    }
+    if (toCheck > 0) {
+      router.push(reviewScreenHref(added));
+    } else if (added > 0) {
+      showToast(`${added} ${added === 1 ? "record" : "records"} added.`);
     }
   }
 
-  async function saveAll() {
-    for (const row of rows) {
-      if (row.status === "ready" || row.status === "error") {
-        await saveRow(row);
-      }
-    }
+  // #358 — "Apply to selected": a type, Contract category or link set on
+  // every ticked row at once. It isn't a review of the row's scanned
+  // details, so it doesn't count as an edit (#359).
+  const pendingRows = rows.filter((r) => r.status === "ready" || r.status === "error");
+  const selectedRows = pendingRows.filter((r) => r.selected);
+  function applyToSelected() {
+    setRows((prev) =>
+      prev.map((r) => {
+        if (!r.selected || !(r.status === "ready" || r.status === "error")) return r;
+        let next = bulk.type ? withType(r, bulk.type) : r;
+        if (bulk.category) next = { ...next, contract: { ...next.contract, category: bulk.category } };
+        if (bulk.link) {
+          const [kind, id] = bulk.link.split(":");
+          const propertyId = kind === "property" ? id : "";
+          const vehicleId = kind === "vehicle" ? id : "";
+          next = {
+            ...next,
+            contractPropertyId: propertyId,
+            contractVehicleId: vehicleId,
+            productPropertyId: propertyId,
+            linkVersion: next.linkVersion + 1,
+          };
+        }
+        return next;
+      }),
+    );
+    showToast(`Applied to ${selectedRows.length} ${selectedRows.length === 1 ? "file" : "files"}.`);
   }
 
   const readyCount = rows.filter((r) => r.status === "ready").length;
@@ -382,11 +472,112 @@ export function ImportClient({
             )}
           </div>
 
+          {pendingRows.length > 1 && (
+            <Card className="space-y-3" aria-label="Apply to selected files">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label className="flex items-center gap-2 text-sm font-medium">
+                  <input
+                    type="checkbox"
+                    checked={selectedRows.length === pendingRows.length}
+                    onChange={(e) => {
+                      const selected = e.target.checked;
+                      setRows((prev) =>
+                        prev.map((r) => (r.status === "ready" || r.status === "error" ? { ...r, selected } : r)),
+                      );
+                    }}
+                  />
+                  Select all ({selectedRows.length} of {pendingRows.length} selected)
+                </label>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-4 sm:items-end">
+                <div className={ROW_FIELD_WRAPPER}>
+                  <label htmlFor={`${inputId}-bulk-type`} className={ROW_FIELD_LABEL}>
+                    File as
+                  </label>
+                  <select
+                    id={`${inputId}-bulk-type`}
+                    value={bulk.type}
+                    onChange={(e) => setBulk({ ...bulk, type: e.target.value as BulkPatch["type"] })}
+                    className={fieldClass(false)}
+                  >
+                    <option value="">No change</option>
+                    <option value="CONTRACT">Contract</option>
+                    <option value="PRODUCT">Warranty</option>
+                    {inventoryEnabled && <option value="INVENTORY">Inventory item</option>}
+                    <option value="INBOX">Save to review later</option>
+                  </select>
+                </div>
+                <div className={ROW_FIELD_WRAPPER}>
+                  <label htmlFor={`${inputId}-bulk-category`} className={ROW_FIELD_LABEL}>
+                    Contract category
+                  </label>
+                  <select
+                    id={`${inputId}-bulk-category`}
+                    value={bulk.category}
+                    onChange={(e) => setBulk({ ...bulk, category: e.target.value })}
+                    className={fieldClass(false)}
+                  >
+                    <option value="">No change</option>
+                    {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {(homeEnabled || vehiclesEnabled) && (properties.length > 0 || vehicles.length > 0) && (
+                  <div className={ROW_FIELD_WRAPPER}>
+                    <label htmlFor={`${inputId}-bulk-link`} className={ROW_FIELD_LABEL}>
+                      Linked to
+                    </label>
+                    <select
+                      id={`${inputId}-bulk-link`}
+                      value={bulk.link}
+                      onChange={(e) => setBulk({ ...bulk, link: e.target.value })}
+                      className={fieldClass(false)}
+                    >
+                      <option value="">No change</option>
+                      <option value="none:">Nothing</option>
+                      {homeEnabled &&
+                        properties.map((p) => (
+                          <option key={p.id} value={`property:${p.id}`}>
+                            {p.label}
+                          </option>
+                        ))}
+                      {vehiclesEnabled &&
+                        vehicles.map((v) => (
+                          <option key={v.id} value={`vehicle:${v.id}`}>
+                            {v.label}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={applyToSelected}
+                  disabled={selectedRows.length === 0 || (!bulk.type && !bulk.category && !bulk.link)}
+                  className={`${buttonClass("secondary")} disabled:opacity-50`}
+                >
+                  Apply to selected
+                </button>
+              </div>
+            </Card>
+          )}
+
           <div className="space-y-3">
             {rows.map((row) => (
               <Card key={row.id}>
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-2">
+                    {pendingRows.length > 1 && (row.status === "ready" || row.status === "error") && (
+                      <input
+                        type="checkbox"
+                        checked={row.selected === true}
+                        onChange={(e) => updateRow(row.id, { selected: e.target.checked })}
+                        aria-label={`Select ${row.file.name}`}
+                      />
+                    )}
                     <FileText size={16} className="shrink-0 text-muted" />
                     <span className="min-w-0 truncate text-sm font-medium">{row.file.name}</span>
                   </div>
@@ -402,9 +593,9 @@ export function ImportClient({
                           value={row.type}
                           disabled={row.status === "scanning" || row.status === "saving"}
                           onChange={(e) => {
+                            // #358 — the scan already covered every type.
                             const type = e.target.value as EntityType;
-                            updateRow(row.id, { type });
-                            scanRow(row.id, type, row.file);
+                            setRows((prev) => prev.map((r) => (r.id === row.id ? withType(r, type) : r)));
                           }}
                           className={inputClass}
                         >
@@ -534,6 +725,8 @@ export function ImportClient({
                         />
                       </RowField>
                       <LinkedToField
+                        key={`${row.id}-contractLink-${row.linkVersion}`}
+                        defaultValue={{ propertyId: row.contractPropertyId, vehicleId: row.contractVehicleId }}
                         id={`${row.id}-contractLink`}
                         properties={properties}
                         vehicles={vehicles}
@@ -628,6 +821,8 @@ export function ImportClient({
                         />
                       </RowField>
                       <LinkedToField
+                        key={`${row.id}-productLink-${row.linkVersion}`}
+                        defaultValue={{ propertyId: row.productPropertyId }}
                         id={`${row.id}-productLink`}
                         properties={properties}
                         homeEnabled={homeEnabled}

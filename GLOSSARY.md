@@ -116,6 +116,10 @@ _Avoid_: Unlinked documents, queue
 The state of a record that was filled in automatically, from email or the Inbox, with no person present, and that nobody has saved since. Saving a record is confirmation.
 _Avoid_: Pending, unconfirmed
 
+**Quick check**:
+The one screen listing every record that Needs review, with its auto-filled details editable in place and confirmed together. Upload's "Save all" opens it when any record it saved Needs review.
+_Avoid_: Review queue, batch review
+
 ### Views
 
 **Reminder**:

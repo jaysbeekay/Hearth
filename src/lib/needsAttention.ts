@@ -270,6 +270,22 @@ export function buildExtractionReviewItems(
       badge: "Needs review",
     });
   }
+  // #358 — a batch saved from Upload is one job, so several records waiting
+  // for a check are one row, opening the Quick check screen.
+  if (items.length > 1) {
+    return [
+      {
+        id: "review-batch",
+        kind: "system",
+        group: "housekeeping",
+        title: `${items.length} records need a quick check`,
+        subtitle: "Some auto-filled details haven't been confirmed yet.",
+        href: "/review",
+        action: { label: "Check them", href: "/review" },
+        badge: "Needs review",
+      },
+    ];
+  }
   return items;
 }
 
