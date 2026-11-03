@@ -11,7 +11,7 @@ import {
   purgePropertyValuation,
 } from "@/lib/commands/home";
 import { purgeTrade } from "@/lib/commands/wealth";
-import { purgeInventoryItem, ItemNotInTrashError } from "@/lib/commands/inventory";
+import { purgeInventoryItem, ItemNotInTrashError, PurgeFilesPendingError } from "@/lib/commands/inventory";
 import { RecordNotFoundError } from "@/lib/commands/shared";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { purgeDocument } from "@/lib/commands/documents";
@@ -130,7 +130,13 @@ export async function purgeExpiredTrash(): Promise<void> {
     try {
       await purgeInventoryItem(i.id, { deletedBefore: cutoff });
     } catch (error) {
-      if (!(error instanceof RecordNotFoundError || error instanceof ItemNotInTrashError)) throw error;
+      // A restored item is skipped; one whose files couldn't be removed is
+      // deleted, and the document-store reconciliation sweeps its files.
+      const handled =
+        error instanceof RecordNotFoundError ||
+        error instanceof ItemNotInTrashError ||
+        error instanceof PurgeFilesPendingError;
+      if (!handled) throw error;
     }
   }
 }

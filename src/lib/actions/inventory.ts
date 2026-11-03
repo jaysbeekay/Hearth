@@ -10,6 +10,7 @@ import {
   createInventoryItemCommand,
   deleteInventoryItemCommand,
   permanentlyDeleteInventoryItemCommand,
+  PurgeFilesPendingError,
   restoreInventoryItemCommand,
   updateInventoryItemCommand,
 } from "@/lib/commands/inventory";
@@ -148,6 +149,10 @@ export async function permanentlyDeleteInventoryItem(itemId: string): Promise<Ac
   try {
     await permanentlyDeleteInventoryItemCommand(itemId);
   } catch (error) {
+    // The item is gone; only its files are left for the scheduled cleanup.
+    if (error instanceof PurgeFilesPendingError) {
+      return { success: "Deleted permanently. Its files will be cleaned up shortly." };
+    }
     if (error instanceof RecordNotFoundError) return { error: "Item not found." };
     if (error instanceof RecordValidationError) return { error: error.message };
     throw error;

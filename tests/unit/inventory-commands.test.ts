@@ -236,18 +236,21 @@ describe("Inventory permanent delete", () => {
     expect(await row(kept.id)).not.toBeNull();
   });
 
-  it("a file-removal failure after the row is gone is reported, and the files are swept later", async () => {
+  it("a file-removal failure after the row is gone reports a pending cleanup, and the files are swept later", async () => {
     // Row first, then files, as every purge does (#251, #413): if removing
-    // the files fails, the item is already gone and the failure is thrown
-    // to the caller, and the document-store reconciliation (run by the
-    // scheduler) removes the orphaned files once they're stale.
+    // the files fails, the item is already gone, so the action says it was
+    // deleted and its files are pending, and the document-store
+    // reconciliation (run by the scheduler) removes them once they're stale.
     const item = await db.prisma.inventoryItem.create({
       data: { label: "Drill", createdById: actorId, deletedAt: new Date() },
     });
     const dir = await attachFile(item.id);
     vi.mocked(removeOwnerDocumentFiles).mockRejectedValueOnce(new Error("EACCES"));
 
-    await expect(permanentlyDeleteInventoryItem(item.id)).rejects.toThrow("EACCES");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await permanentlyDeleteInventoryItem(item.id)).toEqual({
+      success: "Deleted permanently. Its files will be cleaned up shortly.",
+    });
     expect(await row(item.id)).toBeNull();
     expect(await exists(path.join(dir, "stored.pdf"))).toBe(true);
 
@@ -256,6 +259,17 @@ describe("Inventory permanent delete", () => {
     const report = await reconcileDocumentStore();
     expect(report.orphanedFilesRemoved).toBeGreaterThanOrEqual(1);
     expect(await exists(path.join(dir, "stored.pdf"))).toBe(false);
+  });
+
+  it("Trash retention carries on past an item whose files couldn't be removed", async () => {
+    const expired = new Date(Date.now() - (TRASH_RETENTION_DAYS + 1) * 24 * 60 * 60 * 1000);
+    const first = await db.prisma.inventoryItem.create({ data: { label: "Drill", createdById: actorId, deletedAt: expired } });
+    const second = await db.prisma.inventoryItem.create({ data: { label: "Saw", createdById: actorId, deletedAt: expired } });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(removeOwnerDocumentFiles).mockRejectedValueOnce(new Error("EACCES"));
+    await purgeExpiredTrash();
+    expect(await row(first.id)).toBeNull();
+    expect(await row(second.id)).toBeNull();
   });
 
   it("refuses to purge an item that was restored, and leaves its row and files", async () => {

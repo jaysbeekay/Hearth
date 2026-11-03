@@ -152,6 +152,19 @@ export class ItemNotInTrashError extends RecordValidationError {
   }
 }
 
+/**
+ * The item's row (and its Document rows) are gone, but removing its files
+ * failed. Not a failed delete: the document-store reconciliation (#251,
+ * run by the scheduler) removes files with no row once they're stale, so
+ * callers report the delete as done and the cleanup as pending.
+ */
+export class PurgeFilesPendingError extends Error {
+  constructor(cause: unknown) {
+    super("The item was deleted; its files will be removed by the next cleanup.", { cause });
+    this.name = "PurgeFilesPendingError";
+  }
+}
+
 export interface PurgeOptions {
   // Trash retention's cutoff: only purge the item if it went to Trash
   // before this, so one restored and deleted again mid-run keeps its new
@@ -183,6 +196,11 @@ export async function purgeInventoryItem(id: string, options: PurgeOptions = {})
   // The row delete cascades to its Document rows; their files on disk
   // aren't FK-linked, so they're removed straight after (#413). If that
   // fails, the document-store reconciliation sweeps them (#251).
-  await removeOwnerDocumentFiles("INVENTORY_ITEM", id);
+  try {
+    await removeOwnerDocumentFiles("INVENTORY_ITEM", id);
+  } catch (error) {
+    console.error("[inventory] item %s deleted, but removing its files failed; reconciliation will sweep them", id, error);
+    throw new PurgeFilesPendingError(error);
+  }
   return true;
 }
