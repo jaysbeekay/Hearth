@@ -626,7 +626,35 @@ export async function resetPassword(
   ]);
   await logSecurityEvent({ type: "PASSWORD_RESET_COMPLETED", userId: resetToken.userId });
 
-  return { success: "Password updated. You can now sign in." };
+  // #372 — the person just proved they own the inbox and chose this
+  // password, so sign them straight in, unless two-factor is on: a reset link
+  // must not stand in for the second factor, so they still sign in with it.
+  return signInAfterPasswordSet(resetToken.userId, parsed.data.password, "/dashboard", "Password updated. You can now sign in.");
+}
+
+/**
+ * Signs the user in with the password they just set and redirects (signIn
+ * throws Next's redirect), or returns `fallback` for the "now sign in" path
+ * when the account has two-factor on or the sign-in doesn't go through.
+ */
+async function signInAfterPasswordSet(
+  userId: string,
+  password: string,
+  redirectTo: string,
+  fallback: string,
+): Promise<ActionState> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true, totpEnabled: true },
+  });
+  if (!user || user.totpEnabled) return { success: fallback };
+  try {
+    await signIn("credentials", { email: user.email, password, redirectTo });
+  } catch (error) {
+    if (error instanceof AuthError) return { success: fallback };
+    throw error;
+  }
+  return { success: fallback };
 }
 
 export async function acceptInvitation(
@@ -666,7 +694,9 @@ export async function acceptInvitation(
     }),
   ]);
 
-  return { success: "Password set. You can now sign in." };
+  // #372 — land the new member on Upcoming, signed in, with a one-time
+  // welcome that says what their role allows.
+  return signInAfterPasswordSet(inviteToken.userId, parsed.data.password, "/calendar?welcome=1", "Password set. You can now sign in.");
 }
 
 // The caller (SignOutButton) does a full page load to /login afterwards, so

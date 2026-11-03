@@ -8,7 +8,7 @@ import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { calendarKindLabel, getCalendarEvents } from "@/lib/calendarEvents";
 import { getDueContext } from "@/lib/appSettings";
 import { addDays, type CalendarDay } from "@/lib/duePolicy";
-import { formatDate } from "@/lib/utils";
+import { formatDate, ROLE_DESCRIPTIONS, ROLE_LABELS } from "@/lib/utils";
 import { longMonthName, shortMonthName } from "@/lib/dateParts";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { ExpiryBadge } from "@/components/ExpiryBadge";
@@ -16,6 +16,7 @@ import { CalendarSubscribeButton } from "@/components/CalendarSubscribeButton";
 import type { CalendarEvent } from "@/lib/calendarEvents";
 import { cardClass, chipClass, emptyStateClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
+import { WelcomeBanner } from "@/components/WelcomeBanner";
 
 export const metadata: Metadata = { title: "Upcoming" };
 
@@ -41,12 +42,12 @@ function dayMonth(day: CalendarDay) {
 export default async function CalendarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ horizon?: string }>;
+  searchParams: Promise<{ horizon?: string; welcome?: string }>;
 }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const [enabledModules, { dateFormat }, { horizon: horizonParam }, user] = await Promise.all([
+  const [enabledModules, { dateFormat }, { horizon: horizonParam, welcome }, user] = await Promise.all([
     getEnabledModuleKeys(),
     getUserPreferences(),
     searchParams,
@@ -56,6 +57,11 @@ export default async function CalendarPage({
   const horizon = HORIZONS.includes(parsedHorizon as (typeof HORIZONS)[number])
     ? parsedHorizon
     : DEFAULT_HORIZON;
+
+  // #372 — set by the redirect after accepting an invite.
+  const memberCount = welcome === "1" ? await prisma.user.count() : 0;
+  const role = session.user.role;
+  const roleDescription = ROLE_DESCRIPTIONS[role] ?? "";
 
   const due = await getDueContext();
   const events = await getCalendarEvents(enabledModules, due, addDays(due.today, horizon));
@@ -73,6 +79,14 @@ export default async function CalendarPage({
 
   return (
     <PageShell width="list">
+      {welcome === "1" && (
+        <WelcomeBanner
+          userId={session.user.id}
+          roleLabel={ROLE_LABELS[role] ?? role}
+          roleDescription={roleDescription ? `You ${roleDescription[0].toLowerCase()}${roleDescription.slice(1)}` : ""}
+          memberCount={memberCount}
+        />
+      )}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-medium">Upcoming</h1>
