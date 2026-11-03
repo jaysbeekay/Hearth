@@ -651,12 +651,12 @@ export function ImportClient({
                           id={`${row.id}-provider`}
                           value={row.contract.provider}
                           disabled={row.status === "saving"}
-                          onChange={(e) =>
+                          onChange={(e) => {
                             editRow(row.id, {
                               contract: { ...row.contract, provider: e.target.value },
                               contractAutoFilled: { ...row.contractAutoFilled, provider: false },
-                            })
-                          }
+                            });
+                          }}
                           className={fieldClass(row.contractAutoFilled.provider)}
                         />
                       </RowField>
@@ -665,11 +665,11 @@ export function ImportClient({
                           id={`${row.id}-category`}
                           value={row.contract.category}
                           disabled={row.status === "saving"}
-                          onChange={(e) =>
+                          onChange={(e) => {
                             editRow(row.id, {
                               contract: { ...row.contract, category: e.target.value },
-                            })
-                          }
+                            });
+                          }}
                           className={fieldClass(false)}
                         >
                           {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
@@ -684,12 +684,12 @@ export function ImportClient({
                           id={`${row.id}-cost`}
                           value={row.contract.cost}
                           disabled={row.status === "saving"}
-                          onChange={(e) =>
+                          onChange={(e) => {
                             editRow(row.id, {
                               contract: { ...row.contract, cost: e.target.value },
                               contractAutoFilled: { ...row.contractAutoFilled, cost: false },
-                            })
-                          }
+                            });
+                          }}
                           inputMode="decimal"
                           className={fieldClass(row.contractAutoFilled.cost)}
                         />
@@ -700,12 +700,12 @@ export function ImportClient({
                           type="date"
                           value={row.contract.startDate}
                           disabled={row.status === "saving"}
-                          onChange={(e) =>
+                          onChange={(e) => {
                             editRow(row.id, {
                               contract: { ...row.contract, startDate: e.target.value },
                               contractAutoFilled: { ...row.contractAutoFilled, startDate: false },
-                            })
-                          }
+                            });
+                          }}
                           className={fieldClass(row.contractAutoFilled.startDate)}
                         />
                       </RowField>
@@ -715,12 +715,12 @@ export function ImportClient({
                           type="date"
                           value={row.contract.endDate}
                           disabled={row.status === "saving"}
-                          onChange={(e) =>
+                          onChange={(e) => {
                             editRow(row.id, {
                               contract: { ...row.contract, endDate: e.target.value },
                               contractAutoFilled: { ...row.contractAutoFilled, endDate: false },
-                            })
-                          }
+                            });
+                          }}
                           className={fieldClass(row.contractAutoFilled.endDate)}
                         />
                       </RowField>
@@ -753,12 +753,12 @@ export function ImportClient({
                           id={`${row.id}-description`}
                           value={row.product.description}
                           disabled={row.status === "saving"}
-                          onChange={(e) =>
+                          onChange={(e) => {
                             editRow(row.id, {
                               product: { ...row.product, description: e.target.value },
                               productAutoFilled: { ...row.productAutoFilled, description: false },
-                            })
-                          }
+                            });
+                          }}
                           className={fieldClass(row.productAutoFilled.description)}
                         />
                       </RowField>
@@ -767,12 +767,12 @@ export function ImportClient({
                           id={`${row.id}-manufacturer`}
                           value={row.product.manufacturer}
                           disabled={row.status === "saving"}
-                          onChange={(e) =>
+                          onChange={(e) => {
                             editRow(row.id, {
                               product: { ...row.product, manufacturer: e.target.value },
                               productAutoFilled: { ...row.productAutoFilled, manufacturer: false },
-                            })
-                          }
+                            });
+                          }}
                           className={fieldClass(row.productAutoFilled.manufacturer)}
                         />
                       </RowField>
@@ -781,12 +781,12 @@ export function ImportClient({
                           id={`${row.id}-price`}
                           value={row.product.price}
                           disabled={row.status === "saving"}
-                          onChange={(e) =>
+                          onChange={(e) => {
                             editRow(row.id, {
                               product: { ...row.product, price: e.target.value },
                               productAutoFilled: { ...row.productAutoFilled, price: false },
-                            })
-                          }
+                            });
+                          }}
                           inputMode="decimal"
                           className={fieldClass(row.productAutoFilled.price)}
                         />
@@ -797,12 +797,12 @@ export function ImportClient({
                           type="date"
                           value={row.product.purchaseDate}
                           disabled={row.status === "saving"}
-                          onChange={(e) =>
+                          onChange={(e) => {
                             editRow(row.id, {
                               product: { ...row.product, purchaseDate: e.target.value },
                               productAutoFilled: { ...row.productAutoFilled, purchaseDate: false },
-                            })
-                          }
+                            });
+                          }}
                           className={fieldClass(row.productAutoFilled.purchaseDate)}
                         />
                       </RowField>
@@ -812,11 +812,11 @@ export function ImportClient({
                           type="date"
                           value={row.product.warrantyEndDate}
                           disabled={row.status === "saving"}
-                          onChange={(e) =>
+                          onChange={(e) => {
                             editRow(row.id, {
                               product: { ...row.product, warrantyEndDate: e.target.value },
-                            })
-                          }
+                            });
+                          }}
                           className={fieldClass(false)}
                         />
                       </RowField>
@@ -847,12 +847,12 @@ export function ImportClient({
                           id={`${row.id}-label`}
                           value={row.inventory.label}
                           disabled={row.status === "saving"}
-                          onChange={(e) =>
+                          onChange={(e) => {
                             editRow(row.id, {
                               inventory: { ...row.inventory, label: e.target.value },
                               inventoryAutoFilled: { ...row.inventoryAutoFilled, label: false },
-                            })
-                          }
+                            });
+                          }}
                           className={fieldClass(row.inventoryAutoFilled.label)}
                         />
                       </RowField>
@@ -861,12 +861,12 @@ export function ImportClient({
                           id={`${row.id}-brand`}
                           value={row.inventory.brand}
                           disabled={row.status === "saving"}
-                          onChange={(e) =>
+                          onChange={(e) => {
                             editRow(row.id, {
                               inventory: { ...row.inventory, brand: e.target.value },
                               inventoryAutoFilled: { ...row.inventoryAutoFilled, brand: false },
-                            })
-                          }
+                            });
+                          }}
                           className={fieldClass(row.inventoryAutoFilled.brand)}
                         />
                       </RowField>
@@ -875,12 +875,12 @@ export function ImportClient({
                           id={`${row.id}-inv-category`}
                           value={row.inventory.category}
                           disabled={row.status === "saving"}
-                          onChange={(e) =>
+                          onChange={(e) => {
                             editRow(row.id, {
                               inventory: { ...row.inventory, category: e.target.value },
                               inventoryAutoFilled: { ...row.inventoryAutoFilled, category: false },
-                            })
-                          }
+                            });
+                          }}
                           className={fieldClass(row.inventoryAutoFilled.category)}
                         >
                           {INVENTORY_ITEM_CATEGORIES.map((cat) => (
@@ -895,12 +895,12 @@ export function ImportClient({
                           id={`${row.id}-purchasePrice`}
                           value={row.inventory.purchasePrice}
                           disabled={row.status === "saving"}
-                          onChange={(e) =>
+                          onChange={(e) => {
                             editRow(row.id, {
                               inventory: { ...row.inventory, purchasePrice: e.target.value },
                               inventoryAutoFilled: { ...row.inventoryAutoFilled, purchasePrice: false },
-                            })
-                          }
+                            });
+                          }}
                           inputMode="decimal"
                           className={fieldClass(row.inventoryAutoFilled.purchasePrice)}
                         />
