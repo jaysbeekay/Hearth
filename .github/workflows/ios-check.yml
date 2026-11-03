@@ -1,0 +1,62 @@
+name: iOS check
+
+# Compiles the iOS app for the simulator, unsigned, so a Swift error in an
+# app-target plugin (such as ICloudBackupPlugin.swift, #226) fails a pull
+# request instead of the next Xcode build on a Mac. It proves the code
+# compiles and links; it does not exercise iCloud, the keychain or
+# entitlements, which still need a signed build on a device.
+#
+# Not a required check (macOS runners are slower and scarcer), and
+# path-filtered so it only runs on PRs that touch what feeds the iOS build.
+
+on:
+  pull_request:
+    paths:
+      - "ios/**"
+      - "ios-shell/**"
+      - "capacitor.config.ts"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/ios-check.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios-build:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Sync Capacitor iOS project
+        run: npx cap sync ios
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Build for the simulator (unsigned)
+        run: >
+          xcodebuild
+          -project ios/App/App.xcodeproj
+          -scheme App
+          -configuration Debug
+          -sdk iphonesimulator
+          -destination "generic/platform=iOS Simulator"
+          CODE_SIGNING_ALLOWED=NO
+          build

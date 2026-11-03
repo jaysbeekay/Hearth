@@ -968,7 +968,7 @@ test("standalone backups are encrypted, leave no shared copy, and restore everyt
   await openBackupSettings(page);
   const { write, text } = await exportBackup(page);
   // Built in the app cache, not the public Documents folder (#226).
-  expect(write).toEqual({ directory: "CACHE", path: expect.stringMatching(/^hearth-backups\/hearth-standalone-\d{4}-\d{2}-\d{2}-\d{6}\.hearthbackup$/), encoding: "utf8" });
+  expect(write).toEqual({ directory: "CACHE", path: expect.stringMatching(/^hearth-backups\/hearth-standalone-\d{4}-\d{2}-\d{2}-\d{6}-[0-9a-f]{6}\.hearthbackup$/), encoding: "utf8" });
   const [headerLine, ...records] = text.trim().split("\n");
   expect(JSON.parse(headerLine)).toMatchObject({ kind: "hearth-standalone-backup", formatVersion: 2, cipher: "AES-256-GCM" });
   // Manifest, at least one document part, and the end record.

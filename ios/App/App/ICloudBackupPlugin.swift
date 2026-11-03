@@ -132,12 +132,12 @@ public class ICloudBackupPlugin: CAPPlugin, CAPBridgedPlugin {
 
     // Staging files left by an upload that was interrupted (the app killed
     // mid-copy). The folder is shared with the user's other devices, so only
-    // files more than an hour old are removed: another device may be part way
+    // files more than a day old are removed: another device may be part way
     // through its own upload.
     private func removeStaleStagingFiles(in folder: URL) {
         let keys: [URLResourceKey] = [.contentModificationDateKey]
         guard let urls = try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: keys, options: []) else { return }
-        let cutoff = Date().addingTimeInterval(-3600)
+        let cutoff = Date().addingTimeInterval(-86_400)
         for url in urls where url.lastPathComponent.hasPrefix(Self.stagingPrefix) && url.lastPathComponent.hasSuffix(".tmp") {
             guard let modified = try? url.resourceValues(forKeys: Set(keys)).contentModificationDate, modified < cutoff else { continue }
             try? FileManager.default.removeItem(at: url)
@@ -268,7 +268,7 @@ public class ICloudBackupPlugin: CAPPlugin, CAPBridgedPlugin {
             )
             if seen[name] == nil || entry.downloaded { seen[name] = entry }
         }
-        // Names carry their timestamp (hearth-standalone-YYYY-MM-DD-HHMMSS),
+        // Names carry their timestamp (hearth-standalone-YYYY-MM-DD-HHMMSS-xxxxxx),
         // so newest first by name, falling back to modification date.
         return seen.values.sorted { ($0.name, $0.modifiedAt) > ($1.name, $1.modifiedAt) }
     }

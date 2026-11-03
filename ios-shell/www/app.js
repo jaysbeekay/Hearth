@@ -2203,8 +2203,11 @@ function detailLine(label, value) {
 // checks every record and stages document files before it touches the
 // database, then applies all rows in one transaction.
 
+// The random suffix keeps two devices backing up to the same iCloud folder in
+// the same second from writing over each other's backup.
 function backupFilename(iso = nowIso()) {
-  return `hearth-standalone-${iso.slice(0, 10)}-${iso.slice(11, 19).replace(/:/g, "")}${BackupFormat.FILE_EXTENSION}`;
+  const suffix = Array.from(crypto.getRandomValues(new Uint8Array(3)), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `hearth-standalone-${iso.slice(0, 10)}-${iso.slice(11, 19).replace(/:/g, "")}-${suffix}${BackupFormat.FILE_EXTENSION}`;
 }
 
 function documentStorageKeys(tables) {
