@@ -70,8 +70,9 @@ the matching constant at the top of `ios-shell/www/app.js` too.
 3. `npm run test:mobile-packages` and `npm run test:standalone`.
 
 Public SDK keys are designed to be embedded in client apps, so committing
-them is fine. They only identify the app to RevenueCat; they can't grant
-entitlements or read other customers' data.
+them is fine. They can't grant entitlements. They can look up a customer's
+entitlement status if the App User ID is known, so keep App User IDs out of
+logs and URLs (the shell uses RevenueCat's anonymous IDs, `appUserID: null`).
 
 ## 4. Sandbox testing
 
@@ -135,7 +136,7 @@ on #399 so the release has evidence, not just this document.
 | Sandbox purchase, then a production build | Sandbox purchase doesn't carry over |
 | Unlocked, then airplane mode and relaunch | Still opens (SDK-cached entitlement) |
 | No network on first paywall open | "Could not load purchase details", no crash, recovers when online |
-| Refund issued in the store | Entitlement goes inactive after RevenueCat syncs; the app locks once the SDK refreshes customer info online |
+| Refund issued in the store | Entitlement goes inactive after RevenueCat syncs; the app locks at the next launch or resume (the shell checks the entitlement only when opening standalone mode, not while a session is open) |
 
 **Dependencies**
 - [ ] Standalone backup/restore is production-safe (#226, #500), because a paying user's data then lives only on the device.
