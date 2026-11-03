@@ -16,6 +16,7 @@ import { showToast } from "@/components/Toast";
 import { useCanWrite } from "@/components/CanWriteProvider";
 import { LinkedToField } from "@/components/LinkedToField";
 import { extractionMessage, isAiExtractionSource } from "@/lib/autoFillHighlight";
+import { extractionReviewedOnSave } from "@/lib/documents/extractionConfirmation";
 import { Card } from "@/components/ui/Card";
 import { Banner } from "@/components/ui/Banner";
 import { buttonClass, chipClass, emptyStateClass, pillClass, inputClass, reviewFieldClass } from "@/lib/ui";
@@ -160,6 +161,8 @@ interface RowState {
   error?: string;
   scanMessage?: string;
   source?: ExtractionSource;
+  // #359 — the person changed a field or link on this row before saving.
+  edited?: boolean;
   contract: ContractFields;
   // #327 — link a filed policy/warranty to a home or vehicle during review.
   // Kept outside ContractFields/ProductFields since it's a user selection,
@@ -355,6 +358,12 @@ export function InboxReviewClient({
     setRows((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
   }
 
+  // #359 — a change the person made to a row (not the scan filling it in):
+  // a row someone has worked on saves as reviewed.
+  function editRow(id: string, patch: Partial<RowState>) {
+    updateRow(id, { ...patch, edited: true });
+  }
+
   async function scan(id: string, type: EntityType, filename: string) {
     updateRow(id, { status: "scanning" });
     const { fields, source, textUnavailable } = await previewFields(id, type, filename);
@@ -437,7 +446,16 @@ export function InboxReviewClient({
       if (row.contractPropertyId) fields.append("propertyId", row.contractPropertyId);
       if (row.contractVehicleId) fields.append("vehicleId", row.contractVehicleId);
       fields.append("extractionUsed", Object.values(row.contractAutoFilled).some(Boolean) ? "1" : "0");
-      fields.append("confirmExtraction", "0");
+      fields.append(
+        "confirmExtraction",
+        extractionReviewedOnSave({
+          edited: row.edited === true,
+          source: row.source ?? "none",
+          autoFilledCount: Object.values(row.contractAutoFilled).filter(Boolean).length,
+        })
+          ? "1"
+          : "0",
+      );
       appendReviewFields(fields, row.contract, row.contractAutoFilled, row.source);
     } else if (row.type === "PRODUCT") {
       fields.append("description", row.product.description);
@@ -447,7 +465,16 @@ export function InboxReviewClient({
       fields.append("warrantyEndDate", row.product.warrantyEndDate);
       if (row.productPropertyId) fields.append("propertyId", row.productPropertyId);
       fields.append("extractionUsed", Object.values(row.productAutoFilled).some(Boolean) ? "1" : "0");
-      fields.append("confirmExtraction", "0");
+      fields.append(
+        "confirmExtraction",
+        extractionReviewedOnSave({
+          edited: row.edited === true,
+          source: row.source ?? "none",
+          autoFilledCount: Object.values(row.productAutoFilled).filter(Boolean).length,
+        })
+          ? "1"
+          : "0",
+      );
       appendReviewFields(fields, row.product, row.productAutoFilled, row.source);
     } else {
       fields.append("label", row.inventory.label);
@@ -680,7 +707,7 @@ export function InboxReviewClient({
                       value={row.contract.title}
                       disabled={row.status === "saving"}
                       onChange={(e) =>
-                        updateRow(doc.id, {
+                        editRow(doc.id, {
                           contract: { ...row.contract, title: e.target.value },
                           contractAutoFilled: { ...row.contractAutoFilled, title: false },
                         })
@@ -694,7 +721,7 @@ export function InboxReviewClient({
                       value={row.contract.provider}
                       disabled={row.status === "saving"}
                       onChange={(e) =>
-                        updateRow(doc.id, {
+                        editRow(doc.id, {
                           contract: { ...row.contract, provider: e.target.value },
                           contractAutoFilled: { ...row.contractAutoFilled, provider: false },
                         })
@@ -708,7 +735,7 @@ export function InboxReviewClient({
                       value={row.contract.category}
                       disabled={row.status === "saving"}
                       onChange={(e) =>
-                        updateRow(doc.id, { contract: { ...row.contract, category: e.target.value } })
+                        editRow(doc.id, { contract: { ...row.contract, category: e.target.value } })
                       }
                       className={fieldClass(false)}
                     >
@@ -725,7 +752,7 @@ export function InboxReviewClient({
                       value={row.contract.cost}
                       disabled={row.status === "saving"}
                       onChange={(e) =>
-                        updateRow(doc.id, {
+                        editRow(doc.id, {
                           contract: { ...row.contract, cost: e.target.value },
                           contractAutoFilled: { ...row.contractAutoFilled, cost: false },
                         })
@@ -741,7 +768,7 @@ export function InboxReviewClient({
                       value={row.contract.startDate}
                       disabled={row.status === "saving"}
                       onChange={(e) =>
-                        updateRow(doc.id, {
+                        editRow(doc.id, {
                           contract: { ...row.contract, startDate: e.target.value },
                           contractAutoFilled: { ...row.contractAutoFilled, startDate: false },
                         })
@@ -756,7 +783,7 @@ export function InboxReviewClient({
                       value={row.contract.endDate}
                       disabled={row.status === "saving"}
                       onChange={(e) =>
-                        updateRow(doc.id, {
+                        editRow(doc.id, {
                           contract: { ...row.contract, endDate: e.target.value },
                           contractAutoFilled: { ...row.contractAutoFilled, endDate: false },
                         })
@@ -773,7 +800,7 @@ export function InboxReviewClient({
                     recordNoun="contract"
                     disabled={row.status === "saving"}
                     onChange={({ propertyId, vehicleId }) =>
-                      updateRow(doc.id, { contractPropertyId: propertyId, contractVehicleId: vehicleId })
+                      editRow(doc.id, { contractPropertyId: propertyId, contractVehicleId: vehicleId })
                     }
                     hintLinksInNewTab
                     wrapperClassName={ROW_FIELD_WRAPPER}
@@ -793,7 +820,7 @@ export function InboxReviewClient({
                       value={row.product.description}
                       disabled={row.status === "saving"}
                       onChange={(e) =>
-                        updateRow(doc.id, {
+                        editRow(doc.id, {
                           product: { ...row.product, description: e.target.value },
                           productAutoFilled: { ...row.productAutoFilled, description: false },
                         })
@@ -807,7 +834,7 @@ export function InboxReviewClient({
                       value={row.product.manufacturer}
                       disabled={row.status === "saving"}
                       onChange={(e) =>
-                        updateRow(doc.id, {
+                        editRow(doc.id, {
                           product: { ...row.product, manufacturer: e.target.value },
                           productAutoFilled: { ...row.productAutoFilled, manufacturer: false },
                         })
@@ -821,7 +848,7 @@ export function InboxReviewClient({
                       value={row.product.price}
                       disabled={row.status === "saving"}
                       onChange={(e) =>
-                        updateRow(doc.id, {
+                        editRow(doc.id, {
                           product: { ...row.product, price: e.target.value },
                           productAutoFilled: { ...row.productAutoFilled, price: false },
                         })
@@ -837,7 +864,7 @@ export function InboxReviewClient({
                       value={row.product.purchaseDate}
                       disabled={row.status === "saving"}
                       onChange={(e) =>
-                        updateRow(doc.id, {
+                        editRow(doc.id, {
                           product: { ...row.product, purchaseDate: e.target.value },
                           productAutoFilled: { ...row.productAutoFilled, purchaseDate: false },
                         })
@@ -852,7 +879,7 @@ export function InboxReviewClient({
                       value={row.product.warrantyEndDate}
                       disabled={row.status === "saving"}
                       onChange={(e) =>
-                        updateRow(doc.id, {
+                        editRow(doc.id, {
                           product: { ...row.product, warrantyEndDate: e.target.value },
                           productAutoFilled: { ...row.productAutoFilled, warrantyEndDate: false },
                         })
@@ -866,7 +893,7 @@ export function InboxReviewClient({
                     homeEnabled={homeEnabled}
                     recordNoun="warranty"
                     disabled={row.status === "saving"}
-                    onChange={({ propertyId }) => updateRow(doc.id, { productPropertyId: propertyId })}
+                    onChange={({ propertyId }) => editRow(doc.id, { productPropertyId: propertyId })}
                     hintLinksInNewTab
                     wrapperClassName={ROW_FIELD_WRAPPER}
                     labelClassName={ROW_FIELD_LABEL}
@@ -885,7 +912,7 @@ export function InboxReviewClient({
                       value={row.inventory.label}
                       disabled={row.status === "saving"}
                       onChange={(e) =>
-                        updateRow(doc.id, {
+                        editRow(doc.id, {
                           inventory: { ...row.inventory, label: e.target.value },
                           inventoryAutoFilled: { ...row.inventoryAutoFilled, label: false },
                         })
@@ -899,7 +926,7 @@ export function InboxReviewClient({
                       value={row.inventory.brand}
                       disabled={row.status === "saving"}
                       onChange={(e) =>
-                        updateRow(doc.id, {
+                        editRow(doc.id, {
                           inventory: { ...row.inventory, brand: e.target.value },
                           inventoryAutoFilled: { ...row.inventoryAutoFilled, brand: false },
                         })
@@ -913,7 +940,7 @@ export function InboxReviewClient({
                       value={row.inventory.category}
                       disabled={row.status === "saving"}
                       onChange={(e) =>
-                        updateRow(doc.id, {
+                        editRow(doc.id, {
                           inventory: { ...row.inventory, category: e.target.value },
                           inventoryAutoFilled: { ...row.inventoryAutoFilled, category: false },
                         })
@@ -933,7 +960,7 @@ export function InboxReviewClient({
                       value={row.inventory.purchasePrice}
                       disabled={row.status === "saving"}
                       onChange={(e) =>
-                        updateRow(doc.id, {
+                        editRow(doc.id, {
                           inventory: { ...row.inventory, purchasePrice: e.target.value },
                           inventoryAutoFilled: { ...row.inventoryAutoFilled, purchasePrice: false },
                         })

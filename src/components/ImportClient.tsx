@@ -8,6 +8,7 @@ import { INVENTORY_ITEM_CATEGORIES } from "@/lib/validation/inventory";
 import { showToast } from "@/components/Toast";
 import { LinkedToField } from "@/components/LinkedToField";
 import { extractionMessage } from "@/lib/autoFillHighlight";
+import { extractionReviewedOnSave } from "@/lib/documents/extractionConfirmation";
 import { buttonClass, pillClass, inputClass, inlineLinkClass, reviewFieldClass } from "@/lib/ui";
 import { Card } from "@/components/ui/Card";
 
@@ -64,6 +65,8 @@ interface Row {
   // extractionUsed flag) so the created record is held for review until the
   // user confirms it on its detail page — see extractionFieldsFromForm.
   extractionUsed: boolean;
+  // #359 — the person changed a field or link on this row before saving.
+  edited?: boolean;
   contract: ContractFields;
   // #327 — link a filed policy/warranty to a home or vehicle during review,
   // instead of only being settable later via Edit. Kept outside
@@ -104,6 +107,14 @@ async function extract(type: EntityType, file: File) {
     source: data.source ?? "none",
     textUnavailable: data.textUnavailable === true,
   };
+}
+
+function confirmedOnSave(row: Row, autoFilled: Partial<Record<string, boolean>>) {
+  return extractionReviewedOnSave({
+    edited: row.edited === true,
+    source: row.source,
+    autoFilledCount: Object.values(autoFilled).filter(Boolean).length,
+  });
 }
 
 function fieldClass(autoFilled?: boolean) {
@@ -148,6 +159,12 @@ export function ImportClient({
 
   function updateRow(id: string, patch: Partial<Row>) {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  }
+
+  // #359 — a change the person made to a row (not the scan filling it in):
+  // a row someone has worked on saves as reviewed.
+  function editRow(id: string, patch: Partial<Row>) {
+    updateRow(id, { ...patch, edited: true });
   }
 
   async function scanRow(id: string, type: EntityType, file: File) {
@@ -269,7 +286,7 @@ export function ImportClient({
       if (row.contractPropertyId) formData.append("propertyId", row.contractPropertyId);
       if (row.contractVehicleId) formData.append("vehicleId", row.contractVehicleId);
       formData.append("extractionUsed", row.extractionUsed ? "1" : "0");
-      formData.append("confirmExtraction", "0");
+      formData.append("confirmExtraction", confirmedOnSave(row, row.contractAutoFilled) ? "1" : "0");
       appendReviewFields(formData, row.contract, row.contractAutoFilled, row.source);
       result = await importContract(formData);
     } else if (row.type === "PRODUCT") {
@@ -280,7 +297,7 @@ export function ImportClient({
       formData.append("warrantyEndDate", row.product.warrantyEndDate);
       if (row.productPropertyId) formData.append("propertyId", row.productPropertyId);
       formData.append("extractionUsed", row.extractionUsed ? "1" : "0");
-      formData.append("confirmExtraction", "0");
+      formData.append("confirmExtraction", confirmedOnSave(row, row.productAutoFilled) ? "1" : "0");
       appendReviewFields(formData, row.product, row.productAutoFilled, row.source);
       result = await importProduct(formData);
     } else if (row.type === "INVENTORY") {
@@ -430,7 +447,7 @@ export function ImportClient({
                           value={row.contract.title}
                           disabled={row.status === "saving"}
                           onChange={(e) =>
-                            updateRow(row.id, {
+                            editRow(row.id, {
                               contract: { ...row.contract, title: e.target.value },
                               contractAutoFilled: { ...row.contractAutoFilled, title: false },
                             })
@@ -444,7 +461,7 @@ export function ImportClient({
                           value={row.contract.provider}
                           disabled={row.status === "saving"}
                           onChange={(e) =>
-                            updateRow(row.id, {
+                            editRow(row.id, {
                               contract: { ...row.contract, provider: e.target.value },
                               contractAutoFilled: { ...row.contractAutoFilled, provider: false },
                             })
@@ -458,7 +475,7 @@ export function ImportClient({
                           value={row.contract.category}
                           disabled={row.status === "saving"}
                           onChange={(e) =>
-                            updateRow(row.id, {
+                            editRow(row.id, {
                               contract: { ...row.contract, category: e.target.value },
                             })
                           }
@@ -477,7 +494,7 @@ export function ImportClient({
                           value={row.contract.cost}
                           disabled={row.status === "saving"}
                           onChange={(e) =>
-                            updateRow(row.id, {
+                            editRow(row.id, {
                               contract: { ...row.contract, cost: e.target.value },
                               contractAutoFilled: { ...row.contractAutoFilled, cost: false },
                             })
@@ -493,7 +510,7 @@ export function ImportClient({
                           value={row.contract.startDate}
                           disabled={row.status === "saving"}
                           onChange={(e) =>
-                            updateRow(row.id, {
+                            editRow(row.id, {
                               contract: { ...row.contract, startDate: e.target.value },
                               contractAutoFilled: { ...row.contractAutoFilled, startDate: false },
                             })
@@ -508,7 +525,7 @@ export function ImportClient({
                           value={row.contract.endDate}
                           disabled={row.status === "saving"}
                           onChange={(e) =>
-                            updateRow(row.id, {
+                            editRow(row.id, {
                               contract: { ...row.contract, endDate: e.target.value },
                               contractAutoFilled: { ...row.contractAutoFilled, endDate: false },
                             })
@@ -525,7 +542,7 @@ export function ImportClient({
                         recordNoun="contract"
                         disabled={row.status === "saving"}
                         onChange={({ propertyId, vehicleId }) =>
-                          updateRow(row.id, { contractPropertyId: propertyId, contractVehicleId: vehicleId })
+                          editRow(row.id, { contractPropertyId: propertyId, contractVehicleId: vehicleId })
                         }
                         hintLinksInNewTab
                         wrapperClassName={ROW_FIELD_WRAPPER}
@@ -544,7 +561,7 @@ export function ImportClient({
                           value={row.product.description}
                           disabled={row.status === "saving"}
                           onChange={(e) =>
-                            updateRow(row.id, {
+                            editRow(row.id, {
                               product: { ...row.product, description: e.target.value },
                               productAutoFilled: { ...row.productAutoFilled, description: false },
                             })
@@ -558,7 +575,7 @@ export function ImportClient({
                           value={row.product.manufacturer}
                           disabled={row.status === "saving"}
                           onChange={(e) =>
-                            updateRow(row.id, {
+                            editRow(row.id, {
                               product: { ...row.product, manufacturer: e.target.value },
                               productAutoFilled: { ...row.productAutoFilled, manufacturer: false },
                             })
@@ -572,7 +589,7 @@ export function ImportClient({
                           value={row.product.price}
                           disabled={row.status === "saving"}
                           onChange={(e) =>
-                            updateRow(row.id, {
+                            editRow(row.id, {
                               product: { ...row.product, price: e.target.value },
                               productAutoFilled: { ...row.productAutoFilled, price: false },
                             })
@@ -588,7 +605,7 @@ export function ImportClient({
                           value={row.product.purchaseDate}
                           disabled={row.status === "saving"}
                           onChange={(e) =>
-                            updateRow(row.id, {
+                            editRow(row.id, {
                               product: { ...row.product, purchaseDate: e.target.value },
                               productAutoFilled: { ...row.productAutoFilled, purchaseDate: false },
                             })
@@ -603,7 +620,7 @@ export function ImportClient({
                           value={row.product.warrantyEndDate}
                           disabled={row.status === "saving"}
                           onChange={(e) =>
-                            updateRow(row.id, {
+                            editRow(row.id, {
                               product: { ...row.product, warrantyEndDate: e.target.value },
                             })
                           }
@@ -616,7 +633,7 @@ export function ImportClient({
                         homeEnabled={homeEnabled}
                         recordNoun="warranty"
                         disabled={row.status === "saving"}
-                        onChange={({ propertyId }) => updateRow(row.id, { productPropertyId: propertyId })}
+                        onChange={({ propertyId }) => editRow(row.id, { productPropertyId: propertyId })}
                         hintLinksInNewTab
                         wrapperClassName={ROW_FIELD_WRAPPER}
                         labelClassName={ROW_FIELD_LABEL}
@@ -634,7 +651,7 @@ export function ImportClient({
                           value={row.inventory.label}
                           disabled={row.status === "saving"}
                           onChange={(e) =>
-                            updateRow(row.id, {
+                            editRow(row.id, {
                               inventory: { ...row.inventory, label: e.target.value },
                               inventoryAutoFilled: { ...row.inventoryAutoFilled, label: false },
                             })
@@ -648,7 +665,7 @@ export function ImportClient({
                           value={row.inventory.brand}
                           disabled={row.status === "saving"}
                           onChange={(e) =>
-                            updateRow(row.id, {
+                            editRow(row.id, {
                               inventory: { ...row.inventory, brand: e.target.value },
                               inventoryAutoFilled: { ...row.inventoryAutoFilled, brand: false },
                             })
@@ -662,7 +679,7 @@ export function ImportClient({
                           value={row.inventory.category}
                           disabled={row.status === "saving"}
                           onChange={(e) =>
-                            updateRow(row.id, {
+                            editRow(row.id, {
                               inventory: { ...row.inventory, category: e.target.value },
                               inventoryAutoFilled: { ...row.inventoryAutoFilled, category: false },
                             })
@@ -682,7 +699,7 @@ export function ImportClient({
                           value={row.inventory.purchasePrice}
                           disabled={row.status === "saving"}
                           onChange={(e) =>
-                            updateRow(row.id, {
+                            editRow(row.id, {
                               inventory: { ...row.inventory, purchasePrice: e.target.value },
                               inventoryAutoFilled: { ...row.inventoryAutoFilled, purchasePrice: false },
                             })

@@ -50,9 +50,10 @@ function textPdfBytes(lines: string[]): Buffer {
 // generic untyped queue), and Inbox classification supports the same
 // policy/warranty date fields as Import with the same field-level
 // provenance capture. This exercises that whole path end to end: capture ->
-// Inbox -> classify as a contract with real extracted dates -> the filed
-// record lands in "needs review" (#331) showing exactly those fields.
-test("capturing a document saves it to the Inbox, and classifying it with extracted dates leaves it pending field-level review", async ({
+// Inbox -> classify as a contract with real extracted dates. #359: the
+// person edited the row before pressing Save, which is the review, so the
+// record files as confirmed rather than landing in Needs review.
+test("capturing a document saves it to the Inbox, and classifying it after editing files it as reviewed", async ({
   page,
 }) => {
   // Playwright's default per-test budget (30s, since this repo sets no
@@ -129,24 +130,62 @@ test("capturing a document saves it to the Inbox, and classifying it with extrac
   await page.waitForURL(/\/contracts\/[^/]+$/);
 
   await expect(page.locator("body")).toContainText(policyTitle);
-  await expect(page.getByText(/Needs review/)).toBeVisible();
-  await expect(page.getByText("Confirm reviewed details")).toBeVisible();
-  await expect(page.locator('input[id="reviewField:startDate"]')).toHaveValue("2026-06-01");
+  await expect(page.getByText(/Needs review/)).toHaveCount(0);
+  await expect(page.getByText("Confirm reviewed details")).toHaveCount(0);
+  await expect(page.getByText(/Auto-filled details confirmed/)).toBeVisible();
+});
+
+// #359 — on the contract form, pressing Save after a scan is the review:
+// the record saves confirmed. "Save for later review" keeps the old path,
+// Needs review with the per-field review panel (#331).
+async function scanIntoContractForm(page: import("@playwright/test").Page, title: string) {
+  await page.goto("/contracts/new");
+  await page.locator('input[type="file"][name="file"]').first().setInputFiles({
+    name: `form-scan-${Date.now()}.pdf`,
+    mimeType: "application/pdf",
+    buffer: textPdfBytes(["ACME Insurance Pty Ltd", "Start Date: 2026-06-01", "End Date: 2027-06-01"]),
+  });
+  await expect(page.locator("#endDate")).toHaveValue("2027-06-01", { timeout: 30_000 });
+  const note = page.getByRole("list", { name: "Auto-filled fields" });
+  await expect(note.getByText("End date", { exact: true })).toBeVisible();
+  await expect(page.getByText(/I've checked the highlighted fields/)).toHaveCount(0);
+  await page.locator("#title").fill(title);
+  await page.locator("#category").selectOption("OTHER");
+  const provider = page.locator("#provider");
+  if (!(await provider.inputValue())) await provider.fill("ACME Insurance Pty Ltd");
+}
+
+test("saving a scanned contract confirms it, with no checkbox to tick", async ({ page }) => {
+  test.setTimeout(90_000);
+  const title = `Scan Save Confirms ${Date.now()}`;
+  await scanIntoContractForm(page, title);
+  await Promise.all([
+    page.waitForURL(/\/contracts\/(?!new$)[^/?]+/),
+    page.getByRole("button", { name: "Add contract" }).click(),
+  ]);
+  await expect(page.getByRole("heading", { name: title })).toBeVisible();
+  await expect(page.getByText(/Needs review/)).toHaveCount(0);
+  await expect(page.getByText(/Auto-filled details confirmed/)).toBeVisible();
+});
+
+test("Save for later review keeps a scanned contract in Needs review with its review panel", async ({ page }) => {
+  test.setTimeout(90_000);
+  const title = `Scan Save Later ${Date.now()}`;
+  await scanIntoContractForm(page, title);
+  await Promise.all([
+    page.waitForURL(/\/contracts\/(?!new$)[^/?]+/),
+    page.getByRole("button", { name: "Save for later review" }).click(),
+  ]);
+  await expect(page.getByRole("heading", { name: title })).toBeVisible();
+  await expect(page.getByText(/Needs review/).first()).toBeVisible();
   await expect(page.locator('input[id="reviewField:endDate"]')).toHaveValue("2027-06-01");
 
   // Corrections made right here in the review panel must actually stick —
   // not just re-confirm the original extracted value.
   await page.locator('input[id="reviewField:endDate"]').fill("2027-08-15");
-
   await page.getByRole("button", { name: "Confirm reviewed details" }).click();
-  // The confirmation flash lives inside the review panel itself, which
-  // unmounts on the same revalidation that would show it — assert the
-  // resulting state instead: the panel is gone and RecordMeta shows the
-  // confirmation timestamp.
-  await expect(page.getByText(/Needs review/)).not.toBeVisible();
   await expect(page.getByText("Confirm reviewed details")).not.toBeVisible();
   await expect(page.getByText(/Auto-filled details confirmed/)).toBeVisible();
-
   const endDateRow = page.locator("dt", { hasText: "End date" }).locator("xpath=following-sibling::dd[1]");
   await expect(endDateRow).toHaveText(/15 Aug(ust)? 2027/);
 });
