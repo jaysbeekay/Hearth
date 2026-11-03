@@ -11,7 +11,7 @@ import {
 } from "@/lib/notifications/reminderSchedule";
 import type { DueContext, VehicleDueField } from "@/lib/duePolicy";
 import { COVERING_CONTRACTS } from "@/lib/covers";
-import { vehicleDueRecord } from "@/lib/dueRecords";
+import { tenancyDueRecord, vehicleDueRecord } from "@/lib/dueRecords";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenancies } from "@/lib/tenancies";
 import type { NotificationOwnerType } from "@/generated/prisma/enums";
@@ -238,7 +238,7 @@ export async function getHouseholdReminderHealth(): Promise<HouseholdReminderHea
     for (const { propertyId, propertyLabel, tenancy } of tenancies) {
       check(
         "TENANCY",
-        { kind: "tenancy", ...tenancy },
+        tenancyDueRecord(tenancy),
         tenancyLogs.get(tenancy.id) ?? [],
         `${propertyLabel} — Lease`,
         `/home/${propertyId}`,

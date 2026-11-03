@@ -13,7 +13,7 @@ import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { auth } from "@/lib/auth";
 import { isSmtpConfigured, isNtfyConfigured, getDueContext } from "@/lib/appSettings";
 import { addDays, calendarDayOf } from "@/lib/duePolicy";
-import { currentTenancy, LIVE_TENANCY_AGREEMENTS, vehicleDueRecord } from "@/lib/dueRecords";
+import { currentTenancy, LIVE_TENANCY_AGREEMENTS, tenancyDueRecord, vehicleDueRecord } from "@/lib/dueRecords";
 import { COVERING_CONTRACTS } from "@/lib/covers";
 import { getCurrentReminderFailures } from "@/lib/notifications/logs";
 import { getDocumentStats } from "@/lib/documents/stats";
@@ -104,7 +104,7 @@ export default async function DashboardPage() {
       TENANCY: new Map(
         properties.flatMap((property) => {
           const tenancy = currentTenancy(property);
-          return tenancy ? [[tenancy.id, { kind: "tenancy" as const, ...tenancy }] as const] : [];
+          return tenancy ? [[tenancy.id, tenancyDueRecord(tenancy)] as const] : [];
         }),
       ),
     },
@@ -150,6 +150,7 @@ export default async function DashboardPage() {
             tenantName: tenancy.tenantName,
             leaseEnd: tenancy.leaseEnd,
             reminderDaysBefore: tenancy.reminderDaysBefore,
+            contract: tenancy.contract,
           },
         ]
       : [];

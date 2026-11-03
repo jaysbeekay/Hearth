@@ -216,3 +216,35 @@ export function resumedDateMessage(
     : "Update it if it's out of date.";
   return `The vehicle's own ${noun} date, ${formatted}, will apply again. ${tail}`;
 }
+
+// ─── Tenancies (#457) ─────────────────────────────────────────────────────────
+
+/** The linked Contract fields the Tenancy rule needs (`TENANCY_AGREEMENT_SELECT.contract`). */
+export interface TenancyContractRow {
+  status: string;
+  renewalType: string;
+  extractionPending: boolean;
+  endDate: Date | null;
+  deletedAt: Date | null;
+}
+
+/**
+ * #457 — whether a Tenancy's linked Contract Covers it: the Contract's end
+ * date is the lease end (same calendar day), and, as for a Vehicle, it is
+ * not Cancelled, not in Trash and not awaiting review. The Tenancy keeps
+ * its own dates; while Covered, its lease end just has no Due entry, since
+ * the Contract's stand in. When the dates differ, both stay (two different
+ * obligations), and when the Contract stops Covering, the lease end is Due
+ * again.
+ */
+export function isCoveringTenancy(contract: TenancyContractRow | null | undefined, leaseEnd: Date | null): boolean {
+  if (!contract) return false;
+  const end = calendarDayOf(contract.endDate);
+  return (
+    contract.deletedAt == null &&
+    contract.status !== "CANCELLED" &&
+    !contract.extractionPending &&
+    end != null &&
+    end === calendarDayOf(leaseEnd)
+  );
+}

@@ -16,7 +16,7 @@ import { env, isAppUrlConfigured } from "@/lib/env";
 import type { ReminderInput } from "@/lib/notifications/reminderContent";
 import type { DueEntry, VehicleDueField } from "@/lib/duePolicy";
 import { COVERING_CONTRACTS } from "@/lib/covers";
-import { vehicleDueRecord } from "@/lib/dueRecords";
+import { tenancyDueRecord, vehicleDueRecord } from "@/lib/dueRecords";
 
 type ReminderContent = Omit<ReminderInput, "dateFormat" | "appUrl">;
 
@@ -199,7 +199,7 @@ export async function runExpirationCheck(now: Date = new Date()) {
   );
   for (const { propertyId, propertyLabel, tenancy } of tenancies) {
     const sentLog = (tenancyLogs.get(tenancy.id) ?? []).map(toSentLogRow);
-    const plan = reminderPlan({ kind: "tenancy", ...tenancy }, ctx, sentLog);
+    const plan = reminderPlan(tenancyDueRecord(tenancy), ctx, sentLog);
     await remind("TENANCY", tenancy.id, plan, (entry) => ({
       kind: "tenancy",
       id: tenancy.id,
