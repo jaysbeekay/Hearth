@@ -16,8 +16,14 @@ on:
 permissions:
   contents: read
 
+# One iOS build at a time across all refs. The build number is a UTC timestamp
+# taken mid-run, so two tags of the same version (e.g. v0.20.0-rc.2 and
+# v0.20.0 pushed together) can't mint the same CFBundleVersion: the second
+# run starts after the first finishes. GitHub keeps at most one run pending
+# per group, so a third run queued behind them replaces the pending one;
+# re-run it from the Actions tab if that happens.
 concurrency:
-  group: ios-testflight-${{ github.ref }}
+  group: ios-testflight
   cancel-in-progress: false
 
 jobs:

@@ -61,6 +61,11 @@ workflow stamps the App target's Release configuration at build time only:
   and doesn't conflict, but don't hand-upload a build number above today's
   timestamp.
 
+  Runs share one concurrency group, so only one iOS build runs at a time and
+  two tags pushed together never get the same timestamp. GitHub keeps at most
+  one run waiting in that group, so if three or more are queued, the older
+  waiting run is cancelled. Re-run it from the Actions tab.
+
 ### Pre-release tags
 
 Every `v*` tag is uploaded as a new build of its base version:
