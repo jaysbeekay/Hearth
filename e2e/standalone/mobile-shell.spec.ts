@@ -625,6 +625,8 @@ test.beforeEach(async ({ page }) => {
         Preferences: {
           get: async ({ key }: { key: string }) => ({ value: preferences.get(key) ?? null }),
           set: async ({ key, value }: { key: string; value: string }) => {
+            // "hearth-test-pref-set-error" names a preference key whose save fails.
+            if (localStorage.getItem("hearth-test-pref-set-error") === key) throw new Error("Preferences unavailable");
             preferences.set(key, value);
           },
           remove: async ({ key }: { key: string }) => {
@@ -1134,6 +1136,40 @@ test("standalone restore that fails moving a file puts every file back and write
   expect(state.documentFiles).toEqual([["DATA:standalone-documents/insurance.pdf", "ORIGINAL"]]);
   expect(state.asideFiles).toEqual([]);
   expect(state.restoreRuns).toBe(0);
+  expect(state.journal).toBeNull();
+});
+
+test("standalone restore whose settings fail to save after the commit says the records were restored", async ({ page }) => {
+  await page.evaluate(async () => {
+    const prefs = (window as unknown as { Capacitor: { Plugins: { Preferences: { set(a: { key: string; value: string }): Promise<void> } } } }).Capacitor.Plugins.Preferences;
+    await prefs.set({ key: "hearth.mobile.enabledStandaloneModules", value: JSON.stringify(["VEHICLES"]) });
+    await prefs.set({ key: "hearth.mobile.localRemindersEnabled", value: "false" });
+  });
+  await openBackupSettings(page);
+  const { text } = await exportBackup(page);
+  await page.evaluate(async () => {
+    const prefs = (window as unknown as { Capacitor: { Plugins: { Preferences: { set(a: { key: string; value: string }): Promise<void> } } } }).Capacitor.Plugins.Preferences;
+    await prefs.set({ key: "hearth.mobile.enabledStandaloneModules", value: JSON.stringify([]) });
+    localStorage.setItem("hearth-test-pref-set-error", "hearth.mobile.localRemindersEnabled");
+  });
+  await restoreFile(page, text, { password: "correct horse battery" });
+  const status = page.locator("#standalone-status");
+  await expect(status).toContainText("Restored");
+  await expect(status).toContainText("could not be saved: device reminders on or off");
+  await expect(status).toContainText("no need to restore again");
+  await expect(status).not.toContainText("left as it was");
+  const state = await page.evaluate(async () => {
+    localStorage.removeItem("hearth-test-pref-set-error");
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    const prefs = (window as unknown as { Capacitor: { Plugins: { Preferences: { get(a: { key: string }): Promise<{ value: string | null }> } } } }).Capacitor.Plugins.Preferences;
+    return {
+      committed: harness.sqliteRuns.some((run) => run.statement.includes("last_restore_id")),
+      modules: (await prefs.get({ key: "hearth.mobile.enabledStandaloneModules" })).value,
+      journal: (await prefs.get({ key: "hearth.mobile.restoreJournal" })).value,
+    };
+  });
+  expect(state.committed).toBe(true);
+  expect(state.modules).toBe(JSON.stringify(["VEHICLES"]));
   expect(state.journal).toBeNull();
 });
 

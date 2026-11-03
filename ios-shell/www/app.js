@@ -64,6 +64,7 @@ const ICLOUD_BACKUPS_KEPT = 7;
 const BACKUP_NUDGE_DAYS = 30;
 // Preferences that travel with a backup. Backup bookkeeping does not.
 const BACKUP_PREFERENCE_KEYS = [STANDALONE_MODULES_KEY, LOCAL_REMINDERS_KEY];
+const BACKUP_PREFERENCE_LABELS = { [STANDALONE_MODULES_KEY]: "which modules are turned on", [LOCAL_REMINDERS_KEY]: "device reminders on or off" };
 const ALLOWED_MIME_TYPES = new Set([
   "application/pdf",
   "image/jpeg",
@@ -2750,23 +2751,43 @@ async function runRestoreRecovery() {
 // (they wait on the same gate): the commit is a direct executeSet.
 async function applyRestore({ tables, preferences, stagedKeys, mode, legacy = false }) {
   const { restored, kept, missingFiles, undeletedFiles } = await withExclusiveDb(() => applyRestoreLocked({ tables, stagedKeys, mode }));
+  // From here on the records and files are already restored and committed.
+  // Nothing below may throw as if the restore had failed, or the user would
+  // be told the phone was left as it was and might restore again.
   const restoredPreferences = new Map(Object.entries(preferences && typeof preferences === "object" ? preferences : {}));
+  const failedSettings = [];
   for (const key of BACKUP_PREFERENCE_KEYS) {
     const value = restoredPreferences.get(key);
-    if (typeof value === "string") await prefSet(key, value);
+    if (typeof value !== "string") continue;
+    try {
+      await prefSet(key, value);
+    } catch {
+      failedSettings.push(BACKUP_PREFERENCE_LABELS[key] ?? key);
+    }
   }
-  await loadStandaloneModuleSettings();
-  await loadReminderDeliveryState();
-  await loadData();
-  if (state.localRemindersEnabled) {
-    await syncLocalReminders(false).catch((error) => showStandaloneStatus(error.message || "Restored, but reminders could not be rescheduled."));
+  let reloaded = true;
+  try {
+    await loadStandaloneModuleSettings();
+    await loadReminderDeliveryState();
+    await loadData();
+  } catch {
+    reloaded = false;
+  }
+  let remindersMessage = "";
+  if (reloaded && state.localRemindersEnabled) {
+    await syncLocalReminders(false).catch((error) => { remindersMessage = error?.message || "reminders could not be rescheduled"; });
   }
   const parts = [`Restored ${restored} record${restored === 1 ? "" : "s"}`];
   if (kept > 0) parts.push(`kept ${kept} already on this phone`);
   if (missingFiles > 0) parts.push(`${missingFiles} document file${missingFiles === 1 ? "" : "s"} missing from the backup`);
   if (undeletedFiles > 0) parts.push(`${undeletedFiles} old document file${undeletedFiles === 1 ? "" : "s"} could not be removed yet; Hearth will try again when it next starts`);
-  showStandaloneStatus(`${parts.join(", ")}.${legacy ? " This was an unencrypted older backup: export a new encrypted one." : ""}`, true);
-  return { restored, kept, missingFiles };
+  const problems = [];
+  if (failedSettings.length > 0) problems.push(`These settings from the backup could not be saved: ${failedSettings.join(" and ")}. Check them in Settings; there's no need to restore again.`);
+  if (!reloaded) problems.push("Restart Hearth to see the restored records.");
+  if (remindersMessage) problems.push(`Device reminders were not rescheduled (${remindersMessage}).`);
+  const legacyNote = legacy ? " This was an unencrypted older backup: export a new encrypted one." : "";
+  showStandaloneStatus(`${parts.join(", ")}.${legacyNote}${problems.length ? ` ${problems.join(" ")}` : ""}`, problems.length === 0);
+  return { restored, kept, missingFiles, failedSettings };
 }
 
 async function applyRestoreLocked({ tables, stagedKeys, mode }) {

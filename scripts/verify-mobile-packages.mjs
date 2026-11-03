@@ -298,6 +298,9 @@ for (const marker of [
   "public let jsName = \"ICloudBackup\"",
   "static let containerIdentifier = \"iCloud.com.hearthapp.app\"",
   "kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly",
+  // An upload is staged and swapped in, so a failed copy never removes an
+  // existing backup with the same name.
+  "replaceItemAt(url, withItemAt: staging)",
 ]) {
   assertIncludes(iosICloudPlugin, marker, "iOS iCloud backup plugin");
 }

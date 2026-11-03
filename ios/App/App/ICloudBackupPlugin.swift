@@ -91,6 +91,12 @@ public class ICloudBackupPlugin: CAPPlugin, CAPBridgedPlugin {
 
     // Copies a finished local backup (a file:// URI from Filesystem.getUri)
     // into iCloud, then keeps only the newest `keep` backups there.
+    //
+    // The copy goes to a hidden staging file first. Only once it is complete
+    // does it take the backup's name: moved into place, or swapped in with
+    // replaceItemAt if a backup with that name already exists (two backups in
+    // the same second). A failed copy therefore never removes an existing
+    // backup.
     @objc func upload(_ call: CAPPluginCall) {
         run(call) {
             guard let path = call.getString("path"), let source = URL(string: path), source.isFileURL else {
@@ -99,15 +105,42 @@ public class ICloudBackupPlugin: CAPPlugin, CAPBridgedPlugin {
             let name = try self.validName(call.getString("name"))
             let keep = max(1, call.getInt("keep") ?? 7)
             let folder = try self.backupFolder()
+            self.removeStaleStagingFiles(in: folder)
             let destination = folder.appendingPathComponent(name)
-            try self.coordinatedWrite(to: destination) { url in
-                if FileManager.default.fileExists(atPath: url.path) {
-                    try FileManager.default.removeItem(at: url)
+            let staging = folder.appendingPathComponent("\(Self.stagingPrefix)\(UUID().uuidString).tmp")
+            do {
+                try self.coordinatedWrite(to: staging) { url in
+                    try FileManager.default.copyItem(at: source, to: url)
                 }
-                try FileManager.default.copyItem(at: source, to: url)
+                try self.coordinatedWrite(to: destination) { url in
+                    if FileManager.default.fileExists(atPath: url.path) {
+                        _ = try FileManager.default.replaceItemAt(url, withItemAt: staging)
+                    } else {
+                        try FileManager.default.moveItem(at: staging, to: url)
+                    }
+                }
+            } catch {
+                try? FileManager.default.removeItem(at: staging)
+                throw error
             }
             let removed = try self.prune(folder: folder, keep: keep)
             return ["name": name, "pruned": removed]
+        }
+    }
+
+    private static let stagingPrefix = ".hearth-upload-"
+
+    // Staging files left by an upload that was interrupted (the app killed
+    // mid-copy). The folder is shared with the user's other devices, so only
+    // files more than an hour old are removed: another device may be part way
+    // through its own upload.
+    private func removeStaleStagingFiles(in folder: URL) {
+        let keys: [URLResourceKey] = [.contentModificationDateKey]
+        guard let urls = try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: keys, options: []) else { return }
+        let cutoff = Date().addingTimeInterval(-3600)
+        for url in urls where url.lastPathComponent.hasPrefix(Self.stagingPrefix) && url.lastPathComponent.hasSuffix(".tmp") {
+            guard let modified = try? url.resourceValues(forKeys: Set(keys)).contentModificationDate, modified < cutoff else { continue }
+            try? FileManager.default.removeItem(at: url)
         }
     }
 
