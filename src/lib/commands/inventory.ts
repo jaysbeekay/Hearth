@@ -13,6 +13,8 @@ import {
 } from "@/lib/commands/shared";
 import type { ClearablePatch } from "@/lib/validation/fullFormUpdate";
 import type { InventoryItemInput } from "@/lib/validation/inventory";
+import { withStagedFileMoves } from "@/lib/items/stagedFileMoves";
+import { purgeLegacyInventoryStage, syncLegacyInventory } from "@/lib/items/syncLegacyItem";
 import type { Prisma } from "@/generated/prisma/client";
 
 // Record commands for Inventory items (ADR 0003). Every write to
@@ -51,6 +53,8 @@ function revalidateInventoryItem(id: string, warrantyIds: (string | null | undef
   revalidatePath(`/inventory/${id}`);
   revalidatePath("/dashboard");
   revalidatePath("/products");
+  // #380 staging: the hidden Item preview lists the mirrored rows.
+  revalidatePath("/items");
   for (const warrantyId of new Set(warrantyIds)) {
     if (warrantyId) revalidatePath(`/products/${warrantyId}`);
   }
@@ -62,12 +66,14 @@ export async function createInventoryItemCommand(
   alsoInTransaction?: (tx: Db, created: { id: string }) => Promise<unknown>,
 ) {
   await assertModuleEnabled("INVENTORY");
-  const item = await prisma.$transaction(async (tx) => {
+  const item = await withStagedFileMoves(() => prisma.$transaction(async (tx) => {
     if (input.warrantyProductId) await assertWarrantyLive(tx, input.warrantyProductId);
     const created = await tx.inventoryItem.create({ data: { ...input, createdById: actorId } });
     if (alsoInTransaction) await alsoInTransaction(tx, created);
+    // #380 staging: mirror into the staged Item tables in the same transaction.
+    await syncLegacyInventory(tx, created.id);
     return created;
-  });
+  }));
   revalidateInventoryItem(item.id, [item.warrantyProductId]);
   return item;
 }
@@ -88,7 +94,7 @@ export async function updateInventoryItemCommand(
   options: UpdateOptions = {},
 ) {
   await assertModuleEnabled("INVENTORY");
-  const { item, previousWarrantyId } = await prisma.$transaction(async (tx) => {
+  const { item, previousWarrantyId } = await withStagedFileMoves(() => prisma.$transaction(async (tx) => {
     const loadItem = () => tx.inventoryItem.findUnique({ where: { id } });
     const existing = await findLiveParent(loadItem(), "Inventory item");
     assertNotStale(existing, options.baseUpdatedAt);
@@ -104,11 +110,13 @@ export async function updateInventoryItemCommand(
         }),
       () => findLiveParent(loadItem(), "Inventory item"),
     );
+    // #380 staging: mirror into the staged Item tables in the same transaction.
+    await syncLegacyInventory(tx, id, existing.warrantyProductId);
     return {
       item: await findLiveParent(loadItem(), "Inventory item"),
       previousWarrantyId: existing.warrantyProductId,
     };
-  });
+  }));
   revalidateInventoryItem(id, [previousWarrantyId, item.warrantyProductId]);
   return item;
 }
@@ -119,15 +127,17 @@ export async function updateInventoryItemCommand(
 // offline delete, say) doesn't reset its Trash retention clock.
 export async function deleteInventoryItemCommand(id: string) {
   await assertModuleEnabled("INVENTORY");
-  const item = await prisma.$transaction(async (tx) => {
+  const item = await withStagedFileMoves(() => prisma.$transaction(async (tx) => {
     const { count } = await tx.inventoryItem.updateMany({
       where: { id, deletedAt: null },
       data: { deletedAt: new Date() },
     });
     const existing = await tx.inventoryItem.findUnique({ where: { id } });
     if (!existing) throw new RecordNotFoundError("Inventory item");
-    return count > 0 ? existing : null;
-  });
+    if (count === 0) return null;
+    await syncLegacyInventory(tx, id);
+    return existing;
+  }));
   if (!item) return;
   revalidateInventoryItem(id, [item.warrantyProductId]);
   revalidatePath("/settings/trash");
@@ -135,11 +145,13 @@ export async function deleteInventoryItemCommand(id: string) {
 
 export async function restoreInventoryItemCommand(id: string) {
   await assertModuleEnabled("INVENTORY");
-  const item = await prisma.$transaction(async (tx) => {
+  const item = await withStagedFileMoves(() => prisma.$transaction(async (tx) => {
     const existing = await tx.inventoryItem.findUnique({ where: { id } });
     if (!existing) throw new RecordNotFoundError("Inventory item");
-    return tx.inventoryItem.update({ where: { id }, data: { deletedAt: null } });
-  });
+    const restored = await tx.inventoryItem.update({ where: { id }, data: { deletedAt: null } });
+    await syncLegacyInventory(tx, id);
+    return restored;
+  }));
   revalidateInventoryItem(id, [item.warrantyProductId]);
   revalidatePath("/settings/trash");
 }
@@ -190,6 +202,8 @@ export interface PurgeOptions {
 // ItemNotInTrashError; one deleted again since `deletedBefore` returns false
 // and is left alone.
 export async function purgeInventoryItem(id: string, options: PurgeOptions = {}): Promise<boolean> {
+  // #380 staging: the staged copies of its Documents are retired with it.
+  const documentIds = (await prisma.inventoryItemDocument.findMany({ where: { inventoryItemId: id }, select: { id: true } })).map((doc) => doc.id);
   const { count } = await prisma.inventoryItem.deleteMany({
     where: { id, deletedAt: options.deletedBefore ? { lt: options.deletedBefore } : { not: null } },
   });
@@ -198,6 +212,13 @@ export async function purgeInventoryItem(id: string, options: PurgeOptions = {})
     if (!existing) throw new RecordNotFoundError("Inventory item");
     if (!existing.deletedAt) throw new ItemNotInTrashError();
     return false;
+  }
+  // Best effort, after the legacy delete: a failure is logged and
+  // retireOrphanedStages (run by Trash retention) catches it later.
+  try {
+    await purgeLegacyInventoryStage(id, documentIds);
+  } catch (error) {
+    console.error("[items] couldn't retire staged Inventory item %s", id, error);
   }
   // The row delete cascades to its Document rows; their files on disk
   // aren't FK-linked, so they're removed straight after (#413). If that

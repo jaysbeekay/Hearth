@@ -36,6 +36,15 @@ function inventoryItemDir(inventoryItemId: string) {
   return path.join(path.resolve(env.uploadsDir), "inventory-items", path.basename(inventoryItemId));
 }
 
+// Item ids are generated (cuid/uuid). Anything else is refused before it can
+// reach a path, so the directory is always <uploads>/items/<id> (#445).
+const ITEM_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+function itemDir(itemId: string) {
+  if (!ITEM_ID.test(itemId)) throw new Error("Invalid item id");
+  return `${path.resolve(env.uploadsDir)}${path.sep}items${path.sep}${itemId}`;
+}
+
 function inboxDir() {
   return path.join(path.resolve(env.uploadsDir), "inbox");
 }
@@ -51,6 +60,7 @@ const homeItemStore = new DocumentStore(homeItemDir);
 const vehicleItemStore = new DocumentStore(vehicleItemDir);
 const rentalStatementStore = new DocumentStore(rentalStatementDir);
 const inventoryItemStore = new DocumentStore(inventoryItemDir);
+const itemStore = new DocumentStore(itemDir);
 const inboxStore = new DocumentStore(inboxDir);
 const tradeStore = new DocumentStore(tradeDir);
 
@@ -136,6 +146,16 @@ registerReconcileTarget({
       select: { storedName: true },
     }),
 });
+// #445 review: the staged Item store gets the same orphan cleanup and
+// missing-file report as every other owned-Document store.
+registerReconcileTarget({
+  kind: "item",
+  store: itemStore,
+  parentDir: path.join(path.resolve(env.uploadsDir), "items"),
+  flat: false,
+  listOwnerDocuments: (ownerId) =>
+    prisma.itemDocument.findMany({ where: { itemId: ownerId }, select: { storedName: true } }),
+});
 registerReconcileTarget({
   kind: "trade",
   store: tradeStore,
@@ -160,6 +180,12 @@ export async function readDocument(contractId: string, storedName: string) {
 }
 export async function readProductDocument(productId: string, storedName: string) {
   return productStore.read(productId, storedName);
+}
+export async function readItemDocument(itemId: string, storedName: string) {
+  return itemStore.read(itemId, storedName);
+}
+export async function removeItemDocumentFiles(itemId: string) {
+  return itemStore.removeAll(itemId);
 }
 export async function saveInboxDocument(file: File) {
   return inboxStore.save("", file);
