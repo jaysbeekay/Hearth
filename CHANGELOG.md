@@ -7,6 +7,43 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+### Added
+
+- **Import records over MCP, with approval (#529).** Tokens listed in the
+  new `MCP_IMPORT_LABELS` get `propose_import_contract`,
+  `propose_import_product` and (with Inventory on)
+  `propose_import_inventory_item`. A proposal is validated against the
+  form's own schema and queued; it becomes a record only when a household
+  member approves it in the new Documents → Imports tab, which shows every
+  field, the proposing token and likely duplicates (of existing records or of other pending
+  proposals; bulk approval skips look-alikes), with single and bulk
+  approve/reject. Proposals never carry record links or documents, are
+  capped at 100 per token per hour and 200 pending, and READONLY members
+  can see the queue but can't approve or reject. Server-only; the iOS and
+  Android shell is unchanged.
+
+### Security
+
+- **MCP server hardening.** `/api/mcp` now compares bearer tokens in
+  constant time, throttles wrong tokens per client address (10 per 15
+  minutes, recorded in Settings → Security as "MCP request with a wrong
+  token" and "MCP requests throttled", at most 30 rows per 15 minutes so a
+  flood can't bury the log), and caps each valid token at 300
+  requests per 5 minutes. A new optional `MCP_TOKENS` variable takes
+  `label:token` pairs so each client gets its own revocable token, and the
+  server log names the label on every tool call. Every tool now carries the
+  MCP `readOnlyHint` annotation, the server's instructions tell agents to
+  treat free-text fields as data rather than instructions, and a unit test
+  pins the exact read-only tool list. The README's MCP section now covers
+  HTTPS; setup for Claude Code, Claude Desktop, the OpenAI Codex CLI and Open
+  WebUI (and why ChatGPT connectors can't connect yet); and the `Accept` header for
+  hand-rolled clients. Server-only; the iOS and Android shell is unchanged.
+- **nginx overwrites `X-Forwarded-For`.** The HTTPS compose file's nginx
+  used to append to a client-supplied `X-Forwarded-For`, and Hearth's rate
+  limits (sign-in, password reset, MCP tokens) key on the header's first
+  entry, so a client could pick its own throttle bucket. nginx now sets it
+  to the real client address, as does the mTLS example config.
+
 ### Changed
 
 - **Standalone app reads Due the same way as the web (#386).** The iOS and
@@ -76,6 +113,29 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   pages instead of showing a dash, and a Contract's or Warranty's header
   badge is hidden while the status banner below says the same thing. The
   iOS and Android shell is unchanged.
+- **Settings is two tabs: My account and Household (#363).** My account
+  holds only your own things: profile, reminders by email, preferences,
+  passkeys and two-factor, password, calendar feed and downloaded documents.
+  Household lists everything shared: Members, Modules, Reminders & channels,
+  AI & privacy, Document ingestion, Integrations, Backups, Security log and
+  Recently deleted, each with a one-line status, plus the household
+  timezone. Members see the whole list with the admin-only sections greyed
+  out, and can open Recently deleted. The long "System settings" page is
+  split into those sections; Reminders & channels opens with Reminder
+  delivery health, and webhooks now sit under Integrations with barcode and
+  flight lookups. `/settings/app` and `/settings/webhooks` redirect, and
+  every other Settings URL is unchanged. Reminder and backup schedules are
+  picked as "Daily at 08:00" or "Weekly on Monday at 03:30", with an
+  "Advanced (cron)" choice for anything else; the cron string is checked
+  before it's saved, and the old "restart the server" note is gone since the
+  scheduler re-reads it every minute. Settings pages have one sticky "Save
+  changes" bar that saves each section you edited, instead of a Save button
+  per form; a section only counts as saved once its save succeeds, is locked
+  while it saves, and keeps what you typed if the server can't be reached
+  (instead of the error page). One-off
+  actions (change password, add a webhook, test connection) keep their own
+  buttons.
+  The iOS and Android shell is unchanged.
 - **Reminder presets and a one-line Reminder card (#360).** Contract,
   Warranty, Vehicle and Tenancy forms pick Reminder thresholds from presets
   ("Default · 30/14/7/1", "1 week before", "1 day before", "Custom…")
@@ -140,6 +200,18 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   neutral date, listed from today while any of it is still ahead. The web
   lists Trip segments rather than the Trip itself, and so does the shell now.
   The due-soon window and Contract rule differences (#386) are tracked there.
+
+### Fixed
+
+- **Inventory writes follow the record rules (#471).** Creating, deleting,
+  restoring and permanently deleting an Inventory item now go through record
+  commands, from the forms, import, offline sync and Trash retention alike.
+  A new item can no longer be linked to a Warranty in Trash (the form, and
+  an offline create, now say "That warranty doesn't exist or has been
+  deleted."), and other save failures are no longer misreported as a
+  missing warranty. Deleting an item that's already in Trash, for example
+  by replaying an offline delete, no longer restarts its 30-day Trash
+  clock. Restoring an item now refreshes its own page.
 
 ## [0.20.1] - 2026-10-31
 

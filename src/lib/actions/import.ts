@@ -17,6 +17,7 @@ import { addDocumentCommand, purgeDocument, supersedeDocumentCommand } from "@/l
 import { documentCommandError } from "@/lib/documents/commandErrors";
 import { createContractCommand } from "@/lib/commands/contracts";
 import { createProductCommand } from "@/lib/commands/products";
+import { createInventoryItemCommand } from "@/lib/commands/inventory";
 import { RecordValidationError } from "@/lib/commands/shared";
 import { extractionFieldsFromForm } from "@/lib/documents/extractionConfirmation";
 import { saveExtractionReviewFieldsFromForm } from "@/lib/documents/extractionReview";
@@ -131,9 +132,14 @@ export async function importInventoryItem(formData: FormData): Promise<ImportRes
     if (rejection) return { error: rejection };
   }
 
-  const item = await prisma.inventoryItem.create({
-    data: { ...parsed.data, createdById: user.id },
-  });
+  let item;
+  try {
+    item = await createInventoryItemCommand(parsed.data, user.id);
+  } catch (error) {
+    // A link to a warranty that's missing or in Trash (#471).
+    if (error instanceof RecordValidationError) return { error: error.message };
+    throw error;
+  }
 
   if (file instanceof File && file.size > 0) {
     await addDocumentCommand("INVENTORY_ITEM", item.id, {

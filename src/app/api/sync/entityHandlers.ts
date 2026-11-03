@@ -1,6 +1,4 @@
 import type { ZodObject } from "zod";
-import { revalidatePath } from "next/cache";
-import { prisma } from "@/lib/prisma";
 import type { ModuleKey } from "@/lib/modules/registry";
 import { contractSchema } from "@/lib/validation/contract";
 import { productSchema } from "@/lib/validation/product";
@@ -61,8 +59,11 @@ import {
   updateTradeCommand,
   deleteTradeCommand,
 } from "@/lib/commands/wealth";
-import { updateInventoryItemCommand } from "@/lib/commands/inventory";
-import { RecordNotFoundError } from "@/lib/commands/shared";
+import {
+  createInventoryItemCommand,
+  deleteInventoryItemCommand,
+  updateInventoryItemCommand,
+} from "@/lib/commands/inventory";
 import { fullFormUpdate } from "@/lib/validation/fullFormUpdate";
 import {
   formToContractInput,
@@ -380,20 +381,16 @@ export const ENTITY_SYNC_CONFIGS: Record<string, EntitySyncConfig> = {
     input: formToInventoryItemInput,
     requiresModule: "INVENTORY",
     create: async (data, { userId }) => {
-      const item = await prisma.inventoryItem.create({ data: { ...data, createdById: userId } });
-      revalidatePath("/inventory");
+      const item = await createInventoryItemCommand(data, userId);
       return { id: item.id };
     },
     update: async (id, data, ctx) => {
       await updateInventoryItemCommand(id, data, ctx.userId, { baseUpdatedAt: ctx.baseUpdatedAt });
     },
     // #287 — soft-delete, matching deleteInventoryItem in actions/inventory.ts.
+    // A replayed delete of an item already in Trash is a no-op (#471).
     remove: async (id) => {
-      const existing = await prisma.inventoryItem.findUnique({ where: { id } });
-      if (!existing) throw new RecordNotFoundError("Inventory item");
-      await prisma.inventoryItem.update({ where: { id }, data: { deletedAt: new Date() } });
-      revalidatePath("/inventory");
-      revalidatePath("/settings/trash");
+      await deleteInventoryItemCommand(id);
     },
     saveFile: async (itemId, file) => {
       validateFile(file);
