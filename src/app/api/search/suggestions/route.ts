@@ -112,6 +112,7 @@ export async function GET(request: NextRequest) {
             tenantName: tenancy.tenantName,
             leaseEnd: tenancy.leaseEnd,
             reminderDaysBefore: tenancy.reminderDaysBefore,
+            contract: tenancy.contract,
           },
         ]
       : [];

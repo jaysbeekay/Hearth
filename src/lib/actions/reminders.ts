@@ -6,7 +6,7 @@ import { sendReminderEmail, sendTestEmail } from "@/lib/notifications/email";
 import { sendNtfyReminder, sendTestNtfy } from "@/lib/notifications/ntfy";
 import { prisma } from "@/lib/prisma";
 import { COVERING_CONTRACTS } from "@/lib/covers";
-import { vehicleDueRecord } from "@/lib/dueRecords";
+import { tenancyDueRecord, vehicleDueRecord } from "@/lib/dueRecords";
 import { getCurrentTenancy } from "@/lib/tenancies";
 import { env, isAppUrlConfigured } from "@/lib/env";
 import type { ReminderInput, TestPreview, VehicleReminderField } from "@/lib/notifications/reminderContent";
@@ -88,7 +88,7 @@ async function reminderForTarget(
     // #388 — only a rented Property's current Tenancy gets Reminders.
     const t = await getCurrentTenancy(target.id);
     if (!t) return null;
-    const p = await preview("TENANCY", t.tenancy.id, { kind: "tenancy", ...t.tenancy });
+    const p = await preview("TENANCY", t.tenancy.id, tenancyDueRecord(t.tenancy));
     if (!p) return null;
     return {
       kind: "tenancy",

@@ -126,7 +126,23 @@ export type DueRecord =
        */
       archivedAt?: DateInput;
     }
-  | { kind: "tenancy"; leaseEnd: DateInput; reminderDaysBefore?: string | null };
+  | {
+      kind: "tenancy";
+      leaseEnd: DateInput;
+      reminderDaysBefore?: string | null;
+      /**
+       * #457 — set when the Tenancy's linked Contract Covers it (its end date
+       * is the lease end): the Contract's own entries stand in, so the lease
+       * end returns no entry here and only one Reminder stream fires.
+       */
+      coveredFields?: "leaseEnd"[];
+      /**
+       * The lease end, when the Covering Contract is fixed-term. Such a
+       * Contract just ends ("Ended", never Due), so once that date has passed
+       * the Tenancy's own "set the new lease end" Housekeeping comes back.
+       */
+      fixedTermCoverEnds?: { leaseEnd?: DateInput };
+    };
 
 export interface DueContext {
   today: CalendarDay;
@@ -423,6 +439,15 @@ function vehicleEntries(record: Extract<DueRecord, { kind: "vehicle" }>, ctx: Du
 }
 
 function tenancyEntries(record: Extract<DueRecord, { kind: "tenancy" }>, ctx: DueContext): DueEntry[] {
+  if (record.coveredFields?.includes("leaseEnd")) {
+    // #457 — the Covering Contract's entries stand in, unless it was
+    // fixed-term and has ended: then the lease needs its new end date.
+    const ended = toDay(record.fixedTermCoverEnds?.leaseEnd);
+    const daysLeft = ended ? daysBetween(ctx.today, ended) : 0;
+    return ended && daysLeft < 0
+      ? [makeEntry("leaseEnd", ended, daysLeft, "needs-new-end-date", { key: "leaseEnded" })]
+      : [];
+  }
   const end = toDay(record.leaseEnd);
   if (!end) return [];
   const daysLeft = daysBetween(ctx.today, end);

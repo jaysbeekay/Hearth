@@ -46,6 +46,25 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- **Standalone app reads Due the same way as the web (#386).** The iOS and
+  Android shell now has a hand-ported copy of the Due policy
+  (`dueEntries` in `ios-shell/www/app.js`) and uses it for Needs attention,
+  the record-list badges, Upcoming and local Reminders, with the device's
+  day as today. So a Contract's notice deadline is Due and reminds while
+  it's ahead, an auto-renewing Contract's end date never reminds, a Lapsed
+  Warranty or Ended fixed-term Contract leaves Needs attention, an
+  auto-renewing Contract past its end needs a new end date, the due-soon
+  window is each record's largest Reminder threshold rather than a fixed
+  30 days, and only a rented Property's current Tenancy has a Due lease end.
+  The standalone suite runs the shared `tests/fixtures/due-policy-cases.json`
+  against the port, so a rule changed on one side only fails a test.
+- **A Contract that Covers a Tenancy (#457).** When a Tenancy's linked
+  Contract ends on the lease end (and isn't Cancelled, in Trash or awaiting
+  review), the lease end has no Due row or Reminders of its own: the
+  Contract's stand in, on the web and in the standalone app. The Property
+  page says the lease Reminders come from that Contract. Once a fixed-term
+  Covering Contract has ended, the lease's "set the new lease end" row
+  comes back.
 - **One set of shared UI rules (#411).** The app now draws from one type
   scale (24/20/16/14/12px at two weights, sentence case), one radius
   (`rounded-lg`, with `rounded-full` only for dots), 1px borders, no card

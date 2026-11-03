@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 const shellUrl = pathToFileURL(`${process.cwd()}/ios-shell/www/index.html`).toString();
@@ -1331,7 +1332,8 @@ test("standalone Upcoming lists a Covered vehicle date once, as the Contract's (
   await page.locator('#mobile-view button[data-record-type="vehicles"]').click();
   await page.getByRole("button", { name: "Needs attention" }).click();
   await expect(card("Ended Ute")).toHaveCount(1);
-  await expect(card("Ended Ute")).toContainText("Vehicle overdue");
+  // #386 — the badge comes from the ported Due policy.
+  await expect(card("Ended Ute")).toContainText("Overdue");
 
   // Local Reminders: the Covered Vehicle has none of its own for insurance; the others do.
   await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
@@ -1341,6 +1343,163 @@ test("standalone Upcoming lists a Covered vehicle date once, as the Contract's (
   for (const label of ["Cancelled Ute", "Review Ute", "Unlinked Ute"]) {
     await expect(card(label).filter({ hasText: "Insurance" })).toHaveCount(1);
   }
+});
+
+// #386 — the shell's hand-ported Due policy runs the same shared cases as
+// the web's (tests/unit/duePolicy.test.ts), so a rule changed on one side
+// only fails one of the two suites.
+test("standalone Due policy port gives every shared case's entries (#386)", async ({ page }) => {
+  const fixture = JSON.parse(readFileSync(`${process.cwd()}/tests/fixtures/due-policy-cases.json`, "utf8")) as {
+    defaults: { now: string; timezone: string; defaultReminderDays: string };
+    cases: { name: string; now?: string; timezone?: string; defaultReminderDays?: string; record: Record<string, unknown>; expected: unknown[] }[];
+  };
+  expect(fixture.cases.length).toBeGreaterThan(0);
+  const results = await page.evaluate((input) => {
+    const shell = window as unknown as {
+      dueHouseholdDay: (now: Date, timeZone: string) => string;
+      dueEntries: (record: unknown, ctx: { today: string; defaultReminderDays: string }) => { field: string; date: string; daysLeft: number; state: string; label: string }[];
+    };
+    return input.cases.map((c) => {
+      const { now, timezone, defaultReminderDays } = { ...input.defaults, ...c };
+      const today = shell.dueHouseholdDay(new Date(now), timezone);
+      const entries = shell.dueEntries(c.record, { today, defaultReminderDays });
+      return { name: c.name, entries: entries.map(({ field, date, daysLeft, state, label }) => ({ field, date, daysLeft, state, label })) };
+    });
+  }, fixture);
+  for (const [index, c] of fixture.cases.entries()) {
+    expect(results[index], c.name).toEqual({ name: c.name, entries: c.expected });
+  }
+});
+
+// #457 — a Tenancy whose linked Contract Covers it (same end date) has one
+// Due row and one Reminder stream: the Contract's.
+test("standalone a Contract that Covers a Tenancy replaces its lease-end row and Reminders (#457)", async ({ page }) => {
+  await page.addInitScript(() => {
+    const rows = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest.rowsByTable;
+    const updated_at = "2099-01-01T00:00:00.000Z";
+    rows.contracts.push({
+      id: "contract-lease",
+      title: "Home lease",
+      category: "OTHER",
+      provider: "Agent",
+      status: "ACTIVE",
+      renewal_type: "MANUAL_RENEWAL",
+      end_date: "2099-09-20",
+      currency: "AUD",
+      reminder_days_before: "30,14,7,1",
+      created_at: updated_at,
+      updated_at,
+    });
+    const lease = rows.rental_agreements[0] as Record<string, unknown>;
+    lease.lease_end = "2099-09-20";
+    lease.contract_id = "contract-lease";
+  });
+  await page.clock.setFixedTime(new Date("2099-09-06T12:00:00"));
+  await reloadStandalone(page);
+
+  const card = (text: string) => page.locator(".record-card").filter({ hasText: text });
+  // Needs attention: the Contract is Due soon, and the lease has no row of its own.
+  await expect(card("Home lease")).toHaveCount(1);
+  await expect(card("Home lease")).toContainText("Expires 20 Sep");
+  await expect(card("Alex Tenant")).toHaveCount(0);
+
+  // Upcoming lists the date once, as the Contract's.
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="calendar"]').click();
+  await expect(card("Home lease")).toHaveCount(1);
+  await expect(card("Lease end")).toHaveCount(0);
+
+  // Reminders: no lease-end stream next to the Contract's.
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="reminders"]').click();
+  await expect(card("Home lease")).toHaveCount(1);
+  await expect(card("Lease").filter({ hasText: "Home" }).filter({ hasNotText: "Home lease" })).toHaveCount(0);
+});
+
+// #457 — when the Contract stops Covering (Cancelled, awaiting review,
+// another end date, unlinked) the lease end is Due again through the row
+// adapter; once a fixed-term Covering Contract has ended, the lease needs its
+// new end date.
+test("standalone a Tenancy's lease end comes back when its Contract stops Covering it (#457)", async ({ page }) => {
+  await page.addInitScript(() => {
+    const rows = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest.rowsByTable;
+    const updated_at = "2099-01-01T00:00:00.000Z";
+    const lease = { category: "OTHER", provider: "Agent", status: "ACTIVE", renewal_type: "MANUAL_RENEWAL", end_date: "2099-09-20", currency: "AUD", created_at: updated_at, updated_at };
+    rows.contracts.push(
+      { ...lease, id: "lease-active", title: "Active lease" },
+      { ...lease, id: "lease-cancelled", title: "Cancelled lease", status: "CANCELLED" },
+      { ...lease, id: "lease-review", title: "Review lease", extraction_pending: 1 },
+      { ...lease, id: "lease-other-day", title: "Other-day lease", end_date: "2099-09-25" },
+      { ...lease, id: "lease-fixed", title: "Fixed lease", renewal_type: "FIXED_TERM", end_date: "2099-09-01" },
+    );
+  });
+  await page.clock.setFixedTime(new Date("2099-09-06T12:00:00"));
+  await reloadStandalone(page);
+  const states = await page.evaluate(() => {
+    const shell = window as unknown as { dueEntriesFor: (type: string, row: unknown) => { state: string; label: string }[] };
+    const lease = (contractId: string | null, leaseEnd = "2099-09-20") => ({ id: "t", property_id: "property-1", contract_id: contractId, lease_end: leaseEnd });
+    const read = (row: unknown) => shell.dueEntriesFor("rentalAgreements", row).map((e) => `${e.state}: ${e.label}`);
+    return {
+      covered: read(lease("lease-active")),
+      cancelled: read(lease("lease-cancelled")),
+      review: read(lease("lease-review")),
+      otherDay: read(lease("lease-other-day")),
+      unlinked: read(lease(null)),
+      fixedEnded: read(lease("lease-fixed", "2099-09-01")),
+    };
+  });
+  expect(states).toEqual({
+    covered: [],
+    cancelled: ["due-soon: Lease ends 20 Sep"],
+    review: ["due-soon: Lease ends 20 Sep"],
+    otherDay: ["due-soon: Lease ends 20 Sep"],
+    unlinked: ["due-soon: Lease ends 20 Sep"],
+    fixedEnded: ["needs-new-end-date: Lease ended — set the new lease end"],
+  });
+});
+
+// #386 — a Contract's notice deadline, as on the web: Upcoming lists it while
+// it's ahead, and an auto-renewing Contract gets local Reminders for it but
+// never for its end date.
+test("standalone notice deadlines feed Upcoming and Reminders; an auto-renew end date never reminds (#386)", async ({ page }) => {
+  await page.addInitScript(() => {
+    const rows = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest.rowsByTable;
+    const updated_at = "2099-01-01T00:00:00.000Z";
+    const contract = { category: "UTILITIES", provider: "Power Co", status: "ACTIVE", currency: "AUD", reminder_days_before: "30,14,7,1", created_at: updated_at, updated_at };
+    rows.contracts.push(
+      { ...contract, id: "contract-notice", title: "Power plan", renewal_type: "AUTO_RENEW", notice_period_days: 30, end_date: "2099-10-16" },
+      { ...contract, id: "contract-renews", title: "Streaming plan", renewal_type: "AUTO_RENEW", end_date: "2099-09-20" },
+    );
+  });
+  await page.clock.setFixedTime(new Date("2099-09-06T12:00:00"));
+  await reloadStandalone(page);
+  const card = (text: string) => page.locator(".record-card").filter({ hasText: text });
+
+  // Dashboard: the notice deadline is Due soon; an auto-renew end date is never Due.
+  await expect(card("Power plan")).toContainText("Cancel by 16 Sep");
+  await expect(card("Streaming plan")).toHaveCount(0);
+
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="calendar"]').click();
+  await expect(card("Power plan")).toContainText("Notice deadline");
+  await expect(card("Power plan")).toHaveClass(/warning-card/);
+  await expect(card("Streaming plan")).toContainText("Contract ends");
+  await expect(card("Streaming plan")).not.toHaveClass(/warning-card|danger-card/);
+
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="reminders"]').click();
+  await expect(card("Streaming plan")).toContainText("Renews");
+  await page.getByRole("button", { name: "Enable reminders" }).click();
+  const scheduled = await page.evaluate(() => {
+    return (window as Window & {
+      __hearthStandaloneTest?: { scheduledNotifications: { body?: string; extra?: { recordId?: string; threshold?: number } }[] };
+    }).__hearthStandaloneTest?.scheduledNotifications ?? [];
+  });
+  const power = scheduled.filter((n) => n.extra?.recordId === "contract-notice");
+  // 2099-09-16 is 10 days out: the 7- and 1-day Reminders are still ahead.
+  expect(power.map((n) => n.extra?.threshold).sort((a, b) => (a ?? 0) - (b ?? 0))).toEqual([1, 7]);
+  expect(power.every((n) => n.body?.includes("Cancel by 2099-09-16"))).toBe(true);
+  expect(scheduled.filter((n) => n.extra?.recordId === "contract-renews")).toEqual([]);
 });
 
 test("standalone schedules a local Reminder for a tenancy's lease end (#388)", async ({ page }) => {
