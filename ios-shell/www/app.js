@@ -851,13 +851,17 @@ function dateInputValue(value) {
   return value ? String(value).slice(0, 10) : "";
 }
 
+// Calendar days from today (device-local) to a date, as the web's Due policy
+// counts them (duePolicy.ts daysBetween): both days go through Date.UTC, so a
+// 23- or 25-hour DST day can't add or drop one.
 function daysUntil(value) {
   if (!value) return null;
-  const target = new Date(`${String(value).slice(0, 10)}T12:00:00`);
-  if (Number.isNaN(target.getTime())) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value));
+  if (!match) return null;
+  const target = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  if (Number.isNaN(target)) return null;
   const today = new Date();
-  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12, 0, 0);
-  return Math.ceil((target.getTime() - start.getTime()) / 86400000);
+  return Math.round((target - Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())) / 86400000);
 }
 
 function money(amount, currency = "AUD") {
