@@ -80,6 +80,7 @@ describe("thresholdsHint", () => {
 const base: ReminderHealth = {
   enabled: true,
   onHold: false,
+  snoozedUntil: null,
   thresholds: [1, 7, 14, 30],
   nextReminder: { kind: "on", date: new Date("2026-09-20T00:00:00Z"), by: ["EMAIL"] },
   channels: { email: true, ntfy: false, webhook: false },
@@ -120,6 +121,10 @@ describe("reminderSummary", () => {
       tone: "warning",
       text: "Reminders are on hold until this record is reviewed.",
     });
+    // #354
+    expect(
+      reminderSummary({ ...base, snoozedUntil: new Date("2026-12-03T00:00:00Z"), enabled: false, nextReminder: null }),
+    ).toEqual({ tone: "neutral", text: "Snoozed: reminders resume on 3 Dec 2026." });
     expect(
       reminderSummary({
         ...base,

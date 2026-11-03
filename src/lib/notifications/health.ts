@@ -8,7 +8,7 @@ import {
   type ReminderChannel,
   reminderPlan,
   type ReminderPlan,
-  type ReminderRecord,
+  type PlannedRecord,
 } from "@/lib/notifications/reminderSchedule";
 import type { DueContext, VehicleDueField } from "@/lib/duePolicy";
 import { COVERING_CONTRACTS } from "@/lib/covers";
@@ -32,6 +32,8 @@ export interface ReminderHealth {
   enabled: boolean;
   /** The record Needs review: its Reminders are held until someone confirms it. */
   onHold: boolean;
+  /** #354 — the day a Snoozed record's Reminders resume, while it's Snoozed. */
+  snoozedUntil: Date | null;
   thresholds: number[];
   /** Null when no Reminder is left (or Reminders aren't enabled). */
   nextReminder: NextReminder | null;
@@ -42,7 +44,7 @@ export interface ReminderHealth {
   lastFailure: { channel: string; thresholdDays: number; sentAt: Date; error: string | null } | null;
 }
 
-export type ReminderHealthRecord = ReminderRecord & { extractionPending?: boolean };
+export type ReminderHealthRecord = PlannedRecord;
 
 type Channels = ReminderHealth["channels"];
 
@@ -90,8 +92,9 @@ function summarize(
 
   const deliveryReady = channels.email || channels.ntfy || channels.webhook;
   return {
-    enabled: !plan.held && planned != null && plan.thresholds.length > 0,
+    enabled: !plan.held && !plan.snoozedUntil && planned != null && plan.thresholds.length > 0,
     onHold: plan.held,
+    snoozedUntil: plan.snoozedUntil ? dayToDate(plan.snoozedUntil) : null,
     thresholds: plan.thresholds,
     nextReminder,
     channels,
