@@ -31,6 +31,25 @@ export function parseSchedule(cron: string): Schedule {
   return { kind: "advanced", cron: cron.trim() };
 }
 
+/**
+ * The time of day (and first weekday, if it names any) that a cron which
+ * isn't a simple daily/weekly schedule still pins down, e.g. "0 6 * * 1,3,5"
+ * → 06:00, Monday. Used when switching the picker from Advanced back to
+ * Daily or Weekly, so the hour isn't silently reset. Null when the minute or
+ * hour isn't a single number.
+ */
+export function cronTimeOfDay(cron: string): { hour: number; minute: number; day: number | null } | null {
+  const fields = cron.trim().split(/\s+/);
+  if (fields.length !== 5) return null;
+  const [minuteField, hourField, , , weekdayField] = fields;
+  if (!/^\d{1,2}$/.test(minuteField) || !/^\d{1,2}$/.test(hourField)) return null;
+  const minute = Number(minuteField);
+  const hour = Number(hourField);
+  if (minute > 59 || hour > 23) return null;
+  const firstDay = /^([0-7])(?:[,-]|$)/.exec(weekdayField);
+  return { hour, minute, day: firstDay ? Number(firstDay[1]) % 7 : null };
+}
+
 /** The cron string a schedule stands for. */
 export function scheduleToCron(schedule: Schedule): string {
   switch (schedule.kind) {

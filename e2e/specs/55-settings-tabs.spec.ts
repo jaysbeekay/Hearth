@@ -94,6 +94,14 @@ test.describe("as an admin", () => {
       await expect(page.locator("#reminderCronTime")).toHaveValue("06:15");
       await expect(hidden).toHaveValue("15 6 * * *");
 
+      // ...and a compound one's time and first weekday (weekdays at 06:45).
+      await page.locator("#reminderCronKind").selectOption("advanced");
+      await page.locator("#reminderCron").fill("45 6 * * 1-5");
+      await page.locator("#reminderCronKind").selectOption("weekly");
+      await expect(page.locator("#reminderCronDay")).toHaveValue("1");
+      await expect(page.locator("#reminderCronTime")).toHaveValue("06:45");
+      await expect(hidden).toHaveValue("45 6 * * 1");
+
       // Six fields (with seconds) are refused: the scheduler checks once a minute.
       await page.locator("#reminderCronKind").selectOption("advanced");
       await page.locator("#reminderCron").fill("30 15 6 * * *");

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   describeSchedule,
   parseSchedule,
+  cronTimeOfDay,
   parseScheduleTime,
   scheduleToCron,
 } from "@/lib/cronSchedule";
@@ -38,5 +39,22 @@ describe("cron schedules in plain language", () => {
     expect(parseScheduleTime("08:05")).toEqual({ hour: 8, minute: 5 });
     expect(parseScheduleTime("24:00")).toBeNull();
     expect(parseScheduleTime("")).toBeNull();
+  });
+});
+
+// #525 review — switching an Advanced schedule back to Daily/Weekly keeps
+// the time (and first weekday) it already ran at, rather than resetting.
+describe("cronTimeOfDay", () => {
+  it("keeps the time and first weekday of a compound cron", () => {
+    expect(cronTimeOfDay("15 6 * * 1-5")).toEqual({ hour: 6, minute: 15, day: 1 });
+    expect(cronTimeOfDay("0 22 * * 2,4")).toEqual({ hour: 22, minute: 0, day: 2 });
+    expect(cronTimeOfDay("30 9 1 * *")).toEqual({ hour: 9, minute: 30, day: null });
+    expect(cronTimeOfDay("0 8 * * 7")).toEqual({ hour: 8, minute: 0, day: 0 });
+  });
+
+  it("gives nothing when there isn't one time of day to keep", () => {
+    for (const cron of ["*/15 * * * *", "0 */6 * * *", "0 8,20 * * *", "0 8 * *", "0 0 8 * * *", "99 8 * * *", "0 24 * * *"]) {
+      expect(cronTimeOfDay(cron)).toBeNull();
+    }
   });
 });

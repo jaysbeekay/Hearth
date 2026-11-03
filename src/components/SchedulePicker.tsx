@@ -5,6 +5,7 @@ import { Field } from "@/components/FormField";
 import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 import {
   WEEKDAYS,
+  cronTimeOfDay,
   formatScheduleTime,
   parseSchedule,
   parseScheduleTime,
@@ -47,10 +48,12 @@ export function SchedulePicker({
     if (next === "advanced" && kind !== "advanced") setCron(value);
     // And back again keeps what the cron said, when it's a simple schedule.
     if (next !== "advanced" && kind === "advanced") {
-      const parsed = parseSchedule(cron.trim());
-      if (parsed.kind !== "advanced") {
+      // A compound cron ("0 6 * * 1,3,5") can't be shown as one simple
+      // choice, but its time of day (and first weekday) still carry over.
+      const parsed = cronTimeOfDay(cron);
+      if (parsed) {
         setTime(formatScheduleTime(parsed.hour, parsed.minute));
-        if (parsed.kind === "weekly") setDay(parsed.day);
+        if (parsed.day !== null) setDay(parsed.day);
       }
     }
     setKind(next);
