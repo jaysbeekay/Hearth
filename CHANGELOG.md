@@ -122,6 +122,18 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   lists Trip segments rather than the Trip itself, and so does the shell now.
   The due-soon window and Contract rule differences (#386) are tracked there.
 
+### Fixed
+
+- **Inventory writes follow the record rules (#471).** Creating, deleting,
+  restoring and permanently deleting an Inventory item now go through record
+  commands, from the forms, import, offline sync and Trash retention alike.
+  A new item can no longer be linked to a Warranty in Trash (the form, and
+  an offline create, now say "That warranty doesn't exist or has been
+  deleted."), and other save failures are no longer misreported as a
+  missing warranty. Deleting an item that's already in Trash, for example
+  by replaying an offline delete, no longer restarts its 30-day Trash
+  clock. Restoring an item now refreshes its own page.
+
 ## [0.20.1] - 2026-10-31
 
 ### Fixed
