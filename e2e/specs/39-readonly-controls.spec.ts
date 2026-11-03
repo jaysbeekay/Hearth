@@ -384,7 +384,7 @@ test.describe("read-only member (#400)", () => {
 
     await page.goto("/settings");
     await expect(main.getByRole("heading", { name: "Profile" })).toBeVisible();
-    await expect(main.getByRole("button", { name: "Save preferences" })).toBeVisible();
+    await expect(main.getByRole("button", { name: "Save changes" })).toBeVisible();
     await expect(main.getByRole("button", { name: "Update password" })).toBeVisible();
     await expect(main.getByRole("link", { name: "Passkeys", exact: true })).toBeVisible();
     await expect(main.getByRole("button", { name: "Enable two-factor authentication" })).toBeVisible();

@@ -37,10 +37,10 @@ export default async function AssistantPage({
         </p>
         {isAdmin && (
           <Link
-            href="/settings/app"
+            href="/settings/ai"
             className={buttonClass("primary")}
           >
-            Configure in System settings
+            Configure in AI & privacy
           </Link>
         )}
       </div>
