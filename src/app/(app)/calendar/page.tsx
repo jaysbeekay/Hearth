@@ -61,7 +61,10 @@ export default async function CalendarPage({
   // #372 — set by the redirect after accepting an invite.
   const memberCount = welcome === "1" ? await prisma.user.count() : 0;
   const role = session.user.role;
-  const roleDescription = new Map(Object.entries(ROLE_DESCRIPTIONS)).get(role) ?? "";
+  const roleDescription = new Map(Object.entries(ROLE_DESCRIPTIONS)).get(role);
+  const youCan = roleDescription
+    ? `You ${roleDescription.charAt(0).toLowerCase()}${roleDescription.slice(1)}`
+    : "";
 
   const due = await getDueContext();
   const events = await getCalendarEvents(enabledModules, due, addDays(due.today, horizon));
@@ -83,7 +86,7 @@ export default async function CalendarPage({
         <WelcomeBanner
           userId={session.user.id}
           roleLabel={new Map(Object.entries(ROLE_LABELS)).get(role) ?? role}
-          roleDescription={roleDescription ? `You ${roleDescription[0].toLowerCase()}${roleDescription.slice(1)}` : ""}
+          roleDescription={youCan}
           memberCount={memberCount}
         />
       )}
