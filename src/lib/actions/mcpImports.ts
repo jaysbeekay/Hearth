@@ -1,7 +1,8 @@
 "use server";
 
 import { auth } from "@/lib/auth";
-import { approveImportCommand, ImportReviewError, rejectImportCommand } from "@/lib/mcp/imports";
+import { approveImportCommand, ImportReviewError, proposalMatchKeys, rejectImportCommand } from "@/lib/mcp/imports";
+import { prisma } from "@/lib/prisma";
 import { RecordNotFoundError, RecordValidationError } from "@/lib/commands/shared";
 import { ModuleDisabledError } from "@/lib/modules/enablement";
 
@@ -56,7 +57,32 @@ async function reviewEach(
 }
 
 export async function approveMcpImports(ids: string[]): Promise<ImportReviewResult> {
-  return reviewEach(ids, approveImportCommand);
+  // In a bulk approval, a proposal that matches one already approved in the
+  // same batch (an agent that proposed the same contract twice) is held back
+  // rather than created again. Approving it on its own still works, for the
+  // rare case where two look-alike records are both real.
+  await requireUser();
+  const batch = Array.isArray(ids) ? ids : [];
+  const proposals =
+    batch.length > 1
+      ? await prisma.mcpImportProposal.findMany({
+          where: { id: { in: batch.slice(0, MAX_BATCH).filter((id) => typeof id === "string") } },
+          select: { id: true, kind: true, data: true },
+        })
+      : [];
+  const keysById = new Map(proposals.map((p) => [p.id, proposalMatchKeys(p.kind, p.data)]));
+  const approvedKeys = new Set<string>();
+  return reviewEach(ids, async (id, actorId) => {
+    const keys = keysById.get(id) ?? [];
+    if (keys.some((key) => approvedKeys.has(key))) {
+      throw new ImportReviewError(
+        "Skipped: it matches another import approved in this batch. Approve it on its own if both are real.",
+      );
+    }
+    const result = await approveImportCommand(id, actorId);
+    for (const key of keys) approvedKeys.add(key);
+    return result;
+  });
 }
 
 export async function rejectMcpImports(ids: string[]): Promise<ImportReviewResult> {

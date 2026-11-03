@@ -223,16 +223,17 @@ export interface DuplicateHint {
 }
 
 /**
- * Likely existing records for each pending proposal, matched on an
- * identifier (contract number, serial number) or on name plus maker. Only a
- * hint for the reviewer: nothing is merged.
+ * Likely existing records for each pending proposal, and other pending
+ * proposals for the same thing (an agent proposing one contract twice),
+ * matched on an identifier (contract number, serial number) or on name plus
+ * maker. Only a hint for the reviewer: nothing is merged.
  *
  * One pass over each kind's live records (narrow columns only), looking each
  * record's keys up in maps built from the proposals, so the cost is
  * O(records + proposals) rather than records × proposals.
  */
 export async function findImportDuplicates(
-  proposals: { id: string; kind: McpImportKind; data: string }[],
+  proposals: { id: string; kind: McpImportKind; data: string; summary?: string }[],
 ): Promise<Map<string, DuplicateHint[]>> {
   // Normalised key → ids of the proposals that carry it.
   const index = new Map<string, string[]>();
@@ -254,14 +255,24 @@ export async function findImportDuplicates(
   }
 
   const result = new Map<string, DuplicateHint[]>();
-  const hint = (keys: string[], dup: DuplicateHint) => {
-    const ids = new Set(keys.flatMap((key) => index.get(key) ?? []));
-    for (const id of ids) {
-      const hints = result.get(id) ?? [];
-      if (hints.length < MAX_DUPLICATE_HINTS) hints.push(dup);
-      result.set(id, hints);
-    }
+  const push = (id: string, dup: DuplicateHint) => {
+    const hints = result.get(id) ?? [];
+    if (hints.length < MAX_DUPLICATE_HINTS && !hints.some((h) => h.href === dup.href)) hints.push(dup);
+    result.set(id, hints);
   };
+  const hint = (keys: string[], dup: DuplicateHint) => {
+    for (const id of new Set(keys.flatMap((key) => index.get(key) ?? []))) push(id, dup);
+  };
+
+  // Pending proposals that share a key point at each other.
+  const summaries = new Map(proposals.map((p) => [p.id, p.summary || "untitled"]));
+  for (const ids of index.values()) {
+    for (const id of ids) {
+      for (const other of ids) {
+        if (other !== id) push(id, { href: `#import-${other}`, label: `another pending import (${summaries.get(other)})` });
+      }
+    }
+  }
 
   if (kinds.has("CONTRACT")) {
     const contracts = await prisma.contract.findMany({
@@ -290,6 +301,15 @@ export async function findImportDuplicates(
 }
 
 const MAX_DUPLICATE_HINTS = 5;
+
+/** Match keys for a proposal's stored data (empty if unreadable). */
+export function proposalMatchKeys(kind: McpImportKind, json: string): string[] {
+  try {
+    return matchKeys(kind, JSON.parse(json) as Record<string, unknown>);
+  } catch {
+    return [];
+  }
+}
 
 // The keys a record or proposal matches on: its identifier, and its name
 // plus maker (plus model for products and items). Matching keys = likely

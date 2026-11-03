@@ -579,8 +579,11 @@ form would, so Due dates and reminders work as usual. Each proposal shows
 every field in full, which token proposed it, and a warning when it looks
 like a record you already have: a contract with the same contract number,
 or the same title and provider; a product or inventory item with the same
-serial number, or the same name, maker and model. Approving never merges;
-reject the duplicate instead.
+serial number, or the same name, maker and model. The same check runs
+across the queue itself, so an agent that proposes one contract twice gets
+both cards flagged, and a bulk approval creates only the first and skips
+the look-alikes (approve one on its own if both are real). Approving never
+merges; reject the duplicate instead.
 
 Limits: proposals never link to existing properties, vehicles or warranties
 (add the link after approving), documents can't be attached over MCP, each

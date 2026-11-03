@@ -248,6 +248,42 @@ describe("reviewing", () => {
     expect(result.failed).toHaveLength(100);
   });
 
+  it("flags pending proposals that duplicate each other, and bulk approval creates only one", async () => {
+    const ids: string[] = [];
+    for (let i = 0; i < 3; i += 1) {
+      const proposed = await proposeImport("CONTRACT", CONTRACT, "looping-agent");
+      if (!proposed.ok) throw new Error(proposed.error);
+      ids.push(proposed.proposalId);
+    }
+    const hints = await findImportDuplicates(
+      await prisma.mcpImportProposal.findMany({ where: { status: "PENDING" } }),
+    );
+    expect(hints.get(ids[0])?.map((h) => h.href).sort()).toEqual([`#import-${ids[1]}`, `#import-${ids[2]}`].sort());
+
+    const result = await approveMcpImports(ids);
+    expect(result.ok).toBe(1);
+    expect(result.failed.map((f) => f.id)).toEqual([ids[1], ids[2]]);
+    expect(result.failed[0].error).toMatch(/matches another import approved in this batch/);
+    expect(await prisma.contract.count()).toBe(1);
+
+    // On its own, a look-alike can still be approved deliberately.
+    expect((await approveMcpImports([ids[1]])).ok).toBe(1);
+    expect(await prisma.contract.count()).toBe(2);
+  });
+
+  it("re-validates at approval and leaves a no-longer-valid proposal pending", async () => {
+    const proposed = await proposeImport("CONTRACT", CONTRACT, "x");
+    if (!proposed.ok) throw new Error(proposed.error);
+    // Stored data that no longer passes the form schema (e.g. after a schema change).
+    await prisma.mcpImportProposal.update({
+      where: { id: proposed.proposalId },
+      data: { data: JSON.stringify({ ...CONTRACT, category: "NOT_A_CATEGORY" }) },
+    });
+    await expect(approveImportCommand(proposed.proposalId, actorId)).rejects.toThrow(/^No longer valid: category:/);
+    expect(await prisma.contract.count()).toBe(0);
+    expect((await prisma.mcpImportProposal.findUniqueOrThrow({ where: { id: proposed.proposalId } })).status).toBe("PENDING");
+  });
+
   it("flags likely duplicates of existing records", async () => {
     const first = await proposeImport("CONTRACT", CONTRACT, "x");
     if (!first.ok) throw new Error(first.error);

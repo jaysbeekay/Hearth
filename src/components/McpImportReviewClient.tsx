@@ -156,7 +156,7 @@ export function McpImportReviewClient({
 
       <ul className="space-y-3">
         {proposals.map((proposal) => (
-          <Card as="li" key={proposal.id} className="space-y-3">
+          <Card as="li" key={proposal.id} id={`import-${proposal.id}`} className="scroll-mt-4 space-y-3">
             <div className="flex flex-wrap items-start gap-3">
               {canWrite && (
                 <input
@@ -210,9 +210,15 @@ export function McpImportReviewClient({
                 {proposal.duplicates.map((dup, index) => (
                   <span key={dup.href}>
                     {index > 0 && ", "}
-                    <Link href={dup.href} className={inlineLinkClass}>
-                      {dup.label}
-                    </Link>
+                    {dup.href.startsWith("#") ? (
+                      <a href={dup.href} className={inlineLinkClass}>
+                        {dup.label}
+                      </a>
+                    ) : (
+                      <Link href={dup.href} className={inlineLinkClass}>
+                        {dup.label}
+                      </Link>
+                    )}
                   </span>
                 ))}
                 . Approving creates a new record; nothing is merged.
