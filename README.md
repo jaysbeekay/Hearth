@@ -123,7 +123,7 @@ security notes.
 - AI extraction pre-fills service record details when you upload a receipt or invoice
 
 **Passkeys**
-- Register Face ID, Touch ID, or a security key as an alternative to your password from **Settings → Security**
+- Register Face ID, Touch ID, or a security key as an alternative to your password from **Settings → My account → Sign-in and security**
 - Passkeys are per-user and opt-in — passwords continue to work normally
 - Signing in with a passkey appears as a second button on the login page
 - Requires `APP_URL` to be set to the correct hostname (used as the WebAuthn Relying Party ID)
@@ -174,13 +174,17 @@ _The property detail screenshot was captured without network access, so it doesn
 | --- | --- |
 | ![Spending](docs/screenshots/spend.png) | ![Contract — linked tenancy](docs/screenshots/contract-rental-link.png) |
 
-| Settings — personal account | Settings — household & system |
+| Settings — My account | Settings — Household |
 | --- | --- |
-| ![Settings — personal](docs/screenshots/settings-personal.png) | ![Settings — household & system](docs/screenshots/settings-household-system.png) |
+| ![Settings — My account](docs/screenshots/settings-personal.png) | ![Settings — Household](docs/screenshots/settings-household-tab.png) |
 
-| Settings — household members | Settings — AI provider |
+| Settings — Reminders & channels | Settings — reminder schedule |
 | --- | --- |
-| ![Settings — household](docs/screenshots/settings-household.png) | ![Settings — AI](docs/screenshots/settings-ai.png) |
+| ![Settings — Reminders & channels](docs/screenshots/settings-reminders.png) | ![Settings — reminder schedule](docs/screenshots/settings-reminders-schedule.png) |
+
+| Settings — Members | Settings — AI & privacy |
+| --- | --- |
+| ![Settings — Members](docs/screenshots/settings-household.png) | ![Settings — AI & privacy](docs/screenshots/settings-ai.png) |
 
 | Two-factor setup | Two-factor recovery codes |
 | --- | --- |
@@ -725,9 +729,9 @@ or to a cloud AI provider you've explicitly opted into below.
 
 ## Bring your own AI key
 
-Each user can optionally connect their own API key for a cloud AI provider —
-Anthropic Claude, Google Gemini, or OpenAI — from **Settings → AI document
-extraction**. When configured, it's used as a third extraction stage: if the
+An admin can optionally connect the household's own API key for a cloud AI provider —
+Anthropic Claude, Google Gemini, or OpenAI — from **Settings → Household → AI &
+privacy** (admin only). When configured, it's used as a third extraction stage: if the
 local heuristics can't confidently parse an uploaded document, the document's
 raw bytes (PDF or photo, not the OCR'd text) are sent directly to your chosen
 provider's API using your key, which generally extracts fields far more
@@ -800,7 +804,7 @@ on a schedule. Each backup:
 3. Uploads the encrypted file to a single active destination — **S3-
    compatible object storage** (AWS S3, Backblaze B2, Cloudflare R2, MinIO,
    etc.), **SFTP**, or a **local filesystem path** — chosen from a
-   "Backup destination" dropdown in Settings → System settings. Only one
+   "Backup destination" dropdown in Settings → Household → Backups. Only one
    destination runs at a time; switching the dropdown doesn't discard the
    other destinations' previously-saved credentials, it just makes them
    inactive.
@@ -809,7 +813,7 @@ on a schedule. Each backup:
 
 Backups stay fully disabled until `ENCRYPTION_KEY` is set — there's no way
 to write an unencrypted backup, even locally. With encryption configured,
-pick a destination and fill in its fields in Settings → System settings
+pick a destination and fill in its fields in Settings → Household → Backups
 (`BACKUP_S3_*`, `BACKUP_SFTP_*`, `BACKUP_LOCAL_PATH` env vars just
 pre-populate those fields, they don't select the destination). See
 [`.env.example`](.env.example) for the full list of backup-related
@@ -817,7 +821,7 @@ variables and their defaults.
 
 Backups run on `BACKUP_CRON_SCHEDULE` (default daily at 03:00) via the
 same built-in scheduler used for reminders, can be triggered manually from
-**Settings → Database backups** (admin only), or triggered externally via
+**Settings → Household → Backups** (admin only), or triggered externally via
 `POST /api/backup` with header `x-cron-secret: <CRON_SECRET>` (same secret
 as `/api/cron`; leaving `CRON_SECRET` unset disables both endpoints).
 Recent backup runs (destination, status, size, any error) are shown on
@@ -839,7 +843,7 @@ The app can notify other platforms — e.g. [Home Assistant](https://www.home-as
 or an MCP agent — when a contract, product warranty, vehicle date or
 tenancy's lease end is approaching,
 on the same schedule and thresholds as email/push reminders. Manage
-endpoints from **Settings → Webhooks** (admin only): add a URL, optionally
+endpoints from **Settings → Household → Integrations** (admin only): add a URL, optionally
 set a signing secret, enable/disable, send a test delivery, and review the
 last 10 deliveries (success/failure, HTTP status, timestamp).
 
@@ -949,7 +953,7 @@ for the full list with defaults. Notable ones:
 | `BLOCK_PRIVATE_NETWORK_TARGETS` | Optional. Set to `true` to refuse outbound requests (webhooks, ntfy, Ollama) to addresses on your own network. Off by default — LAN IPs and local hostnames are supported destinations. Cloud instance-metadata addresses are always refused either way. |
 | `SETUP_TOKEN` | Optional. Generate with `openssl rand -hex 16`. If set, the first-run setup screen also asks for this value, so a server that's reachable before you've created your account can't be claimed by someone else — see "Security notes" below. Ignored once setup is complete. |
 | `BACKUP_CRON_SCHEDULE` / `BACKUP_RETENTION_COUNT` | Optional. Schedule (cron syntax, default daily at 03:00) and how many backups to keep per destination (default 7). |
-| `BACKUP_S3_*` | Optional. Pre-populates the S3-compatible backup fields (`BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY`, plus `BACKUP_S3_ENDPOINT`/`BACKUP_S3_REGION`/`BACKUP_S3_FORCE_PATH_STYLE` for non-AWS providers) — still requires picking "S3-compatible storage" in Settings → System settings' backup destination dropdown to activate it. See "Database backups" above. |
+| `BACKUP_S3_*` | Optional. Pre-populates the S3-compatible backup fields (`BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY`, plus `BACKUP_S3_ENDPOINT`/`BACKUP_S3_REGION`/`BACKUP_S3_FORCE_PATH_STYLE` for non-AWS providers) — still requires picking "S3-compatible storage" in the backup destination dropdown under Settings → Household → Backups to activate it. See "Database backups" above. |
 | `BACKUP_SFTP_*` | Optional. Pre-populates the SFTP backup fields (`BACKUP_SFTP_HOST`, `BACKUP_SFTP_USERNAME`, plus `BACKUP_SFTP_PASSWORD` or `BACKUP_SFTP_PRIVATE_KEY`) — still requires picking "SFTP" in the backup destination dropdown to activate it. See "Database backups" above. |
 | `BACKUP_LOCAL_PATH` | Optional. Pre-populates the local-filesystem backup path — still requires picking "Local filesystem" in the backup destination dropdown to activate it. See "Database backups" above. |
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | Optional. Set both to show a "Sign in with GitHub" button on the login page. Sign-up stays invite-only — GitHub sign-in only works for an email that already has an admin-invited Hearth account. |
@@ -971,7 +975,7 @@ threshold.
 
 ## Security notes
 
-- New users can only be created by an existing admin (Settings → Users) —
+- New users can only be created by an existing admin (Settings → Household → Members) —
   there's no public registration, since this app stores sensitive personal
   and financial data.
 - **First-run setup is a race you can lose.** Until the first account exists,

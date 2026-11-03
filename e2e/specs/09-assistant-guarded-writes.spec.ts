@@ -1,6 +1,6 @@
 import http from "http";
 import type { AddressInfo } from "net";
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { ADMIN_AUTH_FILE } from "../env";
 
 test.use({ storageState: ADMIN_AUTH_FILE });
@@ -75,27 +75,27 @@ function startMockOllama(
   });
 }
 
+
+// #363 — one Save changes submits every edited section. The Assistant
+// section is only sent when it changed, so an earlier test may have set it.
+async function configureMockAssistant(page: Page, url: string) {
+  await page.goto("/settings/ai");
+  const chatAlreadySet = (await page.locator("#chatProvider").inputValue()) === "OLLAMA";
+  await page.locator("#ollamaBaseUrl").fill(url);
+  await page.selectOption("#chatProvider", "OLLAMA");
+  const chatModel = page.locator("#chatModel");
+  const modelAlreadySet = chatAlreadySet && (await chatModel.inputValue()) === "test-model";
+  await chatModel.fill("test-model");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  // Wait for each save to land: navigating away mid-action drops it.
+  await expect(page.getByText("Ollama settings saved.").first()).toBeVisible();
+  if (!modelAlreadySet) await expect(page.getByText("AI Assistant settings saved.").first()).toBeVisible();
+}
+
 test("assistant proposes a contract, confirming creates it and cancelling doesn't", async ({ page }) => {
   const mock = await startMockOllama();
   try {
-    await page.goto("/settings/app");
-    await page.locator("#ollamaBaseUrl").fill(mock.url);
-    await page
-      .locator("#ollamaBaseUrl")
-      .locator("xpath=ancestor::form[1]")
-      .locator("button[type=submit]")
-      .click();
-    // Wait for each save to land: navigating away mid-action drops it.
-    await expect(page.getByText("Ollama settings saved.").first()).toBeVisible();
-
-    await page.selectOption("#chatProvider", "OLLAMA");
-    await page.locator("#chatModel").fill("test-model");
-    await page
-      .locator("#chatProvider")
-      .locator("xpath=ancestor::form[1]")
-      .locator("button[type=submit]")
-      .click();
-    await expect(page.getByText("AI Assistant settings saved.").first()).toBeVisible();
+    await configureMockAssistant(page, mock.url);
 
     await page.goto("/assistant");
     await page.locator("textarea").last().fill("Add a Netflix subscription for me");
@@ -146,23 +146,7 @@ test("assistant update proposal lists and writes only the named fields", async (
       : createGym,
   );
   try {
-    await page.goto("/settings/app");
-    await page.locator("#ollamaBaseUrl").fill(mock.url);
-    await page
-      .locator("#ollamaBaseUrl")
-      .locator("xpath=ancestor::form[1]")
-      .locator("button[type=submit]")
-      .click();
-    await expect(page.getByText("Ollama settings saved.").first()).toBeVisible();
-
-    await page.selectOption("#chatProvider", "OLLAMA");
-    await page.locator("#chatModel").fill("test-model");
-    await page
-      .locator("#chatProvider")
-      .locator("xpath=ancestor::form[1]")
-      .locator("button[type=submit]")
-      .click();
-    await expect(page.getByText("AI Assistant settings saved.").first()).toBeVisible();
+    await configureMockAssistant(page, mock.url);
 
     await page.goto("/assistant");
     await page.locator("textarea").last().fill("Add my gym membership");

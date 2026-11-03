@@ -94,6 +94,29 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   pages instead of showing a dash, and a Contract's or Warranty's header
   badge is hidden while the status banner below says the same thing. The
   iOS and Android shell is unchanged.
+- **Settings is two tabs: My account and Household (#363).** My account
+  holds only your own things: profile, reminders by email, preferences,
+  passkeys and two-factor, password, calendar feed and downloaded documents.
+  Household lists everything shared: Members, Modules, Reminders & channels,
+  AI & privacy, Document ingestion, Integrations, Backups, Security log and
+  Recently deleted, each with a one-line status, plus the household
+  timezone. Members see the whole list with the admin-only sections greyed
+  out, and can open Recently deleted. The long "System settings" page is
+  split into those sections; Reminders & channels opens with Reminder
+  delivery health, and webhooks now sit under Integrations with barcode and
+  flight lookups. `/settings/app` and `/settings/webhooks` redirect, and
+  every other Settings URL is unchanged. Reminder and backup schedules are
+  picked as "Daily at 08:00" or "Weekly on Monday at 03:30", with an
+  "Advanced (cron)" choice for anything else; the cron string is checked
+  before it's saved, and the old "restart the server" note is gone since the
+  scheduler re-reads it every minute. Settings pages have one sticky "Save
+  changes" bar that saves each section you edited, instead of a Save button
+  per form; a section only counts as saved once its save succeeds, is locked
+  while it saves, and keeps what you typed if the server can't be reached
+  (instead of the error page). One-off
+  actions (change password, add a webhook, test connection) keep their own
+  buttons.
+  The iOS and Android shell is unchanged.
 - **Reminder presets and a one-line Reminder card (#360).** Contract,
   Warranty, Vehicle and Tenancy forms pick Reminder thresholds from presets
   ("Default · 30/14/7/1", "1 week before", "1 day before", "Custom…")
@@ -116,6 +139,16 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   selects and the chips, so the first record is on the first screen. Links
   from the dashboard still pre-select the right chip. The iOS and Android
   shell is unchanged.
+- **Spending leads with what's useful (#367).** The "Tax-deductible / mo"
+  tile is hidden when nothing is tax-deductible. Contracts with a cost but
+  no billing frequency, which the dashboard and Spending both leave out of
+  the monthly figure, are now flagged here too, with a link to fill them
+  in. The category breakdown comes first; the timeline is folded under
+  "Recurring cost over time" and says so plainly when nothing changed
+  instead of drawing identical bars. "Annual projection" (monthly × 12) is
+  now "Next 12 months": a fixed-term or manually renewed contract counts
+  only up to its end date, and one that hasn't started counts from its
+  start date. The iOS and Android shell is unchanged.
 - **Search opens on something useful, and Documents stops overloading
   "type" (#366).** Before you type, Search shows the last five records you
   opened in this browser (only their ids are kept locally; titles come from
@@ -138,6 +171,28 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   Warranty photo upload moves into More details. Preferences explains that
   date pickers follow the browser's language. The Property form was already
   short and is unchanged, and so is the iOS and Android shell.
+
+### Fixed
+
+- **Standalone Upcoming no longer marks a Trip date overdue (#476).** Trip
+  dates and past events leave Upcoming, as on the web: it starts from today,
+  and anything Overdue is in Needs attention instead. Only a Contract,
+  Warranty or Vehicle date is ever Due soon; a Trip segment is a plain
+  neutral date, listed from today while any of it is still ahead. The web
+  lists Trip segments rather than the Trip itself, and so does the shell now.
+  The due-soon window and Contract rule differences (#386) are tracked there.
+
+### Fixed
+
+- **Inventory writes follow the record rules (#471).** Creating, deleting,
+  restoring and permanently deleting an Inventory item now go through record
+  commands, from the forms, import, offline sync and Trash retention alike.
+  A new item can no longer be linked to a Warranty in Trash (the form, and
+  an offline create, now say "That warranty doesn't exist or has been
+  deleted."), and other save failures are no longer misreported as a
+  missing warranty. Deleting an item that's already in Trash, for example
+  by replaying an offline delete, no longer restarts its 30-day Trash
+  clock. Restoring an item now refreshes its own page.
 
 ## [0.20.1] - 2026-10-31
 

@@ -60,7 +60,7 @@ export async function createWebhookEndpoint(
     },
   });
 
-  revalidatePath("/settings/webhooks");
+  revalidatePath("/settings/integrations");
   return { success: `${parsed.data.name} was added.` };
 }
 
@@ -71,7 +71,7 @@ export async function deleteWebhookEndpoint(endpointId: string): Promise<ActionS
   }
 
   await prisma.webhookEndpoint.delete({ where: { id: endpointId } });
-  revalidatePath("/settings/webhooks");
+  revalidatePath("/settings/integrations");
   return { success: "Webhook removed." };
 }
 
@@ -82,7 +82,7 @@ export async function toggleWebhookEndpoint(endpointId: string, enabled: boolean
   }
 
   await prisma.webhookEndpoint.update({ where: { id: endpointId }, data: { enabled } });
-  revalidatePath("/settings/webhooks");
+  revalidatePath("/settings/integrations");
   return { success: enabled ? "Webhook enabled." : "Webhook disabled." };
 }
 
@@ -96,7 +96,7 @@ export async function sendTestWebhookAction(endpointId: string): Promise<ActionS
   if (!endpoint) return { error: "Webhook not found." };
 
   const success = await sendTestWebhook(endpoint);
-  revalidatePath("/settings/webhooks");
+  revalidatePath("/settings/integrations");
   return success
     ? { success: "Test webhook delivered." }
     : { error: "Test webhook failed — check the recent deliveries log below." };
