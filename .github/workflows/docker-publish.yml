@@ -17,15 +17,138 @@ on:
 permissions:
   contents: read
 
+# The image is published for linux/amd64 and linux/arm64 (#478). Each
+# architecture is built, size-checked and smoke-tested on a native runner of
+# its own (GitHub's arm64 runners are free for public repos), not under QEMU:
+# a Next.js build under emulation is several times slower and would run past
+# the timeout. Each build job pushes its image by digest only, so no tag moves
+# until both architectures have passed; the `merge` job then publishes the
+# tags as one manifest list over both digests.
+#
+# Docker Hub secrets live in the `release` environment, which every job here
+# uses. It has no required reviewers; adding some would mean approving each
+# of the three jobs separately.
+env:
+  # Compressed size budget per architecture, in MiB. Keep in step with
+  # IMAGE_BUDGET_MIB in docker-image.yml: an oversized image is not pushed.
+  IMAGE_BUDGET_MIB: "200"
+
 jobs:
-  build-and-push:
+  build-image:
+    name: build-image (${{ matrix.arch }})
     # Only publish from main or a release tag, never from an arbitrary branch
     # dispatched by hand.
     if: ${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') }}
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - platform: linux/amd64
+            arch: amd64
+            runner: ubuntu-latest
+            # buildx's default scope, shared with docker-image.yml's PR builds.
+            cache: buildkit
+          - platform: linux/arm64
+            arch: arm64
+            runner: ubuntu-24.04-arm
+            cache: arm64
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     # Tag runs use the `release` environment (Docker Hub secrets live there,
     # restricted to `v*` tags); other refs get none.
+    environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Build and check the image locally before anything is pushed (#518):
+      # the size report and smoke test catch a broken standalone trace or a
+      # failed migration before it reaches Docker Hub. The push below reuses
+      # this build from the cache.
+      - name: Build image for checks
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          load: true
+          tags: hearth:release-check
+          cache-from: type=gha,scope=${{ matrix.cache }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.cache }}
+
+      - name: Image size
+        run: scripts/docker-image-size.sh hearth:release-check "$IMAGE_BUDGET_MIB"
+
+      # The upgrade path is checked against the newest published release, if
+      # it has an image for this architecture (the first arm64 release has
+      # nothing to upgrade from).
+      - name: Container smoke test
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          PREVIOUS="$(scripts/docker-previous-release.sh jaysbeekay/hearth:latest "$ARCH")"
+          [ -n "$PREVIOUS" ] || echo "::notice::jaysbeekay/hearth:latest has no linux/$ARCH image; skipping the upgrade-path check."
+          scripts/docker-smoke.sh hearth:release-check ${PREVIOUS:+"$PREVIOUS"}
+
+      # The OCI labels (source repo, revision, version, created, licenses)
+      # go on each platform image, as they did before the image was built
+      # per architecture; Renovate and `docker inspect` read them from there.
+      - name: Extract image labels
+        id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        with:
+          images: jaysbeekay/hearth
+
+      - name: Push image by digest
+        id: push
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          # No tags: the image is pushed under its digest only, and the merge
+          # job publishes the tags once both architectures are up.
+          outputs: type=image,name=jaysbeekay/hearth,push-by-digest=true,name-canonical=true,push=true
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.cache }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.cache }}
+          # Attach an SBOM and SLSA build provenance to the pushed image
+          # (#160). Buildx generates and signs both as OCI attestations, so
+          # anyone can see what went into a tag and which workflow run built
+          # it — `docker buildx imagetools inspect jaysbeekay/hearth:latest`.
+          # Native to buildx, so there's no extra tooling or key material for
+          # a self-hoster to manage. The merge job carries them over into the
+          # manifest list.
+          sbom: true
+          provenance: mode=max
+
+      - name: Record digest
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/digests"
+          touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: digest-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          # Long enough to re-run just the merge job after a failure; past
+          # that, re-run the whole workflow.
+          retention-days: 7
+
+  merge:
+    needs: build-image
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment: ${{ startsWith(github.ref, 'refs/tags/v') && 'release' || '' }}
     steps:
       - name: Checkout
@@ -50,6 +173,13 @@ jobs:
           fi
           echo "is_latest=$IS_LATEST" >> "$GITHUB_OUTPUT"
 
+      - name: Download digests
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digest-*
+          merge-multiple: true
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
@@ -62,6 +192,10 @@ jobs:
       - name: Extract image metadata
         id: meta
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        env:
+          # Annotations for the manifest list itself, so the tag shows the
+          # same source/version metadata as its platform images.
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: index
         with:
           images: jaysbeekay/hearth
           # `latest` only on a tag ref that is the highest stable release.
@@ -70,43 +204,47 @@ jobs:
             type=ref,event=tag
             type=sha,prefix=
 
-      # Build and check the image locally before anything is pushed (#518):
-      # the size report and smoke test catch a broken standalone trace or a
-      # failed migration before it reaches Docker Hub. The push below reuses
-      # this build from the cache.
-      - name: Build image for checks
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
-        with:
-          context: .
-          load: true
-          tags: hearth:release-check
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      # The manifest list is built and checked with --dry-run first, so no
+      # tag (least of all `latest`) moves unless it has both platforms and
+      # both platforms' SBOM/provenance attestations.
+      - name: Publish the multi-arch tags
+        working-directory: ${{ runner.temp }}/digests
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+          ANNOTATIONS: ${{ steps.meta.outputs.annotations }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          digests=(*)
+          [ "${#digests[@]}" -eq 2 ] || { echo "::error::expected 2 digests, got: ${digests[*]}"; exit 1; }
+          sources=()
+          for d in "${digests[@]}"; do sources+=("jaysbeekay/hearth@sha256:$d"); done
+          args=()
+          while read -r tag; do [ -n "$tag" ] && args+=(-t "$tag"); done <<< "$TAGS"
+          while read -r annotation; do [ -n "$annotation" ] && args+=(--annotation "$annotation"); done <<< "$ANNOTATIONS"
 
-      - name: Image size
-        # Same budget as docker-image.yml: an oversized image is not pushed.
-        run: scripts/docker-image-size.sh hearth:release-check 200
+          check() { # check <manifest list JSON> <what>
+            local raw="$1" what="$2" arch attestations
+            for arch in amd64 arm64; do
+              jq -e --arg a "$arch" '.manifests[] | select(.platform.os == "linux" and .platform.architecture == $a)' <<< "$raw" > /dev/null \
+                || { echo "::error::$what has no linux/$arch image"; return 1; }
+            done
+            # One attestation manifest (SBOM + provenance) per platform image.
+            attestations="$(jq '[.manifests[] | select(.annotations["vnd.docker.reference.type"] == "attestation-manifest")] | length' <<< "$raw")"
+            [ "$attestations" -eq 2 ] \
+              || { echo "::error::$what has $attestations attestation manifests, expected 2 (SBOM + provenance per platform)"; return 1; }
+          }
 
-      - name: Container smoke test
-        run: scripts/docker-smoke.sh hearth:release-check jaysbeekay/hearth:latest
+          # Captured first: a failure inside "$(...)" passed as an argument
+          # would not stop the script under set -e.
+          merged="$(docker buildx imagetools create --dry-run "${args[@]}" "${sources[@]}")"
+          check "$merged" "the merged manifest list"
+          docker buildx imagetools create "${args[@]}" "${sources[@]}"
 
-      - name: Build and push
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          # Attach an SBOM and SLSA build provenance to the pushed image
-          # (#160). Buildx generates and signs both as OCI attestations, so
-          # anyone can see what went into a tag and which workflow run built
-          # it — `docker buildx imagetools inspect jaysbeekay/hearth:latest`.
-          # Native to buildx, so there's no extra tooling or key material for
-          # a self-hoster to manage.
-          sbom: true
-          provenance: mode=max
+          docker buildx imagetools inspect "jaysbeekay/hearth:$VERSION"
+          published="$(docker buildx imagetools inspect "jaysbeekay/hearth:$VERSION" --raw)"
+          check "$published" "jaysbeekay/hearth:$VERSION"
+          echo "- Docker Hub has jaysbeekay/hearth:$VERSION for linux/amd64 and linux/arm64, with SBOM and provenance" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Sync Docker Hub overview with README
         # Unconditional now: every run of this workflow is a release, so the

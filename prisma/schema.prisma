@@ -225,6 +225,9 @@ model User {
   updatedProperties     Property[]           @relation("PropertyUpdatedBy")
   updatedVehicles       Vehicle[]            @relation("VehicleUpdatedBy")
   updatedInventoryItems InventoryItem[]      @relation("InventoryItemUpdatedBy")
+  snoozedContracts      Contract[]           @relation("ContractSnoozedBy")
+  snoozedProducts       Product[]            @relation("ProductSnoozedBy")
+  snoozedVehicles       Vehicle[]            @relation("VehicleSnoozedBy")
   inboxDocuments        InboxDocument[]
   chatThreads           ChatThread[]
   passwordResetTokens   PasswordResetToken[]
@@ -319,6 +322,14 @@ model Contract {
   // (and its files) can be restored within the trash window.
   deletedAt   DateTime?
   updatedBy   User?     @relation("ContractUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  // #354 — "I've handled this, remind me again later": out of Needs
+  // attention and Reminders until snoozedUntil (a household day), and only
+  // while the record's dates are still those in snoozedFor, so renewing or
+  // editing a date ends the snooze without any writer clearing it.
+  snoozedUntil DateTime?
+  snoozedFor   String?
+  snoozedById  String?
+  snoozedBy    User?     @relation("ContractSnoozedBy", fields: [snoozedById], references: [id], onDelete: SetNull)
 
   propertyId String?
   property   Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
@@ -530,6 +541,14 @@ model Product {
   // (and its files) can be restored within the trash window.
   deletedAt   DateTime?
   updatedBy   User?     @relation("ProductUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  // #354 — "I've handled this, remind me again later": out of Needs
+  // attention and Reminders until snoozedUntil (a household day), and only
+  // while the record's dates are still those in snoozedFor, so renewing or
+  // editing a date ends the snooze without any writer clearing it.
+  snoozedUntil DateTime?
+  snoozedFor   String?
+  snoozedById  String?
+  snoozedBy    User?     @relation("ProductSnoozedBy", fields: [snoozedById], references: [id], onDelete: SetNull)
 
   propertyId String?
   property   Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
@@ -1103,6 +1122,14 @@ model Vehicle {
   // #355 — Archived: the household no longer has it (sold). See Property.
   archivedAt  DateTime?
   updatedBy   User?     @relation("VehicleUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  // #354 — "I've handled this, remind me again later": out of Needs
+  // attention and Reminders until snoozedUntil (a household day), and only
+  // while the record's dates are still those in snoozedFor, so renewing or
+  // editing a date ends the snooze without any writer clearing it.
+  snoozedUntil DateTime?
+  snoozedFor   String?
+  snoozedById  String?
+  snoozedBy    User?     @relation("VehicleSnoozedBy", fields: [snoozedById], references: [id], onDelete: SetNull)
 
   items     VehicleItem[]
   contracts Contract[]
