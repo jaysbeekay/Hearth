@@ -34,6 +34,19 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   written a record at a time, so large document libraries no longer have to
   fit in memory at once.
 
+- **Upload page: one scan, bulk edits and a Quick check screen (#358).**
+  Each file is scanned once; the page pre-selects Contract, Warranty or
+  Inventory item from what the scan found, and switching type reuses that
+  scan instead of scanning again (only the pre-selected type escalates to
+  local or cloud AI). With several files queued, "Apply to selected" sets
+  File as, Contract category or Linked to on every ticked file at once.
+  "Save all" reports once, and when any record was saved with auto-filled
+  details still to check, it opens the new Quick check screen (`/review`),
+  which lists them all with their fields editable in place and one
+  "Confirm all". On the dashboard, several such records share one Needs
+  attention row that links there. Server-only; the iOS and Android shell is
+  unchanged.
+
 - **Share a Document (#374).** Every Document row (on each record's page and
   in Documents) has Share beside Preview, and the preview gains Share and
   Download. Where the browser can share files (phones, some desktops) the

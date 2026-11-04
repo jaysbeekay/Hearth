@@ -120,7 +120,9 @@ test("only Overdue and Due soon are coloured, in light and dark", async ({ page 
       await page.goto("/dashboard");
       const overdueRow = page.locator("li", { hasText: overdue });
       expect(await style(overdueRow.getByText(/^Expired /))).toEqual(danger);
-      const reviewRow = page.locator("li", { hasText: review });
+      // #358 — several records waiting for a check share one row, so this
+      // may be that row rather than this Contract's own.
+      const reviewRow = page.locator("li", { has: page.getByText("Needs review", { exact: true }) }).first();
       expect(await style(reviewRow.getByText("Needs review", { exact: true }))).toEqual(neutral);
       const remindersRow = page.locator("li", { hasText: "Not configured" });
       expect(await style(remindersRow.getByText("Not configured", { exact: true }))).toEqual(neutral);
