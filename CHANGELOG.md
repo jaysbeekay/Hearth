@@ -9,6 +9,18 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Siri and Shortcuts on iOS (#533).** Three App Shortcuts appear in the
+  Shortcuts app with no setup: "Add a contract in Hearth", "Add a product in
+  Hearth" and "What's due in Hearth" (or "Show what's due in Hearth"). Each
+  opens the app on that screen: in connected mode the WebView goes to
+  `/contracts/new`, `/products/new` or `/dashboard` on your server; in
+  standalone mode the shell opens the add form or the dashboard. If the app
+  isn't ready (mode picker, standalone not purchased, server unreachable, or
+  an add/edit form with unsaved input), the shortcut just opens the app. The
+  route is held in memory only and never replayed on a later launch. The iOS
+  deployment target is now iOS 16.0 (App Intents needs it). No SiriKit
+  entitlement, App Group or URL scheme. An unsigned iOS simulator build now
+  runs on pull requests that touch the iOS shell (`ios-check.yml`).
 - **Snooze for Needs attention (#354).** A Due Contract, Warranty or Vehicle
   has a Snooze button on its Needs attention row and its detail banner: 1
   week, 30 days, or until a chosen date. While Snoozed it leaves Needs

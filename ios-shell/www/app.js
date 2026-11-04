@@ -12,6 +12,8 @@ const Filesystem = Plugins.Filesystem;
 const Preferences = Plugins.Preferences;
 const LocalNotifications = Plugins.LocalNotifications;
 const Purchases = Plugins.Purchases;
+const Intents = Plugins.Intents;
+const AppLifecycle = Plugins.App;
 
 // RevenueCat public SDK keys — safe to embed client-side (same class of key
 // as a Stripe publishable key), but these are placeholders until a
@@ -431,6 +433,9 @@ const state = {
   detail: null,
   detailBack: null,
   form: null,
+  // True once the open add/edit form has input the user hasn't saved. A Siri
+  // route never replaces such a form (#533).
+  formDirty: false,
   backTo: null,
 };
 
@@ -558,6 +563,7 @@ function show(screen) {
   connectedScreen.hidden = screen !== "connected";
   standaloneScreen.hidden = screen !== "standalone";
   paywallScreen.hidden = screen !== "paywall";
+  $("mode-status").hidden = true;
 }
 
 async function prefGet(key) {
@@ -594,9 +600,11 @@ function recordAttempt(url) {
   localStorage.setItem(LAST_ATTEMPT_KEY, JSON.stringify({ url, ts: Date.now() }));
 }
 
-function navigateToConnectedServer(rawUrl) {
+// `path` is a Siri route's server path (#533), from the fixed list in
+// IntentsPlugin.swift; anything else is ignored.
+function navigateToConnectedServer(rawUrl, path = "") {
   const url = normalizeUrl(rawUrl);
-  const destination = new URL(url);
+  const destination = new URL(url + (INTENT_SERVER_PATHS.has(path) ? path : ""));
   if (destination.protocol !== "https:" && destination.protocol !== "http:") {
     throw new Error("Address must start with http:// or https://");
   }
@@ -1686,8 +1694,56 @@ async function autoConnectIfSaved() {
   }
   showStatus(connectedStatus, `Connecting to ${normalizedUrl}...`, true);
   recordAttempt(normalizedUrl);
-  navigateToConnectedServer(normalizedUrl);
+  const intent = await takePendingIntentRoute();
+  navigateToConnectedServer(normalizedUrl, intent?.path ?? "");
 }
+
+// Siri and Shortcuts (#533). The native side holds one route in memory; it
+// is taken at most once. Standalone opens it with openForm/routeTo; when the
+// app isn't ready for it (mode picker, paywall, a form with unsaved input)
+// the route is dropped and the app just opens. Connected mode is handled in
+// autoConnectIfSaved() on launch and natively once the server page is up.
+const INTENT_STANDALONE_ACTIONS = {
+  addContract: () => openForm("contracts"),
+  addProduct: () => openForm("products"),
+  whatsDue: () => routeTo("dashboard"),
+};
+const INTENT_SERVER_PATHS = new Set(["/contracts/new", "/products/new", "/dashboard"]);
+let intentLaunchHandled = false;
+
+async function takePendingIntentRoute() {
+  if (!Intents?.consumePendingRoute) return null;
+  try {
+    const result = await Intents.consumePendingRoute();
+    return result?.route ? result : null;
+  } catch {
+    return null;
+  }
+}
+
+async function handlePendingIntentRoute() {
+  if (!intentLaunchHandled) return;
+  // On the connect screen the route belongs to autoConnectIfSaved() or the
+  // native side; leave it to expire there.
+  if (!connectedScreen.hidden) return;
+  const intent = await takePendingIntentRoute();
+  if (!intent) return;
+  if (!modeScreen.hidden) {
+    showStatus($("mode-status"), "Open Hearth first to finish setup.");
+    return;
+  }
+  if (standaloneScreen.hidden) return;
+  if (state.route === "form" && state.formDirty) return;
+  const action = Object.hasOwn(INTENT_STANDALONE_ACTIONS, intent.route) ? INTENT_STANDALONE_ACTIONS[intent.route] : null;
+  if (action) action();
+}
+
+function onIntentWake() {
+  handlePendingIntentRoute().catch(() => undefined);
+}
+
+Intents?.addListener?.("pendingRoute", onIntentWake);
+AppLifecycle?.addListener?.("resume", onIntentWake);
 
 async function render() {
   await loadData();
@@ -5406,6 +5462,7 @@ function openForm(type, id = "", parentId = "", defaultCategory = "") {
     return;
   }
   state.form = { type, id: id || null, parentId: parentId || null, defaultCategory: defaultCategory || null };
+  state.formDirty = false;
   state.detailBack = null;
   state.backTo = state.route === "detail" ? "detail" : state.route;
   state.route = "form";
@@ -5651,7 +5708,13 @@ mobileView.addEventListener("click", async (event) => {
   }
 });
 
+function markFormDirty(event) {
+  if (event.target.closest?.("form[data-save-type]")) state.formDirty = true;
+}
+mobileView.addEventListener("change", markFormDirty);
+
 mobileView.addEventListener("input", (event) => {
+  markFormDirty(event);
   // #353 — the Renew form warns when the new end date has already passed.
   if (event.target.dataset?.today !== undefined) {
     const warning = event.target.closest("form")?.querySelector("[data-end-date-passed]");
@@ -5739,12 +5802,13 @@ mobileView.addEventListener("submit", async (event) => {
   const mode = await prefGet(MODE_KEY);
   if (mode === "standalone") {
     await openStandalone().catch((error) => showStatus(standaloneStatus, error.message || "Could not open standalone mode."));
-    return;
-  }
-  if (mode === "connected") {
+  } else if (mode === "connected") {
     await openConnected();
     await autoConnectIfSaved().catch((error) => showStatus(connectedStatus, error.message || "Stored server address is not usable."));
-    return;
+  } else {
+    show("mode");
   }
-  show("mode");
+  // A Siri route that launched the app is opened once the first screen is up.
+  intentLaunchHandled = true;
+  await handlePendingIntentRoute();
 })();

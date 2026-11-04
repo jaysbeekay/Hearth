@@ -1039,6 +1039,24 @@ RevenueCat; connected mode is free. Store products, the RevenueCat project,
 where the public SDK keys go, sandbox testing and key rotation are covered in
 [`docs/mobile/revenuecat.md`](docs/mobile/revenuecat.md).
 
+## Mobile app: Siri and Shortcuts (iOS)
+
+The iOS app (iOS 16 or later) offers three App Shortcuts. They show up in the
+Shortcuts app and work from Siri as soon as the app is installed:
+
+| Say | Connected mode opens | Standalone mode opens |
+|---|---|---|
+| "Add a contract in Hearth" | `/contracts/new` | the add-contract form |
+| "Add a product in Hearth" | `/products/new` | the add-warranty form |
+| "What's due in Hearth" / "Show what's due in Hearth" | `/dashboard` | the dashboard |
+
+English only. A shortcut only opens a screen: it never reads, says or saves
+household data. If the app isn't ready for it (still on the mode picker,
+standalone not purchased, the server can't be reached, or a form with unsaved
+input is open), it just opens the app. They need no SiriKit entitlement, so
+they also work in builds signed with a free Apple Personal Team. The code is
+in `ios/App/App/HearthIntents.swift` and `IntentsPlugin.swift`.
+
 ## Releasing
 
 Releases follow [Semantic Versioning](https://semver.org/), starting at
