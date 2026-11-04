@@ -80,11 +80,13 @@ describe("share links", () => {
   it("stop a download when the Document is trashed just as the open is counted", async () => {
     const link = await createShareLink(documentId, userId);
     const countOpen = db.prisma.documentShareLink.updateMany.bind(db.prisma.documentShareLink);
-    const spy = vi.spyOn(db.prisma.documentShareLink, "updateMany").mockImplementationOnce(async (args) => {
-      const result = await countOpen(args);
-      await db.prisma.document.update({ where: { id: documentId }, data: { deletedAt: new Date() } });
-      return result;
-    });
+    const spy = vi.spyOn(db.prisma.documentShareLink, "updateMany").mockImplementationOnce(((
+      args: Parameters<typeof countOpen>[0],
+    ) =>
+      countOpen(args).then(async (result) => {
+        await db.prisma.document.update({ where: { id: documentId }, data: { deletedAt: new Date() } });
+        return result;
+      })) as never);
     try {
       expect(await openShareLink(link!.token, bytes)).toBeNull();
     } finally {
