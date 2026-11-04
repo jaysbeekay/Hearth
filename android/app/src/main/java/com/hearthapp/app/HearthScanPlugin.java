@@ -7,6 +7,7 @@ import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.pdf.PdfRenderer;
 import android.graphics.pdf.content.PdfPageTextContent;
+import android.media.ExifInterface;
 import android.net.Uri;
 import android.os.Build;
 import android.os.ParcelFileDescriptor;
@@ -34,6 +35,7 @@ import com.google.mlkit.vision.text.Text;
 import com.google.mlkit.vision.text.TextRecognition;
 import com.google.mlkit.vision.text.TextRecognizer;
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -189,12 +191,36 @@ public class HearthScanPlugin extends Plugin {
         Bitmap bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length, options);
         if (bitmap == null) return "";
         try {
-            // Photos from the picker can carry EXIF rotation that
-            // BitmapFactory ignores; ML Kit's Latin model copes with modest
-            // skew but not sideways text, which the scanner flow avoids.
-            return recognize(InputImage.fromBitmap(bitmap, 0));
+            // BitmapFactory ignores EXIF orientation, so a phone photo can
+            // decode sideways; ML Kit rotates by the degrees it's given.
+            return recognize(InputImage.fromBitmap(bitmap, exifRotationDegrees(bytes)));
         } finally {
             bitmap.recycle();
+        }
+    }
+
+    // Clockwise rotation that makes an image upright, from its EXIF
+    // orientation; 0 when there is none or it can't be read. Mirrored
+    // orientations are treated as their plain rotation, which is enough for
+    // text recognition.
+    static int exifRotationDegrees(byte[] bytes) {
+        try (ByteArrayInputStream input = new ByteArrayInputStream(bytes)) {
+            int orientation = new ExifInterface(input).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
+            switch (orientation) {
+                case ExifInterface.ORIENTATION_ROTATE_90:
+                case ExifInterface.ORIENTATION_TRANSPOSE:
+                    return 90;
+                case ExifInterface.ORIENTATION_ROTATE_180:
+                case ExifInterface.ORIENTATION_FLIP_VERTICAL:
+                    return 180;
+                case ExifInterface.ORIENTATION_ROTATE_270:
+                case ExifInterface.ORIENTATION_TRANSVERSE:
+                    return 270;
+                default:
+                    return 0;
+            }
+        } catch (Exception error) {
+            return 0;
         }
     }
 
