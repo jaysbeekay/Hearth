@@ -3052,7 +3052,7 @@ async function restoreLegacyBackup(text, mode) {
   } catch {
     throw new Error("That is not a Hearth backup.");
   }
-  if (backup?.kind !== "hearth-standalone-backup" || typeof backup.tables !== "object" || backup.tables == null) {
+  if (backup?.kind !== "hearth-standalone-backup" || typeof backup.tables !== "object" || backup.tables == null || Array.isArray(backup.tables)) {
     throw new Error("That is not a Hearth standalone backup.");
   }
   if (Number(backup.schemaVersion) > STANDALONE_SCHEMA_VERSION) {
@@ -3131,7 +3131,9 @@ async function buildRestoreStatements(tables, mode) {
     return [...owners].every((owner) => backupKeys.get(owner) === row.storage_key);
   };
   for (const table of BACKUP_TABLES) {
-    const rows = Array.isArray(tables[table.key]) ? tables[table.key] : [];
+    // A table the backup leaves out has no rows; one it has must be a list.
+    if (tables[table.key] != null && !Array.isArray(tables[table.key])) throw new Error("The backup contains a record Hearth cannot read.");
+    const rows = tables[table.key] ?? [];
     if (mode === "replace") set.push({ statement: `DELETE FROM ${table.table}`, values: [] });
     // Merge: a row with a version is replaced only by a backup row that is
     // newer: a higher version, or the same version with a later updated_at.
@@ -3156,8 +3158,6 @@ async function buildRestoreStatements(tables, mode) {
       if (!stamped) return true;
       return String(local.updated_at ?? "") >= String(row.updated_at ?? "");
     };
-    const placeholders = table.columns.map(() => "?").join(", ");
-    const statement = `INSERT OR REPLACE INTO ${table.table} (${table.columns.join(", ")}) VALUES (${placeholders})`;
     for (const row of rows) {
       if (!row || typeof row !== "object" || typeof row.id !== "string" || row.id.length === 0) {
         throw new Error("The backup contains a record Hearth cannot read.");
@@ -3173,8 +3173,15 @@ async function buildRestoreStatements(tables, mode) {
         kept += 1;
         continue;
       }
+      // Only the columns the row has: a backup from an older schema has
+      // none of the columns added since, and those take their defaults
+      // instead of a NULL that a NOT NULL column would refuse (#226 review).
       const fields = new Map(Object.entries(row));
-      set.push({ statement, values: table.columns.map((column) => restoreValue(fields.get(column))) });
+      const columns = table.columns.filter((column) => fields.has(column));
+      set.push({
+        statement: `INSERT OR REPLACE INTO ${table.table} (${columns.join(", ")}) VALUES (${columns.map(() => "?").join(", ")})`,
+        values: columns.map((column) => restoreValue(fields.get(column))),
+      });
       if (row.storage_key != null) acceptedKeys.add(row.storage_key);
       restored += 1;
     }

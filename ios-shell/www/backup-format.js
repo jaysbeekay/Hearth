@@ -248,7 +248,10 @@
           if (ended) throw damaged();
           const record = await reader.decrypt(line.value, index);
           if (index === 1) {
-            if (record.type !== "manifest" || typeof record.tables !== "object" || record.tables == null) throw damaged();
+            // `tables` maps each table's key to its rows: anything else (an
+            // array, say) would read as a backup with no rows at all, and a
+            // Replace restore of it would empty the phone.
+            if (record.type !== "manifest" || typeof record.tables !== "object" || record.tables == null || Array.isArray(record.tables)) throw damaged();
             return { value: record, done: false };
           }
           if (record.type === "file") return { value: record, done: false };

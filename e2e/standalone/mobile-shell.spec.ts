@@ -1453,7 +1453,11 @@ test("standalone still merges an older unencrypted JSON backup", async ({ page }
   const { sqliteRuns, rowsByTable } = await backupHarness(page);
   expect(sqliteRuns.some((run) => run.statement.includes("INSERT OR REPLACE INTO contracts") && run.values.includes("contract-imported"))).toBe(true);
   const importedVehicle = sqliteRuns.find((run) => run.statement.includes("INSERT OR REPLACE INTO vehicles") && run.values.includes("vehicle-imported"));
-  expect(importedVehicle?.statement).toContain("archived_at");
+  // Columns the old backup doesn't have are left out, so they take their
+  // defaults rather than a NULL a NOT NULL column refuses.
+  const vehicleColumns = importedVehicle?.statement.match(/\(([^)]*)\)/)?.[1].split(", ") ?? [];
+  expect(vehicleColumns).toEqual(expect.arrayContaining(["id", "label", "version"]));
+  expect(vehicleColumns).not.toContain("archived_at");
   // Merge keeps what was already on the phone.
   expect(rowsByTable.contracts.map((row) => row.title)).toContain("Broadband Plan");
   expect(sqliteRuns.some((run) => run.statement.startsWith("DELETE FROM"))).toBe(false);

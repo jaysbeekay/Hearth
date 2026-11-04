@@ -168,6 +168,11 @@ describe("standalone backup format", () => {
     await expect(readBackupText(noManifest.join("\n"))).rejects.toThrow(/damaged/);
   });
 
+  it("refuses a manifest whose tables are a list, which would read as an empty backup", async () => {
+    const lines = await buildBackup([{ type: "manifest", tables: [] }]);
+    await expect(readBackupText(lines.join("\n"))).rejects.toThrow(/damaged/);
+  });
+
   it("reads a backup whose line endings were converted to CRLF", async () => {
     const manifest = { type: "manifest", tables: {} };
     const lines = await buildBackup([manifest]);
