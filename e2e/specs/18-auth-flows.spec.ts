@@ -1,5 +1,7 @@
-import { test, expect } from "@playwright/test";
-import { ADMIN_AUTH_FILE } from "../env";
+import { createHash, randomBytes, randomUUID } from "crypto";
+import { test, expect, type Browser } from "@playwright/test";
+import { createClient } from "@libsql/client";
+import { ADMIN_AUTH_FILE, DATABASE_URL } from "../env";
 
 test.use({ storageState: ADMIN_AUTH_FILE });
 
@@ -45,5 +47,96 @@ test.describe("password reset and invitation flows", () => {
     await expect(page.locator("body")).toContainText(
       "This reset link is invalid or has expired.",
     );
+  });
+
+  // #372 — with SMTP off the invite and reset emails can't be sent, so these
+  // seed the one-time token straight into the database (hashed, as the app
+  // stores it) and follow the link a member would get.
+  async function seedTokenFor(purpose: "INVITE" | "RESET", email: string, name: string, totpEnabled = false) {
+    const db = createClient({ url: DATABASE_URL });
+    await db.execute("PRAGMA busy_timeout = 5000");
+    await db.execute({ sql: "DELETE FROM users WHERE email = ?", args: [email] });
+    const userId = randomUUID();
+    const now = new Date().toISOString().replace("Z", "+00:00");
+    const expires = new Date(Date.now() + 60 * 60 * 1000).toISOString().replace("Z", "+00:00");
+    await db.execute({
+      sql: "INSERT INTO users (id, name, email, passwordHash, role, totpEnabled, createdAt) VALUES (?, ?, ?, ?, 'MEMBER', ?, ?)",
+      // Not a usable bcrypt hash: the invite or reset sets the real one.
+      args: [userId, name, email, "!", totpEnabled ? 1 : 0, now],
+    });
+    const token = randomBytes(32).toString("hex");
+    await db.execute({
+      sql: "INSERT INTO password_reset_tokens (id, token, userId, purpose, expiresAt, createdAt) VALUES (?, ?, ?, ?, ?, ?)",
+      args: [randomUUID(), createHash("sha256").update(token).digest("hex"), userId, purpose, expires, now],
+    });
+    return {
+      token,
+      cleanup: async () => {
+        await db.execute({ sql: "DELETE FROM users WHERE id = ?", args: [userId] });
+        db.close();
+      },
+    };
+  }
+
+  async function signedOutPage(browser: Browser) {
+    const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+    return { context, page: await context.newPage() };
+  }
+
+  test("accepting an invitation signs the member in on Upcoming with a one-time welcome", async ({ browser }) => {
+    const { token, cleanup } = await seedTokenFor("INVITE", "invite-372@e2e.local", "Invite Flow Member");
+    const { context, page } = await signedOutPage(browser);
+    try {
+      await page.goto(`/accept-invitation/${token}`);
+      await page.locator("#password").fill("InvitePassw0rd!372");
+      await page.getByRole("button", { name: "Set password" }).click();
+      await page.waitForURL(/\/calendar\?welcome=1$/);
+      await expect(page.getByRole("heading", { name: "Upcoming", level: 1 })).toBeVisible();
+
+      const welcome = page.getByRole("status").filter({ hasText: "Welcome." });
+      await expect(welcome).toContainText("You're a Member of this household.");
+      await expect(welcome).toContainText("You can add, edit, and delete shared household records.");
+      await welcome.getByRole("button", { name: "Dismiss welcome" }).click();
+      await expect(welcome).toHaveCount(0);
+      await page.reload();
+      await expect(page.getByRole("heading", { name: "Upcoming", level: 1 })).toBeVisible();
+      await expect(page.getByText("You're a Member of this household.")).toHaveCount(0);
+
+      // The link is spent.
+      await page.goto(`/accept-invitation/${token}`);
+      await expect(page.locator("body")).toContainText("This invitation link is invalid or has expired.");
+    } finally {
+      await context.close();
+      await cleanup();
+    }
+  });
+
+  test("resetting a password signs straight in when two-factor is off", async ({ browser }) => {
+    const { token, cleanup } = await seedTokenFor("RESET", "reset-372@e2e.local", "Reset Flow Member");
+    const { context, page } = await signedOutPage(browser);
+    try {
+      await page.goto(`/reset-password/${token}`);
+      await page.locator("#password").fill("ResetPassw0rd!372");
+      await page.getByRole("button", { name: "Reset password" }).click();
+      await page.waitForURL(/\/dashboard$/);
+    } finally {
+      await context.close();
+      await cleanup();
+    }
+  });
+
+  test("resetting a password with two-factor on still asks for the code at sign-in", async ({ browser }) => {
+    const { token, cleanup } = await seedTokenFor("RESET", "reset-totp-372@e2e.local", "Reset TOTP Member", true);
+    const { context, page } = await signedOutPage(browser);
+    try {
+      await page.goto(`/reset-password/${token}`);
+      await page.locator("#password").fill("ResetPassw0rd!372");
+      await page.getByRole("button", { name: "Reset password" }).click();
+      await expect(page.locator("body")).toContainText("Password updated. You can now sign in.");
+      expect(new URL(page.url()).pathname).toBe(`/reset-password/${token}`);
+    } finally {
+      await context.close();
+      await cleanup();
+    }
   });
 });

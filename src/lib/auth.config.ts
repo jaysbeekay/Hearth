@@ -35,6 +35,9 @@ const PUBLIC_PATHS = [
   // client has no cookies. Without this the feed 307s to /login, which also
   // copied the token into the login URL.
   "/api/ical",
+  // #374 — a shared Document's link carries its own token (a path segment);
+  // the recipient has no session.
+  "/api/share",
 ];
 
 // Shared by the `authorized` callback below and by src/proxy.ts, which has to

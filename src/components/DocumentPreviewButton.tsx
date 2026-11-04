@@ -9,10 +9,13 @@ import { buttonClass } from "@/lib/ui";
 // itself can stay a server component. Nothing for a file the browser can't
 // show.
 export function DocumentPreviewButton({
+  documentId,
   href,
   filename,
   mimeType,
 }: {
+  /** For the modal's Share (#374). */
+  documentId?: string;
   href: string;
   filename: string;
   mimeType: string;
@@ -33,7 +36,7 @@ export function DocumentPreviewButton({
       </button>
       {open && (
         <DocumentPreviewModal
-          doc={{ filename, mimeType, downloadHref: href }}
+          doc={{ id: documentId, filename, mimeType, downloadHref: href }}
           onClose={() => {
             setOpen(false);
           }}
