@@ -106,6 +106,8 @@ describe("a Vehicle with a Covering Contract", () => {
     nextServiceDue: day("2026-11-10"),
     reminderDaysBefore: null,
     archivedAt: null,
+    snoozedUntil: null,
+    snoozedFor: null,
   };
 
   it("shows the Contract's end date and keeps the manual one in the row", () => {

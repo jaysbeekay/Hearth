@@ -31,6 +31,16 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   document libraries no longer have to fit in memory at once. iOS builds now
   carry the iCloud Documents entitlement for the `iCloud.com.hearthapp.app`
   container.
+- **Snooze for Needs attention (#354).** A Due Contract, Warranty or Vehicle
+  has a Snooze button on its Needs attention row and its detail banner: 1
+  week, 30 days, or until a chosen date. While Snoozed it leaves Needs
+  attention and its Reminders pause; Upcoming still lists it, greyed and
+  marked "Snoozed until …"; the detail page says who Snoozed it and until
+  when, with Unsnooze. A Snooze is tied to the dates it was set against, so
+  renewing the record or changing one of those dates ends it, and it ends by
+  itself on its day (anything crossed meanwhile goes out as one catch-up
+  Reminder). Read-only members can't Snooze. The standalone mobile shell
+  doesn't have Snooze yet.
 - **Import records over MCP, with approval (#529).** Tokens listed in the
   new `MCP_IMPORT_LABELS` get `propose_import_contract`,
   `propose_import_product` and (with Inventory on)
@@ -43,6 +53,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   capped at 100 per token per hour and 200 pending, and READONLY members
   can see the queue but can't approve or reject. Server-only; the iOS and
   Android shell is unchanged.
+- **arm64 Docker image (#478).** `jaysbeekay/hearth` is now published for
+  `linux/arm64` as well as `linux/amd64`, under the same tags, so it runs on
+  a Raspberry Pi 4/5 (64-bit OS), Apple-silicon Macs and ARM servers.
+  `docker pull` picks the right one automatically. Each architecture is
+  built, size-checked and smoke-tested on a native runner before either is
+  published, on every Docker-related PR as well as at release, and both
+  carry an SBOM and build provenance.
 
 ### Security
 
@@ -276,6 +293,28 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   missing warranty. Deleting an item that's already in Trash, for example
   by replaying an offline delete, no longer restarts its 30-day Trash
   clock. Restoring an item now refreshes its own page.
+
+- **Docker image is about 74% smaller (#518).** The amd64 image goes from
+  698 MiB to about 180 MiB compressed. The runner now ships Next's
+  standalone output instead of the project's full production `node_modules`.
+  File ownership is set as files are copied, rather than by a `chown -R`
+  that wrote every file a second time. The Prisma CLI for `prisma migrate
+  deploy` is installed by itself under `/opt/migrate` (`docker/migrate/`).
+  Migrations still run automatically at container start, and existing
+  `./data` volumes upgrade in place. glibc-only native binaries that could
+  never load on Alpine are dropped, and the APK index cache no longer lands
+  in the image. A new `Docker image` workflow builds the image on relevant
+  PRs, fails if the image exceeds a 200 MiB budget, and runs a container smoke test
+  (`scripts/docker-smoke.sh`) covering a fresh install and an upgrade from
+  the latest release. `docker-publish.yml` runs the same checks before it
+  pushes.
+
+### Fixed
+
+- **PDF export returned 500 in the Docker image (#523).** Every "Export
+  PDF" failed with `ENOENT … Helvetica.afm`, because webpack bundled
+  `pdfkit` and left its font data behind. `pdfkit` is now a server external
+  package, so its data files ship with it.
 
 ## [0.20.1] - 2026-10-31
 
