@@ -5,13 +5,12 @@ import { bannerClass, buttonClass, pillClass } from "@/lib/ui";
 
 /**
  * #359 — shown above Save once a scan has filled fields in. Pressing Save is
- * the review, so the record saves confirmed with live reminders; "Save for
- * later review" is the opt-out, which keeps the record marked Needs review
- * with reminders held (its "0" overrides the form's hidden "1", see
+ * the review, so the record saves confirmed with live reminders;
+ * SaveForLaterButton is the opt-out, which keeps the record marked Needs
+ * review with reminders held (its "0" overrides the form's hidden "1", see
  * extractionFieldsFromForm).
  */
 export function ExtractionReviewNote({ fields }: { fields: AutoFilledField[] }) {
-  const { pending } = useFormStatus();
   const fieldLabels = fields.map((field) => field.label);
   const count = fieldLabels.length;
   return (
@@ -46,16 +45,28 @@ export function ExtractionReviewNote({ fields }: { fields: AutoFilledField[] }) 
           })),
         )}
       />
-      <button
-        type="submit"
-        name="confirmExtraction"
-        value="0"
-        disabled={pending}
-        className={buttonClass("quiet", {}, "-mx-2 px-2 text-sm text-muted underline underline-offset-2")}
-      >
-        Save for later review
-      </button>
     </div>
+  );
+}
+
+/**
+ * #359 — the opt-out from ExtractionReviewNote. It goes after the form's Save
+ * button: a browser submits a form with the first submit button in it when
+ * someone presses Enter in a field, so it must never come first, or Enter
+ * would quietly save for later instead of saving.
+ */
+export function SaveForLaterButton() {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      name="confirmExtraction"
+      value="0"
+      disabled={pending}
+      className={buttonClass("quiet", {}, "text-sm text-muted underline underline-offset-2")}
+    >
+      Save for later review
+    </button>
   );
 }
 
