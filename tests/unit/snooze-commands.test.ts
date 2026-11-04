@@ -115,4 +115,28 @@ describe("Snooze commands", () => {
       "Vehicles module is disabled",
     );
   });
+
+  it("never writes over an edit made between its read and its write", async () => {
+    const contract = await createContractCommand(contractInput({ endDate: "2026-11-01" }), actorId);
+    const findUnique = db.prisma.contract.findUnique.bind(db.prisma.contract);
+    const spy = vi.spyOn(db.prisma.contract, "findUnique");
+    // The first read returns the old row, and someone moves the end date
+    // before the Snooze writes.
+    spy.mockImplementationOnce((async (args: Parameters<typeof findUnique>[0]) => {
+      const stale = await findUnique(args);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      await db.prisma.contract.update({ where: { id: contract.id }, data: { endDate: day("2026-12-01") } });
+      return stale;
+    }) as unknown as typeof findUnique);
+
+    await snoozeRecordCommand("contract", contract.id, "2026-11-20", "2026-10-25", actorId);
+    spy.mockRestore();
+
+    const row = await db.prisma.contract.findUniqueOrThrow({ where: { id: contract.id } });
+    expect(row.endDate).toEqual(day("2026-12-01"));
+    // Keyed to the edited dates, so the Snooze holds, and the edit's
+    // updatedAt survives.
+    expect(activeSnoozeUntil({ kind: "contract", ...row }, "2026-10-25")).toBe("2026-11-20");
+    expect(row.updatedAt.getTime()).toBeGreaterThan(contract.updatedAt.getTime());
+  });
 });

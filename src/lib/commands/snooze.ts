@@ -34,31 +34,57 @@ function revalidate(kind: SnoozeKind, id: string) {
 type SnoozeData = { snoozedUntil: Date | null; snoozedFor: string | null; snoozedById: string | null };
 
 // Reads the live record's Snooze key and writes `data` without moving
-// `updatedAt`. A record in Trash counts as not found.
+// `updatedAt`. A record in Trash counts as not found. The write only lands
+// if the record still has the `updatedAt` it was read with, so a Snooze can
+// never restore an older `updatedAt` over a concurrent edit or key itself to
+// dates that edit just replaced; it re-reads and tries again instead.
+const SNOOZE_WRITE_ATTEMPTS = 3;
+
+type Snoozable = { updatedAt: Date; deletedAt: Date | null };
+
+async function writeSnoozeWith<Row extends Snoozable>(
+  kind: SnoozeKind,
+  read: () => Promise<Row | null>,
+  keyOf: (row: Row) => string,
+  write: (updatedAt: Date, data: SnoozeData & { updatedAt: Date }) => Promise<{ count: number }>,
+  data: (key: string) => SnoozeData,
+) {
+  for (let attempt = 0; attempt < SNOOZE_WRITE_ATTEMPTS; attempt++) {
+    const row = await read();
+    if (!row || row.deletedAt) throw new RecordNotFoundError(NOT_FOUND[kind]);
+    const { count } = await write(row.updatedAt, { ...data(keyOf(row)), updatedAt: row.updatedAt });
+    if (count === 1) return;
+  }
+  throw new RecordValidationError("This record was just changed by someone else. Please try again.");
+}
+
 async function writeSnooze(kind: SnoozeKind, id: string, data: (key: string) => SnoozeData) {
   switch (kind) {
-    case "contract": {
-      const row = await prisma.contract.findUnique({ where: { id } });
-      if (!row || row.deletedAt) throw new RecordNotFoundError(NOT_FOUND[kind]);
-      const key = snoozeKey({ kind, ...row });
-      await prisma.contract.update({ where: { id }, data: { ...data(key), updatedAt: row.updatedAt } });
-      return;
-    }
-    case "warranty": {
-      const row = await prisma.product.findUnique({ where: { id } });
-      if (!row || row.deletedAt) throw new RecordNotFoundError(NOT_FOUND[kind]);
-      const key = snoozeKey({ kind, ...row });
-      await prisma.product.update({ where: { id }, data: { ...data(key), updatedAt: row.updatedAt } });
-      return;
-    }
-    case "vehicle": {
+    case "contract":
+      return writeSnoozeWith(
+        kind,
+        () => prisma.contract.findUnique({ where: { id } }),
+        (row) => snoozeKey({ kind, ...row }),
+        (updatedAt, next) => prisma.contract.updateMany({ where: { id, updatedAt, deletedAt: null }, data: next }),
+        data,
+      );
+    case "warranty":
+      return writeSnoozeWith(
+        kind,
+        () => prisma.product.findUnique({ where: { id } }),
+        (row) => snoozeKey({ kind, ...row }),
+        (updatedAt, next) => prisma.product.updateMany({ where: { id, updatedAt, deletedAt: null }, data: next }),
+        data,
+      );
+    case "vehicle":
       await assertModuleEnabled("VEHICLES");
-      const row = await prisma.vehicle.findUnique({ where: { id } });
-      if (!row || row.deletedAt) throw new RecordNotFoundError(NOT_FOUND[kind]);
-      const key = snoozeKey({ kind, ...row });
-      await prisma.vehicle.update({ where: { id }, data: { ...data(key), updatedAt: row.updatedAt } });
-      return;
-    }
+      return writeSnoozeWith(
+        kind,
+        () => prisma.vehicle.findUnique({ where: { id } }),
+        (row) => snoozeKey({ kind, ...row }),
+        (updatedAt, next) => prisma.vehicle.updateMany({ where: { id, updatedAt, deletedAt: null }, data: next }),
+        data,
+      );
   }
 }
 
