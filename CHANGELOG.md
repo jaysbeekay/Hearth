@@ -60,6 +60,8 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   built, size-checked and smoke-tested on a native runner before either is
   published, on every Docker-related PR as well as at release, and both
   carry an SBOM and build provenance.
+  Docker Scout scans both images too (#545), each with its own results in
+  the Security tab, under the same `scout` check.
 
 ### Security
 
