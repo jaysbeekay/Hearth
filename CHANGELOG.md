@@ -9,6 +9,16 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Share a Document (#374).** Every Document row (on each record's page and
+  in Documents) has Share beside Preview, and the preview gains Share and
+  Download. Where the browser can share files (phones, some desktops) the
+  file itself goes to the share sheet. Elsewhere Share makes a link that
+  opens the Document without signing in for 24 hours, and copies it; the
+  toast offers Revoke. Links are recorded in the Security log, listed there
+  under Shared links for an admin to revoke, stop working as soon as the
+  Document or its record goes to Trash, and are cleared a day after they
+  expire. Read-only members can share the file but can't make links. Only
+  a hash of each link's token is stored.
 - **Snooze for Needs attention (#354).** A Due Contract, Warranty or Vehicle
   has a Snooze button on its Needs attention row and its detail banner: 1
   week, 30 days, or until a chosen date. While Snoozed it leaves Needs

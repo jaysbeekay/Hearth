@@ -92,3 +92,100 @@ test("previewing an image document from the Documents page renders it", async ({
   await expect(dialog).toBeVisible();
   await expect(dialog.locator("img")).toBeVisible();
 });
+
+// #374 — Preview, Share and Download from a record's own Documents section.
+async function contractWithPdf(page: import("@playwright/test").Page, filename: string) {
+  await page.goto("/contracts/new");
+  await page.locator("#title").fill(`Share Contract ${Date.now()}`);
+  await page.locator("#category").selectOption("OTHER");
+  await page.locator("#provider").fill("Share Provider");
+  await Promise.all([
+    page.waitForURL(/\/contracts\/(?!new$)[^/]+$/),
+    page.locator('form:has(#title) button[type="submit"]').click(),
+  ]);
+  await page.locator('input[type="file"]').first().setInputFiles({ name: filename, mimeType: "application/pdf", buffer: VALID_PDF });
+  await page.locator('form:has(input[type="file"]) button[type="submit"]').first().click();
+  await page.waitForSelector(`text=${filename}`);
+  return page.url();
+}
+
+test("Share copies a link that opens the Document without signing in, until it's revoked", async ({ page, context, playwright }) => {
+  // A browser that can't share files: Share makes a link and copies it.
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "canShare", { value: undefined, configurable: true });
+    Object.defineProperty(navigator, "share", { value: undefined, configurable: true });
+  });
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  const filename = `share-link-${Date.now()}.pdf`;
+  await contractWithPdf(page, filename);
+
+  // Preview works on the record's own page, with Share and Download.
+  await page.getByRole("button", { name: `Preview ${filename}` }).click();
+  const dialog = page.getByRole("dialog", { name: `Preview of ${filename}` });
+  await expect(dialog.getByRole("link", { name: "Download" })).toBeVisible();
+  await dialog.getByRole("button", { name: "Share" }).click();
+  await expect(page.getByText("Link copied. It works for 24 hours.")).toBeVisible();
+  const url = await page.evaluate(() => navigator.clipboard.readText());
+  expect(url).toMatch(/\/api\/share\/[A-Za-z0-9_-]{43}$/);
+
+  // No session needed.
+  const anonymous = await playwright.request.newContext();
+  const opened = await anonymous.get(url);
+  expect(opened.status()).toBe(200);
+  expect(opened.headers()["content-type"]).toBe("application/pdf");
+
+  // Listed on the Security page, where an admin can revoke it.
+  await page.goto("/settings/security");
+  await expect(page.getByText("Document shared by link").first()).toBeVisible();
+  await page.getByRole("button", { name: `Revoke the link to ${filename}` }).click();
+  await expect(page.getByRole("button", { name: `Revoke the link to ${filename}` })).toHaveCount(0);
+  expect((await anonymous.get(url)).status()).toBe(404);
+  await anonymous.dispose();
+});
+
+test("Share hands the file itself to the share sheet where the browser can", async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = window as unknown as { sharedFiles: string[] };
+    w.sharedFiles = [];
+    Object.defineProperty(navigator, "canShare", { value: () => true, configurable: true });
+    Object.defineProperty(navigator, "share", {
+      value: async (data: { files?: File[] }) => {
+        w.sharedFiles.push(...(data.files ?? []).map((f) => `${f.name}|${f.type}|${f.size}`));
+      },
+      configurable: true,
+    });
+  });
+  const filename = `share-file-${Date.now()}.pdf`;
+  await contractWithPdf(page, filename);
+  await page.getByRole("button", { name: `Share ${filename}` }).click();
+  await expect
+    .poll(() => page.evaluate(() => (window as unknown as { sharedFiles: string[] }).sharedFiles))
+    .toEqual([`${filename}|application/pdf|${VALID_PDF.length}`]);
+});
+
+test("Cancelling the share sheet revokes the link it was about to share", async ({ page, playwright }) => {
+  // Can share a link but not the file, and the person closes the sheet.
+  await page.addInitScript(() => {
+    const w = window as unknown as { sharedUrls: string[] };
+    w.sharedUrls = [];
+    Object.defineProperty(navigator, "canShare", { value: () => false, configurable: true });
+    Object.defineProperty(navigator, "share", {
+      value: async (data: { url?: string }) => {
+        if (data.url) w.sharedUrls.push(data.url);
+        throw new DOMException("Share canceled", "AbortError");
+      },
+      configurable: true,
+    });
+  });
+  const filename = `share-cancel-${Date.now()}.pdf`;
+  await contractWithPdf(page, filename);
+  await page.getByRole("button", { name: `Share ${filename}` }).click();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { sharedUrls: string[] }).sharedUrls.length)).toBe(1);
+  const url = await page.evaluate(() => (window as unknown as { sharedUrls: string[] }).sharedUrls[0]);
+
+  const anonymous = await playwright.request.newContext();
+  await expect.poll(async () => (await anonymous.get(url)).status()).toBe(404);
+  await anonymous.dispose();
+  await page.goto("/settings/security");
+  await expect(page.getByRole("button", { name: `Revoke the link to ${filename}` })).toHaveCount(0);
+});

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { purgeStaleShareLinks } from "@/lib/documents/shareLinks";
 import { getReminderConfig, getHouseholdToday } from "@/lib/appSettings";
 import { sendReminderEmail } from "@/lib/notifications/email";
 import { sendNtfyReminder } from "@/lib/notifications/ntfy";
@@ -36,6 +37,10 @@ export async function runExpirationCheck(now: Date = new Date()) {
   // document-store reconciliation sweep piggybacks on this tick too.
   await reconcileDocumentStore().catch((error) => {
     console.error("[documentStore] reconciliation failed:", error);
+  });
+  // #374 — expired and revoked share links, a day after they stop working.
+  await purgeStaleShareLinks(now).catch((error) => {
+    console.error("[share] link purge failed:", error);
   });
 
   const { defaultDays } = await getReminderConfig();
