@@ -48,9 +48,10 @@ export function citedIds(body) {
 
 const TRUSTED = ["OWNER", "MEMBER", "COLLABORATOR"];
 
-// The owner asking Gatekeeper for a review: the same test codebot.yml applies.
+// The owner asking Gatekeeper for a review: the same test codebot.yml applies (the raw body, no trimming, so
+// the board never moves for a comment that starts no review).
 export function isCodebotRequest(comment) {
-  return (comment.body ?? "").trimStart().startsWith("@codebot") && comment.author_association === "OWNER";
+  return (comment.body ?? "").startsWith("@codebot") && comment.author_association === "OWNER";
 }
 
 // Both patterns capture any "owner/repo", which is then compared with the
