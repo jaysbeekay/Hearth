@@ -13,17 +13,15 @@ test("local backup is encrypted, restorable, and pruned to retention", async ({ 
   await rm(backupDir, { recursive: true, force: true });
   await mkdir(backupDir, { recursive: true });
 
+  // #363 — the destination and the schedule share one Save changes.
   await page.goto("/settings/backups");
   const backupForm = page.locator("form").filter({ has: page.locator("#destination") });
   await backupForm.locator("#destination").selectOption("LOCAL");
   await backupForm.locator("#localPath").fill(backupDir);
-  await backupForm.locator("button[type=submit]").click();
-  await expect(backupForm).toContainText(/saved|success/i);
-
-  await page.goto("/settings/app");
   const scheduleForm = page.locator("form").filter({ has: page.locator("#retentionCount") });
   await scheduleForm.locator("#retentionCount").fill("2");
-  await scheduleForm.locator("button[type=submit]").click();
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(backupForm).toContainText(/saved|success/i);
   await expect(scheduleForm).toContainText(/saved|success/i);
 
   for (let i = 0; i < 3; i++) {

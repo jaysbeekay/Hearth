@@ -1,6 +1,7 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import { createClient } from "@libsql/client";
 import { ADMIN_AUTH_FILE, DATABASE_URL } from "../env";
+import { openFormSections } from "../formSections";
 
 // #412 — status colour follows the Due states: danger once Overdue, warning
 // while Due soon, a neutral grey pill for Needs review and other
@@ -26,6 +27,8 @@ function addDays(day: string, days: number): string {
 async function createContract(page: Page, title: string, endDate: string) {
   await page.goto("/contracts/new");
   await page.locator("#title").fill(title);
+  await page.locator("#category").selectOption("OTHER");
+  await openFormSections(page);
   await page.locator("#provider").fill("Status Colour Provider");
   await page.locator("#endDate").fill(endDate);
   await page.selectOption("#renewalType", "MANUAL_RENEWAL");
@@ -70,6 +73,7 @@ test("only Overdue and Due soon are coloured, in light and dark", async ({ page 
   await createContract(page, review, addDays(today, 400));
 
   await page.goto("/vehicles/new");
+  await openFormSections(page);
   await page.locator("#label").fill(vehicle);
   await page.locator("#regoExpiry").fill(addDays(today, 10));
   await page.getByRole("button", { name: "Add vehicle" }).click();
@@ -116,7 +120,9 @@ test("only Overdue and Due soon are coloured, in light and dark", async ({ page 
       await page.goto("/dashboard");
       const overdueRow = page.locator("li", { hasText: overdue });
       expect(await style(overdueRow.getByText(/^Expired /))).toEqual(danger);
-      const reviewRow = page.locator("li", { hasText: review });
+      // #358 — several records waiting for a check share one row, so this
+      // may be that row rather than this Contract's own.
+      const reviewRow = page.locator("li", { has: page.getByText("Needs review", { exact: true }) }).first();
       expect(await style(reviewRow.getByText("Needs review", { exact: true }))).toEqual(neutral);
       const remindersRow = page.locator("li", { hasText: "Not configured" });
       expect(await style(remindersRow.getByText("Not configured", { exact: true }))).toEqual(neutral);

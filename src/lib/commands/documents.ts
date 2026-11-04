@@ -13,6 +13,13 @@ import { getDocumentVersionChain } from "@/lib/documents/documentQueries";
 import { DOCUMENT_KIND_MODULE, OWNED_DOCUMENT_KINDS, type OwnedDocumentKind } from "@/lib/documents/kinds";
 import { ProductDocumentKind } from "@/generated/prisma/enums";
 import type { Prisma } from "@/generated/prisma/client";
+import { syncLegacyDocument, removeStagedLegacyDocument } from "@/lib/items/syncLegacyDocument";
+
+async function mirrorStagedDocument(kind: OwnedDocumentKind, id: string) {
+  if (kind !== "PRODUCT" && kind !== "INVENTORY_ITEM") return;
+  try { await syncLegacyDocument(kind, id); }
+  catch (error) { console.error("[items] couldn't mirror %s Document %s", kind, id, error); }
+}
 
 // The Document command (#396, ADR 0003). Every write to a Document of any
 // kind goes through here: server actions, the offline sync handler, import,
@@ -32,7 +39,7 @@ import type { Prisma } from "@/generated/prisma/client";
 /** A permanent delete was asked for a Document that isn't in Trash. */
 export class DocumentNotInTrashError extends Error {
   constructor() {
-    super("Move the document to Trash before deleting it permanently.");
+    super("Only a document in Recently deleted can be deleted permanently.");
     this.name = "DocumentNotInTrashError";
   }
 }
@@ -421,6 +428,7 @@ async function insertDocument(
   } catch (error) {
     console.error(`[documents] couldn't queue text extraction for ${kind} document ${doc.id}`, error);
   }
+  await mirrorStagedDocument(kind, doc.id);
   revalidate(owner.paths);
   return doc;
 }
@@ -470,6 +478,7 @@ export async function deleteDocumentCommand(kind: OwnedDocumentKind, id: string,
   const doc = await requireDocument(kind, id, scope);
   if (doc.deletedAt) return;
   await KINDS[kind].delegate(prisma).update({ where: { id }, data: { deletedAt: new Date() } });
+  await mirrorStagedDocument(kind, id);
   revalidate(await ownerPaths(kind, doc.ownerId));
   revalidatePath("/settings/trash");
 }
@@ -485,6 +494,7 @@ export async function restoreDocumentCommand(kind: OwnedDocumentKind, id: string
     await config.delegate(tx).update({ where: { id }, data: { deletedAt: null } });
     return found;
   });
+  await mirrorStagedDocument(kind, id);
   revalidate(owner?.paths ?? []);
   revalidatePath("/settings/trash");
 }
@@ -518,6 +528,34 @@ export async function setDocumentImportantCommand(
     return liveOwner;
   });
   revalidate(owner.paths);
+  await mirrorStagedDocument(kind, id);
+}
+
+/**
+ * Sets a Document's type (#405): uploads from a record's "Add document"
+ * button land untyped and the type is picked afterwards on the row. Not for
+ * PRODUCT Documents, whose legacy kind is set at upload and drives the
+ * Warranty's hero photo. Refused as not found while the record, or its
+ * parent, is in Trash.
+ */
+export async function setDocumentCategoryCommand(
+  kind: OwnedDocumentKind,
+  id: string,
+  category: string | null,
+  scope: DocumentScope = {},
+) {
+  if (kind === "PRODUCT") throw new Error("A Warranty Document's type is set when it's uploaded");
+  await gate(kind);
+  const config = KINDS[kind];
+  const owner = await prisma.$transaction(async (tx) => {
+    const doc = await requireDocument(kind, id, scope, tx);
+    const liveOwner = await requireLiveOwner(config, doc.ownerId, tx, "Document");
+    await config.delegate(tx).update({ where: { id }, data: { category } });
+    return liveOwner;
+  });
+  // #445 review: the staged Item copy carries the category too.
+  await mirrorStagedDocument(kind, id);
+  revalidate(owner.paths);
 }
 
 // The row-and-file part of a permanent delete, with no module gate and no
@@ -529,6 +567,10 @@ export async function purgeDocument(kind: OwnedDocumentKind, id: string) {
   const doc = await requireDocument(kind, id);
   await KINDS[kind].delegate(prisma).delete({ where: { id } });
   await documentStoreFor(kind).remove(doc.ownerId, doc.storedName);
+  if (kind === "PRODUCT" || kind === "INVENTORY_ITEM") {
+    try { await removeStagedLegacyDocument(kind, id); }
+    catch (error) { console.error("[items] couldn't remove staged %s Document %s", kind, id, error); }
+  }
   return { ownerId: doc.ownerId };
 }
 

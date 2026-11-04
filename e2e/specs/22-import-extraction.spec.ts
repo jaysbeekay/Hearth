@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { ADMIN_AUTH_FILE } from "../env";
+import { textPdfBytes } from "../textPdf";
 
 test.use({ storageState: ADMIN_AUTH_FILE });
 
@@ -53,6 +54,7 @@ test.describe("bulk document import and extraction", () => {
   test("duplicate file detection works during import", async ({ page }) => {
     await page.goto("/contracts/new");
     await page.locator("#title").fill("Duplicate Detection Test");
+    await page.locator("#category").selectOption("OTHER");
     await page.locator("#provider").fill("Test Provider");
     await page.locator("main button[type=submit]").click();
     await page.waitForURL(/\/contracts\/(?!new$)[^/]+$/);
@@ -122,6 +124,96 @@ test.describe("bulk document import and extraction", () => {
     // Confirm it actually landed, not just a UI success message.
     await page.goto(`/wealth/portfolios/${portfolioId}`);
     await expect(page.locator("body")).toContainText("AAPL");
+  });
+
+  // #358 — one scan per file, with the type pre-selected from the guess.
+  // Switching type afterwards reuses that scan instead of scanning again.
+  test("a file arrives pre-selected from its one scan, and switching type doesn't scan again", async ({ page }) => {
+    test.setTimeout(90_000);
+    const filename = `invoice-guess-${Date.now()}.pdf`;
+    let scans = 0;
+    page.on("request", (req) => {
+      if (req.method() === "POST" && req.url().includes("/api/import/extract")) scans += 1;
+    });
+
+    await page.goto("/import");
+    await page.locator('input[type="file"]').setInputFiles({
+      name: filename,
+      mimeType: "application/pdf",
+      buffer: textPdfBytes([
+        "Tax Invoice",
+        "Product: Dishwasher",
+        "Brand: Bosch",
+        "Model No: SMS6ZCI",
+        "Serial Number: FD12345678",
+        "Invoice Date: 2026-05-01",
+      ]),
+    });
+
+    const typeSelect = page.getByLabel(`File ${filename} as`);
+    await expect(typeSelect).toHaveValue("PRODUCT", { timeout: 30_000 });
+    await expect(page.locator('input[id$="-manufacturer"]')).toHaveValue("Bosch");
+    expect(scans).toBe(1);
+
+    await typeSelect.selectOption("CONTRACT");
+    await expect(page.locator('input[id$="-title"]')).toBeVisible();
+    await typeSelect.selectOption("PRODUCT");
+    await expect(page.locator('input[id$="-manufacturer"]')).toHaveValue("Bosch");
+    expect(scans).toBe(1);
+  });
+
+  // #358 — "Apply to selected" sets a field on several files at once, and
+  // "Save all" lands on one Quick check screen with every record whose scan
+  // was too thin to count as reviewed (#359), confirmed together.
+  test("Apply to selected, Save all, then Confirm all on the Quick check screen", async ({ page }) => {
+    test.setTimeout(120_000);
+    const stamp = Date.now();
+    const names = [`receipt-a-${stamp}.pdf`, `receipt-b-${stamp}.pdf`];
+
+    await page.goto("/import");
+    // A thin read: the first line passes as the seller, plus one brand.
+    // That's enough to guess Warranty, but too little to count as reviewed
+    // on save, whichever type it's filed as.
+    await page.locator('input[type="file"]').setInputFiles(
+      names.map((name) => ({
+        name,
+        mimeType: "application/pdf",
+        buffer: textPdfBytes(["Thank you for shopping with us today", "Brand: Bosch"]),
+      })),
+    );
+    for (const name of names) {
+      await expect(page.getByLabel(`File ${name} as`)).toHaveValue("PRODUCT", { timeout: 30_000 });
+    }
+
+    const bulk = page.getByLabel("Apply to selected files");
+    await bulk.getByLabel(/Select all/).check();
+    await bulk.getByLabel("File as").selectOption("CONTRACT");
+    await bulk.getByLabel("Contract category").selectOption("CAR_INSURANCE");
+    await bulk.getByRole("button", { name: "Apply to selected" }).click();
+    for (const name of names) {
+      await expect(page.getByLabel(`File ${name} as`)).toHaveValue("CONTRACT");
+    }
+    for (const i of [0, 1]) {
+      await expect(page.locator('select[id$="-category"]').nth(i)).toHaveValue("CAR_INSURANCE");
+      await expect(page.locator('input[id$="-provider"]').nth(i)).toHaveValue("Thank you for shopping with us today");
+    }
+
+    await Promise.all([
+      page.waitForURL(/\/review\?added=2$/),
+      page.getByRole("button", { name: /^Save all/ }).click(),
+    ]);
+    await expect(page.getByRole("heading", { name: "Quick check" })).toBeVisible();
+    await expect(page.getByText(/2 records added\./)).toBeVisible();
+    const titles = names.map((name) => name.replace(/\.pdf$/, ""));
+    for (const title of titles) {
+      await expect(page.getByRole("region", { name: title })).toBeVisible();
+    }
+
+    await page.getByRole("button", { name: /^Confirm all/ }).click();
+    await expect(page.getByText(/Nothing needs a check\./)).toBeVisible();
+    for (const title of titles) {
+      await expect(page.getByRole("region", { name: title })).toHaveCount(0);
+    }
   });
 
   test("import page is reachable from the dashboard", async ({ page }) => {

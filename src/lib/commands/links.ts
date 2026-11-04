@@ -34,7 +34,7 @@ export async function linkedRecordError(links: RecordLinks, db: LinkClient = pri
       where: { id: links.propertyId },
       select: { deletedAt: true },
     });
-    if (!isLive(property)) return "That property doesn't exist or is in Trash.";
+    if (!isLive(property)) return "That property doesn't exist or has been deleted.";
   }
   if (links.vehicleId) {
     if (!(await isModuleEnabled("VEHICLES", db))) {
@@ -44,7 +44,7 @@ export async function linkedRecordError(links: RecordLinks, db: LinkClient = pri
       where: { id: links.vehicleId },
       select: { deletedAt: true },
     });
-    if (!isLive(vehicle)) return "That vehicle doesn't exist or is in Trash.";
+    if (!isLive(vehicle)) return "That vehicle doesn't exist or has been deleted.";
   }
   return null;
 }

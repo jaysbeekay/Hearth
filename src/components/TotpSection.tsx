@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { disableTotp, type ActionState } from "@/lib/actions/auth";
 import { FormMessage } from "@/components/FormMessage";
 import { inputClass } from "@/components/SelectWrapper";
-import { buttonVariants, compactButtonClass } from "@/lib/buttonStyles";
-import { cn } from "@/lib/utils";
+import { buttonClass } from "@/lib/ui";
+import { Pill } from "@/components/ui/Pill";
 
 type SetupStep = "idle" | "scanning" | "recovery-codes";
 
@@ -17,7 +17,12 @@ export function TotpSection({ enabled }: { enabled: boolean }) {
   const [secret, setSecret] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  // A new object per failure, passed to FormMessage as its `attempt`, so a
+  // second identical error (a mistyped code twice) still comes into view (#406).
+  const [failure, setFailure] = useState<{ message: string } | null>(null);
+  const setError = (message: string | null) => {
+    setFailure(message ? { message } : null);
+  };
   const [pending, startTransition] = useTransition();
   const [showDisableForm, setShowDisableForm] = useState(false);
 
@@ -78,9 +83,9 @@ export function TotpSection({ enabled }: { enabled: boolean }) {
     return (
       <div className="space-y-2">
         <p className="flex items-center gap-2 text-sm">
-          <span className="rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
+          <Pill tone="success">
             Enabled
-          </span>
+          </Pill>
           Two-factor authentication is protecting your account.
         </p>
         <button
@@ -111,19 +116,19 @@ export function TotpSection({ enabled }: { enabled: boolean }) {
         <div className="flex gap-2">
           <button
             type="submit"
-            className={compactButtonClass("danger")}
+            className={buttonClass("secondary", { destructive: true })}
           >
             Disable
           </button>
           <button
             type="button"
             onClick={() => setShowDisableForm(false)}
-            className={compactButtonClass()}
+            className={buttonClass("secondary")}
           >
             Cancel
           </button>
         </div>
-        <FormMessage error={disableState?.error} success={disableState?.success} />
+        <FormMessage attempt={disableState} error={disableState?.error} success={disableState?.success} />
       </form>
     );
   }
@@ -166,22 +171,19 @@ export function TotpSection({ enabled }: { enabled: boolean }) {
             type="button"
             disabled={pending || code.trim().length === 0}
             onClick={verifyCode}
-            className={cn(
-              "inline-flex min-h-11 items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60",
-              buttonVariants.primary,
-            )}
+            className={buttonClass("primary")}
           >
             {pending ? "Verifying…" : "Verify & enable"}
           </button>
           <button
             type="button"
             onClick={cancelSetup}
-            className={compactButtonClass()}
+            className={buttonClass("secondary")}
           >
             Cancel
           </button>
         </div>
-        <FormMessage error={error} />
+        <FormMessage error={failure?.message} attempt={failure ?? undefined} />
       </div>
     );
   }
@@ -204,10 +206,7 @@ export function TotpSection({ enabled }: { enabled: boolean }) {
         <button
           type="button"
           onClick={finish}
-          className={cn(
-            "inline-flex min-h-11 items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition",
-            buttonVariants.primary,
-          )}
+          className={buttonClass("primary")}
         >
           Done
         </button>
@@ -221,14 +220,11 @@ export function TotpSection({ enabled }: { enabled: boolean }) {
         type="button"
         disabled={pending}
         onClick={startSetup}
-        className={cn(
-          "inline-flex min-h-11 items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60",
-          buttonVariants.primary,
-        )}
+        className={buttonClass("secondary")}
       >
         {pending ? "Starting…" : "Enable two-factor authentication"}
       </button>
-      <FormMessage error={error} />
+      <FormMessage error={failure?.message} attempt={failure ?? undefined} />
     </div>
   );
 }

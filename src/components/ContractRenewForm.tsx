@@ -1,9 +1,9 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import type { ActionState } from "@/lib/actions/contracts";
 import { SubmitButton } from "@/components/SubmitButton";
+import { FormActions } from "@/components/FormActions";
 import { FormMessage } from "@/components/FormMessage";
 import { Field } from "@/components/FormField";
 import { FileDropZone } from "@/components/FileDropZone";
@@ -97,9 +97,10 @@ export function ContractRenewForm({
       body.append("file", file);
       const res = await fetch("/api/documents/extract", { method: "POST", body });
       if (!res.ok) throw new Error("Extraction failed");
-      const { fields, source } = (await res.json()) as {
+      const { fields, source, textUnavailable } = (await res.json()) as {
         fields: Partial<Record<string, string>>;
         source: ExtractionSource;
+        textUnavailable?: boolean;
       };
       const found = new Map<RenewField, string>();
       for (const [key, value] of Object.entries(fields)) {
@@ -130,7 +131,7 @@ export function ContractRenewForm({
         setValues(next);
         setVersion((v) => v + 1);
       }
-      setScanMessage(extractionMessage(source, found.size));
+      setScanMessage(extractionMessage(source, found.size, textUnavailable));
     } catch {
       setScanMessage("Couldn't scan this document. You can still attach it and fill in the dates yourself.");
     } finally {
@@ -227,14 +228,11 @@ export function ContractRenewForm({
         )}
       </div>
 
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
 
-      <div className="flex flex-wrap items-center gap-3">
+      <FormActions cancelHref={cancelHref}>
         <SubmitButton pendingText="Renewing…">Renew</SubmitButton>
-        <Link href={cancelHref} className="text-sm text-muted hover:underline">
-          Cancel
-        </Link>
-      </div>
+      </FormActions>
     </form>
   );
 }

@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { ADMIN_AUTH_FILE } from "../env";
+import { openFormSections } from "../formSections";
 
 test.use({ storageState: ADMIN_AUTH_FILE });
 
@@ -29,6 +30,8 @@ test.describe.serial("contracts and warranties can link to a property", () => {
   }) => {
     await page.goto("/contracts/new");
     await page.locator("#title").fill("Property-Linked Insurance");
+    await page.locator("#category").selectOption("OTHER");
+    await openFormSections(page);
     await page.locator("#provider").fill("Test Insurer");
     // #370 — one grouped "Linked to" select for homes and vehicles.
     const propertySelect = page.getByLabel("Linked to");
@@ -47,11 +50,26 @@ test.describe.serial("contracts and warranties can link to a property", () => {
     await expect(page.getByText("Property-Linked Insurance")).toBeVisible();
   });
 
+  // #456 - "Add insurance" opens the contract form already linked to the property.
+  test("Add insurance on a property opens the contract form pre-linked", async ({ page }) => {
+    await page.goto("/home");
+    await page.locator("a", { hasText: "Linking Test Property" }).first().click();
+    await page.waitForURL(/\/home\/[^/]+$/);
+    const propertyId = new URL(page.url()).pathname.split("/").pop()!;
+
+    await page.getByRole("link", { name: "Add insurance" }).click();
+    await page.waitForURL(/\/contracts\/new\?/);
+    await expect(page.locator("#category")).toHaveValue("HOME_INSURANCE");
+    await expect(page.getByLabel("Linked to")).toHaveValue(`property:${propertyId}`);
+  });
+
   test("a contract not linked to any property doesn't appear on the property's detail page", async ({
     page,
   }) => {
     await page.goto("/contracts/new");
     await page.locator("#title").fill("Unlinked Contract");
+    await page.locator("#category").selectOption("OTHER");
+    await openFormSections(page);
     await page.locator("#provider").fill("Some Provider");
     await page.locator("main button[type=submit]").click();
     // Exclude "new" itself — same footgun as line 19's /home/new note above,

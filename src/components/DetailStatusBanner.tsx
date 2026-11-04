@@ -3,12 +3,14 @@ import { AlertTriangle, AlertCircle, CalendarClock, Upload, RotateCw } from "luc
 import { TestConnectionButton } from "@/components/TestConnectionButton";
 import { WriteOnly } from "@/components/CanWriteProvider";
 import { bannerEntries, type DueEntry } from "@/lib/dueRecords";
-import { statusBannerClass, statusTone } from "@/lib/statusTone";
+import { statusTone } from "@/lib/statusTone";
 import type { ActionState } from "@/lib/actions/auth";
 import { DueLabelText } from "@/components/DueLabelText";
+import { SnoozeButton, SnoozedNotice } from "@/components/SnoozeButton";
+import type { SnoozeKind } from "@/lib/snooze";
+import { buttonClass, bannerClass } from "@/lib/ui";
 
-const actionClass =
-  "inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs font-medium hover:bg-hover-surface";
+const actionClass = buttonClass("secondary");
 
 // The policy's label (in the viewer's date format, #422), plus how many days
 // are left while there are some. A date that needs replacing says what
@@ -50,6 +52,7 @@ export function DetailStatusBanner({
   newEndDateLabel = "Set the new end date",
   newEndDateMessage,
   needsReview,
+  snooze,
 }: {
   /** The record's Due entries, as the Due policy returns them. */
   entries: DueEntry[];
@@ -70,19 +73,29 @@ export function DetailStatusBanner({
   newEndDateMessage?: string;
   /** Set when extractionPending is true — some critical fields were auto-filled and haven't been confirmed yet. */
   needsReview?: { onConfirm: () => Promise<ActionState> };
+  /**
+   * #354 — the record, for Snooze on its first Due row. While it's Snoozed
+   * (`until` set), one Snoozed notice stands in for its date rows.
+   */
+  snooze?: { kind: SnoozeKind; recordId: string; title: string; until: string | null; byName?: string | null };
 }) {
-  const shown = bannerEntries(entries);
-  if (shown.length === 0 && !needsReview) return null;
+  const snoozedUntil = snooze?.until ?? null;
+  const shown = snoozedUntil ? [] : bannerEntries(entries);
+  const snoozeOn = shown.find((entry) => entry.state !== "needs-new-end-date");
+  if (shown.length === 0 && !needsReview && !snoozedUntil) return null;
 
   return (
     <div className="space-y-2">
+      {snooze && snoozedUntil && (
+        <SnoozedNotice kind={snooze.kind} recordId={snooze.recordId} until={snoozedUntil} byName={snooze.byName} />
+      )}
       {shown.map((entry) => {
         const housekeeping = entry.state === "needs-new-end-date";
         const Icon = housekeeping ? CalendarClock : AlertTriangle;
         return (
           <div
             key={entry.field}
-            className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3 ${statusBannerClass(statusTone(entry.state))}`}
+            className={bannerClass(statusTone(entry.state), "flex flex-wrap items-center justify-between gap-3")}
           >
             <p className="flex items-center gap-2 text-sm font-medium">
               <Icon size={16} className="shrink-0" aria-hidden />
@@ -95,20 +108,23 @@ export function DetailStatusBanner({
               <div className="flex flex-wrap items-center gap-2">
                 {housekeeping ? (
                   <Link href={newEndDateHref} className={actionClass}>
-                    <CalendarClock size={14} />
+                    <CalendarClock size={16} />
                     {newEndDateLabel}
                   </Link>
                 ) : (
                   <>
+                    {snooze && entry === snoozeOn && (
+                      <SnoozeButton kind={snooze.kind} recordId={snooze.recordId} title={snooze.title} />
+                    )}
                     {secondaryAction}
                     {!renewLabel ? null : hasDocuments ? (
                       <Link href={renewHref} className={actionClass}>
-                        <RotateCw size={14} />
+                        <RotateCw size={16} />
                         {renewLabel}
                       </Link>
                     ) : (
                       <Link href={documentsHref} className={actionClass}>
-                        <Upload size={14} />
+                        <Upload size={16} />
                         Upload document
                       </Link>
                     )}
@@ -121,7 +137,7 @@ export function DetailStatusBanner({
       })}
       {needsReview && (
         <div
-          className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3 ${statusBannerClass(statusTone("needs-review"))}`}
+          className={bannerClass(statusTone("needs-review"), "flex flex-wrap items-center justify-between gap-3")}
         >
           <p className="flex items-center gap-2 text-sm font-medium">
             <AlertCircle size={16} className="shrink-0" aria-hidden />

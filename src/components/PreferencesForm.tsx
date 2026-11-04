@@ -12,7 +12,8 @@ import {
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
 import { FormMessage } from "@/components/FormMessage";
-import { compactButtonClass } from "@/lib/buttonStyles";
+import { GroupedSubmit } from "@/components/SaveChangesGroup";
+import { withConnectionErrors } from "@/lib/withConnectionErrors";
 
 export function PreferencesForm({
   dateFormat,
@@ -32,19 +33,25 @@ export function PreferencesForm({
     return tz === EXPLICIT_UTC_TIME_ZONE ? "UTC" : tz;
   };
 
-  const [state, formAction] = useActionState<ActionState, FormData>(updateUserPreferences, null);
+  const [state, formAction] = useActionState<ActionState, FormData>(withConnectionErrors(updateUserPreferences), null);
 
   return (
     // #403 — the settings container caps at max-w-4xl, so a 4-column row is too
     // narrow for the longest date-format label ("DD/MM/YYYY (e.g. 10 Jul 2026)")
     // at every width; 2 columns keep every select wide enough to show it whole.
-    <form action={formAction} className="grid gap-4 sm:grid-cols-2">
+    <form action={formAction} data-save-group className="grid gap-4 sm:grid-cols-2">
       <div className="space-y-1">
         <label htmlFor="dateFormat" className="text-sm font-medium">
           Date format
         </label>
         <SelectWrapper>
-          <select id="dateFormat" name="dateFormat" defaultValue={dateFormat} className={selectClass}>
+          <select
+            id="dateFormat"
+            name="dateFormat"
+            aria-describedby="dateFormatHint"
+            defaultValue={dateFormat}
+            className={selectClass}
+          >
             {DATE_FORMAT_OPTIONS.map((value) => (
               <option key={value} value={value}>
                 {DATE_FORMAT_LABELS[value]}
@@ -52,6 +59,10 @@ export function PreferencesForm({
             ))}
           </select>
         </SelectWrapper>
+        {/* #361 — native date pickers can't take this format; say why. */}
+        <p id="dateFormatHint" className="text-xs text-muted">
+          Date pickers follow your browser&apos;s language; the date shown under each field uses your chosen format.
+        </p>
       </div>
       <div className="space-y-1">
         <label htmlFor="preferredCurrency" className="text-sm font-medium">
@@ -88,10 +99,10 @@ export function PreferencesForm({
         </SelectWrapper>
       </div>
       <div className="sm:col-span-2 space-y-2">
-        <FormMessage error={state?.error} success={state?.success} />
-        <button type="submit" className={compactButtonClass()}>
-          Save preferences
-        </button>
+        <FormMessage attempt={state} error={state?.error} success={state?.success} />
+        <div className="empty:hidden">
+          <GroupedSubmit state={state}>Save preferences</GroupedSubmit>
+        </div>
       </div>
     </form>
   );
