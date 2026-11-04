@@ -19,6 +19,7 @@ import { ExpiryBadge } from "@/components/ExpiryBadge";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DetailStatusBanner } from "@/components/DetailStatusBanner";
+import { activeSnoozeUntil } from "@/lib/snooze";
 import { ExtractionReviewPanel } from "@/components/ExtractionReviewPanel";
 import { DetailField as Detail } from "@/components/DetailField";
 import { DocumentUploadForm } from "@/components/DocumentUploadForm";
@@ -61,6 +62,7 @@ export default async function ContractDetailPage({
         documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" } },
         createdBy: true,
         updatedBy: true,
+        snoozedBy: { select: { name: true } },
         property: true,
         vehicle: true,
         rentalAgreement: { include: { property: true } },
@@ -87,6 +89,7 @@ export default async function ContractDetailPage({
   // #384 — the badge and banner show the Due policy's entry: the notice
   // deadline while it's ahead (#351), then the end date.
   const dueEntries = contractDue(contract, due);
+  const snoozedUntil = activeSnoozeUntil({ kind: "contract", ...contract }, due.today);
   const entry = headlineEntry(dueEntries);
   // The notice deadline as a date, for the Notice period field.
   const endDay = calendarDayOf(contract.endDate);
@@ -257,6 +260,13 @@ export default async function ContractDetailPage({
               </ConfirmForm>
             )
           }
+          snooze={{
+            kind: "contract",
+            recordId: contract.id,
+            title: contract.title,
+            until: snoozedUntil,
+            byName: contract.snoozedBy?.name,
+          }}
           needsReview={
             contract.extractionPending && pendingReview.length === 0
               ? { onConfirm: confirmContractExtraction.bind(null, contract.id) }

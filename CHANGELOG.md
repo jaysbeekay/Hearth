@@ -21,7 +21,16 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   "Confirm all". On the dashboard, several such records share one Needs
   attention row that links there. Server-only; the iOS and Android shell is
   unchanged.
-
+- **Snooze for Needs attention (#354).** A Due Contract, Warranty or Vehicle
+  has a Snooze button on its Needs attention row and its detail banner: 1
+  week, 30 days, or until a chosen date. While Snoozed it leaves Needs
+  attention and its Reminders pause; Upcoming still lists it, greyed and
+  marked "Snoozed until …"; the detail page says who Snoozed it and until
+  when, with Unsnooze. A Snooze is tied to the dates it was set against, so
+  renewing the record or changing one of those dates ends it, and it ends by
+  itself on its day (anything crossed meanwhile goes out as one catch-up
+  Reminder). Read-only members can't Snooze. The standalone mobile shell
+  doesn't have Snooze yet.
 - **Import records over MCP, with approval (#529).** Tokens listed in the
   new `MCP_IMPORT_LABELS` get `propose_import_contract`,
   `propose_import_product` and (with Inventory on)
@@ -34,6 +43,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   capped at 100 per token per hour and 200 pending, and READONLY members
   can see the queue but can't approve or reject. Server-only; the iOS and
   Android shell is unchanged.
+- **arm64 Docker image (#478).** `jaysbeekay/hearth` is now published for
+  `linux/arm64` as well as `linux/amd64`, under the same tags, so it runs on
+  a Raspberry Pi 4/5 (64-bit OS), Apple-silicon Macs and ARM servers.
+  `docker pull` picks the right one automatically. Each architecture is
+  built, size-checked and smoke-tested on a native runner before either is
+  published, on every Docker-related PR as well as at release, and both
+  carry an SBOM and build provenance.
 
 ### Security
 

@@ -6,6 +6,8 @@ import { bannerEntries, type DueEntry } from "@/lib/dueRecords";
 import { statusTone } from "@/lib/statusTone";
 import type { ActionState } from "@/lib/actions/auth";
 import { DueLabelText } from "@/components/DueLabelText";
+import { SnoozeButton, SnoozedNotice } from "@/components/SnoozeButton";
+import type { SnoozeKind } from "@/lib/snooze";
 import { buttonClass, bannerClass } from "@/lib/ui";
 
 const actionClass = buttonClass("secondary");
@@ -50,6 +52,7 @@ export function DetailStatusBanner({
   newEndDateLabel = "Set the new end date",
   newEndDateMessage,
   needsReview,
+  snooze,
 }: {
   /** The record's Due entries, as the Due policy returns them. */
   entries: DueEntry[];
@@ -70,12 +73,22 @@ export function DetailStatusBanner({
   newEndDateMessage?: string;
   /** Set when extractionPending is true — some critical fields were auto-filled and haven't been confirmed yet. */
   needsReview?: { onConfirm: () => Promise<ActionState> };
+  /**
+   * #354 — the record, for Snooze on its first Due row. While it's Snoozed
+   * (`until` set), one Snoozed notice stands in for its date rows.
+   */
+  snooze?: { kind: SnoozeKind; recordId: string; title: string; until: string | null; byName?: string | null };
 }) {
-  const shown = bannerEntries(entries);
-  if (shown.length === 0 && !needsReview) return null;
+  const snoozedUntil = snooze?.until ?? null;
+  const shown = snoozedUntil ? [] : bannerEntries(entries);
+  const snoozeOn = shown.find((entry) => entry.state !== "needs-new-end-date");
+  if (shown.length === 0 && !needsReview && !snoozedUntil) return null;
 
   return (
     <div className="space-y-2">
+      {snooze && snoozedUntil && (
+        <SnoozedNotice kind={snooze.kind} recordId={snooze.recordId} until={snoozedUntil} byName={snooze.byName} />
+      )}
       {shown.map((entry) => {
         const housekeeping = entry.state === "needs-new-end-date";
         const Icon = housekeeping ? CalendarClock : AlertTriangle;
@@ -100,6 +113,9 @@ export function DetailStatusBanner({
                   </Link>
                 ) : (
                   <>
+                    {snooze && entry === snoozeOn && (
+                      <SnoozeButton kind={snooze.kind} recordId={snooze.recordId} title={snooze.title} />
+                    )}
                     {secondaryAction}
                     {!renewLabel ? null : hasDocuments ? (
                       <Link href={renewHref} className={actionClass}>
