@@ -231,9 +231,10 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   checked in the delete itself. If a Contract, Warranty, Vehicle or Service
   record, Trip or segment, Property or anything under it, Trade or Document
   is restored between the click (or retention listing it) and the delete,
-  it survives with its documents and files, and the person sees "That …
-  has been restored, so it wasn't deleted." Retention skips it and carries
-  on. Inventory had this fix already (#522).
+  it survives with its documents and files. A record's permanent delete
+  says "That … has been restored, so it wasn't deleted."; a Document's says
+  "Only a document in Recently deleted can be deleted permanently."
+  Retention skips it and carries on. Inventory had this fix already (#522).
 - **Recently deleted count on empty lists (#514 follow-up).** An empty
   Contracts or Warranties list no longer counts records past the 30-day
   Trash window, which are purged the next time Trash opens.

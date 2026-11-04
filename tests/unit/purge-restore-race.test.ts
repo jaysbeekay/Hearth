@@ -192,10 +192,13 @@ describe.each(cases)("$name purge (#534)", ({ create, purge, row }) => {
     expect(await row(record.id)).toMatchObject({ deletedAt: null });
   });
 
-  it("with a retention cutoff, leaves a record deleted again since it", async () => {
-    const record = await create(new Date());
+  it("with a retention cutoff, leaves a record restored and deleted again since it", async () => {
+    // Expired, then restored and deleted again: back in Trash, with a new window.
+    const record = await create(expiredAt());
+    await restore(record.id, row);
+    await redelete(record.id);
     await expect(purge(record.id, { deletedBefore: expiredAt() })).rejects.toBeInstanceOf(RecordNotInTrashError);
-    expect(await row(record.id)).not.toBeNull();
+    expect((await row(record.id))?.deletedAt).not.toBeNull();
   });
 
   it("reports a second purge as not found", async () => {
@@ -205,10 +208,8 @@ describe.each(cases)("$name purge (#534)", ({ create, purge, row }) => {
   });
 });
 
-// Restores straight on the row, the way a restore from another tab lands:
-// whichever table `row` reads, set its deletedAt back to null.
-async function restore(id: string, row: Case["row"]) {
-  const tables = [
+const trashTables = () =>
+  [
     db.prisma.contract,
     db.prisma.product,
     db.prisma.vehicle,
@@ -222,8 +223,17 @@ async function restore(id: string, row: Case["row"]) {
     db.prisma.propertyValuation,
     db.prisma.trade,
   ] as unknown as { updateMany: (args: object) => Promise<{ count: number }> }[];
-  for (const table of tables) await table.updateMany({ where: { id }, data: { deletedAt: null } });
+
+// Restores straight on the row, the way a restore from another tab lands:
+// whichever table holds `id`, set its deletedAt back to null.
+async function restore(id: string, row: Case["row"]) {
+  for (const table of trashTables()) await table.updateMany({ where: { id }, data: { deletedAt: null } });
   expect(await row(id)).toMatchObject({ deletedAt: null });
+}
+
+// Moves it to Trash again, now: a new Trash window.
+async function redelete(id: string) {
+  for (const table of trashTables()) await table.updateMany({ where: { id }, data: { deletedAt: new Date() } });
 }
 
 describe("Contract purge keeps a restored Contract's Documents and files (#534)", () => {
