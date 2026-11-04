@@ -3291,7 +3291,12 @@ async function finishRestoreFiles(journal) {
 // could each move the same file.
 let restoreRecovery = null;
 function recoverInterruptedRestore() {
-  restoreRecovery ??= withExclusiveDb(runRestoreRecovery);
+  // A recovery that fails (a passing bridge error) is not kept: the next
+  // call tries again instead of reusing the rejection all session.
+  restoreRecovery ??= withExclusiveDb(runRestoreRecovery).catch((error) => {
+    restoreRecovery = null;
+    throw error;
+  });
   return restoreRecovery;
 }
 
