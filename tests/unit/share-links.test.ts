@@ -77,6 +77,22 @@ describe("share links", () => {
     expect(await db.prisma.documentShareLink.aggregate({ _sum: { openCount: true } })).toEqual({ _sum: { openCount: 0 } });
   });
 
+  it("stop a download when the Document is trashed just as the open is counted", async () => {
+    const link = await createShareLink(documentId, userId);
+    const countOpen = db.prisma.documentShareLink.updateMany.bind(db.prisma.documentShareLink);
+    const spy = vi.spyOn(db.prisma.documentShareLink, "updateMany").mockImplementationOnce(async (args) => {
+      const result = await countOpen(args);
+      await db.prisma.document.update({ where: { id: documentId }, data: { deletedAt: new Date() } });
+      return result;
+    });
+    try {
+      expect(await openShareLink(link!.token, bytes)).toBeNull();
+    } finally {
+      spy.mockRestore();
+    }
+    expect((await db.prisma.documentShareLink.findFirstOrThrow()).openCount).toBe(0);
+  });
+
   it("read as not found, and don't count an open, when the file can't be read", async () => {
     const link = await createShareLink(documentId, userId);
     const missing = async (): Promise<Buffer> => {

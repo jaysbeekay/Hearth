@@ -75,7 +75,19 @@ export async function openShareLink(
     where: { id: link.id, revokedAt: null, expiresAt: { gt: now } },
     data: { openCount: { increment: 1 }, lastOpenedAt: now },
   });
-  return count === 1 ? { doc, buffer } : null;
+  if (count !== 1) return null;
+  // Trashing a Document doesn't revoke its links, so the write above can't
+  // see it. Checking once more after the open is counted means a Trash that
+  // lands before this point is never served; one that lands after it came
+  // after the open. The open that didn't happen is taken back off the count.
+  if (!(await findServableDocument(doc.id))) {
+    await prisma.documentShareLink.updateMany({
+      where: { id: link.id, openCount: { gt: 0 } },
+      data: { openCount: { decrement: 1 } },
+    });
+    return null;
+  }
+  return { doc, buffer };
 }
 
 /** Links that still work (or would, if their Document is live), newest first. */
