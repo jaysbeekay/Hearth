@@ -200,16 +200,16 @@ async function openMoreSheet(page: import("@playwright/test").Page) {
 // Every destination a phone can reach, grouped so moving one is a one-line
 // edit here. Upload and the Inbox aren't nav entries, on phones or the
 // desktop sidebar: Upload is a page-header action on Dashboard and
-// Documents (#401), and the Inbox is a tab on Documents, whose bar tab
-// carries its count.
+// Documents (#401), and the Inbox is a tab on Documents, whose More-sheet
+// entry carries its count. #372 put Upcoming in the bar in Documents' place.
 const PHONE_DESTINATIONS = {
-  bar: ["/dashboard", "/contracts", "/products", "/documents"],
+  bar: ["/dashboard", "/contracts", "/products", "/calendar"],
   // The seed enables every optional module. Inventory has no nav entry of
   // its own (getNavItems leaves it out; it's reached from Warranties).
   modules: ["/travel", "/home", "/vehicles", "/wealth"],
   // No /assistant: the seed configures no chat provider (spec 09 sets one
   // up later in the run).
-  tools: ["/calendar", "/spend"],
+  tools: ["/documents", "/spend"],
   footer: ["/settings", "/help"],
 };
 
@@ -242,8 +242,8 @@ test("phones have one navigation: no menu drawer, and each destination is in the
   await expect(moreSheet(page).getByText(ADMIN_EMAIL, { exact: true })).toBeVisible();
   await expect(moreSheet(page).getByRole("button", { name: "Sign out" })).toBeVisible();
 
-  await moreSheet(page).getByRole("link", { name: "Upcoming", exact: true }).click();
-  await page.waitForURL(/\/calendar$/);
+  await moreSheet(page).getByRole("link", { name: /^Documents/ }).click();
+  await page.waitForURL(/\/documents$/);
   await expect(moreSheet(page)).toBeHidden();
 });
 
@@ -600,9 +600,9 @@ test.describe("fixed mobile UI never covers controls (#401)", () => {
   });
 });
 
-// #369, #407: the Inbox count shows on Documents in the bottom bar and the
-// desktop sidebar.
-test("the Inbox count badge matches the Inbox tab on the bottom bar and the sidebar", async ({
+// #369, #407: the Inbox count shows on Documents in the More sheet (and on
+// the More tab, so it isn't hidden) and in the desktop sidebar.
+test("the Inbox count badge matches the Inbox tab in the More sheet and the sidebar", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -624,12 +624,17 @@ test("the Inbox count badge matches the Inbox tab on the bottom bar and the side
 
   // The photo button refreshes the page, layout included, so the badge
   // already shows the new count.
-  const documentsTab = bottomBar(page).getByRole("link", { name: `Documents, ${count} in Inbox` });
-  await expect(documentsTab).toBeVisible();
-  await expect(documentsTab.locator("span[aria-hidden=true]")).toHaveText(count > 99 ? "99+" : String(count));
-  await expectOneLine(documentsTab, "Documents tab with its badge");
+  const badgeText = count > 99 ? "99+" : String(count);
+  const moreTab = bottomBar(page).getByRole("button", { name: `More navigation options, Documents, ${count} in Inbox` });
+  await expect(moreTab).toBeVisible();
+  await expect(moreTab.locator("span[aria-hidden=true]")).toHaveText(badgeText);
+  await expectOneLine(moreTab, "More tab with its badge");
 
-  await expect(documentsTab).toHaveAttribute("href", "/documents");
+  await openMoreSheet(page);
+  const documentsLink = moreSheet(page).getByRole("link", { name: `Documents, ${count} in Inbox` });
+  await expect(documentsLink.locator("span[aria-hidden=true]")).toHaveText(badgeText);
+  await expect(documentsLink).toHaveAttribute("href", "/documents");
+  await page.keyboard.press("Escape");
 
   await page.setViewportSize({ width: 1280, height: 900 });
   const sidebarDocuments = page.locator("aside").getByRole("link", { name: `Documents, ${count} in Inbox` });

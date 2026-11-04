@@ -118,6 +118,12 @@ export function isBrowserViewableImage(mimeType: string): boolean {
   return mimeType.startsWith("image/") && mimeType !== "image/heic" && mimeType !== "image/heif";
 }
 
+// HEIC/HEIF photos (iPhone) can't be shown inline by most browsers, so
+// they're downloaded instead of previewed.
+export function isPreviewable(mimeType: string) {
+  return isBrowserViewableImage(mimeType) || mimeType === "application/pdf";
+}
+
 /** Whether the row shows a thumbnail of the image instead of a file icon. */
 export function showsThumbnail(doc: { category: string | null; mimeType: string }, productKind?: string | null): boolean {
   if (!isBrowserViewableImage(doc.mimeType)) return false;

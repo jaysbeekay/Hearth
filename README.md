@@ -202,9 +202,9 @@ _The property detail screenshot was captured without network access, so it doesn
 | --- | --- |
 | ![Mobile dashboard](docs/screenshots/mobile-dashboard.png) | ![Form validation error](docs/screenshots/error-state-form.png) |
 
-| Documents — MCP imports | |
+| Documents — MCP imports | Quick check |
 | --- | --- |
-| ![Documents — MCP imports](docs/screenshots/mcp-imports.png) | |
+| ![Documents — MCP imports](docs/screenshots/mcp-imports.png) | ![Quick check](docs/screenshots/quick-check.png) |
 
 | Settings — security log | Upcoming |
 | --- | --- |
@@ -259,7 +259,9 @@ docker compose up -d
 ```
 
 This pulls the prebuilt image from
-[Docker Hub](https://hub.docker.com/r/jaysbeekay/hearth), runs pending
+[Docker Hub](https://hub.docker.com/r/jaysbeekay/hearth), published for
+`linux/amd64` and `linux/arm64` (Raspberry Pi 4/5 on a 64-bit OS,
+Apple-silicon Macs, Ampere/Graviton servers), runs pending
 Prisma migrations automatically on container start, and serves the app on
 port 3000. The SQLite database (`data/app.db`) and uploaded documents
 (`data/uploads/`) live in `./data` on the host, mounted into the container —

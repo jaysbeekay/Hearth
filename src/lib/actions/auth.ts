@@ -588,6 +588,36 @@ export async function requestPasswordReset(
   return { success: GENERIC_RESET_MESSAGE };
 }
 
+/**
+ * Spends a one-time reset or invitation token and sets the password with it,
+ * signing out every existing session. The token is claimed with a
+ * conditional write first, so two requests racing on one link can't both
+ * set a password: false means someone else used it, or it expired, after it
+ * was checked.
+ */
+async function setPasswordWithToken(
+  token: { id: string; userId: string },
+  passwordHash: string,
+  now: Date = new Date(),
+): Promise<boolean> {
+  return prisma.$transaction(async (tx) => {
+    const claimed = await tx.passwordResetToken.updateMany({
+      where: { id: token.id, usedAt: null, expiresAt: { gte: now } },
+      data: { usedAt: now },
+    });
+    if (claimed.count !== 1) return false;
+    await tx.user.update({
+      where: { id: token.userId },
+      data: { passwordHash, sessionVersion: { increment: 1 } },
+    });
+    await tx.passwordResetToken.updateMany({
+      where: { userId: token.userId, usedAt: null },
+      data: { usedAt: now },
+    });
+    return true;
+  });
+}
+
 export async function resetPassword(
   token: string,
   _prevState: ActionState,
@@ -614,19 +644,43 @@ export async function resetPassword(
   }
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 12);
-  await prisma.$transaction([
-    prisma.user.update({
-      where: { id: resetToken.userId },
-      data: { passwordHash, sessionVersion: { increment: 1 } },
-    }),
-    prisma.passwordResetToken.updateMany({
-      where: { userId: resetToken.userId, usedAt: null },
-      data: { usedAt: new Date() },
-    }),
-  ]);
+  if (!(await setPasswordWithToken(resetToken, passwordHash))) {
+    return { error: "This reset link is invalid or has expired." };
+  }
   await logSecurityEvent({ type: "PASSWORD_RESET_COMPLETED", userId: resetToken.userId });
 
-  return { success: "Password updated. You can now sign in." };
+  // #372 — the person just proved they own the inbox and chose this
+  // password, so sign them straight in. Without two-factor the link could
+  // already be used to set a password and sign in with it, so this adds no
+  // new way in; earlier sessions were signed out above. With two-factor on a
+  // reset link must not stand in for the second factor, so they still sign
+  // in with it.
+  return signInAfterPasswordSet(resetToken.userId, parsed.data.password, "/dashboard", "Password updated. You can now sign in.");
+}
+
+/**
+ * Signs the user in with the password they just set and redirects (signIn
+ * throws Next's redirect), or returns `fallback` for the "now sign in" path
+ * when the account has two-factor on or the sign-in doesn't go through.
+ */
+async function signInAfterPasswordSet(
+  userId: string,
+  password: string,
+  redirectTo: string,
+  fallback: string,
+): Promise<ActionState> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true, totpEnabled: true },
+  });
+  if (!user || user.totpEnabled) return { success: fallback };
+  try {
+    await signIn("credentials", { email: user.email, password, redirectTo });
+  } catch (error) {
+    if (error instanceof AuthError) return { success: fallback };
+    throw error;
+  }
+  return { success: fallback };
 }
 
 export async function acceptInvitation(
@@ -655,18 +709,13 @@ export async function acceptInvitation(
   }
 
   const passwordHash = await bcrypt.hash(parsed.data.password, 12);
-  await prisma.$transaction([
-    prisma.user.update({
-      where: { id: inviteToken.userId },
-      data: { passwordHash, sessionVersion: { increment: 1 } },
-    }),
-    prisma.passwordResetToken.updateMany({
-      where: { userId: inviteToken.userId, usedAt: null },
-      data: { usedAt: new Date() },
-    }),
-  ]);
+  if (!(await setPasswordWithToken(inviteToken, passwordHash))) {
+    return { error: "This invitation link is invalid or has expired." };
+  }
 
-  return { success: "Password set. You can now sign in." };
+  // #372 — land the new member on Upcoming, signed in, with a one-time
+  // welcome that says what their role allows.
+  return signInAfterPasswordSet(inviteToken.userId, parsed.data.password, "/calendar?welcome=1", "Password set. You can now sign in.");
 }
 
 // The caller (SignOutButton) does a full page load to /login afterwards, so

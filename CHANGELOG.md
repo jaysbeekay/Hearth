@@ -22,6 +22,38 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   leaves the phone. The Android scanner needs Google Play services; without
   it, the file picker still works. Shell parity: new local native plugin
   `HearthScan` (`HearthScanPlugin.swift`, `HearthScanPlugin.java`).
+- **Upload page: one scan, bulk edits and a Quick check screen (#358).**
+  Each file is scanned once; the page pre-selects Contract, Warranty or
+  Inventory item from what the scan found, and switching type reuses that
+  scan instead of scanning again (only the pre-selected type escalates to
+  local or cloud AI). With several files queued, "Apply to selected" sets
+  File as, Contract category or Linked to on every ticked file at once.
+  "Save all" reports once, and when any record was saved with auto-filled
+  details still to check, it opens the new Quick check screen (`/review`),
+  which lists them all with their fields editable in place and one
+  "Confirm all". On the dashboard, several such records share one Needs
+  attention row that links there. Server-only; the iOS and Android shell is
+  unchanged.
+- **Share a Document (#374).** Every Document row (on each record's page and
+  in Documents) has Share beside Preview, and the preview gains Share and
+  Download. Where the browser can share files (phones, some desktops) the
+  file itself goes to the share sheet. Elsewhere Share makes a link that
+  opens the Document without signing in for 24 hours, and copies it; the
+  toast offers Revoke. Links are recorded in the Security log, listed there
+  under Shared links for an admin to revoke, stop working as soon as the
+  Document or its record goes to Trash, and are cleared a day after they
+  expire. Read-only members can share the file but can't make links. Only
+  a hash of each link's token is stored.
+- **Snooze for Needs attention (#354).** A Due Contract, Warranty or Vehicle
+  has a Snooze button on its Needs attention row and its detail banner: 1
+  week, 30 days, or until a chosen date. While Snoozed it leaves Needs
+  attention and its Reminders pause; Upcoming still lists it, greyed and
+  marked "Snoozed until …"; the detail page says who Snoozed it and until
+  when, with Unsnooze. A Snooze is tied to the dates it was set against, so
+  renewing the record or changing one of those dates ends it, and it ends by
+  itself on its day (anything crossed meanwhile goes out as one catch-up
+  Reminder). Read-only members can't Snooze. The standalone mobile shell
+  doesn't have Snooze yet.
 - **Import records over MCP, with approval (#529).** Tokens listed in the
   new `MCP_IMPORT_LABELS` get `propose_import_contract`,
   `propose_import_product` and (with Inventory on)
@@ -34,6 +66,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   capped at 100 per token per hour and 200 pending, and READONLY members
   can see the queue but can't approve or reject. Server-only; the iOS and
   Android shell is unchanged.
+- **arm64 Docker image (#478).** `jaysbeekay/hearth` is now published for
+  `linux/arm64` as well as `linux/amd64`, under the same tags, so it runs on
+  a Raspberry Pi 4/5 (64-bit OS), Apple-silicon Macs and ARM servers.
+  `docker pull` picks the right one automatically. Each architecture is
+  built, size-checked and smoke-tested on a native runner before either is
+  published, on every Docker-related PR as well as at release, and both
+  carry an SBOM and build provenance.
 
 ### Security
 
@@ -58,6 +97,22 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   to the real client address, as does the mTLS example config.
 
 ### Changed
+
+- **Joining the household (#372).** Accepting an invitation signs the new
+  member straight in and lands them on Upcoming, with a one-time welcome that
+  says everything is shared with the household and what their role lets
+  them do. Finishing a password reset signs in too, unless two-factor is on,
+  in which case it still asks for the code at sign-in. On phones, Upcoming
+  takes Documents' place in the bottom bar; Documents and its Inbox count
+  move into More, and the More tab shows the count too.
+- **Saving a scanned record confirms it (#359).** After a scan fills in a
+  Contract or Warranty form, pressing Save is the review: the record saves
+  confirmed, with Reminders live. The "I've checked the highlighted fields"
+  checkbox is gone. A note above Save names the fields the scan filled, and
+  "Save for later review" keeps the old path (Needs review, Reminders held,
+  and the per-field review panel). On Upload and in the Inbox, a row you
+  changed, or one the scan read confidently (two or more fields), saves
+  confirmed. Only an untouched row with a weak scan still waits for review.
 
 - **Standalone app reads Due the same way as the web (#386).** The iOS and
   Android shell now has a hand-ported copy of the Due policy
