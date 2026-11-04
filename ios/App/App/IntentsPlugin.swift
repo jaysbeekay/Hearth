@@ -54,8 +54,31 @@ public class IntentsPlugin: CAPPlugin, CAPBridgedPlugin {
     /// replaces the bridge, and the new instance takes over in load().
     static weak var current: IntentsPlugin?
 
+    /// Notes, in an isolated script world, the page path where the user last
+    /// typed into a form, cleared on submit. A route never replaces a server
+    /// page with unsaved input; checked in navigateConnectedWebView().
+    private static let dirtyFormTracker = """
+    (() => {
+      if (window.__hearthIntentTracker) return;
+      window.__hearthIntentTracker = true;
+      window.__hearthDirtyPath = null;
+      const here = () => location.pathname + location.search;
+      const mark = (event) => {
+        if (event.isTrusted && event.target?.closest?.("form")) window.__hearthDirtyPath = here();
+      };
+      document.addEventListener("input", mark, true);
+      document.addEventListener("change", mark, true);
+      document.addEventListener("submit", () => { window.__hearthDirtyPath = null; }, true);
+    })();
+    """
+    private static let dirtyFormCheck =
+        "window.__hearthDirtyPath != null && window.__hearthDirtyPath === location.pathname + location.search"
+
     public override func load() {
         Self.current = self
+        bridge?.webView?.configuration.userContentController.addUserScript(
+            WKUserScript(source: Self.dirtyFormTracker, injectionTime: .atDocumentEnd, forMainFrameOnly: true, in: .defaultClient)
+        )
     }
 
     @objc func consumePendingRoute(_ call: CAPPluginCall) {
@@ -74,8 +97,8 @@ public class IntentsPlugin: CAPPlugin, CAPBridgedPlugin {
         notifyListeners("pendingRoute", data: [:])
     }
 
-    /// If the WebView is showing the saved server, opens the route there and
-    /// returns true. Returns false when the WebView is on the local shell
+    /// If the WebView is showing the saved server, takes the route and opens
+    /// it there (or drops it over a form with unsaved input) and returns true. Returns false when the WebView is on the local shell
     /// (mode picker, standalone, paywall, connect screen or the unreachable
     /// server fallback), so app.js decides.
     private func navigateConnectedWebView() -> Bool {
@@ -98,7 +121,11 @@ public class IntentsPlugin: CAPPlugin, CAPBridgedPlugin {
         components.query = nil
         components.fragment = nil
         guard let destination = components.url else { return true }
-        webView.load(URLRequest(url: destination))
+        webView.evaluateJavaScript(Self.dirtyFormCheck, in: nil, in: .defaultClient) { [weak webView] result in
+            // Unknown counts as clean, as before this check existed.
+            if case .success(let value) = result, (value as? Bool) == true { return }
+            webView?.load(URLRequest(url: destination))
+        }
         return true
     }
 }

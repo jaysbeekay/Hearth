@@ -604,7 +604,12 @@ function recordAttempt(url) {
 // IntentsPlugin.swift; anything else is ignored.
 function navigateToConnectedServer(rawUrl, path = "") {
   const url = normalizeUrl(rawUrl);
-  const destination = new URL(url + (INTENT_SERVER_PATHS.has(path) ? path : ""));
+  const destination = new URL(url);
+  if (INTENT_SERVER_PATHS.has(path)) {
+    destination.pathname = destination.pathname.replace(/\/+$/, "") + path;
+    destination.search = "";
+    destination.hash = "";
+  }
   if (destination.protocol !== "https:" && destination.protocol !== "http:") {
     throw new Error("Address must start with http:// or https://");
   }
@@ -1723,11 +1728,10 @@ async function takePendingIntentRoute() {
 
 async function handlePendingIntentRoute() {
   if (!intentLaunchHandled) return;
-  // On the connect screen the route belongs to autoConnectIfSaved() or the
-  // native side; leave it to expire there.
-  if (!connectedScreen.hidden) return;
   const intent = await takePendingIntentRoute();
-  if (!intent) return;
+  // On the connect screen autoConnectIfSaved() has already had its chance
+  // (or the server is unreachable), so the route is dropped.
+  if (!intent || !connectedScreen.hidden) return;
   if (!modeScreen.hidden) {
     showStatus($("mode-status"), "Open Hearth first to finish setup.");
     return;

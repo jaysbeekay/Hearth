@@ -16,7 +16,8 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   `/contracts/new`, `/products/new` or `/dashboard` on your server; in
   standalone mode the shell opens the add form or the dashboard. If the app
   isn't ready (mode picker, standalone not purchased, server unreachable, or
-  an add/edit form with unsaved input), the shortcut just opens the app. The
+  a form with unsaved input, in standalone or on your server), the shortcut
+  just opens the app. The
   route is held in memory only and never replayed on a later launch. The iOS
   deployment target is now iOS 16.0 (App Intents needs it). No SiriKit
   entitlement, App Group or URL scheme. An unsigned iOS simulator build now

@@ -158,6 +158,8 @@ test.describe("standalone", () => {
     await expect(page.locator("#view-title")).toHaveText("Add record");
     const state = await intentState(page);
     expect(state.pending).toBeNull();
+    // Taken once on launch, never again.
+    expect(state.consumeCalls).toBe(1);
     expect(pageErrors).toEqual([]);
   });
 
@@ -176,7 +178,10 @@ test.describe("standalone", () => {
     await fire(page, "resume", "addProduct");
 
     await expect(page.locator('form[data-save-type="products"]')).toBeVisible();
-    expect((await intentState(page)).pending).toBeNull();
+    const state = await intentState(page);
+    expect(state.pending).toBeNull();
+    // One empty take on launch, one on resume.
+    expect(state.consumeCalls).toBe(2);
     expect(pageErrors).toEqual([]);
   });
 
@@ -241,15 +246,32 @@ test("the mode picker drops the route with a one-line hint", async ({ page }) =>
 });
 
 test.describe("connected", () => {
-  test("a launch route opens that page on the saved server", async ({ page }) => {
+  for (const route of Object.keys(SERVER_PATHS) as Route[]) {
+    test(`a ${route} launch route opens ${SERVER_PATHS[route]} on the saved server`, async ({ page }) => {
+      const { pageErrors } = await bootShell(page, {
+        mode: "connected",
+        serverUrl: "https://saved.hearth.example",
+        launchRoute: route,
+      });
+
+      await expect.poll(async () => (await intentState(page)).navigations).toEqual([`https://saved.hearth.example${SERVER_PATHS[route]}`]);
+      const state = await intentState(page);
+      expect(state.pending).toBeNull();
+      // autoConnectIfSaved() takes it; the launch check after finds nothing.
+      expect(state.consumeCalls).toBe(2);
+      expect(state.navigations).toHaveLength(1);
+      expect(pageErrors).toEqual([]);
+    });
+  }
+
+  test("the route goes on the server's path, before any query or fragment", async ({ page }) => {
     const { pageErrors } = await bootShell(page, {
       mode: "connected",
-      serverUrl: "https://saved.hearth.example",
-      launchRoute: "addContract",
+      serverUrl: "https://saved.hearth.example/hearth?x=1#top",
+      launchRoute: "addProduct",
     });
 
-    await expect.poll(async () => (await intentState(page)).navigations).toEqual(["https://saved.hearth.example/contracts/new"]);
-    expect((await intentState(page)).pending).toBeNull();
+    await expect.poll(async () => (await intentState(page)).navigations).toEqual(["https://saved.hearth.example/hearth/products/new"]);
     expect(pageErrors).toEqual([]);
   });
 
@@ -264,8 +286,8 @@ test.describe("connected", () => {
     await expect(page.locator("#connected-status")).toContainText("Could not reach https://saved.hearth.example");
     const state = await intentState(page);
     expect(state.navigations).toEqual([]);
-    // Not opened by the shell; the native side lets it expire.
-    expect(state.pending).toBe("whatsDue");
+    // Dropped, so connecting by hand later doesn't replay it.
+    await expect.poll(async () => (await intentState(page)).pending).toBeNull();
     expect(pageErrors).toEqual([]);
   });
 });
