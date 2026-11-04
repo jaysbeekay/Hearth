@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { documentStoreFor } from "@/lib/storage";
-import { isModuleEnabled } from "@/lib/modules/enablement";
-import { DOCUMENT_KIND_MODULE } from "@/lib/documents/kinds";
-import { findDocumentAnyKind, isDocumentOwnerInTrash } from "@/lib/commands/documents";
+import { findServableDocument } from "@/lib/documents/shareLinks";
 
 // #396 — the one file route for a Document of every kind. The id alone
 // finds it (cuids are unique across the 8 tables). Household-wide like the
@@ -24,11 +22,8 @@ export async function GET(
   const { id } = await params;
   const notFound = () => NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const doc = await findDocumentAnyKind(id);
-  if (!doc || doc.deletedAt) return notFound();
-  const moduleKey = DOCUMENT_KIND_MODULE[doc.kind];
-  if (moduleKey && !(await isModuleEnabled(moduleKey))) return notFound();
-  if (await isDocumentOwnerInTrash(doc)) return notFound();
+  const doc = await findServableDocument(id);
+  if (!doc) return notFound();
 
   const buffer = await documentStoreFor(doc.kind).read(doc.ownerId, doc.storedName);
   const safeFilename = doc.filename.replace(/[\r\n"]/g, "_");
