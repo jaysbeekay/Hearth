@@ -1080,8 +1080,10 @@ function householdDefaultReminderDays() {
 function normaliseDefaultReminderDays(value) {
   const text = String(value ?? "").trim();
   if (!text || !/^\d+(\s*,\s*\d+)*$/.test(text)) return null;
-  const days = Array.from(new Set(text.split(",").map((part) => Number(part.trim()))));
-  return days.sort((a, b) => b - a).join(",");
+  const numbers = text.split(",").map((part) => Number(part.trim()));
+  // A digit run too long for a safe integer would round or become Infinity.
+  if (!numbers.every((number) => Number.isSafeInteger(number))) return null;
+  return Array.from(new Set(numbers)).sort((a, b) => b - a).join(",");
 }
 
 function dueUtcMidnight(y, m, d) {
@@ -5109,10 +5111,14 @@ async function saveDefaultReminderDays(form) {
   if (days == null) throw new Error("Default reminder thresholds must be whole numbers of days, comma-separated.");
   await prefSet(DEFAULT_REMINDER_DAYS_KEY, days);
   state.defaultReminderDays = days;
+  let rescheduled = true;
   if (state.localRemindersEnabled) {
-    await syncLocalReminders(false).catch((error) => showStandaloneStatus(error.message || "Saved, but reminders could not be rescheduled."));
+    await syncLocalReminders(false).catch((error) => {
+      rescheduled = false;
+      showStandaloneStatus(`Default saved, but reminders could not be rescheduled: ${error?.message || "unknown error"}`);
+    });
   }
-  showStandaloneStatus("Default reminder thresholds saved.", true);
+  if (rescheduled) showStandaloneStatus("Default reminder thresholds saved.", true);
   await render();
 }
 

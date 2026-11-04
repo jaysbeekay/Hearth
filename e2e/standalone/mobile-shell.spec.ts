@@ -1440,6 +1440,11 @@ test("standalone default Reminder thresholds drive Due soon and reschedule remin
   await page.getByRole("button", { name: "Save default" }).click();
   await expect(page.getByText("Default reminder thresholds must be whole numbers of days, comma-separated.")).toBeVisible();
   await expect(card("Ten Day Plan")).toHaveClass(/warning-card/);
+  // Too long to be a safe whole number (it would become Infinity).
+  await page.locator('input[name="defaultReminderDays"]').fill("7,".concat("9".repeat(400)));
+  await page.getByRole("button", { name: "Save default" }).click();
+  await expect(page.getByText("Default reminder thresholds must be whole numbers of days, comma-separated.")).toBeVisible();
+  await expect(page.locator(".mini-card").filter({ hasText: "Default thresholds" }).locator("strong")).toHaveText("30,14,7,1");
 
   // 7,1 (typed out of order, with a repeat): 10 days out is no longer Due
   // soon, and the device reminders are rescheduled to match.
