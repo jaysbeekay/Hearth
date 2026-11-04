@@ -55,11 +55,11 @@ export function ProductDocumentUploadForm({
         </SelectWrapper>
       </div>
       <FileDropZone name="file" required />
-      <SubmitButton>
+      <SubmitButton variant="secondary">
         <Upload size={16} className="mr-2" />
         Upload
       </SubmitButton>
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
     </form>
   );
 }

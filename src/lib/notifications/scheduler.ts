@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { purgeStaleShareLinks } from "@/lib/documents/shareLinks";
 import { getReminderConfig, getHouseholdToday } from "@/lib/appSettings";
 import { sendReminderEmail } from "@/lib/notifications/email";
 import { sendNtfyReminder } from "@/lib/notifications/ntfy";
@@ -15,6 +16,8 @@ import type { NotificationOwnerType } from "@/generated/prisma/enums";
 import { env, isAppUrlConfigured } from "@/lib/env";
 import type { ReminderInput } from "@/lib/notifications/reminderContent";
 import type { DueEntry, VehicleDueField } from "@/lib/duePolicy";
+import { COVERING_CONTRACTS } from "@/lib/covers";
+import { tenancyDueRecord, vehicleDueRecord } from "@/lib/dueRecords";
 
 type ReminderContent = Omit<ReminderInput, "dateFormat" | "appUrl">;
 
@@ -34,6 +37,10 @@ export async function runExpirationCheck(now: Date = new Date()) {
   // document-store reconciliation sweep piggybacks on this tick too.
   await reconcileDocumentStore().catch((error) => {
     console.error("[documentStore] reconciliation failed:", error);
+  });
+  // #374 — expired and revoked share links, a day after they stop working.
+  await purgeStaleShareLinks(now).catch((error) => {
+    console.error("[share] link purge failed:", error);
   });
 
   const { defaultDays } = await getReminderConfig();
@@ -164,6 +171,7 @@ export async function runExpirationCheck(now: Date = new Date()) {
       // #355 — an Archived Vehicle gets no Reminders.
       archivedAt: null,
     },
+    include: { contracts: COVERING_CONTRACTS },
   });
   const vehicleLogs = await getNotificationLogsByOwner(
     "VEHICLE",
@@ -172,7 +180,7 @@ export async function runExpirationCheck(now: Date = new Date()) {
   for (const vehicle of vehicles) {
     const sentLog = (vehicleLogs.get(vehicle.id) ?? []).map(toSentLogRow);
     // Rego, insurance and service are separate entries with their own Reminders.
-    const plan = reminderPlan({ kind: "vehicle", ...vehicle }, ctx, sentLog);
+    const plan = reminderPlan(vehicleDueRecord(vehicle), ctx, sentLog);
     await remind("VEHICLE", vehicle.id, plan, (entry) => {
       const field = entry.field as VehicleDueField;
       // #352 — vehicles have their own wording and /vehicles link.
@@ -196,7 +204,7 @@ export async function runExpirationCheck(now: Date = new Date()) {
   );
   for (const { propertyId, propertyLabel, tenancy } of tenancies) {
     const sentLog = (tenancyLogs.get(tenancy.id) ?? []).map(toSentLogRow);
-    const plan = reminderPlan({ kind: "tenancy", ...tenancy }, ctx, sentLog);
+    const plan = reminderPlan(tenancyDueRecord(tenancy), ctx, sentLog);
     await remind("TENANCY", tenancy.id, plan, (entry) => ({
       kind: "tenancy",
       id: tenancy.id,

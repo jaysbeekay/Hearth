@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { Camera, Loader2 } from "lucide-react";
 import { saveToInbox } from "@/lib/actions/import";
 import { showToast } from "@/components/Toast";
-import { compactButtonClass } from "@/lib/buttonStyles";
 import { cn } from "@/lib/utils";
+import { buttonClass } from "@/lib/ui";
 
 // Phone-only "Take photo" button, rendered in the page header next to the
 // Upload entry point on the dashboard and Documents pages (#401). It
@@ -50,7 +50,7 @@ export function TakePhotoButton() {
       <label
         htmlFor={inputId}
         className={cn(
-          compactButtonClass("secondary"),
+          buttonClass("secondary"),
           "cursor-pointer gap-2 whitespace-nowrap md:hidden has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent",
         )}
       >

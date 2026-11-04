@@ -9,6 +9,7 @@ import {
   restoreDocumentCommand,
   permanentlyDeleteDocumentCommand,
   setDocumentImportantCommand,
+  setDocumentCategoryCommand,
   supersedeDocumentCommand,
   findDocument,
   findDocumentAnyKind,
@@ -20,6 +21,7 @@ import {
   permanentlyDeleteDocumentAction,
   restoreDocumentAction,
   setDocumentImportantAction,
+  setDocumentCategoryAction,
 } from "@/lib/actions/documents";
 import { attachInboxDocumentAsVersion } from "@/lib/actions/import";
 import { auth } from "@/lib/auth";
@@ -202,6 +204,21 @@ describe.each(OWNED_DOCUMENT_KINDS)("Document command: %s", (kind) => {
     await permanentlyDeleteDocumentCommand(kind, doc.id);
     expect(await findDocument(kind, doc.id)).toBeNull();
     expect(await exists(filePath(kind, ownerId, doc.storedName))).toBe(false);
+  });
+
+  it("sets the Document type afterwards, except on a Warranty (#405)", async () => {
+    const { ownerId } = await createOwner(kind);
+    const doc = await addDocumentCommand(kind, ownerId, { file: pdf() });
+    if (kind === "PRODUCT") {
+      await expect(setDocumentCategoryCommand(kind, doc.id, "RECEIPT")).rejects.toThrow("set when it's uploaded");
+      return;
+    }
+    await setDocumentCategoryCommand(kind, doc.id, "RECEIPT", { ownerId });
+    expect((await findDocument(kind, doc.id))?.category).toBe("RECEIPT");
+    // Scoped to the record the list showed it under.
+    await expect(setDocumentCategoryCommand(kind, doc.id, "MANUAL", { ownerId: "elsewhere" })).rejects.toBeInstanceOf(
+      RecordNotFoundError,
+    );
   });
 
   it("stars and unstars", async () => {
@@ -503,6 +520,27 @@ describe("Review follow-ups", () => {
       expect(await delegates[kind].count({ where })).toBe(0);
     },
   );
+
+  it("refuses to set the type of a Document whose record, or the record above it, is in Trash (#515 review)", async () => {
+    const p = db.prisma;
+    const contract = await createOwner("CONTRACT");
+    const onContract = await addDocumentCommand("CONTRACT", contract.ownerId, { file: pdf() });
+    await setDocumentCategoryCommand("CONTRACT", onContract.id, "RECEIPT", { ownerId: contract.ownerId });
+    await p.contract.update({ where: { id: contract.ownerId }, data: { deletedAt: new Date() } });
+    await expect(
+      setDocumentCategoryCommand("CONTRACT", onContract.id, "MANUAL", { ownerId: contract.ownerId }),
+    ).rejects.toBeInstanceOf(RecordNotFoundError);
+    expect((await findDocument("CONTRACT", onContract.id))?.category).toBe("RECEIPT");
+
+    const segment = await createOwner("TRIP_SEGMENT");
+    const onSegment = await addDocumentCommand("TRIP_SEGMENT", segment.ownerId, { file: pdf() });
+    const { tripId } = await p.tripSegment.findUniqueOrThrow({ where: { id: segment.ownerId } });
+    await p.trip.update({ where: { id: tripId }, data: { deletedAt: new Date() } });
+    await expect(
+      setDocumentCategoryCommand("TRIP_SEGMENT", onSegment.id, "RECEIPT", { ownerId: segment.ownerId }),
+    ).rejects.toBeInstanceOf(RecordNotFoundError);
+    expect((await findDocument("TRIP_SEGMENT", onSegment.id))?.category).toBeNull();
+  });
 });
 
 describe("Document actions", () => {
@@ -522,6 +560,7 @@ describe("Document actions", () => {
       await expect(restoreDocumentAction("CONTRACT", "x")).rejects.toThrow("read-only");
       await expect(permanentlyDeleteDocumentAction("CONTRACT", "x")).rejects.toThrow("read-only");
       await expect(setDocumentImportantAction("CONTRACT", "x", true)).rejects.toThrow("read-only");
+      await expect(setDocumentCategoryAction("CONTRACT", "x", "o", "MANUAL")).rejects.toThrow("read-only");
       expect(await db.prisma.document.count()).toBe(0);
     } finally {
       vi.mocked(auth).mockResolvedValue({ user: { id: "u1", role: "MEMBER" } } as never);
@@ -534,6 +573,25 @@ describe("Document actions", () => {
       "Unknown document kind",
     );
     expect(await attachInboxDocumentAsVersion("x", "TRADE" as never, "o", "d")).toEqual({
+      error: "Document not found.",
+    });
+  });
+
+  it("sets a Document type from its row, checking the type and the kind (#405)", async () => {
+    const { ownerId } = await createOwner("CONTRACT");
+    expect(await addDocumentAction("CONTRACT", ownerId, null, upload())).toEqual({ success: "Document uploaded." });
+    const [row] = await db.prisma.document.findMany({ where: { contractId: ownerId } });
+    expect(await setDocumentCategoryAction("CONTRACT", row.id, ownerId, "MANUAL")).toEqual({
+      success: "Document type saved.",
+    });
+    expect((await db.prisma.document.findUnique({ where: { id: row.id } }))?.category).toBe("MANUAL");
+    expect(await setDocumentCategoryAction("CONTRACT", row.id, ownerId, "NOPE")).toEqual({
+      error: "Choose a Document type.",
+    });
+    expect(await setDocumentCategoryAction("PRODUCT", row.id, ownerId, "MANUAL")).toEqual({
+      error: "A Warranty Document's type is set when it's uploaded.",
+    });
+    expect(await setDocumentCategoryAction("CONTRACT", row.id, "elsewhere", "MANUAL")).toEqual({
       error: "Document not found.",
     });
   });
@@ -555,9 +613,9 @@ describe("Document actions", () => {
     const [row] = await db.prisma.document.findMany({ where: { contractId: ownerId } });
     expect(row.category).toBe("RECEIPT");
     expect(await permanentlyDeleteDocumentAction("CONTRACT", row.id)).toEqual({
-      error: "Move the document to Trash before deleting it permanently.",
+      error: "Only a document in Recently deleted can be deleted permanently.",
     });
-    expect(await deleteDocumentAction("CONTRACT", row.id, ownerId)).toEqual({ success: "Document moved to Trash." });
+    expect(await deleteDocumentAction("CONTRACT", row.id, ownerId)).toEqual({ success: "Document deleted." });
     expect(await permanentlyDeleteDocumentAction("CONTRACT", row.id)).toEqual({ success: "Deleted permanently." });
 
     await setModuleEnabled("TRAVEL", false);

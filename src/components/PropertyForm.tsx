@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import type { PropertyModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
+import { FormActions } from "@/components/FormActions";
 import { FormMessage } from "@/components/FormMessage";
 import {
   makeOfflineAwareAction,
@@ -15,9 +16,10 @@ import {
   type QueuedOperation,
 } from "@/lib/offlineQueue";
 import { Field } from "@/components/FormField";
-import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
+import { SelectWrapper, inputClass, textareaClass, selectClass } from "@/components/SelectWrapper";
 import { OCCUPANCY_STATUSES } from "@/lib/validation/home";
 import { OCCUPANCY_STATUS_LABELS } from "@/lib/utils";
+import { bannerClass, overlayClass, inlineLinkClass } from "@/lib/ui";
 
 interface GeocodeSuggestion {
   display_name: string;
@@ -32,9 +34,12 @@ interface GeocodeSuggestion {
 
 export function PropertyForm({
   action,
+  cancelHref,
   property,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
+  /** Where Cancel goes: the same place as the page's BackLink. */
+  cancelHref: string;
   property?: PropertyModel;
 }) {
   const offlineAwareAction = makeOfflineAwareAction(
@@ -85,7 +90,7 @@ export function PropertyForm({
       className="space-y-6"
     >
       {pendingOp && (
-        <p className="rounded-lg border border-dashed border-warning/40 bg-warning/10 px-4 py-2 text-sm text-warning">
+        <p className={bannerClass("warning")}>
           Editing an offline entry that hasn&apos;t synced yet — saving updates it in place.
         </p>
       )}
@@ -122,12 +127,12 @@ export function PropertyForm({
       </div>
 
       {occupancyStatus === "RENTED" && (
-        <p className="rounded-lg border border-dashed border-border bg-hover px-4 py-2 text-sm text-muted">
+        <p className={bannerClass("neutral", "text-muted")}>
           {property ? (
             property.isRented ? (
               <>
                 This property already has a tenancy —{" "}
-                <Link href={`/home/${property.id}/rental`} className="text-accent hover:underline">
+                <Link href={`/home/${property.id}/rental`} className={inlineLinkClass}>
                   view it
                 </Link>
                 .
@@ -136,7 +141,7 @@ export function PropertyForm({
               <>
                 This property has no tenancy (rent, statements, reconciliation) yet
                 —{" "}
-                <Link href={`/home/${property.id}/rental`} className="text-accent hover:underline">
+                <Link href={`/home/${property.id}/rental`} className={inlineLinkClass}>
                   set it up
                 </Link>
                 .
@@ -169,15 +174,15 @@ export function PropertyForm({
           name="notes"
           rows={4}
           defaultValue={effectiveValues?.notes ?? property?.notes ?? ""}
-          className={inputClass}
+          className={textareaClass}
         />
       </Field>
 
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
 
-      <div className="flex justify-end gap-3">
+      <FormActions cancelHref={cancelHref}>
         <SubmitButton>{pendingOp || property ? "Save changes" : "Add property"}</SubmitButton>
-      </div>
+      </FormActions>
     </form>
   );
 }
@@ -289,7 +294,7 @@ function AddressFields({
           <input type="hidden" name="lat" value={lat ?? ""} />
           <input type="hidden" name="lng" value={lng ?? ""} />
           {showSuggestions && visibleSuggestions.length > 0 && (
-            <ul className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-border bg-surface shadow-md">
+            <ul className={overlayClass("absolute z-10 mt-1 w-full overflow-hidden")}>
               {visibleSuggestions.map((s) => (
                 <li key={`${s.lat},${s.lng}`}>
                   <button

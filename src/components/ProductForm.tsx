@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  ExtractionReviewNote,
+  SaveForLaterButton,
+  autoFilledFields,
+  type AutoFilledField,
+} from "@/components/ExtractionReviewNote";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { addMonths } from "date-fns";
@@ -7,6 +13,8 @@ import { ScanBarcode, Upload } from "lucide-react";
 import type { ProductModel } from "@/generated/prisma/models";
 import type { ActionState } from "@/lib/actions/products";
 import { SubmitButton } from "@/components/SubmitButton";
+import { FormActions } from "@/components/FormActions";
+import { ReminderThresholdsField, hasOwnThresholds } from "@/components/ReminderThresholdsField";
 import { FormMessage } from "@/components/FormMessage";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
 import { CurrencySelect } from "@/components/CurrencySelect";
@@ -19,10 +27,13 @@ import {
   type QueuedOperation,
 } from "@/lib/offlineQueue";
 import { Field } from "@/components/FormField";
-import { inputClass, selectClass } from "@/components/SelectWrapper";
+import { FormSection, hasAnyValue } from "@/components/FormSection";
+import { inputClass, textareaClass, selectClass } from "@/components/SelectWrapper";
 import { LinkedToField } from "@/components/LinkedToField";
 import { applyIfEmpty, markAutoFilled, extractionMessage } from "@/lib/autoFillHighlight";
 import { DateInput } from "@/components/DateInput";
+import { bannerClass, buttonClass } from "@/lib/ui";
+import { Card } from "@/components/ui/Card";
 
 function toDateInputValue(date: Date | null | undefined) {
   if (!date) return "";
@@ -35,6 +46,8 @@ type ExtractedFields = Partial<
 
 export function ProductForm({
   action,
+  cancelHref,
+  defaultReminderDays,
   product,
   defaultCurrency,
   properties = [],
@@ -42,6 +55,10 @@ export function ProductForm({
   barcodeLookupEnabled = false,
 }: {
   action: (state: ActionState, formData: FormData) => Promise<ActionState>;
+  /** Where Cancel goes: the same place as the page's BackLink. */
+  cancelHref: string;
+  /** #360 — the household's default Reminder thresholds, for the presets. */
+  defaultReminderDays: string;
   product?: ProductModel;
   defaultCurrency?: string;
   properties?: { id: string; label: string }[];
@@ -71,7 +88,8 @@ export function ProductForm({
   // src/lib/actions/products.ts. Both invoice scan and barcode lookup can
   // populate critical fields, so both count as "extraction used".
   const [extractionUsed, setExtractionUsed] = useState(false);
-  const [confirmExtraction, setConfirmExtraction] = useState(false);
+  // #359 — the fields the scan filled in, named above Save.
+  const [autoFilled, setAutoFilled] = useState<AutoFilledField[]>([]);
 
   const router = useRouter();
   const pendingOpId = useSearchParams().get("pendingOpId");
@@ -136,16 +154,18 @@ export function ProductForm({
       const res = await fetch("/api/products/extract", { method: "POST", body });
       if (!res.ok) throw new Error("Extraction failed");
 
-      const { fields, source } = (await res.json()) as {
+      const { fields, source, textUnavailable } = (await res.json()) as {
         fields: ExtractedFields;
         source: "byok" | "heuristic" | "llm" | "none";
+        textUnavailable?: boolean;
       };
       const filledCount = Object.keys(fields).length;
       if (filledCount > 0) {
         applyExtractedFields(fields);
         setExtractionUsed(true);
+        setAutoFilled(autoFilledFields(descriptionRef.current?.form, source === "none" ? "heuristic" : source));
       }
-      setScanMessage(extractionMessage(source, filledCount));
+      setScanMessage(extractionMessage(source, filledCount, textUnavailable));
     } catch {
       setScanMessage("Couldn't scan this invoice. You can still attach it and fill in fields manually.");
     } finally {
@@ -178,6 +198,7 @@ export function ProductForm({
       if (found) {
         applyExtractedFields(fields);
         setExtractionUsed(true);
+        setAutoFilled(autoFilledFields(descriptionRef.current?.form, "heuristic"));
         setLookupMessage("Fields populated from the barcode — review before saving.");
       } else if (reason === "rate_limited") {
         setLookupMessage(
@@ -211,13 +232,13 @@ export function ProductForm({
       className="space-y-6"
     >
       {pendingOp && (
-        <p className="rounded-lg border border-dashed border-warning/40 bg-warning/10 px-4 py-2 text-sm text-warning">
+        <p className={bannerClass("warning")}>
           Editing an offline entry that hasn&apos;t synced yet — saving updates it in place.
         </p>
       )}
       {!product && (
-        <div className="space-y-4">
-          <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
+        <div>
+          <Card className="space-y-2">
             <p className="flex items-center gap-2 text-sm font-medium">
               <Upload size={16} />
               Save time: upload an invoice and Hearth fills in the details
@@ -233,15 +254,7 @@ export function ProductForm({
                 {scanMessage}
               </p>
             )}
-          </div>
-
-          <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
-            <p className="flex items-center gap-2 text-sm font-medium">
-              <Upload size={16} />
-              Upload a photo of the product (optional)
-            </p>
-            <FileDropZone name="photoFile" accept="image/*" label="Drag a photo here or click to browse" hint="JPG, PNG, or WEBP — up to 15MB" />
-          </div>
+          </Card>
         </div>
       )}
 
@@ -267,71 +280,6 @@ export function ProductForm({
             placeholder="e.g. Samsung"
             className={inputClass}
           />
-        </Field>
-
-        <Field label="Model" htmlFor="model">
-          <input
-            ref={modelRef}
-            id="model"
-            name="model"
-            defaultValue={effectiveValues?.model ?? product?.model ?? ""}
-            placeholder="e.g. QN65Q80"
-            className={inputClass}
-          />
-        </Field>
-
-        <Field label="Vendor / retailer" htmlFor="vendor">
-          <input
-            ref={vendorRef}
-            id="vendor"
-            name="vendor"
-            defaultValue={effectiveValues?.vendor ?? product?.vendor ?? ""}
-            placeholder="e.g. JB Hi-Fi"
-            className={inputClass}
-          />
-        </Field>
-
-        <Field label="Serial number" htmlFor="serialNumber">
-          <input
-            ref={serialNumberRef}
-            id="serialNumber"
-            name="serialNumber"
-            defaultValue={effectiveValues?.serialNumber ?? product?.serialNumber ?? ""}
-            className={inputClass}
-          />
-        </Field>
-
-        <Field label="Barcode (UPC/EAN)" htmlFor="barcode">
-          <div className="flex gap-2">
-            <input
-              ref={barcodeRef}
-              id="barcode"
-              name="barcode"
-              defaultValue={effectiveValues?.barcode ?? product?.barcode ?? ""}
-              placeholder="e.g. 9310036001234"
-              className={inputClass}
-            />
-            <button
-              type="button"
-              onClick={() => setScannerOpen(true)}
-              aria-label="Scan barcode"
-              title="Scan barcode"
-              className="flex items-center justify-center rounded-lg border border-border px-3 hover:bg-hover"
-            >
-              <ScanBarcode size={16} />
-            </button>
-          </div>
-          {!product && barcodeLookupEnabled && (
-            <button
-              type="button"
-              onClick={() => handleBarcodeLookup()}
-              disabled={lookingUp}
-              className="mt-1 text-xs font-medium text-accent hover:underline disabled:opacity-50"
-            >
-              {lookingUp ? "Looking up…" : "Look up barcode"}
-            </button>
-          )}
-          {lookupMessage && <p className="mt-1 text-sm text-muted">{lookupMessage}</p>}
         </Field>
 
         <Field label="Purchase date" htmlFor="purchaseDate">
@@ -376,67 +324,152 @@ export function ProductForm({
             defaultValue={effectiveValues?.currency ?? product?.currency ?? defaultCurrency}
           />
         </Field>
-
-        <LinkedToField
-          id="linkedTo"
-          properties={properties}
-          homeEnabled={homeEnabled}
-          recordNoun="warranty"
-          defaultValue={{ propertyId: effectiveValues?.propertyId ?? product?.propertyId ?? "" }}
-          withHiddenInputs
-          selectClassName={selectClass}
-          chevron
-        />
       </div>
 
-      <Field label="Notes" htmlFor="notes">
-        <textarea
-          id="notes"
-          name="notes"
-          rows={4}
-          defaultValue={effectiveValues?.notes ?? product?.notes ?? ""}
-          className={inputClass}
-        />
-      </Field>
-
-      <Field
-        label="Reminder thresholds (days before, comma-separated)"
-        htmlFor="reminderDaysBefore"
+      {/* #361 — the dates and price that drive Reminders and Spend stay above. */}
+      <FormSection
+        title="More details"
+        hint="Model, serial, retailer, notes"
+        defaultOpen={hasAnyValue([
+          effectiveValues?.model ?? product?.model,
+          effectiveValues?.vendor ?? product?.vendor,
+          effectiveValues?.serialNumber ?? product?.serialNumber,
+          effectiveValues?.barcode ?? product?.barcode,
+          effectiveValues?.propertyId ?? product?.propertyId,
+          effectiveValues?.notes ?? product?.notes,
+        ])}
       >
-        <input
-          id="reminderDaysBefore"
-          name="reminderDaysBefore"
-          defaultValue={effectiveValues?.reminderDaysBefore ?? product?.reminderDaysBefore ?? ""}
-          placeholder="30,14,7,1"
-          className={inputClass}
-        />
-      </Field>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field label="Model" htmlFor="model">
+            <input
+              ref={modelRef}
+              id="model"
+              name="model"
+              defaultValue={effectiveValues?.model ?? product?.model ?? ""}
+              placeholder="e.g. QN65Q80"
+              className={inputClass}
+            />
+          </Field>
 
-      {extractionUsed && (
-        <div className="flex items-start gap-2 rounded-lg border border-dashed border-border p-3">
-          <input
-            id="confirmExtractionCheckbox"
-            type="checkbox"
-            checked={confirmExtraction}
-            onChange={(e) => setConfirmExtraction(e.target.checked)}
-            className="mt-0.5 size-4 rounded border-border accent-accent"
+          <Field label="Vendor / retailer" htmlFor="vendor">
+            <input
+              ref={vendorRef}
+              id="vendor"
+              name="vendor"
+              defaultValue={effectiveValues?.vendor ?? product?.vendor ?? ""}
+              placeholder="e.g. JB Hi-Fi"
+              className={inputClass}
+            />
+          </Field>
+
+          <Field label="Serial number" htmlFor="serialNumber">
+            <input
+              ref={serialNumberRef}
+              id="serialNumber"
+              name="serialNumber"
+              defaultValue={effectiveValues?.serialNumber ?? product?.serialNumber ?? ""}
+              className={inputClass}
+            />
+          </Field>
+
+          <Field label="Barcode (UPC/EAN)" htmlFor="barcode">
+            <div className="flex gap-2">
+              <input
+                ref={barcodeRef}
+                id="barcode"
+                name="barcode"
+                defaultValue={effectiveValues?.barcode ?? product?.barcode ?? ""}
+                placeholder="e.g. 9310036001234"
+                className={inputClass}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setScannerOpen(true);
+                }}
+                aria-label="Scan barcode"
+                title="Scan barcode"
+                className={buttonClass("secondary")}
+              >
+                <ScanBarcode size={16} />
+              </button>
+            </div>
+            {!product && barcodeLookupEnabled && (
+              <button
+                type="button"
+                onClick={() => {
+                  void handleBarcodeLookup();
+                }}
+                disabled={lookingUp}
+                className="mt-1 text-xs font-medium text-accent hover:underline disabled:opacity-50"
+              >
+                {lookingUp ? "Looking up…" : "Look up barcode"}
+              </button>
+            )}
+            {lookupMessage && <p className="mt-1 text-sm text-muted">{lookupMessage}</p>}
+          </Field>
+
+          <LinkedToField
+            id="linkedTo"
+            properties={properties}
+            homeEnabled={homeEnabled}
+            recordNoun="warranty"
+            defaultValue={{ propertyId: effectiveValues?.propertyId ?? product?.propertyId ?? "" }}
+            withHiddenInputs
+            selectClassName={selectClass}
+            chevron
           />
-          <label htmlFor="confirmExtractionCheckbox" className="text-sm">
-            I&apos;ve checked the highlighted fields above and they&apos;re correct. Leave this
-            unchecked to save anyway — the record will be marked{" "}
-            <span className="font-medium">Needs review</span> and reminders will be held until
-            it&apos;s confirmed.
-          </label>
         </div>
-      )}
+        <Field label="Notes" htmlFor="notes">
+          <textarea
+            id="notes"
+            name="notes"
+            rows={4}
+            defaultValue={effectiveValues?.notes ?? product?.notes ?? ""}
+            className={textareaClass}
+          />
+        </Field>
+        {!product && (
+          <div className="space-y-2">
+            <p className="flex items-center gap-2 text-sm font-medium">
+              <Upload size={16} />
+              Photo of the product (optional)
+            </p>
+            <FileDropZone
+              name="photoFile"
+              accept="image/*"
+              label="Drag a photo here or click to browse"
+              hint="JPG, PNG, or WEBP — up to 15MB"
+            />
+          </div>
+        )}
+      </FormSection>
+
+      <FormSection
+        title="Reminders"
+        hint="Household default unless changed"
+        defaultOpen={hasOwnThresholds(
+          effectiveValues?.reminderDaysBefore ?? product?.reminderDaysBefore,
+          defaultReminderDays,
+        )}
+      >
+        <ReminderThresholdsField
+          defaultValue={effectiveValues?.reminderDaysBefore ?? product?.reminderDaysBefore ?? ""}
+          householdDefault={defaultReminderDays}
+          before="the warranty ends"
+          srOnlyLegend
+        />
+      </FormSection>
+
+      {extractionUsed && <ExtractionReviewNote fields={autoFilled} />}
       <input type="hidden" name="extractionUsed" value={extractionUsed ? "1" : "0"} />
-      <input type="hidden" name="confirmExtraction" value={confirmExtraction ? "1" : "0"} />
 
-      <FormMessage error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
 
-      <div className="flex justify-end gap-3">
+      <FormActions cancelHref={cancelHref}>
         <SubmitButton>{pendingOp || product ? "Save changes" : "Add warranty"}</SubmitButton>
-      </div>
+        {extractionUsed && <SaveForLaterButton />}
+      </FormActions>
 
       {scannerOpen && (
         <BarcodeScanner

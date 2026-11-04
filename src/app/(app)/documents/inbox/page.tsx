@@ -5,10 +5,12 @@ import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { getDocumentStats } from "@/lib/documents/stats";
 import { findDocumentsByHashBatch, type DocumentKind } from "@/lib/documents/documentQueries";
 import { InboxReviewClient, type DuplicateMatch } from "@/components/InboxReviewClient";
+import { pendingImportCount } from "@/lib/mcp/imports";
 import { DocumentsTabs, DocumentsUploadActions } from "@/components/DocumentsTabs";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Inbox" };
 
@@ -88,11 +90,13 @@ export default async function InboxPage({
     );
   }
 
+  const importsCount = await pendingImportCount();
+
   return (
-    <div className="max-w-3xl space-y-6">
+    <PageShell width="list">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold">Documents</h1>
+          <h1 className="text-2xl font-medium">Documents</h1>
           <p className="text-sm text-muted">
             Documents saved without picking a destination yet. Classify each one, or discard it.
           </p>
@@ -105,6 +109,7 @@ export default async function InboxPage({
         inboxCount={stats.inboxCount}
         filedCount={filedCount}
         allCount={stats.total}
+        importsCount={importsCount}
       />
 
       <InboxReviewClient
@@ -130,7 +135,7 @@ export default async function InboxPage({
         <div className="flex items-center justify-between border-t border-border pt-4">
           {page > 0 ? (
             <Link href={`/documents/inbox?page=${page - 1}`} className="inline-flex items-center gap-1 text-sm text-accent hover:underline">
-              <ChevronLeft size={14} aria-hidden />
+              <ChevronLeft size={16} aria-hidden />
               Newer
             </Link>
           ) : (
@@ -139,11 +144,11 @@ export default async function InboxPage({
           {hasMore && (
             <Link href={`/documents/inbox?page=${page + 1}`} className="inline-flex items-center gap-1 text-sm text-accent hover:underline">
               Older
-              <ChevronRight size={14} aria-hidden />
+              <ChevronRight size={16} aria-hidden />
             </Link>
           )}
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

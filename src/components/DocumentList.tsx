@@ -4,7 +4,9 @@ import { setDocumentImportantAction } from "@/lib/actions/documents";
 import { DocumentDeleteButton } from "@/components/DocumentDeleteButton";
 import { DocumentLink } from "@/components/DocumentLink";
 import { DocumentPreviewButton } from "@/components/DocumentPreviewButton";
+import { DocumentShareButton } from "@/components/DocumentShareButton";
 import { DocumentThumbnail } from "@/components/DocumentThumbnail";
+import { DocumentTypeSelect } from "@/components/DocumentTypeSelect";
 import { ImportantToggle } from "@/components/ImportantToggle";
 import { documentFileHref, type OwnedDocumentKind } from "@/lib/documents/kinds";
 import {
@@ -16,6 +18,7 @@ import {
   type DocumentVersionLink,
 } from "@/lib/documents/documentList";
 import { humanFileSize } from "@/lib/utils";
+import { Pill } from "@/components/ui/Pill";
 
 // #397 — the one Document list, for every kind of record. Each Document
 // shows its type, a star, a preview where the browser can show the file,
@@ -30,7 +33,7 @@ type Row = DocumentListRow & {
 
 function TypePill({ label }: { label: string | null }) {
   if (!label) return null;
-  return <span className="rounded-md bg-muted/10 px-1.5 py-0.5 text-xs font-medium text-muted">{label}</span>;
+  return <Pill>{label}</Pill>;
 }
 
 export function DocumentList({
@@ -82,7 +85,7 @@ export function DocumentList({
                   {showsThumbnail(doc, productKind(doc)) ? (
                     <DocumentThumbnail href={href} />
                   ) : (
-                    <FileText size={18} className="shrink-0 text-muted" />
+                    <FileText size={16} className="shrink-0 text-muted" />
                   )}
                   <span className="min-w-0 truncate">{doc.filename}</span>
                 </span>
@@ -90,16 +93,29 @@ export function DocumentList({
                   <span className="text-muted">
                     {humanFileSize(doc.size)} · <Timestamp value={doc.uploadedAt} />
                   </span>
-                  <TypePill label={documentTypeLabel(doc, productKind(doc))} />
+                  {kind === "PRODUCT" && <TypePill label={documentTypeLabel(doc, productKind(doc))} />}
                   {older.length > 0 && (
-                    <span className="rounded-md bg-muted/10 px-1.5 py-0.5 text-xs font-medium text-muted">
+                    <Pill>
                       Latest
-                    </span>
+                    </Pill>
                   )}
                 </span>
               </DocumentLink>
               <div className="flex shrink-0 items-center">
-                <DocumentPreviewButton href={href} filename={doc.filename} mimeType={doc.mimeType} />
+                {/* #405 — the type is set here, outside the file link, so an
+                    "Add document" upload can be typed afterwards. A Warranty
+                    Document's type is fixed at upload (it drives the hero photo). */}
+                {kind !== "PRODUCT" && (
+                  <DocumentTypeSelect
+                    kind={kind}
+                    documentId={doc.id}
+                    ownerId={ownerId}
+                    filename={doc.filename}
+                    category={doc.category}
+                  />
+                )}
+                <DocumentPreviewButton documentId={doc.id} href={href} filename={doc.filename} mimeType={doc.mimeType} />
+                <DocumentShareButton documentId={doc.id} href={href} filename={doc.filename} mimeType={doc.mimeType} />
                 {star(doc)}
                 <DocumentDeleteButton kind={kind} documentId={doc.id} ownerId={ownerId} filename={doc.filename} />
               </div>
@@ -117,7 +133,7 @@ export function DocumentList({
                       className="flex min-w-0 flex-col gap-0.5 text-xs text-muted hover:text-accent sm:flex-row sm:items-center sm:gap-2"
                     >
                       <span className="flex min-w-0 items-center gap-2">
-                        <History size={14} className="shrink-0" />
+                        <History size={16} className="shrink-0" />
                         <span className="min-w-0 truncate">{v.filename}</span>
                       </span>
                       <span className="flex flex-wrap items-center gap-x-2 gap-y-1 sm:shrink-0">
@@ -129,6 +145,13 @@ export function DocumentList({
                     </DocumentLink>
                     <div className="flex shrink-0 items-center">
                       <DocumentPreviewButton
+                        documentId={v.id}
+                        href={documentFileHref(v.id)}
+                        filename={v.filename}
+                        mimeType={v.mimeType}
+                      />
+                      <DocumentShareButton
+                        documentId={v.id}
                         href={documentFileHref(v.id)}
                         filename={v.filename}
                         mimeType={v.mimeType}

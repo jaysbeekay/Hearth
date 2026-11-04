@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { SelectWrapper } from "@/components/SelectWrapper";
+import { inlineLinkClass } from "@/lib/ui";
 
 export type LinkOption = { id: string; label: string };
 export type LinkValue = { propertyId: string; vehicleId: string };
@@ -153,7 +154,7 @@ export function LinkedToField({
       {homeEnabled && properties.length === 0 && (
         <p className="text-xs text-muted">
           No properties yet —{" "}
-          <Link href="/home/new" className="text-accent hover:underline" {...hintLinkProps}>
+          <Link href="/home/new" className={inlineLinkClass} {...hintLinkProps}>
             add one
           </Link>{" "}
           to link this {recordNoun} to a property.
@@ -162,7 +163,7 @@ export function LinkedToField({
       {vehiclesEnabled && vehicles.length === 0 && (
         <p className="text-xs text-muted">
           No vehicles yet —{" "}
-          <Link href="/vehicles/new" className="text-accent hover:underline" {...hintLinkProps}>
+          <Link href="/vehicles/new" className={inlineLinkClass} {...hintLinkProps}>
             add one
           </Link>{" "}
           to link this {recordNoun} to a vehicle.

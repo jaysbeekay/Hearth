@@ -1,22 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { Download, X } from "lucide-react";
+import { DocumentShareButton } from "@/components/DocumentShareButton";
 import { getOfflineDocument } from "@/lib/offlineDocuments";
 import { useOnlineStatus } from "@/lib/useOnlineStatus";
-import { isBrowserViewableImage } from "@/lib/documents/documentList";
+import { isPreviewable } from "@/lib/documents/documentList";
+import { overlayClass, buttonClass } from "@/lib/ui";
 
 export interface PreviewableDoc {
+  /** The Document's id, for Share (#374); absent for an Inbox file, which can't be shared. */
+  id?: string;
   filename: string;
   mimeType: string;
   downloadHref: string;
 }
 
-// HEIC/HEIF photos (iPhone) can't be shown inline by most browsers, so
-// they're downloaded instead of previewed.
-export function isPreviewable(mimeType: string) {
-  return isBrowserViewableImage(mimeType) || mimeType === "application/pdf";
-}
+export { isPreviewable };
 
 export function DocumentPreviewModal({
   doc,
@@ -76,16 +76,30 @@ export function DocumentPreviewModal({
         role="dialog"
         aria-label={`Preview of ${doc.filename}`}
         aria-modal="true"
-        className="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-xl"
+        className={overlayClass("flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden")}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <span className="truncate text-sm font-medium">{doc.filename}</span>
+        <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
+          <span className="min-w-0 flex-1 truncate text-sm font-medium">{doc.filename}</span>
+          {/* #374 — the same Share and Download as the Document's row. */}
+          {doc.id && (
+            <DocumentShareButton
+              documentId={doc.id}
+              href={doc.downloadHref}
+              filename={doc.filename}
+              mimeType={doc.mimeType}
+              labelled
+            />
+          )}
+          <a href={doc.downloadHref} download={doc.filename} className={buttonClass("secondary")}>
+            <Download size={16} aria-hidden />
+            Download
+          </a>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close preview"
-            className="shrink-0 rounded-md p-1 text-muted hover:bg-hover"
+            className={buttonClass("quiet", { icon: true }, "shrink-0 text-muted")}
           >
             <X size={16} />
           </button>

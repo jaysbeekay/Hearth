@@ -15,6 +15,9 @@ import { COST_METHOD_LABELS } from "@/lib/validation/wealth";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
+import { Card } from "@/components/ui/Card";
+import { buttonClass, emptyStateClass } from "@/lib/ui";
+import { PageShell } from "@/components/ui/PageShell";
 
 export const metadata: Metadata = { title: "Portfolio" };
 
@@ -53,18 +56,18 @@ export default async function PortfolioPage({
   const unpricedNote = unpricedHoldingsNote(portfolioValue?.unpricedCount ?? 0);
 
   return (
-    <div className="max-w-4xl space-y-6">
+    <PageShell width="list">
       <div>
         <BackLink href="/wealth/portfolios" label="Portfolios" />
         <div className="mt-1 flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold">{portfolio.name}</h1>
+            <h1 className="text-2xl font-medium">{portfolio.name}</h1>
             {portfolio.description && <p className="text-sm text-muted">{portfolio.description}</p>}
           </div>
           {canWrite && (
             <Link
               href={`/wealth/portfolios/${id}/edit`}
-              className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+              className={buttonClass("secondary")}
             >
               <Pencil size={16} />
               Edit
@@ -75,27 +78,27 @@ export default async function PortfolioPage({
 
       {portfolioValue && (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-          <div className="rounded-xl border border-border bg-surface p-4">
+          <Card>
             <p className="text-xs text-muted">Market value</p>
-            <p className="mt-1 text-xl font-semibold">{formatCurrency(portfolioValue.totalValue, portfolio.currency, undefined, region, { showCode: true })}</p>
-          </div>
-          <div className="rounded-xl border border-border bg-surface p-4">
+            <p className="mt-1 text-xl font-medium">{formatCurrency(portfolioValue.totalValue, portfolio.currency, undefined, region, { showCode: true })}</p>
+          </Card>
+          <Card>
             <p className="text-xs text-muted">
               Cost basis <span className="text-muted">({COST_METHOD_LABELS[portfolio.costMethod]})</span>
             </p>
-            <p className="mt-1 text-xl font-semibold">{formatCurrency(portfolioValue.pricedCost, portfolio.currency, undefined, region, { showCode: true })}</p>
+            <p className="mt-1 text-xl font-medium">{formatCurrency(portfolioValue.pricedCost, portfolio.currency, undefined, region, { showCode: true })}</p>
             {excludedCost > 0.005 && (
               <p className="text-xs text-muted" data-testid="excluded-cost">
                 Plus {formatCurrency(excludedCost, portfolio.currency, undefined, region, { showCode: true })} not counted
               </p>
             )}
-          </div>
-          <div className="rounded-xl border border-border bg-surface p-4">
+          </Card>
+          <Card>
             <p className="text-xs text-muted">Total gain / loss</p>
-            <p className={`mt-1 text-xl font-semibold ${pricedGainLoss >= 0 ? "text-success" : "text-danger"}`}>
+            <p className={`mt-1 text-xl font-medium ${pricedGainLoss >= 0 ? "text-success" : "text-danger"}`}>
               {formatCurrency(pricedGainLoss, portfolio.currency, undefined, region, { showCode: true })}
             </p>
-          </div>
+          </Card>
         </div>
       )}
       {unpricedNote && (
@@ -109,7 +112,7 @@ export default async function PortfolioPage({
             {canWrite && (
               <Link
                 href={`/wealth/portfolios/${id}/import`}
-                className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-hover"
+                className={buttonClass("secondary")}
               >
                 <Upload size={16} />
                 Import CSV
@@ -118,7 +121,7 @@ export default async function PortfolioPage({
             {canWrite && (
               <Link
                 href={`/wealth/portfolios/${id}/holdings/new`}
-                className="flex items-center gap-2 rounded-lg bg-accent px-3 py-2 text-sm font-medium text-accent-foreground hover:opacity-90"
+                className={buttonClass("secondary")}
               >
                 <Plus size={16} />
                 Add holding
@@ -128,7 +131,7 @@ export default async function PortfolioPage({
         </div>
 
         {!portfolioValue?.holdings.length ? (
-          <p className="rounded-xl border border-dashed border-border p-10 text-center text-sm text-muted">
+          <p className={emptyStateClass()}>
             No holdings yet. Add a holding manually or import a CSV of your trade history.
           </p>
         ) : (
@@ -139,6 +142,6 @@ export default async function PortfolioPage({
           </div>
         )}
       </div>
-    </div>
+    </PageShell>
   );
 }

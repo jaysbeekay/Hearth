@@ -199,6 +199,10 @@ export async function purgeProperty(id: string) {
   // Products are unlinked, not deleted). The files on disk aren't FK-linked,
   // so they're removed straight after.
   await prisma.property.delete({ where: { id } });
+  // #445 review: the staged Item table has no FK to Property (it's a
+  // snapshot of Product.propertyId), so clear the reference the FK just
+  // cleared on Products.
+  await prisma.item.updateMany({ where: { propertyId: id }, data: { propertyId: null } });
   // The sent-Reminder log isn't FK-linked either (#388).
   const tenancyIds = existing.rentalAgreements.map((agreement) => agreement.id);
   if (tenancyIds.length > 0) {
@@ -326,7 +330,7 @@ function tenancyContractMessage(problem: TenancyContractProblem) {
     case "already-linked":
       return "That contract is already linked to another tenancy.";
     case "linked-in-trash":
-      return "That contract is linked to a tenancy in Trash. Restore it or delete it permanently.";
+      return "That contract is linked to a deleted tenancy. Restore the tenancy from Recently deleted, or delete it permanently.";
   }
 }
 

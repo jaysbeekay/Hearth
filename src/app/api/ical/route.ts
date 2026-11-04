@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import ical from "ical-generator";
 import { prisma } from "@/lib/prisma";
+import { COVERING_CONTRACTS, vehicleCovers } from "@/lib/covers";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { env } from "@/lib/env";
 import { addDays, calendarDayOf, noticeApplies } from "@/lib/duePolicy";
@@ -90,9 +91,23 @@ export async function GET(request: NextRequest) {
   if (enabledModules.has("VEHICLES")) {
     const vehicles = await prisma.vehicle.findMany({
       where: { deletedAt: null, archivedAt: null },
-      select: { id: true, label: true, regoExpiry: true, insuranceExpiry: true, nextServiceDue: true },
+      select: {
+        id: true,
+        label: true,
+        regoExpiry: true,
+        insuranceExpiry: true,
+        nextServiceDue: true,
+        contracts: COVERING_CONTRACTS,
+      },
     });
-    for (const v of vehicles) {
+    for (const vehicle of vehicles) {
+      // A date a Covering Contract supplies is that Contract's own event (#456).
+      const covered = new Set(vehicleCovers(vehicle.contracts).map((c) => c.field));
+      const v = {
+        ...vehicle,
+        regoExpiry: covered.has("regoExpiry") ? null : vehicle.regoExpiry,
+        insuranceExpiry: covered.has("insuranceExpiry") ? null : vehicle.insuranceExpiry,
+      };
       if (v.regoExpiry) {
         calendar.createEvent({
           id: `vehicle-rego-${v.id}`,

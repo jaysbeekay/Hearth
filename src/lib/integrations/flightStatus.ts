@@ -20,15 +20,15 @@ export const FLIGHT_STATUS_LABELS: Record<string, string> = {
 // their own rather than going through statusTone, because a flight status is
 // live data from the flight-status provider, not a Due state or a record's
 // Housekeeping, and a Trip is never Due.
-export function flightStatusColour(status: string | null | undefined): string {
+export function flightStatusTone(status: string | null | undefined): "danger" | "warning" | "neutral" {
   switch (status) {
     case "cancelled":
     case "incident":
-      return "text-danger bg-danger/10 border-danger/20";
+      return "danger";
     case "diverted":
-      return "text-warning bg-warning/10 border-warning/20";
+      return "warning";
     default:
-      return "text-muted bg-muted/10 border-border";
+      return "neutral";
   }
 }
 

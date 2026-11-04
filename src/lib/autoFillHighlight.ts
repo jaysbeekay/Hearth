@@ -1,3 +1,5 @@
+import { pillClass } from "@/lib/ui";
+
 // Heuristic (regex/text-match) hits use the accent color; AI-suggested
 // values (BYOK or local LLM) use a neutral grey instead, so a reviewer can tell at a
 // glance which fields were pattern-matched from the document text versus
@@ -7,10 +9,10 @@ const AUTOFILL_CLASSES = {
   ai: ["ring-2", "ring-foreground/60", "bg-foreground/5"],
 };
 
-const AUTOFILL_BADGE_CLASSES = {
-  heuristic: ["bg-accent/10", "text-accent"],
-  ai: ["bg-muted/10", "text-muted"],
-};
+const AUTOFILL_BADGE_TONE = new Map<"heuristic" | "ai", "accent" | "neutral">([
+  ["heuristic", "accent"],
+  ["ai", "neutral"],
+]);
 
 let autofillDescId = 0;
 
@@ -30,6 +32,10 @@ export function markAutoFilled(
   source: "heuristic" | "ai" = "heuristic",
 ) {
   if (!el) return;
+  // #361 — a field filled inside a collapsed form section must not stay
+  // hidden from review: open the section it sits in.
+  const section = el.closest("details");
+  if (section) section.open = true;
   const classes = AUTOFILL_CLASSES[source];
   el.classList.add(...classes);
 
@@ -45,16 +51,7 @@ export function markAutoFilled(
   const badge = document.createElement("span");
   badge.textContent = "Auto";
   badge.setAttribute("aria-hidden", "true");
-  badge.className = [
-    "inline-block",
-    "mt-1",
-    "rounded",
-    "px-1.5",
-    "py-0.5",
-    "text-[10px]",
-    "font-medium",
-    ...AUTOFILL_BADGE_CLASSES[source],
-  ].join(" ");
+  badge.className = pillClass(AUTOFILL_BADGE_TONE.get(source), "mt-1");
   desc.insertAdjacentElement("afterend", badge);
 
   el.addEventListener(
@@ -78,10 +75,11 @@ export function applyIfEmpty(
   el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null | undefined,
   value: string | undefined,
   source: "heuristic" | "ai" = "heuristic",
-) {
-  if (!value || !el || el.value) return;
+): boolean {
+  if (!value || !el || el.value) return false;
   el.value = value;
   markAutoFilled(el, source);
+  return true;
 }
 
 // Client-side mirror of the server's extraction confidence heuristic
@@ -96,9 +94,20 @@ export function isAiExtractionSource(source: ExtractionSource) {
   return source === "byok" || source === "llm";
 }
 
-export function extractionMessage(source: ExtractionSource, filledCount: number) {
+export const TEXT_EXTRACTION_UNAVAILABLE_MESSAGE =
+  "Text extraction isn't available on this server (pdftotext or tesseract isn't installed), " +
+  "so nothing was auto-filled. The file still attaches — fill the fields in manually, or ask an " +
+  "admin to add an AI key in Settings → Household → AI & privacy.";
+
+export function extractionMessage(
+  source: ExtractionSource,
+  filledCount: number,
+  textUnavailable = false,
+) {
   const isAi = isAiExtractionSource(source);
   if (filledCount === 0) {
+    // #480 — a missing binary used to read the same as a blank document.
+    if (textUnavailable) return TEXT_EXTRACTION_UNAVAILABLE_MESSAGE;
     return "Couldn't confidently detect anything in this document — fill the fields in manually.";
   }
   if (filledCount < LOW_CONFIDENCE_FIELD_COUNT) {
