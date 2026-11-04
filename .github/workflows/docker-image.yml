@@ -31,13 +31,30 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Compressed size of the amd64 image, in MiB. v0.20.1 was 697.9; #518
-  # brought it to about 180. Raise this deliberately, in the PR that needs it.
+  # Compressed size of each architecture's image, in MiB. v0.20.1 was 697.9;
+  # #518 brought amd64 to about 180. Raise this deliberately, in the PR that
+  # needs it.
   IMAGE_BUDGET_MIB: "200"
 
 jobs:
+  # Both published architectures (#478), each on a native runner, so an
+  # Alpine package or native module missing for arm64 fails here rather than
+  # in the release.
   build-and-smoke:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            arch: amd64
+            runner: ubuntu-latest
+            # buildx's default scope, shared with docker-publish.yml.
+            cache: buildkit
+          - platform: linux/arm64
+            arch: arm64
+            runner: ubuntu-24.04-arm
+            cache: arm64
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     steps:
       - name: Checkout
@@ -50,15 +67,22 @@ jobs:
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
+          platforms: ${{ matrix.platform }}
           load: true
           tags: hearth:ci
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.cache }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.cache }}
 
       - name: Image size
         run: scripts/docker-image-size.sh hearth:ci "$IMAGE_BUDGET_MIB"
 
       # Upgrade path is checked against the newest published release, i.e.
-      # the database a self-hoster pulling this change already has.
+      # the database a self-hoster pulling this change already has, if that
+      # release has an image for this architecture.
       - name: Container smoke test
-        run: scripts/docker-smoke.sh hearth:ci jaysbeekay/hearth:latest
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          PREVIOUS="$(scripts/docker-previous-release.sh jaysbeekay/hearth:latest "$ARCH")"
+          [ -n "$PREVIOUS" ] || echo "::notice::jaysbeekay/hearth:latest has no linux/$ARCH image; skipping the upgrade-path check."
+          scripts/docker-smoke.sh hearth:ci $PREVIOUS

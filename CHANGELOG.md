@@ -21,6 +21,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   capped at 100 per token per hour and 200 pending, and READONLY members
   can see the queue but can't approve or reject. Server-only; the iOS and
   Android shell is unchanged.
+- **arm64 Docker image (#478).** `jaysbeekay/hearth` is now published for
+  `linux/arm64` as well as `linux/amd64`, under the same tags, so it runs on
+  a Raspberry Pi 4/5 (64-bit OS), Apple-silicon Macs and ARM servers.
+  `docker pull` picks the right one automatically. Each architecture is
+  built, size-checked and smoke-tested on a native runner before either is
+  published, on every Docker-related PR as well as at release, and both
+  carry an SBOM and build provenance.
 
 ### Security
 
