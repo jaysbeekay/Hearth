@@ -17,33 +17,41 @@ function isActive(href: string, pathname: string) {
 }
 
 // Fixed regardless of how many modules are enabled — everything else
-// (Upcoming, Spending, module items, Settings) lives in the "More" sheet so the
-// bar never grows past 5 slots on small screens. Documents is promoted here
-// over Upcoming since capturing/reviewing receipts is a primary, frequent
-// action, while Upcoming is a secondary/glanceable view (#173). #372 may
-// swap the Documents slot for Upcoming; Documents would then move into More.
-const PRIMARY_HREFS = ["/dashboard", "/contracts", "/products", "/documents"];
+// (Documents, Spending, module items, Settings) lives in the "More" sheet so
+// the bar never grows past 5 slots on small screens. #372: Upcoming takes the
+// fourth slot ("when is X due?" is what most members open the app for);
+// Documents, with its Inbox count, is one tap away in More, and capturing a
+// document stays on the camera button.
+const PRIMARY_HREFS = ["/dashboard", "/contracts", "/products", "/calendar"];
 
 function MoreLink({
   href,
   label,
   icon: Icon,
   active,
+  ariaLabel,
+  badge,
 }: {
   href: string;
   label: string;
   icon: LucideIcon;
   active: boolean;
+  ariaLabel?: string;
+  badge?: React.ReactNode;
 }) {
   return (
     <Link
       href={href}
+      aria-label={ariaLabel}
       className={cn(
         "flex flex-col items-center gap-1.5 whitespace-nowrap rounded-lg p-3 text-xs font-medium",
         active ? "bg-accent/10 text-accent" : "text-muted hover:bg-hover",
       )}
     >
-      <Icon size={20} />
+      <span className="relative">
+        <Icon size={20} />
+        {badge}
+      </span>
       {label}
     </Link>
   );
@@ -99,7 +107,6 @@ export function BottomNav({
             <Link
               key={href}
               href={href}
-              aria-label={href === "/documents" ? inboxLinkLabel(label, inboxCount) : undefined}
               className={cn(
                 "flex min-w-0 flex-1 flex-col items-center gap-1 whitespace-nowrap py-2.5 text-xs font-medium",
                 active ? "text-accent" : "text-muted",
@@ -107,7 +114,6 @@ export function BottomNav({
             >
               <span className="relative">
                 <Icon size={20} />
-                {href === "/documents" && inboxBadge}
               </span>
               {label}
             </Link>
@@ -118,7 +124,7 @@ export function BottomNav({
           onClick={() => {
             setMoreOpen(true);
           }}
-          aria-label="More navigation options"
+          aria-label={inboxCount > 0 ? `More navigation options, ${inboxLinkLabel("Documents", inboxCount)}` : "More navigation options"}
           aria-haspopup="dialog"
           aria-expanded={moreOpen}
           className={cn(
@@ -126,7 +132,10 @@ export function BottomNav({
             overflowActive ? "text-accent" : "text-muted",
           )}
         >
-          <MoreHorizontal size={20} />
+          <span className="relative">
+            <MoreHorizontal size={20} />
+            {inboxBadge}
+          </span>
           More
         </button>
       </nav>
@@ -168,7 +177,15 @@ export function BottomNav({
           <p className="mb-1.5 text-xs font-medium text-muted">Tools</p>
           <div className="grid grid-cols-3 gap-2">
             {overflowTools.map(({ href, label, icon }) => (
-              <MoreLink key={href} href={href} label={label} icon={icon} active={isActive(href, pathname)} />
+              <MoreLink
+                key={href}
+                href={href}
+                label={label}
+                icon={icon}
+                active={isActive(href, pathname)}
+                ariaLabel={href === "/documents" ? inboxLinkLabel(label, inboxCount) : undefined}
+                badge={href === "/documents" ? inboxBadge : undefined}
+              />
             ))}
             <MoreLink
               href={FOOTER_NAV.settings.href}

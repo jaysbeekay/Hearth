@@ -63,6 +63,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- **Joining the household (#372).** Accepting an invitation signs the new
+  member straight in and lands them on Upcoming, with a one-time welcome that
+  says everything is shared with the household and what their role lets
+  them do. Finishing a password reset signs in too, unless two-factor is on,
+  in which case it still asks for the code at sign-in. On phones, Upcoming
+  takes Documents' place in the bottom bar; Documents and its Inbox count
+  move into More, and the More tab shows the count too.
 - **Saving a scanned record confirms it (#359).** After a scan fills in a
   Contract or Warranty form, pressing Save is the review: the record saves
   confirmed, with Reminders live. The "I've checked the highlighted fields"
