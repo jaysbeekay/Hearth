@@ -4,10 +4,12 @@ import { X } from "lucide-react";
 import { useDismissible } from "@/lib/useDismissible";
 import { bannerClass, buttonClass } from "@/lib/ui";
 
-// #372 — a member who just accepted an invite lands on Upcoming with this
-// once: whose data it is and what their role lets them do (the role
-// descriptions were otherwise only shown to the admin who invited them).
-// Dismissal is remembered per user on this device.
+// #372 — a member who just accepted an invite lands on Upcoming with this:
+// whose data it is and what their role lets them do (the role descriptions
+// were otherwise only shown to the admin who invited them). It shows only on
+// that first landing (?welcome=1), so moving on without closing it is fine:
+// it's a hello, not a notice they have to acknowledge. Closing it hides it
+// for that user on this device if they reload the landing page.
 export function WelcomeBanner({
   userId,
   roleLabel,
