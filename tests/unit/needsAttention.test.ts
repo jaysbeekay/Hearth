@@ -35,6 +35,8 @@ function contract(
     noticePeriodDays: extra.noticePeriodDays ?? null,
     status: extra.status ?? "ACTIVE",
     reminderDaysBefore: extra.reminderDaysBefore ?? null,
+    snoozedUntil: null as Date | null,
+    snoozedFor: null as string | null,
     _count: { documents: extra.documents ?? 0 },
   };
 }
@@ -46,6 +48,8 @@ function warranty(id: string, endInDays: number) {
     manufacturer: null,
     warrantyEndDate: inDays(endInDays),
     reminderDaysBefore: null,
+    snoozedUntil: null as Date | null,
+    snoozedFor: null as string | null,
     _count: { documents: 0 },
   };
 }
@@ -178,6 +182,8 @@ describe("Due rows follow the Due policy (#384)", () => {
           insuranceExpiry: inDays(90),
           nextServiceDue: inDays(5),
           reminderDaysBefore: null,
+          snoozedUntil: null,
+          snoozedFor: null,
           contracts: [],
         },
       ],

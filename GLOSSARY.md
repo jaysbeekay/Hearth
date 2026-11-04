@@ -116,6 +116,10 @@ _Avoid_: Unlinked documents, queue
 The state of a record that was filled in automatically, from email or the Inbox, with no person present, and that nobody has saved since. Saving a record is confirmation.
 _Avoid_: Pending, unconfirmed
 
+**Quick check**:
+The one screen listing every record that Needs review, with its auto-filled details editable in place and confirmed together. Upload's "Save all" opens it when any record it saved Needs review.
+_Avoid_: Review queue, batch review
+
 ### Views
 
 **Reminder**:
@@ -145,6 +149,10 @@ A Due entry whose date has passed, such as an Expired Contract or a Vehicle's re
 
 **Housekeeping**:
 A Needs attention entry about a record that needs tidying rather than a date, such as missing details, a Document waiting in the Inbox, a record that Needs review, an auto-renewing Contract past its end date that needs its new end date, or a Tenancy past its lease end that needs its new lease end.
+
+**Snoozed**:
+A Contract, Warranty or Vehicle someone has said to remind them about later, until a chosen day. While Snoozed it leaves Needs attention and gets no Reminders, but stays on Upcoming. A Snooze ends on its day, or as soon as the dates it was set against change (renewing ends it).
+_Avoid_: Dismissed, acknowledged, muted
 
 **Missing key details**:
 A Housekeeping entry for a record lacking something it needs to be useful: a Contract with no end date (unless it auto-renews) or a cost with no billing frequency; an Item with neither serial nor barcode, or with a Warranty that has no end date; a Vehicle with neither VIN nor plate. Cancelled Contracts and Archived records are never missing anything. Having no Reminder threshold or not being Linked to anything is not missing.

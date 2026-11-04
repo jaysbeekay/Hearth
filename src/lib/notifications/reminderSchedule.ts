@@ -17,12 +17,14 @@ import {
   addDays,
   daysBetween,
   dueEntries,
+  formatDueDate,
   type CalendarDay,
   type DueContext,
   type DueEntry,
   type DueRecord,
 } from "@/lib/duePolicy";
 import { parseThresholds } from "@/lib/notifications/thresholds";
+import { activeSnoozeUntil, type SnoozeFields } from "@/lib/snooze";
 
 export const REMINDER_CHANNELS = ["EMAIL", "NTFY", "WEBHOOK"] as const;
 export type ReminderChannel = (typeof REMINDER_CHANNELS)[number];
@@ -147,21 +149,27 @@ export interface ReminderPlan {
   /** A record that Needs review holds its Reminders until it's confirmed. */
   held: boolean;
   thresholds: number[];
-  /** Entries that get Reminders; empty while held. */
+  /**
+   * #354 — the day a Snoozed record comes back, while it's Snoozed: its
+   * Reminders wait until then. Null when it isn't Snoozed.
+   */
+  snoozedUntil: CalendarDay | null;
+  /** Entries that get Reminders; empty while held or Snoozed. */
   entries: ReminderPlanEntry[];
 }
 
+/** A record as the Reminder plan reads it: its Due record, plus the review hold and any Snooze. */
+export type PlannedRecord = ReminderRecord & { extractionPending?: boolean } & SnoozeFields;
+
 /** The whole Reminder picture for one record: the scheduler and the health card both start here. */
-export function reminderPlan(
-  record: ReminderRecord & { extractionPending?: boolean },
-  ctx: DueContext,
-  sentLog: SentLogRow[],
-): ReminderPlan {
+export function reminderPlan(record: PlannedRecord, ctx: DueContext, sentLog: SentLogRow[]): ReminderPlan {
   const thresholds = reminderThresholds(record.reminderDaysBefore, ctx.defaultReminderDays);
   const held = record.extractionPending === true;
-  if (held) return { held, thresholds, entries: [] };
+  const snoozedUntil = activeSnoozeUntil(record, ctx.today);
+  if (held || snoozedUntil) return { held, snoozedUntil, thresholds, entries: [] };
   return {
     held,
+    snoozedUntil,
     thresholds,
     entries: reminderEntries(record, ctx).map((entry) => ({
       entry,
@@ -192,7 +200,7 @@ export type NextReminderPreview =
  * date at all. `field` narrows a Vehicle to one of its dates.
  */
 export function nextReminderPreview(
-  record: ReminderRecord & { extractionPending?: boolean },
+  record: PlannedRecord,
   ctx: DueContext,
   sentLog: SentLogRow[],
   options: { field?: string; channels: readonly ReminderChannel[] },
@@ -227,6 +235,7 @@ export function nextReminderPreview(
   if (!entry) return null;
   const reason = (() => {
     if (plan.held) return "it needs review, so its reminders are on hold until it's confirmed.";
+    if (plan.snoozedUntil) return `it's snoozed, so its reminders wait until ${formatDueDate(plan.snoozedUntil, ctx.today)}.`;
     if (plan.thresholds.length === 0) return "it has no reminder thresholds set.";
     if (record.kind === "contract" && record.status !== "ACTIVE") return "it isn't active.";
     if (remindable.length > 0) return "every reminder for its date has already been sent.";

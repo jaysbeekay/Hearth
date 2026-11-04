@@ -6,6 +6,7 @@ import { ConfirmForm } from "@/components/ConfirmForm";
 import { ExpiryBadge } from "@/components/ExpiryBadge";
 import { StatusPill } from "@/components/StatusPill";
 import { DismissibleRow } from "@/components/DismissibleRow";
+import { SnoozeButton } from "@/components/SnoozeButton";
 import type { AttentionItem } from "@/lib/needsAttention";
 import { Card } from "@/components/ui/Card";
 import { buttonClass, emptyStateClass } from "@/lib/ui";
@@ -104,6 +105,9 @@ function AttentionList({ items, canWrite }: { items: AttentionItem[]; canWrite: 
                     <Ban size={16} />
                     Cancel
                   </ConfirmForm>
+                )}
+                {item.snooze && (
+                  <SnoozeButton kind={item.snooze.kind} recordId={item.snooze.recordId} title={item.title} />
                 )}
                 {item.action && (
                   <Link
