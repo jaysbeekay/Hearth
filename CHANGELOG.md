@@ -9,6 +9,16 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Snooze for Needs attention (#354).** A Due Contract, Warranty or Vehicle
+  has a Snooze button on its Needs attention row and its detail banner: 1
+  week, 30 days, or until a chosen date. While Snoozed it leaves Needs
+  attention and its Reminders pause; Upcoming still lists it, greyed and
+  marked "Snoozed until …"; the detail page says who Snoozed it and until
+  when, with Unsnooze. A Snooze is tied to the dates it was set against, so
+  renewing the record or changing one of those dates ends it, and it ends by
+  itself on its day (anything crossed meanwhile goes out as one catch-up
+  Reminder). Read-only members can't Snooze. The standalone mobile shell
+  doesn't have Snooze yet.
 - **Import records over MCP, with approval (#529).** Tokens listed in the
   new `MCP_IMPORT_LABELS` get `propose_import_contract`,
   `propose_import_product` and (with Inventory on)

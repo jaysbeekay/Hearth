@@ -26,6 +26,7 @@ import {
   type DueRecord,
   type DueState,
 } from "@/lib/duePolicy";
+import type { SnoozeFields } from "@/lib/snooze";
 
 export type { DueContext, DueEntry, DueState };
 
@@ -59,6 +60,9 @@ export interface VehicleDueRow {
    * quietly bringing a sold Vehicle's dates back.
    */
   archivedAt: DateInput;
+  /** #354 — carried through to the Reminder plan, which holds a Snoozed Vehicle's Reminders. */
+  snoozedUntil?: DateInput;
+  snoozedFor?: string | null;
 }
 
 export interface TenancyDueRow {
@@ -98,7 +102,7 @@ export function warrantyDue(row: WarrantyDueRow, ctx: DueContext): DueEntry[] {
  * are left out of its own entries, since the Contract's entries stand in.
  * Reminders, health and the lists all build the record here.
  */
-export function vehicleDueRecord(row: VehicleDueRow): Extract<DueRecord, { kind: "vehicle" }> {
+export function vehicleDueRecord(row: VehicleDueRow): Extract<DueRecord, { kind: "vehicle" }> & SnoozeFields {
   const covers = vehicleCovers(row.contracts);
   return {
     kind: "vehicle",
@@ -109,6 +113,8 @@ export function vehicleDueRecord(row: VehicleDueRow): Extract<DueRecord, { kind:
     coveredFields: coveredFieldsOf(covers),
     fixedTermCoverEnds: fixedTermCoverEndsOf(covers),
     archivedAt: row.archivedAt,
+    snoozedUntil: row.snoozedUntil,
+    snoozedFor: row.snoozedFor,
   };
 }
 

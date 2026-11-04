@@ -15,6 +15,7 @@ import { ExpiryBadge } from "@/components/ExpiryBadge";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DetailStatusBanner } from "@/components/DetailStatusBanner";
+import { activeSnoozeUntil } from "@/lib/snooze";
 import { ExtractionReviewPanel } from "@/components/ExtractionReviewPanel";
 import { DetailField as Detail } from "@/components/DetailField";
 import { ProductDocumentUploadForm } from "@/components/ProductDocumentUploadForm";
@@ -54,6 +55,7 @@ export default async function ProductDetailPage({
         documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" } },
         createdBy: true,
         updatedBy: true,
+        snoozedBy: { select: { name: true } },
         property: true,
         warrantyForItems: { where: { deletedAt: null }, select: { id: true, label: true } },
       },
@@ -81,6 +83,7 @@ export default async function ProductDetailPage({
 
   // #384 — from the Due policy: due soon, later, or Lapsed (never Expired).
   const dueEntries = warrantyDue(product, due);
+  const snoozedUntil = activeSnoozeUntil({ kind: "warranty", ...product }, due.today);
   const boundUpload = addDocumentAction.bind(null, "PRODUCT", product.id);
   const reminderHealth = await getReminderHealth({
     ownerType: "PRODUCT",
@@ -154,6 +157,13 @@ export default async function ProductDetailPage({
         documentsHref="#documents"
         editHref={`/products/${product.id}/edit`}
         renewLabel="Review warranty"
+        snooze={{
+          kind: "warranty",
+          recordId: product.id,
+          title: product.description,
+          until: snoozedUntil,
+          byName: product.snoozedBy?.name,
+        }}
         needsReview={
           product.extractionPending && pendingReview.length === 0
             ? { onConfirm: confirmProductExtraction.bind(null, product.id) }
