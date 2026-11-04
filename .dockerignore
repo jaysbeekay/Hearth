@@ -26,6 +26,7 @@ tests
 # Demo-only (#553): its seed imports e2e/textPdf.ts, so with e2e/ out of
 # the context, leaving it in would fail next build's type check.
 scripts/demo
+docker/demo
 coverage
 playwright-report
 test-results
