@@ -23,11 +23,9 @@ ios-shell
 capacitor.config.ts
 e2e
 tests
-# Demo-only (#553): built by docker/demo/Dockerfile, which has its own
-# ignore file. Its seed imports e2e/textPdf.ts, so leaving it here would
-# fail next build's type check now that e2e/ is out of the context.
+# Demo-only (#553): its seed imports e2e/textPdf.ts, so with e2e/ out of
+# the context, leaving it in would fail next build's type check.
 scripts/demo
-docker/demo
 coverage
 playwright-report
 test-results
