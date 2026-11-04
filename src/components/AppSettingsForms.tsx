@@ -12,6 +12,7 @@ import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapp
 import { TestConnectionButton } from "@/components/TestConnectionButton";
 import { BACKUP_DESTINATION_LABELS, type BackupDestinationChoice } from "@/lib/backupDestination";
 import { bannerClass } from "@/lib/ui";
+import { POPULAR_CURRENCIES, currencyLabel } from "@/components/CurrencySelect";
 
 const checkboxClass = "size-4 rounded border-border accent-accent";
 
@@ -498,6 +499,45 @@ export function HouseholdTimeZoneForm({
       <FormMessage attempt={state} error={state?.error} success={state?.success} />
       <div className="flex justify-end empty:hidden">
         <GroupedSubmit state={state}>Save timezone</GroupedSubmit>
+      </div>
+    </form>
+  );
+}
+
+export function HouseholdCurrencyForm({
+  action,
+  current,
+  fallback,
+}: {
+  action: (s: ActionState, f: FormData) => Promise<ActionState>;
+  /** The saved setting, or "" when the first admin's preferred currency applies. */
+  current: string;
+  /** What applies while `current` is "". */
+  fallback: string;
+}) {
+  const [state, formAction] = useActionState<ActionState, FormData>(withConnectionErrors(action), null);
+  // A code saved some other way still shows as selected.
+  const codes: readonly string[] =
+    current && !(POPULAR_CURRENCIES as readonly string[]).includes(current)
+      ? [current, ...POPULAR_CURRENCIES]
+      : POPULAR_CURRENCIES;
+  return (
+    <form action={formAction} data-save-group className="space-y-4">
+      <Field label="Currency" htmlFor="householdCurrency">
+        <SelectWrapper>
+          <select id="householdCurrency" name="householdCurrency" defaultValue={current} className={selectClass}>
+            <option value="">First admin&apos;s currency ({fallback})</option>
+            {codes.map((code) => (
+              <option key={code} value={code}>
+                {currencyLabel(code)}
+              </option>
+            ))}
+          </select>
+        </SelectWrapper>
+      </Field>
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
+      <div className="flex justify-end empty:hidden">
+        <GroupedSubmit state={state}>Save currency</GroupedSubmit>
       </div>
     </form>
   );

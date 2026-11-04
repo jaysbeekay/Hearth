@@ -11,10 +11,10 @@
 // Whether anything is Due comes from the Due policy (duePolicy.ts, ADR
 // 0002), counted in the household's day: the queries below only narrow
 // candidates roughly, then ask the policy.
-import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { CATEGORY_LABELS, daysUntil, formatPropertyAddress, monthlyEquivalent } from "@/lib/utils";
-import { getDueContext, getHouseholdToday } from "@/lib/appSettings";
+import { getDueContext, getHouseholdCurrency, getHouseholdToday } from "@/lib/appSettings";
+import { currencyCodeSchema, isCurrencyCode } from "@/lib/currencyCodes";
 import { calendarDayOf, isDue, type DueContext, type DueEntry } from "@/lib/duePolicy";
 import { COVERING_CONTRACTS, withVehicleCovers } from "@/lib/covers";
 import { contractDue, currentTenancy, tenancyDue, LIVE_TENANCY_AGREEMENTS, vehicleDue, warrantyDue } from "@/lib/dueRecords";
@@ -456,31 +456,18 @@ const CATEGORY_LABEL_MAP = new Map(Object.entries(CATEGORY_LABELS));
 
 /**
  * The currency spendSummary converts to when none is asked for: the asking
- * member's preferred currency, or for MCP (which has no member) the first
- * admin's, as the household's.
+ * member's preferred currency, or for MCP (which has no member) the
+ * household currency (#453).
  */
 export async function defaultSpendCurrency(userId?: string): Promise<string> {
   const user = userId
     ? await prisma.user.findUnique({ where: { id: userId }, select: { preferredCurrency: true } })
-    : await prisma.user.findFirst({
-        where: { role: "ADMIN" },
-        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-        select: { preferredCurrency: true },
-      });
-  return user?.preferredCurrency || "AUD";
+    : null;
+  return user?.preferredCurrency || (await getHouseholdCurrency());
 }
 
-const CURRENCY_CODES: ReadonlySet<string> = new Set(Intl.supportedValuesOf("currency"));
-
-/** Whether `code` is an ISO 4217 currency code this runtime knows, in any case ("aud" counts). */
-export function isCurrencyCode(code: string): boolean {
-  return CURRENCY_CODES.has(code.toUpperCase());
-}
-
-/** spend_summary's `currency` input, on both surfaces. */
-export const currencyCodeSchema = z
-  .string()
-  .refine(isCurrencyCode, { message: "Must be an ISO 4217 currency code, such as AUD or USD." });
+// Re-exported so the chat tools and MCP server keep one import site.
+export { isCurrencyCode, currencyCodeSchema };
 
 /**
  * Monthly spend across active Contracts, converted to `currency` exactly as

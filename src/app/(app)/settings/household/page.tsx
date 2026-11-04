@@ -24,9 +24,12 @@ import {
   getAppSetting,
   getHouseholdTimeZone,
   getServerDefaultTimeZone,
+  getHouseholdCurrency,
+  getHouseholdCurrencyFallback,
 } from "@/lib/appSettings";
-import { saveHouseholdTimeZone } from "@/lib/actions/app-settings";
-import { HouseholdTimeZoneForm } from "@/components/AppSettingsForms";
+import { saveHouseholdCurrency, saveHouseholdTimeZone } from "@/lib/actions/app-settings";
+import { HouseholdCurrencyForm, HouseholdTimeZoneForm } from "@/components/AppSettingsForms";
+import { currencyLabel } from "@/components/CurrencySelect";
 import { householdTimeZoneChoices } from "@/lib/timezones";
 import { BACKUP_DESTINATION_LABELS } from "@/lib/backupDestination";
 import { AI_PROVIDER_LABELS } from "@/lib/ai/types";
@@ -78,6 +81,9 @@ export default async function HouseholdSettingsPage() {
     aiProvider,
     savedTimeZone,
     householdTimeZone,
+    savedCurrency,
+    householdCurrency,
+    currencyFallback,
   ] = await Promise.all([
     prisma.user.count(),
     isBackupConfigured(),
@@ -91,6 +97,9 @@ export default async function HouseholdSettingsPage() {
     getAppSetting("ai.provider"),
     getAppSetting("household.timezone"),
     getHouseholdTimeZone(),
+    getAppSetting("household.currency"),
+    getHouseholdCurrency(),
+    getHouseholdCurrencyFallback(),
   ]);
 
   // What the scheduler will actually send on, as the Reminders health card
@@ -210,14 +219,30 @@ export default async function HouseholdSettingsPage() {
               choices={householdTimeZoneChoices(savedTimeZone)}
             />
           </Card>
+          <Card as="section" className="space-y-4">
+            <CurrencyHeading />
+            <HouseholdCurrencyForm
+              action={saveHouseholdCurrency}
+              current={savedCurrency.toUpperCase()}
+              fallback={currencyFallback}
+            />
+          </Card>
         </SaveChangesGroup>
       ) : (
-        <Card as="section" className="space-y-4">
-          <TimeZoneHeading />
-          <p className="text-sm">
-            {householdTimeZone}. <span className="text-muted">Only an admin can change it.</span>
-          </p>
-        </Card>
+        <>
+          <Card as="section" className="space-y-4">
+            <TimeZoneHeading />
+            <p className="text-sm">
+              {householdTimeZone}. <span className="text-muted">Only an admin can change it.</span>
+            </p>
+          </Card>
+          <Card as="section" className="space-y-4">
+            <CurrencyHeading />
+            <p className="text-sm">
+              {currencyLabel(householdCurrency)}. <span className="text-muted">Only an admin can change it.</span>
+            </p>
+          </Card>
+        </>
       )}
     </PageShell>
   );
@@ -230,6 +255,18 @@ function TimeZoneHeading() {
       <p className="text-xs text-muted mt-0.5">
         Reminders and due dates will use this timezone, so every member counts days the same way.
         Each member&apos;s own timezone only changes how times are shown to them.
+      </p>
+    </div>
+  );
+}
+
+function CurrencyHeading() {
+  return (
+    <div>
+      <h2 className="font-medium">Household currency</h2>
+      <p className="text-xs text-muted mt-0.5">
+        Spend totals for the whole household, such as the MCP spend summary, use this currency, and new members
+        start with it. Each member can still pick their own currency in My account.
       </p>
     </div>
   );

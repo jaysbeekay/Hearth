@@ -33,7 +33,7 @@ import {
   recordFailedAttempt,
   resetRateLimit,
 } from "@/lib/rateLimit";
-import { isSmtpConfigured } from "@/lib/appSettings";
+import { getHouseholdCurrency, isSmtpConfigured } from "@/lib/appSettings";
 import { sendInvitationEmail, sendPasswordResetEmail } from "@/lib/notifications/email";
 import { logSecurityEvent } from "@/lib/securityEventLog";
 import { safeCallbackPath } from "@/lib/callbackUrl";
@@ -273,6 +273,7 @@ export async function createUser(
         email: parsed.data.email,
         passwordHash,
         role: parsed.data.role,
+        preferredCurrency: await getHouseholdCurrency(),
       },
     });
 
@@ -317,6 +318,7 @@ export async function createUser(
       email: parsed.data.email,
       passwordHash: placeholderHash,
       role: parsed.data.role,
+      preferredCurrency: await getHouseholdCurrency(),
     },
   });
 

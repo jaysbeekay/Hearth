@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { env, isEncryptionConfigured } from "@/lib/env";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
 import type { BackupDestinationChoice } from "@/lib/backupDestination";
+import { isCurrencyCode } from "@/lib/currencyCodes";
 import { householdDay, resolveTimeZone, serverTimeZone, type CalendarDay, type DueContext } from "@/lib/duePolicy";
 
 // Keys whose values are encrypted at rest using ENCRYPTION_KEY.
@@ -326,6 +327,32 @@ export function getServerDefaultTimeZone(): string {
 
 export async function getHouseholdTimeZone(): Promise<string> {
   return resolveTimeZone(await getAppSetting("household.timezone"), getServerDefaultTimeZone());
+}
+
+/**
+ * The household currency (#453): what MCP's spend_summary converts to, and
+ * a new member's starting preferred currency. Until an admin sets
+ * `household.currency`, it's the first admin's preferred currency (the old
+ * behaviour), then AUD.
+ */
+export async function getHouseholdCurrency(): Promise<string> {
+  const saved = (await getAppSetting("household.currency")).toUpperCase();
+  if (saved && isCurrencyCode(saved)) return saved;
+  return getHouseholdCurrencyFallback();
+}
+
+/** The household currency when no admin has set one. */
+export async function getHouseholdCurrencyFallback(): Promise<string> {
+  try {
+    const admin = await prisma.user.findFirst({
+      where: { role: "ADMIN" },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      select: { preferredCurrency: true },
+    });
+    return admin?.preferredCurrency || "AUD";
+  } catch {
+    return "AUD";
+  }
 }
 
 export async function getHouseholdToday(now: Date = new Date()): Promise<CalendarDay> {

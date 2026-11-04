@@ -46,6 +46,11 @@ const CURRENCY_LABELS: Record<string, string> = {
   THB: "THB — Thai Baht",
 };
 
+/** "AUD — Australian Dollar" for a listed code, else the bare code. */
+export function currencyLabel(code: string): string {
+  return CURRENCY_LABELS[code] ?? code;
+}
+
 export function CurrencySelect({
   id,
   name,
