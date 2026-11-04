@@ -18,7 +18,7 @@ These hold whatever the model does.
 | Assistant | Confirming re-validates the card's data against the same Zod schemas as the forms. Keys the forms don't have (ids, `createdById`, `deletedAt`) are dropped, and a link to a record in Trash or in a disabled module is refused. | `createContractFromAssistant` and friends in `src/lib/actions/` | same |
 | Assistant | Tool results are built with `JSON.stringify`, so record text reaches the model and the chat route only as string values. A note can't forge a proposal card. | `runTool`, `src/app/api/chat/route.ts` | same |
 | Extraction | A model's answer only pre-fills a review form a member saves from. It never writes a record by itself. | `src/lib/documents/*Extraction.ts` | `tests/unit/prompt-injection-extraction.test.ts` |
-| Extraction | Every answer goes through `whitelistFields`: only the domain's own keys are kept, non-string values are dropped, and so is any value over 300 characters. | `src/lib/ai/parseJson.ts` | same |
+| Extraction | Every answer goes through `whitelistFields`: only the domain's own keys are kept, objects, arrays, booleans and blank strings are dropped, numbers are turned into strings, and any string over 300 characters is dropped. | `src/lib/ai/parseJson.ts` | same |
 | MCP | Read tools are read-only. The import scope only adds proposals to a review queue that a member approves. | `src/lib/mcp/server.ts` | `tests/unit/mcp-read-only.test.ts`, `tests/unit/mcp-imports.test.ts` |
 
 ## Review aids on the card
