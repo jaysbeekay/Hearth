@@ -13,7 +13,7 @@ import { isModuleEnabled } from "@/lib/modules/enablement";
 import { extractSearchableText } from "@/lib/documents/textExtraction";
 import { describeUploadRejection } from "@/lib/uploadValidation";
 import { computeInboxIntake } from "@/lib/documents/inboxIntake";
-import { addDocumentCommand, purgeDocument, supersedeDocumentCommand } from "@/lib/commands/documents";
+import { addDocumentCommand, discardFiledDocument, supersedeDocumentCommand } from "@/lib/commands/documents";
 import { documentCommandError } from "@/lib/documents/commandErrors";
 import { createContractCommand } from "@/lib/commands/contracts";
 import { createProductCommand } from "@/lib/commands/products";
@@ -295,7 +295,7 @@ export async function attachInboxDocumentAsVersion(
   try {
     await prisma.inboxDocument.delete({ where: { id: inboxId } });
   } catch (error) {
-    await purgeDocument(targetKind, filed.id);
+    await discardFiledDocument(targetKind, filed.id);
     throw error;
   }
   await deleteInboxDocument(doc.storedName);

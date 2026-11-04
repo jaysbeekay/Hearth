@@ -218,6 +218,7 @@ describe("Trips under Trash", () => {
     expect(await saveTripSegmentFlightData(segment.id, { flightStatus: "landed" })).toBe(true);
 
     await deleteTripCommand(trip.id);
+    await db.prisma.tripSegment.update({ where: { id: segment.id }, data: { deletedAt: new Date() } });
     await permanentlyDeleteTripSegmentCommand(segment.id);
     expect(await db.prisma.tripSegment.count()).toBe(0);
   });

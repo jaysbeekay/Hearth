@@ -7,6 +7,8 @@ import {
   assertNotStale,
   RecordNotFoundError,
   RecordValidationError,
+  deleteFromTrash,
+  type PurgeOptions,
   type UpdateOptions,
 } from "@/lib/commands/shared";
 import { assertLinksLive, newLinks } from "@/lib/commands/links";
@@ -307,10 +309,15 @@ export async function permanentlyDeleteContractCommand(id: string) {
 }
 
 // The row-and-files part of a permanent delete, with no revalidation, so
-// Trash retention (src/lib/trash.ts) can call it from a page render.
-export async function purgeContract(id: string) {
-  await findContract(id);
-  await prisma.contract.delete({ where: { id } });
+// Trash retention (src/lib/trash.ts) can call it from a page render. Only a
+// Contract in Trash is deleted (deleteFromTrash, #534).
+export async function purgeContract(id: string, options: PurgeOptions = {}) {
+  await deleteFromTrash(
+    "Contract",
+    options,
+    (inTrash) => prisma.contract.deleteMany({ where: { id, ...inTrash } }),
+    () => prisma.contract.findUnique({ where: { id }, select: { deletedAt: true } }),
+  );
   // Files first, straight after the row: if clearing the log below throws,
   // the files mustn't be left orphaned with no row pointing at them (#413).
   await removeOwnerDocumentFiles("CONTRACT", id);

@@ -7,6 +7,8 @@ import {
   assertNotStale,
   RecordNotFoundError,
   RecordValidationError,
+  deleteFromTrash,
+  type PurgeOptions,
   type UpdateOptions,
 } from "@/lib/commands/shared";
 import { assertLinksLive, newLinks } from "@/lib/commands/links";
@@ -183,12 +185,18 @@ export async function permanentlyDeleteProductCommand(id: string) {
 }
 
 // The row-and-files part of a permanent delete, with no revalidation, so
-// Trash retention (src/lib/trash.ts) can call it from a page render.
-export async function purgeProduct(id: string) {
+// Trash retention (src/lib/trash.ts) can call it from a page render. Only a
+// Product in Trash is deleted (deleteFromTrash, #534).
+export async function purgeProduct(id: string, options: PurgeOptions = {}) {
   await findProduct(id);
   const staged = await prisma.item.findUnique({ where: { legacyProductId: id }, select: { id: true } });
   const linked = await prisma.inventoryItem.findMany({ where: { warrantyProductId: id }, select: { id: true } });
-  await prisma.product.delete({ where: { id } });
+  await deleteFromTrash(
+    "Warranty",
+    options,
+    (inTrash) => prisma.product.deleteMany({ where: { id, ...inTrash } }),
+    () => prisma.product.findUnique({ where: { id }, select: { deletedAt: true } }),
+  );
   try {
     // Files first, straight after the row: if clearing the log below throws,
     // the files mustn't be left orphaned with no row pointing at them (#413).
