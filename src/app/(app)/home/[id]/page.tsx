@@ -39,7 +39,8 @@ import {
 import { getUserPreferences } from "@/lib/userPreferences";
 import { getHouseholdMemberCount } from "@/lib/household";
 import { getDueContext } from "@/lib/appSettings";
-import { currentTenancy, tenancyDue, LIVE_TENANCY_AGREEMENTS } from "@/lib/dueRecords";
+import { currentTenancy, tenancyDue, tenancyDueRecord, LIVE_TENANCY_AGREEMENTS } from "@/lib/dueRecords";
+import { isCoveringTenancy } from "@/lib/covers";
 import { DetailStatusBanner } from "@/components/DetailStatusBanner";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
@@ -105,8 +106,10 @@ export default async function PropertyDetailPage({
   // reads the same Reminder schedule the scheduler sends from.
   // An Archived Property has no current Tenancy (#355), so it shows neither a
   // lease banner nor a Reminder card.
-  const leaseReminderHealth = tenancy?.leaseEnd
-    ? await getReminderHealth({ ownerType: "TENANCY", ownerId: tenancy.id, record: { kind: "tenancy", ...tenancy } })
+  // #457 — a lease end its linked Contract Covers is the Contract's to remind about.
+  const leaseCoveredBy = tenancy && isCoveringTenancy(tenancy.contract, tenancy.leaseEnd) ? tenancy.contract : null;
+  const leaseReminderHealth = tenancy?.leaseEnd && !leaseCoveredBy
+    ? await getReminderHealth({ ownerType: "TENANCY", ownerId: tenancy.id, record: tenancyDueRecord(tenancy) })
     : null;
 
   const latestValuation = property.valuations[0] ?? null;
@@ -164,7 +167,7 @@ export default async function PropertyDetailPage({
                 <ConfirmForm
                   action={deleteProperty.bind(null, property.id)}
                   undo={{ action: restoreProperty.bind(null, property.id), href: `/home/${property.id}` }}
-                  confirmText="Delete this property? Its maintenance records and documents are kept, and you can restore it within 30 days from Settings → Recently deleted."
+                  confirmText="Delete this property? Its maintenance records and documents are kept, and you can restore it within 30 days from Settings → Household → Recently deleted."
                   className={menuItemClass({ destructive: true })}
                   offline={{ entity: "property", entityId: property.id, label: `Delete property: ${property.label}` }}
                 >
@@ -283,7 +286,7 @@ export default async function PropertyDetailPage({
                             <ConfirmForm
                               action={deleteHomeItem.bind(null, property.id, item.id)}
                               undo={{ action: restoreHomeItem.bind(null, item.id) }}
-                              confirmText={`Delete "${item.title}"? Its documents are kept, and you can restore it within 30 days from Settings → Recently deleted.`}
+                              confirmText={`Delete "${item.title}"? Its documents are kept, and you can restore it within 30 days from Settings → Household → Recently deleted.`}
                               className={menuItemClass({ destructive: true })}
                             >
                               <Trash2 size={16} />
@@ -331,13 +334,23 @@ export default async function PropertyDetailPage({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-medium">Contracts and warranties linked to this property</h2>
           {canWrite && (
-            <Link
-              href={`/contracts/new?propertyId=${property.id}`}
-              className={buttonClass("secondary")}
-            >
-              <Plus size={16} />
-              Add contract
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* #456 - a shortcut that opens the contract form linked to this property. */}
+              <Link
+                href={`/contracts/new?propertyId=${property.id}&category=HOME_INSURANCE`}
+                className={buttonClass("secondary")}
+              >
+                <Plus size={16} />
+                Add insurance
+              </Link>
+              <Link
+                href={`/contracts/new?propertyId=${property.id}`}
+                className={buttonClass("secondary")}
+              >
+                <Plus size={16} />
+                Add contract
+              </Link>
+            </div>
           )}
         </div>
         {linkedContracts.length === 0 && linkedProducts.length === 0 ? (
@@ -396,7 +409,7 @@ export default async function PropertyDetailPage({
                         parentId: property.id,
                         label: `Delete valuation: ${formatDate(v.valuedAt, dateFormat)}`,
                       }}
-                      confirmText="Delete this valuation? You can restore it within 30 days from Settings → Recently deleted."
+                      confirmText="Delete this valuation? You can restore it within 30 days from Settings → Household → Recently deleted."
                       className={menuItemClass({ destructive: true })}
                     >
                       <Trash2 size={16} />
@@ -455,6 +468,18 @@ export default async function PropertyDetailPage({
               This property is rented — track statements and reconcile rent income.
             </p>
           )}
+        </Card>
+      )}
+
+      {leaseCoveredBy && (
+        <Card>
+          <p className="text-sm text-muted">
+            Lease reminders come from the linked contract,{" "}
+            <Link href={`/contracts/${leaseCoveredBy.id}`} className="underline">
+              {leaseCoveredBy.title}
+            </Link>
+            , which ends on the lease end.
+          </p>
         </Card>
       )}
 

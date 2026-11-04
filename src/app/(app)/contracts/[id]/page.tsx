@@ -2,6 +2,8 @@ import Link from "next/link";
 import { BackLink } from "@/components/BackLink";
 import { notFound } from "next/navigation";
 import { Pencil, Trash2, Ban, RotateCcw, RotateCw, Home, Car } from "lucide-react";
+import { COVERING_CONTRACTS, coveredFieldOf, isCovering, vehicleCovers } from "@/lib/covers";
+import { coveredNotice, parseResumed, resumedNotice } from "@/lib/coverNotice";
 import { prisma } from "@/lib/prisma";
 import { addDocumentAction } from "@/lib/actions/documents";
 import {
@@ -37,7 +39,8 @@ import { getHouseholdMemberCount } from "@/lib/household";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { Card } from "@/components/ui/Card";
-import { buttonClass, menuItemClass, cardClass } from "@/lib/ui";
+import { buttonClass, menuItemClass, cardClass, inlineLinkClass } from "@/lib/ui";
+import { Banner } from "@/components/ui/Banner";
 import { PageShell } from "@/components/ui/PageShell";
 import { RememberRecentRecord } from "@/components/RememberRecentRecord";
 
@@ -46,10 +49,10 @@ export default async function ContractDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ docFallback?: string }>;
+  searchParams: Promise<{ docFallback?: string; resumed?: string; covered?: string }>;
 }) {
   const { id } = await params;
-  const { docFallback } = await searchParams;
+  const { docFallback, resumed, covered } = await searchParams;
   const canWrite = sessionCanWrite(await auth());
   const [contract, { dateFormat, region }, memberCount, due] = await Promise.all([
     prisma.contract.findUnique({
@@ -102,6 +105,23 @@ export default async function ContractDetailPage({
   const statusConfirmText = cancelled
     ? "Mark this contract as active again?"
     : "Mark this contract as cancelled? This just changes its status — it won't delete the contract or its documents.";
+  // #456 - what this Contract does for its Vehicle: whether it Covers a date,
+  // and, once it has stopped (cancelled, or just unlinked or re-categorised),
+  // which of the Vehicle's own dates applies again.
+  const coverField = coveredFieldOf(contract.category);
+  const linkedVehicle = contract.vehicleId
+    ? await prisma.vehicle.findUnique({ where: { id: contract.vehicleId }, select: { contracts: COVERING_CONTRACTS } })
+    : null;
+  const winning = linkedVehicle ? vehicleCovers(linkedVehicle.contracts).find((c) => c.contract.id === contract.id) : null;
+  const resumedTarget =
+    cancelled && contract.vehicleId && coverField
+      ? { vehicleId: contract.vehicleId, field: coverField }
+      : parseResumed(resumed);
+  const resumed_ = resumedTarget ? await resumedNotice(resumedTarget.vehicleId, resumedTarget.field) : null;
+  // #487 review - a Contract that has just started Covering a date the Vehicle
+  // had its own value for says which date it replaced.
+  const coveredTarget = parseResumed(covered);
+  const covered_ = coveredTarget ? await coveredNotice(contract.id, coveredTarget.vehicleId, coveredTarget.field) : null;
   const reminderHealth = await getReminderHealth({
     ownerType: "CONTRACT",
     ownerId: contract.id,
@@ -171,7 +191,7 @@ export default async function ContractDetailPage({
                 <ConfirmForm
                   action={deleteContract.bind(null, contract.id)}
                   undo={{ action: restoreContract.bind(null, contract.id), href: `/contracts/${contract.id}` }}
-                  confirmText="Delete this contract? Its documents are kept, and you can restore it within 30 days from Settings → Recently deleted."
+                  confirmText="Delete this contract? Its documents are kept, and you can restore it within 30 days from Settings → Household → Recently deleted."
                   className={menuItemClass({ destructive: true })}
                   offline={{ entity: "contract", entityId: contract.id, label: `Delete contract: ${contract.title}` }}
                 >
@@ -185,6 +205,28 @@ export default async function ContractDetailPage({
       </div>
 
       <DocFallbackBanner docFallback={docFallback} />
+
+      {covered_ && (
+        <Banner role="status">
+          {covered_.message}{" "}
+          {canWrite && (
+            <Link href={`/vehicles/${covered_.vehicleId}/edit`} className={inlineLinkClass}>
+              Edit {covered_.label}
+            </Link>
+          )}
+        </Banner>
+      )}
+
+      {resumed_ && (
+        <Banner role="status">
+          {resumed_.message}{" "}
+          {canWrite && (
+            <Link href={`/vehicles/${resumed_.vehicleId}/edit`} className={inlineLinkClass}>
+              Edit {resumed_.label}
+            </Link>
+          )}
+        </Banner>
+      )}
 
       {!cancelled && (
         <DetailStatusBanner
@@ -306,7 +348,13 @@ export default async function ContractDetailPage({
                 <Car size={16} className="text-muted" />
                 <span>
                   <span className="block text-sm font-medium">{contract.vehicle.label}</span>
-                  <span className="block text-xs text-muted">Vehicle</span>
+                  <span className="block text-xs text-muted">
+                    {winning
+                      ? `Covers its ${winning.field === "regoExpiry" ? "rego" : "insurance"} date`
+                      : isCovering(contract)
+                        ? "Vehicle · a later-ending contract sets its date"
+                        : "Vehicle"}
+                  </span>
                 </span>
               </Link>
             )}

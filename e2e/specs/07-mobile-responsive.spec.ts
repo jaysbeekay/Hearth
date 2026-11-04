@@ -664,6 +664,16 @@ test("#365 — on a 390×844 phone the first contract is on screen, and filters 
   await sheet.getByLabel("Filter by status").selectOption("ACTIVE");
   await page.waitForURL(/[?&]status=ACTIVE/);
   await expect(page.getByRole("dialog", { name: "Filters" })).toBeVisible();
+  // #517 review — a chip inside the open sheet toggles on and off and the
+  // sheet stays open while the URL changes.
+  const dueChip = page.getByRole("dialog", { name: "Filters" }).getByRole("button", { name: /^Due soon/ });
+  await dueChip.click();
+  await page.waitForURL(/[?&]due=soon/);
+  await expect(page.getByRole("dialog", { name: "Filters" }).getByRole("button", { name: /^Due soon/ })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("dialog", { name: "Filters" }).getByRole("button", { name: /^Due soon/ }).click();
+  await expect(page).not.toHaveURL(/[?&]due=soon/);
+  await expect(page.getByRole("dialog", { name: "Filters" }).getByRole("button", { name: /^Due soon/ })).toHaveAttribute("aria-pressed", "false");
+  await expect(page).toHaveURL(/[?&]status=ACTIVE/);
   await page.getByRole("dialog", { name: "Filters" }).getByRole("button", { name: "Done" }).click();
   await expect(main.getByRole("button", { name: "Filters (1)", exact: true })).toBeVisible();
   await expectNoHorizontalOverflow(page);
@@ -673,6 +683,14 @@ test("#365 — on a 390×844 phone the first contract is on screen, and filters 
   await page.waitForURL(/\/contracts$/);
   await main.getByRole("button", { name: "Filters", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Filters" }).getByLabel("Filter by status")).toHaveValue("");
+  await expect(main.getByRole("button", { name: "Filters", exact: true })).toHaveAttribute("aria-expanded", "true");
+
+  // Widening past the phone layout closes the sheet, so its focus trap
+  // doesn't hold the desktop page (#517 review).
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await expect(page.getByRole("dialog", { name: "Filters" })).toHaveCount(0);
+  await main.getByRole("button", { name: /^Due soon/ }).click();
+  await page.waitForURL(/[?&]due=soon/);
 });
 
 test("#517 review — removing a category pill resets the category select on desktop", async ({ page }) => {

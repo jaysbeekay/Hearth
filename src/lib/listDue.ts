@@ -14,6 +14,7 @@
 //   only Warranties lapse, so it selects nothing else.
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { COVERING_CONTRACTS } from "@/lib/covers";
 import type { CalendarDay, DueContext, DueEntry, DueState } from "@/lib/duePolicy";
 import { contractDue, vehicleDue, warrantyDue, type ContractDueRow, type VehicleDueRow, type WarrantyDueRow } from "@/lib/dueRecords";
 import type { DueFilter } from "@/lib/recordFilters";
@@ -50,6 +51,7 @@ export const VEHICLE_DUE_SELECT = {
   insuranceExpiry: true,
   nextServiceDue: true,
   reminderDaysBefore: true,
+  contracts: COVERING_CONTRACTS,
 } as const satisfies Prisma.VehicleSelect;
 
 type Live = { deletedAt: Date | null };

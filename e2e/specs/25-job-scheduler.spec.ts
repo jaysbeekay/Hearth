@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { ADMIN_AUTH_FILE, BASE_URL } from "../env";
+import { createClient } from "@libsql/client";
+import { ADMIN_AUTH_FILE, BASE_URL, DATABASE_URL } from "../env";
 
 test.use({ storageState: ADMIN_AUTH_FILE });
 
@@ -18,10 +19,31 @@ test("triggering /api/cron runs and reports the reminder check", async ({ reques
   expect(res.ok()).toBe(true);
   const body = await res.json();
   expect(body.triggered).toBe("REMINDER_CHECK");
-  // "ALREADY_PENDING" would mean a previous run's job was still queued —
-  // acceptable, but the common case is that this request's own enqueue won
-  // the claim and ran it to completion.
-  expect(["DONE", "FAILED", "ALREADY_PENDING"]).toContain(body.status);
+  // Usually this request's own enqueue wins the claim and runs it to
+  // completion. Two other answers are the lease doing its job:
+  // "ALREADY_PENDING" (a previous run's job was still queued) and "RUNNING"
+  // (the built-in ticker, src/instrumentation.ts, claimed this request's job
+  // first, so its runPendingJobs found nothing to claim). Then the check is
+  // still in flight: wait for it to finish rather than pass on "in flight".
+  expect(["DONE", "FAILED", "ALREADY_PENDING", "RUNNING"]).toContain(body.status);
+  if (body.status === "DONE" || body.status === "FAILED") return;
+
+  const db = createClient({ url: DATABASE_URL });
+  try {
+    await expect
+      .poll(
+        async () => {
+          const { rows } = await db.execute(
+            "SELECT status FROM background_jobs WHERE type = 'REMINDER_CHECK' ORDER BY createdAt DESC LIMIT 1",
+          );
+          return rows[0]?.status;
+        },
+        { timeout: 60_000 },
+      )
+      .toMatch(/^(DONE|FAILED)$/);
+  } finally {
+    db.close();
+  }
 });
 
 test("two /api/cron triggers in quick succession don't double-enqueue the reminder check", async ({

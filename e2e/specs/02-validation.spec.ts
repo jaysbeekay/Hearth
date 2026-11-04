@@ -47,7 +47,9 @@ test("reversed date range is rejected with a cross-field error", async ({ page }
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.setViewportSize({ width: 1280, height: 400 });
   await expect(alert).not.toBeInViewport();
-  await submit(page).click();
+  // A plain click() would scroll the button, and the alert above it, into
+  // view itself; clicking from script leaves the scrolling to FormMessage.
+  await submit(page).evaluate((button: HTMLButtonElement) => { button.click(); });
   await expect(alert).toBeInViewport();
 });
 

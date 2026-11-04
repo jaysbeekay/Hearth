@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { restorableFromTrash } from "@/lib/trash";
 import { auth } from "@/lib/auth";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { ContractListClient } from "@/components/ContractListClient";
@@ -98,14 +99,17 @@ export default async function ContractsPage({
   const [allContracts, counts, { dateFormat, region }, session, trashCount] = await Promise.all([
     prisma.contract.findMany({
       where,
-      include: { _count: { select: { documents: { where: { deletedAt: null } } } } },
+      include: {
+        _count: { select: { documents: { where: { deletedAt: null } } } },
+        vehicle: { select: { label: true } },
+      },
       orderBy: [{ status: "asc" }, { endDate: "asc" }],
     }),
     contractCounts(query, filters, due),
     getUserPreferences(),
     auth(),
     // #514 review — an empty list says how many are in Trash.
-    prisma.contract.count({ where: { deletedAt: { not: null } } }),
+    prisma.contract.count({ where: restorableFromTrash() }),
   ]);
   const contracts = dueFilter ? allContracts.filter(dueFilter.matches) : allContracts;
 

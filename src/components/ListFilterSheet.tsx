@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { SlidersHorizontal } from "lucide-react";
 import { Dialog } from "@/components/Dialog";
 import { buttonClass, sheetClass } from "@/lib/ui";
@@ -20,12 +20,29 @@ export function ListFilterSheet({
   const [open, setOpen] = useState(false);
   const titleId = useId();
 
+  // The sheet only exists below `md`. Widening the window past it while the
+  // sheet is open would hide the backdrop but leave the dialog's focus trap
+  // holding the page, so close it instead (#517 review).
+  useEffect(() => {
+    if (!open) return;
+    const wide = window.matchMedia("(min-width: 48rem)");
+    const close = () => {
+      if (wide.matches) setOpen(false);
+    };
+    close();
+    wide.addEventListener("change", close);
+    return () => {
+      wide.removeEventListener("change", close);
+    };
+  }, [open]);
+
   return (
     <>
       <button
         type="button"
         onClick={() => { setOpen(true); }}
         aria-haspopup="dialog"
+        aria-expanded={open}
         className={buttonClass("secondary", {}, "md:hidden")}
       >
         <SlidersHorizontal size={16} aria-hidden />

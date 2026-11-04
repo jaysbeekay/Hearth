@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 const shellUrl = pathToFileURL(`${process.cwd()}/ios-shell/www/index.html`).toString();
@@ -11,6 +12,11 @@ test.beforeEach(async ({ page }) => {
   });
 
   await page.addInitScript(() => {
+    // Fixture flags ("hearth-test-*") come from the page URL's query string,
+    // set by reloadWithTestFlags. Not localStorage: Chromium sometimes loses a
+    // file:// localStorage write made just before a reload (about 1 in 10),
+    // and the reloaded page then starts with the default fixtures.
+    const testFlag = (key: string) => new URLSearchParams(location.search).get(key);
     const preferences = new Map<string, string>();
     const sqliteRuns: { statement: string; values: unknown[]; transaction?: boolean }[] = [];
     const scheduledNotifications: unknown[] = [];
@@ -253,13 +259,13 @@ test.beforeEach(async ({ page }) => {
           uploaded_at: "2099-01-01T00:00:00.000Z",
         },
         // #455 — Documents for the Trash tests, picked by
-        // localStorage "hearth-test-doc-versions" (see docVersionRows).
-        ...docVersionRows(localStorage.getItem("hearth-test-doc-versions") ?? ""),
+        // the "hearth-test-doc-versions" flag (see docVersionRows).
+        ...docVersionRows(testFlag("hearth-test-doc-versions") ?? ""),
         // #353 — Broadband Plan's paperwork: the prior Term's (linked to
         // term-1), the current policy, and a newer receipt. Only for the
         // tests that ask (withContractDocuments), since the document tests
         // count what's listed.
-        ...(localStorage.getItem("hearth-test-contract-documents") !== "1" ? [] : [
+        ...(testFlag("hearth-test-contract-documents") !== "1" ? [] : [
           ["document-contract-2097", "broadband-2097.pdf", "POLICY", "2097-07-01T00:00:00.000Z"],
           ["document-contract-2098", "broadband-2098.pdf", "POLICY", "2098-07-01T00:00:00.000Z"],
           ["document-contract-receipt", "broadband-receipt.pdf", "RECEIPT", "2099-01-02T00:00:00.000Z"],
@@ -326,6 +332,14 @@ test.beforeEach(async ({ page }) => {
           version("version-1", null, "2099-01-01T00:00:00.000Z"),
           version("version-2", "version-1", "2099-01-02T00:00:00.000Z", { deleted_at: mode === "middle" ? "2099-01-04T00:00:00.000Z" : null }),
           version("version-3", "version-2", "2099-01-03T00:00:00.000Z", { is_head: 1 }),
+        ];
+      }
+      if (mode === "shared") {
+        // A trashed version whose file a live duplicate import still uses.
+        return [
+          version("version-1", null, "2099-01-01T00:00:00.000Z", { is_head: 1 }),
+          version("version-2", null, "2099-01-02T00:00:00.000Z", { deleted_at: "2099-01-04T00:00:00.000Z" }),
+          { ...base, id: "copy-of-2", filename: "lease-copy.pdf", storage_key: "lease-v2.pdf", supersedes_id: null, is_head: 1, uploaded_at: "2099-01-03T00:00:00.000Z" },
         ];
       }
       if (mode === "expired") {
@@ -435,9 +449,9 @@ test.beforeEach(async ({ page }) => {
       const sql = statement.trim();
       // Tenancy edits and deletes land in the rows, so a resync of local
       // Reminders sees them (#388); a deleted contract goes too (#455), and
-      // so does archiving a Vehicle or Property (#355).
+      // so does archiving a Vehicle or Property (#355); a saved contract's link (#456).
       const rowUpdate = /^UPDATE (rental_agreements|contracts|vehicles|properties) SET (.+) WHERE id = \?$/i.exec(sql);
-      if (rowUpdate && (rowUpdate[1] !== "contracts" || /deleted_at = \?/.test(rowUpdate[2]))) {
+      if (rowUpdate && (rowUpdate[1] !== "contracts" || /deleted_at = \?|vehicle_id = \?/.test(rowUpdate[2]))) {
         const table = rowUpdate[1];
         const id = values[values.length - 1];
         const columns = [...rowUpdate[2].matchAll(/(\w+) = \?/g)].map((m) => m[1]);
@@ -449,6 +463,18 @@ test.beforeEach(async ({ page }) => {
           });
           if (row.deleted_at) rowsByTable[table] = rows.filter((candidate) => candidate !== row);
         }
+      }
+      // A saved contract lands in the rows, so the next render reads back what the form wrote (#456).
+      const contractInsert = /^INSERT INTO contracts \(([^)]+)\) VALUES \(([^)]+)\)$/i.exec(sql);
+      if (contractInsert) {
+        const columns = contractInsert[1].split(",").map((column) => column.trim());
+        const placeholders = contractInsert[2].split(",").map((placeholder) => placeholder.trim());
+        let next = 0;
+        const row: Record<string, unknown> = {};
+        columns.forEach((column, index) => {
+          row[column] = placeholders[index] === "?" ? values[next++] : Number(placeholders[index]);
+        });
+        (rowsByTable.contracts as Record<string, unknown>[]).push(row);
       }
       if (/^(UPDATE|DELETE FROM|INSERT( OR REPLACE)? INTO) documents\b/i.test(sql)) applyDocumentStatement(sql, values);
       if (/INSERT OR REPLACE INTO local_profile/i.test(statement)) {
@@ -467,6 +493,18 @@ test.beforeEach(async ({ page }) => {
 
     function applyDocumentStatement(sql: string, values: unknown[]) {
       const documents = (rowsByTable.documents ?? []) as Record<string, unknown>[];
+      // The purge's two statements act only while the row is still in Trash.
+      const guardedRelink = /^UPDATE documents SET supersedes_id = \?, version = version \+ 1 WHERE supersedes_id = \? AND EXISTS \(SELECT 1 FROM documents WHERE id = \? AND deleted_at IS NOT NULL\)$/i.test(sql);
+      if (guardedRelink) {
+        if (documents.some((row) => row.id === values[2] && row.deleted_at)) {
+          for (const row of documents.filter((candidate) => candidate.supersedes_id === values[1])) row.supersedes_id = values[0];
+        }
+        return;
+      }
+      if (/^DELETE FROM documents WHERE id = \? AND deleted_at IS NOT NULL$/i.test(sql)) {
+        rowsByTable.documents = documents.filter((row) => !(row.id === values[0] && row.deleted_at));
+        return;
+      }
       const update = /^UPDATE documents SET (.+) WHERE (id|supersedes_id) = \?$/i.exec(sql);
       if (update) {
         let next = 0;
@@ -503,7 +541,7 @@ test.beforeEach(async ({ page }) => {
       throw new Error(`Mock: unhandled documents statement: ${sql}`);
     }
 
-    (window as Window & { Capacitor?: unknown; __hearthStandaloneTest?: unknown }).__hearthStandaloneTest = { sqliteRuns, scheduledNotifications, fileWrites, fileDeletes };
+    (window as Window & { Capacitor?: unknown; __hearthStandaloneTest?: unknown }).__hearthStandaloneTest = { sqliteRuns, scheduledNotifications, fileWrites, fileDeletes, rowsByTable };
     (window as Window & { Capacitor?: unknown; __hearthStandaloneTest?: unknown }).Capacitor = {
       getPlatform: () => "ios",
       Plugins: {
@@ -546,8 +584,19 @@ test.beforeEach(async ({ page }) => {
             return {};
           },
           readFile: async () => ({ data: "JVBERi0=" }),
+          // "hearth-test-missing-files": comma-separated storage keys whose
+          // file is gone (e.g. the app died mid-purge).
+          stat: async (args: { path?: string }) => {
+            const missing = (testFlag("hearth-test-missing-files") ?? "").split(",").filter(Boolean);
+            if (missing.some((key) => args.path?.endsWith(`/${key}`))) throw new Error("File does not exist");
+            // "hearth-test-stat-error": stat fails for a reason other than "not found".
+            if (testFlag("hearth-test-stat-error")) throw new Error("Disk error");
+            return { type: "file", size: 1024 };
+          },
           deleteFile: async (args: { directory?: string; path?: string }) => {
-            const failure = localStorage.getItem("hearth-test-delete-file-error");
+            const delay = Number(testFlag("hearth-test-delete-file-delay") ?? 0);
+            if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
+            const failure = testFlag("hearth-test-delete-file-error");
             if (failure === "missing") throw new Error("File does not exist");
             if (failure === "other") throw new Error("Disk error");
             fileDeletes.push(args);
@@ -572,14 +621,12 @@ test.beforeEach(async ({ page }) => {
         },
         // On-device scanning/OCR (HearthScanPlugin), only for the tests that
         // ask (withHearthScan): without it the shell hides Scan and Read text.
-        // Read from the URL's query string, not localStorage: a file://
-        // localStorage write made just before a reload is sometimes lost.
         // "no-scanner" mimics a device without a document camera (or, on
         // Android, without Play services): text recognition only.
-        ...(!["1", "no-scanner"].includes(new URLSearchParams(location.search).get("hearth-test-hearth-scan") ?? "") ? {} : {
+        ...(!["1", "no-scanner"].includes(testFlag("hearth-test-hearth-scan") ?? "") ? {} : {
           HearthScan: {
             isAvailable: async () => ({
-              scanner: new URLSearchParams(location.search).get("hearth-test-hearth-scan") === "1",
+              scanner: testFlag("hearth-test-hearth-scan") === "1",
               textRecognition: true,
             }),
             scanDocument: async () => ({
@@ -1056,6 +1103,144 @@ test("standalone inventory item links to a warranty, and the warranty lists it b
   await expect(page.locator(".list").getByRole("button", { name: /Camera/ })).toBeVisible();
 });
 
+test("standalone Upcoming has no history and colours only Due dates, never a Trip date (#476)", async ({ page }) => {
+  // The fixtures are dated 2099: fix the clock at 2099-09-06 and add rows around it.
+  await page.addInitScript(() => {
+    const rows = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest.rowsByTable;
+    const updated_at = "2099-01-01T00:00:00.000Z";
+    const contract = { category: "OTHER", status: "ACTIVE", end_date: "2099-09-01", cost: 20, currency: "AUD", billing_frequency: "MONTHLY", reminder_days_before: "30,14,7,1", updated_at };
+    rows.contracts.push(
+      { ...contract, id: "contract-2", title: "Gym Membership", renewal_type: "MANUAL_RENEWAL" },
+      { ...contract, id: "contract-3", title: "Fixed Hire", renewal_type: "FIXED_TERM" },
+      { ...contract, id: "contract-4", title: "Auto Streaming", renewal_type: "AUTO_RENEW" },
+    );
+    rows.products.push({ id: "product-2", description: "Old Kettle", warranty_end_date: "2099-09-01", currency: "AUD", reminder_days_before: "30,14,7,1", updated_at });
+    rows.vehicles.push({ id: "vehicle-2", label: "Old Ute", rego_expiry: "2099-09-01", reminder_days_before: "30,14,7,1", updated_at });
+    rows.trip_segments.push(
+      { id: "trip-segment-2", trip_id: "trip-1", type: "ACCOMMODATION", title: "Tokyo Hotel", start_date: "2099-09-05", end_date: "2099-09-13", currency: "AUD", updated_at },
+      { id: "trip-segment-3", trip_id: "trip-1", type: "FLIGHT", title: "Flight to Bali", start_date: "2099-09-09", currency: "AUD", updated_at },
+      // Began yesterday and ends today: still in progress.
+      { id: "trip-segment-4", trip_id: "trip-1", type: "CAR_RENTAL", title: "Kyoto Car", start_date: "2099-09-05", end_date: "2099-09-06", currency: "AUD", updated_at },
+      // Began yesterday with no end date: over.
+      { id: "trip-segment-5", trip_id: "trip-1", type: "ACTIVITY", title: "Sumo Tickets", start_date: "2099-09-05", currency: "AUD", updated_at },
+    );
+    // Due-soon parity with the web Due policy (window = largest Reminder threshold).
+    const soon = { ...contract, end_date: "2099-09-16", renewal_type: "MANUAL_RENEWAL" };
+    rows.contracts.push(
+      { ...soon, id: "contract-5", title: "Due Insurance" },
+      { ...soon, id: "contract-6", title: "Cancelled Phone", status: "CANCELLED" },
+      { ...soon, id: "contract-7", title: "Renewing Music", renewal_type: "AUTO_RENEW" },
+      { ...soon, id: "contract-8", title: "Short Window Plan", reminder_days_before: "7,1" },
+      { ...soon, id: "contract-9", title: "Unreviewed Scan", extraction_pending: 1 },
+    );
+  });
+  await page.clock.setFixedTime(new Date("2099-09-06T12:00:00"));
+  await reloadStandalone(page);
+
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="calendar"]').click();
+  const card = (text: string) => page.locator(".record-card").filter({ hasText: text });
+
+  // Past events are not shown, as on the web: a segment that began 5 days
+  // ago, and Contract, Warranty and Vehicle dates already past. The Trip
+  // itself is never listed, only its segments.
+  for (const gone of ["Flight to Tokyo", "Japan Holiday", "Gym Membership", "Fixed Hire", "Auto Streaming", "Old Kettle", "Old Ute"]) {
+    await expect(card(gone)).toHaveCount(0);
+  }
+
+  // A stay that began yesterday and ends next week is still ahead: it sorts
+  // at today but says In progress and keeps its real start date. Neutral.
+  const stay = card("Tokyo Hotel");
+  await expect(stay).toContainText("In progress");
+  await expect(stay).toContainText("Since 2099-09-05");
+  await expect(stay).not.toHaveClass(/warning-card|danger-card/);
+  await expect(card("Kyoto Car")).toContainText("In progress");
+  await expect(card("Sumo Tickets")).toHaveCount(0);
+
+  // In-progress segments come first, in a stable order, before later dates.
+  const titles = await page.locator(".record-card h3").allTextContents();
+  expect(titles.indexOf("Tokyo Hotel")).toBeLessThan(titles.indexOf("Flight to Bali"));
+  expect(titles.indexOf("Kyoto Car")).toBeLessThan(titles.indexOf("Flight to Bali"));
+
+  // Due soon only for an eligible Due entry inside its own Reminder window.
+  await expect(card("Due Insurance")).toHaveClass(/warning-card/);
+  await expect(card("Cancelled Phone")).toHaveCount(0);
+  for (const neutral of ["Renewing Music", "Short Window Plan", "Unreviewed Scan"]) {
+    await expect(card(neutral)).toContainText("In 10d");
+    await expect(card(neutral)).not.toHaveClass(/warning-card|danger-card/);
+  }
+
+  // A segment starting in 3 days is a neutral date, not Due soon.
+  const soon = card("Flight to Bali");
+  await expect(soon).toContainText("In 3d");
+  await expect(soon).not.toHaveClass(/warning-card|danger-card/);
+  await expect(soon.locator(".badge").first()).not.toHaveClass(/warning|danger/);
+
+  // Overdue stays visible where the shell shows it: Needs attention.
+  await page.locator(".bottom-nav").getByRole("button", { name: "Contracts" }).click();
+  await page.getByRole("button", { name: "Needs attention" }).click();
+  await expect(card("Gym Membership")).toHaveCount(1);
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-record-type="vehicles"]').click();
+  await page.getByRole("button", { name: "Needs attention" }).click();
+  await expect(card("Old Ute")).toHaveCount(1);
+
+  // No Reminder card or count is made for a Trip.
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="reminders"]').click();
+  await expect(card("Japan Holiday")).toHaveCount(0);
+});
+
+test.describe("standalone Upcoming across a DST change and a dense itinerary (#476)", () => {
+  // Sydney's clocks go forward at 02:00 on Sunday 2099-10-04 (a 23-hour day).
+  test.use({ timezoneId: "Australia/Sydney" });
+
+  test("counts whole days across DST and says when the list is capped", async ({ page }) => {
+    await page.addInitScript(() => {
+      const rows = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest.rowsByTable;
+      const updated_at = "2099-01-01T00:00:00.000Z";
+      rows.trip_segments.push({ id: "dst-1", trip_id: "trip-1", type: "FLIGHT", title: "Across DST", start_date: "2099-10-05", currency: "AUD", updated_at });
+      for (let i = 0; i < 85; i += 1) {
+        rows.trip_segments.push({ id: `dense-${String(i).padStart(2, "0")}`, trip_id: "trip-1", type: "ACTIVITY", title: `Dense ${String(i).padStart(2, "0")}`, start_date: "2099-10-10", currency: "AUD", updated_at });
+      }
+    });
+    // Just before midnight, the night before the change.
+    await page.clock.setFixedTime(new Date("2099-10-03T23:30:00+10:00"));
+    await reloadStandalone(page);
+    await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+    await page.locator('#mobile-view button[data-nav="calendar"]').click();
+
+    await expect(page.locator(".record-card").filter({ hasText: "Across DST" })).toContainText("In 2d");
+    await expect(page.locator(".record-card")).toHaveCount(80);
+    await expect(page.locator(".calendar-more")).toContainText(/Showing the next 80 of \d+ dates/);
+    // Same-day entries keep a stable order (label, then title).
+    const dense = (await page.locator(".record-card h3").allTextContents()).filter((t) => t.startsWith("Dense"));
+    expect(dense).toEqual([...dense].sort());
+  });
+});
+
+test.describe("standalone Upcoming across a DST fall-back (#476)", () => {
+  // Los Angeles' clocks go back at 02:00 on Sunday 2099-11-01 (a 25-hour day).
+  test.use({ timezoneId: "America/Los_Angeles" });
+
+  test("counts calendar days across a 25-hour day, as the web does", async ({ page }) => {
+    await page.addInitScript(() => {
+      const rows = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest.rowsByTable;
+      const updated_at = "2099-01-01T00:00:00.000Z";
+      rows.trip_segments.push({ id: "fallback-1", trip_id: "trip-1", type: "FLIGHT", title: "After fall-back", start_date: "2099-11-09", currency: "AUD", updated_at });
+      // Exactly 7 calendar days away, with a 7-day window: Due soon on the web.
+      rows.contracts.push({ id: "fallback-contract", title: "Seven Day Plan", category: "OTHER", status: "ACTIVE", renewal_type: "MANUAL_RENEWAL", end_date: "2099-11-07", cost: 20, currency: "AUD", billing_frequency: "MONTHLY", reminder_days_before: "7,1", updated_at });
+    });
+    await page.clock.setFixedTime(new Date("2099-10-31T23:30:00-07:00"));
+    await reloadStandalone(page);
+    await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+    await page.locator('#mobile-view button[data-nav="calendar"]').click();
+
+    await expect(page.locator(".record-card").filter({ hasText: "After fall-back" })).toContainText("In 9d");
+    await expect(page.locator(".record-card").filter({ hasText: "Seven Day Plan" })).toHaveClass(/warning-card/);
+  });
+});
+
 test("standalone vehicle service-due date feeds the detail page, calendar and reminders", async ({ page }) => {
   await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
   await page.locator('#mobile-view button[data-record-type="vehicles"]').click();
@@ -1067,6 +1252,311 @@ test("standalone vehicle service-due date feeds the detail page, calendar and re
   await expect(
     page.locator(".record-card").filter({ hasText: "Family Car" }).filter({ hasText: "Service" }),
   ).toHaveCount(1);
+});
+
+// #456 - the Category used to be free text; a saved value that isn't a Category survives an edit.
+test("standalone contract form keeps a saved Category that isn't in the list (#456)", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "Contracts" }).click();
+  await page.getByRole("button", { name: /Broadband Plan/ }).click();
+  await page.locator('button[data-form-type="contracts"][data-id]').first().click();
+  await expect(page.locator('select[name="category"]')).toHaveValue("UTILITIES");
+});
+
+// #456 - a Contract that Covers a Vehicle supplies its insurance date, as on the web.
+test("standalone Add insurance opens the contract form linked to the vehicle, and a Covering Contract supplies the date (#456)", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-record-type="vehicles"]').click();
+  await page.getByRole("button", { name: /Family Car/ }).click();
+  // With no covering Contract the typed-in date stays, with its hint.
+  await expect(page.getByText(/Add the policy as a contract to track cost and documents/).first()).toBeVisible();
+
+  await page.getByRole("button", { name: "Add insurance" }).click();
+  await expect(page.locator('select[name="category"]')).toHaveValue("CAR_INSURANCE");
+  await expect(page.locator('select[name="vehicleId"]')).toHaveValue("vehicle-1");
+  await page.locator('input[name="title"]').fill("Allianz policy");
+  await page.locator('input[name="provider"]').fill("Allianz");
+  await page.locator('input[name="endDate"]').fill("2099-09-09");
+  await page.locator('form[data-save-type="contracts"]').getByRole("button", { name: "Save" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Saved");
+  const insert = (await sqliteRuns(page)).find((run) => run.statement.startsWith("INSERT INTO contracts"));
+  expect(insert?.values).toContain("CAR_INSURANCE");
+  expect(insert?.values).toContain("vehicle-1");
+
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-record-type="vehicles"]').click();
+  await page.getByRole("button", { name: /Family Car/ }).click();
+  await expect(page.getByText(/From Allianz policy/).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add insurance" })).toHaveCount(0);
+
+  // The Vehicle has no Reminder of its own for insurance: the Contract's stands in.
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="reminders"]').click();
+  await expect(
+    page.locator(".record-card").filter({ hasText: "Family Car" }).filter({ hasText: "Insurance" }),
+  ).toHaveCount(0);
+  await expect(
+    page.locator(".record-card").filter({ hasText: "Family Car" }).filter({ hasText: "Rego" }),
+  ).toHaveCount(1);
+});
+
+// #487 review - an ended fixed-term policy is a lapse: the Vehicle is Overdue from its end date.
+test("standalone a Vehicle whose fixed-term Covering Contract has ended needs attention (#487)", async ({ page }) => {
+  await page.addInitScript(() => {
+    const rows = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest.rowsByTable;
+    const updated_at = "2099-01-01T00:00:00.000Z";
+    rows.vehicles.push(
+      { id: "vehicle-8", label: "Running Ute", reminder_days_before: "30,14,7,1", created_at: updated_at, updated_at },
+      { id: "vehicle-9", label: "Lapsed Ute", reminder_days_before: "30,14,7,1", created_at: updated_at, updated_at },
+    );
+    const policy = { category: "CAR_INSURANCE", provider: "Allianz", status: "ACTIVE", renewal_type: "FIXED_TERM", currency: "AUD", reminder_days_before: "30,14,7,1", created_at: updated_at, updated_at };
+    rows.contracts.push(
+      { ...policy, id: "contract-running", title: "Running policy", vehicle_id: "vehicle-8", end_date: "2099-12-01" },
+      { ...policy, id: "contract-lapsed", title: "Lapsed policy", vehicle_id: "vehicle-9", end_date: "2099-09-01" },
+    );
+  });
+  await page.clock.setFixedTime(new Date("2099-09-06T12:00:00"));
+  await reloadStandalone(page);
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-record-type="vehicles"]').click();
+  await page.getByRole("button", { name: "Needs attention" }).click();
+  const card = (text: string) => page.locator(".record-card").filter({ hasText: text });
+  await expect(card("Lapsed Ute")).toHaveCount(1);
+  await expect(card("Running Ute")).toHaveCount(0);
+});
+
+// #476 + #456 - one Reminder stream per date across Upcoming, Needs attention
+// and local Reminders: a Covered rego/insurance date is listed once, as the
+// Covering Contract's own event; a Contract that doesn't Cover leaves the
+// Vehicle's own date in place.
+test("standalone Upcoming lists a Covered vehicle date once, as the Contract's (#476, #456)", async ({ page }) => {
+  await page.addInitScript(() => {
+    const rows = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest.rowsByTable;
+    const updated_at = "2099-01-01T00:00:00.000Z";
+    // Own dates inside the Due-soon window, so a leaked Vehicle event would also be coloured.
+    const ute = { rego_expiry: "2099-09-12", insurance_expiry: "2099-09-14", reminder_days_before: "30,14,7,1", created_at: updated_at, updated_at };
+    rows.vehicles.push(
+      { ...ute, id: "vehicle-active", label: "Active Ute" },
+      { ...ute, id: "vehicle-cancelled", label: "Cancelled Ute" },
+      { ...ute, id: "vehicle-review", label: "Review Ute" },
+      { ...ute, id: "vehicle-ended", label: "Ended Ute" },
+      { ...ute, id: "vehicle-unlinked", label: "Unlinked Ute" },
+    );
+    const policy = { category: "CAR_INSURANCE", provider: "Allianz", status: "ACTIVE", renewal_type: "MANUAL_RENEWAL", end_date: "2099-09-20", currency: "AUD", reminder_days_before: "30,14,7,1", created_at: updated_at, updated_at };
+    rows.contracts.push(
+      { ...policy, id: "cover-active", title: "Active policy", vehicle_id: "vehicle-active" },
+      { ...policy, id: "cover-cancelled", title: "Cancelled policy", vehicle_id: "vehicle-cancelled", status: "CANCELLED" },
+      { ...policy, id: "cover-review", title: "Review policy", vehicle_id: "vehicle-review", extraction_pending: 1 },
+      // A fixed-term policy that ended 5 days ago: the Vehicle is uncovered and Overdue from that day (#487).
+      { ...policy, id: "cover-ended", title: "Ended policy", vehicle_id: "vehicle-ended", renewal_type: "FIXED_TERM", end_date: "2099-09-01" },
+      // Unlinked from its Vehicle: it Covers nothing, so the manual date resumes.
+      { ...policy, id: "cover-unlinked", title: "Unlinked policy", vehicle_id: null },
+    );
+    rows.trip_segments.push({ id: "trip-segment-cover", trip_id: "trip-1", type: "ACCOMMODATION", title: "Covers Hotel", start_date: "2099-09-05", end_date: "2099-09-08", currency: "AUD", updated_at });
+  });
+  await page.clock.setFixedTime(new Date("2099-09-06T12:00:00"));
+  await reloadStandalone(page);
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="calendar"]').click();
+  const card = (text: string) => page.locator(".record-card").filter({ hasText: text });
+  const vehicleEvent = (label: string, event: string) => card(label).filter({ hasText: event });
+
+  // Active cover: only the Contract's event, Due soon by its own window.
+  await expect(card("Active policy")).toHaveCount(1);
+  await expect(card("Active policy")).toContainText("Contract ends");
+  await expect(card("Active policy")).toHaveClass(/warning-card/);
+  await expect(vehicleEvent("Active Ute", "Insurance expiry")).toHaveCount(0);
+  // Rego has no Covering Contract, so the Vehicle's own date stays.
+  await expect(vehicleEvent("Active Ute", "Rego expiry")).toHaveCount(1);
+  await expect(vehicleEvent("Active Ute", "Rego expiry")).toContainText("In 6d");
+
+  // Cancelled, under review or unlinked: no Cover, so the Vehicle's own date is listed.
+  for (const label of ["Cancelled Ute", "Review Ute", "Unlinked Ute"]) {
+    await expect(vehicleEvent(label, "Insurance expiry")).toHaveCount(1);
+    await expect(vehicleEvent(label, "Insurance expiry")).toHaveClass(/warning-card/);
+  }
+  await expect(card("Cancelled policy")).toHaveCount(0);
+  await expect(card("Review policy")).not.toHaveClass(/warning-card|danger-card/);
+
+  // Ended fixed-term cover: the lapse is Overdue, so it is in Needs attention, not Upcoming.
+  await expect(vehicleEvent("Ended Ute", "Insurance expiry")).toHaveCount(0);
+  await expect(card("Ended policy")).toHaveCount(0);
+
+  // An in-progress Trip segment sits alongside, neutral.
+  await expect(card("Covers Hotel")).toContainText("In progress");
+  await expect(card("Covers Hotel")).not.toHaveClass(/warning-card|danger-card/);
+
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-record-type="vehicles"]').click();
+  await page.getByRole("button", { name: "Needs attention" }).click();
+  await expect(card("Ended Ute")).toHaveCount(1);
+  // #386 — the badge comes from the ported Due policy.
+  await expect(card("Ended Ute")).toContainText("Overdue");
+
+  // Local Reminders: the Covered Vehicle has none of its own for insurance; the others do.
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="reminders"]').click();
+  await expect(card("Active Ute").filter({ hasText: "Insurance" })).toHaveCount(0);
+  await expect(card("Active Ute").filter({ hasText: "Rego" })).toHaveCount(1);
+  for (const label of ["Cancelled Ute", "Review Ute", "Unlinked Ute"]) {
+    await expect(card(label).filter({ hasText: "Insurance" })).toHaveCount(1);
+  }
+});
+
+// #386 — the shell's hand-ported Due policy runs the same shared cases as
+// the web's (tests/unit/duePolicy.test.ts), so a rule changed on one side
+// only fails one of the two suites.
+test("standalone Due policy port gives every shared case's entries (#386)", async ({ page }) => {
+  const fixture = JSON.parse(readFileSync(`${process.cwd()}/tests/fixtures/due-policy-cases.json`, "utf8")) as {
+    defaults: { now: string; timezone: string; defaultReminderDays: string };
+    cases: { name: string; now?: string; timezone?: string; defaultReminderDays?: string; record: Record<string, unknown>; expected: unknown[] }[];
+  };
+  expect(fixture.cases.length).toBeGreaterThan(0);
+  const results = await page.evaluate((input) => {
+    const shell = window as unknown as {
+      dueHouseholdDay: (now: Date, timeZone: string) => string;
+      dueEntries: (record: unknown, ctx: { today: string; defaultReminderDays: string }) => { field: string; date: string; daysLeft: number; state: string; label: string }[];
+    };
+    return input.cases.map((c) => {
+      const { now, timezone, defaultReminderDays } = { ...input.defaults, ...c };
+      const today = shell.dueHouseholdDay(new Date(now), timezone);
+      const entries = shell.dueEntries(c.record, { today, defaultReminderDays });
+      return { name: c.name, entries: entries.map(({ field, date, daysLeft, state, label }) => ({ field, date, daysLeft, state, label })) };
+    });
+  }, fixture);
+  for (const [index, c] of fixture.cases.entries()) {
+    expect(results[index], c.name).toEqual({ name: c.name, entries: c.expected });
+  }
+});
+
+// #457 — a Tenancy whose linked Contract Covers it (same end date) has one
+// Due row and one Reminder stream: the Contract's.
+test("standalone a Contract that Covers a Tenancy replaces its lease-end row and Reminders (#457)", async ({ page }) => {
+  await page.addInitScript(() => {
+    const rows = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest.rowsByTable;
+    const updated_at = "2099-01-01T00:00:00.000Z";
+    rows.contracts.push({
+      id: "contract-lease",
+      title: "Home lease",
+      category: "OTHER",
+      provider: "Agent",
+      status: "ACTIVE",
+      renewal_type: "MANUAL_RENEWAL",
+      end_date: "2099-09-20",
+      currency: "AUD",
+      reminder_days_before: "30,14,7,1",
+      created_at: updated_at,
+      updated_at,
+    });
+    const lease = rows.rental_agreements[0] as Record<string, unknown>;
+    lease.lease_end = "2099-09-20";
+    lease.contract_id = "contract-lease";
+  });
+  await page.clock.setFixedTime(new Date("2099-09-06T12:00:00"));
+  await reloadStandalone(page);
+
+  const card = (text: string) => page.locator(".record-card").filter({ hasText: text });
+  // Needs attention: the Contract is Due soon, and the lease has no row of its own.
+  await expect(card("Home lease")).toHaveCount(1);
+  await expect(card("Home lease")).toContainText("Expires 20 Sep");
+  await expect(card("Alex Tenant")).toHaveCount(0);
+
+  // Upcoming lists the date once, as the Contract's.
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="calendar"]').click();
+  await expect(card("Home lease")).toHaveCount(1);
+  await expect(card("Lease end")).toHaveCount(0);
+
+  // Reminders: no lease-end stream next to the Contract's.
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="reminders"]').click();
+  await expect(card("Home lease")).toHaveCount(1);
+  await expect(card("Lease").filter({ hasText: "Home" }).filter({ hasNotText: "Home lease" })).toHaveCount(0);
+});
+
+// #457 — when the Contract stops Covering (Cancelled, awaiting review,
+// another end date, unlinked) the lease end is Due again through the row
+// adapter; once a fixed-term Covering Contract has ended, the lease needs its
+// new end date.
+test("standalone a Tenancy's lease end comes back when its Contract stops Covering it (#457)", async ({ page }) => {
+  await page.addInitScript(() => {
+    const rows = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest.rowsByTable;
+    const updated_at = "2099-01-01T00:00:00.000Z";
+    const lease = { category: "OTHER", provider: "Agent", status: "ACTIVE", renewal_type: "MANUAL_RENEWAL", end_date: "2099-09-20", currency: "AUD", created_at: updated_at, updated_at };
+    rows.contracts.push(
+      { ...lease, id: "lease-active", title: "Active lease" },
+      { ...lease, id: "lease-cancelled", title: "Cancelled lease", status: "CANCELLED" },
+      { ...lease, id: "lease-review", title: "Review lease", extraction_pending: 1 },
+      { ...lease, id: "lease-other-day", title: "Other-day lease", end_date: "2099-09-25" },
+      { ...lease, id: "lease-fixed", title: "Fixed lease", renewal_type: "FIXED_TERM", end_date: "2099-09-01" },
+    );
+  });
+  await page.clock.setFixedTime(new Date("2099-09-06T12:00:00"));
+  await reloadStandalone(page);
+  const states = await page.evaluate(() => {
+    const shell = window as unknown as { dueEntriesFor: (type: string, row: unknown) => { state: string; label: string }[] };
+    const lease = (contractId: string | null, leaseEnd = "2099-09-20") => ({ id: "t", property_id: "property-1", contract_id: contractId, lease_end: leaseEnd });
+    const read = (row: unknown) => shell.dueEntriesFor("rentalAgreements", row).map((e) => `${e.state}: ${e.label}`);
+    return {
+      covered: read(lease("lease-active")),
+      cancelled: read(lease("lease-cancelled")),
+      review: read(lease("lease-review")),
+      otherDay: read(lease("lease-other-day")),
+      unlinked: read(lease(null)),
+      fixedEnded: read(lease("lease-fixed", "2099-09-01")),
+    };
+  });
+  expect(states).toEqual({
+    covered: [],
+    cancelled: ["due-soon: Lease ends 20 Sep"],
+    review: ["due-soon: Lease ends 20 Sep"],
+    otherDay: ["due-soon: Lease ends 20 Sep"],
+    unlinked: ["due-soon: Lease ends 20 Sep"],
+    fixedEnded: ["needs-new-end-date: Lease ended — set the new lease end"],
+  });
+});
+
+// #386 — a Contract's notice deadline, as on the web: Upcoming lists it while
+// it's ahead, and an auto-renewing Contract gets local Reminders for it but
+// never for its end date.
+test("standalone notice deadlines feed Upcoming and Reminders; an auto-renew end date never reminds (#386)", async ({ page }) => {
+  await page.addInitScript(() => {
+    const rows = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest.rowsByTable;
+    const updated_at = "2099-01-01T00:00:00.000Z";
+    const contract = { category: "UTILITIES", provider: "Power Co", status: "ACTIVE", currency: "AUD", reminder_days_before: "30,14,7,1", created_at: updated_at, updated_at };
+    rows.contracts.push(
+      { ...contract, id: "contract-notice", title: "Power plan", renewal_type: "AUTO_RENEW", notice_period_days: 30, end_date: "2099-10-16" },
+      { ...contract, id: "contract-renews", title: "Streaming plan", renewal_type: "AUTO_RENEW", end_date: "2099-09-20" },
+    );
+  });
+  await page.clock.setFixedTime(new Date("2099-09-06T12:00:00"));
+  await reloadStandalone(page);
+  const card = (text: string) => page.locator(".record-card").filter({ hasText: text });
+
+  // Dashboard: the notice deadline is Due soon; an auto-renew end date is never Due.
+  await expect(card("Power plan")).toContainText("Cancel by 16 Sep");
+  await expect(card("Streaming plan")).toHaveCount(0);
+
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="calendar"]').click();
+  await expect(card("Power plan")).toContainText("Notice deadline");
+  await expect(card("Power plan")).toHaveClass(/warning-card/);
+  await expect(card("Streaming plan")).toContainText("Contract ends");
+  await expect(card("Streaming plan")).not.toHaveClass(/warning-card|danger-card/);
+
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="reminders"]').click();
+  await expect(card("Streaming plan")).toContainText("Renews");
+  await page.getByRole("button", { name: "Enable reminders" }).click();
+  const scheduled = await page.evaluate(() => {
+    return (window as Window & {
+      __hearthStandaloneTest?: { scheduledNotifications: { body?: string; extra?: { recordId?: string; threshold?: number } }[] };
+    }).__hearthStandaloneTest?.scheduledNotifications ?? [];
+  });
+  const power = scheduled.filter((n) => n.extra?.recordId === "contract-notice");
+  // 2099-09-16 is 10 days out: the 7- and 1-day Reminders are still ahead.
+  expect(power.map((n) => n.extra?.threshold).sort((a, b) => (a ?? 0) - (b ?? 0))).toEqual([1, 7]);
+  expect(power.every((n) => n.body?.includes("Cancel by 2099-09-16"))).toBe(true);
+  expect(scheduled.filter((n) => n.extra?.recordId === "contract-renews")).toEqual([]);
 });
 
 test("standalone schedules a local Reminder for a tenancy's lease end (#388)", async ({ page }) => {
@@ -1195,8 +1685,22 @@ async function sqliteRuns(page: import("@playwright/test").Page): Promise<Sqlite
 
 // Reloads the shell with Broadband Plan's documents seeded (see the mock).
 async function withContractDocuments(page: import("@playwright/test").Page) {
-  await page.evaluate(() => localStorage.setItem("hearth-test-contract-documents", "1"));
+  await reloadWithTestFlags(page, { "hearth-test-contract-documents": "1" });
+}
+
+// Reloads the shell with fixture flags for the mock, kept in the URL's query
+// string (on top of any set earlier) so they reach the reloaded page reliably.
+// A plain reload, for tests that change seeded rows or the clock (no flags).
+async function reloadStandalone(page: import("@playwright/test").Page) {
   await page.reload();
+  await page.getByRole("button", { name: "Use on this device" }).click();
+  await expect(page.locator("#standalone-screen")).toBeVisible();
+}
+
+async function reloadWithTestFlags(page: import("@playwright/test").Page, flags: Record<string, string>) {
+  const url = new URL(page.url());
+  for (const [key, value] of Object.entries(flags)) url.searchParams.set(key, value);
+  await page.goto(url.toString());
   await page.getByRole("button", { name: "Use on this device" }).click();
   await expect(page.locator("#standalone-screen")).toBeVisible();
 }
@@ -1298,21 +1802,15 @@ test("standalone Previous terms opens the prior Term's document (#353)", async (
 // the Trash entry is purged, and the chain survives a trashed version.
 type ShellPage = import("@playwright/test").Page;
 
-async function reloadStandalone(page: ShellPage) {
-  await page.reload();
-  await page.getByRole("button", { name: "Use on this device" }).click();
-  await expect(page.locator("#standalone-screen")).toBeVisible();
-}
-
 // `now` fixes the device clock before the reload, for the purge tests (the
 // fixtures are dated 2099, so with the real clock nothing is ever purged).
-async function withDocumentVersions(page: ShellPage, mode: string, options: { now?: string; deleteFileError?: string } = {}) {
-  await page.evaluate(([value, error]) => {
-    localStorage.setItem("hearth-test-doc-versions", value);
-    if (error) localStorage.setItem("hearth-test-delete-file-error", error);
-  }, [mode, options.deleteFileError ?? ""] as const);
+async function withDocumentVersions(page: ShellPage, mode: string, options: { now?: string; deleteFileError?: string; deleteFileDelay?: string } = {}) {
   if (options.now) await page.clock.setFixedTime(new Date(options.now));
-  await reloadStandalone(page);
+  await reloadWithTestFlags(page, {
+    "hearth-test-doc-versions": mode,
+    ...(options.deleteFileError ? { "hearth-test-delete-file-error": options.deleteFileError } : {}),
+    ...(options.deleteFileDelay ? { "hearth-test-delete-file-delay": options.deleteFileDelay } : {}),
+  });
 }
 
 async function openBroadbandPlan(page: ShellPage) {
@@ -1332,7 +1830,7 @@ async function shellTestState(page: ShellPage) {
 }
 
 type Run = { statement: string; values: unknown[] };
-const deletedDocuments = (runs: Run[]) => runs.filter((run) => run.statement === "DELETE FROM documents WHERE id = ?").map((run) => String(run.values[0]));
+const deletedDocuments = (runs: Run[]) => runs.filter((run) => run.statement === "DELETE FROM documents WHERE id = ? AND deleted_at IS NOT NULL").map((run) => String(run.values[0]));
 
 // The saved Document rows, as the mock holds them after the statements.
 async function savedDocuments(page: ShellPage) {
@@ -1564,17 +2062,12 @@ test("standalone purge keeps the row when the file can't be deleted, and retries
   expect((await savedDocuments(page)).map((row) => row.id)).toEqual(expect.arrayContaining(["version-2", "version-3"]));
 
   // A file that is already gone is fine: the rows go.
-  await page.evaluate(() => localStorage.setItem("hearth-test-delete-file-error", "missing"));
-  await reloadStandalone(page);
+  await reloadWithTestFlags(page, { "hearth-test-delete-file-error": "missing" });
   await expect.poll(async () => deletedDocuments((await shellTestState(page)).runs)).toEqual(["version-3", "version-2"]);
 });
 
 async function withHearthScan(page: import("@playwright/test").Page, mode: "1" | "no-scanner" = "1") {
-  const url = new URL(page.url());
-  url.searchParams.set("hearth-test-hearth-scan", mode);
-  await page.goto(url.toString());
-  await page.getByRole("button", { name: "Use on this device" }).click();
-  await expect(page.locator("#standalone-screen")).toBeVisible();
+  await reloadWithTestFlags(page, { "hearth-test-hearth-scan": mode });
 }
 
 function standaloneRuns(page: import("@playwright/test").Page) {
@@ -1660,4 +2153,335 @@ test("standalone Read text backfills a stored document so search can find it", a
   const runs = await standaloneRuns(page);
   expect(runs.some((run) => run.statement.startsWith("UPDATE documents SET extracted_text = ?") && run.values[0] === "Recognised application/pdf text" && run.values[1] === "document-1")).toBe(true);
   await expect(page.locator(".record-card", { hasText: "insurance.pdf" }).getByRole("button", { name: "Read text" })).toHaveCount(0);
+});
+
+// #488 — Recently deleted: a list of Documents in Trash with Restore and
+// Delete permanently.
+async function openRecentlyDeleted(page: ShellPage) {
+  await page.locator(".bottom-nav").getByRole("button", { name: "Documents" }).click();
+  await page.getByRole("button", { name: "Recently deleted documents" }).click();
+  await expect(page.locator("#view-title")).toHaveText("Recently deleted documents");
+}
+
+function trashRows(page: ShellPage) {
+  return page.locator("section[aria-label='Recently deleted documents'] .record-card");
+}
+
+test("standalone Recently deleted is empty when Trash has nothing (#488)", async ({ page }) => {
+  await openRecentlyDeleted(page);
+  await expect(page.getByRole("heading", { name: "Nothing recently deleted" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Restore/ })).toHaveCount(0);
+});
+
+test("standalone Recently deleted lists Trash and restores a Document (#488)", async ({ page }) => {
+  await withDocumentVersions(page, "1");
+  await page.locator(".bottom-nav").getByRole("button", { name: "Documents" }).click();
+  await page.locator(".record-card").filter({ hasText: "insurance.pdf" }).getByRole("button", { name: "Delete" }).click();
+  await openBroadbandPlan(page);
+  await documentCard(page, "lease-v3.pdf").getByRole("button", { name: "Delete" }).click();
+
+  // The list is the way back, with no Undo toast needed.
+  await openRecentlyDeleted(page);
+  const rows = trashRows(page);
+  await expect(rows).toHaveCount(2);
+  await expect(rows.first()).toContainText("30 days left");
+  await expect(rows.first()).toContainText(/Deleted \d{4}-\d{2}-\d{2}/);
+  expect((await rows.getByRole("heading").allTextContents()).sort()).toEqual(["insurance.pdf", "lease-v3.pdf"]);
+  await expect(rows.filter({ hasText: "lease-v3.pdf" })).toContainText("Contract · Broadband Plan");
+  await expect(page.getByRole("button", { name: "Delete permanently, lease-v3.pdf" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Restore insurance.pdf" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Document restored.");
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText("lease-v3.pdf");
+  const state = await shellTestState(page);
+  expect(state.runs.some((run) => run.statement.includes("deleted_at = NULL") && run.values.includes("document-1"))).toBe(true);
+  expect(state.fileDeletes).toEqual([]);
+});
+
+test("standalone Recently deleted orders newest first and counts days left (#488)", async ({ page }) => {
+  // trash-0 .. trash-24 were deleted 2099-01-01 .. 2099-01-25. At 2099-01-30
+  // none has expired yet.
+  await withDocumentVersions(page, "many", { now: "2099-01-30T00:00:00.000Z" });
+  await openRecentlyDeleted(page);
+  const rows = trashRows(page);
+  await expect(rows).toHaveCount(25);
+  await expect(rows.first().getByRole("heading")).toHaveText("trash-24.pdf");
+  await expect(rows.first()).toContainText("Deleted 2099-01-25");
+  await expect(rows.first()).toContainText("26 days left");
+  await expect(rows.last().getByRole("heading")).toHaveText("trash-0.pdf");
+  await expect(rows.last()).toContainText("2 days left");
+});
+
+test("standalone Recently deleted offers only Delete permanently under a deleted record (#488)", async ({ page }) => {
+  await withDocumentVersions(page, "1");
+  await openBroadbandPlan(page);
+  await documentCard(page, "lease-v3.pdf").getByRole("button", { name: "Delete" }).click();
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.locator('button[data-delete-record="contracts"][data-id="contract-1"]').click();
+  await expect(page.locator("#standalone-status")).toContainText("Deleted.");
+
+  await openRecentlyDeleted(page);
+  // Kept 30 days with the record, and listed as such.
+  await expect(trashRows(page).filter({ hasText: "lease-v3.pdf" })).toContainText("Its record was deleted");
+  // The shell can't bring the record back, so there is no Restore to tap.
+  await expect(page.getByRole("button", { name: "Restore lease-v3.pdf" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Delete permanently, lease-v3.pdf" })).toBeVisible();
+  const state = await shellTestState(page);
+  expect(state.runs.some((run) => run.statement.includes("deleted_at = NULL"))).toBe(false);
+});
+
+test("standalone Recently deleted: Delete permanently removes the row and file after a confirm (#488)", async ({ page }) => {
+  await withDocumentVersions(page, "middle");
+  await openRecentlyDeleted(page);
+  const row = trashRows(page).filter({ hasText: "lease-v2.pdf" });
+
+  // Cancel changes nothing.
+  page.once("dialog", (dialog) => void dialog.dismiss());
+  await row.getByRole("button", { name: "Delete permanently, lease-v2.pdf" }).click();
+  await expect(row).toBeVisible();
+  expect(deletedDocuments((await shellTestState(page)).runs)).toEqual([]);
+
+  let message = "";
+  page.once("dialog", (dialog) => {
+    message = dialog.message();
+    void dialog.accept();
+  });
+  await row.getByRole("button", { name: "Delete permanently, lease-v2.pdf" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Deleted permanently.");
+  expect(message).toContain("lease-v2.pdf");
+  await expect(page.getByRole("heading", { name: "Nothing recently deleted" })).toBeVisible();
+  const state = await shellTestState(page);
+  expect(deletedDocuments(state.runs)).toEqual(["version-2"]);
+  expect(state.fileDeletes.map((call) => call.path?.split("/").pop())).toEqual(["lease-v2.pdf"]);
+  // v3 follows v1 directly now, so the Document isn't split.
+  const saved = await savedDocuments(page);
+  expect(saved.find((doc) => doc.id === "version-3")?.supersedes_id).toBe("version-1");
+});
+
+test("standalone Recently deleted keeps the row when the file can't be deleted (#488)", async ({ page }) => {
+  await withDocumentVersions(page, "middle", { deleteFileError: "other" });
+  await openRecentlyDeleted(page);
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("button", { name: "Delete permanently, lease-v2.pdf" }).click();
+  await expect(page.locator("#standalone-status")).not.toContainText("Deleted permanently.");
+  await expect(page.locator("#standalone-status")).not.toBeHidden();
+  await expect(page.getByRole("heading", { name: "lease-v2.pdf" })).toBeVisible();
+  expect(deletedDocuments((await shellTestState(page)).runs)).toEqual([]);
+});
+
+test("standalone Recently deleted restores a middle version without splitting the Document (#488)", async ({ page }) => {
+  await withDocumentVersions(page, "middle");
+  await openBroadbandPlan(page);
+  await expect(documentCard(page, "lease-v3.pdf").getByText("2 versions")).toBeVisible();
+
+  await openRecentlyDeleted(page);
+  await page.getByRole("button", { name: "Restore lease-v2.pdf" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Document restored.");
+  await expect(page.getByRole("heading", { name: "Nothing recently deleted" })).toBeVisible();
+
+  // One Document of three versions, v3 on top: nothing duplicated or split.
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(page.locator("#view-title")).toHaveText("Documents");
+  await expect(documentCard(page, "lease-v3.pdf").getByText("3 versions")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "lease-v2.pdf" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "lease-v1.pdf" })).toHaveCount(0);
+  const state = await shellTestState(page);
+  expect(state.runs.some((run) => run.statement.includes("deleted_at = NULL") && run.values.includes("version-2"))).toBe(true);
+  expect(state.runs.some((run) => /INTO documents/i.test(run.statement))).toBe(false);
+});
+
+// #496 review: a stat error that isn't a definite "not found" can't prove the
+// file is there, so Restore is refused (and can be retried), never guessed.
+test("standalone Restore refuses when the file check fails for another reason (#488)", async ({ page }) => {
+  await withDocumentVersions(page, "middle");
+  await reloadWithTestFlags(page, { "hearth-test-stat-error": "1" });
+  await openRecentlyDeleted(page);
+  await page.getByRole("button", { name: "Restore lease-v2.pdf" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Couldn't check that its file is still on this phone. Try again.");
+  await expect(page.locator("#standalone-status")).not.toContainText("Document restored.");
+  expect((await savedDocuments(page)).find((row) => row.id === "version-2")?.deleted_at).toBeTruthy();
+  await expect(trashRows(page).filter({ hasText: "lease-v2.pdf" })).toHaveCount(1);
+});
+
+test("standalone Restore refuses a Document whose file is gone, so no live row points at missing bytes (#488)", async ({ page }) => {
+  await withDocumentVersions(page, "middle");
+  await reloadWithTestFlags(page, { "hearth-test-missing-files": "lease-v2.pdf" });
+  await openRecentlyDeleted(page);
+  await page.getByRole("button", { name: "Restore lease-v2.pdf" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("its file is no longer on this phone");
+  expect((await savedDocuments(page)).find((row) => row.id === "version-2")?.deleted_at).toBeTruthy();
+  await expect(trashRows(page).filter({ hasText: "lease-v2.pdf" })).toHaveCount(1);
+  // It can still be deleted for good; the missing file is fine.
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("button", { name: "Delete permanently, lease-v2.pdf" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Deleted permanently.");
+  expect((await savedDocuments(page)).some((row) => row.id === "version-2")).toBe(false);
+});
+
+test("standalone Delete permanently keeps a file another Document still uses (#488)", async ({ page }) => {
+  await withDocumentVersions(page, "shared");
+  await openRecentlyDeleted(page);
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("button", { name: "Delete permanently, lease-v2.pdf" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Deleted permanently.");
+  const saved = await savedDocuments(page);
+  expect(saved.some((row) => row.id === "version-2")).toBe(false);
+  expect(saved.find((row) => row.id === "copy-of-2")?.deleted_at ?? null).toBeNull();
+  expect((await shellTestState(page)).fileDeletes).toEqual([]);
+});
+
+test("standalone Recently deleted says a Document under a deleted record can't be restored (#488)", async ({ page }) => {
+  await openRecentlyDeleted(page);
+  await expect(page.locator("#mobile-view")).toContainText("can't be restored here, only deleted");
+});
+
+test("standalone Recently deleted is reachable from More and Settings (#488)", async ({ page }) => {
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.getByRole("button", { name: /Recently deleted documents/ }).click();
+  await expect(page.getByRole("heading", { name: "Nothing recently deleted" })).toBeVisible();
+  await page.getByRole("button", { name: "Back" }).click();
+  await page.getByRole("button", { name: /^Settings/ }).click();
+  await page.getByRole("button", { name: "Open recently deleted documents" }).click();
+  await expect(page.getByRole("heading", { name: "Nothing recently deleted" })).toBeVisible();
+});
+
+const statusActions = (page: ShellPage) => page.locator("#standalone-status .status-action");
+
+test("standalone Recently deleted never carries a stale Undo on its messages (#488)", async ({ page }) => {
+  await withDocumentVersions(page, "1");
+  await openBroadbandPlan(page);
+  await documentCard(page, "lease-v3.pdf").getByRole("button", { name: "Delete" }).click();
+  await documentCard(page, "lease-v2.pdf").getByRole("button", { name: "Delete" }).click();
+  await expect(statusActions(page)).toHaveText("Undo (2)");
+
+  // Entering the screen drops the toast and its Undos.
+  await openRecentlyDeleted(page);
+  await expect(page.locator("#standalone-status")).toBeHidden();
+
+  await page.getByRole("button", { name: "Restore lease-v2.pdf" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Document restored.");
+  await expect(statusActions(page)).toHaveCount(0);
+
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("button", { name: "Delete permanently, lease-v3.pdf" }).click();
+  await expect(page.locator("#standalone-status")).toHaveText("Deleted permanently.");
+  await expect(statusActions(page)).toHaveCount(0);
+});
+
+test("standalone Recently deleted ignores a double tap on Restore and on Delete permanently (#488)", async ({ page }) => {
+  await withDocumentVersions(page, "many", { now: "2099-01-30T00:00:00.000Z" });
+  await openRecentlyDeleted(page);
+  await page.getByRole("button", { name: "Restore trash-24.pdf" }).evaluate((button: HTMLElement) => {
+    button.click();
+    button.click();
+  });
+  await expect(page.locator("#standalone-status")).toContainText("Document restored.");
+  let state = await shellTestState(page);
+  expect(state.runs.filter((run) => run.statement.includes("deleted_at = NULL") && run.values.includes("trash-24"))).toHaveLength(1);
+
+  let dialogs = 0;
+  page.on("dialog", (dialog) => {
+    dialogs += 1;
+    void dialog.accept();
+  });
+  await page.getByRole("button", { name: "Delete permanently, trash-23.pdf" }).evaluate((button: HTMLElement) => {
+    button.click();
+    button.click();
+  });
+  await expect(page.locator("#standalone-status")).toHaveText("Deleted permanently.");
+  state = await shellTestState(page);
+  expect(dialogs).toBe(1);
+  expect(deletedDocuments(state.runs)).toEqual(["trash-23"]);
+});
+
+test("standalone a Restore during a permanent delete never deletes a live row (#488)", async ({ page }) => {
+  await withDocumentVersions(page, "middle", { deleteFileDelay: "800" });
+  await openRecentlyDeleted(page);
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("button", { name: "Delete permanently, lease-v2.pdf" }).click();
+  // The file is still being deleted: the buttons are off, and a Restore that
+  // gets through anyway (the Undo toast calls the same function) does nothing.
+  await expect(page.getByRole("button", { name: "Delete permanently, lease-v2.pdf" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Restore lease-v2.pdf" })).toBeDisabled();
+  await page.evaluate(() => (window as unknown as { restoreDocument: (id: string, fromList: boolean) => Promise<void> }).restoreDocument("version-2", true));
+  await expect(page.locator("#standalone-status")).toHaveText("Deleted permanently.");
+  const state = await shellTestState(page);
+  expect(state.runs.some((run) => run.statement.includes("deleted_at = NULL"))).toBe(false);
+  expect(deletedDocuments(state.runs)).toEqual(["version-2"]);
+  const saved = await savedDocuments(page);
+  expect(saved.map((row) => row.id).sort()).toEqual(["document-1", "version-1", "version-3"]);
+  expect(saved.find((row) => row.id === "version-3")?.supersedes_id).toBe("version-1");
+});
+
+test("standalone the purge statements leave a row that is no longer in Trash alone (#488)", async ({ page }) => {
+  await withDocumentVersions(page, "middle");
+  // A Restore that landed after the purge read the row: the purge's two
+  // statements must leave the live row and its chain alone.
+  const result = await page.evaluate(async () => {
+    type Sqlite = {
+      run: (a: { statement: string; values: unknown[] }) => Promise<unknown>;
+      executeSet: (a: { database: string; transaction: boolean; set: { statement: string; values: unknown[] }[] }) => Promise<unknown>;
+      query: (a: { statement: string }) => Promise<{ values: Record<string, unknown>[] }>;
+    };
+    const sqlite = (window as unknown as { Capacitor: { Plugins: { CapacitorSQLite: Sqlite } } }).Capacitor.Plugins.CapacitorSQLite;
+    await sqlite.run({ statement: "UPDATE documents SET deleted_at = NULL, version = version + 1 WHERE id = ?", values: ["version-2"] });
+    await (window as unknown as { purgeDocument: (id: string) => Promise<unknown> }).purgeDocument("version-2");
+    return (await sqlite.query({ statement: "SELECT * FROM documents" })).values.map((row) => [row.id, row.supersedes_id]);
+  });
+  // purgeDocument re-reads the row, finds it live and does nothing.
+  expect(result).toContainEqual(["version-2", "version-1"]);
+  expect(result).toContainEqual(["version-3", "version-2"]);
+});
+
+test("standalone Recently deleted says so when a row is already gone (#488)", async ({ page }) => {
+  await withDocumentVersions(page, "middle");
+  await openRecentlyDeleted(page);
+  await page.evaluate(async () => {
+    const sqlite = (window as unknown as { Capacitor: { Plugins: { CapacitorSQLite: { run: (a: { statement: string; values: unknown[] }) => Promise<unknown> } } } }).Capacitor.Plugins.CapacitorSQLite;
+    await sqlite.run({ statement: "DELETE FROM documents WHERE id = ?", values: ["version-2"] });
+  });
+  await page.getByRole("button", { name: "Restore lease-v2.pdf" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Already restored or removed");
+  await expect(page.getByRole("heading", { name: "Nothing recently deleted" })).toBeVisible();
+});
+
+test("standalone Recently deleted says so when Delete permanently finds the row gone (#488)", async ({ page }) => {
+  await withDocumentVersions(page, "middle");
+  await openRecentlyDeleted(page);
+  await page.evaluate(async () => {
+    const sqlite = (window as unknown as { Capacitor: { Plugins: { CapacitorSQLite: { run: (a: { statement: string; values: unknown[] }) => Promise<unknown> } } } }).Capacitor.Plugins.CapacitorSQLite;
+    await sqlite.run({ statement: "DELETE FROM documents WHERE id = ?", values: ["version-2"] });
+  });
+  await page.getByRole("button", { name: "Delete permanently, lease-v2.pdf" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Already restored or removed");
+  await expect(page.getByRole("heading", { name: "Nothing recently deleted" })).toBeVisible();
+});
+
+test("standalone Recently deleted shows 30 days left when the clock is behind the data (#488)", async ({ page }) => {
+  await withDocumentVersions(page, "many", { now: "2098-01-01T00:00:00.000Z" });
+  await openRecentlyDeleted(page);
+  await expect(trashRows(page)).toHaveCount(25);
+  await expect(trashRows(page).first()).toContainText("30 days left");
+});
+
+test("standalone Recently deleted says Will be deleted soon at zero days left (#488)", async ({ page }) => {
+  // fresh-trash is the newest entry, so a launch purge keeps it, but at this
+  // clock its 30 days are up.
+  await withDocumentVersions(page, "expired", { now: "2099-03-01T00:00:00.000Z" });
+  await openRecentlyDeleted(page);
+  const row = trashRows(page).filter({ hasText: "fresh-trash.pdf" });
+  await expect(row).toContainText("Will be deleted soon");
+  await expect(row).not.toContainText("Expires today");
+});
+
+test("standalone Recently deleted buttons are 44px targets (#488)", async ({ page }) => {
+  await withDocumentVersions(page, "middle");
+  await page.locator(".bottom-nav").getByRole("button", { name: "Documents" }).click();
+  const entry = page.getByRole("button", { name: "Recently deleted documents" });
+  expect((await entry.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+  await entry.click();
+  for (const name of ["Restore lease-v2.pdf", "Delete permanently, lease-v2.pdf"]) {
+    expect((await page.getByRole("button", { name }).boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+  }
 });

@@ -246,7 +246,7 @@ describe("renewContractCommand", () => {
       // Renewed to 2 Jul: 12 days out, so the 14-day threshold is crossed
       // again, for a date it hasn't been sent for.
       await renewContractCommand(contract.id, { endDate: day("2026-07-02") }, actorId);
-      expect((await health()).nextReminder).toEqual({ kind: "next-check" });
+      expect((await health()).nextReminder).toEqual({ kind: "next-check", by: ["EMAIL", "NTFY", "WEBHOOK"] });
       const row = await db.prisma.contract.findUniqueOrThrow({ where: { id: contract.id } });
       const logs = await db.prisma.notificationLog.findMany({ where: { ownerId: contract.id } });
       const plan = reminderPlan(
