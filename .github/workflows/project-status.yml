@@ -35,7 +35,9 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: project-status-${{ github.event.issue.number || github.event.pull_request.number || inputs.number }}
+  # One run at a time for the whole board: a PR run also moves its linked
+  # issues, so a per-item key would let two runs read and write the same card.
+  group: project-status
   cancel-in-progress: false
 
 jobs:

@@ -93,15 +93,19 @@ async function itemFor(board, contentId) {
     { project: board.id, content: contentId },
   );
   const id = added.addProjectV2ItemById.item.id;
+  return { id, status: await statusOf(id) };
+}
+
+async function statusOf(itemId) {
   const current = await gql(
     `query($id: ID!) {
       node(id: $id) {
         ... on ProjectV2Item { fieldValueByName(name: "Status") { ... on ProjectV2ItemFieldSingleSelectValue { name } } }
       }
     }`,
-    { id },
+    { id: itemId },
   );
-  return { id, status: current.node?.fieldValueByName?.name ?? null };
+  return current.node?.fieldValueByName?.name ?? null;
 }
 
 async function setStatus(board, itemId, optionId) {
@@ -173,6 +177,15 @@ async function main() {
         continue;
       }
       await setStatus(board, card.id, option.id);
+      // A card added just now can be given its default status by the board's
+      // own "Item added" workflow a moment later, overwriting this move.
+      // Look again and reapply once if that happened.
+      await new Promise((resolve) => setTimeout(resolve, Number(env.STATUS_RECHECK_MS ?? 5000)));
+      const after = await statusOf(card.id);
+      if (after !== option.name) {
+        log(`#${number}: status read back as ${after ?? "none"}, setting ${option.name} again.`);
+        await setStatus(board, card.id, option.id);
+      }
       log(`#${number}: ${card.status ?? "no status"} → ${option.name}.`);
     } catch (error) {
       failed = true;

@@ -63,6 +63,7 @@ async function runMain(eventName, event, env = {}) {
     GATEKEEPER_LOGINS: "",
     INPUT_NUMBER: "",
     INPUT_STATUS: "",
+    STATUS_RECHECK_MS: "0",
     ...env,
   });
   const lines = [];
@@ -115,6 +116,23 @@ describe("main.mjs against a fake GitHub", () => {
     const pr = { action: "opened", pull_request: { number: 432, draft: false, state: "open", body: "Closes #424\nUpstream PR: we-promise/sure#4174", base: { ref: "mirror/upstream-main" }, author_association: "OWNER" } };
     await runMain("pull_request_target", pr);
     assert.deepEqual(github.status, { 432: "In review", 424: "In review" });
+  });
+
+  // The board's own "Item added" workflow can set Triage just after our write.
+  test("a status overwritten right after the move is set again", async () => {
+    github = fakeGitHub({ items: { 432: { node_id: "PR_432" } } });
+    const realFetch = globalThis.fetch;
+    let overwritten = false;
+    globalThis.fetch = async (url, init) => {
+      const res = await realFetch(url, init);
+      if (!overwritten && init.body?.includes("updateProjectV2ItemFieldValue")) {
+        overwritten = true;
+        github.status[432] = "Triage";
+      }
+      return res;
+    };
+    await runMain("pull_request_target", draftPr(""));
+    assert.deepEqual(github.status, { 432: "In progress" });
   });
 
   // Behind the card's status, so only the closed check holds it there.

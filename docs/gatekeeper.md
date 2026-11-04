@@ -78,6 +78,8 @@ record the result:
 
 - an owner `@codebot review` (expect the 👀 reaction, a green run, and a review);
 - the same comment from a non-owner account (expect the workflow to be skipped);
-- a PR from a fork (expect no `@codebot` effect and no secrets exposed);
+- a PR from a fork, commented on by a non-owner (expect the workflow to be skipped). An owner
+  comment on a fork PR does run: it is the owner asking, the workflow checks nothing out, and
+  the payload is only the comment and PR metadata, which Hermes must treat as data;
 - a replayed request, a wrong signature and a stale timestamp sent straight to the route
   (expect all three rejected).
