@@ -48,6 +48,7 @@ export async function confirmAllExtractions(_prev: ActionState, formData: FormDa
 
   let confirmed = 0;
   const problems: string[] = [];
+  const gone: string[] = [];
   for (const [, kind, id] of records) {
     const sub = recordReviewForm(formData, `${kind}:${id}:`);
     const label = formData.get(`${kind}:${id}:label`);
@@ -62,8 +63,9 @@ export async function confirmAllExtractions(_prev: ActionState, formData: FormDa
       }
       confirmed += 1;
     } catch (error) {
-      if (error instanceof RecordNotFoundError) continue;
-      if (error instanceof StaleEditError) {
+      if (error instanceof RecordNotFoundError) {
+        gone.push(name);
+      } else if (error instanceof StaleEditError) {
         problems.push(`${name}: someone changed it since this page loaded, so check it again`);
       } else if (error instanceof RecordValidationError) {
         problems.push(`${name}: ${error.message}`);
@@ -76,10 +78,14 @@ export async function confirmAllExtractions(_prev: ActionState, formData: FormDa
   }
   revalidatePath("/review");
   revalidatePath("/dashboard");
+  // A record deleted since the page loaded has nothing left to confirm, but
+  // still say so, or the count would quietly come up short.
+  const goneNote =
+    gone.length > 0 ? ` ${gone.join(", ")} ${gone.length === 1 ? "was" : "were"} deleted since this page loaded.` : "";
   if (problems.length > 0) {
     return {
-      error: `${confirmed} confirmed. Fix ${problems.length === 1 ? "this one" : "these"} and confirm again: ${problems.join("; ")}`,
+      error: `${confirmed} confirmed.${goneNote} Fix ${problems.length === 1 ? "this one" : "these"} and confirm again: ${problems.join("; ")}`,
     };
   }
-  return { success: `${confirmed} ${confirmed === 1 ? "record" : "records"} confirmed.` };
+  return { success: `${confirmed} ${confirmed === 1 ? "record" : "records"} confirmed.${goneNote}` };
 }

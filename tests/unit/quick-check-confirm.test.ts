@@ -99,6 +99,23 @@ describe("Confirm all", () => {
     expect(row.extractionPending).toBe(true);
   });
 
+  it("says so when a record was deleted after the page loaded", async () => {
+    const a = await pendingContract("Gym", "2026-01-01");
+    const b = await pendingContract("Phone", "2026-01-01");
+    await db.prisma.contract.update({ where: { id: a.id }, data: { deletedAt: new Date() } });
+
+    const result = await confirmAllExtractions(
+      null,
+      form([
+        { id: a.id, title: "Gym", endDate: "2027-07-01", version: a.updatedAt.toISOString() },
+        { id: b.id, title: "Phone", endDate: "2027-07-01", version: b.updatedAt.toISOString() },
+      ]),
+    );
+
+    expect(result).toEqual({ success: "1 record confirmed. Gym was deleted since this page loaded." });
+    expect(await pending(b.id)).toBe(false);
+  });
+
   it("carries on past an unexpected failure and reports it", async () => {
     const a = await pendingContract("Gym", "2026-01-01");
     const b = await pendingContract("Phone", "2026-01-01");
