@@ -4,6 +4,7 @@ import { setDocumentImportantAction } from "@/lib/actions/documents";
 import { DocumentDeleteButton } from "@/components/DocumentDeleteButton";
 import { DocumentLink } from "@/components/DocumentLink";
 import { DocumentPreviewButton } from "@/components/DocumentPreviewButton";
+import { DocumentShareButton } from "@/components/DocumentShareButton";
 import { DocumentThumbnail } from "@/components/DocumentThumbnail";
 import { DocumentTypeSelect } from "@/components/DocumentTypeSelect";
 import { ImportantToggle } from "@/components/ImportantToggle";
@@ -113,7 +114,8 @@ export function DocumentList({
                     category={doc.category}
                   />
                 )}
-                <DocumentPreviewButton href={href} filename={doc.filename} mimeType={doc.mimeType} />
+                <DocumentPreviewButton documentId={doc.id} href={href} filename={doc.filename} mimeType={doc.mimeType} />
+                <DocumentShareButton documentId={doc.id} href={href} filename={doc.filename} mimeType={doc.mimeType} />
                 {star(doc)}
                 <DocumentDeleteButton kind={kind} documentId={doc.id} ownerId={ownerId} filename={doc.filename} />
               </div>
@@ -143,6 +145,13 @@ export function DocumentList({
                     </DocumentLink>
                     <div className="flex shrink-0 items-center">
                       <DocumentPreviewButton
+                        documentId={v.id}
+                        href={documentFileHref(v.id)}
+                        filename={v.filename}
+                        mimeType={v.mimeType}
+                      />
+                      <DocumentShareButton
+                        documentId={v.id}
                         href={documentFileHref(v.id)}
                         filename={v.filename}
                         mimeType={v.mimeType}
