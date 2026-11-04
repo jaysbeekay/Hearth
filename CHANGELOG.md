@@ -10,9 +10,11 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 ### Added
 
 - iOS release pipeline: `ios-testflight.yml` builds, signs and uploads the
-  Capacitor shell to TestFlight on every `v*` tag, setting the app version
-  from the tag and a UTC-timestamp build number. Setup and required
-  secrets are in `docs/deployment/ios-testflight.md`.
+  Capacitor shell to TestFlight on each pushed `v*` tag, setting the app
+  version from the tag and a UTC-timestamp build number. Tags created by
+  running `release.yml` from the Actions tab need a manual run, and the
+  workflow doesn't gate releases yet. Setup and required secrets are in
+  `docs/deployment/ios-testflight.md`.
 - **Upload page: one scan, bulk edits and a Quick check screen (#358).**
   Each file is scanned once; the page pre-selects Contract, Warranty or
   Inventory item from what the scan found, and switching type reuses that

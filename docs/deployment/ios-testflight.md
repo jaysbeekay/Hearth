@@ -29,9 +29,9 @@ from" set to the tag.
 
 **Joining the release.** Once a proof run (below) has reached TestFlight, add
 `ios-testflight.yml` to the `workflows=(…)` array in `release.yml`'s
-`artifacts` job and raise that job's `timeout-minutes` to 90, since the iOS job
-has a 45-minute timeout plus macOS runner queueing. From then on a failed iOS
-build fails the release run.
+`artifacts` job. That job's `timeout-minutes` must stay at 90 or more, since
+the iOS job has a 45-minute timeout plus macOS runner queueing. From then on a
+failed iOS build fails the release run.
 
 Tag runs use the `release` GitHub environment, like the Android and Docker
 jobs. Keep the iOS secrets at repository level until the proof run from `main`
