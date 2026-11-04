@@ -606,34 +606,7 @@ test.beforeEach(async ({ page }) => {
         return renames;
       },
       rowsByTable,
-      icloudUploads: [] as { path?: string; name?: string; keep?: number }[],
     };
-    const icloudFiles = new Map<string, string>();
-    // iOS's own iCloud backup plugin; present only when a test asks for it.
-    const icloudBackup = testFlag("hearth-test-icloud") === "on"
-      ? {
-          status: async () => ({ available: true }),
-          upload: async (args: { path?: string; name?: string; keep?: number }) => {
-            (window as unknown as { __hearthStandaloneTest: { icloudUploads: unknown[] } }).__hearthStandaloneTest.icloudUploads.push(args);
-            const cacheKey = `CACHE:${String(args.path).replace("file:///cache/", "")}`;
-            icloudFiles.set(String(args.name), files.get(cacheKey) ?? "");
-            return { name: args.name, pruned: 0 };
-          },
-          list: async () => ({
-            backups: [...icloudFiles.entries()].map(([name, data]) => ({ name, size: data.length, modifiedAt: "2099-01-01T00:00:00.000Z", downloaded: true })),
-          }),
-          prepare: async ({ name }: { name: string }) => ({ size: (icloudFiles.get(name) ?? "").length }),
-          readChunk: async ({ name, offset, length }: { name: string; offset: number; length: number }) => ({ data: (icloudFiles.get(name) ?? "").slice(offset, offset + length) }),
-          remove: async () => ({}),
-          setAutoBackupPassword: async ({ password }: { password: string }) => {
-            preferences.set("test-keychain-backup-password", password);
-          },
-          getAutoBackupPassword: async () => ({ password: preferences.get("test-keychain-backup-password") ?? "" }),
-          clearAutoBackupPassword: async () => {
-            preferences.delete("test-keychain-backup-password");
-          },
-        }
-      : undefined;
     (window as Window & { Capacitor?: unknown; __hearthStandaloneTest?: unknown }).Capacitor = {
       getPlatform: () => "ios",
       Plugins: {
@@ -710,6 +683,12 @@ test.beforeEach(async ({ page }) => {
           },
           getUri: async (args: { directory?: string; path?: string }) => ({ uri: `file:///${String(args.directory).toLowerCase()}/${args.path}` }),
           mkdir: async () => ({}),
+          readdir: async (args: { directory?: string; path?: string }) => {
+            const prefix = `${fileKey(args)}/`;
+            const names = [...files.keys()].filter((key) => key.startsWith(prefix)).map((key) => key.slice(prefix.length)).filter((name) => !name.includes("/"));
+            if (names.length === 0) throw new Error("Directory does not exist");
+            return { files: names.map((name) => ({ name, type: "file" })) };
+          },
           rmdir: async (args: { directory?: string; path?: string }) => {
             for (const key of [...files.keys()]) if (key.startsWith(`${fileKey(args)}/`)) files.delete(key);
           },
@@ -761,7 +740,6 @@ test.beforeEach(async ({ page }) => {
           },
           getPending: async () => ({ notifications: [] }),
         },
-        ...(icloudBackup ? { ICloudBackup: icloudBackup } : {}),
         ServerConfig: {
           getServerUrl: async () => ({ url: "" }),
           importClientCertificate: async () => ({ label: "Test certificate" }),
@@ -982,7 +960,6 @@ type BackupHarness = {
   files: Map<string, string>;
   sqliteRuns: { statement: string; values: unknown[]; transaction?: boolean }[];
   rowsByTable: Record<string, { id?: string; title?: string }[]>;
-  icloudUploads: { path?: string; name?: string; keep?: number }[];
 };
 
 async function openBackupSettings(page: ShellPage) {
@@ -997,12 +974,21 @@ async function exportBackup(page: ShellPage, password = "correct horse battery")
   await form.getByLabel("Backup password").fill(password);
   await form.getByLabel("Confirm password").fill(password);
   await form.getByRole("button", { name: "Export and share" }).click();
+  await continuePastSavePasswordStep(page, password);
   await expect(page.locator("#standalone-status")).toContainText("Backup saved as hearth-standalone-");
   return page.evaluate(() => {
     const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
     const write = harness.fileWrites.find((candidate) => candidate.path?.startsWith("hearth-backups/hearth-standalone-"));
     return { write: write ? { directory: write.directory, path: write.path, encoding: write.encoding } : null, text: write ? harness.files.get(`${write.directory}:${write.path}`) ?? "" : "" };
   });
+}
+
+// The one-time "save this in your password manager" step before an export.
+async function continuePastSavePasswordStep(page: ShellPage, password: string) {
+  const step = page.locator("[data-save-backup-password]");
+  await expect(step.getByRole("heading", { name: "Save this password in your password manager" })).toBeVisible();
+  await expect(step.getByLabel("Backup password")).toHaveValue(password);
+  await step.getByRole("button", { name: "I've saved it, export now" }).click();
 }
 
 async function restoreFile(page: ShellPage, text: string, options: { password?: string; mode?: "replace" | "merge"; confirm?: boolean; name?: string } = {}) {
@@ -1014,10 +1000,14 @@ async function restoreFile(page: ShellPage, text: string, options: { password?: 
   await form.getByRole("button", { name: "Restore backup" }).click();
 }
 
+function backupWrites(page: ShellPage) {
+  return page.evaluate(() => (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest.fileWrites.filter((write) => write.path?.startsWith("hearth-backups/")));
+}
+
 function backupHarness(page: ShellPage) {
   return page.evaluate(() => {
     const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
-    return { sqliteRuns: harness.sqliteRuns, rowsByTable: harness.rowsByTable, icloudUploads: harness.icloudUploads };
+    return { sqliteRuns: harness.sqliteRuns, rowsByTable: harness.rowsByTable };
   });
 }
 
@@ -1073,6 +1063,73 @@ test("standalone backup passwords must match and be long enough", async ({ page 
   await form.getByLabel("Confirm password").fill("correct horse batteryX");
   await form.getByRole("button", { name: "Export and share" }).click();
   await expect(page.locator("#standalone-status")).toContainText("do not match");
+  // 12 characters at least, with a passphrase hint (#226).
+  await expect(form.getByLabel("Backup password")).toHaveAttribute("minlength", "12");
+  await expect(form.locator("#backup-password-hint")).toContainText("four or more random words");
+  await expect(page.locator("[data-save-backup-password]")).toHaveCount(0);
+});
+
+test("standalone export shows the new backup password once, to save in a password manager", async ({ page }) => {
+  await openBackupSettings(page);
+  const form = page.locator("form[data-export-standalone-backup-form]");
+  await expect(form.getByLabel("Backup password")).toHaveAttribute("autocomplete", "new-password");
+  await form.getByLabel("Backup password").fill("correct horse battery");
+  await form.getByLabel("Confirm password").fill("correct horse battery");
+  await form.getByRole("button", { name: "Export and share" }).click();
+  const step = page.locator("[data-save-backup-password]");
+  await expect(step).toContainText("can't be opened");
+  await expect(step.getByLabel("Backup password")).toHaveValue("correct horse battery");
+  await expect(step.getByRole("button", { name: "Copy" })).toBeVisible();
+  // No backup is made until the step is passed.
+  expect((await backupWrites(page)).length).toBe(0);
+
+  // Cancel makes no backup and the password is gone.
+  await step.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Backup not made");
+  await expect(step).toHaveCount(0);
+  expect((await backupWrites(page)).length).toBe(0);
+
+  // Leaving Settings ends the step too: it is never shown a second time.
+  await form.getByLabel("Backup password").fill("correct horse battery");
+  await form.getByLabel("Confirm password").fill("correct horse battery");
+  await form.getByRole("button", { name: "Export and share" }).click();
+  await expect(step).toBeVisible();
+  await page.locator(".bottom-nav").getByRole("button", { name: "Dashboard" }).click();
+  await openBackupSettings(page);
+  await expect(step).toHaveCount(0);
+  await expect(form).toBeVisible();
+});
+
+test("standalone offers to delete unencrypted backups an older version left, never by itself", async ({ page }) => {
+  await page.evaluate(() => {
+    const files = {
+      "DOCUMENTS:hearth-backups/hearth-standalone-2026-01-01.json": "{}",
+      "DOCUMENTS:hearth-backups/hearth-standalone-2026-02-01.json": "{}",
+      "DOCUMENTS:hearth-backups/notes.txt": "keep",
+    };
+    window.name = `hearth-test-seed:${JSON.stringify({ files })}`;
+  });
+  await relaunchStandalone(page);
+  const card = page.locator("[data-legacy-backup-notice]");
+  await expect(card).toContainText("2 unencrypted backups from an older version are on this phone. Export an encrypted backup, then delete these.");
+  const legacyFiles = () => page.evaluate(() => [...(window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest.files.keys()].filter((key) => key.startsWith("DOCUMENTS:")).sort());
+
+  // "Not now" hides it from the dashboard and deletes nothing.
+  await card.getByRole("button", { name: "Not now" }).click();
+  await expect(card).toHaveCount(0);
+  expect(await legacyFiles()).toHaveLength(3);
+
+  // Settings still offers Delete; declining the confirm keeps the files.
+  await openBackupSettings(page);
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await card.getByRole("button", { name: "Delete" }).click();
+  expect(await legacyFiles()).toHaveLength(3);
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await card.getByRole("button", { name: "Delete" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Deleted 2 unencrypted backups.");
+  await expect(card).toHaveCount(0);
+  expect(await legacyFiles()).toEqual(["DOCUMENTS:hearth-backups/notes.txt"]);
 });
 
 test("standalone still merges an older unencrypted JSON backup", async ({ page }) => {
@@ -1129,33 +1186,6 @@ test("standalone dashboard asks for a backup until one is made", async ({ page }
   await expect(page.locator("[data-backup-nudge]")).toHaveCount(0);
 });
 
-test("standalone iCloud backup uploads, turns on daily backup and restores from iCloud", async ({ page }) => {
-  await page.evaluate(() => {
-    window.name = `hearth-test-seed:${JSON.stringify({ local: { "hearth-test-icloud": "on" } })}`;
-  });
-  await relaunchStandalone(page);
-  await openBackupSettings(page);
-  await expect(page.getByRole("heading", { name: "iCloud backup" })).toBeVisible();
-
-  const icloudForm = page.locator("form[data-enable-icloud-auto-backup-form]");
-  await icloudForm.getByLabel("Backup password").fill("correct horse battery");
-  await icloudForm.getByLabel("Confirm password").fill("correct horse battery");
-  await icloudForm.getByRole("button", { name: "Turn on daily iCloud backup" }).click();
-  await expect(page.locator("#standalone-status")).toContainText("Daily iCloud backup is on");
-  await expect(page.locator(".detail-row", { hasText: "Daily backup" })).toContainText("On");
-  const { icloudUploads } = await backupHarness(page);
-  expect(icloudUploads).toEqual([{ path: expect.stringMatching(/^file:\/\/\/cache\/hearth-backups\/hearth-standalone-.+\.hearthbackup$/), name: expect.stringMatching(/\.hearthbackup$/), keep: 7 }]);
-
-  const restore = page.locator("form[data-restore-icloud-backup-form]");
-  await restore.getByLabel("Backup password").fill("correct horse battery");
-  await restore.getByLabel(/I understand Replace deletes/).check();
-  await restore.getByRole("button", { name: "Restore from iCloud" }).click();
-  await expect(page.locator("#standalone-status")).toContainText("Restored");
-
-  await page.getByRole("button", { name: "Turn off daily backup" }).click();
-  await expect(page.locator("#standalone-status")).toContainText("Daily iCloud backup is off");
-});
-
 test("standalone backup that can't read a document file is not counted as complete", async ({ page }) => {
   await page.evaluate(() => localStorage.setItem("hearth-test-unreadable-file", "receipt.pdf"));
   await openBackupSettings(page);
@@ -1163,6 +1193,7 @@ test("standalone backup that can't read a document file is not counted as comple
   await form.getByLabel("Backup password").fill("correct horse battery");
   await form.getByLabel("Confirm password").fill("correct horse battery");
   await form.getByRole("button", { name: "Export and share" }).click();
+  await continuePastSavePasswordStep(page, "correct horse battery");
   await expect(page.locator("#standalone-status")).toContainText("not counted as a complete backup");
   await expect(page.locator(".detail-row", { hasText: "Last backup" })).toContainText("Never");
   await page.locator(".bottom-nav").getByRole("button", { name: "Dashboard" }).click();

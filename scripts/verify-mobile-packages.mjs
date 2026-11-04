@@ -103,8 +103,6 @@ for (const marker of [
   "function recordReminderScheduleAttempt",
   "function writeEncryptedBackup",
   "function restoreStandaloneBackup",
-  "function backupToICloud",
-  "function maybeRunICloudAutoBackup",
   "const BackupFormat = window.HearthBackupFormat",
   "function renderMore()",
   "function renderHelp()",
@@ -270,7 +268,6 @@ if (!iosAppPath) {
 const iosMainViewController = text(join(root, "ios/App/App/MainViewController.swift"));
 for (const marker of [
   "bridge?.registerPluginInstance(ServerConfigPlugin())",
-  "bridge?.registerPluginInstance(ICloudBackupPlugin())",
   "override func instanceDescriptor() -> InstanceDescriptor",
   "descriptor.allowedNavigationHostnames += [host]",
   "static func reloadForUpdatedServerUrl()",
@@ -290,29 +287,6 @@ for (const marker of [
 ]) {
   assertIncludes(iosServerConfigPlugin, marker, "iOS ServerConfig plugin");
 }
-
-// #226 — standalone backups to the user's iCloud Drive. The container id
-// must agree across the plugin, the entitlements and Info.plist.
-const iosICloudPlugin = text(join(root, "ios/App/App/ICloudBackupPlugin.swift"));
-for (const marker of [
-  "public let jsName = \"ICloudBackup\"",
-  "static let containerIdentifier = \"iCloud.com.hearthapp.app\"",
-  "kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly",
-  // An upload is staged and swapped in, so a failed copy never removes an
-  // existing backup with the same name.
-  "replaceItemAt(url, withItemAt: staging)",
-]) {
-  assertIncludes(iosICloudPlugin, marker, "iOS iCloud backup plugin");
-}
-const iosEntitlements = text(join(root, "ios/App/App/App.entitlements"));
-for (const marker of ["com.apple.developer.icloud-container-identifiers", "com.apple.developer.icloud-services", "CloudDocuments", "iCloud.com.hearthapp.app"]) {
-  assertIncludes(iosEntitlements, marker, "iOS entitlements");
-}
-const iosInfoPlist = text(join(root, "ios/App/App/Info.plist"));
-for (const marker of ["NSUbiquitousContainers", "iCloud.com.hearthapp.app"]) {
-  assertIncludes(iosInfoPlist, marker, "iOS Info.plist");
-}
-assertIncludes(text(join(root, "ios/App/App.xcodeproj/project.pbxproj")), "CODE_SIGN_ENTITLEMENTS = App/App.entitlements;", "iOS project");
 
 const privacyManifest = text(join(root, "ios/App/App/PrivacyInfo.xcprivacy"));
 assertIncludes(privacyManifest, "NSPrivacyAccessedAPITypes", "iOS privacy manifest");

@@ -109,8 +109,8 @@ describe("standalone backup format", () => {
   });
 
   it("requires a backup password of at least 8 characters", async () => {
-    expect(() => format.checkPassword("short")).toThrow(/at least 8/);
-    await expect(format.createWriter({ password: "short", schemaVersion: 11, exportedAt: "2099-01-01T00:00:00.000Z" })).rejects.toThrow(/at least 8/);
+    expect(() => format.checkPassword("short")).toThrow(/at least 12/);
+    await expect(format.createWriter({ password: "short", schemaVersion: 11, exportedAt: "2099-01-01T00:00:00.000Z" })).rejects.toThrow(/at least 12/);
   });
 
   it("only accepts storage keys shaped like the ones the shell generates", () => {

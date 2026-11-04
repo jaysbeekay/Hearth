@@ -13,9 +13,6 @@ const Preferences = Plugins.Preferences;
 const LocalNotifications = Plugins.LocalNotifications;
 const Purchases = Plugins.Purchases;
 const Share = Plugins.Share;
-// iOS only: the app target's own plugin (ios/App/App/ICloudBackupPlugin.swift).
-const ICloudBackup = Plugins.ICloudBackup;
-const AppPlugin = Plugins.App;
 // ios-shell/www/backup-format.js, loaded before this file.
 const BackupFormat = window.HearthBackupFormat;
 
@@ -43,7 +40,7 @@ const CLEARTEXT_SUFFIXES = [".local", ".home.arpa"];
 const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
 const FILE_DIRECTORY = "DATA";
 // Backups are built in the app cache and leave it only through the share
-// sheet or iCloud, never through a shared folder (#226).
+// sheet, never through a shared folder (#226).
 const BACKUP_EXPORT_DIRECTORY = "CACHE";
 const RESTORE_STAGING_ROOT = "standalone-restore-staging";
 // Files a restore replaced, kept until its database write commits.
@@ -51,16 +48,16 @@ const RESTORE_ASIDE_ROOT = "standalone-restore-previous";
 const RESTORE_JOURNAL_KEY = "hearth.mobile.restoreJournal";
 const FILE_ROOT = "standalone-documents";
 const BACKUP_ROOT = "hearth-backups";
+// Where versions before #226 wrote unencrypted JSON backups (on Android, the
+// public Documents folder). Hearth only lists and offers to delete them.
+const LEGACY_BACKUP_DIRECTORY = "DOCUMENTS";
+const LEGACY_BACKUP_NOTICE_KEY = "hearth.mobile.legacyBackupNoticeDismissed";
 const REMINDER_CHANNEL_ID = "hearth-standalone-reminders";
 const REMINDER_HOUR = 9;
 // Bump with every ensureStandaloneSchema change; backups record it too.
 const STANDALONE_SCHEMA_VERSION = 11;
 const MAX_IMPORTED_TRADES = 5000;
 const LAST_BACKUP_KEY = "hearth.mobile.lastBackupAt";
-const ICLOUD_LAST_BACKUP_KEY = "hearth.mobile.lastICloudBackupAt";
-const ICLOUD_AUTO_BACKUP_KEY = "hearth.mobile.icloudAutoBackup";
-const ICLOUD_AUTO_BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
-const ICLOUD_BACKUPS_KEPT = 7;
 const BACKUP_NUDGE_DAYS = 30;
 // Preferences that travel with a backup. Backup bookkeeping does not.
 const BACKUP_PREFERENCE_KEYS = [STANDALONE_MODULES_KEY, LOCAL_REMINDERS_KEY];
@@ -449,9 +446,11 @@ const state = {
   localRemindersEnabled: false,
   pendingNotificationCount: null,
   lastBackupAt: null,
-  lastICloudBackupAt: null,
-  icloudAutoBackup: false,
-  icloud: null,
+  legacyPlaintextBackups: [],
+  legacyBackupNoticeDismissed: false,
+  // The password just chosen for an export, shown once so it can be saved
+  // in a password manager; cleared as soon as that step is left.
+  pendingBackupPassword: null,
   enabledStandaloneModules: [...DEFAULT_STANDALONE_MODULE_KEYS],
   detail: null,
   detailBack: null,
@@ -1727,7 +1726,6 @@ async function enterStandaloneApp() {
   await loadReminderDeliveryState();
   await loadBackupState().catch(() => undefined);
   await render();
-  void maybeRunICloudAutoBackup();
 }
 
 async function openConnected() {
@@ -1842,6 +1840,7 @@ function renderDashboard() {
       <h2>What needs attention</h2>
       <p>${attention.length > 0 ? `${attention.length} item${attention.length === 1 ? "" : "s"} need a look.` : "Everything tracked locally looks calm."}</p>
     </section>
+    ${renderLegacyBackupNotice({ dashboard: true })}
     ${renderBackupNudge()}
 
     <section class="grid-2">
@@ -2606,7 +2605,7 @@ function renderHelp() {
     ["Adding records", "Use Dashboard quick add for common entries, Records for module lists, or Documents to import a file first and file it later."],
     ["Documents", "Standalone stores PDF, Word and image files in app-protected storage and keeps document metadata in encrypted SQLite."],
     ["Reminders", "Standalone can schedule local device reminders for contracts, warranties, vehicles and leases. Server email/ntfy reminders stay connected-only."],
-    ["Backups", "Settings exports an encrypted backup, protected by a password you choose, that you can save to Files, iCloud Drive or Google Drive. On iPhone you can also turn on a daily backup to your own iCloud Drive. Hearth never sees your backups, and a lost password cannot be reset."],
+    ["Backups", "Settings exports an encrypted backup, protected by a password you choose, that you can save to Files, iCloud Drive or Google Drive. Hearth never sees your backups, and a lost password cannot be reset."],
     ["Privacy", "No standalone record is shared with a server or another person unless you switch modes or manually export/share a backup or file."],
   ];
   return `
@@ -2728,14 +2727,13 @@ function detailLine(label, value) {
 // ---- Standalone backup and restore (#226) --------------------------------
 //
 // Backups use the encrypted, line-per-record format in backup-format.js. A
-// backup is written to the app cache, then either handed to the OS share
-// sheet or copied into the user's iCloud Drive (iOS), and the cache copy is
-// deleted: no readable copy is left in a shared folder. Restore decrypts and
+// backup is written to the app cache, handed to the OS share sheet, and the
+// cache copy is deleted: no readable copy is left in a shared folder. Restore decrypts and
 // checks every record and stages document files before it touches the
 // database, then applies all rows in one transaction.
 
-// The random suffix keeps two devices backing up to the same iCloud folder in
-// the same second from writing over each other's backup.
+// The random suffix keeps two backups made in the same second (on this phone
+// or another one saving to the same folder) from having the same name.
 function backupFilename(iso = nowIso()) {
   const suffix = Array.from(crypto.getRandomValues(new Uint8Array(3)), (byte) => byte.toString(16).padStart(2, "0")).join("");
   return `hearth-standalone-${iso.slice(0, 10)}-${iso.slice(11, 19).replace(/:/g, "")}-${suffix}${BackupFormat.FILE_EXTENSION}`;
@@ -2821,11 +2819,10 @@ function checkNewBackupPassword(password, confirm) {
   if (!sameText(password, confirm)) throw new Error("The two passwords do not match.");
 }
 
-async function markBackedUp(key = LAST_BACKUP_KEY) {
+async function markBackedUp() {
   const at = nowIso();
-  await prefSet(key, at);
-  if (key === LAST_BACKUP_KEY) state.lastBackupAt = at;
-  else state.lastICloudBackupAt = at;
+  await prefSet(LAST_BACKUP_KEY, at);
+  state.lastBackupAt = at;
 }
 
 // A backup missing document files is still saved (the records in it are
@@ -2835,8 +2832,8 @@ function missingFilesNote(missingFiles) {
   return ` ${missingFiles} document file${missingFiles === 1 ? "" : "s"} could not be read on this phone and ${missingFiles === 1 ? "is" : "are"} not in it, so it is not counted as a complete backup.`;
 }
 
-async function markCompleteBackup(missingFiles, key = LAST_BACKUP_KEY) {
-  if (missingFiles === 0) await markBackedUp(key);
+async function markCompleteBackup(missingFiles) {
+  if (missingFiles === 0) await markBackedUp();
 }
 
 async function exportAndShareBackup(password, confirm) {
@@ -2866,88 +2863,45 @@ async function exportAndShareBackup(password, confirm) {
   }
 }
 
-async function backupToICloud(password) {
-  if (!ICloudBackup) throw new Error("iCloud backup is only available on iPhone and iPad.");
-  const name = backupFilename();
-  const path = `${BACKUP_ROOT}/${name}`;
-  try {
-    const { missingFiles } = await writeEncryptedBackup(password, BACKUP_EXPORT_DIRECTORY, path);
-    const { uri } = await Filesystem.getUri({ directory: BACKUP_EXPORT_DIRECTORY, path });
-    await ICloudBackup.upload({ path: uri, name, keep: ICLOUD_BACKUPS_KEPT });
-    await markCompleteBackup(missingFiles);
-    // The daily schedule counts the attempt, so a phone with an unreadable
-    // file is not re-backed-up on every foreground; the nudge stays on.
-    await markBackedUp(ICLOUD_LAST_BACKUP_KEY);
-    return { name, missingFiles };
-  } finally {
-    await Filesystem.deleteFile({ directory: BACKUP_EXPORT_DIRECTORY, path }).catch(() => undefined);
-  }
-}
-
 async function loadBackupState() {
   state.lastBackupAt = await prefGet(LAST_BACKUP_KEY);
-  state.lastICloudBackupAt = await prefGet(ICLOUD_LAST_BACKUP_KEY);
-  state.icloudAutoBackup = (await prefGet(ICLOUD_AUTO_BACKUP_KEY)) === "true";
-  await refreshICloudBackups();
+  state.legacyBackupNoticeDismissed = (await prefGet(LEGACY_BACKUP_NOTICE_KEY)) === "true";
+  state.legacyPlaintextBackups = await listLegacyPlaintextBackups();
 }
 
-async function refreshICloudBackups() {
-  if (!ICloudBackup) {
-    state.icloud = null;
-    return;
-  }
-  const status = await ICloudBackup.status().catch((error) => ({ available: false, reason: error.message }));
-  const backups = status.available ? (await ICloudBackup.list().catch(() => ({ backups: [] }))).backups ?? [] : [];
-  state.icloud = { available: Boolean(status.available), reason: status.reason ?? "", backups };
-}
-
-async function enableICloudAutoBackup(password, confirm) {
-  checkNewBackupPassword(password, confirm);
-  if (!state.icloud?.available) throw new Error(state.icloud?.reason || "iCloud Drive is unavailable.");
-  await ICloudBackup.setAutoBackupPassword({ password });
-  await prefSet(ICLOUD_AUTO_BACKUP_KEY, "true");
-  state.icloudAutoBackup = true;
-  showStandaloneStatus("Backing up to iCloud…", true);
-  const { name, missingFiles } = await backupToICloud(password);
-  await refreshICloudBackups();
-  showStandaloneStatus(`Daily iCloud backup is on. First backup ${name} saved.${missingFilesNote(missingFiles)}`, true);
-}
-
-async function disableICloudAutoBackup() {
-  await prefSet(ICLOUD_AUTO_BACKUP_KEY, "false");
-  state.icloudAutoBackup = false;
-  await ICloudBackup?.clearAutoBackupPassword().catch(() => undefined);
-  showStandaloneStatus("Daily iCloud backup is off. Existing iCloud backups are kept.", true);
-}
-
-let autoBackupRunning = false;
-
-// Runs when standalone mode opens and whenever the app comes back to the
-// foreground: a phone that is used at all gets a fresh iCloud copy daily.
-async function maybeRunICloudAutoBackup() {
-  if (autoBackupRunning || !ICloudBackup || !state.icloudAutoBackup) return;
-  const last = Date.parse(state.lastICloudBackupAt ?? "");
-  if (Number.isFinite(last) && Date.now() - last < ICLOUD_AUTO_BACKUP_INTERVAL_MS) return;
-  autoBackupRunning = true;
+// Unencrypted backups an older version left in DOCUMENTS/hearth-backups.
+async function listLegacyPlaintextBackups() {
+  if (!Filesystem?.readdir) return [];
   try {
-    const { password } = await ICloudBackup.getAutoBackupPassword();
-    if (!password) {
-      await prefSet(ICLOUD_AUTO_BACKUP_KEY, "false");
-      state.icloudAutoBackup = false;
-      showStandaloneStatus("Daily iCloud backup was turned off: its password is no longer on this phone. Turn it on again in Settings.");
-      return;
-    }
-    const status = await ICloudBackup.status();
-    if (!status.available) return;
-    const { missingFiles } = await backupToICloud(password);
-    if (missingFiles > 0) showStandaloneStatus(`iCloud backup saved.${missingFilesNote(missingFiles)}`);
-    await refreshICloudBackups();
-    if (state.route === "settings" || state.route === "dashboard") await render();
-  } catch (error) {
-    showStandaloneStatus(`iCloud backup failed: ${error.message || "unknown error"}. Hearth will try again later.`);
-  } finally {
-    autoBackupRunning = false;
+    const { files = [] } = await Filesystem.readdir({ directory: LEGACY_BACKUP_DIRECTORY, path: BACKUP_ROOT });
+    return files
+      .map((file) => (typeof file === "string" ? file : file?.name))
+      .filter((name) => typeof name === "string" && /^hearth-standalone-[\w.-]*\.json$/.test(name))
+      .sort();
+  } catch {
+    return [];
   }
+}
+
+// Only ever on the user's say-so: Hearth never deletes these by itself.
+async function deleteLegacyPlaintextBackups() {
+  const names = await listLegacyPlaintextBackups();
+  if (names.length === 0) return;
+  const label = `${names.length} unencrypted backup${names.length === 1 ? "" : "s"}`;
+  if (!window.confirm(`Delete ${label} from an older version of Hearth? Make sure you have exported an encrypted backup first.`)) return;
+  let failed = 0;
+  for (const name of names) {
+    await Filesystem.deleteFile({ directory: LEGACY_BACKUP_DIRECTORY, path: `${BACKUP_ROOT}/${name}` }).catch(() => {
+      failed += 1;
+    });
+  }
+  state.legacyPlaintextBackups = await listLegacyPlaintextBackups();
+  showStandaloneStatus(failed === 0 ? `Deleted ${label}.` : `${failed} of ${names.length} could not be deleted. Try again.`, failed === 0);
+}
+
+async function dismissLegacyBackupNotice() {
+  await prefSet(LEGACY_BACKUP_NOTICE_KEY, "true");
+  state.legacyBackupNoticeDismissed = true;
 }
 
 // ---- Restore ----
@@ -2956,26 +2910,10 @@ function fileBackupSource(file) {
   return { ...BackupFormat.blobSource(file), text: () => file.text() };
 }
 
-function iCloudBackupSource(name, size) {
-  return {
-    size,
-    readSlice: async (start, end) => (await ICloudBackup.readChunk({ name, offset: start, length: end - start })).data ?? "",
-  };
-}
-
 async function restoreFromFile(form) {
   const file = formFile(form);
   if (!file) throw new Error("Choose a backup file first.");
   await restoreStandaloneBackup(fileBackupSource(file), restoreOptions(form));
-}
-
-async function restoreFromICloud(form) {
-  const name = String(new FormData(form).get("backup") ?? "");
-  if (!name) throw new Error("Choose an iCloud backup first.");
-  const options = restoreOptions(form);
-  showStandaloneStatus("Downloading backup from iCloud…", true);
-  const { size } = await ICloudBackup.prepare({ name });
-  await restoreStandaloneBackup(iCloudBackupSource(name, size), options);
 }
 
 function restoreOptions(form) {
@@ -3365,6 +3303,28 @@ function hasStandaloneData() {
   return BACKUP_TABLES.some((table) => table.key !== "profile" && table.key !== "reminderLogs" && (cache[table.key]?.length ?? 0) > 0);
 }
 
+function legacyBackupSummary() {
+  const count = state.legacyPlaintextBackups.length;
+  return `${count} unencrypted backup${count === 1 ? "" : "s"} from an older version ${count === 1 ? "is" : "are"} on this phone. Export an encrypted backup, then delete ${count === 1 ? "it" : "these"}.`;
+}
+
+// Shown on the dashboard until the files are deleted or the card is
+// dismissed; Settings keeps offering the Delete button while they exist.
+function renderLegacyBackupNotice({ dashboard = false } = {}) {
+  if (state.legacyPlaintextBackups.length === 0) return "";
+  if (dashboard && state.legacyBackupNoticeDismissed) return "";
+  return `
+    <section class="card form-card warning-card" data-legacy-backup-notice>
+      <h2>Old unencrypted backups</h2>
+      <p class="card-meta">${escapeHtml(legacyBackupSummary())}</p>
+      <div class="actions">
+        <button class="danger" data-delete-legacy-backups>Delete</button>
+        ${dashboard ? '<button class="secondary" data-dismiss-legacy-backups>Not now</button>' : ""}
+      </div>
+    </section>
+  `;
+}
+
 // Dashboard nudge: shown once there is something to lose and the last
 // backup is missing or older than BACKUP_NUDGE_DAYS.
 function renderBackupNudge() {
@@ -3394,16 +3354,9 @@ function renderBackupSettings() {
         ${detailLine("Last backup", lastBackupLabel())}
         ${detailLine("Format", "Encrypted Hearth backup (.hearthbackup)")}
       </div>
-      <form data-export-standalone-backup-form class="field-grid">
-        <label>Backup password<input name="password" type="password" autocomplete="new-password" minlength="${BackupFormat?.MIN_PASSWORD_LENGTH ?? 8}" required /></label>
-        <label>Confirm password<input name="confirm" type="password" autocomplete="new-password" required /></label>
-        <div class="actions">
-          <button type="submit" name="target" value="share">Export and share</button>
-          ${state.icloud?.available ? '<button type="submit" name="target" value="icloud" class="secondary">Back up to iCloud now</button>' : ""}
-        </div>
-      </form>
+      ${state.pendingBackupPassword ? renderSaveBackupPasswordStep() : renderExportBackupForm()}
     </section>
-    ${renderICloudSettings()}
+    ${renderLegacyBackupNotice()}
     <section class="card form-card">
       <h2>Restore from a file</h2>
       <p class="muted">Choose a .hearthbackup file (or an older Hearth JSON backup) from Files, iCloud Drive or Google Drive.</p>
@@ -3417,6 +3370,36 @@ function renderBackupSettings() {
   `;
 }
 
+function renderExportBackupForm() {
+  const minLength = BackupFormat?.MIN_PASSWORD_LENGTH ?? 12;
+  return `
+    <form data-export-standalone-backup-form class="field-grid">
+      <label>Backup password<input name="password" type="password" autocomplete="new-password" minlength="${minLength}" required aria-describedby="backup-password-hint" /></label>
+      <p class="muted" id="backup-password-hint">At least ${minLength} characters. A passphrase of four or more random words is easy to type and hard to guess.</p>
+      <label>Confirm password<input name="confirm" type="password" autocomplete="new-password" required /></label>
+      <div class="actions">
+        <button type="submit">Export and share</button>
+      </div>
+    </form>
+  `;
+}
+
+// Shown once, after the password is chosen and before the backup is made.
+function renderSaveBackupPasswordStep() {
+  return `
+    <div class="field-grid" data-save-backup-password>
+      <h3>Save this password in your password manager</h3>
+      <p class="muted">This is the only time Hearth shows it. If you lose it, this backup can't be opened, and Hearth can't reset it.</p>
+      <label>Backup password<input type="text" readonly value="${escapeAttr(state.pendingBackupPassword)}" data-backup-password-value autocomplete="off" spellcheck="false" /></label>
+      <div class="actions">
+        <button class="secondary" data-copy-backup-password>Copy</button>
+        <button data-continue-backup-export>I've saved it, export now</button>
+        <button class="secondary" data-cancel-backup-export>Cancel</button>
+      </div>
+    </div>
+  `;
+}
+
 function renderRestoreModeFields() {
   return `
     <label>Restore mode
@@ -3426,50 +3409,6 @@ function renderRestoreModeFields() {
       </select>
     </label>
     <label class="checkbox-row"><input name="confirmReplace" type="checkbox" /> I understand Replace deletes records on this phone that are not in the backup</label>
-  `;
-}
-
-function renderICloudSettings() {
-  if (!ICloudBackup || !state.icloud) return "";
-  if (!state.icloud.available) {
-    return `
-      <section class="card form-card">
-        <h2>iCloud backup</h2>
-        <p class="muted">${escapeHtml(state.icloud.reason || "iCloud Drive is unavailable.")}</p>
-      </section>
-    `;
-  }
-  const backups = state.icloud.backups ?? [];
-  return `
-    <section class="card form-card">
-      <h2>iCloud backup</h2>
-      <p class="muted">Encrypted backups are saved to the Hearth folder in your iCloud Drive. Hearth keeps the newest ${ICLOUD_BACKUPS_KEPT}.</p>
-      <div class="detail-grid">
-        ${detailLine("Daily backup", state.icloudAutoBackup ? "On" : "Off")}
-        ${detailLine("Last iCloud backup", state.lastICloudBackupAt ? readableDate(state.lastICloudBackupAt) : "Never")}
-        ${detailLine("Backups in iCloud", String(backups.length))}
-      </div>
-      ${state.icloudAutoBackup
-        ? '<div class="actions"><button class="secondary" data-disable-icloud-auto-backup>Turn off daily backup</button></div>'
-        : `<form data-enable-icloud-auto-backup-form class="field-grid">
-            <p class="muted">Daily backup runs when you open Hearth, at most once a day. Its password is kept in this phone's keychain; you will need to type it to restore on a new phone.</p>
-            <label>Backup password<input name="password" type="password" autocomplete="new-password" minlength="${BackupFormat?.MIN_PASSWORD_LENGTH ?? 8}" required /></label>
-            <label>Confirm password<input name="confirm" type="password" autocomplete="new-password" required /></label>
-            <button type="submit">Turn on daily iCloud backup</button>
-          </form>`}
-      ${backups.length === 0 ? "" : `
-        <form data-restore-icloud-backup-form class="field-grid">
-          <h3>Restore from iCloud</h3>
-          <label>Backup
-            <select name="backup">
-              ${backups.map((backup) => `<option value="${escapeAttr(backup.name)}">${escapeHtml(`${readableDate(backup.modifiedAt)} · ${bytesLabel(backup.size)}${backup.downloaded ? "" : " · in iCloud"}`)}</option>`).join("")}
-            </select>
-          </label>
-          <label>Backup password<input name="password" type="password" autocomplete="current-password" required /></label>
-          ${renderRestoreModeFields()}
-          <button type="submit">Restore from iCloud</button>
-        </form>`}
-    </section>
   `;
 }
 
@@ -6134,6 +6073,8 @@ function routeTo(route) {
   state.detail = null;
   state.detailBack = null;
   state.form = null;
+  // Leaving Settings ends the save-your-password step: it is shown only once.
+  state.pendingBackupPassword = null;
   if (route === "trash") hideStandaloneStatus();
   state.backTo = isSecondaryRoute(route) ? (previousRoute === "more" || (route === "trash" && ["documents", "settings"].includes(previousRoute)) ? previousRoute : "dashboard") : null;
   render().catch((error) => showStandaloneStatus(error.message || "Could not open screen."));
@@ -6352,13 +6293,42 @@ mobileView.addEventListener("click", async (event) => {
     await copyValue(button.dataset.copyValue);
     return;
   }
-  if (button.dataset.confirmDetails) {
-    await confirmDetails(button.dataset.confirmDetails, button.dataset.id);
+  if (button.dataset.copyBackupPassword !== undefined) {
+    try {
+      await navigator.clipboard.writeText(state.pendingBackupPassword ?? "");
+      showStandaloneStatus("Password copied. Paste it into your password manager.", true);
+    } catch {
+      document.querySelector("[data-backup-password-value]")?.select();
+      showStandaloneStatus("Couldn't copy automatically: the password is selected, copy it from there.");
+    }
     return;
   }
-  if (button.dataset.disableIcloudAutoBackup !== undefined) {
-    await disableICloudAutoBackup().catch((error) => showStandaloneStatus(error.message || "Could not turn off iCloud backup."));
+  if (button.dataset.continueBackupExport !== undefined) {
+    const password = state.pendingBackupPassword;
+    state.pendingBackupPassword = null;
     await render();
+    if (password) await exportAndShareBackup(password, password).catch((error) => showStandaloneStatus(error.message || "Could not export the backup."));
+    await render();
+    return;
+  }
+  if (button.dataset.cancelBackupExport !== undefined) {
+    state.pendingBackupPassword = null;
+    showStandaloneStatus("Backup not made.");
+    await render();
+    return;
+  }
+  if (button.dataset.deleteLegacyBackups !== undefined) {
+    await deleteLegacyPlaintextBackups().catch((error) => showStandaloneStatus(error.message || "Could not delete the old backups."));
+    await render();
+    return;
+  }
+  if (button.dataset.dismissLegacyBackups !== undefined) {
+    await dismissLegacyBackupNotice();
+    await render();
+    return;
+  }
+  if (button.dataset.confirmDetails) {
+    await confirmDetails(button.dataset.confirmDetails, button.dataset.id);
     return;
   }
   if (button.dataset.cancelForm !== undefined) {
@@ -6462,32 +6432,13 @@ mobileView.addEventListener("submit", async (event) => {
     if (form.dataset.exportStandaloneBackupForm !== undefined) {
       const data = new FormData(form);
       const password = String(data.get("password") ?? "");
-      const confirm = String(data.get("confirm") ?? "");
-      if (event.submitter?.value === "icloud") {
-        checkNewBackupPassword(password, confirm);
-        showStandaloneStatus("Backing up to iCloud…", true);
-        const { name, missingFiles } = await backupToICloud(password);
-        await refreshICloudBackups();
-        showStandaloneStatus(`Backup ${name} saved to iCloud Drive.${missingFilesNote(missingFiles)}`, true);
-      } else {
-        await exportAndShareBackup(password, confirm);
-      }
-      await render();
-      return;
-    }
-    if (form.dataset.enableIcloudAutoBackupForm !== undefined) {
-      const data = new FormData(form);
-      await enableICloudAutoBackup(String(data.get("password") ?? ""), String(data.get("confirm") ?? ""));
+      checkNewBackupPassword(password, String(data.get("confirm") ?? ""));
+      state.pendingBackupPassword = password;
       await render();
       return;
     }
     if (form.dataset.importStandaloneBackupForm !== undefined) {
       await restoreFromFile(form);
-      await render();
-      return;
-    }
-    if (form.dataset.restoreIcloudBackupForm !== undefined) {
-      await restoreFromICloud(form);
       await render();
       return;
     }
@@ -6500,12 +6451,6 @@ mobileView.addEventListener("submit", async (event) => {
   } catch (error) {
     showStandaloneStatus(error.message || "Could not save.");
   }
-});
-
-// A daily iCloud backup is due-checked whenever the app returns to the
-// foreground, not just at launch (#226).
-AppPlugin?.addListener?.("appStateChange", ({ isActive }) => {
-  if (isActive && !standaloneScreen.hidden) void maybeRunICloudAutoBackup();
 });
 
 (async function init() {

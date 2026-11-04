@@ -32,7 +32,8 @@
   // hangs the phone on a crafted file.
   const MIN_ITERATIONS = 100000;
   const MAX_ITERATIONS = 5000000;
-  const MIN_PASSWORD_LENGTH = 8;
+  // A passphrase of a few random words clears this easily (#226).
+  const MIN_PASSWORD_LENGTH = 12;
   // Base64 characters of document data per record. A multiple of 4, so each
   // part decodes on its own and parts can be appended to a file one by one.
   const FILE_PART_CHARS = 1024 * 1024;
@@ -62,7 +63,7 @@
 
   function checkPassword(password) {
     if (typeof password !== "string" || password.length < MIN_PASSWORD_LENGTH) {
-      throw new Error(`Backup password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+      throw new Error(`Backup password must be at least ${MIN_PASSWORD_LENGTH} characters. A passphrase of four or more random words works well.`);
     }
   }
 
