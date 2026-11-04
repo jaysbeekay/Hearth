@@ -9,6 +9,15 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Prompt-injection regression tests and model (#530, part 1).** New unit
+  tests feed injection text through every document extractor (with Ollama
+  and the BYOK provider stubbed to obey it) and through the Assistant's
+  tools and confirm actions, and check that only short, known fields come
+  back and nothing is written without a confirm. Ollama extraction prompts
+  are now built by one helper, `untrustedTextPrompt`, so none can ship
+  without the untrusted-content notice. `docs/security/prompt-injection.md`
+  lists which defences are enforced and which are only advisory.
+  Server-only; the iOS and Android shell has no AI extraction or chat.
 - **Upload page: one scan, bulk edits and a Quick check screen (#358).**
   Each file is scanned once; the page pre-selects Contract, Warranty or
   Inventory item from what the scan found, and switching type reuses that
