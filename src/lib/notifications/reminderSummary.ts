@@ -27,6 +27,9 @@ export function reminderSummary(
   dateFormat?: string | null,
 ): { tone: ReminderTone; text: string } {
   if (health.onHold) return { tone: "warning", text: "Reminders are on hold until this record is reviewed." };
+  if (health.snoozedUntil) {
+    return { tone: "neutral", text: `Snoozed: reminders resume on ${formatDate(health.snoozedUntil, dateFormat)}.` };
+  }
   if (health.lastFailure) {
     const error = health.lastFailure.error ? ` — ${health.lastFailure.error}` : "";
     return { tone: "danger", text: `The last Reminder failed via ${channelLabel(health.lastFailure.channel)}${error}.` };

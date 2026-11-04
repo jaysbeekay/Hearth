@@ -38,7 +38,13 @@ function HealthGrid({ health, dateFormat }: { health: ReminderHealth; dateFormat
         <dt className="text-xs text-muted">Enabled</dt>
         <dd className="text-sm font-medium">
           {/* #387 — a record that Needs review holds its Reminders until it's confirmed. */}
-          {health.onHold ? "On hold until reviewed" : health.enabled ? "Yes" : "No"}
+          {health.onHold
+            ? "On hold until reviewed"
+            : health.snoozedUntil
+              ? `Snoozed until ${formatDate(health.snoozedUntil, dateFormat)}`
+              : health.enabled
+                ? "Yes"
+                : "No"}
         </dd>
       </div>
       <div className="min-w-0">

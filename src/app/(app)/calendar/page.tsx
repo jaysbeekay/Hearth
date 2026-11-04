@@ -14,7 +14,8 @@ import { getUserPreferences } from "@/lib/userPreferences";
 import { ExpiryBadge } from "@/components/ExpiryBadge";
 import { CalendarSubscribeButton } from "@/components/CalendarSubscribeButton";
 import type { CalendarEvent } from "@/lib/calendarEvents";
-import { cardClass, chipClass, emptyStateClass } from "@/lib/ui";
+import { cardClass, chipClass, emptyStateClass, pillClass } from "@/lib/ui";
+import { BellOff } from "lucide-react";
 import { PageShell } from "@/components/ui/PageShell";
 import { WelcomeBanner } from "@/components/WelcomeBanner";
 
@@ -129,7 +130,10 @@ export default async function CalendarPage({
                 <Link
                   key={event.id}
                   href={event.href}
-                  className={cardClass({ interactive: true }, "flex items-start gap-3")}
+                  className={cardClass(
+                    { interactive: true },
+                    event.snoozedUntil ? "flex items-start gap-3 opacity-70" : "flex items-start gap-3",
+                  )}
                 >
                   <div className="mt-0.5 w-10 shrink-0 text-center">
                     <p className="text-xs text-muted">
@@ -151,6 +155,13 @@ export default async function CalendarPage({
                       {calendarKindLabel(event.kind)}
                     </span>
                     {event.entry && <ExpiryBadge entry={event.entry} />}
+                    {/* #354 — still on the timeline, but someone has said "remind me later". */}
+                    {event.snoozedUntil && (
+                      <span className={pillClass("neutral")}>
+                        <BellOff size={16} aria-hidden />
+                        Snoozed until {formatDate(`${event.snoozedUntil}T00:00:00.000Z`, dateFormat)}
+                      </span>
+                    )}
                   </div>
                 </Link>
               ))}

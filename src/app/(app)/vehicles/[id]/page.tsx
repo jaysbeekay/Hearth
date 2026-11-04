@@ -32,6 +32,7 @@ import { getDueContext } from "@/lib/appSettings";
 import { vehicleDue, vehicleDueRecord } from "@/lib/dueRecords";
 import { withVehicleCovers } from "@/lib/covers";
 import { DetailStatusBanner } from "@/components/DetailStatusBanner";
+import { activeSnoozeUntil } from "@/lib/snooze";
 import { auth } from "@/lib/auth";
 import { canWrite as sessionCanWrite } from "@/lib/readOnly";
 import { BackLink } from "@/components/BackLink";
@@ -64,6 +65,7 @@ export default async function VehicleDetailPage({
       include: {
         createdBy: true,
         updatedBy: true,
+        snoozedBy: { select: { name: true } },
         items: {
           where: { deletedAt: null },
           include: { documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" } } },
@@ -192,6 +194,17 @@ export default async function VehicleDetailPage({
         documentsHref={`/vehicles/${vehicle.id}`}
         editHref={`/vehicles/${vehicle.id}/edit`}
         renewLabel="Update dates"
+        snooze={
+          vehicle.archivedAt
+            ? undefined
+            : {
+                kind: "vehicle",
+                recordId: vehicle.id,
+                title: vehicle.label,
+                until: activeSnoozeUntil(dueRow, due.today),
+                byName: vehicle.snoozedBy?.name,
+              }
+        }
       />
 
       <Card>
