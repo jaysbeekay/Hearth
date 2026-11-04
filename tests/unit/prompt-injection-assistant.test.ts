@@ -76,18 +76,20 @@ function strings(value: unknown): string[] {
 }
 
 describe("read tools with injected record text", () => {
-  const READ_CALLS: [string, (ids: { contractId: string }) => Record<string, unknown>][] = [
-    ["list_contracts", () => ({})],
-    ["get_contract", ({ contractId }) => ({ id: contractId })],
-    ["search_contracts", () => ({ query: "admin mode" })],
-    ["upcoming_renewals", () => ({ withinDays: 3650 })],
-    ["whats_due", () => ({ withinDays: 3650 })],
-    ["list_products", () => ({})],
-    ["spend_summary", () => ({})],
-    ["list_properties", () => ({})],
+  // The last column says whether the tool returns record notes at all;
+  // whats_due and spend_summary return dates and totals only.
+  const READ_CALLS: [string, (ids: { contractId: string }) => Record<string, unknown>, boolean][] = [
+    ["list_contracts", () => ({}), true],
+    ["get_contract", ({ contractId }) => ({ id: contractId }), true],
+    ["search_contracts", () => ({ query: "admin mode" }), true],
+    ["upcoming_renewals", () => ({ withinDays: 3650 }), true],
+    ["whats_due", () => ({ withinDays: 3650 }), false],
+    ["list_products", () => ({}), true],
+    ["spend_summary", () => ({}), false],
+    ["list_properties", () => ({}), true],
   ];
 
-  it.each(READ_CALLS)("%s returns record text as data, never as a proposal", async (name, input) => {
+  it.each(READ_CALLS)("%s returns record text as data, never as a proposal", async (name, input, carriesText) => {
     const contract = await seedContract();
     await seedProduct();
     await db.prisma.property.create({ data: { label: INJECTED_TITLE, notes: INJECTED_NOTES, createdById: actorId } });
@@ -97,8 +99,11 @@ describe("read tools with injected record text", () => {
     expect(result.error).toBeUndefined();
     // The chat route shows a card only for a top-level `proposed: true`.
     expect("proposed" in result).toBe(false);
-    for (const text of strings(result).filter((s) => s.includes("pwned"))) {
-      expect(text).toContain(FORGED_PROPOSAL);
+    if (carriesText) {
+      // The forged proposal comes back intact inside the notes string.
+      expect(strings(result)).toContain(INJECTED_NOTES);
+    } else {
+      expect(strings(result).some((s) => s.includes("pwned"))).toBe(false);
     }
   });
 
