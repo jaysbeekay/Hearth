@@ -22,12 +22,12 @@ export default async function QuickCheckPage({ searchParams }: { searchParams: P
     prisma.contract.findMany({
       where: { extractionPending: true, deletedAt: null },
       orderBy: { createdAt: "desc" },
-      select: { id: true, title: true, provider: true },
+      select: { id: true, title: true, provider: true, updatedAt: true },
     }),
     prisma.product.findMany({
       where: { extractionPending: true, deletedAt: null },
       orderBy: { createdAt: "desc" },
-      select: { id: true, description: true, manufacturer: true },
+      select: { id: true, description: true, manufacturer: true, updatedAt: true },
     }),
   ]);
   const records: QuickCheckRecord[] = [
@@ -38,6 +38,7 @@ export default async function QuickCheckPage({ searchParams }: { searchParams: P
         title: c.title,
         subtitle: c.provider,
         href: `/contracts/${c.id}`,
+        version: c.updatedAt.toISOString(),
         fields: await getPendingExtractionReview("CONTRACT", c.id),
       })),
     )),
@@ -48,6 +49,7 @@ export default async function QuickCheckPage({ searchParams }: { searchParams: P
         title: p.description,
         subtitle: p.manufacturer ?? undefined,
         href: `/products/${p.id}`,
+        version: p.updatedAt.toISOString(),
         fields: await getPendingExtractionReview("PRODUCT", p.id),
       })),
     )),

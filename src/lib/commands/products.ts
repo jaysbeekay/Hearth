@@ -137,10 +137,13 @@ export async function confirmProductExtractionCommand(
   id: string,
   corrections: ProductReviewCorrections | ((pendingFieldNames: ReadonlySet<string>) => ProductReviewCorrections),
   actorId: string,
+  // The record's updatedAt when the reviewer loaded it: refused if it has
+  // changed since, so a review can't overwrite someone else's newer edit.
+  options: UpdateOptions = {},
 ) {
   const reviewedAt = new Date();
   const pendingWhere = { ownerType: "PRODUCT" as const, ownerId: id, reviewedAt: null };
-  await writeProduct(id, actorId, {}, {
+  await writeProduct(id, actorId, options, {
     patch: async (tx) => {
       let reviewed = corrections;
       if (typeof reviewed === "function") {

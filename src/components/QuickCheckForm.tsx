@@ -17,6 +17,8 @@ export interface QuickCheckRecord {
   title: string;
   subtitle?: string;
   href: string;
+  /** The record's updatedAt when this page loaded, so a newer edit isn't overwritten. */
+  version: string;
   fields: ReviewFieldSpec[];
 }
 
@@ -36,7 +38,8 @@ const DATE_FIELDS = new Set(["startDate", "endDate", "purchaseDate", "warrantyEn
 const NUMBER_FIELDS = new Set(["cost", "price"]);
 
 // #358 — every record waiting for a check, its auto-filled fields editable
-// in place, and one "Confirm all".
+// in place, and one "Confirm all". Each record is confirmed on its own (see
+// confirmAllExtractions), so a record that fails stays here with the reason.
 export function QuickCheckForm({ records, canWrite }: { records: QuickCheckRecord[]; canWrite: boolean }) {
   const [state, formAction] = useActionState<ActionState, FormData>(confirmAllExtractions, null);
 
@@ -48,6 +51,7 @@ export function QuickCheckForm({ records, canWrite }: { records: QuickCheckRecor
           <Card as="section" key={prefix} aria-label={record.title} className="space-y-3">
             <input type="hidden" name="record" value={`${record.kind}:${record.id}`} />
             <input type="hidden" name={`${prefix}label`} value={record.title} />
+            <input type="hidden" name={`${prefix}version`} value={record.version} />
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <Link href={record.href} className="block truncate text-sm font-medium hover:underline">
