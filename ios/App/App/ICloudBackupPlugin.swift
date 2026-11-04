@@ -274,11 +274,14 @@ public class ICloudBackupPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     private func prune(folder: URL, keep: Int) throws -> Int {
+        // Counts only the backups actually deleted: one that iCloud refuses
+        // to delete now is left for the next upload's prune to retry.
         let stale = try entries(in: folder).filter { $0.name.hasPrefix("hearth-standalone-") }.dropFirst(keep)
+        var removed = 0
         for entry in stale {
-            try? coordinatedDelete(folder.appendingPathComponent(entry.name))
+            if (try? coordinatedDelete(folder.appendingPathComponent(entry.name))) != nil { removed += 1 }
         }
-        return stale.count
+        return removed
     }
 
     private func coordinatedWrite(to url: URL, _ body: (URL) throws -> Void) throws {
