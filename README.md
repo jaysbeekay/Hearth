@@ -202,9 +202,9 @@ _The property detail screenshot was captured without network access, so it doesn
 | --- | --- |
 | ![Mobile dashboard](docs/screenshots/mobile-dashboard.png) | ![Form validation error](docs/screenshots/error-state-form.png) |
 
-| Documents — MCP imports | |
+| Documents — MCP imports | Quick check |
 | --- | --- |
-| ![Documents — MCP imports](docs/screenshots/mcp-imports.png) | |
+| ![Documents — MCP imports](docs/screenshots/mcp-imports.png) | ![Quick check](docs/screenshots/quick-check.png) |
 
 | Settings — security log | Upcoming |
 | --- | --- |

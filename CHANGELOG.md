@@ -17,11 +17,22 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   standalone mode the shell opens the add form or the dashboard. If the app
   isn't ready (mode picker, standalone not purchased, server unreachable, or
   a form with unsaved input, in standalone or on your server), the shortcut
-  just opens the app. The
-  route is held in memory only and never replayed on a later launch. The iOS
-  deployment target is now iOS 16.0 (App Intents needs it). No SiriKit
-  entitlement, App Group or URL scheme. An unsigned iOS simulator build now
+  just opens the app. The route is held in memory only and never replayed
+  on a later launch. The iOS deployment target is now iOS 16.0 (App Intents
+  needs it). No SiriKit entitlement, App Group or URL scheme. An unsigned iOS simulator build now
   runs on pull requests that touch the iOS shell (`ios-check.yml`).
+- **Upload page: one scan, bulk edits and a Quick check screen (#358).**
+  Each file is scanned once; the page pre-selects Contract, Warranty or
+  Inventory item from what the scan found, and switching type reuses that
+  scan instead of scanning again (only the pre-selected type escalates to
+  local or cloud AI). With several files queued, "Apply to selected" sets
+  File as, Contract category or Linked to on every ticked file at once.
+  "Save all" reports once, and when any record was saved with auto-filled
+  details still to check, it opens the new Quick check screen (`/review`),
+  which lists them all with their fields editable in place and one
+  "Confirm all". On the dashboard, several such records share one Needs
+  attention row that links there. Server-only; the iOS and Android shell is
+  unchanged.
 - **Share a Document (#374).** Every Document row (on each record's page and
   in Documents) has Share beside Preview, and the preview gains Share and
   Download. Where the browser can share files (phones, some desktops) the
