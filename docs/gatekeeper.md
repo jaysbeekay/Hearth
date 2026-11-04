@@ -1,7 +1,15 @@
 # Gatekeeper reviews
 
 Gatekeeper is the self-hosted review bot (Hermes, `pr-gatekeeper` and `qa-issue-review` profiles)
-that also reviews jaysbeekay/sure. It posts as the GitHub App `thebotkeeper[bot]`:
+that also reviews jaysbeekay/sure. It posts as the GitHub App `thebotkeeper[bot]`.
+
+**Status on Hearth: not verified.** This repository now has the `@codebot` workflow, but nothing
+here shows Hermes is set up to receive Hearth's requests or to review Hearth's PRs on its own.
+Treat the automatic reviews below as what Gatekeeper does on jaysbeekay/sure, and as the goal for
+Hearth, until the checks in "Before relying on it" have been run and recorded here. Last verified:
+not yet.
+
+What Gatekeeper does, where it is set up:
 
 - **Draft PR** → a light-touch "PR Review - Light" (direction and material findings only).
 - **PR marked ready** → a full PR review.
