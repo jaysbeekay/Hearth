@@ -11,6 +11,7 @@ import {
 import { productSchema, productPatchSchema } from "@/lib/validation/product";
 import { parseNamedPatch } from "@/lib/validation/namedPatch";
 import { linkedRecordError, newLinks, type RecordLinks } from "@/lib/commands/links";
+import { reviewProposal } from "@/lib/chat/proposalReview";
 import { getNetWorth } from "@/lib/wealth";
 import {
   DEFAULT_DUE_HORIZON_DAYS,
@@ -335,7 +336,14 @@ const proposeCreateContractTool = defineTool({
     if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
     const links = await linkDisplay(parsed.data);
     if ("error" in links) return links;
-    return { proposed: true, entity: "contract", operation: "create", data: parsed.data, ...links };
+    return {
+      proposed: true,
+      entity: "contract",
+      operation: "create",
+      data: parsed.data,
+      ...links,
+      ...reviewProposal("create", parsed.data),
+    };
   },
 });
 
@@ -376,6 +384,7 @@ const proposeUpdateContractTool = defineTool({
       label: contract.title,
       data: parsed.data,
       ...links,
+      ...reviewProposal("update", parsed.data, contract),
     };
   },
 });
@@ -412,7 +421,14 @@ const proposeCreateProductTool = defineTool({
     if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
     const links = await linkDisplay(parsed.data);
     if ("error" in links) return links;
-    return { proposed: true, entity: "product", operation: "create", data: parsed.data, ...links };
+    return {
+      proposed: true,
+      entity: "product",
+      operation: "create",
+      data: parsed.data,
+      ...links,
+      ...reviewProposal("create", parsed.data),
+    };
   },
 });
 
@@ -437,10 +453,8 @@ const proposeUpdateProductTool = defineTool({
     // Only the named fields go into the proposal: see propose_update_contract.
     const parsed = parseNamedPatch(productPatchSchema, fields);
     if (!parsed.success) return { error: parsed.error };
-    const product = await prisma.product.findFirst({
-      where: { id: productId, deletedAt: null },
-      select: { description: true, purchaseDate: true, warrantyEndDate: true, propertyId: true },
-    });
+    // The whole row, so the card can show each changing field's current value (#530).
+    const product = await prisma.product.findFirst({ where: { id: productId, deletedAt: null } });
     if (!product) return { error: "No product with that id." };
     const { purchaseDate = product.purchaseDate, warrantyEndDate = product.warrantyEndDate } = parsed.data;
     if (datesOutOfOrder(purchaseDate, warrantyEndDate)) {
@@ -456,6 +470,7 @@ const proposeUpdateProductTool = defineTool({
       label: product.description,
       data: parsed.data,
       ...links,
+      ...reviewProposal("update", parsed.data, product),
     };
   },
 });

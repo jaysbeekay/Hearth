@@ -23,6 +23,8 @@ type ChatStreamEvent =
       label?: string;
       data: Record<string, unknown>;
       displayValues?: Record<string, string>;
+      currentValues?: Record<string, unknown>;
+      warnings?: Record<string, string[]>;
     }
   | { type: "error"; message: string }
   | { type: "done"; threadId: string };
@@ -106,6 +108,8 @@ export function AssistantClient({
             label: event.label,
             data: event.data,
             displayValues: event.displayValues,
+            currentValues: event.currentValues,
+            warnings: event.warnings,
           };
           setMessages((prev) =>
             prev.map((m) =>

@@ -9,6 +9,14 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Assistant confirmation card helps spot a steered proposal (#530, part
+  2).** An update now shows each field's current value under the proposed
+  one. Free-text fields are shown in full and shaded as the Assistant's
+  wording. A field is flagged when it adds a link or email address that
+  isn't already on the record, runs over 500 characters, or reads like
+  instructions to an AI, and the card says how many fields need a closer
+  look. Flags are only warnings: Confirm still saves. Server-only; the
+  shell's local assistant makes no proposals.
 - **Prompt-injection regression tests and model (#530, part 1).** New unit
   tests feed injection text through every document extractor (with Ollama
   and the BYOK provider stubbed to obey it) and through the Assistant's
