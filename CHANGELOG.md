@@ -9,6 +9,17 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Default Reminder thresholds in the standalone app (#536).** The
+  standalone mobile shell's Reminders view has a "Default reminder
+  thresholds" setting, stored on the device, the counterpart of the web's
+  household default. It is checked with the web setting's rule and message
+  (whole days, comma-separated), saved deduplicated and largest first, and
+  left blank it resets to 30,14,7,1. Records with no thresholds of their own
+  use it for Due soon, Needs attention, Upcoming and device reminders, and
+  saving it reschedules the device reminders. A Contract, Warranty or Vehicle
+  saved with the thresholds field blank now stores none of its own (it used
+  to store 30,14,7,1), so it follows the default; records that already have
+  thresholds keep them. Connected mode is unchanged.
 - **Snooze for Needs attention (#354).** A Due Contract, Warranty or Vehicle
   has a Snooze button on its Needs attention row and its detail banner: 1
   week, 30 days, or until a chosen date. While Snoozed it leaves Needs
