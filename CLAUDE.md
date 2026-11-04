@@ -45,9 +45,13 @@ on creation.
 
 ## Gatekeeper reviews
 
-Gatekeeper (`thebotkeeper[bot]`, see `docs/gatekeeper.md`) reviews automatically:
-a new issue gets a QA Review, a **draft PR** gets a light-touch PR review, and
-marking a PR **ready** gets a full PR review. CI runs at each step too.
+Gatekeeper (`thebotkeeper[bot]`, see `docs/gatekeeper.md`) is meant to review
+automatically: a new issue gets a QA Review, a **draft PR** gets a light-touch
+PR review, and marking a PR **ready** gets a full PR review. CI runs at each
+step too. That depends on Hermes being set up for this repository, which
+`docs/gatekeeper.md` says has not been verified yet. Until a review has
+actually landed on a Hearth PR, don't wait for one: `@codebot` is the only
+request that has a workflow behind it.
 
 - At each gate, wait until the review has landed **and** every CI check it
   triggered has completed before fixing anything. Don't fix findings or CI
