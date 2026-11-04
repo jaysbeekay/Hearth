@@ -125,7 +125,7 @@ test.describe("password reset and invitation flows", () => {
       await page.locator("#password").fill("ResetPassw0rd!372");
       await Promise.all([
         page.waitForURL((url) => url.pathname !== "/login"),
-        page.getByRole("button", { name: "Sign in" }).click(),
+        page.getByRole("button", { name: "Sign in", exact: true }).click(),
       ]);
     } finally {
       await context.close();
