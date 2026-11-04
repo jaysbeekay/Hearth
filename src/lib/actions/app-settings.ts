@@ -17,6 +17,7 @@ import { sendTestNtfy } from "@/lib/notifications/ntfy";
 import type { ActionState } from "@/lib/actions/auth";
 import { isValidTimeZone } from "@/lib/duePolicy";
 import { isCurrencyCode } from "@/lib/currencyCodes";
+import { POPULAR_CURRENCIES } from "@/components/CurrencySelect";
 
 export async function requireAdmin() {
   const session = await auth();
@@ -295,6 +296,11 @@ export async function saveHouseholdCurrency(
   const currency = typeof raw === "string" ? raw.trim().toUpperCase() : null;
   if (currency === null || (currency !== "" && !isCurrencyCode(currency))) {
     return { error: "Must be an ISO 4217 currency code, such as AUD or USD." };
+  }
+  // New members start with this as their preferred currency, so it must be
+  // one the preference and record currency selects offer.
+  if (currency !== "" && !(POPULAR_CURRENCIES as readonly string[]).includes(currency)) {
+    return { error: "Pick one of the listed currencies." };
   }
 
   try {

@@ -30,6 +30,7 @@ import {
 import { saveHouseholdCurrency, saveHouseholdTimeZone } from "@/lib/actions/app-settings";
 import { HouseholdCurrencyForm, HouseholdTimeZoneForm } from "@/components/AppSettingsForms";
 import { currencyLabel } from "@/components/CurrencySelect";
+import { isCurrencyCode } from "@/lib/currencyCodes";
 import { householdTimeZoneChoices } from "@/lib/timezones";
 import { BACKUP_DESTINATION_LABELS } from "@/lib/backupDestination";
 import { AI_PROVIDER_LABELS } from "@/lib/ai/types";
@@ -223,7 +224,7 @@ export default async function HouseholdSettingsPage() {
             <CurrencyHeading />
             <HouseholdCurrencyForm
               action={saveHouseholdCurrency}
-              current={savedCurrency.toUpperCase()}
+              current={isCurrencyCode(savedCurrency) ? savedCurrency.toUpperCase() : ""}
               fallback={currencyFallback}
             />
           </Card>

@@ -50,6 +50,11 @@ describe("household currency", () => {
     expect(await getHouseholdCurrency()).toBe("ZAR");
   });
 
+  it("refuses an ISO code the currency selects don't offer", async () => {
+    expect(await saveHouseholdCurrency(null, form({ householdCurrency: "ISK" }))).toMatchObject({ error: expect.any(String) });
+    expect(await getHouseholdCurrency()).toBe("NZD");
+  });
+
   it("clears back to the first admin's currency when saved empty", async () => {
     await saveHouseholdCurrency(null, form({ householdCurrency: "ZAR" }));
     await saveHouseholdCurrency(null, form({ householdCurrency: "" }));

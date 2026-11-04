@@ -605,7 +605,7 @@ export const TOOL_DESCRIPTIONS = {
     "auto-renewing ones waiting on their new end date, are left out. Same Contract shape as list_contracts.",
   spendSummary:
     "Estimated monthly spend across active Contracts, total and per category, converted to one " +
-    "currency the same way as the dashboard and the Spending page (default: the preferred currency). " +
+    "currency the same way as the dashboard and the Spending page (default: the asking member's preferred currency, or the household currency when no member is asking). " +
     "One-off charges and categories with no monthly spend are left out. May fetch current exchange " +
     "rates. Currencies with no exchange rate right now are left out of the totals and listed in " +
     "unconvertedCurrencies.",
