@@ -75,10 +75,11 @@ export function applyIfEmpty(
   el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null | undefined,
   value: string | undefined,
   source: "heuristic" | "ai" = "heuristic",
-) {
-  if (!value || !el || el.value) return;
+): boolean {
+  if (!value || !el || el.value) return false;
   el.value = value;
   markAutoFilled(el, source);
+  return true;
 }
 
 // Client-side mirror of the server's extraction confidence heuristic

@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  ExtractionReviewNote,
+  SaveForLaterButton,
+  autoFilledFields,
+  type AutoFilledField,
+} from "@/components/ExtractionReviewNote";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { addMonths } from "date-fns";
@@ -82,7 +88,8 @@ export function ProductForm({
   // src/lib/actions/products.ts. Both invoice scan and barcode lookup can
   // populate critical fields, so both count as "extraction used".
   const [extractionUsed, setExtractionUsed] = useState(false);
-  const [confirmExtraction, setConfirmExtraction] = useState(false);
+  // #359 — the fields the scan filled in, named above Save.
+  const [autoFilled, setAutoFilled] = useState<AutoFilledField[]>([]);
 
   const router = useRouter();
   const pendingOpId = useSearchParams().get("pendingOpId");
@@ -156,6 +163,7 @@ export function ProductForm({
       if (filledCount > 0) {
         applyExtractedFields(fields);
         setExtractionUsed(true);
+        setAutoFilled(autoFilledFields(descriptionRef.current?.form, source === "none" ? "heuristic" : source));
       }
       setScanMessage(extractionMessage(source, filledCount, textUnavailable));
     } catch {
@@ -190,6 +198,7 @@ export function ProductForm({
       if (found) {
         applyExtractedFields(fields);
         setExtractionUsed(true);
+        setAutoFilled(autoFilledFields(descriptionRef.current?.form, "heuristic"));
         setLookupMessage("Fields populated from the barcode — review before saving.");
       } else if (reason === "rate_limited") {
         setLookupMessage(
@@ -452,30 +461,14 @@ export function ProductForm({
         />
       </FormSection>
 
-      {extractionUsed && (
-        <div className={bannerClass("neutral", "flex items-start gap-2")}>
-          <input
-            id="confirmExtractionCheckbox"
-            type="checkbox"
-            checked={confirmExtraction}
-            onChange={(e) => setConfirmExtraction(e.target.checked)}
-            className="mt-0.5 size-4 rounded border-border accent-accent"
-          />
-          <label htmlFor="confirmExtractionCheckbox" className="text-sm">
-            I&apos;ve checked the highlighted fields above and they&apos;re correct. Leave this
-            unchecked to save anyway — the record will be marked{" "}
-            <span className="font-medium">Needs review</span> and reminders will be held until
-            it&apos;s confirmed.
-          </label>
-        </div>
-      )}
+      {extractionUsed && <ExtractionReviewNote fields={autoFilled} />}
       <input type="hidden" name="extractionUsed" value={extractionUsed ? "1" : "0"} />
-      <input type="hidden" name="confirmExtraction" value={confirmExtraction ? "1" : "0"} />
 
       <FormMessage attempt={state} error={state?.error} success={state?.success} />
 
       <FormActions cancelHref={cancelHref}>
         <SubmitButton>{pendingOp || product ? "Save changes" : "Add warranty"}</SubmitButton>
+        {extractionUsed && <SaveForLaterButton />}
       </FormActions>
 
       {scannerOpen && (

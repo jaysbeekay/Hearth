@@ -70,6 +70,14 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   in which case it still asks for the code at sign-in. On phones, Upcoming
   takes Documents' place in the bottom bar; Documents and its Inbox count
   move into More, and the More tab shows the count too.
+- **Saving a scanned record confirms it (#359).** After a scan fills in a
+  Contract or Warranty form, pressing Save is the review: the record saves
+  confirmed, with Reminders live. The "I've checked the highlighted fields"
+  checkbox is gone. A note above Save names the fields the scan filled, and
+  "Save for later review" keeps the old path (Needs review, Reminders held,
+  and the per-field review panel). On Upload and in the Inbox, a row you
+  changed, or one the scan read confidently (two or more fields), saves
+  confirmed. Only an untouched row with a weak scan still waits for review.
 
 - **Standalone app reads Due the same way as the web (#386).** The iOS and
   Android shell now has a hand-ported copy of the Due policy
