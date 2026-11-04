@@ -86,20 +86,21 @@ public class HearthScanPlugin: CAPPlugin, CAPBridgedPlugin, VNDocumentCameraView
     // MARK: - VNDocumentCameraViewControllerDelegate
 
     public func documentCameraViewController(_ controller: VNDocumentCameraViewController, didFinishWith scan: VNDocumentCameraScan) {
-        // Shrink each page as it's read so only one full-resolution image is
-        // in memory at a time; a long booklet would otherwise risk a memory
-        // kill mid-scan.
-        let kept = min(scan.pageCount, Self.maxScanPages)
-        var compressed: [UIImage] = []
-        for index in 0..<kept {
-            autoreleasepool {
-                compressed.append(Self.compressedPage(scan.imageOfPage(at: index)))
-            }
-        }
-        let skipped = scan.pageCount - kept
         controller.dismiss(animated: true)
         guard let call = takePendingScanCall() else { return }
+        let kept = min(scan.pageCount, Self.maxScanPages)
+        let skipped = scan.pageCount - kept
         workQueue.async {
+            // Off the main thread, so the UI stays responsive. Shrink each
+            // page as it's read so only one full-resolution image is in
+            // memory at a time; a long booklet would otherwise risk a memory
+            // kill.
+            var compressed: [UIImage] = []
+            for index in 0..<kept {
+                autoreleasepool {
+                    compressed.append(Self.compressedPage(scan.imageOfPage(at: index)))
+                }
+            }
             let pdf = Self.pdfData(from: compressed)
             let text = compressed.prefix(Self.maxOcrPages).map { Self.recognize($0) }.joined(separator: "\n")
             call.resolve([
@@ -166,9 +167,14 @@ public class HearthScanPlugin: CAPPlugin, CAPBridgedPlugin, VNDocumentCameraView
         // Vision's bounding boxes are normalised with the origin at the
         // bottom left: read top to bottom, then left to right, so a label and
         // its value on one printed line stay next to each other.
+        // Rows are 1%-high buckets so the comparison is a strict weak
+        // ordering (a plain tolerance on midY is not transitive).
+        func row(_ observation: VNRecognizedTextObservation) -> Int {
+            Int((observation.boundingBox.midY * 100).rounded())
+        }
         let ordered = observations.sorted { a, b in
-            let rowDelta = a.boundingBox.midY - b.boundingBox.midY
-            if abs(rowDelta) > 0.01 { return rowDelta > 0 }
+            let rowA = row(a), rowB = row(b)
+            if rowA != rowB { return rowA > rowB }
             return a.boundingBox.minX < b.boundingBox.minX
         }
         return ordered.compactMap { $0.topCandidates(1).first?.string }.joined(separator: "\n")

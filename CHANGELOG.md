@@ -339,8 +339,7 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 - **Document auto-fill read ungrouped amounts short.** "$1234.50" was read as
   123 and "$1000" as 100 because the amount pattern stopped after three
   digits without a thousands separator. It now reads the whole amount, grouped
-  or not, and skips a malformed one instead of keeping part of it. This
-  applies to the server's extraction and to the mobile shell's scan prefill.
+  or not, and skips a malformed one instead of keeping part of it.
 
 ## [0.20.1] - 2026-10-31
 

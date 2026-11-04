@@ -143,7 +143,13 @@ public class HearthScanPlugin extends Plugin {
                 List<GmsDocumentScanningResult.Page> pages = scan.getPages();
                 if (pages != null) {
                     for (int index = 0; index < pages.size() && index < MAX_OCR_PAGES; index++) {
-                        texts.add(recognize(InputImage.fromFilePath(getContext(), pages.get(index).getImageUri())));
+                        // One unreadable page leaves its text empty; the scan
+                        // itself (the PDF) is still returned.
+                        try {
+                            texts.add(recognize(InputImage.fromFilePath(getContext(), pages.get(index).getImageUri())));
+                        } catch (Exception error) {
+                            texts.add("");
+                        }
                     }
                 }
                 JSObject scanned = new JSObject();
