@@ -99,7 +99,11 @@ export function DocumentShareButton({
         showToast(`Shared a link that works for ${result.hours} hours.`, "success", { action: revoke });
         return;
       } catch (error) {
-        if (isAbort(error)) return;
+        // Cancelled the share sheet: nobody got the link, so don't leave it working.
+        if (isAbort(error)) {
+          await revokeDocumentShareLink(result.id).catch(() => undefined);
+          return;
+        }
       }
     }
     try {

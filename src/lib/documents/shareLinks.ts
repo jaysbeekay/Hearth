@@ -43,20 +43,39 @@ export async function createShareLink(documentId: string, userId: string, now: D
 }
 
 /**
- * The Document a share token opens, counting the open, or null when the
- * token is unknown, expired, revoked, or its Document can't be served.
+ * The Document a share token opens and its bytes, or null when the token is
+ * unknown, expired or revoked, its Document can't be served, or its file
+ * can't be read: all the same not found.
+ *
+ * The link and Document are checked again after the file is read, and the
+ * open is counted in the same conditional write, so a revoke or a move to
+ * Trash that lands while the file is being read stops the download. Only a
+ * response already on its way when the revoke lands still completes.
  */
-export async function openShareLink(token: string, now: Date = new Date()): Promise<DocumentRecord | null> {
+export async function openShareLink(
+  token: string,
+  read: (doc: DocumentRecord) => Promise<Buffer>,
+  now: Date = new Date(),
+): Promise<{ doc: DocumentRecord; buffer: Buffer } | null> {
   if (!/^[A-Za-z0-9_-]{43}$/.test(token)) return null;
   const link = await prisma.documentShareLink.findUnique({ where: { tokenHash: hashShareToken(token) } });
   if (!link || link.revokedAt || link.expiresAt <= now) return null;
   const doc = await findServableDocument(link.documentId);
   if (!doc) return null;
-  await prisma.documentShareLink.update({
-    where: { id: link.id },
+
+  let buffer: Buffer;
+  try {
+    buffer = await read(doc);
+  } catch {
+    return null;
+  }
+
+  if (!(await findServableDocument(doc.id))) return null;
+  const { count } = await prisma.documentShareLink.updateMany({
+    where: { id: link.id, revokedAt: null, expiresAt: { gt: now } },
     data: { openCount: { increment: 1 }, lastOpenedAt: now },
   });
-  return doc;
+  return count === 1 ? { doc, buffer } : null;
 }
 
 /** Links that still work (or would, if their Document is live), newest first. */
