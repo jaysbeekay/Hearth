@@ -17,7 +17,9 @@ type Format = {
   createReader(headerLine: string, password: string): Promise<{ header: { schemaVersion: number }; decrypt(line: string, index: number): Promise<BackupRecord> }>;
   parseHeader(headerLine: string): { schemaVersion: number } | null;
   fileRecords(key: string, base64: string): { type: "file"; key: string; seq: number; data: string }[];
-  readLines(source: { size: number; readSlice(start: number, end: number): Promise<string> }, sliceBytes?: number): AsyncGenerator<string>;
+  readLines(source: { size: number; readSlice(start: number, end: number): Promise<string> }, sliceBytes?: number): AsyncIterableIterator<string>;
+  readRecords(lines: AsyncIterator<string>, reader: { decrypt(line: string, index: number): Promise<BackupRecord> }): AsyncIterableIterator<BackupRecord>;
+  MAX_ITERATIONS: number;
   isSafeStorageKey(value: unknown): boolean;
   checkPassword(password: string): void;
 };
@@ -40,6 +42,21 @@ async function readAll(lines: string[], password = PASSWORD) {
   const reader = await format.createReader(lines[0], password);
   const records: BackupRecord[] = [];
   for (let index = 1; index < lines.length; index += 1) records.push(await reader.decrypt(lines[index], index));
+  return records;
+}
+
+function textSource(text: string) {
+  return { size: text.length, readSlice: async (start: number, end: number) => text.slice(start, end) };
+}
+
+// Reads a whole backup text the way the shell does: header, then
+// readRecords over the remaining lines.
+async function readBackupText(text: string, password = PASSWORD) {
+  const lines = format.readLines(textSource(text), 64);
+  const first = await lines.next();
+  const reader = await format.createReader(first.value, password);
+  const records: BackupRecord[] = [];
+  for await (const record of format.readRecords(lines, reader)) records.push(record);
   return records;
 }
 
@@ -106,11 +123,66 @@ describe("standalone backup format", () => {
     const header = JSON.parse(lines[0]);
     header.kdf.iterations = 10;
     expect(() => format.parseHeader(JSON.stringify(header))).toThrow(/out of range/);
+    header.kdf.iterations = format.MAX_ITERATIONS + 1;
+    expect(() => format.parseHeader(JSON.stringify(header))).toThrow(/out of range/);
+    header.kdf.iterations = format.MAX_ITERATIONS;
+    expect(format.parseHeader(JSON.stringify(header))).not.toBeNull();
   });
 
-  it("requires a backup password of at least 8 characters", async () => {
+  it("refuses a salt or a header line far larger than the shell writes", async () => {
+    const lines = await buildBackup([]);
+    const header = JSON.parse(lines[0]);
+    header.kdf.salt = "A".repeat(200);
+    expect(() => format.parseHeader(JSON.stringify(header))).toThrow(/damaged/);
+    // 8 bytes: too short a salt is refused before any key is derived.
+    header.kdf.salt = "AAAAAAAAAAA=";
+    await expect(format.createReader(JSON.stringify(header), PASSWORD)).rejects.toThrow(/damaged/);
+    header.padding = "x".repeat(5000);
+    expect(format.parseHeader(JSON.stringify(header))).toBeNull();
+  });
+
+  it("reads every record in order and ends at the end record", async () => {
+    const manifest = { type: "manifest", tables: {} };
+    const lines = await buildBackup([manifest, ...format.fileRecords("inbox/a.pdf", "QUJD")]);
+    expect(await readBackupText(lines.join("\n") + "\n")).toEqual([manifest, { type: "file", key: "inbox/a.pdf", seq: 0, data: "QUJD" }]);
+  });
+
+  it("refuses a backup cut short before its end record", async () => {
+    const lines = await buildBackup([{ type: "manifest", tables: {} }, ...format.fileRecords("inbox/a.pdf", "QUJD")]);
+    await expect(readBackupText(lines.slice(0, -1).join("\n"))).rejects.toThrow(/incomplete/);
+    await expect(readBackupText(lines[0])).rejects.toThrow(/incomplete/);
+  });
+
+  it("refuses a record after the end record", async () => {
+    const writer = await format.createWriter({ password: PASSWORD, schemaVersion: 11, exportedAt: "2099-01-01T00:00:00.000Z", iterations: ITERATIONS });
+    const lines = [writer.headerLine, await writer.encrypt({ type: "manifest", tables: {} }), await writer.encrypt({ type: "end", records: 1 }), await writer.encrypt({ type: "file", key: "inbox/a.pdf", seq: 0, data: "" })];
+    await expect(readBackupText(lines.join("\n"))).rejects.toThrow(/damaged/);
+  });
+
+  it("refuses a manifest that isn't first and an end record with the wrong count", async () => {
+    const writer = await format.createWriter({ password: PASSWORD, schemaVersion: 11, exportedAt: "2099-01-01T00:00:00.000Z", iterations: ITERATIONS });
+    const lines = [writer.headerLine, await writer.encrypt({ type: "manifest", tables: {} }), await writer.encrypt({ type: "end", records: 5 })];
+    await expect(readBackupText(lines.join("\n"))).rejects.toThrow(/damaged/);
+    const other = await format.createWriter({ password: PASSWORD, schemaVersion: 11, exportedAt: "2099-01-01T00:00:00.000Z", iterations: ITERATIONS });
+    const noManifest = [other.headerLine, ...(await Promise.all(format.fileRecords("inbox/a.pdf", "QUJD").map((record) => other.encrypt(record)))), await other.end()];
+    await expect(readBackupText(noManifest.join("\n"))).rejects.toThrow(/damaged/);
+  });
+
+  it("reads a backup whose line endings were converted to CRLF", async () => {
+    const manifest = { type: "manifest", tables: {} };
+    const lines = await buildBackup([manifest]);
+    expect(await readBackupText(lines.join("\r\n") + "\r\n")).toEqual([manifest]);
+  });
+
+  it("requires a backup password of at least 12 characters", async () => {
     expect(() => format.checkPassword("short")).toThrow(/at least 12/);
     await expect(format.createWriter({ password: "short", schemaVersion: 11, exportedAt: "2099-01-01T00:00:00.000Z" })).rejects.toThrow(/at least 12/);
+  });
+
+  it("refuses a password of only spaces", () => {
+    expect(() => format.checkPassword(" ".repeat(12))).toThrow(/only spaces/);
+    expect(() => format.checkPassword("\t\n".repeat(8))).toThrow(/only spaces/);
+    expect(() => format.checkPassword("correct horse battery")).not.toThrow();
   });
 
   it("only accepts storage keys shaped like the ones the shell generates", () => {

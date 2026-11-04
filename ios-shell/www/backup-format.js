@@ -39,6 +39,12 @@
   const FILE_PART_CHARS = 1024 * 1024;
   const IV_BYTES = 12;
   const SALT_BYTES = 16;
+  // What a header may carry: Hearth writes a 16-byte salt and a header line
+  // of about 250 characters, so anything far outside that is not a backup
+  // this build made, and is refused before it is decoded.
+  const MIN_SALT_BYTES = 16;
+  const MAX_SALT_BYTES = 64;
+  const MAX_HEADER_CHARS = 4096;
 
   const subtle = () => {
     const value = globalThis.crypto?.subtle;
@@ -65,6 +71,7 @@
     if (typeof password !== "string" || password.length < MIN_PASSWORD_LENGTH) {
       throw new Error(`Backup password must be at least ${MIN_PASSWORD_LENGTH} characters. A passphrase of four or more random words works well.`);
     }
+    if (password.trim().length === 0) throw new Error("Backup password can't be only spaces.");
   }
 
   // WebCrypto failures surface as a plain DOMException; each async step below
@@ -152,6 +159,9 @@
   // example a v1 pretty-printed JSON backup), throws when it is a v2 header
   // this build cannot read.
   function parseHeader(headerLine) {
+    // A v1 backup saved as one minified line can be long: it is not a v2
+    // header either way, so it goes to the v1 reader without being parsed.
+    if (typeof headerLine !== "string" || headerLine.length > MAX_HEADER_CHARS) return null;
     let header;
     try {
       header = JSON.parse(headerLine);
@@ -170,7 +180,9 @@
     if (!Number.isInteger(kdf.iterations) || kdf.iterations < MIN_ITERATIONS || kdf.iterations > MAX_ITERATIONS) {
       throw new Error("Backup encryption settings are out of range.");
     }
-    if (typeof kdf.salt !== "string" || kdf.salt.length === 0) throw new Error("Backup header is damaged.");
+    if (typeof kdf.salt !== "string" || kdf.salt.length === 0 || kdf.salt.length > Math.ceil(MAX_SALT_BYTES / 3) * 4) {
+      throw new Error("Backup header is damaged.");
+    }
     if (!Number.isInteger(header.schemaVersion) || header.schemaVersion < 1) throw new Error("Backup header is damaged.");
     return header;
   }
@@ -188,6 +200,7 @@
     } catch {
       throw new Error("Backup header is damaged.");
     }
+    if (salt.length < MIN_SALT_BYTES || salt.length > MAX_SALT_BYTES) throw new Error("Backup header is damaged.");
     const key = await deriveKey(password, salt, header.kdf.iterations);
     async function decrypt(line, index) {
       let framed;
@@ -214,6 +227,44 @@
     return { header, decrypt };
   }
 
+  // Checks the order of a backup's records as they are read, and yields the
+  // manifest first, then each file record. Throws if a record comes after
+  // the end record, if the end record's count is wrong, or if the lines run
+  // out before the end record (a file cut short at a line boundary).
+  // `lines` yields the lines after the header; `reader` is createReader's.
+  function readRecords(lines, reader) {
+    const damaged = () => new Error("The backup file is damaged.");
+    let index = 0;
+    let ended = false;
+    return {
+      async next() {
+        for (;;) {
+          const line = await lines.next();
+          if (line.done) {
+            if (!ended) throw new Error("The backup file is incomplete. It may not have finished copying.");
+            return { value: undefined, done: true };
+          }
+          index += 1;
+          if (ended) throw damaged();
+          const record = await reader.decrypt(line.value, index);
+          if (index === 1) {
+            if (record.type !== "manifest" || typeof record.tables !== "object" || record.tables == null) throw damaged();
+            return { value: record, done: false };
+          }
+          if (record.type === "file") return { value: record, done: false };
+          if (record.type === "end" && record.records === index - 1) {
+            ended = true;
+            continue;
+          }
+          throw damaged();
+        }
+      },
+      [Symbol.asyncIterator]() {
+        return this;
+      },
+    };
+  }
+
   // Yields the lines of a source without loading it all: `source` is
   // { size, readSlice(start, end) → Promise<string> }. Backup text is ASCII
   // (JSON header plus base64), so byte offsets and string offsets agree.
@@ -230,12 +281,15 @@
           const end = Math.min(offset + sliceBytes, source.size);
           const slice = await source.readSlice(offset, end);
           offset = end;
+          // A file that went through a Windows tool may have CRLF endings:
+          // the \r would change the header line, and so the key's AAD, and
+          // read as a wrong password.
           const parts = (carry + slice).split("\n");
           carry = parts.pop() ?? "";
-          pending = parts.filter((line) => line.length > 0);
+          pending = parts.map(stripCarriageReturn).filter((line) => line.length > 0);
         }
         if (pending.length === 0 && carry.length > 0) {
-          pending = [carry];
+          pending = [stripCarriageReturn(carry)].filter((line) => line.length > 0);
           carry = "";
         }
       } catch (error) {
@@ -254,6 +308,10 @@
     };
   }
 
+  function stripCarriageReturn(line) {
+    return line.endsWith("\r") ? line.slice(0, -1) : line;
+  }
+
   function blobSource(blob) {
     return { size: blob.size, readSlice: (start, end) => blob.slice(start, end).text() };
   }
@@ -270,6 +328,8 @@
     FORMAT_VERSION,
     FILE_EXTENSION,
     DEFAULT_ITERATIONS,
+    MIN_ITERATIONS,
+    MAX_ITERATIONS,
     MIN_PASSWORD_LENGTH,
     FILE_PART_CHARS,
     checkPassword,
@@ -278,6 +338,7 @@
     parseHeader,
     fileRecords,
     readLines,
+    readRecords,
     blobSource,
     isSafeStorageKey,
     bytesToBase64,

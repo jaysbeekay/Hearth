@@ -42,6 +42,11 @@ const FILE_DIRECTORY = "DATA";
 // Backups are built in the app cache and leave it only through the share
 // sheet, never through a shared folder (#226).
 const BACKUP_EXPORT_DIRECTORY = "CACHE";
+// A shared copy left in the cache (Android, below, or an export the app
+// was killed in) is deleted at the next launch or export once this old.
+const BACKUP_CACHE_MAX_AGE_MS = 60 * 60 * 1000;
+// How long a copied backup password stays on the clipboard.
+const BACKUP_PASSWORD_CLIPBOARD_MS = 60 * 1000;
 const RESTORE_STAGING_ROOT = "standalone-restore-staging";
 // Files a restore replaced, kept until its database write commits.
 const RESTORE_ASIDE_ROOT = "standalone-restore-previous";
@@ -449,8 +454,15 @@ const state = {
   legacyPlaintextBackups: [],
   legacyBackupNoticeDismissed: false,
   // The password just chosen for an export, shown once so it can be saved
-  // in a password manager; cleared as soon as that step is left.
+  // in a password manager; cleared once the backup is shared, on Cancel, and
+  // as soon as Settings is left. A failed or cancelled share keeps it, so
+  // "Try again" makes the backup with the password already saved.
   pendingBackupPassword: null,
+  pendingBackupName: null,
+  backupExportFailed: false,
+  backupExportRunning: false,
+  // A restore journal this build can't read, with files still set aside.
+  unreadableRestoreJournal: false,
   enabledStandaloneModules: [...DEFAULT_STANDALONE_MODULE_KEYS],
   detail: null,
   detailBack: null,
@@ -1757,6 +1769,8 @@ async function autoConnectIfSaved() {
 }
 
 async function render() {
+  // The backup password is only ever on the Settings screen.
+  if (state.route !== "settings" && !state.backupExportRunning) clearPendingBackupPassword();
   await loadData();
   if (!recordTypeEnabled(state.recordType)) {
     state.recordType = "contracts";
@@ -2606,6 +2620,7 @@ function renderHelp() {
     ["Documents", "Standalone stores PDF, Word and image files in app-protected storage and keeps document metadata in encrypted SQLite."],
     ["Reminders", "Standalone can schedule local device reminders for contracts, warranties, vehicles and leases. Server email/ntfy reminders stay connected-only."],
     ["Backups", "Settings exports an encrypted backup, protected by a password you choose, that you can save to Files, iCloud Drive or Google Drive. Hearth never sees your backups, and a lost password cannot be reset."],
+    ["Old unencrypted backups", "Versions before encrypted backups saved unencrypted files named hearth-standalone-….json. Settings offers to delete the ones Hearth can still see. On Android, a copy made before Hearth was reinstalled, or one you moved, can't be seen: delete it from the Documents folder in the Files app."],
     ["Privacy", "No standalone record is shared with a server or another person unless you switch modes or manually export/share a backup or file."],
   ];
   return `
@@ -2836,34 +2851,76 @@ async function markCompleteBackup(missingFiles) {
   if (missingFiles === 0) await markBackedUp();
 }
 
-async function exportAndShareBackup(password, confirm) {
+function checkSharingAvailable() {
+  if (!Share || !Filesystem) throw new Error("Sharing is unavailable in this build, so a backup can't be saved anywhere. Nothing was made.");
+}
+
+// Makes the backup in the app cache and hands it to the share sheet.
+// Returns true once it is shared, false if sharing was cancelled; throws on
+// any other failure. Only a shared backup counts as the last backup.
+//
+// The cache copy is deleted as soon as it is no longer needed: at once on
+// iOS, which has copied the file by the time share() resolves, and after a
+// failure or a cancel. On Android share() resolves when the chosen app is
+// started, and that app (Drive, Gmail) may read the file after that, so
+// there the copy is left for sweepBackupCache (#226 review).
+async function exportAndShareBackup(password, confirm, name = backupFilename()) {
   checkNewBackupPassword(password, confirm);
-  const name = backupFilename();
+  checkSharingAvailable();
   const path = `${BACKUP_ROOT}/${name}`;
+  await sweepBackupCache();
   showStandaloneStatus("Encrypting backup…", true);
-  const { missingFiles } = await writeEncryptedBackup(password, BACKUP_EXPORT_DIRECTORY, path);
-  if (!Share) {
-    await markCompleteBackup(missingFiles);
-    showStandaloneStatus(`Backup saved as ${name}.${missingFilesNote(missingFiles)}`, true);
-    return;
-  }
+  let keepCopy = false;
   try {
+    const { missingFiles } = await writeEncryptedBackup(password, BACKUP_EXPORT_DIRECTORY, path);
     const { uri } = await Filesystem.getUri({ directory: BACKUP_EXPORT_DIRECTORY, path });
-    await Share.share({ title: "Hearth backup", dialogTitle: "Save your Hearth backup", files: [uri] });
+    try {
+      await Share.share({ title: "Hearth backup", dialogTitle: "Save your Hearth backup", files: [uri] });
+    } catch (error) {
+      if (/cancel/i.test(String(error?.message ?? ""))) {
+        showStandaloneStatus("Backup not saved: sharing was cancelled. Try again to share it with the same password.");
+        return false;
+      }
+      throw error;
+    }
+    keepCopy = Capacitor.getPlatform() === "android";
     await markCompleteBackup(missingFiles);
     showStandaloneStatus(`Backup ${name} shared. Keep the password safe.${missingFilesNote(missingFiles)}`, true);
-  } catch (error) {
-    if (/cancel/i.test(String(error?.message ?? ""))) {
-      showStandaloneStatus("Backup not saved: sharing was cancelled.");
-      return;
-    }
-    throw error;
+    return true;
   } finally {
-    await Filesystem.deleteFile({ directory: BACKUP_EXPORT_DIRECTORY, path }).catch(() => undefined);
+    if (!keepCopy) await Filesystem.deleteFile({ directory: BACKUP_EXPORT_DIRECTORY, path }).catch(() => undefined);
   }
 }
 
+// Deletes backups in the app cache older than BACKUP_CACHE_MAX_AGE_MS: a
+// copy Android shared an hour or more ago, or the part-written file of an
+// export the app was killed in. Never fails the caller.
+async function sweepBackupCache(now = Date.now()) {
+  if (!Filesystem?.readdir) return;
+  let entries;
+  try {
+    ({ files: entries = [] } = await Filesystem.readdir({ directory: BACKUP_EXPORT_DIRECTORY, path: BACKUP_ROOT }));
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    const name = typeof entry === "string" ? entry : entry?.name;
+    const modified = Number(entry?.mtime ?? entry?.ctime);
+    if (!name || !/^hearth-standalone-[\w.-]*$/.test(name)) continue;
+    if (Number.isFinite(modified) && now - modified < BACKUP_CACHE_MAX_AGE_MS) continue;
+    await Filesystem.deleteFile({ directory: BACKUP_EXPORT_DIRECTORY, path: `${BACKUP_ROOT}/${name}` }).catch(() => undefined);
+  }
+}
+
+function clearPendingBackupPassword() {
+  state.pendingBackupPassword = null;
+  state.pendingBackupName = null;
+  state.backupExportFailed = false;
+}
+
 async function loadBackupState() {
+  await sweepBackupCache();
+  state.unreadableRestoreJournal = await unreadableRestoreJournalPending().catch(() => false);
   state.lastBackupAt = await prefGet(LAST_BACKUP_KEY);
   state.legacyBackupNoticeDismissed = (await prefGet(LEGACY_BACKUP_NOTICE_KEY)) === "true";
   state.legacyPlaintextBackups = await listLegacyPlaintextBackups();
@@ -2913,7 +2970,13 @@ function fileBackupSource(file) {
 async function restoreFromFile(form) {
   const file = formFile(form);
   if (!file) throw new Error("Choose a backup file first.");
-  await restoreStandaloneBackup(fileBackupSource(file), restoreOptions(form));
+  const submit = form.querySelector('button[type="submit"]');
+  if (submit) submit.disabled = true;
+  try {
+    await restoreStandaloneBackup(fileBackupSource(file), restoreOptions(form));
+  } finally {
+    if (submit) submit.disabled = false;
+  }
 }
 
 function restoreOptions(form) {
@@ -2925,9 +2988,25 @@ function restoreOptions(form) {
   return { mode, password: String(data.get("password") ?? "") };
 }
 
+// One restore at a time: two would share the staging folder, which each
+// clears before and after, and so delete each other's staged files. The
+// write gate can't cover this, since staging happens before the gate is
+// taken (#226 review).
+let restoreRunning = false;
+
 // `source` is { size, readSlice(start, end), text?() }. A v1 (plain JSON)
 // backup is still accepted from a file, for backups made before #226.
-async function restoreStandaloneBackup(source, { mode, password }) {
+async function restoreStandaloneBackup(source, options) {
+  if (restoreRunning) throw new Error("A restore is already running. Wait for it to finish.");
+  restoreRunning = true;
+  try {
+    return await readAndApplyBackup(source, options);
+  } finally {
+    restoreRunning = false;
+  }
+}
+
+async function readAndApplyBackup(source, { mode, password }) {
   if (!BackupFormat) throw new Error("Backup support is missing from this build.");
   const lines = BackupFormat.readLines(source);
   const first = await lines.next();
@@ -2944,36 +3023,22 @@ async function restoreStandaloneBackup(source, { mode, password }) {
   const reader = await BackupFormat.createReader(first.value, password);
   await clearRestoreStaging();
   try {
+    // readRecords checks the record order (manifest first, nothing after
+    // the end record, nothing missing); the file parts are checked here.
     let manifest = null;
-    let ended = false;
-    let index = 0;
     const nextSeq = new Map();
-    for await (const line of lines) {
-      index += 1;
-      if (ended) throw new Error("The backup file is damaged.");
-      const record = await reader.decrypt(line, index);
-      if (index === 1) {
-        if (record.type !== "manifest" || typeof record.tables !== "object" || record.tables == null) throw new Error("The backup file is damaged.");
+    for await (const record of BackupFormat.readRecords(lines, reader)) {
+      if (!manifest) {
         manifest = record;
         continue;
       }
-      if (record.type === "file") {
-        const expected = nextSeq.get(record.key) ?? 0;
-        if (!BackupFormat.isSafeStorageKey(record.key) || record.seq !== expected || typeof record.data !== "string") {
-          throw new Error("The backup file is damaged.");
-        }
-        await stageRestoreFile(record.key, record.data, expected > 0);
-        nextSeq.set(record.key, expected + 1);
-        continue;
+      const expected = nextSeq.get(record.key) ?? 0;
+      if (!BackupFormat.isSafeStorageKey(record.key) || record.seq !== expected || typeof record.data !== "string") {
+        throw new Error("The backup file is damaged.");
       }
-      if (record.type === "end") {
-        if (record.records !== index - 1) throw new Error("The backup file is damaged.");
-        ended = true;
-        continue;
-      }
-      throw new Error("The backup file is damaged.");
+      await stageRestoreFile(record.key, record.data, expected > 0);
+      nextSeq.set(record.key, expected + 1);
     }
-    if (!manifest || !ended) throw new Error("The backup file is incomplete. It may not have finished copying.");
     return await applyRestore({ tables: manifest.tables, preferences: manifest.preferences ?? {}, stagedKeys: [...nextSeq.keys()], mode });
   } finally {
     await clearRestoreStaging();
@@ -3036,26 +3101,61 @@ async function buildRestoreStatements(tables, mode) {
   // The storage keys of the document rows this restore writes: only their
   // files are moved in. A row Merge keeps keeps its file too (#226 review).
   const acceptedKeys = new Set();
-  // Merge: which local row owns each storage key, so a backup row can never
-  // take over another local document's file.
+  // Merge: the local rows ("table:id") that use each storage key, so a
+  // backup row can never take over another local document's file. A key can
+  // have several: filing an Inbox document adds a documents row with the
+  // same key and keeps the Inbox row, soft-deleted (#226 review).
   const localKeyOwners = new Map();
+  // Merge: the storage key each backup document row has, by "table:id".
+  const backupKeys = new Map();
   if (mode === "merge") {
-    for (const row of [...(await query("SELECT id, storage_key FROM documents")), ...(await query("SELECT id, storage_key FROM inbox_documents"))]) {
-      if (row.storage_key) localKeyOwners.set(row.storage_key, row.id);
+    for (const table of ["documents", "inbox_documents"]) {
+      for (const row of await query(`SELECT id, storage_key FROM ${table}`)) {
+        if (!row.storage_key) continue;
+        if (!localKeyOwners.has(row.storage_key)) localKeyOwners.set(row.storage_key, new Set());
+        localKeyOwners.get(row.storage_key).add(`${table}:${row.id}`);
+      }
+    }
+    for (const table of BACKUP_TABLES.filter((candidate) => candidate.columns.includes("storage_key"))) {
+      for (const row of Array.isArray(tables[table.key]) ? tables[table.key] : []) {
+        if (row && typeof row.id === "string" && row.storage_key != null) backupKeys.set(`${table.table}:${row.id}`, row.storage_key);
+      }
     }
   }
+  // A backup row may use a key this phone already uses when it is one of
+  // that key's local owners, or when every local owner of the key is in the
+  // backup with that same key (the same filed document on both sides).
+  const mayUseKey = (table, row) => {
+    const owners = localKeyOwners.get(row.storage_key);
+    if (!owners || owners.has(`${table.table}:${row.id}`)) return true;
+    return [...owners].every((owner) => backupKeys.get(owner) === row.storage_key);
+  };
   for (const table of BACKUP_TABLES) {
     const rows = Array.isArray(tables[table.key]) ? tables[table.key] : [];
     if (mode === "replace") set.push({ statement: `DELETE FROM ${table.table}`, values: [] });
-    // Merge: a row with a version is replaced only by a backup row at least
-    // as new; a row without one (Term history, the reminder log) is never
-    // replaced, only added when this phone doesn't have it.
+    // Merge: a row with a version is replaced only by a backup row that is
+    // newer: a higher version, or the same version with a later updated_at.
+    // On a full tie, or a tie in a table without updated_at, the phone's row
+    // is kept, as the restore screen promises. A row without a version (Term
+    // history, the reminder log) is never replaced, only added when this
+    // phone doesn't have it.
     const versioned = table.columns.includes("version");
-    const localVersions = new Map();
+    const stamped = table.columns.includes("updated_at");
+    const localRows = new Map();
     if (mode === "merge" && rows.length > 0) {
-      const sql = versioned ? `SELECT id, version FROM ${table.table}` : `SELECT id FROM ${table.table}`;
-      for (const row of await query(sql)) localVersions.set(row.id, versioned ? Number(row.version) || 0 : Infinity);
+      const sql = versioned ? `SELECT id, version${stamped ? ", updated_at" : ""} FROM ${table.table}` : `SELECT id FROM ${table.table}`;
+      for (const row of await query(sql)) localRows.set(row.id, row);
     }
+    const keepLocal = (row) => {
+      if (!localRows.has(row.id)) return false;
+      if (!versioned) return true;
+      const local = localRows.get(row.id);
+      const localVersion = Number(local.version) || 0;
+      const backupVersion = Number(row.version) || 0;
+      if (localVersion !== backupVersion) return localVersion > backupVersion;
+      if (!stamped) return true;
+      return String(local.updated_at ?? "") >= String(row.updated_at ?? "");
+    };
     const placeholders = table.columns.map(() => "?").join(", ");
     const statement = `INSERT OR REPLACE INTO ${table.table} (${table.columns.join(", ")}) VALUES (${placeholders})`;
     for (const row of rows) {
@@ -3065,11 +3165,11 @@ async function buildRestoreStatements(tables, mode) {
       if (row.storage_key != null && !BackupFormat.isSafeStorageKey(row.storage_key)) {
         throw new Error("The backup contains a document Hearth cannot read.");
       }
-      if (localVersions.has(row.id) && localVersions.get(row.id) > (Number(row.version) || 0)) {
+      if (keepLocal(row)) {
         kept += 1;
         continue;
       }
-      if (row.storage_key != null && localKeyOwners.has(row.storage_key) && localKeyOwners.get(row.storage_key) !== row.id) {
+      if (row.storage_key != null && !mayUseKey(table, row)) {
         kept += 1;
         continue;
       }
@@ -3188,25 +3288,80 @@ function recoverInterruptedRestore() {
   return restoreRecovery;
 }
 
-async function runRestoreRecovery() {
-  const raw = await prefGet(RESTORE_JOURNAL_KEY);
-  if (!raw || !Filesystem) return;
+function parseRestoreJournal(raw) {
   let journal;
   try {
     journal = JSON.parse(raw);
   } catch {
-    journal = null;
+    return null;
   }
-  // A journal this build can't read is kept, with the aside folder, rather
-  // than guessed at.
-  if (!journal || !Array.isArray(journal.files) || !Array.isArray(journal.priorKeys)) return;
+  if (!journal || typeof journal.id !== "string" || !Array.isArray(journal.files) || !Array.isArray(journal.priorKeys)) return null;
+  return journal;
+}
+
+// Counts the files under a folder of FILE_DIRECTORY; a folder that isn't
+// there holds none. Throws when the folder can't be read.
+async function countFilesUnder(path) {
+  let entries;
+  try {
+    ({ files: entries = [] } = await Filesystem.readdir({ directory: FILE_DIRECTORY, path }));
+  } catch (error) {
+    if (!(await Filesystem.stat({ directory: FILE_DIRECTORY, path }).then(() => true, () => false))) return 0;
+    throw error;
+  }
+  let count = 0;
+  for (const entry of entries) {
+    const name = typeof entry === "string" ? entry : entry?.name;
+    if (!name) continue;
+    count += entry?.type === "directory" ? await countFilesUnder(`${path}/${name}`) : 1;
+  }
+  return count;
+}
+
+// `clearStaging` is false when a restore runs this before applying itself:
+// its own files are already staged.
+async function runRestoreRecovery({ clearStaging = true } = {}) {
+  const raw = await prefGet(RESTORE_JOURNAL_KEY);
+  if (!raw || !Filesystem) return;
+  const journal = parseRestoreJournal(raw);
+  if (!journal) {
+    // A journal this build can't read can't be finished or rolled back. If
+    // no file is set aside there is nothing it could still protect, so it is
+    // cleared; otherwise it stays, with the aside folder, until the user
+    // chooses in Settings (clearUnreadableRestoreJournal), rather than
+    // blocking every restore for good (#226 review).
+    if ((await countFilesUnder(RESTORE_ASIDE_ROOT).catch(() => 1)) === 0) await closeRestoreJournal(0);
+    return;
+  }
   const marker = await query("SELECT value FROM schema_metadata WHERE key = 'last_restore_id'");
   if (marker.some((row) => row.value === journal.id)) {
     await finishRestoreFiles(journal);
   } else {
     await closeRestoreJournal(await rollbackRestoreFiles(journal));
   }
-  await clearRestoreStaging();
+  if (clearStaging) await clearRestoreStaging();
+}
+
+async function unreadableRestoreJournalPending() {
+  const raw = await prefGet(RESTORE_JOURNAL_KEY);
+  return Boolean(raw) && !parseRestoreJournal(raw);
+}
+
+// The way out of an unreadable journal with files still set aside: the
+// files are kept, moved to a folder of their own, and the journal cleared,
+// so restoring works again. Nothing is deleted.
+async function clearUnreadableRestoreJournal() {
+  await withExclusiveDb(async () => {
+    if (!(await unreadableRestoreJournalPending())) return;
+    if (!window.confirm("Clear the unfinished restore? The document files it set aside are kept in Hearth's storage, and restoring works again.")) return;
+    const keptPath = `${RESTORE_ASIDE_ROOT}-kept-${Date.now()}`;
+    if ((await countFilesUnder(RESTORE_ASIDE_ROOT)) > 0) {
+      await Filesystem.rename({ directory: FILE_DIRECTORY, from: RESTORE_ASIDE_ROOT, to: keptPath });
+    }
+    await prefRemove(RESTORE_JOURNAL_KEY);
+    showStandaloneStatus("Unfinished restore cleared. You can restore a backup again.", true);
+  });
+  state.unreadableRestoreJournal = await unreadableRestoreJournalPending();
 }
 
 // Files first, database second: every staged file is checked, the journal
@@ -3268,7 +3423,18 @@ async function applyRestoreLocked({ tables, stagedKeys, mode }) {
   for (const key of keys) {
     if (!(await fileExists(`${RESTORE_STAGING_ROOT}/${key}`))) throw new Error("Could not prepare the backup's documents on this phone. Nothing was changed.");
   }
-  if (await prefGet(RESTORE_JOURNAL_KEY)) throw new Error("An earlier restore has not finished tidying up. Restart Hearth, then try again.");
+  // An earlier restore's journal: finish or roll it back now rather than
+  // asking for a restart (#226 review).
+  if (await prefGet(RESTORE_JOURNAL_KEY)) {
+    await runRestoreRecovery({ clearStaging: false });
+    if (await unreadableRestoreJournalPending()) {
+      state.unreadableRestoreJournal = true;
+      throw new Error("An earlier restore left a record Hearth can't read, with document files set aside. Nothing was changed. Clear it under Unfinished restore in Settings, then restore again.");
+    }
+    if (await prefGet(RESTORE_JOURNAL_KEY)) {
+      throw new Error("An earlier restore still has document files Hearth could not tidy up. Nothing was changed. Hearth tries again each time it starts: restart it, then restore again.");
+    }
+  }
   const files = [];
   for (const key of keys) files.push({ key, hadOriginal: await fileExists(documentPath(key)) });
   const journal = { id: crypto.randomUUID(), mode, priorKeys: [...(await referencedStorageKeys())], files };
@@ -3285,10 +3451,28 @@ async function applyRestoreLocked({ tables, stagedKeys, mode }) {
     set.push({ statement: "INSERT OR REPLACE INTO schema_metadata (key, value) VALUES ('last_restore_id', ?)", values: [journal.id] });
     await SQLite.executeSet({ database: DB, set, transaction: true });
   } catch (error) {
+    // The bridge can reject after the transaction committed. The marker
+    // says which: committed means finish, as recovery would; not committed
+    // means roll back. If it can't be read, nothing is touched and the
+    // journal stays for the next launch to decide (#226 review).
+    let committed;
+    try {
+      committed = (await currentRestoreMarker()) === journal.id;
+    } catch {
+      committed = null;
+    }
+    if (committed === null) {
+      throw new Error(`Restore stopped part-way (${error?.message || "unknown error"}). Restart Hearth: it will finish the restore or put this phone back as it was.`);
+    }
+    if (committed) return finishCommittedRestore({ journal, acceptedKeys, keys, restored, kept });
     const closed = await closeRestoreJournal(await rollbackRestoreFiles(journal));
     const tail = closed ? "" : " Some files could not be put back yet; Hearth will try again when it next starts.";
     throw new Error(`Restore failed, and this phone was left as it was (${error?.message || "unknown error"}).${tail}`);
   }
+  return finishCommittedRestore({ journal, acceptedKeys, keys, restored, kept });
+}
+
+async function finishCommittedRestore({ journal, acceptedKeys, keys, restored, kept }) {
   const undeletedFiles = await finishRestoreFiles(journal);
   const missingFiles = [...acceptedKeys].filter((key) => !keys.includes(key)).length;
   return { restored, kept, missingFiles, undeletedFiles };
@@ -3357,6 +3541,7 @@ function renderBackupSettings() {
       ${state.pendingBackupPassword ? renderSaveBackupPasswordStep() : renderExportBackupForm()}
     </section>
     ${renderLegacyBackupNotice()}
+    ${renderUnreadableRestoreJournal()}
     <section class="card form-card">
       <h2>Restore from a file</h2>
       <p class="muted">Choose a .hearthbackup file (or an older Hearth JSON backup) from Files, iCloud Drive or Google Drive.</p>
@@ -3384,19 +3569,67 @@ function renderExportBackupForm() {
   `;
 }
 
-// Shown once, after the password is chosen and before the backup is made.
+// Shown once, after the password is chosen and before the backup is made;
+// kept after a failed or cancelled share so "Try again" uses the same
+// password. The field is masked whenever it loses focus, after Copy, and
+// when the app goes to the background, so the app-switcher snapshot doesn't
+// show it; tapping it shows it again.
 function renderSaveBackupPasswordStep() {
+  const disabled = state.backupExportRunning ? " disabled" : "";
+  const name = state.pendingBackupName ?? "";
   return `
     <div class="field-grid" data-save-backup-password>
       <h3>Save this password in your password manager</h3>
       <p class="muted">This is the only time Hearth shows it. If you lose it, this backup can't be opened, and Hearth can't reset it.</p>
+      <p class="muted" data-backup-planned-name>Save it with the backup's name: <strong>${escapeHtml(name)}</strong></p>
       <label>Backup password<input type="text" readonly value="${escapeAttr(state.pendingBackupPassword)}" data-backup-password-value autocomplete="off" spellcheck="false" /></label>
       <div class="actions">
-        <button class="secondary" data-copy-backup-password>Copy</button>
-        <button data-continue-backup-export>I've saved it, export now</button>
-        <button class="secondary" data-cancel-backup-export>Cancel</button>
+        <button class="secondary" data-copy-backup-password${disabled}>Copy</button>
+        <button data-continue-backup-export${disabled}>${state.backupExportFailed ? "Try again" : "I've saved it, export now"}</button>
+        <button class="secondary" data-cancel-backup-export${disabled}>Cancel</button>
       </div>
     </div>
+  `;
+}
+
+function maskBackupPasswordFields() {
+  for (const input of document.querySelectorAll("[data-backup-password-value]")) input.type = "password";
+}
+
+// The copied password is wiped from the clipboard after
+// BACKUP_PASSWORD_CLIPBOARD_MS, unless Hearth has copied something else
+// since. Reading the clipboard to check it still holds the password would
+// show the system paste prompt, so it is overwritten without that check.
+// A WebView may refuse a clipboard write that isn't part of a tap, so the
+// first tap in Hearth after the deadline tries again.
+let backupPasswordClipboardDeadline = null;
+function scheduleBackupPasswordClipboardClear() {
+  backupPasswordClipboardDeadline = Date.now() + BACKUP_PASSWORD_CLIPBOARD_MS;
+  setTimeout(() => clearBackupPasswordClipboard().catch(() => undefined), BACKUP_PASSWORD_CLIPBOARD_MS);
+}
+
+async function clearBackupPasswordClipboard() {
+  if (backupPasswordClipboardDeadline == null || Date.now() < backupPasswordClipboardDeadline) return;
+  await navigator.clipboard.writeText("");
+  backupPasswordClipboardDeadline = null;
+}
+
+function forgetBackupPasswordClipboard() {
+  backupPasswordClipboardDeadline = null;
+}
+
+async function handleUnreadableRestoreJournal() {
+  await clearUnreadableRestoreJournal().catch((error) => showStandaloneStatus(error.message || "Could not clear the unfinished restore."));
+}
+
+function renderUnreadableRestoreJournal() {
+  if (!state.unreadableRestoreJournal) return "";
+  return `
+    <section class="card form-card warning-card" data-unreadable-restore-journal>
+      <h2>Unfinished restore</h2>
+      <p class="card-meta">An earlier restore stopped and left a record this version of Hearth can't read, with document files it had set aside. Restoring a backup is blocked until it is cleared. Clearing keeps those files in Hearth's storage; nothing is deleted.</p>
+      <div class="actions"><button class="secondary" data-clear-unreadable-restore>Clear unfinished restore</button></div>
+    </section>
   `;
 }
 
@@ -6006,6 +6239,7 @@ async function confirmDetails(type, id) {
 }
 
 async function copyValue(value) {
+  forgetBackupPasswordClipboard();
   if (!value) return;
   try {
     if (navigator.clipboard?.writeText) {
@@ -6047,6 +6281,7 @@ function base64ToBlob(base64, mimeType) {
 }
 
 function goBack() {
+  clearPendingBackupPassword();
   if (state.route === "form") {
     state.route = state.backTo ?? "records";
     state.form = null;
@@ -6074,7 +6309,7 @@ function routeTo(route) {
   state.detailBack = null;
   state.form = null;
   // Leaving Settings ends the save-your-password step: it is shown only once.
-  state.pendingBackupPassword = null;
+  clearPendingBackupPassword();
   if (route === "trash") hideStandaloneStatus();
   state.backTo = isSecondaryRoute(route) ? (previousRoute === "more" || (route === "trash" && ["documents", "settings"].includes(previousRoute)) ? previousRoute : "dashboard") : null;
   render().catch((error) => showStandaloneStatus(error.message || "Could not open screen."));
@@ -6188,7 +6423,26 @@ document.querySelectorAll(".nav-item").forEach((button) => {
   });
 });
 
+// The backup password field: shown while focused, masked otherwise and
+// whenever Hearth goes to the background (before the app-switcher snapshot).
+mobileView.addEventListener("focusin", (event) => {
+  if (event.target.matches?.("[data-backup-password-value]")) event.target.type = "text";
+});
+mobileView.addEventListener("focusout", (event) => {
+  if (event.target.matches?.("[data-backup-password-value]")) event.target.type = "password";
+});
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") maskBackupPasswordFields();
+});
+window.addEventListener("blur", maskBackupPasswordFields);
+Plugins.App?.addListener?.("appStateChange", ({ isActive }) => {
+  if (!isActive) maskBackupPasswordFields();
+});
+
 mobileView.addEventListener("click", async (event) => {
+  // A tap is when a WebView allows a clipboard write: finish clearing a
+  // copied backup password whose minute is up.
+  clearBackupPasswordClipboard().catch(() => undefined);
   const button = event.target.closest("button");
   if (!button) return;
   if (button.dataset.nav) {
@@ -6296,24 +6550,45 @@ mobileView.addEventListener("click", async (event) => {
   if (button.dataset.copyBackupPassword !== undefined) {
     try {
       await navigator.clipboard.writeText(state.pendingBackupPassword ?? "");
-      showStandaloneStatus("Password copied. Paste it into your password manager.", true);
+      scheduleBackupPasswordClipboardClear();
+      maskBackupPasswordFields();
+      showStandaloneStatus("Password copied. Paste it into your password manager; Hearth clears the clipboard after a minute.", true);
     } catch {
-      document.querySelector("[data-backup-password-value]")?.select();
+      const field = document.querySelector("[data-backup-password-value]");
+      if (field) {
+        field.type = "text";
+        field.select();
+      }
       showStandaloneStatus("Couldn't copy automatically: the password is selected, copy it from there.");
     }
     return;
   }
   if (button.dataset.continueBackupExport !== undefined) {
     const password = state.pendingBackupPassword;
-    state.pendingBackupPassword = null;
+    if (!password || state.backupExportRunning) return;
+    state.backupExportRunning = true;
     await render();
-    if (password) await exportAndShareBackup(password, password).catch((error) => showStandaloneStatus(error.message || "Could not export the backup."));
+    let shared = false;
+    try {
+      shared = await exportAndShareBackup(password, password, state.pendingBackupName ?? undefined);
+    } catch (error) {
+      showStandaloneStatus(`${error.message || "Could not export the backup."} Try again to make it with the same password.`);
+    } finally {
+      state.backupExportRunning = false;
+    }
+    if (shared) clearPendingBackupPassword();
+    else if (state.pendingBackupPassword) state.backupExportFailed = true;
     await render();
     return;
   }
   if (button.dataset.cancelBackupExport !== undefined) {
-    state.pendingBackupPassword = null;
+    clearPendingBackupPassword();
     showStandaloneStatus("Backup not made.");
+    await render();
+    return;
+  }
+  if (button.dataset.clearUnreadableRestore !== undefined) {
+    await handleUnreadableRestoreJournal();
     await render();
     return;
   }
@@ -6433,7 +6708,10 @@ mobileView.addEventListener("submit", async (event) => {
       const data = new FormData(form);
       const password = String(data.get("password") ?? "");
       checkNewBackupPassword(password, String(data.get("confirm") ?? ""));
+      checkSharingAvailable();
       state.pendingBackupPassword = password;
+      state.pendingBackupName = backupFilename();
+      state.backupExportFailed = false;
       await render();
       return;
     }

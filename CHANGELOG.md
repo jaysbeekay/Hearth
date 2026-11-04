@@ -16,9 +16,12 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   to Files, iCloud Drive, Google Drive or anywhere else (`@capacitor/share`).
   Before the backup is made, the new password is shown once, with a Copy
   button, so it can be saved in a password manager: a lost password cannot be
-  reset. Restore decrypts and checks the whole backup before changing
+  reset. If sharing is cancelled or fails, "Try again" makes the backup with
+  the same password; only a backup that was shared counts as the last backup.
+  Restore decrypts and checks the whole backup before changing
   anything, then either replaces everything on the phone or merges (keeping
-  records edited more recently on the phone), in one database transaction,
+  records edited more recently on the phone, and the phone's copy when both
+  are the same), in one database transaction,
   and reschedules device reminders. Document files are swapped in under a
   journal written before anything moves, so a failed or interrupted restore
   (the app killed, the phone dying) is rolled back or finished at the next
@@ -66,8 +69,12 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   shared folder (#226).** The old export wrote every record and document,
   unencrypted, to the Documents folder, which on Android is the public
   Documents folder other apps can read. Backups are now encrypted and are
-  built in the app's private cache, which is cleared once the backup has been
-  shared. Backup files restored from outside the app are
+  built in the app's private cache. The cache copy is deleted once the backup
+  is shared, cancelled or fails part-way; on Android, where the app it was
+  shared to may still be reading it, it is deleted at the next launch or
+  export an hour or more later. The backup password is masked when the app
+  goes to the background, and a copied password is cleared from the
+  clipboard after a minute. Backup files restored from outside the app are
   validated, so a crafted file can't write outside the app's document folder.
 
 - **MCP server hardening.** `/api/mcp` now compares bearer tokens in

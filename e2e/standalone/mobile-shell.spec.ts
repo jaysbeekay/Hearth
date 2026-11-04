@@ -36,6 +36,10 @@ test.beforeEach(async ({ page }) => {
     const fileDeletes: { directory?: string; path?: string }[] = [];
     // Files written through the Filesystem mock, by "DIRECTORY:path" (#226).
     const files = new Map<string, string>();
+    // When each file was last written, for Filesystem.readdir's mtime.
+    const fileTimes = new Map<string, number>();
+    // Every Share.share call, with the text of each shared file at the time.
+    const shares: { files: string[]; contents: (string | null)[] }[] = [];
     let renames = 0;
     const fileKey = (args: { directory?: string; path?: string }) => `${args.directory ?? ""}:${args.path ?? ""}`;
     // See Filesystem.stat in the mock.
@@ -589,6 +593,8 @@ test.beforeEach(async ({ page }) => {
       for (const [key, value] of Object.entries(seed?.preferences ?? {})) preferences.set(key, value);
       for (const [key, value] of Object.entries(seed?.files ?? {})) {
         files.set(key, value);
+        // Seeded files were written long before this launch.
+        fileTimes.set(key, 0);
         strictFiles = true;
       }
       for (const [table, rows] of Object.entries(seed?.rows ?? {})) rowsByTable[table] = [...(rowsByTable[table] ?? []), ...rows];
@@ -601,6 +607,8 @@ test.beforeEach(async ({ page }) => {
       fileWrites,
       fileDeletes,
       files,
+      fileTimes,
+      shares,
       preferences,
       get renames() {
         return renames;
@@ -608,7 +616,8 @@ test.beforeEach(async ({ page }) => {
       rowsByTable,
     };
     (window as Window & { Capacitor?: unknown; __hearthStandaloneTest?: unknown }).Capacitor = {
-      getPlatform: () => "ios",
+      // "hearth-test-platform" = "android" runs the shell as on Android.
+      getPlatform: () => testFlag("hearth-test-platform") ?? "ios",
       Plugins: {
         CapacitorSQLite: {
           createConnection: async () => ({}),
@@ -630,6 +639,9 @@ test.beforeEach(async ({ page }) => {
             // "hearth-test-crash-at-commit": the app dies right after a
             // restore's transaction commits.
             if (testFlag("hearth-test-crash-at-commit") === "1" && set.some((item) => item.statement.includes("last_restore_id"))) await new Promise(() => undefined);
+            // "hearth-test-reject-after-commit": the transaction commits, then
+            // the bridge call fails anyway.
+            if (testFlag("hearth-test-reject-after-commit") === "1" && set.some((item) => item.statement.includes("last_restore_id"))) throw new Error("Bridge timed out");
             return { changes: { changes: set.length } };
           },
           isSecretStored: async () => ({ result: true }),
@@ -653,11 +665,15 @@ test.beforeEach(async ({ page }) => {
             fileWrites.push(args);
             if (String(args.path).startsWith("standalone-restore-staging/")) strictFiles = true;
             files.set(fileKey(args), args.data ?? "");
+            fileTimes.set(fileKey(args), Date.now());
             return {};
           },
           appendFile: async (args: { directory?: string; path?: string; data?: string }) => {
             if (String(args.path).startsWith("standalone-restore-staging/")) strictFiles = true;
+            // "hearth-test-append-error": appends fail (a full disk mid-export).
+            if (testFlag("hearth-test-append-error") && String(args.path).startsWith("hearth-backups/")) throw new Error("Disk full");
             files.set(fileKey(args), (files.get(fileKey(args)) ?? "") + (args.data ?? ""));
+            fileTimes.set(fileKey(args), Date.now());
           },
           readFile: async (args: { directory?: string; path?: string }) => {
             // "hearth-test-unreadable-file" names a path fragment whose
@@ -685,9 +701,14 @@ test.beforeEach(async ({ page }) => {
           mkdir: async () => ({}),
           readdir: async (args: { directory?: string; path?: string }) => {
             const prefix = `${fileKey(args)}/`;
-            const names = [...files.keys()].filter((key) => key.startsWith(prefix)).map((key) => key.slice(prefix.length)).filter((name) => !name.includes("/"));
-            if (names.length === 0) throw new Error("Directory does not exist");
-            return { files: names.map((name) => ({ name, type: "file" })) };
+            const entries = new Map<string, { name: string; type: string; mtime: number }>();
+            for (const key of files.keys()) {
+              if (!key.startsWith(prefix)) continue;
+              const [name, ...rest] = key.slice(prefix.length).split("/");
+              entries.set(name, { name, type: rest.length > 0 ? "directory" : "file", mtime: fileTimes.get(key) ?? Date.now() });
+            }
+            if (entries.size === 0) throw new Error("Directory does not exist");
+            return { files: [...entries.values()] };
           },
           rmdir: async (args: { directory?: string; path?: string }) => {
             for (const key of [...files.keys()]) if (key.startsWith(`${fileKey(args)}/`)) files.delete(key);
@@ -698,9 +719,18 @@ test.beforeEach(async ({ page }) => {
             const failing = testFlag("hearth-test-rename-error");
             if (failing && args.to.includes(failing)) throw new Error("Disk full");
             const from = `${args.directory}:${args.from}`;
-            if (!files.has(from)) throw new Error("File does not exist");
-            files.set(`${args.directory}:${args.to}`, files.get(from) ?? "");
-            files.delete(from);
+            const isFolder = !files.has(from) && [...files.keys()].some((key) => key.startsWith(`${from}/`));
+            if (!files.has(from) && !isFolder) throw new Error("File does not exist");
+            if (!isFolder) {
+              files.set(`${args.directory}:${args.to}`, files.get(from) ?? "");
+              files.delete(from);
+            }
+            // A folder moves with everything in it.
+            for (const key of [...files.keys()]) {
+              if (!key.startsWith(`${from}/`)) continue;
+              files.set(`${args.directory}:${args.to}${key.slice(from.length)}`, files.get(key) ?? "");
+              files.delete(key);
+            }
             // "hearth-test-crash-at-rename" = N: the app dies right after
             // its Nth move (the call never returns).
             renames += 1;
@@ -722,6 +752,21 @@ test.beforeEach(async ({ page }) => {
             fileDeletes.push(args);
             files.delete(fileKey(args));
             return {};
+          },
+        },
+        // "hearth-test-share" = "cancel" (the user closes the share sheet) or
+        // "error" (it fails); otherwise sharing succeeds.
+        Share: {
+          share: async ({ files: uris = [] }: { files?: string[] }) => {
+            const contents = uris.map((uri) => {
+              const key = [...files.keys()].find((candidate) => uri === `file:///${candidate.replace(":", "/").replace(/^([A-Z]+)/, (directory) => directory.toLowerCase())}`);
+              return key ? files.get(key) ?? null : null;
+            });
+            shares.push({ files: uris, contents });
+            const outcome = testFlag("hearth-test-share");
+            if (outcome === "cancel") throw new Error("Share canceled");
+            if (outcome === "error") throw new Error("No app can handle this file");
+            return { activityType: "com.apple.DocumentManagerUICore.SaveToFiles" };
           },
         },
         LocalNotifications: {
@@ -958,6 +1003,9 @@ test("standalone reminder setup states are neutral and counted once (#412)", asy
 type BackupHarness = {
   fileWrites: { directory?: string; path?: string; data?: string; encoding?: string }[];
   files: Map<string, string>;
+  fileTimes: Map<string, number>;
+  shares: { files: string[]; contents: (string | null)[] }[];
+  preferences: Map<string, string>;
   sqliteRuns: { statement: string; values: unknown[]; transaction?: boolean }[];
   rowsByTable: Record<string, { id?: string; title?: string }[]>;
 };
@@ -975,11 +1023,35 @@ async function exportBackup(page: ShellPage, password = "correct horse battery")
   await form.getByLabel("Confirm password").fill(password);
   await form.getByRole("button", { name: "Export and share" }).click();
   await continuePastSavePasswordStep(page, password);
-  await expect(page.locator("#standalone-status")).toContainText("Backup saved as hearth-standalone-");
+  await expect(page.locator("#standalone-status")).toContainText(/Backup hearth-standalone-\S+ shared/);
+  // The text is what the share sheet was handed: the cache copy is gone.
   return page.evaluate(() => {
     const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
-    const write = harness.fileWrites.find((candidate) => candidate.path?.startsWith("hearth-backups/hearth-standalone-"));
-    return { write: write ? { directory: write.directory, path: write.path, encoding: write.encoding } : null, text: write ? harness.files.get(`${write.directory}:${write.path}`) ?? "" : "" };
+    const write = harness.fileWrites.findLast((candidate) => candidate.path?.startsWith("hearth-backups/hearth-standalone-"));
+    return { write: write ? { directory: write.directory, path: write.path, encoding: write.encoding } : null, text: harness.shares.at(-1)?.contents[0] ?? "" };
+  });
+}
+
+// Fills in the export form and stops at the save-your-password step.
+async function startExport(page: ShellPage, password = "correct horse battery") {
+  const form = page.locator("form[data-export-standalone-backup-form]");
+  await form.getByLabel("Backup password").fill(password);
+  await form.getByLabel("Confirm password").fill(password);
+  await form.getByRole("button", { name: "Export and share" }).click();
+  await expect(page.locator("[data-save-backup-password]")).toBeVisible();
+}
+
+// What the export left behind: backup files in the cache, shares, and the
+// recorded last backup.
+function exportState(page: ShellPage) {
+  return page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    return {
+      cacheFiles: [...harness.files.keys()].filter((key) => key.startsWith("CACHE:hearth-backups/")),
+      shares: harness.shares.length,
+      sharedText: harness.shares.at(-1)?.contents[0] ?? null,
+      lastBackupAt: harness.preferences.get("hearth.mobile.lastBackupAt") ?? null,
+    };
   });
 }
 
@@ -1014,6 +1086,8 @@ function backupHarness(page: ShellPage) {
 test("standalone backups are encrypted, leave no shared copy, and restore everything", async ({ page }) => {
   await openBackupSettings(page);
   const { write, text } = await exportBackup(page);
+  // The copy handed to the share sheet is deleted once it is shared (iOS).
+  expect((await exportState(page)).cacheFiles).toEqual([]);
   // Built in the app cache, not the public Documents folder (#226).
   expect(write).toEqual({ directory: "CACHE", path: expect.stringMatching(/^hearth-backups\/hearth-standalone-\d{4}-\d{2}-\d{2}-\d{6}-[0-9a-f]{6}\.hearthbackup$/), encoding: "utf8" });
   const [headerLine, ...records] = text.trim().split("\n");
@@ -1098,6 +1172,214 @@ test("standalone export shows the new backup password once, to save in a passwor
   await openBackupSettings(page);
   await expect(step).toHaveCount(0);
   await expect(form).toBeVisible();
+});
+
+test("standalone export deletes the cache copy whether sharing succeeds, is cancelled or fails, and keeps the password to try again", async ({ page }) => {
+  await openBackupSettings(page);
+  await startExport(page);
+  const step = page.locator("[data-save-backup-password]");
+  const plannedName = (await step.locator("[data-backup-planned-name] strong").textContent()) ?? "";
+  expect(plannedName).toMatch(/^hearth-standalone-\d{4}-\d{2}-\d{2}-\d{6}-[0-9a-f]{6}\.hearthbackup$/);
+
+  // Cancelled: nothing left in the cache, not counted, password kept.
+  await page.evaluate(() => localStorage.setItem("hearth-test-share", "cancel"));
+  await step.getByRole("button", { name: "I've saved it, export now" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("sharing was cancelled");
+  expect(await exportState(page)).toMatchObject({ cacheFiles: [], shares: 1, lastBackupAt: null });
+  await expect(step.getByLabel("Backup password")).toHaveValue("correct horse battery");
+
+  // Failed: the same.
+  await page.evaluate(() => localStorage.setItem("hearth-test-share", "error"));
+  await step.getByRole("button", { name: "Try again" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("No app can handle this file");
+  expect(await exportState(page)).toMatchObject({ cacheFiles: [], shares: 2, lastBackupAt: null });
+  await expect(step.getByRole("button", { name: "Try again" })).toBeVisible();
+
+  // Shared: counted, cache copy gone, step over.
+  await page.evaluate(() => localStorage.removeItem("hearth-test-share"));
+  await step.getByRole("button", { name: "Try again" }).click();
+  await expect(page.locator("#standalone-status")).toContainText(`Backup ${plannedName} shared`);
+  const shared = await exportState(page);
+  expect(shared).toMatchObject({ cacheFiles: [], shares: 3 });
+  expect(shared.lastBackupAt).not.toBeNull();
+  await expect(step).toHaveCount(0);
+  // Every attempt used the planned name, and the backup opens with the
+  // password saved before the first one.
+  const uris = await page.evaluate(() => (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest.shares.map((share) => share.files[0]));
+  expect(uris.every((uri) => uri.endsWith(`/hearth-backups/${plannedName}`))).toBe(true);
+  await restoreFile(page, shared.sharedText ?? "", { password: "correct horse battery" });
+  await expect(page.locator("#standalone-status")).toContainText("Restored");
+});
+
+test("standalone export that fails part-way leaves no partial file", async ({ page }) => {
+  await openBackupSettings(page);
+  await startExport(page);
+  await page.evaluate(() => localStorage.setItem("hearth-test-append-error", "1"));
+  await page.locator("[data-save-backup-password]").getByRole("button", { name: "I've saved it, export now" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("Disk full");
+  expect(await exportState(page)).toMatchObject({ cacheFiles: [], shares: 0, lastBackupAt: null });
+  await expect(page.locator("[data-save-backup-password]").getByRole("button", { name: "Try again" })).toBeVisible();
+  await page.evaluate(() => localStorage.removeItem("hearth-test-append-error"));
+});
+
+test("standalone export on Android leaves the shared copy for the app it went to, and sweeps it an hour later", async ({ page }) => {
+  await reloadWithTestFlags(page, { "hearth-test-platform": "android" });
+  await openBackupSettings(page);
+  await exportBackup(page);
+  const first = (await exportState(page)).cacheFiles;
+  expect(first).toHaveLength(1);
+
+  // A cancelled share is still deleted at once: no app was given it.
+  await page.evaluate(() => localStorage.setItem("hearth-test-share", "cancel"));
+  await startExport(page);
+  await page.locator("[data-save-backup-password]").getByRole("button", { name: "I've saved it, export now" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("sharing was cancelled");
+  expect((await exportState(page)).cacheFiles).toEqual(first);
+  await page.evaluate(() => localStorage.removeItem("hearth-test-share"));
+  await page.locator("[data-save-backup-password]").getByRole("button", { name: "Cancel" }).click();
+
+  // An hour on, the next export sweeps the first copy.
+  await page.evaluate((key) => {
+    (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest.fileTimes.set(key, Date.now() - 61 * 60 * 1000);
+  }, first[0]);
+  await exportBackup(page);
+  const second = (await exportState(page)).cacheFiles;
+  expect(second).toHaveLength(1);
+  expect(second).not.toEqual(first);
+
+  // And a launch sweeps an old copy too.
+  await page.evaluate((files) => {
+    window.name = `hearth-test-seed:${JSON.stringify({ files })}`;
+  }, { [second[0]]: "old backup" });
+  await relaunchStandalone(page);
+  await expect.poll(async () => (await exportState(page)).cacheFiles).toEqual([]);
+});
+
+test("standalone save-password step masks the password and leaves no trace once left", async ({ page }) => {
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.clock.install();
+  await reloadStandalone(page);
+  await openBackupSettings(page);
+  await startExport(page);
+  const field = page.locator("[data-backup-password-value]");
+  await expect(field).toHaveAttribute("type", "text");
+  await page.locator("[data-save-backup-password]").getByRole("button", { name: "Copy" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("clears the clipboard after a minute");
+  await expect(field).toHaveAttribute("type", "password");
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("correct horse battery");
+  await field.focus();
+  await expect(field).toHaveAttribute("type", "text");
+  await page.locator("[data-save-backup-password] h3").click();
+  await expect(field).toHaveAttribute("type", "password");
+
+  // A minute later the clipboard no longer holds it.
+  await page.clock.fastForward(61_000);
+  await page.locator("[data-save-backup-password] h3").click();
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe("");
+
+  // Back ends the step.
+  await page.locator("#back-button").click();
+  await openBackupSettings(page);
+  await expect(page.locator("[data-save-backup-password]")).toHaveCount(0);
+});
+
+test("standalone Merge restores a document that was filed from the Inbox", async ({ page }) => {
+  await openBackupSettings(page);
+  // The backup is made after inbox-1 was filed to a contract: a documents
+  // row now shares its file, and the Inbox row is soft-deleted.
+  await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    const inbox = (harness.rowsByTable.inbox_documents as unknown as Record<string, unknown>[]).find((row) => row.id === "inbox-1");
+    if (inbox) Object.assign(inbox, { deleted_at: "2099-01-05T00:00:00.000Z", version: 2 });
+    (harness.rowsByTable.documents as unknown as Record<string, unknown>[]).push({
+      id: "document-filed",
+      owner_type: "contract",
+      owner_id: "contract-1",
+      filename: "receipt.pdf",
+      storage_key: "receipt.pdf",
+      mime_type: "application/pdf",
+      size: 1024,
+      kind: "RECEIPT",
+      important: 0,
+      is_head: 1,
+      uploaded_at: "2099-01-05T00:00:00.000Z",
+      deleted_at: null,
+      version: 1,
+    });
+  });
+  const { text } = await exportBackup(page);
+  // This phone is from before the filing.
+  await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    const inbox = (harness.rowsByTable.inbox_documents as unknown as Record<string, unknown>[]).find((row) => row.id === "inbox-1");
+    if (inbox) Object.assign(inbox, { deleted_at: null, version: 1 });
+    harness.rowsByTable.documents = harness.rowsByTable.documents.filter((row) => row.id !== "document-filed");
+  });
+  await restoreFile(page, text, { password: "correct horse battery", mode: "merge", confirm: false });
+  await expect(page.locator("#standalone-status")).toContainText("Restored");
+  const { rowsByTable } = await backupHarness(page);
+  expect(rowsByTable.documents.map((row) => row.id)).toContain("document-filed");
+  expect((rowsByTable.inbox_documents as unknown as Record<string, unknown>[]).find((row) => row.id === "inbox-1")?.deleted_at).toBe("2099-01-05T00:00:00.000Z");
+});
+
+test("standalone Merge keeps a local edit that ties on version unless the backup's is later", async ({ page }) => {
+  await openBackupSettings(page);
+  const { text } = await exportBackup(page);
+  // contract-1 edited on this phone after the backup, at the same version;
+  // product-1 has the same version but an older edit than the backup's.
+  await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    const contract = (harness.rowsByTable.contracts as unknown as Record<string, unknown>[]).find((row) => row.id === "contract-1");
+    if (contract) Object.assign(contract, { title: "Edited on this phone", updated_at: "2099-12-31T00:00:00.000Z" });
+    const product = (harness.rowsByTable.products as unknown as Record<string, unknown>[]).find((row) => row.id === "product-1");
+    if (product) Object.assign(product, { description: "Stale local name", updated_at: "1999-01-01T00:00:00.000Z" });
+  });
+  await restoreFile(page, text, { password: "correct horse battery", mode: "merge", confirm: false });
+  await expect(page.locator("#standalone-status")).toContainText("kept");
+  const { rowsByTable } = await backupHarness(page);
+  expect(rowsByTable.contracts.find((row) => row.id === "contract-1")?.title).toBe("Edited on this phone");
+  expect((rowsByTable.products as unknown as Record<string, unknown>[]).find((row) => row.id === "product-1")?.description).toBe("Laptop");
+});
+
+test("standalone restore runs once when it is submitted twice", async ({ page }) => {
+  await openBackupSettings(page);
+  const { text } = await exportBackup(page);
+  const form = page.locator("form[data-import-standalone-backup-form]");
+  await form.locator('input[type="file"]').setInputFiles({ name: "backup.hearthbackup", mimeType: "application/octet-stream", buffer: Buffer.from(text) });
+  await form.getByLabel("Backup password").fill("correct horse battery");
+  await form.getByLabel(/I understand Replace deletes/).check();
+  await form.evaluate((element: HTMLFormElement) => {
+    element.requestSubmit();
+    element.requestSubmit();
+  });
+  await expect(page.locator("#standalone-status")).toContainText("Restored");
+  const { sqliteRuns } = await backupHarness(page);
+  expect(sqliteRuns.filter((run) => run.transaction === true && run.statement === "DELETE FROM contracts")).toHaveLength(1);
+});
+
+test("standalone restore whose commit is reported as failed after it committed finishes instead of rolling back", async ({ page }) => {
+  await openBackupSettings(page);
+  const { text } = await exportBackup(page);
+  await page.evaluate(() => {
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    harness.files.set("DATA:standalone-documents/insurance.pdf", "LOCAL");
+    localStorage.setItem("hearth-test-reject-after-commit", "1");
+  });
+  await restoreFile(page, text, { password: "correct horse battery" });
+  await expect(page.locator("#standalone-status")).toContainText("Restored");
+  const state = await page.evaluate(() => {
+    localStorage.removeItem("hearth-test-reject-after-commit");
+    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+    return {
+      insurance: harness.files.get("DATA:standalone-documents/insurance.pdf"),
+      leftovers: [...harness.files.keys()].filter((key) => key.startsWith("DATA:standalone-restore-")),
+      journal: harness.preferences.has("hearth.mobile.restoreJournal"),
+    };
+  });
+  // The backup's file stays with the backup's rows; nothing is rolled back.
+  expect(state.insurance).not.toBe("LOCAL");
+  expect(state.leftovers).toEqual([]);
+  expect(state.journal).toBe(false);
 });
 
 test("standalone offers to delete unencrypted backups an older version left, never by itself", async ({ page }) => {
@@ -1411,6 +1693,9 @@ test("standalone edit made during a restore waits and lands after it", async ({ 
   await page.evaluate(() => {
     const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness & { renames: number } }).__hearthStandaloneTest;
     localStorage.setItem("hearth-test-pause-at-rename", String(harness.renames + 1));
+    // document-1 is only in the backup now, so Merge moves its file in (a
+    // row on both sides at the same version is kept, and moves nothing).
+    harness.rowsByTable.documents = harness.rowsByTable.documents.filter((row) => row.id !== "document-1");
   });
   await restoreFile(page, text, { password: "correct horse battery", mode: "merge", confirm: false });
   // Paused mid-restore: versions are chosen and files are moving.
@@ -1539,15 +1824,45 @@ test("standalone launch keeps a restore journal it can't read, and the files it 
   await page.evaluate(() => {
     window.name = `hearth-test-seed:${JSON.stringify({
       preferences: { "hearth.mobile.restoreJournal": "{not json" },
-      files: { "DATA:standalone-restore-previous/insurance.pdf": "ORIGINAL" },
+      files: { "DATA:standalone-restore-previous/vehicle/insurance.pdf": "ORIGINAL" },
     })}`;
   });
   await relaunchStandalone(page);
-  const state = await page.evaluate(() => {
-    const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness & { preferences: Map<string, string> } }).__hearthStandaloneTest;
-    return { journal: harness.preferences.get("hearth.mobile.restoreJournal"), aside: harness.files.get("DATA:standalone-restore-previous/insurance.pdf") };
+  const harnessState = () =>
+    page.evaluate(() => {
+      const harness = (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest;
+      return {
+        journal: harness.preferences.get("hearth.mobile.restoreJournal") ?? null,
+        kept: [...harness.files.entries()].filter(([key]) => key.startsWith("DATA:standalone-restore-previous")).map(([key, value]) => [key.replace(/-kept-\d+/, "-kept"), value]),
+      };
+    });
+  expect(await harnessState()).toEqual({ journal: "{not json", kept: [["DATA:standalone-restore-previous/vehicle/insurance.pdf", "ORIGINAL"]] });
+
+  // A restore is refused with a way out, rather than "restart" for good.
+  await openBackupSettings(page);
+  const card = page.locator("[data-unreadable-restore-journal]");
+  await expect(card).toContainText("Unfinished restore");
+  const backup = { kind: "hearth-standalone-backup", version: 1, schemaVersion: 7, exportedAt: "2099-01-01T00:00:00.000Z", tables: { contracts: [] } };
+  await restoreFile(page, JSON.stringify(backup), { mode: "merge", confirm: false, name: "hearth-backup.json" });
+  await expect(page.locator("#standalone-status")).toContainText("Clear it under Unfinished restore in Settings");
+
+  // Clearing keeps the files, moved aside, and restoring works again.
+  page.once("dialog", (dialog) => dialog.accept());
+  await card.getByRole("button", { name: "Clear unfinished restore" }).click();
+  await expect(card).toHaveCount(0);
+  expect(await harnessState()).toEqual({ journal: null, kept: [["DATA:standalone-restore-previous-kept/vehicle/insurance.pdf", "ORIGINAL"]] });
+  await restoreFile(page, JSON.stringify(backup), { mode: "merge", confirm: false, name: "hearth-backup.json" });
+  await expect(page.locator("#standalone-status")).toContainText("unencrypted older backup");
+});
+
+test("standalone launch clears a restore journal it can't read when no file is set aside", async ({ page }) => {
+  await page.evaluate(() => {
+    window.name = `hearth-test-seed:${JSON.stringify({ preferences: { "hearth.mobile.restoreJournal": "{not json" }, files: { "DATA:standalone-documents/insurance.pdf": "LOCAL" } })}`;
   });
-  expect(state).toEqual({ journal: "{not json", aside: "ORIGINAL" });
+  await relaunchStandalone(page);
+  await expect
+    .poll(() => page.evaluate(() => (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest.preferences.has("hearth.mobile.restoreJournal")))
+    .toBe(false);
 });
 
 test("standalone help and local module settings mirror baseline settings/help surfaces", async ({ page }) => {
