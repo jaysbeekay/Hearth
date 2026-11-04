@@ -1,6 +1,11 @@
 "use client";
 
-import { ExtractionReviewNote, autoFilledFields, type AutoFilledField } from "@/components/ExtractionReviewNote";
+import {
+  ExtractionReviewNote,
+  SaveForLaterButton,
+  autoFilledFields,
+  type AutoFilledField,
+} from "@/components/ExtractionReviewNote";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { addMonths } from "date-fns";
@@ -463,6 +468,7 @@ export function ProductForm({
 
       <FormActions cancelHref={cancelHref}>
         <SubmitButton>{pendingOp || product ? "Save changes" : "Add warranty"}</SubmitButton>
+        {extractionUsed && <SaveForLaterButton />}
       </FormActions>
 
       {scannerOpen && (

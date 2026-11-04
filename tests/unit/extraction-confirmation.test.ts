@@ -26,6 +26,14 @@ describe("extractionFieldsFromForm (#359)", () => {
     ).toEqual({ extractionPending: true, extractionConfirmedAt: null });
   });
 
+  it("lets a 0 win in any order, and repeated 1s never outvote it", () => {
+    for (const values of [["0", "1"], ["1", "1", "0"], ["0", "0"]]) {
+      expect(
+        extractionFieldsFromForm(form([["extractionUsed", "1"], ...values.map((v): [string, string] => ["confirmExtraction", v])])),
+      ).toEqual({ extractionPending: true, extractionConfirmedAt: null });
+    }
+  });
+
   it("keeps Needs review when nothing says it was reviewed", () => {
     expect(extractionFieldsFromForm(form([["extractionUsed", "1"]]))).toEqual({
       extractionPending: true,

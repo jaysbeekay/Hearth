@@ -1,6 +1,11 @@
 "use client";
 
-import { ExtractionReviewNote, autoFilledFields, type AutoFilledField } from "@/components/ExtractionReviewNote";
+import {
+  ExtractionReviewNote,
+  SaveForLaterButton,
+  autoFilledFields,
+  type AutoFilledField,
+} from "@/components/ExtractionReviewNote";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Upload } from "lucide-react";
@@ -553,6 +558,7 @@ export function ContractForm({
         <SubmitButton>
           {pendingOp ? "Save changes" : contract ? "Save changes" : "Add contract"}
         </SubmitButton>
+        {extractionUsed && <SaveForLaterButton />}
       </FormActions>
     </form>
   );

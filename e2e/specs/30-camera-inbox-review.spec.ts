@@ -189,3 +189,39 @@ test("Save for later review keeps a scanned contract in Needs review with its re
   const endDateRow = page.locator("dt", { hasText: "End date" }).locator("xpath=following-sibling::dd[1]");
   await expect(endDateRow).toHaveText(/15 Aug(ust)? 2027/);
 });
+
+// #359 — how the form is submitted doesn't change what it means: Enter in a
+// field and a script's requestSubmit() are the default Save, so confirmed;
+// "Save for later review" as the submitter keeps Needs review.
+test("pressing Enter after a scan saves the contract as reviewed", async ({ page }) => {
+  test.setTimeout(90_000);
+  const title = `Scan Enter ${Date.now()}`;
+  await scanIntoContractForm(page, title);
+  await Promise.all([page.waitForURL(/\/contracts\/(?!new$)[^/?]+/), page.locator("#title").press("Enter")]);
+  await expect(page.getByRole("heading", { name: title })).toBeVisible();
+  await expect(page.getByText(/Auto-filled details confirmed/)).toBeVisible();
+});
+
+test("a scripted submit counts as Save unless Save for later review is the submitter", async ({ page }) => {
+  test.setTimeout(120_000);
+  const confirmed = `Scan Script Save ${Date.now()}`;
+  await scanIntoContractForm(page, confirmed);
+  await Promise.all([
+    page.waitForURL(/\/contracts\/(?!new$)[^/?]+/),
+    page.locator("form:has(#title)").evaluate((form: HTMLFormElement) => form.requestSubmit()),
+  ]);
+  await expect(page.getByText(/Auto-filled details confirmed/)).toBeVisible();
+
+  const later = `Scan Script Later ${Date.now()}`;
+  await scanIntoContractForm(page, later);
+  await Promise.all([
+    page.waitForURL(/\/contracts\/(?!new$)[^/?]+/),
+    page.locator("form:has(#title)").evaluate((form: HTMLFormElement) => {
+      const button = [...form.querySelectorAll("button")].find((b) => b.textContent?.includes("Save for later review"));
+      form.requestSubmit(button);
+    }),
+  ]);
+  await expect(page.getByRole("heading", { name: later })).toBeVisible();
+  await expect(page.getByText(/Needs review/).first()).toBeVisible();
+});
+
