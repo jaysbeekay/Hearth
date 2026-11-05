@@ -42,9 +42,15 @@ function egressAgent(): ProxyAgent {
 
 // Drop-in for fetch() on every outbound AI provider call. With no proxy
 // configured it is exactly the global fetch, as before.
+// Callers pass a fixed provider endpoint or the admin-configured Ollama URL;
+// it is parsed here and anything other than http(s) is refused.
 export async function aiProviderFetch(url: string, init: RequestInit = {}): Promise<Response> {
-  if (!isAiEgressProxyConfigured()) return fetch(url, init);
-  const res = await undiciFetch(url, {
+  const target = new URL(url);
+  if (target.protocol !== "https:" && target.protocol !== "http:") {
+    throw new Error(`Unsupported AI provider URL scheme: ${target.protocol}`);
+  }
+  if (!isAiEgressProxyConfigured()) return fetch(target, init);
+  const res = await undiciFetch(target, {
     ...(init as Parameters<typeof undiciFetch>[1]),
     dispatcher: egressAgent(),
   });
