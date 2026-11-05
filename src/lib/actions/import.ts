@@ -295,7 +295,15 @@ export async function attachInboxDocumentAsVersion(
   try {
     await prisma.inboxDocument.delete({ where: { id: inboxId } });
   } catch (error) {
-    await discardFiledDocument(targetKind, filed.id);
+    try {
+      await discardFiledDocument(targetKind, filed.id);
+    } catch (rollbackError) {
+      // Keep the Inbox failure as the cause, so the log shows why filing
+      // stopped and not only that the rollback failed too.
+      throw new Error("Couldn't take back a filed document after leaving the Inbox failed.", {
+        cause: new AggregateError([error, rollbackError]),
+      });
+    }
     throw error;
   }
   await deleteInboxDocument(doc.storedName);
