@@ -47,14 +47,24 @@ beforeAll(async () => {
   process.env.TEST_OLLAMA_URL = await listen(ollama);
 
   // A minimal absolute-URI forward proxy, which is how Pipelock's forward
-  // proxy receives plain-http requests: record, then relay upstream.
+  // proxy receives plain-http requests: record it, then relay it to the
+  // stand-in Ollama only. It never connects to an address taken from the
+  // request.
+  const ollamaPort = (ollama.address() as AddressInfo).port;
   proxy = http.createServer(async (req, res) => {
     const body = await readBody(req);
     proxied.push({ method: req.method, url: req.url, headers: req.headers, body });
-    const upstream = http.request(req.url!, { method: req.method, headers: req.headers }, (up) => {
-      res.writeHead(up.statusCode ?? 502, up.headers);
-      up.pipe(res);
-    });
+    if (req.url !== `http://127.0.0.1:${ollamaPort}/api/generate`) {
+      res.writeHead(403).end();
+      return;
+    }
+    const upstream = http.request(
+      { host: "127.0.0.1", port: ollamaPort, path: "/api/generate", method: req.method, headers: req.headers },
+      (up) => {
+        res.writeHead(up.statusCode ?? 502, up.headers);
+        up.pipe(res);
+      },
+    );
     upstream.end(body);
   });
   process.env.AI_EGRESS_PROXY_URL = await listen(proxy);
