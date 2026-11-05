@@ -11,12 +11,16 @@ FROM base AS deps
 COPY package.json package-lock.json ./
 RUN npm ci
 
-# Separate prod-only install so devDependencies (typescript, eslint, tailwind
-# build tooling, etc.) never end up in the runtime image — they're not needed
-# at runtime and are a common source of flagged vulnerabilities that don't
-# actually affect a running container.
-FROM base AS prod-deps
-COPY package.json package-lock.json ./
+# The runner ships Next's standalone output (.next/standalone), which already
+# holds the traced subset of node_modules the server needs. The one thing it
+# can't hold is the Prisma CLI that docker-entrypoint.sh runs for `prisma
+# migrate deploy`, so that gets its own small install from docker/migrate —
+# rather than copying the root project's whole production node_modules
+# (~280 MiB compressed of build tooling, mobile packages and Next itself) into
+# the image just to reach one binary (#518).
+FROM base AS migrate-deps
+WORKDIR /opt/migrate
+COPY docker/migrate/package.json docker/migrate/package-lock.json ./
 RUN npm ci --omit=dev
 
 FROM base AS builder
@@ -24,6 +28,14 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npx prisma generate
 RUN npm run build
+# npm installs both the glibc and musl builds of sharp's and libsql's native
+# binaries, and the trace copies glibc ones into the standalone output. They
+# can never load on Alpine (musl), so drop them rather than ship ~12 MiB of
+# dead weight. The musl builds are kept (libsql's via
+# outputFileTracingIncludes in next.config.ts).
+RUN rm -rf .next/standalone/node_modules/@img/sharp-linux-* \
+    .next/standalone/node_modules/@img/sharp-libvips-linux-* \
+    .next/standalone/node_modules/@libsql/linux-*-gnu
 
 FROM base AS runner
 ENV NODE_ENV=production
@@ -41,8 +53,7 @@ ENV HOME=/home/node
 #
 # su-exec drops from root to the app user in docker-entrypoint.sh — see the
 # comment there for why the entrypoint starts as root.
-RUN apk update && \
-    apk upgrade --no-cache && \
+RUN apk upgrade --no-cache && \
     apk add --no-cache tesseract-ocr tesseract-ocr-data-eng poppler-utils su-exec && \
     # giflib's CVE-2026-26740 (HIGH, #336): the fixed 5.2.2-r2 build hasn't
     # been backported to the v3.24 stable repo as of 2026-08-29 — only
@@ -67,21 +78,20 @@ RUN apk update && \
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
     /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 
-COPY --from=prod-deps /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-COPY docker-entrypoint.sh ./docker-entrypoint.sh
+COPY --from=migrate-deps /opt/migrate/node_modules /opt/migrate/node_modules
+COPY docker/migrate/prisma.config.ts /opt/migrate/prisma.config.ts
 
-# `node` (uid/gid 1000) ships with the base image. The application code is
-# owned by it but the app never writes there — only /app/data, the SQLite
-# database and uploaded documents.
-RUN chmod +x docker-entrypoint.sh && \
-    mkdir -p /app/data && \
-    chown -R node:node /app
+# Ownership is set as each file is copied. A `chown -R node:node /app` after the
+# copies rewrote every file into a new layer just to change its owner, which
+# doubled the size of the image (#518). The app never writes outside
+# /app/data, but Next keeps a runtime cache under .next, so the app files stay
+# owned by `node` (uid/gid 1000, shipped with the base image) as before.
+COPY --chown=node:node --from=builder /app/prisma ./prisma
+COPY --chown=node:node --from=builder /app/public ./public
+COPY --chown=node:node --from=builder /app/.next/standalone ./
+COPY --chown=node:node --from=builder /app/.next/static ./.next/static
+COPY --chown=node:node --chmod=755 docker-entrypoint.sh ./docker-entrypoint.sh
+RUN install -d -o node -g node /app/data
 
 EXPOSE 3000
 

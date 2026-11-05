@@ -7,11 +7,24 @@ import { FileText, Image as ImageIcon, Eye, Upload } from "lucide-react";
 import { SelectWrapper, inputClass } from "@/components/SelectWrapper";
 import { DocumentLink } from "@/components/DocumentLink";
 import { DocumentPreviewModal, isPreviewable } from "@/components/DocumentPreviewModal";
+import { DocumentShareButton } from "@/components/DocumentShareButton";
+import { documentFileHref } from "@/lib/documents/kinds";
+
 import { humanFileSize } from "@/lib/utils";
 import { DOCUMENT_CATEGORIES, DOCUMENT_CATEGORY_LABELS, type DocumentCategory } from "@/lib/documents/categories";
 import { buttonClass, emptyStateClass, selectClass } from "@/lib/ui";
 import { Card } from "@/components/ui/Card";
 import { Pill } from "@/components/ui/Pill";
+
+// #374 — a Document attached to a record can be shared; an Inbox file
+// (served from its own route) can't.
+const shareable = (doc: DocRow) => doc.downloadHref === documentFileHref(doc.id);
+
+// #366 — the area a Document belongs to (Contracts, Vehicles…) is "Belongs
+// to"; "Document type" is only its category (invoice, manual…).
+function documentTypeLabel(category: string | null | undefined): string {
+  return category ? DOCUMENT_CATEGORY_LABELS[category as DocumentCategory] ?? category : "Uncategorised";
+}
 
 export interface DocRow {
   id: string;
@@ -150,7 +163,7 @@ export function DocumentsExplorer({
                 <tr className="border-b border-border text-left text-xs text-muted">
                   <th className="px-4 py-2 font-medium">File</th>
                   <th className="px-4 py-2 font-medium">Document type</th>
-                  <th className="px-4 py-2 font-medium">Linked record</th>
+                  <th className="px-4 py-2 font-medium">Belongs to</th>
                   <th className="px-4 py-2 font-medium">Uploaded</th>
                   <th className="px-4 py-2 text-right font-medium">Size</th>
                   <th className="px-4 py-2" />
@@ -172,17 +185,15 @@ export function DocumentsExplorer({
                       </DocumentLink>
                     </td>
                     <td className="px-4 py-2">
-                      <Pill>
-                        {doc.category ? DOCUMENT_CATEGORY_LABELS[doc.category as DocumentCategory] ?? doc.category : "Uncategorised"}
-                      </Pill>
-                      <Pill className="ml-2">
-                        {doc.type}
-                      </Pill>
+                      <Pill>{documentTypeLabel(doc.category)}</Pill>
                     </td>
                     <td className="max-w-xs px-4 py-2">
-                      <Link href={doc.parentHref} className="truncate text-accent hover:underline">
-                        {doc.parentTitle}
-                      </Link>
+                      <div className="flex items-center gap-2">
+                        <Pill className="shrink-0">{doc.type}</Pill>
+                        <Link href={doc.parentHref} className="truncate text-accent hover:underline">
+                          {doc.parentTitle}
+                        </Link>
+                      </div>
                     </td>
                     <td className="whitespace-nowrap px-4 py-2 text-muted">
                       <Timestamp value={doc.uploadedAt} />
@@ -191,16 +202,26 @@ export function DocumentsExplorer({
                       {humanFileSize(doc.size)}
                     </td>
                     <td className="px-4 py-2 text-right">
-                      {isPreviewable(doc.mimeType) && (
-                        <button
-                          type="button"
-                          onClick={() => setPreview(doc)}
-                          aria-label={`Preview ${doc.filename}`}
-                          className={buttonClass("quiet", { icon: true }, "text-muted")}
-                        >
-                          <Eye size={16} />
-                        </button>
-                      )}
+                      <div className="flex items-center justify-end">
+                        {isPreviewable(doc.mimeType) && (
+                          <button
+                            type="button"
+                            onClick={() => setPreview(doc)}
+                            aria-label={`Preview ${doc.filename}`}
+                            className={buttonClass("quiet", { icon: true }, "text-muted")}
+                          >
+                            <Eye size={16} />
+                          </button>
+                        )}
+                        {shareable(doc) && (
+                          <DocumentShareButton
+                            documentId={doc.id}
+                            href={doc.downloadHref}
+                            filename={doc.filename}
+                            mimeType={doc.mimeType}
+                          />
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -225,33 +246,55 @@ export function DocumentsExplorer({
                     <FileIcon mimeType={doc.mimeType} />
                     <span className="truncate text-sm font-medium">{doc.filename}</span>
                   </DocumentLink>
-                  {isPreviewable(doc.mimeType) && (
-                    <button
-                      type="button"
-                      onClick={() => setPreview(doc)}
-                      aria-label={`Preview ${doc.filename}`}
-                      className={buttonClass("quiet", { icon: true }, "shrink-0 text-muted")}
-                    >
-                      <Eye size={16} />
-                    </button>
-                  )}
+                  <div className="flex shrink-0 items-center">
+                    {isPreviewable(doc.mimeType) && (
+                      <button
+                        type="button"
+                        onClick={() => setPreview(doc)}
+                        aria-label={`Preview ${doc.filename}`}
+                        className={buttonClass("quiet", { icon: true }, "shrink-0 text-muted")}
+                      >
+                        <Eye size={16} />
+                      </button>
+                    )}
+                    {shareable(doc) && (
+                      <DocumentShareButton
+                        documentId={doc.id}
+                        href={doc.downloadHref}
+                        filename={doc.filename}
+                        mimeType={doc.mimeType}
+                      />
+                    )}
+                  </div>
                 </div>
-                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
-                  <Pill>{doc.type}</Pill>
-                  <span>{doc.category ? DOCUMENT_CATEGORY_LABELS[doc.category as DocumentCategory] ?? doc.category : "Uncategorised"}</span>
-                  <Link href={doc.parentHref} className="text-accent hover:underline">
-                    {doc.parentTitle}
-                  </Link>
-                  <span><Timestamp value={doc.uploadedAt} /></span>
-                  <span>{humanFileSize(doc.size)}</span>
-                </div>
+                <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+                  <dt className="text-muted">Document type</dt>
+                  <dd>{documentTypeLabel(doc.category)}</dd>
+                  <dt className="text-muted">Belongs to</dt>
+                  <dd className="min-w-0 truncate">
+                    {doc.type} ·{" "}
+                    <Link href={doc.parentHref} className="text-accent hover:underline">
+                      {doc.parentTitle}
+                    </Link>
+                  </dd>
+                </dl>
+                <p className="mt-1 text-xs text-muted">
+                  <Timestamp value={doc.uploadedAt} /> · {humanFileSize(doc.size)}
+                </p>
               </Card>
             ))}
           </div>
         </>
       )}
 
-      {preview && <DocumentPreviewModal doc={preview} onClose={() => setPreview(null)} />}
+      {preview && (
+        <DocumentPreviewModal
+          doc={{ ...preview, id: shareable(preview) ? preview.id : undefined }}
+          onClose={() => {
+            setPreview(null);
+          }}
+        />
+      )}
     </div>
   );
 }

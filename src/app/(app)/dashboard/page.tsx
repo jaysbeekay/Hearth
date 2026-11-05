@@ -13,7 +13,8 @@ import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { auth } from "@/lib/auth";
 import { isSmtpConfigured, isNtfyConfigured, getDueContext } from "@/lib/appSettings";
 import { addDays, calendarDayOf } from "@/lib/duePolicy";
-import { currentTenancy, LIVE_TENANCY_AGREEMENTS } from "@/lib/dueRecords";
+import { currentTenancy, LIVE_TENANCY_AGREEMENTS, tenancyDueRecord, vehicleDueRecord } from "@/lib/dueRecords";
+import { COVERING_CONTRACTS } from "@/lib/covers";
 import { getCurrentReminderFailures } from "@/lib/notifications/logs";
 import { getDocumentStats } from "@/lib/documents/stats";
 import {
@@ -60,7 +61,11 @@ export default async function DashboardPage() {
         include: { _count: { select: { documents: { where: { deletedAt: null } } } } },
       }),
       enabledModules.has("VEHICLES")
-        ? prisma.vehicle.findMany({ where: { deletedAt: null, archivedAt: null }, orderBy: { createdAt: "desc" } })
+        ? prisma.vehicle.findMany({
+            where: { deletedAt: null, archivedAt: null },
+            include: { contracts: COVERING_CONTRACTS },
+            orderBy: { createdAt: "desc" },
+          })
         : [],
       enabledModules.has("TRAVEL")
         ? prisma.trip.findMany({
@@ -95,11 +100,11 @@ export default async function DashboardPage() {
     {
       CONTRACT: new Map(contracts.map((c) => [c.id, { kind: "contract" as const, ...c }])),
       PRODUCT: new Map(products.map((p) => [p.id, { kind: "warranty" as const, ...p }])),
-      VEHICLE: new Map(vehicles.map((v) => [v.id, { kind: "vehicle" as const, ...v }])),
+      VEHICLE: new Map(vehicles.map((v) => [v.id, vehicleDueRecord(v)])),
       TENANCY: new Map(
         properties.flatMap((property) => {
           const tenancy = currentTenancy(property);
-          return tenancy ? [[tenancy.id, { kind: "tenancy" as const, ...tenancy }] as const] : [];
+          return tenancy ? [[tenancy.id, tenancyDueRecord(tenancy)] as const] : [];
         }),
       ),
     },
@@ -145,6 +150,7 @@ export default async function DashboardPage() {
             tenantName: tenancy.tenantName,
             leaseEnd: tenancy.leaseEnd,
             reminderDaysBefore: tenancy.reminderDaysBefore,
+            contract: tenancy.contract,
           },
         ]
       : [];

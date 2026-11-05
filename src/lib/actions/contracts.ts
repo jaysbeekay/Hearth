@@ -1,5 +1,6 @@
 "use server";
 
+import { coverSnapshot, gainedCover, lostCover, vehicleCoverSnapshot } from "@/lib/coverNotice";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import {
@@ -114,6 +115,8 @@ export async function createContract(
 
   // The command refuses a link to a Property or Vehicle that's missing, in
   // Trash or whose module is off (#447).
+  // #487 review - a new Contract that takes over a Vehicle date says so.
+  const vehicleBefore = await vehicleCoverSnapshot(parsed.data.vehicleId);
   let contract;
   try {
     contract = await createContractCommand({ ...parsed.data, ...extractionFieldsFromForm(formData) }, user.id);
@@ -136,7 +139,12 @@ export async function createContract(
     }
   }
 
-  redirect(`/contracts/${contract.id}${docFallback ? `?docFallback=${docFallback}` : ""}`);
+  const params = new URLSearchParams();
+  if (docFallback) params.set("docFallback", docFallback);
+  const gained = await gainedCover(vehicleBefore, contract.id);
+  if (gained) params.set("covered", gained);
+  const query = params.toString();
+  redirect(`/contracts/${contract.id}${query ? `?${query}` : ""}`);
 }
 
 export async function updateContract(
@@ -154,6 +162,11 @@ export async function updateContract(
     };
   }
 
+  // #456 - a Contract that stops Covering a Vehicle date hands it back to the
+  // Vehicle's own date; the Contract page says which.
+  const covered = await coverSnapshot(contractId);
+  // #487 review - and one that starts Covering a date says which it replaced.
+  const vehicleBefore = await vehicleCoverSnapshot(parsed.data.vehicleId);
   try {
     await updateContractCommand(
       contractId,
@@ -165,7 +178,13 @@ export async function updateContract(
     // Keep what was entered, e.g. when a newly linked Property is in Trash (#447).
     return { ...commandError(error), values: formDataToStringValues(formData, CONTRACT_FORM_FIELDS) };
   }
-  redirect(`/contracts/${contractId}`);
+  const resumed = await lostCover(covered);
+  const gained = await gainedCover(vehicleBefore, contractId);
+  const params = new URLSearchParams();
+  if (resumed) params.set("resumed", resumed);
+  if (gained) params.set("covered", gained);
+  const query = params.toString();
+  redirect(`/contracts/${contractId}${query ? `?${query}` : ""}`);
 }
 
 const RENEWAL_FORM_FIELDS = ["startDate", "endDate", "cost", "termDocumentId"];

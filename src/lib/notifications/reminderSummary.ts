@@ -27,6 +27,9 @@ export function reminderSummary(
   dateFormat?: string | null,
 ): { tone: ReminderTone; text: string } {
   if (health.onHold) return { tone: "warning", text: "Reminders are on hold until this record is reviewed." };
+  if (health.snoozedUntil) {
+    return { tone: "neutral", text: `Snoozed: reminders resume on ${formatDate(health.snoozedUntil, dateFormat)}.` };
+  }
   if (health.lastFailure) {
     const error = health.lastFailure.error ? ` — ${health.lastFailure.error}` : "";
     return { tone: "danger", text: `The last Reminder failed via ${channelLabel(health.lastFailure.channel)}${error}.` };
@@ -47,7 +50,12 @@ export function reminderSummary(
         : health.lastSent
           ? "All Reminders for this date have been sent"
           : "No more Reminders for this date";
-  const by = health.deliveryReady && health.nextReminder ? ` by ${channelSummary(health.channels).toLowerCase()}` : "";
+  // Only the channels sending this one: one that has already sent at this
+  // threshold, or is retrying, is on a different schedule (#516 review).
+  const by =
+    health.deliveryReady && health.nextReminder && health.nextReminder.by.length > 0
+      ? ` by ${health.nextReminder.by.map(channelLabel).join(" + ")}`
+      : "";
   const thresholds = [...health.thresholds].sort((a, b) => b - a).join("/");
   return { tone: "neutral", text: `${when}${by} · thresholds ${thresholds}` };
 }

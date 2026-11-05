@@ -1,5 +1,11 @@
 "use client";
 
+import {
+  ExtractionReviewNote,
+  SaveForLaterButton,
+  autoFilledFields,
+  type AutoFilledField,
+} from "@/components/ExtractionReviewNote";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Upload } from "lucide-react";
@@ -64,6 +70,7 @@ export function ContractForm({
   vehicles = [],
   defaultPropertyId,
   defaultVehicleId,
+  defaultCategory,
   homeEnabled = false,
   vehiclesEnabled = false,
 }: {
@@ -80,6 +87,8 @@ export function ContractForm({
   // property/vehicle" on the asset's own detail page.
   defaultPropertyId?: string;
   defaultVehicleId?: string;
+  // #456 - the Category an "Add insurance" / "Add registration" shortcut opens with.
+  defaultCategory?: string;
   homeEnabled?: boolean;
   vehiclesEnabled?: boolean;
 }) {
@@ -102,7 +111,8 @@ export function ContractForm({
   // correct" confirmation before the record is treated as fully trusted —
   // see extractionFieldsFromForm in src/lib/actions/contracts.ts.
   const [extractionUsed, setExtractionUsed] = useState(false);
-  const [confirmExtraction, setConfirmExtraction] = useState(false);
+  // #359 — the fields the scan filled in, named above Save.
+  const [autoFilled, setAutoFilled] = useState<AutoFilledField[]>([]);
   // #303: a cost without a billing frequency contributes nothing to the
   // dashboard's "Est. monthly spend" — nudge before that surprises the user.
   const [costMissingFrequency, setCostMissingFrequency] = useState(
@@ -203,6 +213,7 @@ export function ContractForm({
       if (filledCount > 0) {
         applyExtractedFields(fields, source);
         setExtractionUsed(true);
+        setAutoFilled(autoFilledFields(titleRef.current?.form, source === "none" ? "heuristic" : source));
       }
       setScanMessage(extractionMessage(source, filledCount, textUnavailable));
     } catch {
@@ -272,7 +283,7 @@ export function ContractForm({
                 id="category"
                 name="category"
                 required
-                defaultValue={effectiveValues?.category ?? contract?.category ?? ""}
+                defaultValue={effectiveValues?.category ?? contract?.category ?? defaultCategory ?? ""}
                 ref={categoryRef}
                 className={selectClass}
               >
@@ -538,25 +549,8 @@ export function ContractForm({
         />
       </FormSection>
 
-      {extractionUsed && (
-        <div className={bannerClass("neutral", "flex items-start gap-2")}>
-          <input
-            id="confirmExtractionCheckbox"
-            type="checkbox"
-            checked={confirmExtraction}
-            onChange={(e) => setConfirmExtraction(e.target.checked)}
-            className="mt-0.5 size-4 rounded border-border accent-accent"
-          />
-          <label htmlFor="confirmExtractionCheckbox" className="text-sm">
-            I&apos;ve checked the highlighted fields above and they&apos;re correct. Leave this
-            unchecked to save anyway — the record will be marked{" "}
-            <span className="font-medium">Needs review</span> and reminders will be held until
-            it&apos;s confirmed.
-          </label>
-        </div>
-      )}
+      {extractionUsed && <ExtractionReviewNote fields={autoFilled} />}
       <input type="hidden" name="extractionUsed" value={extractionUsed ? "1" : "0"} />
-      <input type="hidden" name="confirmExtraction" value={confirmExtraction ? "1" : "0"} />
 
       <FormMessage attempt={state} error={state?.error} success={state?.success} />
 
@@ -564,6 +558,7 @@ export function ContractForm({
         <SubmitButton>
           {pendingOp ? "Save changes" : contract ? "Save changes" : "Add contract"}
         </SubmitButton>
+        {extractionUsed && <SaveForLaterButton />}
       </FormActions>
     </form>
   );

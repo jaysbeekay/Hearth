@@ -8,14 +8,16 @@ import { getEnabledModuleKeys } from "@/lib/modules/enablement";
 import { calendarKindLabel, getCalendarEvents } from "@/lib/calendarEvents";
 import { getDueContext } from "@/lib/appSettings";
 import { addDays, type CalendarDay } from "@/lib/duePolicy";
-import { formatDate } from "@/lib/utils";
+import { formatDate, ROLE_DESCRIPTIONS, ROLE_LABELS } from "@/lib/utils";
 import { longMonthName, shortMonthName } from "@/lib/dateParts";
 import { getUserPreferences } from "@/lib/userPreferences";
 import { ExpiryBadge } from "@/components/ExpiryBadge";
 import { CalendarSubscribeButton } from "@/components/CalendarSubscribeButton";
 import type { CalendarEvent } from "@/lib/calendarEvents";
-import { cardClass, chipClass, emptyStateClass } from "@/lib/ui";
+import { cardClass, chipClass, emptyStateClass, pillClass } from "@/lib/ui";
+import { BellOff } from "lucide-react";
 import { PageShell } from "@/components/ui/PageShell";
+import { WelcomeBanner } from "@/components/WelcomeBanner";
 
 export const metadata: Metadata = { title: "Upcoming" };
 
@@ -41,12 +43,12 @@ function dayMonth(day: CalendarDay) {
 export default async function CalendarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ horizon?: string }>;
+  searchParams: Promise<{ horizon?: string; welcome?: string }>;
 }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const [enabledModules, { dateFormat }, { horizon: horizonParam }, user] = await Promise.all([
+  const [enabledModules, { dateFormat }, { horizon: horizonParam, welcome }, user] = await Promise.all([
     getEnabledModuleKeys(),
     getUserPreferences(),
     searchParams,
@@ -56,6 +58,14 @@ export default async function CalendarPage({
   const horizon = HORIZONS.includes(parsedHorizon as (typeof HORIZONS)[number])
     ? parsedHorizon
     : DEFAULT_HORIZON;
+
+  // #372 — set by the redirect after accepting an invite.
+  const memberCount = welcome === "1" ? await prisma.user.count() : 0;
+  const role = session.user.role;
+  const roleDescription = new Map(Object.entries(ROLE_DESCRIPTIONS)).get(role);
+  const youCan = roleDescription
+    ? `You ${roleDescription.charAt(0).toLowerCase()}${roleDescription.slice(1)}`
+    : "";
 
   const due = await getDueContext();
   const events = await getCalendarEvents(enabledModules, due, addDays(due.today, horizon));
@@ -73,6 +83,14 @@ export default async function CalendarPage({
 
   return (
     <PageShell width="list">
+      {welcome === "1" && (
+        <WelcomeBanner
+          userId={session.user.id}
+          roleLabel={new Map(Object.entries(ROLE_LABELS)).get(role) ?? role}
+          roleDescription={youCan}
+          memberCount={memberCount}
+        />
+      )}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-medium">Upcoming</h1>
@@ -112,7 +130,10 @@ export default async function CalendarPage({
                 <Link
                   key={event.id}
                   href={event.href}
-                  className={cardClass({ interactive: true }, "flex items-start gap-3")}
+                  className={cardClass(
+                    { interactive: true },
+                    event.snoozedUntil ? "flex items-start gap-3 opacity-70" : "flex items-start gap-3",
+                  )}
                 >
                   <div className="mt-0.5 w-10 shrink-0 text-center">
                     <p className="text-xs text-muted">
@@ -134,6 +155,13 @@ export default async function CalendarPage({
                       {calendarKindLabel(event.kind)}
                     </span>
                     {event.entry && <ExpiryBadge entry={event.entry} />}
+                    {/* #354 — still on the timeline, but someone has said "remind me later". */}
+                    {event.snoozedUntil && (
+                      <span className={pillClass("neutral")}>
+                        <BellOff size={16} aria-hidden />
+                        Snoozed until {formatDate(`${event.snoozedUntil}T00:00:00.000Z`, dateFormat)}
+                      </span>
+                    )}
                   </div>
                 </Link>
               ))}

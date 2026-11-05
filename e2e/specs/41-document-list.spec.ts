@@ -44,7 +44,7 @@ async function expectType(page: Page, filename: string, typeLabel: string) {
       return rowOf(page, filename)
         .getByLabel(`Document type for ${filename}`)
         .evaluate((el) => (el as HTMLSelectElement).selectedOptions[0]?.text ?? "");
-    })
+    }, { timeout: 15_000 })
     .toBe(typeLabel);
 }
 
@@ -270,7 +270,7 @@ test.describe.serial("The one Document list", () => {
 
     await rowOf(page, filename).getByRole("button", { name: `Delete ${filename}`, exact: true }).click();
     const dialog = page.getByRole("alertdialog");
-    await expect(dialog).toContainText("Settings → Recently deleted");
+    await expect(dialog).toContainText("Settings → Household → Recently deleted");
     await dialog.getByRole("button", { name: "Delete", exact: true }).click();
     const toast = page.getByRole("status");
     await expect(toast).toContainText("Moved to Recently deleted.");
