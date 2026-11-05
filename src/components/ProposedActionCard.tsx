@@ -207,7 +207,7 @@ export function ProposedActionCard({
       <div className="flex gap-2">
         <button
           type="button"
-          onClick={handleConfirm}
+          onClick={() => void handleConfirm()}
           disabled={working}
           className={buttonClass("primary")}
         >
