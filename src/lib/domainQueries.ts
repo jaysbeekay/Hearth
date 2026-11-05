@@ -403,9 +403,9 @@ export async function searchContracts(query: string) {
  */
 export async function contractProposalBasis(id: string) {
   return prisma.contract.findFirst({
+    // The whole row: the proposal checks only links it newly sets (#447),
+    // and the card shows each changing field's current value (#530).
     where: { id, deletedAt: null },
-    // The current links too: the proposal only checks links it newly sets (#447).
-    select: { title: true, startDate: true, endDate: true, propertyId: true, vehicleId: true },
   });
 }
 
