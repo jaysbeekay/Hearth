@@ -11,6 +11,8 @@ import {
   requireExisting,
   requireLive,
   RecordNotFoundError,
+  deleteFromTrash,
+  type PurgeOptions,
   type UpdateOptions,
 } from "@/lib/commands/shared";
 import type { ClearablePatch } from "@/lib/validation/fullFormUpdate";
@@ -333,12 +335,17 @@ export async function permanentlyDeleteTradeCommand(id: string) {
 // revalidation. Only for Trash retention (src/lib/trash.ts), which runs from
 // a page render and from the scheduler, and purges whether or not the
 // module is on. Returns the Trade's Holding.
-export async function purgeTrade(id: string) {
+export async function purgeTrade(id: string, options: PurgeOptions = {}) {
   const existing = await findTrade(id);
   const holding = await findHolding(existing.holdingId);
   // Cascades to the Trade's Document rows (Trash ones included); then the
-  // files go.
-  await prisma.trade.delete({ where: { id } });
+  // files go. Only a Trade in Trash is deleted (deleteFromTrash, #534).
+  await deleteFromTrash(
+    "Trade",
+    options,
+    (inTrash) => prisma.trade.deleteMany({ where: { id, ...inTrash } }),
+    () => prisma.trade.findUnique({ where: { id }, select: { deletedAt: true } }),
+  );
   await removeOwnerDocumentFiles("TRADE", id);
   return holding;
 }
