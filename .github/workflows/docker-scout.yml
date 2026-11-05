@@ -97,6 +97,10 @@ jobs:
           only-fixed: true
           exit-code: true
           sarif-file: ${{ env.SARIF_FILE }}
+          # Both legs would update the same PR comment, so whichever finished
+          # last would hide the other's findings. Only amd64 comments; arm64's
+          # findings still gate this job and reach the Security tab via SARIF.
+          write-comment: ${{ matrix.arch == 'amd64' }}
 
       - name: Upload Docker Scout results to GitHub Code Scanning
         # always() so findings still reach the Security tab on the runs where
