@@ -8,7 +8,7 @@ import {
 } from "@/lib/ai/chat/types";
 import { readNdjsonStream } from "@/lib/ai/chat/streamParsing";
 import { assertSafeOutboundUrl } from "@/lib/net/outbound";
-import { proxiedProviderUrl } from "@/lib/ai/egressProxy";
+import { aiProviderFetch } from "@/lib/ai/egressProxy";
 
 // Ollama's /api/chat mirrors OpenAI's chat shape closely, with two
 // differences: tool-call `arguments` are a plain object (not a JSON
@@ -54,7 +54,7 @@ export const callOllamaChat: ChatProviderCall = async ({ model, system, messages
   try {
     const ollamaUrl = `${ollama.baseUrl.replace(/\/$/, "")}/api/chat`;
     await assertSafeOutboundUrl(ollamaUrl);
-    const res = await fetch(proxiedProviderUrl(ollamaUrl), {
+    const res = await aiProviderFetch(ollamaUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
