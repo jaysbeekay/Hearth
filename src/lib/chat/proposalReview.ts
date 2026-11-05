@@ -14,6 +14,11 @@ export const FREE_TEXT_FIELDS: ReadonlySet<string> = new Set([
   "contactPhone",
   "contactEmail",
   "notes",
+  "contractNumber",
+  "manufacturer",
+  "model",
+  "serialNumber",
+  "barcode",
 ]);
 
 /** A free-text value longer than this is flagged. Notes may be longer by design, but rarely are. */
@@ -47,6 +52,15 @@ function stringValues(record: Record<string, unknown> | undefined): string {
     .toLowerCase();
 }
 
+// A link or address at the end of a sentence keeps its full stop in the match.
+const TRAILING_PUNCTUATION = /[.,;:!?)\]]+$/;
+
+function linksAndEmails(text: string): string[] {
+  return [...(text.match(URL_PATTERN) ?? []), ...(text.match(EMAIL_PATTERN) ?? [])].map((m) =>
+    m.replace(TRAILING_PUNCTUATION, "").toLowerCase(),
+  );
+}
+
 /** Warnings for one proposed value. `knownText` is the record's current text, lowercased. */
 export function valueWarnings(
   key: string,
@@ -56,7 +70,10 @@ export function valueWarnings(
 ): string[] {
   if (typeof value !== "string" || !value) return [];
   const warnings: string[] = [];
-  const isNew = (match: string) => !knownText.includes(match.toLowerCase());
+  // Exact matches only: a new link that merely contains a known one, or sits
+  // inside one, is still new.
+  const known = new Set(linksAndEmails(knownText));
+  const isNew = (match: string) => !known.has(match.replace(TRAILING_PUNCTUATION, "").toLowerCase());
 
   if ((value.match(URL_PATTERN) ?? []).some(isNew)) warnings.push(WARNINGS.newLink);
   // A new record's own contact email is what that field is for, so only an
@@ -69,7 +86,7 @@ export function valueWarnings(
 }
 
 export interface ProposalReview {
-  /** An update's current value for each field it changes. */
+  /** An update's current value for each field it changes; null when the field is blank. */
   currentValues?: Record<string, unknown>;
   /** Warnings by field, for fields that have any. */
   warnings?: Record<string, string[]>;
@@ -91,8 +108,10 @@ export function reviewProposal(
   if (operation === "update" && current) {
     const currentValues: Record<string, unknown> = {};
     for (const key of Object.keys(data)) {
+      if (!(key in current)) continue;
       const value = current[key];
-      if (value != null && value !== "") currentValues[key] = value instanceof Date ? value.toISOString() : value;
+      // A blank field is kept as null so the card can say so (#530).
+      currentValues[key] = value == null || value === "" ? null : value instanceof Date ? value.toISOString() : value;
     }
     if (Object.keys(currentValues).length > 0) review.currentValues = currentValues;
   }

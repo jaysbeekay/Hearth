@@ -313,6 +313,24 @@ async function linkDisplay(
   return Object.keys(displayValues).length > 0 ? { displayValues } : {};
 }
 
+// An update's review for the card (#530). A current Property or Vehicle link
+// is only an id, so it is shown by its label; a link that no longer resolves
+// is shown as such rather than as a raw id.
+async function reviewUpdate(data: Record<string, unknown>, current: Record<string, unknown>) {
+  const review = reviewProposal("update", data, current);
+  const values = review.currentValues;
+  if (!values) return review;
+  if (typeof values.propertyId === "string") {
+    const property = await prisma.property.findUnique({ where: { id: values.propertyId }, select: { label: true } });
+    values.propertyId = property?.label ?? "A property that no longer exists";
+  }
+  if (typeof values.vehicleId === "string") {
+    const vehicle = await prisma.vehicle.findUnique({ where: { id: values.vehicleId }, select: { label: true } });
+    values.vehicleId = vehicle?.label ?? "A vehicle that no longer exists";
+  }
+  return review;
+}
+
 // A date moved on its own is checked against the saved other date here, so
 // the user isn't shown a card whose confirm the command would refuse.
 function datesOutOfOrder(start: Date | null | undefined, end: Date | null | undefined) {
@@ -384,7 +402,7 @@ const proposeUpdateContractTool = defineTool({
       label: contract.title,
       data: parsed.data,
       ...links,
-      ...reviewProposal("update", parsed.data, contract),
+      ...(await reviewUpdate(parsed.data, contract)),
     };
   },
 });
@@ -470,7 +488,7 @@ const proposeUpdateProductTool = defineTool({
       label: product.description,
       data: parsed.data,
       ...links,
-      ...reviewProposal("update", parsed.data, product),
+      ...(await reviewUpdate(parsed.data, product)),
     };
   },
 });

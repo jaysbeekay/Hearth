@@ -26,11 +26,14 @@ These hold whatever the model does.
 The card makes a steered proposal easier to spot. It doesn't block anything.
 
 - An update shows each changing field's current value under the proposed
-  one ("Now: …").
-- Free-text fields (title, provider, contact details, notes) are shown in
+  one ("Now: …"). A blank field shows "Now: (blank)", and a Property or
+  Vehicle link shows the current record's name.
+- Free-text fields (title, description, provider, vendor, contact details,
+  notes, contract number, brand, model, serial number, barcode) are shown in
   full and shaded as the Assistant's wording.
 - A field is flagged when it has a link or email address that isn't already
-  on the record, is over 500 characters, or reads like instructions to an
+  on the record (an exact match, so a new link that only contains a known
+  one is still flagged), is over 500 characters, or reads like instructions to an
   AI. A new record's own contact email isn't flagged. The rules live in
   `src/lib/chat/proposalReview.ts` (`tests/unit/proposal-review.test.ts`).
 

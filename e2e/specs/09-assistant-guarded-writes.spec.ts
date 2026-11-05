@@ -166,8 +166,8 @@ test("assistant update proposal lists and writes only the named fields", async (
     await expect(card.getByText("Update contract: Assistant Gym")).toBeVisible();
     // Fields list in the schema's order, not the order the Assistant sent them.
     await expect(card.locator("dt")).toHaveText(["End date:", "Cost:"]);
-    // #530: a changed field also shows its current value; the end date had none.
-    await expect(card.locator("dd")).toHaveText([/^\d{1,2} May 2027$/, "72.5", "Now: 60"]);
+    // #530: a changed field also shows its current value; the end date was blank.
+    await expect(card.locator("dd")).toHaveText([/^\d{1,2} May 2027$/, "Now: (blank)", "72.5", "Now: 60"]);
 
     await card.getByRole("button", { name: "Confirm" }).click();
     await expect(page.getByText("Updated the contract successfully.")).toBeVisible();

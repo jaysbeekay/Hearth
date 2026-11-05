@@ -66,9 +66,6 @@ const FIELD_LABELS: Record<string, string> = {
 // The SSE turns Dates into ISO strings; show these as calendar dates.
 const DATE_FIELDS = new Set(["startDate", "endDate", "purchaseDate", "warrantyEndDate"]);
 
-// A current link is only an id, which means nothing on the card.
-const LINK_FIELDS = new Set(["propertyId", "vehicleId"]);
-
 function formatValue(
   key: string,
   value: unknown,
@@ -173,7 +170,8 @@ export function ProposedActionCard({
       <dl className="mb-3 grid grid-cols-1 gap-x-4 gap-y-1 text-xs text-muted sm:grid-cols-2">
         {entries.map(([key, value]) => {
           const freeText = FREE_TEXT_FIELDS.has(key);
-          const current = LINK_FIELDS.has(key) ? undefined : action.currentValues?.[key];
+          // The tool sends a current link as its label, and a blank field as null.
+          const current = action.currentValues?.[key];
           return (
             <div key={key} className={freeText ? "flex min-w-0 flex-wrap gap-x-1 sm:col-span-2" : "flex min-w-0 flex-wrap gap-x-1"}>
               <dt className="shrink-0 font-medium">{FIELD_LABELS[key] ?? key}:</dt>
@@ -187,7 +185,9 @@ export function ProposedActionCard({
                 {formatValue(key, value, displayValues, dateFormat)}
               </dd>
               {current !== undefined && (
-                <dd className="basis-full break-words">Now: {formatValue(key, current, noDisplayValues, dateFormat)}</dd>
+                <dd className="basis-full break-words">
+                  Now: {current === null ? "(blank)" : formatValue(key, current, noDisplayValues, dateFormat)}
+                </dd>
               )}
               {(warnings[key] ?? []).map((warning) => (
                 <dd key={warning} className="flex basis-full items-start gap-1 text-warning">
