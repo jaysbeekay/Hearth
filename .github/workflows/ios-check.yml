@@ -1,10 +1,10 @@
 name: iOS check
 
-# Compiles the iOS app for the simulator, unsigned, so a Swift error in an
-# app-target plugin (such as ICloudBackupPlugin.swift, #226) fails a pull
+# Compiles the iOS app for the simulator, unsigned, so a Swift error, or a
+# Capacitor plugin that no longer builds after `cap sync`, fails a pull
 # request instead of the next Xcode build on a Mac. It proves the code
-# compiles and links; it does not exercise iCloud, the keychain or
-# entitlements, which still need a signed build on a device.
+# compiles and links; anything that needs signing still needs a signed
+# build on a device.
 #
 # Not a required check (macOS runners are slower and scarcer), and
 # path-filtered so it only runs on PRs that touch what feeds the iOS build.
