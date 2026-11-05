@@ -9,6 +9,11 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Demo seed data (#553).** `scripts/demo/seed.ts` seeds a fictional
+  household (every module, about 60 records, dates relative to today) through
+  the app's own record commands, for the public demo instance. It refuses a
+  database that already has users. Run it with `npx tsx scripts/demo/seed-cli.ts`
+  against a scratch database.
 - **Upload page: one scan, bulk edits and a Quick check screen (#358).**
   Each file is scanned once; the page pre-selects Contract, Warranty or
   Inventory item from what the scan found, and switching type reuses that
