@@ -29,6 +29,7 @@
     "@capacitor/local-notifications": "^8.2.1",
     "@capacitor/network": "^8.0.1",
     "@capacitor/preferences": "^8.0.1",
+    "@flydotio/litestream": "^1.0.1",
     "@hookform/resolvers": "^5.4.0",
     "@libsql/client": "^0.17.4",
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -115,5 +116,8 @@
     "tsx": "^4.22.4",
     "typescript": "^5",
     "vitest": "^5.0.3"
+  },
+  "dockerfile": {
+    "litestream": true
   }
 }
