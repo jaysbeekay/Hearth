@@ -5,8 +5,8 @@ every night. It runs on two hosts at once from the same image:
 
 | Host | Where | Cost | Idle behaviour |
 |---|---|---|---|
-| Fly.io | Johannesburg (`jnb`) | about US$3.70/month for a 512 MB machine left running, less when it stops on idle | Stops after a few idle minutes and starts again on the next request, in a few seconds |
-| Render | Frankfurt | free | Spins down after 15 minutes idle and takes about a minute to wake |
+| Fly.io | Johannesburg (`jnb`) | about US$6.70/month for a 1 GB machine left running at Fly's lowest regional price (`jnb` costs more), less when it stops on idle | Stops after a few idle minutes and starts again on the next request, in a few seconds |
+| Render | Frankfurt | free (512 MB, so OCR of a large scanned upload may restart it, which also resets it) | Spins down after 15 minutes idle and takes about a minute to wake |
 
 Prices come from each host's pricing page. Check them before relying on them.
 
@@ -22,6 +22,8 @@ Prices come from each host's pricing page. Check them before relying on them.
   Nothing demo-specific is added to the public image.
 - **Reset.** Neither host has a volume. Every start, idle wake-up and deploy
   begins from the seed baked into the image, so visitors' changes never last.
+  Sign-ins end at each new image too: the users are re-created with new IDs,
+  and a session whose user no longer exists is rejected.
 - **Nightly redeploy.** `.github/workflows/demo-deploy.yml` runs at 00:30 UTC,
   and again whenever a release's Docker image is published (once turned on,
   see step 6 below). It builds the demo

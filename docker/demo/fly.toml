@@ -29,6 +29,8 @@ primary_region = "jnb"
     method = "GET"
     path = "/api/health"
 
+# 1 GB: the server (~350 MB) plus OCR of a scanned upload (~110 MB per
+# tesseract page) leaves too little headroom in 512 MB (docs/deployment/one-click.md).
 [[vm]]
   size = "shared-cpu-1x"
-  memory = "512mb"
+  memory = "1gb"
