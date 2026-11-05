@@ -68,6 +68,9 @@ function withArchived(subtitle: string | undefined, archivedAt: Date | null): st
 // matching what a user typing that word almost certainly means.
 const CONTRACT_ALIASES = new Set(["contract", "contracts", "policy", "policies"]);
 const PRODUCT_ALIASES = new Set(["warranty", "warranties", "purchase", "purchases"]);
+// #456 - "rego" and "registration" mean the Registration Category, even where
+// the title doesn't say so.
+const REGISTRATION_ALIASES = new Set(["rego", "registration", "registrations"]);
 
 export async function GET(request: NextRequest) {
   const session = await auth();
@@ -108,6 +111,7 @@ export async function GET(request: NextRequest) {
   const qNormalized = q.toLowerCase();
   const isContractAlias = textOk && CONTRACT_ALIASES.has(qNormalized);
   const isProductAlias = textOk && PRODUCT_ALIASES.has(qNormalized);
+  const isRegistrationAlias = textOk && REGISTRATION_ALIASES.has(qNormalized);
   const queries: Promise<SearchResult[]>[] = [];
 
   // #314 — one ranked, indexed FTS5 query across all 9 document tables'
@@ -131,6 +135,7 @@ export async function GET(request: NextRequest) {
                       { title: contains },
                       { provider: contains },
                       { contractNumber: contains },
+                      ...(isRegistrationAlias ? [{ category: "REGISTRATION" as const }] : []),
                       { id: { in: hitOwnerIds(ftsHits, "CONTRACT") } },
                     ],
                   },

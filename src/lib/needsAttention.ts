@@ -1,7 +1,16 @@
 import type { Contract, Product, Vehicle } from "@/generated/prisma/client";
-import { isDue, type DueContext, type DueEntry } from "@/lib/duePolicy";
-import { contractDue, tenancyDue, vehicleDue, warrantyDue, type ContractDueRow } from "@/lib/dueRecords";
+import { dueEntries, isDue, type DueContext, type DueEntry } from "@/lib/duePolicy";
+import {
+  contractDue,
+  tenancyDue,
+  vehicleDueRecord,
+  warrantyDue,
+  type ContractDueRow,
+  type TenancyDueRow,
+  type VehicleDueRow,
+} from "@/lib/dueRecords";
 import { contractRules, listHref, productRules } from "@/lib/recordFilters";
+import { activeSnoozeUntil } from "@/lib/snooze";
 
 export type AttentionKind = "contract" | "warranty" | "vehicle" | "property" | "system";
 
@@ -44,6 +53,11 @@ export interface AttentionItem {
   canMarkCancelled?: boolean;
   /** Short status pill shown instead of/alongside the expiry badge — e.g. "Not configured", "Needs review", "Reminder failed" (#200/#201). */
   badge?: string;
+  /**
+   * #354 — the record this row can Snooze ("remind me later"), set only on
+   * Due rows of a Contract, Warranty or Vehicle. A Snoozed record has no rows.
+   */
+  snooze?: { kind: "contract" | "warranty" | "vehicle"; recordId: string };
 }
 
 
@@ -53,12 +67,16 @@ export interface AttentionItem {
 // label. Ended Contracts and Lapsed Warranties have nothing to do, so they
 // leave the queue.
 
-type AttentionContract = Pick<Contract, "id" | "title" | "provider"> &
+type SnoozeColumns = "snoozedUntil" | "snoozedFor";
+
+type AttentionContract = Pick<Contract, "id" | "title" | "provider" | SnoozeColumns> &
   ContractDueRow & { _count: { documents: number } };
 
 export function buildContractAttentionItems(contracts: AttentionContract[], ctx: DueContext): AttentionItem[] {
   const items: AttentionItem[] = [];
   for (const contract of contracts) {
+    // #354 — a Snoozed Contract leaves the queue until its Snooze ends.
+    if (activeSnoozeUntil({ kind: "contract", ...contract }, ctx.today)) continue;
     // #353 — renewing adds the next Term and keeps this one as history; the
     // edit form would overwrite it.
     const renewHref = `/contracts/${contract.id}/renew`;
@@ -101,19 +119,24 @@ export function buildContractAttentionItems(contracts: AttentionContract[], ctx:
               : { label: "Renew or cancel", href: `/contracts/${contract.id}` },
         noDocument: contract._count.documents === 0,
         canMarkCancelled: entry.state === "overdue",
+        snooze: { kind: "contract", recordId: contract.id },
       });
     }
   }
   return items;
 }
 
-type AttentionProduct = Pick<Product, "id" | "description" | "manufacturer" | "warrantyEndDate" | "reminderDaysBefore"> & {
+type AttentionProduct = Pick<
+  Product,
+  "id" | "description" | "manufacturer" | "warrantyEndDate" | "reminderDaysBefore" | SnoozeColumns
+> & {
   _count: { documents: number };
 };
 
 export function buildWarrantyAttentionItems(products: AttentionProduct[], ctx: DueContext): AttentionItem[] {
   const items: AttentionItem[] = [];
   for (const product of products) {
+    if (activeSnoozeUntil({ kind: "warranty", ...product }, ctx.today)) continue;
     // Only a Warranty ending soon is Due; a Lapsed one leaves the queue.
     const entry = warrantyDue(product, ctx).find(isDue);
     if (!entry) continue;
@@ -128,6 +151,7 @@ export function buildWarrantyAttentionItems(products: AttentionProduct[], ctx: D
       entry,
       href: `/products/${product.id}`,
       noDocument: product._count.documents === 0,
+      snooze: { kind: "warranty", recordId: product.id },
     });
   }
   return items;
@@ -139,13 +163,19 @@ const VEHICLE_ACTIONS = new Map<string, string>([
   ["nextServiceDue", "Book service"],
 ]);
 
-type AttentionVehicle = Pick<Vehicle, "id" | "label" | "regoExpiry" | "insuranceExpiry" | "nextServiceDue" | "reminderDaysBefore" | "archivedAt">;
+type AttentionVehicle = Pick<
+  Vehicle,
+  "id" | "label" | "regoExpiry" | "insuranceExpiry" | "nextServiceDue" | "reminderDaysBefore" | "archivedAt" | SnoozeColumns
+> &
+  Pick<VehicleDueRow, "contracts">;
 
 /** One row per Due entry: a Vehicle's rego, insurance and service are separate dates, each with its own state. */
 export function buildVehicleAttentionItems(vehicles: AttentionVehicle[], ctx: DueContext): AttentionItem[] {
   const items: AttentionItem[] = [];
   for (const vehicle of vehicles) {
-    for (const entry of vehicleDue(vehicle, ctx)) {
+    const record = vehicleDueRecord(vehicle);
+    if (activeSnoozeUntil(record, ctx.today)) continue;
+    for (const entry of dueEntries(record, ctx)) {
       if (!isDue(entry)) continue;
       items.push({
         id: `${vehicle.id}-${entry.field}`,
@@ -155,6 +185,7 @@ export function buildVehicleAttentionItems(vehicles: AttentionVehicle[], ctx: Du
         entry,
         href: `/vehicles/${vehicle.id}`,
         action: { label: VEHICLE_ACTIONS.get(entry.field) ?? "Update", href: `/vehicles/${vehicle.id}/edit` },
+        snooze: { kind: "vehicle", recordId: vehicle.id },
       });
     }
   }
@@ -169,6 +200,8 @@ export interface AttentionTenancy {
   leaseEnd: Date | null;
   /** Its own Reminder thresholds, which set its due-soon window (#388). */
   reminderDaysBefore?: string | null;
+  /** #457 — the linked Contract, which Covers the lease end when its end date is the same day. */
+  contract: TenancyDueRow["contract"];
 }
 
 /**
@@ -216,8 +249,8 @@ export function buildReminderNudgeItem(): AttentionItem {
     group: "housekeeping",
     title: "Reminders aren't configured",
     subtitle: "Hearth can email or push a reminder before things come due.",
-    href: "/settings/app",
-    action: { label: "Configure reminders", href: "/settings/app" },
+    href: "/settings/reminders",
+    action: { label: "Configure reminders", href: "/settings/reminders" },
     badge: "Not configured",
   };
 }
@@ -255,6 +288,22 @@ export function buildExtractionReviewItems(
       action: { label: "Confirm details", href: `/products/${product.id}` },
       badge: "Needs review",
     });
+  }
+  // #358 — a batch saved from Upload is one job, so several records waiting
+  // for a check are one row, opening the Quick check screen.
+  if (items.length > 1) {
+    return [
+      {
+        id: "review-batch",
+        kind: "system",
+        group: "housekeeping",
+        title: `${items.length} records need a quick check`,
+        subtitle: "Some auto-filled details haven't been confirmed yet.",
+        href: "/review",
+        action: { label: "Check them", href: "/review" },
+        badge: "Needs review",
+      },
+    ];
   }
   return items;
 }

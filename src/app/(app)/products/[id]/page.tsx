@@ -15,6 +15,7 @@ import { ExpiryBadge } from "@/components/ExpiryBadge";
 import { ConfirmForm } from "@/components/ConfirmForm";
 import { DetailOverflowMenu } from "@/components/DetailOverflowMenu";
 import { DetailStatusBanner } from "@/components/DetailStatusBanner";
+import { activeSnoozeUntil } from "@/lib/snooze";
 import { ExtractionReviewPanel } from "@/components/ExtractionReviewPanel";
 import { DetailField as Detail } from "@/components/DetailField";
 import { ProductDocumentUploadForm } from "@/components/ProductDocumentUploadForm";
@@ -35,6 +36,7 @@ import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
 import { buttonClass, menuItemClass, cardClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
+import { RememberRecentRecord } from "@/components/RememberRecentRecord";
 
 export default async function ProductDetailPage({
   params,
@@ -53,6 +55,7 @@ export default async function ProductDetailPage({
         documents: { where: { deletedAt: null }, orderBy: { uploadedAt: "desc" } },
         createdBy: true,
         updatedBy: true,
+        snoozedBy: { select: { name: true } },
         property: true,
         warrantyForItems: { where: { deletedAt: null }, select: { id: true, label: true } },
       },
@@ -64,12 +67,23 @@ export default async function ProductDetailPage({
   if (!product || product.deletedAt) notFound();
   const trashedLinks = await getTrashedVersionLinks("PRODUCT", [product.id]);
 
+  const hasDetails = [
+    product.manufacturer,
+    product.model,
+    product.vendor,
+    product.serialNumber,
+    product.barcode,
+    product.purchaseDate,
+    product.warrantyEndDate,
+    product.price,
+  ].some((v) => v != null && String(v).trim() !== "");
   const pendingReview = product.extractionPending
     ? await getPendingExtractionReview("PRODUCT", product.id)
     : [];
 
   // #384 — from the Due policy: due soon, later, or Lapsed (never Expired).
   const dueEntries = warrantyDue(product, due);
+  const snoozedUntil = activeSnoozeUntil({ kind: "warranty", ...product }, due.today);
   const boundUpload = addDocumentAction.bind(null, "PRODUCT", product.id);
   const reminderHealth = await getReminderHealth({
     ownerType: "PRODUCT",
@@ -82,6 +96,7 @@ export default async function ProductDetailPage({
 
   return (
     <PageShell width="detail">
+      <RememberRecentRecord kind="warranty" id={id} />
       <div>
         <BackLink href="/products" label="Warranties" />
       </div>
@@ -112,7 +127,7 @@ export default async function ProductDetailPage({
                 <ConfirmForm
                   action={deleteProduct.bind(null, product.id)}
                   undo={{ action: restoreProduct.bind(null, product.id), href: `/products/${product.id}` }}
-                  confirmText="Delete this warranty? Its documents are kept, and you can restore it within 30 days from Settings → Recently deleted."
+                  confirmText="Delete this warranty? Its documents are kept, and you can restore it within 30 days from Settings → Household → Recently deleted."
                   className={menuItemClass({ destructive: true })}
                   offline={{ entity: "product", entityId: product.id, label: `Delete warranty: ${product.description}` }}
                 >
@@ -142,6 +157,13 @@ export default async function ProductDetailPage({
         documentsHref="#documents"
         editHref={`/products/${product.id}/edit`}
         renewLabel="Review warranty"
+        snooze={{
+          kind: "warranty",
+          recordId: product.id,
+          title: product.description,
+          until: snoozedUntil,
+          byName: product.snoozedBy?.name,
+        }}
         needsReview={
           product.extractionPending && pendingReview.length === 0
             ? { onConfirm: confirmProductExtraction.bind(null, product.id) }
@@ -153,21 +175,24 @@ export default async function ProductDetailPage({
         <ExtractionReviewPanel fields={pendingReview} action={reviewProductExtraction.bind(null, product.id)} />
       )}
 
-      <Card>
-        <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">
-          <Detail label="Brand" value={product.manufacturer ?? "—"} />
-          <Detail label="Model" value={product.model ?? "—"} />
-          <Detail label="Vendor / retailer" value={product.vendor ?? "—"} />
-          <Detail label="Serial number" value={product.serialNumber ?? "—"} copyable />
-          <Detail label="Barcode" value={product.barcode ?? "—"} copyable />
-          <Detail label="Purchase date" value={formatDate(product.purchaseDate, dateFormat)} />
-          <Detail label="Warranty end date" value={formatDate(product.warrantyEndDate, dateFormat)} />
-          <Detail
-            label="Price"
-            value={product.price != null ? formatCurrency(product.price, product.currency, undefined, region) : "—"}
-          />
-        </dl>
-      </Card>
+      {/* #405 — empty fields aren't shown, so a card with none of them isn't either. */}
+      {hasDetails && (
+        <Card>
+          <dl className="grid grid-cols-2 gap-4 md:grid-cols-3">
+            <Detail label="Brand" value={product.manufacturer ?? "—"} />
+            <Detail label="Model" value={product.model ?? "—"} />
+            <Detail label="Vendor / retailer" value={product.vendor ?? "—"} />
+            <Detail label="Serial number" value={product.serialNumber ?? "—"} copyable />
+            <Detail label="Barcode" value={product.barcode ?? "—"} copyable />
+            <Detail label="Purchase date" value={formatDate(product.purchaseDate, dateFormat)} />
+            <Detail label="Warranty end date" value={formatDate(product.warrantyEndDate, dateFormat)} />
+            <Detail
+              label="Price"
+              value={product.price != null ? formatCurrency(product.price, product.currency, undefined, region) : "—"}
+            />
+          </dl>
+        </Card>
+      )}
 
       {product.warrantyEndDate && (
         <ReminderHealthCard

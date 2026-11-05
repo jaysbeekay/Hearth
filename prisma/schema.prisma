@@ -16,6 +16,7 @@ enum Role {
 enum ContractCategory {
   RENTAL
   CAR_INSURANCE
+  REGISTRATION
   HOME_INSURANCE
   STRATA_INSURANCE
   HEALTH_INSURANCE
@@ -78,6 +79,10 @@ enum SecurityEventType {
   TOTP_DISABLED
   ROLE_CHANGED
   USER_DELETED
+  MCP_AUTH_FAILED
+  MCP_THROTTLED
+  DOCUMENT_SHARE_LINK_CREATED
+  DOCUMENT_SHARE_LINK_REVOKED
 }
 
 enum ProductDocumentKind {
@@ -220,9 +225,13 @@ model User {
   updatedProperties     Property[]           @relation("PropertyUpdatedBy")
   updatedVehicles       Vehicle[]            @relation("VehicleUpdatedBy")
   updatedInventoryItems InventoryItem[]      @relation("InventoryItemUpdatedBy")
+  snoozedContracts      Contract[]           @relation("ContractSnoozedBy")
+  snoozedProducts       Product[]            @relation("ProductSnoozedBy")
+  snoozedVehicles       Vehicle[]            @relation("VehicleSnoozedBy")
   inboxDocuments        InboxDocument[]
   chatThreads           ChatThread[]
   passwordResetTokens   PasswordResetToken[]
+  documentShareLinks    DocumentShareLink[]   @relation("DocumentShareLinksCreated")
   totpSecret            String?
   totpEnabled           Boolean              @default(false)
   totpRecoveryCodes     String?
@@ -313,6 +322,14 @@ model Contract {
   // (and its files) can be restored within the trash window.
   deletedAt   DateTime?
   updatedBy   User?     @relation("ContractUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  // #354 — "I've handled this, remind me again later": out of Needs
+  // attention and Reminders until snoozedUntil (a household day), and only
+  // while the record's dates are still those in snoozedFor, so renewing or
+  // editing a date ends the snooze without any writer clearing it.
+  snoozedUntil DateTime?
+  snoozedFor   String?
+  snoozedById  String?
+  snoozedBy    User?     @relation("ContractSnoozedBy", fields: [snoozedById], references: [id], onDelete: SetNull)
 
   propertyId String?
   property   Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
@@ -524,6 +541,14 @@ model Product {
   // (and its files) can be restored within the trash window.
   deletedAt   DateTime?
   updatedBy   User?     @relation("ProductUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  // #354 — "I've handled this, remind me again later": out of Needs
+  // attention and Reminders until snoozedUntil (a household day), and only
+  // while the record's dates are still those in snoozedFor, so renewing or
+  // editing a date ends the snooze without any writer clearing it.
+  snoozedUntil DateTime?
+  snoozedFor   String?
+  snoozedById  String?
+  snoozedBy    User?     @relation("ProductSnoozedBy", fields: [snoozedById], references: [id], onDelete: SetNull)
 
   propertyId String?
   property   Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
@@ -539,6 +564,89 @@ model Product {
   updatedAt DateTime @updatedAt
 
   @@map("products")
+}
+
+// #380 staging tables. Legacy Product and InventoryItem writers remain in use
+// until the Item routes and Document storage have been migrated together.
+model Item {
+  id              String   @id @default(cuid())
+  description     String
+  manufacturer    String?
+  model           String?
+  vendor          String?
+  serialNumber    String?
+  barcode         String?
+  purchaseDate    DateTime?
+  price           Float?
+  currency        String   @default("AUD")
+  category        String?
+  location        String?
+  propertyId      String?
+  notes           String?
+  createdById     String
+  deletedAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  legacyProductId String?  @unique
+  mergeConflictFields String?
+
+  warranty         Warranty?
+  legacyInventories ItemLegacyInventory[]
+  documents        ItemDocument[]
+
+  @@map("items")
+}
+
+model Warranty {
+  id                 String   @id @default(cuid())
+  itemId             String   @unique
+  item               Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  endDate            DateTime?
+  reminderDaysBefore String?
+  registered         Boolean  @default(false)
+  extended           Boolean  @default(false)
+  legacyProductId    String?  @unique
+
+  @@map("warranties")
+}
+
+// Several InventoryItems may point at one Product. Keep every source id so
+// their Documents can be moved and audited before the old rows are removed.
+model ItemLegacyInventory {
+  inventoryItemId String @id
+  itemId          String
+  item            Item   @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
+  @@map("item_legacy_inventories")
+}
+
+model ItemDocument {
+  id               String   @id @default(cuid())
+  itemId           String
+  item             Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  sourceKind       String
+  sourceDocumentId String
+  filename         String
+  storedName       String
+  mimeType         String
+  size             Int
+  kind             ProductDocumentKind @default(OTHER)
+  extractedText    String?
+  extractionStatus String   @default("PENDING")
+  sha256           String?
+  category         String?
+  isImportant      Boolean  @default(false)
+  deletedAt        DateTime?
+  supersedesId     String?  @unique
+  supersedes       ItemDocument? @relation("ItemDocumentVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
+  supersededBy     ItemDocument? @relation("ItemDocumentVersions")
+  uploadedAt       DateTime @default(now())
+
+  @@unique([sourceKind, sourceDocumentId])
+  @@index([itemId])
+  @@index([deletedAt])
+  @@map("item_documents")
 }
 
 // #314: has FTS5 sync triggers (fts_product_documents_*) — see the comment
@@ -671,6 +779,28 @@ model SecurityEventLog {
 
   @@index([createdAt])
   @@map("security_event_logs")
+}
+
+// #374 — a link that serves one Document without a session, for sharing it
+// from a browser that can't share the file itself. Only a hash of the token
+// is stored. A link works until it expires or is revoked, and only while the
+// Document (and its record) is live; the Document can be of any kind, so
+// `documentId` isn't a foreign key (cuids are unique across the kinds).
+model DocumentShareLink {
+  id           String    @id @default(cuid())
+  tokenHash    String    @unique
+  documentId   String
+  createdById  String?
+  createdBy    User?     @relation("DocumentShareLinksCreated", fields: [createdById], references: [id], onDelete: SetNull)
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  openCount    Int       @default(0)
+  lastOpenedAt DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([documentId])
+  @@index([expiresAt])
+  @@map("document_share_links")
 }
 
 model ModuleEnablement {
@@ -992,6 +1122,14 @@ model Vehicle {
   // #355 — Archived: the household no longer has it (sold). See Property.
   archivedAt  DateTime?
   updatedBy   User?     @relation("VehicleUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  // #354 — "I've handled this, remind me again later": out of Needs
+  // attention and Reminders until snoozedUntil (a household day), and only
+  // while the record's dates are still those in snoozedFor, so renewing or
+  // editing a date ends the snooze without any writer clearing it.
+  snoozedUntil DateTime?
+  snoozedFor   String?
+  snoozedById  String?
+  snoozedBy    User?     @relation("VehicleSnoozedBy", fields: [snoozedById], references: [id], onDelete: SetNull)
 
   items     VehicleItem[]
   contracts Contract[]
@@ -1326,4 +1464,37 @@ model ChatMessage {
 
   @@index([threadId])
   @@map("chat_messages")
+}
+
+enum McpImportKind {
+  CONTRACT
+  PRODUCT
+  INVENTORY_ITEM
+}
+
+enum McpImportStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// #529 — a record an MCP agent proposed importing. Nothing here is a real
+// record: `data` holds the validated input as JSON until a household member
+// approves it in Documents → Imports, which re-validates it and writes it
+// through the kind's record command. `tokenLabel` names which MCP token
+// proposed it; `reviewedById` is audit metadata only, like createdById.
+model McpImportProposal {
+  id           String          @id @default(cuid())
+  kind         McpImportKind
+  data         String
+  summary      String
+  tokenLabel   String
+  status       McpImportStatus @default(PENDING)
+  recordId     String?
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime        @default(now())
+
+  @@index([status, createdAt])
+  @@map("mcp_import_proposals")
 }

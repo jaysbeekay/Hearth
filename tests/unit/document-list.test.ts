@@ -3,12 +3,12 @@ import {
   documentTypeLabel,
   groupDocumentVersions,
   isBrowserViewableImage,
+  isPreviewable,
   olderVersionShowsStar,
   showsThumbnail,
   type DocumentListRow,
 } from "@/lib/documents/documentList";
 import { documentCategoryLabel } from "@/lib/documents/categories";
-import { isPreviewable } from "@/components/DocumentPreviewModal";
 
 // #397 — the one Document list's grouping and labels, shared by every kind.
 

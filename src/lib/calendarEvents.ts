@@ -1,6 +1,16 @@
 import { prisma } from "@/lib/prisma";
 import { calendarDayOf, type CalendarDay, type DueContext, type DueEntry } from "@/lib/duePolicy";
-import { contractDue, currentTenancy, tenancyDue, LIVE_TENANCY_AGREEMENTS, vehicleDue, warrantyDue } from "@/lib/dueRecords";
+import {
+  contractDue,
+  currentTenancy,
+  tenancyDue,
+  LIVE_TENANCY_AGREEMENTS,
+  vehicleDue,
+  vehicleDueRecord,
+  warrantyDue,
+} from "@/lib/dueRecords";
+import { activeSnoozeUntil } from "@/lib/snooze";
+import { COVERING_CONTRACTS } from "@/lib/covers";
 import { dayStart } from "@/lib/listDue";
 
 export type CalendarKind =
@@ -26,6 +36,8 @@ export interface CalendarEvent {
    * are never Due (records of finished work have no state, #402).
    */
   entry?: DueEntry;
+  /** #354 — the day a Snoozed record comes back: Upcoming still lists its dates, marked Snoozed. */
+  snoozedUntil?: CalendarDay;
 }
 
 /** The record-type tag Upcoming shows, in the glossary's nouns. */
@@ -89,17 +101,28 @@ export async function getCalendarEvents(
         renewalType: true,
         status: true,
         reminderDaysBefore: true,
+        snoozedUntil: true,
+        snoozedFor: true,
       },
     }),
     prisma.product.findMany({
       where: { deletedAt: null, warrantyEndDate: { gte: fromDate } },
-      select: { id: true, description: true, manufacturer: true, warrantyEndDate: true, reminderDaysBefore: true },
+      select: {
+        id: true,
+        description: true,
+        manufacturer: true,
+        warrantyEndDate: true,
+        reminderDaysBefore: true,
+        snoozedUntil: true,
+        snoozedFor: true,
+      },
     }),
   ]);
 
   for (const c of contracts) {
     const href = `/contracts/${c.id}`;
     const entries = contractDue(c, ctx);
+    const snoozedUntil = activeSnoozeUntil({ kind: "contract", ...c }, ctx.today) ?? undefined;
     for (const entry of entries) {
       if (!inRange(entry.date)) continue;
       events.push({
@@ -110,6 +133,7 @@ export async function getCalendarEvents(
         href,
         kind: "contract",
         entry,
+        snoozedUntil,
       });
     }
     // While the notice deadline is ahead it is the Contract's Due entry, but
@@ -121,6 +145,7 @@ export async function getCalendarEvents(
   }
 
   for (const p of products) {
+    const snoozedUntil = activeSnoozeUntil({ kind: "warranty", ...p }, ctx.today) ?? undefined;
     for (const entry of warrantyDue(p, ctx)) {
       if (!inRange(entry.date)) continue;
       events.push({
@@ -131,6 +156,7 @@ export async function getCalendarEvents(
         href: `/products/${p.id}`,
         kind: "warranty",
         entry,
+        snoozedUntil,
       });
     }
   }
@@ -140,9 +166,11 @@ export async function getCalendarEvents(
       where: { deletedAt: null, archivedAt: null },
       include: {
         items: { where: { deletedAt: null, date: { gte: fromDate } }, select: { id: true, title: true, date: true } },
+        contracts: COVERING_CONTRACTS,
       },
     });
     for (const v of vehicles) {
+      const snoozedUntil = activeSnoozeUntil(vehicleDueRecord(v), ctx.today) ?? undefined;
       for (const entry of vehicleDue(v, ctx)) {
         if (!inRange(entry.date)) continue;
         events.push({
@@ -152,6 +180,7 @@ export async function getCalendarEvents(
           href: `/vehicles/${v.id}`,
           kind: "vehicle",
           entry,
+          snoozedUntil,
         });
       }
       for (const item of v.items) {

@@ -11,9 +11,12 @@ import {
   getSftpConfig,
   getLocalConfig,
   isAppSettingSet,
+  getServerDefaultTimeZone,
 } from "@/lib/appSettings";
-import { saveBackupDestination } from "@/lib/actions/app-settings";
-import { BackupDestinationForm } from "@/components/AppSettingsForms";
+import { saveBackupDestination, saveBackupSchedule } from "@/lib/actions/app-settings";
+import { BackupDestinationForm, BackupScheduleForm } from "@/components/AppSettingsForms";
+import { SaveChangesGroup } from "@/components/SaveChangesGroup";
+import { describeSchedule } from "@/lib/cronSchedule";
 import { BACKUP_DESTINATION_LABELS } from "@/lib/backupDestination";
 import { BackupNowForm } from "@/components/BackupNowForm";
 import { formatTimestamp, humanFileSize } from "@/lib/utils";
@@ -69,7 +72,7 @@ export default async function BackupsPage() {
             Encryption: {isEncryptionConfigured() ? "configured" : "not configured"}
           </li>
           <li>Backup destination: {BACKUP_DESTINATION_LABELS[destination]}</li>
-          <li>Schedule: {backupSchedule.cron}</li>
+          <li>Schedule: {describeSchedule(backupSchedule.cron)}</li>
           <li>Retention: last {backupSchedule.retentionCount} backups</li>
         </ul>
 
@@ -88,37 +91,51 @@ export default async function BackupsPage() {
         )}
       </Card>
 
-      <Card as="section" className="space-y-4">
-        <div>
-          <h2 className="font-medium">Backup destination</h2>
-          <p className="text-xs text-muted mt-0.5">
-            Where encrypted database backups are written. Choose one destination.
-          </p>
-        </div>
-        <BackupDestinationForm
-          action={saveBackupDestination}
-          current={{
-            destination,
-            local: { path: local.path },
-            s3: {
-              endpoint: s3.endpoint,
-              region: s3.region,
-              bucket: s3.bucket,
-              accessKeyId: s3.accessKeyId,
-              forcePathStyle: s3.forcePathStyle,
-              secretKeyIsSet: s3SecretIsSet,
-            },
-            sftp: {
-              host: sftp.host,
-              port: sftp.port,
-              username: sftp.username,
-              remotePath: sftp.remotePath,
-              passwordIsSet: sftpPasswordIsSet,
-              privateKeyIsSet: sftpPrivateKeyIsSet,
-            },
-          }}
-        />
-      </Card>
+      <SaveChangesGroup>
+        <Card as="section" className="space-y-4">
+          <div>
+            <h2 className="font-medium">Backup destination</h2>
+            <p className="text-xs text-muted mt-0.5">
+              Where encrypted database backups are written. Choose one destination.
+            </p>
+          </div>
+          <BackupDestinationForm
+            action={saveBackupDestination}
+            current={{
+              destination,
+              local: { path: local.path },
+              s3: {
+                endpoint: s3.endpoint,
+                region: s3.region,
+                bucket: s3.bucket,
+                accessKeyId: s3.accessKeyId,
+                forcePathStyle: s3.forcePathStyle,
+                secretKeyIsSet: s3SecretIsSet,
+              },
+              sftp: {
+                host: sftp.host,
+                port: sftp.port,
+                username: sftp.username,
+                remotePath: sftp.remotePath,
+                passwordIsSet: sftpPasswordIsSet,
+                privateKeyIsSet: sftpPrivateKeyIsSet,
+              },
+            }}
+          />
+        </Card>
+
+        <Card as="section" className="space-y-4">
+          <div>
+            <h2 className="font-medium">Schedule</h2>
+            <p className="text-xs text-muted mt-0.5">When automatic backups run, and how many to keep.</p>
+          </div>
+          <BackupScheduleForm
+            action={saveBackupSchedule}
+            current={{ cron: backupSchedule.cron, retentionCount: backupSchedule.retentionCount }}
+            serverTimeZone={getServerDefaultTimeZone()}
+          />
+        </Card>
+      </SaveChangesGroup>
 
       <Card as="section">
         <h2 className="mb-3 font-medium">Recent runs</h2>

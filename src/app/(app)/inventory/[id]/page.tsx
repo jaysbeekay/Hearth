@@ -21,6 +21,7 @@ import { BackLink } from "@/components/BackLink";
 import { Card } from "@/components/ui/Card";
 import { buttonClass, menuItemClass } from "@/lib/ui";
 import { PageShell } from "@/components/ui/PageShell";
+import { RememberRecentRecord } from "@/components/RememberRecentRecord";
 
 export const metadata: Metadata = { title: "Inventory Item" };
 
@@ -62,6 +63,7 @@ export default async function InventoryItemPage({
 
   return (
     <PageShell width="detail">
+      <RememberRecentRecord kind="inventory" id={id} />
       <div>
         <BackLink href="/inventory" label="Inventory" />
       </div>
@@ -88,7 +90,7 @@ export default async function InventoryItemPage({
                 <ConfirmForm
                   action={deleteInventoryItem.bind(null, id)}
                   undo={{ action: restoreInventoryItem.bind(null, id), href: `/inventory/${id}` }}
-                  confirmText="Delete this item? Its documents are kept, and you can restore it within 30 days from Settings → Recently deleted."
+                  confirmText="Delete this item? Its documents are kept, and you can restore it within 30 days from Settings → Household → Recently deleted."
                   className={menuItemClass({ destructive: true })}
                   offline={{ entity: "inventoryItem", entityId: id, label: `Delete item: ${item.label}` }}
                 >

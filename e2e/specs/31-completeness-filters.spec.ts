@@ -7,9 +7,9 @@ test.use({ storageState: ADMIN_AUTH_FILE });
 // #328/#395 — Missing key details, defined once in src/lib/recordFilters.ts:
 // the dashboard's Housekeeping row counts with the same rule as the list it
 // opens, the list shows the filter as an active chip with Clear all, each
-// row says which part is missing, old URLs still land on the right filter,
-// and Global Search offers one "Missing key details" chip (no "Missing
-// reminder" / "Missing link").
+// row says which part is missing, and old URLs still land on the right
+// filter. #366 — Global Search keeps three plain chips; Missing key details
+// lives on the lists.
 
 async function createContract(
   page: Page,
@@ -137,7 +137,7 @@ test.describe.serial("Completeness filters", () => {
     await expect(page.getByRole("heading", { name: "Inventory items" })).toHaveCount(0);
   });
 
-  test("Vehicles: Missing key details means no VIN and no plate, in Search and the list", async ({ page }) => {
+  test("Vehicles: Missing key details means no VIN and no plate", async ({ page }) => {
     const stamp = Date.now();
     const completeLabel = `Completeness Filter Complete Vehicle ${stamp}`;
     const incompleteLabel = `Completeness Filter Incomplete Vehicle ${stamp}`;
@@ -174,6 +174,8 @@ test.describe.serial("Completeness filters", () => {
     await expect(page.locator("main")).not.toContainText(completeLabel);
     await expect(page.locator("a", { hasText: incompleteLabel }).getByText("No VIN or plate")).toBeVisible();
 
+    // #366 — Search no longer has completeness chips; the list above is
+    // where Missing key details lives.
     // The Search button opens GlobalSearch's dialog via a client-only event
     // listener that isn't wired up until React hydrates, so a click right
     // after goto() can land before it exists and silently no-op — retry
@@ -185,14 +187,10 @@ test.describe.serial("Completeness filters", () => {
     }).toPass({ timeout: 15_000 });
 
     const dialog = page.getByRole("dialog", { name: "Search" });
-    for (const removed of ["Missing reminder", "Missing link", "Missing date", "Missing identifier"]) {
+    await expect(dialog.getByRole("button", { name: "Due soon" })).toBeVisible();
+    for (const removed of ["Missing key details", "No document attached", "Missing reminder", "Missing link"]) {
       await expect(dialog.getByRole("button", { name: removed })).toHaveCount(0);
     }
-    await dialog.getByRole("button", { name: "Missing key details" }).click();
-    await expect(dialog.getByText(incompleteLabel)).toBeVisible();
-    await expect(dialog.getByText(completeLabel)).not.toBeVisible();
-    // The result explains what is missing, not just that something is.
-    await expect(dialog.getByRole("option", { name: new RegExp(incompleteLabel) })).toContainText("No VIN or plate");
   });
 });
 
@@ -213,4 +211,63 @@ test("chip counts follow the search and the other chips", async ({ page }) => {
   // The active chip counts the list on screen; the others count within it.
   await expect(main.getByRole("button", { name: "Missing key details · 1", pressed: true }).first()).toBeVisible();
   await expect(main.getByRole("button", { name: "No document · 1", pressed: false }).first()).toBeVisible();
+});
+
+// #517 review — an active chip whose list is empty can still be turned off.
+test("a zero-count active chip turns off", async ({ page }) => {
+  const stamp = Date.now();
+  await createContract(page, { title: `Chip Zero Complete ${stamp}`, endDate: "2031-01-01", cost: "10", billingFrequency: "MONTHLY" });
+
+  await page.goto(`/contracts?q=${stamp}&missing=details`);
+  const main = page.locator("main");
+  const active = main.getByRole("button", { name: "Missing key details · 0", pressed: true }).first();
+  await expect(active).toBeVisible();
+  await active.click();
+  await expect(page).not.toHaveURL(/[?&]missing=details/);
+  await expect(main.getByRole("button", { name: "Missing key details · 0", pressed: false }).first()).toBeVisible();
+  await expect(main.getByText(`Chip Zero Complete ${stamp}`)).toBeVisible();
+});
+
+// #517 review — a search still waiting to auto-submit must not fire after a
+// pill or Clear all has changed the list, and put back a q= it just removed.
+test("removing the search before the auto-submit fires keeps it removed", async ({ page }) => {
+  // The toolbar only renders once there is a record, so the race needs one.
+  await createContract(page, { title: `Debounce Race ${Date.now()}` });
+  await page.goto("/products/new");
+  await page.locator("#description").fill(`Debounce Race ${Date.now()}`);
+  await page.locator("main button[type=submit]").click();
+  await page.waitForURL(/\/products\/(?!new$)[^/]+$/);
+
+  // The page clock is paused while typing and clicking, so the 400 ms timer
+  // cannot fire before the click; runFor then fires it if it was not
+  // cancelled. Without the pause a slow click could let the timer win and the
+  // test would pass with or without the fix.
+  await page.clock.install();
+  const pauseAfterLoad = async () => {
+    await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+  };
+
+  await page.goto("/contracts?q=Stale");
+  await pauseAfterLoad();
+  const contractSearch = page.getByPlaceholder("Search by title, provider, or number…");
+  await contractSearch.fill("Stale typed");
+  await page.locator("main").getByRole("button", { name: '"Stale"', exact: true }).click();
+  await page.waitForURL((url) => url.pathname === "/contracts" && !url.searchParams.has("q"));
+  // The search box follows the list: no typed text the list does not apply.
+  await expect(contractSearch).toHaveValue("");
+  await page.clock.runFor(1000);
+  await page.waitForTimeout(500);
+  expect(new URL(page.url()).searchParams.has("q")).toBe(false);
+
+  await page.clock.resume();
+  await page.goto("/products?q=Stale");
+  await pauseAfterLoad();
+  const productSearch = page.locator('main input[name="q"]');
+  await productSearch.fill("Stale typed");
+  await page.locator("main").getByRole("button", { name: "Clear all", exact: true }).click();
+  await page.waitForURL((url) => url.pathname === "/products" && !url.searchParams.has("q"));
+  await expect(productSearch).toHaveValue("");
+  await page.clock.runFor(1000);
+  await page.waitForTimeout(500);
+  expect(new URL(page.url()).searchParams.has("q")).toBe(false);
 });

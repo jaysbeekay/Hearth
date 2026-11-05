@@ -1,0 +1,37 @@
+{
+  "name": "hearth-migrate",
+  "private": true,
+  "description": "Prisma CLI for `prisma migrate deploy` in the Docker image, installed apart from the app so the runner can ship Next's standalone output instead of the root project's full production node_modules (#518). Keep the prisma version equal to the root package-lock.json's and the overrides equal to the root package.json's (they patch vulnerable transitive deps, which the Prisma CLI shares); tests/unit/docker-migrate-deps.test.ts checks both.",
+  "license": "AGPL-3.0-only",
+  "dependencies": {
+    "prisma": "7.10.0"
+  },
+  "overrides": {
+    "nodemailer": "^10.2.1",
+    "@hono/node-server": "^2.1.4",
+    "postcss": "^8.5.24",
+    "browserslist": "^4.28.8",
+    "fast-uri": "^3.1.9",
+    "minimatch@3.1.5": {
+      "brace-expansion": "^1.1.21"
+    },
+    "brace-expansion": "^5.0.12",
+    "@prisma/config": {
+      "deepmerge-ts": "^8.0.2"
+    },
+    "hono": "^4.13.13",
+    "ip-address": "^10.7.4",
+    "nanoid": "^3.3.18",
+    "sharp": "^0.35.5",
+    "mysql2": "^3.24.5",
+    "proxy-addr": "^2.0.8",
+    "qs": "^6.16.1",
+    "@xmldom/xmldom": "^0.9.12",
+    "source-map-js": "^1.2.2",
+    "uuid": "^11.1.1",
+    "body-parser": "^2.4.0",
+    "zod": "$zod",
+    "@simplewebauthn/server": "$@simplewebauthn/server",
+    "@simplewebauthn/browser": "$@simplewebauthn/browser"
+  }
+}

@@ -10,11 +10,17 @@ import {
 
 export default defineConfig({
   testDir: "./e2e",
+  // The Capacitor shell specs have their own config and CI job
+  // (playwright.standalone.config.ts). Without this they also ran here, so
+  // every CI run executed them twice and doubled their chance to flake.
+  testIgnore: "standalone/**",
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? "github" : "list",
+  // In CI the html report is what the failure-upload step in ci.yml picks up;
+  // with "github" alone, playwright-report/ was never written.
+  reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
   use: {
     baseURL: BASE_URL,
     trace: "retain-on-failure",

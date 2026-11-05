@@ -74,7 +74,7 @@ The general relationship between a Contract or Item and the Vehicle or Property 
 _Avoid_: Attached to, belongs to
 
 **Covers**:
-The narrower case of Linked to where the Contract's end date is the linked Vehicle, Property or Item's expiry, as with insurance, registration or recurring-billed device cover. The covered thing shows that end date and has no expiry or Reminders of its own.
+The narrower case of Linked to where the Contract's end date is the linked Vehicle, Property or Item's expiry, as with insurance, registration or recurring-billed device cover. A Tenancy's linked Contract Covers it when it ends on the lease end; the lease end then has no Due entry of its own. The covered thing shows that end date and has no expiry or Reminders of its own. A Contract Covers only while it is not Cancelled, not in Trash, not awaiting review and has an end date; when several Cover the same date the one ending last sets it and the others keep their own Reminders. When a Contract stops Covering, the thing's own manual date applies again, which may be out of date or already past, so the Contract page says which date resumes and links to edit it. Likewise, when a Contract starts Covering a date the thing already had a different value for, the Contract page names both dates and says the thing's own date no longer sends Reminders.
 
 **Tenancy**:
 A Property the household lets out to a tenant, with its rent, bond and lease dates. It is income, not a Contract: rent the household pays is a Contract with Category Rental instead.
@@ -116,6 +116,10 @@ _Avoid_: Unlinked documents, queue
 The state of a record that was filled in automatically, from email or the Inbox, with no person present, and that nobody has saved since. Saving a record is confirmation.
 _Avoid_: Pending, unconfirmed
 
+**Quick check**:
+The one screen listing every record that Needs review, with its auto-filled details editable in place and confirmed together. Upload's "Save all" opens it when any record it saved Needs review.
+_Avoid_: Review queue, batch review
+
 ### Views
 
 **Reminder**:
@@ -145,6 +149,10 @@ A Due entry whose date has passed, such as an Expired Contract or a Vehicle's re
 
 **Housekeeping**:
 A Needs attention entry about a record that needs tidying rather than a date, such as missing details, a Document waiting in the Inbox, a record that Needs review, an auto-renewing Contract past its end date that needs its new end date, or a Tenancy past its lease end that needs its new lease end.
+
+**Snoozed**:
+A Contract, Warranty or Vehicle someone has said to remind them about later, until a chosen day. While Snoozed it leaves Needs attention and gets no Reminders, but stays on Upcoming. A Snooze ends on its day, or as soon as the dates it was set against change (renewing ends it).
+_Avoid_: Dismissed, acknowledged, muted
 
 **Missing key details**:
 A Housekeeping entry for a record lacking something it needs to be useful: a Contract with no end date (unless it auto-renews) or a cost with no billing frequency; an Item with neither serial nor barcode, or with a Warranty that has no end date; a Vehicle with neither VIN nor plate. Cancelled Contracts and Archived records are never missing anything. Having no Reminder threshold or not being Linked to anything is not missing.

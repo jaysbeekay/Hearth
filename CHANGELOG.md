@@ -7,8 +7,132 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ## [Unreleased]
 
+### Added
+
+- **Upload page: one scan, bulk edits and a Quick check screen (#358).**
+  Each file is scanned once; the page pre-selects Contract, Warranty or
+  Inventory item from what the scan found, and switching type reuses that
+  scan instead of scanning again (only the pre-selected type escalates to
+  local or cloud AI). With several files queued, "Apply to selected" sets
+  File as, Contract category or Linked to on every ticked file at once.
+  "Save all" reports once, and when any record was saved with auto-filled
+  details still to check, it opens the new Quick check screen (`/review`),
+  which lists them all with their fields editable in place and one
+  "Confirm all". On the dashboard, several such records share one Needs
+  attention row that links there. Server-only; the iOS and Android shell is
+  unchanged.
+- **Share a Document (#374).** Every Document row (on each record's page and
+  in Documents) has Share beside Preview, and the preview gains Share and
+  Download. Where the browser can share files (phones, some desktops) the
+  file itself goes to the share sheet. Elsewhere Share makes a link that
+  opens the Document without signing in for 24 hours, and copies it; the
+  toast offers Revoke. Links are recorded in the Security log, listed there
+  under Shared links for an admin to revoke, stop working as soon as the
+  Document or its record goes to Trash, and are cleared a day after they
+  expire. Read-only members can share the file but can't make links. Only
+  a hash of each link's token is stored.
+- **Snooze for Needs attention (#354).** A Due Contract, Warranty or Vehicle
+  has a Snooze button on its Needs attention row and its detail banner: 1
+  week, 30 days, or until a chosen date. While Snoozed it leaves Needs
+  attention and its Reminders pause; Upcoming still lists it, greyed and
+  marked "Snoozed until …"; the detail page says who Snoozed it and until
+  when, with Unsnooze. A Snooze is tied to the dates it was set against, so
+  renewing the record or changing one of those dates ends it, and it ends by
+  itself on its day (anything crossed meanwhile goes out as one catch-up
+  Reminder). Read-only members can't Snooze. The standalone mobile shell
+  doesn't have Snooze yet.
+- **Import records over MCP, with approval (#529).** Tokens listed in the
+  new `MCP_IMPORT_LABELS` get `propose_import_contract`,
+  `propose_import_product` and (with Inventory on)
+  `propose_import_inventory_item`. A proposal is validated against the
+  form's own schema and queued; it becomes a record only when a household
+  member approves it in the new Documents → Imports tab, which shows every
+  field, the proposing token and likely duplicates (of existing records or of other pending
+  proposals; bulk approval skips look-alikes), with single and bulk
+  approve/reject. Proposals never carry record links or documents, are
+  capped at 100 per token per hour and 200 pending, and READONLY members
+  can see the queue but can't approve or reject. Server-only; the iOS and
+  Android shell is unchanged.
+- **arm64 Docker image (#478).** `jaysbeekay/hearth` is now published for
+  `linux/arm64` as well as `linux/amd64`, under the same tags, so it runs on
+  a Raspberry Pi 4/5 (64-bit OS), Apple-silicon Macs and ARM servers.
+  `docker pull` picks the right one automatically. Each architecture is
+  built, size-checked and smoke-tested on a native runner before either is
+  published, on every Docker-related PR as well as at release, and both
+  carry an SBOM and build provenance.
+
+### Security
+
+- **Passkeys: `@simplewebauthn` 9 → 14 (#376).** Server 14.0.3 and browser
+  14.0.0 clear the last `npm audit` entries (GHSA-6hxq-p678-4hr2, which
+  didn't affect Hearth: it registers passkeys with `attestationType:
+  "none"`). Existing passkeys keep signing in with no migration; the stored
+  format is unchanged. New passkeys are offered the same algorithms as
+  before (EdDSA, ES256, RS256), now listed explicitly so every Node version
+  advertises the same set. An npm `overrides` entry satisfies next-auth's
+  optional peer on 9.x, which only its unused WebAuthn provider needs.
+  Sign-in is also stricter: each challenge is used up by its first attempt,
+  whether that attempt succeeds or not, and the assertion's credential and
+  user handle must match the stored passkey. Registration accepts any of
+  the user's unexpired challenges, so adding a passkey in two tabs works,
+  and only known transports are stored.
+- **MCP server hardening.** `/api/mcp` now compares bearer tokens in
+  constant time, throttles wrong tokens per client address (10 per 15
+  minutes, recorded in Settings → Security as "MCP request with a wrong
+  token" and "MCP requests throttled", at most 30 rows per 15 minutes so a
+  flood can't bury the log), and caps each valid token at 300
+  requests per 5 minutes. A new optional `MCP_TOKENS` variable takes
+  `label:token` pairs so each client gets its own revocable token, and the
+  server log names the label on every tool call. Every tool now carries the
+  MCP `readOnlyHint` annotation, the server's instructions tell agents to
+  treat free-text fields as data rather than instructions, and a unit test
+  pins the exact read-only tool list. The README's MCP section now covers
+  HTTPS; setup for Claude Code, Claude Desktop, the OpenAI Codex CLI and Open
+  WebUI (and why ChatGPT connectors can't connect yet); and the `Accept` header for
+  hand-rolled clients. Server-only; the iOS and Android shell is unchanged.
+- **nginx overwrites `X-Forwarded-For`.** The HTTPS compose file's nginx
+  used to append to a client-supplied `X-Forwarded-For`, and Hearth's rate
+  limits (sign-in, password reset, MCP tokens) key on the header's first
+  entry, so a client could pick its own throttle bucket. nginx now sets it
+  to the real client address, as does the mTLS example config.
+
 ### Changed
 
+- **Joining the household (#372).** Accepting an invitation signs the new
+  member straight in and lands them on Upcoming, with a one-time welcome that
+  says everything is shared with the household and what their role lets
+  them do. Finishing a password reset signs in too, unless two-factor is on,
+  in which case it still asks for the code at sign-in. On phones, Upcoming
+  takes Documents' place in the bottom bar; Documents and its Inbox count
+  move into More, and the More tab shows the count too.
+- **Saving a scanned record confirms it (#359).** After a scan fills in a
+  Contract or Warranty form, pressing Save is the review: the record saves
+  confirmed, with Reminders live. The "I've checked the highlighted fields"
+  checkbox is gone. A note above Save names the fields the scan filled, and
+  "Save for later review" keeps the old path (Needs review, Reminders held,
+  and the per-field review panel). On Upload and in the Inbox, a row you
+  changed, or one the scan read confidently (two or more fields), saves
+  confirmed. Only an untouched row with a weak scan still waits for review.
+
+- **Standalone app reads Due the same way as the web (#386).** The iOS and
+  Android shell now has a hand-ported copy of the Due policy
+  (`dueEntries` in `ios-shell/www/app.js`) and uses it for Needs attention,
+  the record-list badges, Upcoming and local Reminders, with the device's
+  day as today. So a Contract's notice deadline is Due and reminds while
+  it's ahead, an auto-renewing Contract's end date never reminds, a Lapsed
+  Warranty or Ended fixed-term Contract leaves Needs attention, an
+  auto-renewing Contract past its end needs a new end date, the due-soon
+  window is each record's largest Reminder threshold rather than a fixed
+  30 days, and only a rented Property's current Tenancy has a Due lease end.
+  The standalone suite runs the shared `tests/fixtures/due-policy-cases.json`
+  against the port, so a rule changed on one side only fails a test.
+- **A Contract that Covers a Tenancy (#457).** When a Tenancy's linked
+  Contract ends on the lease end (and isn't Cancelled, in Trash or awaiting
+  review), the lease end has no Due row or Reminders of its own: the
+  Contract's stand in, on the web and in the standalone app. The Property
+  page says the lease Reminders come from that Contract. Once a fixed-term
+  Covering Contract has ended, the lease's "set the new lease end" row
+  comes back.
 - **One set of shared UI rules (#411).** The app now draws from one type
   scale (24/20/16/14/12px at two weights, sentence case), one radius
   (`rounded-lg`, with `rounded-full` only for dots), 1px borders, no card
@@ -57,6 +181,29 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   pages instead of showing a dash, and a Contract's or Warranty's header
   badge is hidden while the status banner below says the same thing. The
   iOS and Android shell is unchanged.
+- **Settings is two tabs: My account and Household (#363).** My account
+  holds only your own things: profile, reminders by email, preferences,
+  passkeys and two-factor, password, calendar feed and downloaded documents.
+  Household lists everything shared: Members, Modules, Reminders & channels,
+  AI & privacy, Document ingestion, Integrations, Backups, Security log and
+  Recently deleted, each with a one-line status, plus the household
+  timezone. Members see the whole list with the admin-only sections greyed
+  out, and can open Recently deleted. The long "System settings" page is
+  split into those sections; Reminders & channels opens with Reminder
+  delivery health, and webhooks now sit under Integrations with barcode and
+  flight lookups. `/settings/app` and `/settings/webhooks` redirect, and
+  every other Settings URL is unchanged. Reminder and backup schedules are
+  picked as "Daily at 08:00" or "Weekly on Monday at 03:30", with an
+  "Advanced (cron)" choice for anything else; the cron string is checked
+  before it's saved, and the old "restart the server" note is gone since the
+  scheduler re-reads it every minute. Settings pages have one sticky "Save
+  changes" bar that saves each section you edited, instead of a Save button
+  per form; a section only counts as saved once its save succeeds, is locked
+  while it saves, and keeps what you typed if the server can't be reached
+  (instead of the error page). One-off
+  actions (change password, add a webhook, test connection) keep their own
+  buttons.
+  The iOS and Android shell is unchanged.
 - **Reminder presets and a one-line Reminder card (#360).** Contract,
   Warranty, Vehicle and Tenancy forms pick Reminder thresholds from presets
   ("Default · 30/14/7/1", "1 week before", "1 day before", "Custom…")
@@ -75,9 +222,37 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   ("Due soon · 2"), counted with the current search, category, status and
   other chips kept, with zero counts muted, replacing the separate row of summary counts
   and its "added this week" figure. On a phone the search box sits beside a
-  "Filters" button that opens a bottom sheet with the category and status
-  selects and the chips, so the first record is on the first screen. Links
+  "Filters" button that opens a bottom sheet (the category and status
+  selects and the chips on Contracts, the chips on Warranties), so the
+  first record is on the first screen. Links
   from the dashboard still pre-select the right chip. The iOS and Android
+  shell is unchanged.
+- **Spending lists the manual renewals coming up.** Under the tiles, a
+  folded line reads "+ $X from N contracts ending within 12 months (renew
+  manually)": what those contracts would cost for the rest of the year if
+  renewed on the same terms, which "Next 12 months" leaves out until you
+  renew. Open it for each contract and its end date, linked to the
+  contract. The iOS and Android shell is unchanged.
+- **Spending leads with what's useful (#367).** The "Tax-deductible / mo"
+  tile is hidden when nothing is tax-deductible. Contracts with a cost but
+  no billing frequency, which the dashboard and Spending both leave out of
+  the monthly figure, are now flagged here too, with a link to fill them
+  in. The category breakdown comes first; the timeline is folded under
+  "Recurring cost over time" and says so plainly when nothing changed
+  instead of drawing identical bars. "Annual projection" (monthly × 12) is
+  now "Next 12 months": a fixed-term or manually renewed contract counts
+  only up to its end date, and one that hasn't started counts from its
+  start date. The iOS and Android shell is unchanged.
+- **Search opens on something useful, and Documents stops overloading
+  "type" (#366).** Before you type, Search shows the last five records you
+  opened in this browser (only their kind and id are kept locally; titles come from
+  the server, so a deleted record drops out) and the first three Due rows
+  from Needs attention. Its chips are down to Due soon, Needs review and
+  Important; No document and Missing key details stay on the list pages'
+  filter rows, and `/api/search` still takes every filter. On Documents,
+  the area chips are labelled "Belongs to" (with "All" instead of "All
+  types"), the table has separate "Document type" and "Belongs to" columns
+  with one pill each, and each mobile card labels both. The iOS and Android
   shell is unchanged.
 - **Shorter Contract, Warranty and Vehicle forms (#361).** Only the fields
   that drive Reminders and Spend show up front. The rest sit in a "More
@@ -91,27 +266,79 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   date pickers follow the browser's language. The Property form was already
   short and is unchanged, and so is the iOS and Android shell.
 
+- **Standalone Upcoming no longer marks a Trip date overdue (#476).** Trip
+  dates and past events leave Upcoming, as on the web: it starts from today,
+  and anything Overdue is in Needs attention instead. Only a Contract,
+  Warranty or Vehicle date is ever Due soon; a Trip segment is a plain
+  neutral date, listed from today while any of it is still ahead. The web
+  lists Trip segments rather than the Trip itself, and so does the shell now.
+  The due-soon window and Contract rule differences (#386) are tracked there.
+
 ### Fixed
 
 - **A refused passkey says so.** Signing in with a passkey Hearth doesn't
   know (for example one removed in Settings) used to drop silently back to
   the sign-in page; it now shows "Passkey sign-in failed" (#376).
+- **Recently deleted count on empty lists (#514 follow-up).** An empty
+  Contracts or Warranties list no longer counts records past the 30-day
+  Trash window, which are purged the next time Trash opens.
+- **Document rows (#515 follow-up).** A picked Document type shows straight
+  away instead of jumping back until the save lands, and goes back only if
+  the save fails. After a failed "Add document" upload, picking the same
+  file again retries it. A Warranty with none of its details filled in no
+  longer shows an empty details card.
+- **Reminder card and thresholds hint (#516 follow-up).** "Next reminder …
+  by" names only the channels sending that Reminder, not every configured
+  one: a channel that already sent a threshold, or is catching up, runs on
+  its own schedule. The hint under the Reminder presets follows the
+  scheduler for a custom value with no whole days (such as 1.5): it shows
+  the household default that applies, not "No Reminders will be sent".
+- **Filters sheet (#517 follow-up).** Widening the window past the phone
+  layout while the Filters sheet is open closes it, instead of leaving the
+  page unclickable behind an invisible dialog, and the Filters button
+  tells screen readers whether its sheet is open.
+- **Scanned contract category (#519 follow-up).** A scanned title such as
+  "Mobile phone warranty" is now guessed as Warranty rather than Telecom or
+  Utility.
+- **Search suggestions (#520 follow-up).** Pressing Cmd/Ctrl-K while
+  Search is open reloads Recently viewed and Needs attention instead of
+  leaving them blank, a one-character query shows the "type at least 2
+  characters" hint instead of the suggestions, and typing or picking a chip
+  clears the highlighted row so Enter can't open a row from the old list.
+  Needs attention in Search is now the top three of the dashboard's queue,
+  so record housekeeping (unconfirmed scanned details, a passed auto-renew
+  end date) fills in when fewer than three things are due.
+- **Inventory writes follow the record rules (#471).** Creating, deleting,
+  restoring and permanently deleting an Inventory item now go through record
+  commands, from the forms, import, offline sync and Trash retention alike.
+  A new item can no longer be linked to a Warranty in Trash (the form, and
+  an offline create, now say "That warranty doesn't exist or has been
+  deleted."), and other save failures are no longer misreported as a
+  missing warranty. Deleting an item that's already in Trash, for example
+  by replaying an offline delete, no longer restarts its 30-day Trash
+  clock. Restoring an item now refreshes its own page.
 
-### Security
+- **Docker image is about 74% smaller (#518).** The amd64 image goes from
+  698 MiB to about 180 MiB compressed. The runner now ships Next's
+  standalone output instead of the project's full production `node_modules`.
+  File ownership is set as files are copied, rather than by a `chown -R`
+  that wrote every file a second time. The Prisma CLI for `prisma migrate
+  deploy` is installed by itself under `/opt/migrate` (`docker/migrate/`).
+  Migrations still run automatically at container start, and existing
+  `./data` volumes upgrade in place. glibc-only native binaries that could
+  never load on Alpine are dropped, and the APK index cache no longer lands
+  in the image. A new `Docker image` workflow builds the image on relevant
+  PRs, fails if the image exceeds a 200 MiB budget, and runs a container smoke test
+  (`scripts/docker-smoke.sh`) covering a fresh install and an upgrade from
+  the latest release. `docker-publish.yml` runs the same checks before it
+  pushes.
 
-- **Passkeys: `@simplewebauthn` 9 → 14 (#376).** Server 14.0.3 and browser
-  14.0.0 clear the last `npm audit` entries (GHSA-6hxq-p678-4hr2, which
-  didn't affect Hearth: it registers passkeys with `attestationType:
-  "none"`). Existing passkeys keep signing in with no migration; the stored
-  format is unchanged. New passkeys are offered the same algorithms as
-  before (EdDSA, ES256, RS256), now listed explicitly so every Node version
-  advertises the same set. An npm `overrides` entry satisfies next-auth's
-  optional peer on 9.x, which only its unused WebAuthn provider needs.
-  Sign-in is also stricter: each challenge is used up by its first attempt,
-  whether that attempt succeeds or not, and the assertion's credential and
-  user handle must match the stored passkey. Registration accepts any of
-  the user's unexpired challenges, so adding a passkey in two tabs works,
-  and only known transports are stored.
+### Fixed
+
+- **PDF export returned 500 in the Docker image (#523).** Every "Export
+  PDF" failed with `ENOENT … Helvetica.afm`, because webpack bundled
+  `pdfkit` and left its font data behind. `pdfkit` is now a server external
+  package, so its data files ship with it.
 
 ## [0.20.1] - 2026-10-31
 
@@ -226,6 +453,50 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   release.
 
 ### Added
+
+- **Standalone shell: Recently deleted documents (#488).** More, Settings and
+  Documents now open a "Recently deleted documents" list of Documents in
+  Trash, newest first, with the record each belonged to, the date it was
+  deleted and the days left before it is removed for good. Each has Restore,
+  which puts the Document back in its version chain, and Delete permanently,
+  which asks first and removes the file and row together by the same purge the
+  30-day cleanup uses (matching Settings, Trash on the web). A Document whose
+  record was deleted is listed for its 30 days with only Delete permanently,
+  since the shell can't bring the record back. Only one restore or delete runs
+  at a time, so a Restore can't race a permanent delete. Restore refuses a
+  Document whose file is gone (it stays in Trash), and a permanent delete
+  keeps a file that another Document row still uses.
+- **Covers: a Contract can supply a Vehicle's insurance and rego dates (#456).**
+  A new **Vehicle registration** Contract category joins Car insurance. A
+  Contract Covers a Vehicle when it is linked to it, in one of those two
+  categories, not cancelled or in Trash, and has an end date. Its end date
+  then *is* the Vehicle's insurance expiry (car insurance) or rego expiry
+  (registration): the Vehicle page shows the date read-only with a link ("From
+  Allianz policy →") and the list shows the same date, the Vehicle's own Due entry and Reminders for
+  that date are switched off so only the Contract's fire, and the Vehicle's
+  edit form shows the date read-only. With several Covering Contracts the one
+  ending last wins; when the Contract is cancelled, trashed, unlinked or
+  loses its end date, the Vehicle's manual date takes over again (nothing is
+  overwritten). With no covering Contract the manual date stays, with the hint
+  "Add the policy as a contract to track cost and documents". The Vehicle
+  page gets "Add insurance" and "Add registration" shortcuts (and the
+  Property page "Add insurance") that open the contract form pre-linked and
+  pre-categorised, and a registration Contract's cost shows in Spending. The
+  Assistant and MCP report the same derived dates (and which Contract supplies
+  them), calendar feeds leave the Vehicle's duplicate event out, and the
+  standalone shell follows the same rules, with a Category picker, a vehicle
+  link on its contract form and the same shortcuts. No schema migration.
+  A Contract awaiting review never Covers, so an unconfirmed extraction can't
+  replace a typed-in date. When a Contract is cancelled, unlinked or
+  re-categorised, its page says which of the Vehicle's own dates applies
+  again (and when it has already passed). Contract pages and cards say
+  Covers the Vehicle, search finds registration Contracts for rego and
+  registration, the vehicle records export gains the effective and own
+  rego and insurance dates, and the Assistant's needs-attention vehicle list
+  now uses the same Due policy as What's due. A fixed-term Covering Contract
+  that has passed its end date has simply ended, so the Vehicle's date shows
+  as Overdue from that end date (web and standalone shell) instead of the
+  lapse going unannounced; a renewal entered as a new Contract takes over.
 
 - **Archive a Vehicle or Property you no longer have (#355).** Archive (in
   the record's More actions menu, with Undo) marks a Vehicle as sold or a

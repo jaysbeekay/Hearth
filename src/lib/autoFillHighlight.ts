@@ -75,10 +75,11 @@ export function applyIfEmpty(
   el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null | undefined,
   value: string | undefined,
   source: "heuristic" | "ai" = "heuristic",
-) {
-  if (!value || !el || el.value) return;
+): boolean {
+  if (!value || !el || el.value) return false;
   el.value = value;
   markAutoFilled(el, source);
+  return true;
 }
 
 // Client-side mirror of the server's extraction confidence heuristic
@@ -96,7 +97,7 @@ export function isAiExtractionSource(source: ExtractionSource) {
 export const TEXT_EXTRACTION_UNAVAILABLE_MESSAGE =
   "Text extraction isn't available on this server (pdftotext or tesseract isn't installed), " +
   "so nothing was auto-filled. The file still attaches — fill the fields in manually, or ask an " +
-  "admin to add an AI key in System settings.";
+  "admin to add an AI key in Settings → Household → AI & privacy.";
 
 export function extractionMessage(
   source: ExtractionSource,

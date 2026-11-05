@@ -32,6 +32,7 @@ import { Card } from "@/components/ui/Card";
 import { buttonClass, menuItemClass, emptyStateClass, cardClass } from "@/lib/ui";
 import { Pill } from "@/components/ui/Pill";
 import { PageShell } from "@/components/ui/PageShell";
+import { RememberRecentRecord } from "@/components/RememberRecentRecord";
 
 const SEGMENT_ICONS: Record<string, LucideIcon> = {
   FLIGHT: Plane,
@@ -122,6 +123,7 @@ export default async function TripDetailPage({
 
   return (
     <PageShell width="detail">
+      <RememberRecentRecord kind="trip" id={id} />
       <div>
         <BackLink href="/travel" label="Travel" />
       </div>
@@ -150,7 +152,7 @@ export default async function TripDetailPage({
                 <ConfirmForm
                   action={deleteTrip.bind(null, trip.id)}
                   undo={{ action: restoreTrip.bind(null, trip.id), href: `/travel/${trip.id}` }}
-                  confirmText="Delete this trip? Its segments and documents are kept, and you can restore it within 30 days from Settings → Recently deleted."
+                  confirmText="Delete this trip? Its segments and documents are kept, and you can restore it within 30 days from Settings → Household → Recently deleted."
                   className={menuItemClass({ destructive: true })}
                   offline={{ entity: "trip", entityId: trip.id, label: `Delete trip: ${trip.title}` }}
                 >
@@ -229,7 +231,7 @@ export default async function TripDetailPage({
                                 parentId: trip.id,
                                 label: `Delete segment: ${segment.title}`,
                               }}
-                              confirmText={`Delete "${segment.title}"? Its documents are kept, and you can restore it within 30 days from Settings → Recently deleted.`}
+                              confirmText={`Delete "${segment.title}"? Its documents are kept, and you can restore it within 30 days from Settings → Household → Recently deleted.`}
                               className={menuItemClass({ destructive: true })}
                             >
                               <Trash2 size={16} />
