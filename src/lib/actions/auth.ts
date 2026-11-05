@@ -649,18 +649,19 @@ export async function resetPassword(
   }
   await logSecurityEvent({ type: "PASSWORD_RESET_COMPLETED", userId: resetToken.userId });
 
-  // #372 — the person just proved they own the inbox and chose this
-  // password, so sign them straight in. Without two-factor the link could
-  // already be used to set a password and sign in with it, so this adds no
-  // new way in; earlier sessions were signed out above. With two-factor on a
-  // reset link must not stand in for the second factor, so they still sign
-  // in with it.
-  return signInAfterPasswordSet(resetToken.userId, parsed.data.password, "/dashboard", "Password updated. You can now sign in.");
+  // A reset ends here and sends the person to the login page to sign in
+  // with the new password (ResetPasswordForm's "Continue to sign in"). It
+  // doesn't sign them in itself: a reset link is something an email inbox
+  // hands out, so signing in stays a separate, deliberate step, and with
+  // two-factor on that step still asks for the code. Earlier sessions were
+  // signed out above.
+  return { success: "Password updated. You can now sign in." };
 }
 
 /**
- * Signs the user in with the password they just set and redirects (signIn
- * throws Next's redirect), or returns `fallback` for the "now sign in" path
+ * Signs a newly invited member in with the password they just set and
+ * redirects (signIn throws Next's redirect), or returns `fallback` for the
+ * "now sign in" path
  * when the account has two-factor on or the sign-in doesn't go through.
  */
 async function signInAfterPasswordSet(

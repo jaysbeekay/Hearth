@@ -9,6 +9,8 @@ import {
   requireLive,
   assertParentRestored,
   RecordNotFoundError,
+  deleteFromTrash,
+  type PurgeOptions,
   type UpdateOptions,
 } from "@/lib/commands/shared";
 import type { ClearablePatch } from "@/lib/validation/fullFormUpdate";
@@ -159,15 +161,21 @@ export async function permanentlyDeleteVehicleCommand(id: string) {
 // revalidation. Only for Trash retention (src/lib/trash.ts), which runs from
 // a page render (where revalidatePath can't be called) and from the
 // scheduler, and purges expired records whether or not the module is on.
-export async function purgeVehicle(id: string) {
+export async function purgeVehicle(id: string, options: PurgeOptions = {}) {
   const existing = await prisma.vehicle.findUnique({
     where: { id },
     include: { items: { select: { id: true } } },
   });
   if (!existing) throw new RecordNotFoundError("Vehicle");
   // The row delete cascades to Service records and their Document rows;
-  // their files on disk aren't FK-linked, so they're removed here.
-  await prisma.vehicle.delete({ where: { id } });
+  // their files on disk aren't FK-linked, so they're removed here. Only a
+  // Vehicle in Trash is deleted (deleteFromTrash, #534).
+  await deleteFromTrash(
+    "Vehicle",
+    options,
+    (inTrash) => prisma.vehicle.deleteMany({ where: { id, ...inTrash } }),
+    () => prisma.vehicle.findUnique({ where: { id }, select: { deletedAt: true } }),
+  );
   // Files straight after the row: if clearing the log below throws, the
   // files mustn't be left orphaned with no row pointing at them (#413).
   for (const item of existing.items) {
@@ -258,10 +266,15 @@ export async function permanentlyDeleteServiceRecordCommand(id: string) {
 }
 
 // See purgeVehicle: for Trash retention only.
-export async function purgeServiceRecord(id: string) {
+export async function purgeServiceRecord(id: string, options: PurgeOptions = {}) {
   const existing = await findServiceRecord(id);
   // Cascades to the Service record's Document rows; then the files go.
-  await prisma.vehicleItem.delete({ where: { id } });
+  await deleteFromTrash(
+    "Service record",
+    options,
+    (inTrash) => prisma.vehicleItem.deleteMany({ where: { id, ...inTrash } }),
+    () => prisma.vehicleItem.findUnique({ where: { id }, select: { deletedAt: true } }),
+  );
   await removeOwnerDocumentFiles("VEHICLE_ITEM", id);
   return { vehicleId: existing.vehicleId };
 }
