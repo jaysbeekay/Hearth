@@ -50,7 +50,40 @@ them. Treat them as a first layer, not a boundary.
   test fails if a domain extractor builds its Ollama prompt any other way.
 - The MCP server's instructions tell clients that free-text fields are data.
 - `AI_EGRESS_PROXY_URL` can route provider calls through an agent firewall
-  (see the README). It inspects traffic but depends on the firewall's rules.
+  such as Pipelock. See "Agent firewall (Pipelock)" below for what that does
+  and doesn't enforce.
+
+## Agent firewall (Pipelock)
+
+With `AI_EGRESS_PROXY_URL` set, every AI provider call, including the Ollama
+text fallback, goes out through `aiProviderFetch` (`src/lib/ai/egressProxy.ts`)
+as an HTTP forward proxy. `tests/unit/ai-egress-proxy.test.ts` fails if a
+provider or extractor module calls `fetch()` directly. Setup is in the README.
+
+Enforced, once the proxy is configured (tested with Pipelock 3.7.1,
+`balanced` preset):
+
+- Provider traffic can't leave except through the proxy, which can block
+  hosts (`strict` allows only `api_allowlist`).
+- With TLS interception and `AI_EGRESS_PROXY_CA_CERT`, request bodies are
+  scanned. A body carrying a known secret pattern (e.g. an AWS access key) is
+  blocked with a 403.
+
+Advisory or out of reach:
+
+- Without TLS interception the proxy sees only hostnames.
+- Prompt-injection matches and high-entropy bodies (every base64 document)
+  are logged as warnings under `balanced`, not blocked.
+- Pipelock's documentation says encoded or split data can get past
+  `balanced`, and very large responses are only partly inspected.
+- The proxy sees provider API keys. Pipelock lets a key through to its own
+  provider and blocks it elsewhere, but you are trusting the proxy with it.
+- Hearth doesn't check that the proxy is a firewall. Any forward proxy works.
+
+The MCP server is a separate path: an agent operator can wrap `/api/mcp`
+with `pipelock mcp proxy` to scan responses before their model reads them
+(README, "Pipelock in front of the MCP server"). That runs on the agent's
+side and changes nothing in Hearth.
 
 ## What this means for members
 
@@ -63,11 +96,9 @@ them. Treat them as a first layer, not a boundary.
 
 ## Known gaps
 
-- The Ollama text fallback in `src/lib/documents/*Extraction.ts` calls
-  `/api/generate` with a plain `fetch`. Every provider in `src/lib/ai/`
-  goes through `AI_EGRESS_PROXY_URL` when it is set, and the other two
-  Ollama calls also run `assertSafeOutboundUrl`, but this fallback does
-  neither.
+- The Ollama text fallback in `src/lib/documents/*Extraction.ts` does not
+  run `assertSafeOutboundUrl`, unlike the other two Ollama calls. It does go
+  through `AI_EGRESS_PROXY_URL` when that is set (#559).
 - There is no eval against a real provider in CI, because it needs a key.
 
 ## Adding a new AI feature
