@@ -26,6 +26,34 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   without the untrusted-content notice. `docs/security/prompt-injection.md`
   lists which defences are enforced and which are only advisory.
   Server-only; the iOS and Android shell has no AI extraction or chat.
+- **Household currency (#453).** Settings → Household has a Household
+  currency next to the timezone; members see it read-only. MCP's
+  `spend_summary` converts to it when no `currency` is given, instead of the
+  first admin's preferred currency, and a new member starts with it as their
+  own preferred currency. Until an admin sets it, it falls back to the first
+  admin's preferred currency, then AUD. Server-only; the iOS and Android
+  shell is unchanged.
+- **Default Reminder thresholds in the standalone app (#536).** The
+  standalone mobile shell's Reminders view has a "Default reminder
+  thresholds" setting, stored on the device, the counterpart of the web's
+  household default. It is checked with the web setting's rule and message
+  (whole days, comma-separated), saved deduplicated and largest first, and
+  left blank it resets to 30,14,7,1. Records with no thresholds of their own
+  use it for Due soon, Needs attention, Upcoming and device reminders, and
+  saving it reschedules the device reminders. A Contract, Warranty or Vehicle
+  saved with the thresholds field blank now stores none of its own (it used
+  to store 30,14,7,1), so it follows the default; records that already have
+  thresholds keep them. Connected mode is unchanged.
+- **Demo seed data (#553).** `scripts/demo/seed.ts` seeds a fictional
+  household (every module, about 60 records, dates relative to today) through
+  the app's own record commands, for the public demo instance. It refuses a
+  database that already has users. Run it with `npx tsx scripts/demo/seed-cli.ts`
+  against a scratch database.
+- **Public demo deploy (#553).** `docker/demo/` builds a demo image from a
+  release with the seed baked in, plus Fly.io (Johannesburg) and Render (free,
+  Frankfurt) configs. The new "Demo deploy" workflow rebuilds and redeploys it
+  nightly and after each release, which is also the reset. Setup:
+  `docs/deployment/demo.md`. The public image is unchanged.
 - **Upload page: one scan, bulk edits and a Quick check screen (#358).**
   Each file is scanned once; the page pre-selects Contract, Warranty or
   Inventory item from what the scan found, and switching type reuses that
@@ -77,6 +105,8 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   built, size-checked and smoke-tested on a native runner before either is
   published, on every Docker-related PR as well as at release, and both
   carry an SBOM and build provenance.
+  Docker Scout scans both images too (#545), each with its own results in
+  the Security tab, under the same `scout` check.
 
 ### Security
 
@@ -105,8 +135,8 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 - **Joining the household (#372).** Accepting an invitation signs the new
   member straight in and lands them on Upcoming, with a one-time welcome that
   says everything is shared with the household and what their role lets
-  them do. Finishing a password reset signs in too, unless two-factor is on,
-  in which case it still asks for the code at sign-in. On phones, Upcoming
+  them do. Finishing a password reset doesn't sign in: it sends the person
+  to the login page to sign in with the new password. On phones, Upcoming
   takes Documents' place in the bottom bar; Documents and its Inbox count
   move into More, and the More tab shows the count too.
 - **Saving a scanned record confirms it (#359).** After a scan fills in a
@@ -280,6 +310,16 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **A permanent delete no longer removes a record restored a moment earlier
+  (#534).** Deleting permanently from Recently deleted, and Trash
+  retention's expiry purge, now only delete a record that's still in Trash,
+  checked in the delete itself. If a Contract, Warranty, Vehicle or Service
+  record, Trip or segment, Property or anything under it, Trade or Document
+  is restored between the click (or retention listing it) and the delete,
+  it survives with its documents and files. A record's permanent delete
+  says "That … has been restored, so it wasn't deleted."; a Document's says
+  "Only a document in Recently deleted can be deleted permanently."
+  Retention skips it and carries on. Inventory had this fix already (#522).
 - **Recently deleted count on empty lists (#514 follow-up).** An empty
   Contracts or Warranties list no longer counts records past the 30-day
   Trash window, which are purged the next time Trash opens.

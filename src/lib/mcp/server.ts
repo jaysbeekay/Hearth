@@ -141,7 +141,7 @@ export async function createMcpServer(options: McpServerOptions = {}) {
       inputSchema: {
         currency: currencyCodeSchema
           .optional()
-          .describe("ISO 4217 currency code to convert to, such as AUD. Defaults to the first admin's preferred currency."),
+          .describe("ISO 4217 currency code to convert to, such as AUD. Defaults to the household currency."),
       },
     },
     async ({ currency }) => textResult(await spendSummary(currency ?? (await defaultSpendCurrency()))),

@@ -20,6 +20,7 @@ import {
   restoreTripCommand,
   createTripSegmentCommand,
   updateTripSegmentCommand,
+  deleteTripSegmentCommand,
   permanentlyDeleteTripSegmentCommand,
   saveTripSegmentFlightData,
 } from "@/lib/commands/trips";
@@ -218,6 +219,7 @@ describe("Trips under Trash", () => {
     expect(await saveTripSegmentFlightData(segment.id, { flightStatus: "landed" })).toBe(true);
 
     await deleteTripCommand(trip.id);
+    await deleteTripSegmentCommand(segment.id);
     await permanentlyDeleteTripSegmentCommand(segment.id);
     expect(await db.prisma.tripSegment.count()).toBe(0);
   });

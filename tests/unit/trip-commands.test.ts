@@ -141,6 +141,7 @@ describe("Trip commands", () => {
     const segment = await createTripSegmentCommand(trip.id, flight);
     const dir = await attachFile(segment.id);
 
+    await db.prisma.trip.update({ where: { id: trip.id }, data: { deletedAt: new Date() } }); // #534: only from Trash
     await permanentlyDeleteTripCommand(trip.id);
 
     expect(await db.prisma.trip.findUnique({ where: { id: trip.id } })).toBeNull();
@@ -155,6 +156,7 @@ describe("Trip commands", () => {
     const dir = await attachFile(segment.id);
     await setModuleEnabled("TRAVEL", false);
 
+    await db.prisma.trip.update({ where: { id: trip.id }, data: { deletedAt: new Date() } });
     await purgeTrip(trip.id);
 
     expect(await db.prisma.trip.count()).toBe(0);

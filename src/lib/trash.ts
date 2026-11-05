@@ -11,8 +11,8 @@ import {
   purgePropertyValuation,
 } from "@/lib/commands/home";
 import { purgeTrade } from "@/lib/commands/wealth";
-import { purgeInventoryItem, ItemNotInTrashError, PurgeFilesPendingError } from "@/lib/commands/inventory";
-import { RecordNotFoundError } from "@/lib/commands/shared";
+import { purgeInventoryItem, PurgeFilesPendingError } from "@/lib/commands/inventory";
+import { RecordNotFoundError, RecordNotInTrashError } from "@/lib/commands/shared";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { purgeDocument } from "@/lib/commands/documents";
 import { DOCUMENT_KIND_MODULE, type OwnedDocumentKind } from "@/lib/documents/kinds";
@@ -70,12 +70,25 @@ async function expiredDocuments(cutoff: Date): Promise<{ kind: OwnedDocumentKind
 // "click a button" initiated.
 export async function purgeExpiredTrash(): Promise<void> {
   const cutoff = expiryCutoff();
+  // Every purge only deletes a record that's still in Trash past the cutoff
+  // (#522, #534): one restored since it was listed below, or deleted again
+  // and so in a new Trash window, is refused and skipped here, as is one a
+  // manual purge already removed.
+  const options = { deletedBefore: cutoff };
+  const skipIfGone = async (purge: () => Promise<unknown>) => {
+    try {
+      await purge();
+    } catch (error) {
+      if (error instanceof RecordNotFoundError || error instanceof RecordNotInTrashError) return;
+      throw error;
+    }
+  };
 
   // Documents first: a Document in Trash under a record that's also expiring
   // would otherwise lose its row to the record's cascade before its own
   // purge, and purgeDocument would report it missing.
   for (const { kind, id } of await expiredDocuments(cutoff)) {
-    await purgeDocument(kind, id);
+    await skipIfGone(() => purgeDocument(kind, id, options));
   }
 
   const [contracts, products, vehicles, properties, trips, inventoryItems, homeItems, vehicleItems] =
@@ -99,54 +112,25 @@ export async function purgeExpiredTrash(): Promise<void> {
 
   // Records under a parent before the parents, for the same reason as
   // Documents first: a parent's cascade would take the child's row first.
-  for (const i of homeItems) {
-    await purgeMaintenanceRecord(i.id);
-  }
-  for (const i of vehicleItems) {
-    await purgeServiceRecord(i.id);
-  }
-  for (const s of tripSegments) {
-    await purgeTripSegment(s.id);
-  }
-  for (const s of rentalStatements) {
-    await purgeRentalStatement(s.id);
-  }
-  for (const t of tenancies) {
-    await purgeTenancy(t.id);
-  }
-  for (const v of valuations) {
-    await purgePropertyValuation(v.id);
-  }
-  for (const t of trades) {
-    await purgeTrade(t.id);
-  }
-  for (const c of contracts) {
-    await purgeContract(c.id);
-  }
-  for (const p of products) {
-    await purgeProduct(p.id);
-  }
-  for (const v of vehicles) {
-    await purgeVehicle(v.id);
-  }
-  for (const p of properties) {
-    await purgeProperty(p.id);
-  }
-  for (const t of trips) {
-    await purgeTrip(t.id);
-  }
+  for (const i of homeItems) await skipIfGone(() => purgeMaintenanceRecord(i.id, options));
+  for (const i of vehicleItems) await skipIfGone(() => purgeServiceRecord(i.id, options));
+  for (const s of tripSegments) await skipIfGone(() => purgeTripSegment(s.id, options));
+  for (const s of rentalStatements) await skipIfGone(() => purgeRentalStatement(s.id, options));
+  for (const t of tenancies) await skipIfGone(() => purgeTenancy(t.id, options));
+  for (const v of valuations) await skipIfGone(() => purgePropertyValuation(v.id, options));
+  for (const t of trades) await skipIfGone(() => purgeTrade(t.id, options));
+  for (const c of contracts) await skipIfGone(() => purgeContract(c.id, options));
+  for (const p of products) await skipIfGone(() => purgeProduct(p.id, options));
+  for (const v of vehicles) await skipIfGone(() => purgeVehicle(v.id, options));
+  for (const p of properties) await skipIfGone(() => purgeProperty(p.id, options));
+  for (const t of trips) await skipIfGone(() => purgeTrip(t.id, options));
   for (const i of inventoryItems) {
-    // Skips an item restored since it was listed rather than purging it (#522).
+    // One whose files couldn't be removed is deleted, and the document-store
+    // reconciliation sweeps its files.
     try {
-      await purgeInventoryItem(i.id, { deletedBefore: cutoff });
+      await skipIfGone(() => purgeInventoryItem(i.id, options));
     } catch (error) {
-      // A restored item is skipped; one whose files couldn't be removed is
-      // deleted, and the document-store reconciliation sweeps its files.
-      const handled =
-        error instanceof RecordNotFoundError ||
-        error instanceof ItemNotInTrashError ||
-        error instanceof PurgeFilesPendingError;
-      if (!handled) throw error;
+      if (!(error instanceof PurgeFilesPendingError)) throw error;
     }
   }
   // #445 review: a retirement that failed above (or in an earlier run, or in
