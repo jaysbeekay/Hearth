@@ -14,6 +14,11 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   the app's own record commands, for the public demo instance. It refuses a
   database that already has users. Run it with `npx tsx scripts/demo/seed-cli.ts`
   against a scratch database.
+- **Public demo deploy (#553).** `docker/demo/` builds a demo image from a
+  release with the seed baked in, plus Fly.io (Johannesburg) and Render (free,
+  Frankfurt) configs. The new "Demo deploy" workflow rebuilds and redeploys it
+  nightly and after each release, which is also the reset. Setup:
+  `docs/deployment/demo.md`. The public image is unchanged.
 - **Upload page: one scan, bulk edits and a Quick check screen (#358).**
   Each file is scanned once; the page pre-selects Contract, Warranty or
   Inventory item from what the scan found, and switching type reuses that
