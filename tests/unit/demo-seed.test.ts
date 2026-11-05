@@ -61,8 +61,12 @@ describe("demo seed (#553)", () => {
     expect(Number(rows[0].n)).toBe(1);
   });
 
-  it("refuses a database that already has users", async () => {
+  it("refuses a database that already has users, without writing anything", async () => {
     await seedDemo(passwords);
+    const p = db.prisma;
+    const counts = () => Promise.all([p.user.count(), p.contract.count(), p.document.count(), p.trade.count()]);
+    const before = await counts();
     await expect(seedDemo(passwords)).rejects.toBeInstanceOf(DemoSeedRefusedError);
+    expect(await counts()).toEqual(before);
   });
 });
