@@ -23,7 +23,8 @@ Prices come from each host's pricing page. Check them before relying on them.
 - **Reset.** Neither host has a volume. Every start, idle wake-up and deploy
   begins from the seed baked into the image, so visitors' changes never last.
 - **Nightly redeploy.** `.github/workflows/demo-deploy.yml` runs at 00:30 UTC,
-  and again whenever a release's Docker image is published. It builds the demo
+  and again whenever a release's Docker image is published (once turned on,
+  see step 6 below). It builds the demo
   image from the latest release, boots it once as a smoke test, pushes it to
   `ghcr.io/jaysbeekay/hearth-demo`, then deploys it to Fly.io and Render. The
   rebuild moves the seed's dates on to the new day. Until a release includes
@@ -74,14 +75,33 @@ every deploy, and serves it at `https://<app>.fly.dev`.
 
 ### 4. Maintainer login (optional)
 
-Add the Actions secret `DEMO_ADMIN_PASSWORD` (8 characters or more). It is
-passed to the image build as a BuildKit secret and is never stored in the
-image.
+Add the Actions secret `DEMO_ADMIN_PASSWORD`. It is passed to the image
+build as a BuildKit secret, so the password itself is never stored in the
+image. Its bcrypt hash is, though, and the image is public, so use a long
+random password (for example `openssl rand -base64 24`) that you use nowhere
+else.
 
 ### 5. First deploy
 
 Run **Actions > Demo deploy > Run workflow**. A host whose secret isn't set
-is skipped, and the run's summary says which ones it deployed.
+is skipped, and the run's summary says which ones it deployed. On each host,
+check that:
+
+- the landing page goes to the login page, not first-run setup;
+- `demo@example.com` / `hearth-demo` signs in and the Due list has overdue
+  and due-soon entries;
+- after a restart (Fly.io: `flyctl machine restart`; Render: restart the
+  service from its dashboard), a record you added is gone.
+
+To roll back, run the workflow again with an older tag as `ref`, or redeploy
+an earlier `ghcr.io/jaysbeekay/hearth-demo:<date>-<sha>` image from the
+host's dashboard.
+
+### 6. Turn on the nightly reset
+
+Once the first deploy checks out, add the repo variable `DEMO_DEPLOY_AUTO`
+with the value `true`. Until then the nightly and release-triggered runs
+are skipped, and only manual runs deploy.
 
 ## Run the seed locally
 

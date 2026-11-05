@@ -13,6 +13,8 @@ name: Demo deploy
 #   - secret DEMO_ADMIN_PASSWORD (optional): the maintainer login. Without it
 #     the admin account is unusable, which is fine for a demo.
 #   - variables FLY_DEMO_APP / FLY_ORG (optional): default hearth-demo / personal.
+#   - variable DEMO_DEPLOY_AUTO = true: turns on the nightly and release
+#     redeploys. Set it after a manual run has deployed and been checked.
 # A host whose secret isn't set is skipped, so either can be set up first.
 
 on:
@@ -42,10 +44,14 @@ env:
 
 jobs:
   deploy:
-    # Only after a successful release publish (a v* tag), never a failed one.
+    # Manual runs always go. The nightly and release triggers stay off until
+    # the repo variable DEMO_DEPLOY_AUTO is "true", so the first deploy is a
+    # watched manual run. A release redeploy needs a successful v* publish.
     if: >-
-      github.event_name != 'workflow_run' ||
-      (github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'v'))
+      github.event_name == 'workflow_dispatch' ||
+      (vars.DEMO_DEPLOY_AUTO == 'true' && (
+        github.event_name == 'schedule' ||
+        (github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'v'))))
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
