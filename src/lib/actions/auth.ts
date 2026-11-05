@@ -22,7 +22,7 @@ import { isKnownModuleKey } from "@/lib/modules/enablement";
 import type { ModuleKey } from "@/lib/modules/registry";
 import { DATE_FORMAT_OPTIONS, REGION_OPTIONS } from "@/lib/utils";
 import { isUserTimeZoneOption } from "@/lib/timezones";
-import { POPULAR_CURRENCIES } from "@/components/CurrencySelect";
+import { POPULAR_CURRENCIES } from "@/lib/currencyCodes";
 import { env, isAppUrlConfigured, isSetupTokenRequired } from "@/lib/env";
 import { generateToken, hashToken } from "@/lib/crypto";
 import { buildConfiguredAppUrl, isUsableOneTimeToken } from "@/lib/authTokens";
@@ -33,7 +33,7 @@ import {
   recordFailedAttempt,
   resetRateLimit,
 } from "@/lib/rateLimit";
-import { isSmtpConfigured } from "@/lib/appSettings";
+import { getHouseholdCurrency, isSmtpConfigured } from "@/lib/appSettings";
 import { sendInvitationEmail, sendPasswordResetEmail } from "@/lib/notifications/email";
 import { logSecurityEvent } from "@/lib/securityEventLog";
 import { safeCallbackPath } from "@/lib/callbackUrl";
@@ -233,6 +233,13 @@ export async function login(
   return null;
 }
 
+// #453 — a new member starts with the household currency, if the
+// preferences select offers it (otherwise the schema default applies).
+async function newMemberCurrency(): Promise<string | undefined> {
+  const currency = await getHouseholdCurrency();
+  return (POPULAR_CURRENCIES as readonly string[]).includes(currency) ? currency : undefined;
+}
+
 export async function createUser(
   _prevState: ActionState,
   formData: FormData,
@@ -273,6 +280,7 @@ export async function createUser(
         email: parsed.data.email,
         passwordHash,
         role: parsed.data.role,
+        preferredCurrency: await newMemberCurrency(),
       },
     });
 
@@ -317,6 +325,7 @@ export async function createUser(
       email: parsed.data.email,
       passwordHash: placeholderHash,
       role: parsed.data.role,
+      preferredCurrency: await newMemberCurrency(),
     },
   });
 

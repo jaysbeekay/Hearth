@@ -9,6 +9,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Household currency (#453).** Settings → Household has a Household
+  currency next to the timezone; members see it read-only. MCP's
+  `spend_summary` converts to it when no `currency` is given, instead of the
+  first admin's preferred currency, and a new member starts with it as their
+  own preferred currency. Until an admin sets it, it falls back to the first
+  admin's preferred currency, then AUD. Server-only; the iOS and Android
+  shell is unchanged.
 - **Default Reminder thresholds in the standalone app (#536).** The
   standalone mobile shell's Reminders view has a "Default reminder
   thresholds" setting, stored on the device, the counterpart of the web's
