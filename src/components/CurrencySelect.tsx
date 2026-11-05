@@ -1,27 +1,5 @@
 import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
-
-export const POPULAR_CURRENCIES = [
-  "AUD",
-  "USD",
-  "EUR",
-  "GBP",
-  "CAD",
-  "NZD",
-  "JPY",
-  "CHF",
-  "CNY",
-  "HKD",
-  "SGD",
-  "INR",
-  "MXN",
-  "BRL",
-  "ZAR",
-  "SEK",
-  "NOK",
-  "DKK",
-  "KRW",
-  "THB",
-] as const;
+import { POPULAR_CURRENCIES } from "@/lib/currencyCodes";
 
 const CURRENCY_LABELS: Record<string, string> = {
   AUD: "AUD — Australian Dollar",

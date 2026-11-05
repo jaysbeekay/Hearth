@@ -16,8 +16,7 @@ import { sendTestEmail } from "@/lib/notifications/email";
 import { sendTestNtfy } from "@/lib/notifications/ntfy";
 import type { ActionState } from "@/lib/actions/auth";
 import { isValidTimeZone } from "@/lib/duePolicy";
-import { isCurrencyCode } from "@/lib/currencyCodes";
-import { POPULAR_CURRENCIES } from "@/components/CurrencySelect";
+import { POPULAR_CURRENCIES, isCurrencyCode } from "@/lib/currencyCodes";
 
 export async function requireAdmin() {
   const session = await auth();

@@ -11,3 +11,31 @@ export function isCurrencyCode(code: string): boolean {
 export const currencyCodeSchema = z
   .string()
   .refine(isCurrencyCode, { message: "Must be an ISO 4217 currency code, such as AUD or USD." });
+
+/**
+ * The currencies the app's selects offer. Server actions validate against it
+ * too (the household currency, a new member's default), so it lives here
+ * rather than in the select component.
+ */
+export const POPULAR_CURRENCIES = [
+  "AUD",
+  "USD",
+  "EUR",
+  "GBP",
+  "CAD",
+  "NZD",
+  "JPY",
+  "CHF",
+  "CNY",
+  "HKD",
+  "SGD",
+  "INR",
+  "MXN",
+  "BRL",
+  "ZAR",
+  "SEK",
+  "NOK",
+  "DKK",
+  "KRW",
+  "THB",
+] as const;

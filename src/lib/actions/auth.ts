@@ -22,7 +22,7 @@ import { isKnownModuleKey } from "@/lib/modules/enablement";
 import type { ModuleKey } from "@/lib/modules/registry";
 import { DATE_FORMAT_OPTIONS, REGION_OPTIONS } from "@/lib/utils";
 import { isUserTimeZoneOption } from "@/lib/timezones";
-import { POPULAR_CURRENCIES } from "@/components/CurrencySelect";
+import { POPULAR_CURRENCIES } from "@/lib/currencyCodes";
 import { env, isAppUrlConfigured, isSetupTokenRequired } from "@/lib/env";
 import { generateToken, hashToken } from "@/lib/crypto";
 import { buildConfiguredAppUrl, isUsableOneTimeToken } from "@/lib/authTokens";

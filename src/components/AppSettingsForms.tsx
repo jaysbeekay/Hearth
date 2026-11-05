@@ -12,7 +12,8 @@ import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapp
 import { TestConnectionButton } from "@/components/TestConnectionButton";
 import { BACKUP_DESTINATION_LABELS, type BackupDestinationChoice } from "@/lib/backupDestination";
 import { bannerClass } from "@/lib/ui";
-import { POPULAR_CURRENCIES, currencyLabel } from "@/components/CurrencySelect";
+import { currencyLabel } from "@/components/CurrencySelect";
+import { POPULAR_CURRENCIES } from "@/lib/currencyCodes";
 
 const checkboxClass = "size-4 rounded border-border accent-accent";
 
