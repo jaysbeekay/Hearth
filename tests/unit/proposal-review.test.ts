@@ -177,7 +177,7 @@ describe("ProposedActionCard", () => {
     expect(html).toContain("2 fields need a closer look before you");
     // renderToStaticMarkup escapes the apostrophe in "isn't".
     expect(html).toContain(WARNINGS.aiAddressed);
-    expect(html).toContain(WARNINGS.newEmail.replace("'", "&#x27;"));
+    expect(html).toContain(WARNINGS.newEmail.replace(/'/g, "&#x27;"));
   });
 
   it("shows no warning banner or shading note for a plain proposal", () => {
