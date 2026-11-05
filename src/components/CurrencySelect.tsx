@@ -1,27 +1,5 @@
 import { SelectWrapper, selectClass } from "@/components/SelectWrapper";
-
-export const POPULAR_CURRENCIES = [
-  "AUD",
-  "USD",
-  "EUR",
-  "GBP",
-  "CAD",
-  "NZD",
-  "JPY",
-  "CHF",
-  "CNY",
-  "HKD",
-  "SGD",
-  "INR",
-  "MXN",
-  "BRL",
-  "ZAR",
-  "SEK",
-  "NOK",
-  "DKK",
-  "KRW",
-  "THB",
-] as const;
+import { POPULAR_CURRENCIES } from "@/lib/currencyCodes";
 
 const CURRENCY_LABELS: Record<string, string> = {
   AUD: "AUD — Australian Dollar",
@@ -45,6 +23,11 @@ const CURRENCY_LABELS: Record<string, string> = {
   KRW: "KRW — South Korean Won",
   THB: "THB — Thai Baht",
 };
+
+/** "AUD — Australian Dollar" for a listed code, else the bare code. */
+export function currencyLabel(code: string): string {
+  return CURRENCY_LABELS[code] ?? code;
+}
 
 export function CurrencySelect({
   id,

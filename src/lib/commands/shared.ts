@@ -197,3 +197,54 @@ export class ParentInTrashError extends RecordValidationError {
 export function assertParentRestored(parent: Trashable | null | undefined, parentLabel: string): void {
   if (parent?.deletedAt) throw new ParentInTrashError(parentLabel);
 }
+
+// ── Permanent delete (#534) ────────────────────────────────────────────────
+//
+// A permanent delete only ever removes a record that's in Trash, and that
+// check is in the delete's own where clause rather than a read before it.
+// Otherwise a restore that lands between the read and the delete (two tabs,
+// or Trash retention listing an expired record and then purging it) would
+// see the just-restored, live record hard-deleted with its Documents. #522
+// did this for Inventory first; every other purge goes through
+// deleteFromTrash.
+
+/** A permanent delete refused because the record isn't in Trash (it was restored). */
+export class RecordNotInTrashError extends RecordValidationError {
+  constructor(what: string, message = `That ${what.toLowerCase()} has been restored, so it wasn't deleted.`) {
+    super(message);
+    this.name = "RecordNotInTrashError";
+  }
+}
+
+export interface PurgeOptions {
+  // Trash retention's cutoff: only purge the record if it went to Trash
+  // before this, so one restored and deleted again mid-run keeps its new
+  // Trash window.
+  deletedBefore?: Date;
+}
+
+/** The where-clause condition for a row that's in Trash (past `deletedBefore`, when given). */
+export function inTrashWhere(options: PurgeOptions = {}): { deletedAt: { lt: Date } | { not: null } } {
+  return { deletedAt: options.deletedBefore ? { lt: options.deletedBefore } : { not: null } };
+}
+
+/**
+ * Runs a permanent delete that only matches a record in Trash. `remove` is
+ * the record's deleteMany with `inTrash` spread into its where clause next
+ * to the id. When it matches nothing, `lookup` loads the record: a missing
+ * one (a second purge included) is `what` not found, and one that's live,
+ * or was deleted again since `deletedBefore`, is a RecordNotInTrashError.
+ * Trash retention skips both. Only once this returns may the caller remove
+ * the record's files or clear its logs.
+ */
+export async function deleteFromTrash(
+  what: string,
+  options: PurgeOptions,
+  remove: (inTrash: ReturnType<typeof inTrashWhere>) => Promise<{ count: number }>,
+  lookup: () => Promise<Trashable | null>,
+): Promise<void> {
+  const { count } = await remove(inTrashWhere(options));
+  if (count > 0) return;
+  if (!(await lookup())) throw new RecordNotFoundError(what);
+  throw new RecordNotInTrashError(what);
+}
