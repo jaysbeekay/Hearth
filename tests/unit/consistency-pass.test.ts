@@ -55,6 +55,13 @@ describe("forms", () => {
   });
 });
 
+describe("verbs", () => {
+  it('says "Add …", not "New …", for a page or button that adds a record', () => {
+    const offenders = tsxFiles("src/app").filter((f) => /<h1[^>]*>New |^\s+New [a-z]+\s*$/m.test(read(f)));
+    expect(offenders).toEqual([]);
+  });
+});
+
 describe("selects", () => {
   it("styles every native select with the shared input look", () => {
     const unstyled = tsxFiles("src")

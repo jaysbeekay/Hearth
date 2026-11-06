@@ -140,6 +140,8 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   field still use the banner. Every action now builds its Zod error through
   one helper, `issueState`, which also names the field. Server-only; the
   shell's forms are unchanged.
+- **"Add tenancy", not "New tenancy" (#406).** The rental page's button
+  and the add-tenancy page heading use the same verb as every other add.
 - **Joining the household (#372).** Accepting an invitation signs the new
   member straight in and lands them on Upcoming, with a one-time welcome that
   says everything is shared with the household and what their role lets
