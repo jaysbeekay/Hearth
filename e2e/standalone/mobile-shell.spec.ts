@@ -628,7 +628,12 @@ test.beforeEach(async ({ page }) => {
             applyStatement(statement, values);
             return { changes: { changes: 1 } };
           },
-          query: async ({ statement, values = [] }: { statement: string; values?: unknown[] }) => ({ values: rowsFor(statement, values) }),
+          query: async ({ statement, values = [] }: { statement: string; values?: unknown[] }) => {
+            // "hearth-test-query-error" names text whose queries fail.
+            const failing = testFlag("hearth-test-query-error");
+            if (failing && statement.includes(failing)) throw new Error("Bridge timed out");
+            return { values: rowsFor(statement, values) };
+          },
           // Recorded like run(), one entry per statement, tagged so a test
           // can tell the statements went in together.
           executeSet: async ({ set, transaction }: { set: { statement: string; values?: unknown[] }[]; transaction?: boolean }) => {
@@ -1872,6 +1877,24 @@ test("standalone launch clears a restore journal it can't read when no file is s
   await expect
     .poll(() => page.evaluate(() => (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest.preferences.has("hearth.mobile.restoreJournal")))
     .toBe(false);
+});
+
+test("standalone launch retries a restore recovery that failed, instead of reusing the failure", async ({ page }) => {
+  const journalKept = () =>
+    page.evaluate(() => (window as unknown as { __hearthStandaloneTest: BackupHarness }).__hearthStandaloneTest.preferences.has("hearth.mobile.restoreJournal"));
+  await page.evaluate(() => {
+    window.name = `hearth-test-seed:${JSON.stringify({ local: { "hearth-test-query-error": "last_restore_id" }, preferences: { "hearth.mobile.restoreJournal": JSON.stringify({ id: "restore-1", files: [], priorKeys: [] }) } })}`;
+  });
+  await relaunchStandalone(page);
+  // The first recovery can't read the marker, so the journal stays.
+  expect(await journalKept()).toBe(true);
+
+  // Entering standalone mode again in the same session runs recovery again.
+  await page.evaluate(() => localStorage.removeItem("hearth-test-query-error"));
+  await page.locator("#switch-mode-button").click();
+  await page.getByRole("button", { name: "Use on this device" }).click();
+  await expect(page.locator("#standalone-screen")).toBeVisible();
+  await expect.poll(journalKept).toBe(false);
 });
 
 test("standalone help and local module settings mirror baseline settings/help surfaces", async ({ page }) => {
