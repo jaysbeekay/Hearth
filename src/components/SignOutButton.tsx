@@ -15,7 +15,7 @@ import {
 } from "@/lib/offlineSession";
 import { awaitSyncIdle, syncPendingOperations } from "@/lib/offlineSync";
 import { buttonClass } from "@/lib/ui";
-import { currentPushSubscription } from "@/lib/pushClient";
+import { currentPushSubscription, unsubscribeQuietly } from "@/lib/pushClient";
 
 // How long the pre-sign-out check may take before we stop waiting on
 // IndexedDB and say so, rather than hang or assume nothing is unsynced.
@@ -79,7 +79,7 @@ export function SignOutButton({
         return;
       }
     }
-    await push?.unsubscribe().catch(() => undefined);
+    await unsubscribeQuietly(push);
     // A full page load, not a client-side navigation, so the router cache
     // and Back can't show the signed-out user's pages (#424 review).
     window.location.replace("/login");

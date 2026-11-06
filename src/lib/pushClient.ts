@@ -1,13 +1,19 @@
-// #375 — browser-side Web Push helpers, shared by the Settings toggle and
-// sign-out. Client-only: every function touches navigator or window.
+import { withTimeout } from "@/lib/offlineOwner";
+
+// #375 — browser-side Web Push helpers, shared by the Settings toggle,
+// sign-out and the sign-in page. Client-only: every function touches
+// navigator or window.
 
 // applicationServerKey wants bytes; the VAPID public key is base64url.
 export function vapidKeyBytes(base64url: string): Uint8Array<ArrayBuffer> {
   const base64 = (base64url + "=".repeat((4 - (base64url.length % 4)) % 4)).replace(/-/g, "+").replace(/_/g, "/");
-  const raw = atob(base64);
-  const bytes = new Uint8Array(new ArrayBuffer(raw.length));
-  for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
-  return bytes;
+  return Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+}
+
+/** Whether a subscription was made with this application server key. */
+export function sameVapidKey(a: ArrayBuffer | null, b: Uint8Array): boolean {
+  if (!a || a.byteLength !== b.byteLength) return false;
+  return new Uint8Array(a).every((value, i) => value === b.at(i));
 }
 
 /** "Chrome on Android": enough to tell a member's devices apart in Settings. */
@@ -27,12 +33,35 @@ export async function pushRegistration(): Promise<ServiceWorkerRegistration | nu
 }
 
 /**
+ * The SHA-256 of an endpoint, hex. Settings gets these instead of the
+ * member's endpoint URLs, which are capability URLs, and matches this
+ * browser's against them.
+ */
+export async function endpointHash(endpoint: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(endpoint));
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/**
  * This browser's push subscription, or null. Gives up after `ms` so a
  * stuck service worker can't hold up sign-out.
  */
 export async function currentPushSubscription(ms = 2_000): Promise<PushSubscription | null> {
   if (!pushSupported()) return null;
-  const lookup = (async () => (await pushRegistration())?.pushManager.getSubscription() ?? null)();
-  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), ms));
-  return Promise.race([lookup.catch(() => null), timeout]);
+  try {
+    const reg = await withTimeout(pushRegistration(), ms);
+    return reg ? await withTimeout(reg.pushManager.getSubscription(), ms) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Drops this browser's subscription, giving up after `ms`. Never throws. */
+export async function unsubscribeQuietly(sub: PushSubscription | null, ms = 2_000): Promise<void> {
+  if (!sub) return;
+  try {
+    await withTimeout(sub.unsubscribe(), ms);
+  } catch {
+    // The server row goes on the next send (410) or 30 days of failures.
+  }
 }

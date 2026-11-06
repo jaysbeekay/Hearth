@@ -88,13 +88,20 @@ export async function setAppSetting(key: string, value: string): Promise<void> {
     await prisma.appSetting.deleteMany({ where: { key } });
     return;
   }
-  const shouldEncrypt = ENCRYPTED_KEYS.has(key) && isEncryptionConfigured();
-  const storedValue = shouldEncrypt ? encryptSecret(value) : value;
+  const stored = encodeAppSetting(key, value);
   await prisma.appSetting.upsert({
     where: { key },
-    create: { key, value: storedValue, encrypted: shouldEncrypt },
-    update: { value: storedValue, encrypted: shouldEncrypt },
+    create: { key, ...stored },
+    update: stored,
   });
+}
+
+// A setting's value as it's stored: encrypted with ENCRYPTION_KEY when the key
+// is a secret and encryption is configured. For callers that write the row
+// themselves, e.g. create-only.
+export function encodeAppSetting(key: string, value: string): { value: string; encrypted: boolean } {
+  const encrypted = ENCRYPTED_KEYS.has(key) && isEncryptionConfigured();
+  return { value: encrypted ? encryptSecret(value) : value, encrypted };
 }
 
 // Returns whether a key currently has a value stored in the DB.

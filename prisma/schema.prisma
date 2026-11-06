@@ -291,7 +291,7 @@ model PushSubscription {
   deviceLabel   String?
   createdAt     DateTime  @default(now())
   lastSuccessAt DateTime?
-  lastFailureAt DateTime?
+  lastFailureAt DateTime? // when the current run of failures began
   lastError     String?
 
   @@index([userId])

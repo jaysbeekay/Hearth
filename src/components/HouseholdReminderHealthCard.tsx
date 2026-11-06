@@ -4,7 +4,6 @@ import { Timestamp } from "@/components/Timestamp";
 import type { HouseholdReminderHealth } from "@/lib/notifications/health";
 import { Card } from "@/components/ui/Card";
 import { bannerClass } from "@/lib/ui";
-
 import { channelSummary } from "@/lib/notifications/reminderSummary";
 
 function pushSummary({ total, failing }: HouseholdReminderHealth["pushDevices"]) {

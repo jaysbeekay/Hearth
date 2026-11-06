@@ -3,6 +3,8 @@ import { setupTestDb, createTestUser } from "../helpers/testDb";
 import { auth, signOut } from "@/lib/auth";
 import { removePushDevice, removePushSubscription, savePushSubscription } from "@/lib/actions/push";
 import { logout } from "@/lib/actions/auth";
+import { hashToken } from "@/lib/crypto";
+import { endpointHash } from "@/lib/pushClient";
 
 // #375 part 2 — each member manages only their own devices, and signing out
 // takes this device's subscription with it.
@@ -71,5 +73,51 @@ describe("push devices", () => {
     const left = (await db.prisma.pushSubscription.findMany()).map((r) => r.endpoint).sort();
     expect(left).toEqual(["https://push.example/my-phone", "https://push.example/theirs"]);
     expect(signOut).toHaveBeenCalledTimes(2);
+  });
+
+  it("ignores a sign-out with no session, or a missing or oversize endpoint", async () => {
+    const me = await createTestUser();
+    await subscribe(me.id, "https://push.example/this-browser");
+
+    vi.mocked(auth).mockResolvedValue(null as never);
+    await logout("https://push.example/this-browser");
+    await signedInAs(me.id);
+    await logout(undefined);
+    await logout(`https://push.example/${"x".repeat(2100)}`);
+    await logout(42 as never);
+
+    expect(await db.prisma.pushSubscription.count()).toBe(1);
+    expect(signOut).toHaveBeenCalledTimes(4);
+  });
+
+  it("still signs out when dropping the push subscription fails", async () => {
+    const me = await createTestUser();
+    await signedInAs(me.id);
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const deleteMany = vi.spyOn(db.prisma.pushSubscription, "deleteMany").mockRejectedValueOnce(new Error("database is locked"));
+
+    await logout("https://push.example/this-browser");
+    expect(signOut).toHaveBeenCalledTimes(1);
+    deleteMany.mockRestore();
+    spy.mockRestore();
+  });
+
+  it("refuses an invalid device id", async () => {
+    const me = await createTestUser();
+    const mine = await subscribe(me.id, "https://push.example/mine");
+    await signedInAs(me.id);
+    expect(await removePushDevice({})).toEqual({ error: "Invalid device." });
+    expect(await removePushDevice({ id: 42 })).toEqual({ error: "Invalid device." });
+    expect(await db.prisma.pushSubscription.count({ where: { id: mine.id } })).toBe(1);
+  });
+
+  it("answers a signed-out caller with an error", async () => {
+    vi.mocked(auth).mockResolvedValue(null as never);
+    expect(await removePushDevice({ id: "x" })).toEqual({ error: expect.any(String) });
+  });
+
+  it("hashes an endpoint the same way in the browser as for the Settings list", async () => {
+    const endpoint = "https://fcm.googleapis.com/fcm/send/abc";
+    expect(await endpointHash(endpoint)).toBe(hashToken(endpoint));
   });
 });

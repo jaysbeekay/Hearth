@@ -2,6 +2,7 @@ import { defaultCache } from "@serwist/next/worker";
 import { Serwist } from "serwist";
 import { SESSION_CACHE, SESSION_MARKER_PATH } from "@/lib/offlineOwner";
 import { createSessionCachePlugin, scopeRuntimeCaching } from "@/lib/swSessionPlugin";
+import { notificationTarget } from "@/lib/pushNotificationUrl";
 
 // The DOM lib has no service-worker event types, and pulling in the
 // webworker lib clashes with it, so the few used here are spelled out.
@@ -17,7 +18,6 @@ interface NotificationEvent extends ExtendableEvent {
 interface WindowClient {
   url: string;
   focus(): Promise<WindowClient>;
-  navigate(url: string): Promise<WindowClient | null>;
 }
 
 declare const self: typeof globalThis & {
@@ -78,16 +78,16 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   // Only ever open a page of this app, whatever the payload said.
-  const target = new URL(String(event.notification.data?.url ?? "/dashboard"), self.location.origin);
-  const url = target.origin === self.location.origin ? target.href : new URL("/dashboard", self.location.origin).href;
+  const url = notificationTarget(event.notification.data?.url, self.location.origin);
   event.waitUntil(
     (async () => {
+      // Focus a tab already showing the record; otherwise open a new one, so
+      // a tab with unsaved edits isn't navigated away from.
       const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-      const open = windows.find((w) => new URL(w.url).origin === self.location.origin);
+      const open = windows.find((w) => w.url === url);
       if (open) {
         await open.focus();
-        // navigate() rejects for a window this worker doesn't control yet.
-        if (await open.navigate(url).catch(() => null)) return;
+        return;
       }
       await self.clients.openWindow(url);
     })(),

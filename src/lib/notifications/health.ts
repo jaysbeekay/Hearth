@@ -15,6 +15,7 @@ import { COVERING_CONTRACTS } from "@/lib/covers";
 import { tenancyDueRecord, vehicleDueRecord } from "@/lib/dueRecords";
 import { prisma } from "@/lib/prisma";
 import { getCurrentTenancies } from "@/lib/tenancies";
+import { pushDeviceFailing } from "@/lib/notifications/pushStatus";
 import type { NotificationOwnerType } from "@/generated/prisma/enums";
 import type { NotificationLog } from "@/generated/prisma/client";
 
@@ -202,7 +203,7 @@ export async function getHouseholdReminderHealth(): Promise<HouseholdReminderHea
   ]);
   const pushDevices = {
     total: pushRows.length,
-    failing: pushRows.filter((d) => d.lastFailureAt && (!d.lastSuccessAt || d.lastFailureAt > d.lastSuccessAt)).length,
+    failing: pushRows.filter(pushDeviceFailing).length,
   };
 
   const uncovered: UncoveredRecord[] = [];

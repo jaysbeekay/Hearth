@@ -22,6 +22,7 @@ import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/ui/PageShell";
 import { SettingsTabs } from "@/components/SettingsTabs";
 import { SaveChangesGroup } from "@/components/SaveChangesGroup";
+import { hashToken } from "@/lib/crypto";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -37,28 +38,30 @@ export default async function SettingsPage() {
   // is deleted, which the proxy won't have caught for an in-flight request.
   if (!session?.user) redirect("/login");
 
-  const [user, smtpConfigured, ntfyConfigured, householdTimeZone, vapidPublicKey] = await Promise.all([
+  const [user, smtpConfigured, ntfyConfigured, householdTimeZone, vapidPublicKey, pushRows] = await Promise.all([
     prisma.user.findUnique({ where: { id: session.user.id } }),
     isSmtpConfigured(),
     isNtfyConfigured(),
     getHouseholdTimeZone(),
     getVapidPublicKey(),
+    // #375 — the member's own devices only; other members' stay private.
+    prisma.pushSubscription.findMany({
+      where: { userId: session.user.id },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        endpoint: true,
+        deviceLabel: true,
+        createdAt: true,
+        lastSuccessAt: true,
+        lastFailureAt: true,
+        lastError: true,
+      },
+    }),
   ]);
-  // #375 — the member's own devices only; other members' stay private.
-  const pushDevices = await prisma.pushSubscription.findMany({
-    where: { userId: session.user.id },
-    orderBy: { createdAt: "asc" },
-    select: {
-      id: true,
-      endpoint: true,
-      deviceLabel: true,
-      createdAt: true,
-      lastSuccessAt: true,
-      lastFailureAt: true,
-      lastError: true,
-    },
-  });
   if (!user) redirect("/login");
+  // Endpoints are capability URLs: the page gets only their hashes.
+  const pushDevices = pushRows.map(({ endpoint, ...device }) => ({ ...device, endpointHash: hashToken(endpoint) }));
   const appUrl = env.appUrl ?? "http://localhost:3000";
 
   return (
@@ -92,8 +95,8 @@ export default async function SettingsPage() {
           <Card as="section">
             <h2 className="mb-3 font-medium">Reminders</h2>
             <p className="mb-3 text-sm text-muted">
-              Reminders are sent to each device with notifications on, and by email
-              {ntfyConfigured ? " and ntfy" : ""}.{" "}
+              Reminders are sent to each device with notifications on
+              {smtpConfigured && ntfyConfigured ? ", by email and by ntfy" : smtpConfigured ? " and by email" : ntfyConfigured ? " and by ntfy" : ""}.{" "}
               {!smtpConfigured && !ntfyConfigured && (
                 <span className="text-warning">
                   Email and ntfy aren&apos;t set up
