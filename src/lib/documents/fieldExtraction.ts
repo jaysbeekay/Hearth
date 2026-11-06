@@ -16,6 +16,7 @@ import {
   heuristicExtract as heuristicExtractLease,
   normaliseFields as normaliseLeaseFields,
 } from "@/lib/documents/leaseAgreementExtraction";
+import { aiProviderFetch } from "@/lib/ai/egressProxy";
 
 export interface ExtractedFields {
   title?: string;
@@ -114,7 +115,7 @@ async function llmExtract(text: string): Promise<ExtractedFields | null> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 45_000);
   try {
-    const res = await fetch(`${ollama.baseUrl}/api/generate`, {
+    const res = await aiProviderFetch(`${ollama.baseUrl}/api/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ model: ollama.model, prompt, format: "json", stream: false }),
