@@ -16,6 +16,8 @@ vi.mock("@/lib/appSettings", () => ({
   isOllamaConfigured: async () => true,
   getAppSettingRaw: async () => null,
 }));
+vi.mock("@/lib/auth", () => ({ auth: async () => ({ user: { role: "ADMIN" } }) }));
+vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
 type Seen = { method?: string; url?: string; headers: http.IncomingHttpHeaders; body: string };
 
@@ -105,6 +107,32 @@ describe("aiProviderFetch with AI_EGRESS_PROXY_URL set", () => {
 
     expect(result).toMatchObject({ source: "llm", fields: { title: "Fibre contract" } });
     expect(proxied.map((p) => p.url)).toEqual([`${process.env.TEST_OLLAMA_URL}/api/generate`]);
+  });
+
+  it("logs the host and status, not the body, when the proxy blocks a call", async () => {
+    const { aiProviderFetch } = await import("@/lib/ai/egressProxy");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const res = await aiProviderFetch(`${process.env.TEST_OLLAMA_URL}/api/blocked`, {
+      method: "POST",
+      body: "secret-body",
+    });
+
+    expect(res.status).toBe(403);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toContain(`HTTP 403 for ${new URL(process.env.TEST_OLLAMA_URL!).host}`);
+    expect(warn.mock.calls[0][0]).not.toContain("secret-body");
+    warn.mockRestore();
+  });
+
+  it("blames the proxy, not Ollama, when Test connection is blocked", async () => {
+    const { testOllamaConnection } = await import("@/lib/actions/app-settings");
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const result = await testOllamaConnection();
+
+    expect(result?.error).toMatch(/egress proxy refused or failed the request \(HTTP 403\)/);
+    vi.mocked(console.warn).mockRestore();
   });
 });
 

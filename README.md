@@ -801,7 +801,8 @@ Then edit `pipelock/pipelock.yaml`:
   `ca_cert: /config/ca.pem`, `ca_key: /config/ca-key.pem`. Then mount
   `./pipelock/ca.pem` into Hearth and set
   `AI_EGRESS_PROXY_CA_CERT=/app/pipelock-ca.pem` (the line is in the compose
-  file).
+  file). Hearth reads the CA once at startup, so restart Hearth after
+  regenerating or rotating it.
 - If Ollama runs on your network, add its address to `ssrf.ip_allowlist`
   (e.g. `- 192.168.1.20/32`). Pipelock blocks private addresses by default,
   which would break Ollama.

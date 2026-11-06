@@ -56,7 +56,21 @@ export async function aiProviderFetch(url: string, init: RequestInit = {}): Prom
     ...(init as Parameters<typeof undiciFetch>[1]),
     dispatcher: egressAgent(),
   });
+  // A firewall block otherwise looks like "the model found nothing", since
+  // callers fall back quietly on any non-OK response. Log the host and
+  // status (never the body) so the block shows up on Hearth's side too.
+  if (isEgressProxyRefusal(res.status)) {
+    console.warn(
+      `AI egress proxy returned HTTP ${res.status} for ${new URL(target).host}; see the proxy's logs (e.g. docker compose logs pipelock).`,
+    );
+  }
   return res as unknown as Response;
+}
+
+// Statuses that, with the proxy on, most likely came from the proxy itself:
+// a block (403), proxy auth (407) or an upstream failure (502).
+export function isEgressProxyRefusal(status: number): boolean {
+  return status === 403 || status === 407 || status === 502;
 }
 
 // For tests: forget the cached agent after changing the proxy env.

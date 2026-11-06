@@ -17,7 +17,8 @@ import { sendTestNtfy } from "@/lib/notifications/ntfy";
 import type { ActionState } from "@/lib/actions/auth";
 import { isValidTimeZone } from "@/lib/duePolicy";
 import { POPULAR_CURRENCIES, isCurrencyCode } from "@/lib/currencyCodes";
-import { aiProviderFetch } from "@/lib/ai/egressProxy";
+import { aiProviderFetch, isEgressProxyRefusal } from "@/lib/ai/egressProxy";
+import { isAiEgressProxyConfigured } from "@/lib/env";
 
 export async function requireAdmin() {
   const session = await auth();
@@ -429,7 +430,14 @@ export async function testOllamaConnection(): Promise<ActionState> {
     const res = await aiProviderFetch(`${ollama.baseUrl.replace(/\/$/, "")}/api/tags`, {
       signal: controller.signal,
     });
-    if (!res.ok) return { error: `Ollama responded with HTTP ${res.status}.` };
+    if (!res.ok) {
+      if (isAiEgressProxyConfigured() && isEgressProxyRefusal(res.status)) {
+        return {
+          error: `The AI egress proxy refused or failed the request (HTTP ${res.status}). Check its logs (docker compose logs pipelock); a LAN Ollama needs its address in Pipelock's ssrf.ip_allowlist.`,
+        };
+      }
+      return { error: `Ollama responded with HTTP ${res.status}.` };
+    }
 
     const data = (await res.json()) as { models?: { name: string }[] };
     const names = data.models?.map((m) => m.name) ?? [];
