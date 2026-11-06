@@ -308,6 +308,7 @@ describe("renewContractCommand", () => {
     const term = await db.prisma.contractTerm.findFirstOrThrow({ where: { contractId: contract.id } });
     expect(term.documentId).toBeNull();
 
+    await deleteContractCommand(contract.id);
     await permanentlyDeleteContractCommand(contract.id);
     expect(await db.prisma.contractTerm.count()).toBe(0);
   });
@@ -393,6 +394,7 @@ describe("renewContract action", () => {
     const state = await renewContract(contract.id, null, formData({ startDate: "2026-07-01", endDate: "", cost: "5" }));
     expect(state).toEqual({
       error: "Enter the new end date.",
+      field: "endDate",
       values: { startDate: "2026-07-01", endDate: "", cost: "5" },
     });
   });

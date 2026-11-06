@@ -111,14 +111,22 @@ test.describe("password reset and invitation flows", () => {
     }
   });
 
-  test("resetting a password signs straight in when two-factor is off", async ({ browser }) => {
+  test("resetting a password sends the person to sign in with the new one", async ({ browser }) => {
     const { token, cleanup } = await seedTokenFor("RESET", "reset-372@e2e.local", "Reset Flow Member");
     const { context, page } = await signedOutPage(browser);
     try {
       await page.goto(`/reset-password/${token}`);
       await page.locator("#password").fill("ResetPassw0rd!372");
       await page.getByRole("button", { name: "Reset password" }).click();
-      await page.waitForURL(/\/dashboard$/);
+      await expect(page.locator("body")).toContainText("Password updated. You can now sign in.");
+      await page.getByRole("link", { name: "Continue to sign in" }).click();
+      await page.waitForURL(/\/login$/);
+      await page.locator("#email").fill("reset-372@e2e.local");
+      await page.locator("#password").fill("ResetPassw0rd!372");
+      await Promise.all([
+        page.waitForURL(/\/dashboard$/),
+        page.getByRole("button", { name: "Sign in", exact: true }).click(),
+      ]);
     } finally {
       await context.close();
       await cleanup();
