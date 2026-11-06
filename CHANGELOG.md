@@ -348,6 +348,18 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 - **A refused passkey says so.** Signing in with a passkey Hearth doesn't
   know (for example one removed in Settings) used to drop silently back to
   the sign-in page; it now shows "Passkey sign-in failed" (#376).
+- **AI egress proxy works with Pipelock again (#559).** Setting
+  `AI_EGRESS_PROXY_URL` broke document extraction and the Assistant:
+  provider calls were sent to Pipelock's `/fetch` endpoint, which only
+  accepts GET and returns page text, so every POST came back 405. Provider
+  calls now use the proxy as a standard HTTP forward proxy, which carries
+  the method, headers and body unchanged. The Ollama text fallback in the
+  per-domain extractors used to bypass the proxy and now goes through it
+  too. New optional `AI_EGRESS_PROXY_CA_CERT` points at the proxy's CA so
+  it can intercept TLS and scan request bodies; it is trusted for provider
+  calls only. Gemini extraction now sends its key in the `x-goog-api-key`
+  header instead of the URL. Server-only; the iOS and Android shell makes
+  no AI calls.
 - **A permanent delete no longer removes a record restored a moment earlier
   (#534).** Deleting permanently from Recently deleted, and Trash
   retention's expiry purge, now only delete a record that's still in Trash,
