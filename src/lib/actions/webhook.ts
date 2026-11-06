@@ -9,6 +9,7 @@ import { sendTestWebhook } from "@/lib/notifications/webhook";
 import { formDataToStringValues } from "@/lib/form-state";
 import { assertSafeOutboundUrl, UnsafeOutboundUrlError } from "@/lib/net/outbound";
 import type { ActionState } from "@/lib/actions/auth";
+import { issueState } from "@/lib/validation/issues";
 
 // Secret is intentionally excluded — never echo it back to the form.
 const WEBHOOK_FORM_FIELDS = ["name", "url"];
@@ -29,7 +30,7 @@ export async function createWebhookEndpoint(
   });
   if (!parsed.success) {
     return {
-      error: parsed.error.issues[0]?.message ?? "Invalid input",
+      ...issueState(parsed.error),
       values: formDataToStringValues(formData, WEBHOOK_FORM_FIELDS),
     };
   }

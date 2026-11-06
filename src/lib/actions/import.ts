@@ -22,6 +22,7 @@ import { RecordValidationError } from "@/lib/commands/shared";
 import { extractionFieldsFromForm } from "@/lib/documents/extractionConfirmation";
 import { saveExtractionReviewFieldsFromForm } from "@/lib/documents/extractionReview";
 import { parseDocumentCategory } from "@/lib/documents/categories";
+import { issueState } from "@/lib/validation/issues";
 
 function formToInventoryItemInput(formData: FormData) {
   return {
@@ -46,9 +47,6 @@ async function requireUser() {
   return session.user;
 }
 
-function firstIssueMessage(error: { issues: { message: string }[] }) {
-  return error.issues[0]?.message ?? "Invalid input";
-}
 
 // Bulk-import variants of createContract/createProduct: same validation and
 // document-attach logic, but return a result instead of redirect()-ing, so
@@ -58,7 +56,7 @@ export async function importContract(formData: FormData): Promise<ImportResult> 
   const user = await requireUser();
 
   const parsed = contractSchema.safeParse(formToContractInput(formData));
-  if (!parsed.success) return { error: firstIssueMessage(parsed.error) };
+  if (!parsed.success) return { ...issueState(parsed.error) };
 
   const file = formData.get("file");
   if (file instanceof File && file.size > 0) {
@@ -90,7 +88,7 @@ export async function importProduct(formData: FormData): Promise<ImportResult> {
   const user = await requireUser();
 
   const parsed = productSchema.safeParse(formToProductInput(formData));
-  if (!parsed.success) return { error: firstIssueMessage(parsed.error) };
+  if (!parsed.success) return { ...issueState(parsed.error) };
 
   const file = formData.get("file");
   if (file instanceof File && file.size > 0) {
@@ -124,7 +122,7 @@ export async function importInventoryItem(formData: FormData): Promise<ImportRes
   if (!(await isModuleEnabled("INVENTORY"))) return { error: "Inventory module is disabled." };
 
   const parsed = inventoryItemSchema.safeParse(formToInventoryItemInput(formData));
-  if (!parsed.success) return { error: firstIssueMessage(parsed.error) };
+  if (!parsed.success) return { ...issueState(parsed.error) };
 
   const file = formData.get("file");
   if (file instanceof File && file.size > 0) {
