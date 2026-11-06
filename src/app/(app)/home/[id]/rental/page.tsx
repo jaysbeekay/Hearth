@@ -172,7 +172,7 @@ export default async function RentalOverviewPage({
                 className={buttonClass("secondary")}
               >
                 <Plus size={16} />
-                New tenancy
+                Add tenancy
               </Link>
             )}
           </div>

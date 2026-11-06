@@ -42,6 +42,16 @@ test("reversed date range is rejected with a cross-field error", async ({ page }
   await submit(page).click();
   await expect(page.locator("body")).toContainText("can't be before");
 
+  // #406 — shown once, under the field it's about, and the field is marked.
+  const endDate = page.locator('input[name="endDate"]');
+  const endDateField = page.locator("[data-field]", { has: endDate });
+  await expect(endDateField.getByRole("alert")).toContainText("can't be before");
+  await expect(page.getByRole("alert").filter({ hasText: "can't be before" })).toHaveCount(1);
+  await expect(endDate).toHaveAttribute("aria-invalid", "true");
+  const errorId = await endDateField.getByRole("alert").getAttribute("id");
+  expect(errorId).toBeTruthy();
+  expect((await endDate.getAttribute("aria-describedby"))?.split(/\s+/)).toContain(errorId);
+
   // Failing again with the same error still brings it into view (#514 review).
   const alert = page.getByRole("alert").filter({ hasText: "can't be before" });
   await page.evaluate(() => window.scrollTo(0, 0));

@@ -229,8 +229,11 @@ export function menuItemClass({ destructive = false }: { destructive?: boolean }
 const INPUT_SHAPE =
   "h-9 w-full rounded-lg border px-3 text-sm outline-none transition-colors focus:border-accent focus:ring-1 focus:ring-accent disabled:opacity-60";
 
-/** The one input / select / textarea look: 36px tall, rounded-lg, 1px border. */
-export const inputClass = cn(INPUT_SHAPE, "border-border bg-background");
+/**
+ * The one input / select / textarea look: 36px tall, rounded-lg, 1px border.
+ * The border turns danger while FormMessage marks the field invalid (#406).
+ */
+export const inputClass = cn(INPUT_SHAPE, "border-border bg-background aria-invalid:border-danger");
 
 /**
  * #406 — a field on an Import / Inbox review row: the input look, tinted
@@ -248,7 +251,7 @@ export const selectClass = cn(inputClass, "appearance-none pr-8");
 
 /** A textarea: the input look without the fixed height. */
 export const textareaClass =
-  "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-accent focus:ring-1 focus:ring-accent disabled:opacity-60";
+  "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-accent focus:ring-1 focus:ring-accent aria-invalid:border-danger disabled:opacity-60";
 
 // ── Page widths ─────────────────────────────────────────────────────────
 

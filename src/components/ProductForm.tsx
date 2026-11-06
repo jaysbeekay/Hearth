@@ -464,7 +464,7 @@ export function ProductForm({
       {extractionUsed && <ExtractionReviewNote fields={autoFilled} />}
       <input type="hidden" name="extractionUsed" value={extractionUsed ? "1" : "0"} />
 
-      <FormMessage attempt={state} error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} field={state?.field} success={state?.success} />
 
       <FormActions cancelHref={cancelHref}>
         <SubmitButton>{pendingOp || product ? "Save changes" : "Add warranty"}</SubmitButton>
