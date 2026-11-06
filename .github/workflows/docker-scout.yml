@@ -2,7 +2,7 @@
 # https://github.com/docker/scout-action
 #
 # The repo's container scan: blocks on critical/high OS and package CVEs in
-# the built image. Findings also surface on the Docker Hub repository page and
+# the built image, for both published architectures (#478, #545). Findings also surface on the Docker Hub repository page and
 # as SARIF in this repo's Security tab, with base-image update
 # recommendations.
 #
@@ -23,19 +23,36 @@ permissions:
   contents: read
 
 jobs:
-  scout:
+  # One scan per published architecture, each on a native runner like
+  # docker-image.yml, so an Alpine package that's only vulnerable (or only a
+  # different version) in the aarch64 build still fails the gate.
+  scan:
+    name: scan (${{ matrix.arch }})
     permissions:
       contents: read # for actions/checkout to fetch code
       security-events: write # for github/codeql-action/upload-sarif to upload SARIF results
       actions: read # only required for a private repository by github/codeql-action/upload-sarif to get the Action run status
       pull-requests: write # for docker/scout-action to post its findings comment on the PR
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            arch: amd64
+            runner: ubuntu-latest
+            # The build cache docker-image.yml and docker-publish.yml fill.
+            cache: buildkit
+          - platform: linux/arm64
+            arch: arm64
+            runner: ubuntu-24.04-arm
+            cache: arm64
+    runs-on: ${{ matrix.runner }}
     env:
       # Secrets can't be referenced in a job-level `if`, so this is checked per
       # step instead.
       HAS_DOCKERHUB: ${{ secrets.DOCKERHUB_USERNAME != '' }}
       IMAGE_TAG: hearth:scout-scan
-      SARIF_FILE: docker-scout.sarif.json
+      SARIF_FILE: docker-scout-${{ matrix.arch }}.sarif.json
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
@@ -45,9 +62,21 @@ jobs:
           echo "DOCKERHUB_USERNAME/DOCKERHUB_TOKEN are not set — skipping Docker Scout analysis." >> "$GITHUB_STEP_SUMMARY"
           echo "These are the same secrets docker-publish.yml uses to push releases." >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Set up Docker Buildx
+        if: ${{ env.HAS_DOCKERHUB == 'true' }}
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      # Reads the other Docker workflows' cache but never writes it, so a
+      # scan can't evict the layers a release build needs.
       - name: Build image for Docker Scout
         if: ${{ env.HAS_DOCKERHUB == 'true' }}
-        run: docker build -t "$IMAGE_TAG" .
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          load: true
+          tags: ${{ env.IMAGE_TAG }}
+          cache-from: type=gha,scope=${{ matrix.cache }}
 
       - name: Docker Scout CVEs (blocks on critical/high severity)
         if: ${{ env.HAS_DOCKERHUB == 'true' }}
@@ -63,10 +92,22 @@ jobs:
           # has no upstream fix, so it fails this gate on every build with
           # nothing actionable to do about it. only-fixed narrows the gate to
           # CVEs that actually have a fix available — anything unfixed still
-          # surfaces via the SARIF upload below, it just doesn't block.
+          # surfaces via the SARIF upload below, it just doesn't block. It
+          # applies to both architectures.
           only-fixed: true
+          # Accepted exceptions, one OpenVEX file each, in .github/scout/:
+          # a CVE whose fix exists but can't reach this image yet (e.g. musl's
+          # CVE-2026-107891, fixed only in Alpine edge as of 2026-11-06). Each
+          # file says why and when to delete it; findings still reach SARIF.
+          vex-location: .github/scout
+          vex-author: Hearth maintainers
+          only-vex-affected: true
           exit-code: true
           sarif-file: ${{ env.SARIF_FILE }}
+          # Both legs would update the same PR comment, so whichever finished
+          # last would hide the other's findings. Only amd64 comments; arm64's
+          # findings still gate this job and reach the Security tab via SARIF.
+          write-comment: ${{ matrix.arch == 'amd64' }}
 
       - name: Upload Docker Scout results to GitHub Code Scanning
         # always() so findings still reach the Security tab on the runs where
@@ -75,3 +116,21 @@ jobs:
         uses: github/codeql-action/upload-sarif@a2983b8bed1923f44751c5c43237f479442827b3 # v3
         with:
           sarif_file: ${{ env.SARIF_FILE }}
+          # A distinct category per architecture, so one upload doesn't
+          # replace the other's results in the Security tab.
+          category: docker-scout-${{ matrix.arch }}
+
+  # The required check: keeps the `scout` name branch protection already
+  # expects, and fails if either architecture's scan did.
+  scout:
+    needs: scan
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Both architectures passed
+        env:
+          RESULT: ${{ needs.scan.result }}
+        run: |
+          echo "Docker Scout matrix result: $RESULT"
+          [ "$RESULT" = "success" ] || [ "$RESULT" = "skipped" ]

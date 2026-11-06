@@ -13,7 +13,7 @@ import { isModuleEnabled } from "@/lib/modules/enablement";
 import { extractSearchableText } from "@/lib/documents/textExtraction";
 import { describeUploadRejection } from "@/lib/uploadValidation";
 import { computeInboxIntake } from "@/lib/documents/inboxIntake";
-import { addDocumentCommand, purgeDocument, supersedeDocumentCommand } from "@/lib/commands/documents";
+import { addDocumentCommand, discardFiledDocument, supersedeDocumentCommand } from "@/lib/commands/documents";
 import { documentCommandError } from "@/lib/documents/commandErrors";
 import { createContractCommand } from "@/lib/commands/contracts";
 import { createProductCommand } from "@/lib/commands/products";
@@ -22,6 +22,7 @@ import { RecordValidationError } from "@/lib/commands/shared";
 import { extractionFieldsFromForm } from "@/lib/documents/extractionConfirmation";
 import { saveExtractionReviewFieldsFromForm } from "@/lib/documents/extractionReview";
 import { parseDocumentCategory } from "@/lib/documents/categories";
+import { issueState } from "@/lib/validation/issues";
 
 function formToInventoryItemInput(formData: FormData) {
   return {
@@ -46,9 +47,6 @@ async function requireUser() {
   return session.user;
 }
 
-function firstIssueMessage(error: { issues: { message: string }[] }) {
-  return error.issues[0]?.message ?? "Invalid input";
-}
 
 // Bulk-import variants of createContract/createProduct: same validation and
 // document-attach logic, but return a result instead of redirect()-ing, so
@@ -58,7 +56,7 @@ export async function importContract(formData: FormData): Promise<ImportResult> 
   const user = await requireUser();
 
   const parsed = contractSchema.safeParse(formToContractInput(formData));
-  if (!parsed.success) return { error: firstIssueMessage(parsed.error) };
+  if (!parsed.success) return { ...issueState(parsed.error) };
 
   const file = formData.get("file");
   if (file instanceof File && file.size > 0) {
@@ -90,7 +88,7 @@ export async function importProduct(formData: FormData): Promise<ImportResult> {
   const user = await requireUser();
 
   const parsed = productSchema.safeParse(formToProductInput(formData));
-  if (!parsed.success) return { error: firstIssueMessage(parsed.error) };
+  if (!parsed.success) return { ...issueState(parsed.error) };
 
   const file = formData.get("file");
   if (file instanceof File && file.size > 0) {
@@ -124,7 +122,7 @@ export async function importInventoryItem(formData: FormData): Promise<ImportRes
   if (!(await isModuleEnabled("INVENTORY"))) return { error: "Inventory module is disabled." };
 
   const parsed = inventoryItemSchema.safeParse(formToInventoryItemInput(formData));
-  if (!parsed.success) return { error: firstIssueMessage(parsed.error) };
+  if (!parsed.success) return { ...issueState(parsed.error) };
 
   const file = formData.get("file");
   if (file instanceof File && file.size > 0) {
@@ -295,7 +293,15 @@ export async function attachInboxDocumentAsVersion(
   try {
     await prisma.inboxDocument.delete({ where: { id: inboxId } });
   } catch (error) {
-    await purgeDocument(targetKind, filed.id);
+    try {
+      await discardFiledDocument(targetKind, filed.id);
+    } catch (rollbackError) {
+      // Keep the Inbox failure as the cause, so the log shows why filing
+      // stopped and not only that the rollback failed too.
+      throw new Error("Couldn't take back a filed document after leaving the Inbox failed.", {
+        cause: new AggregateError([error, rollbackError]),
+      });
+    }
     throw error;
   }
   await deleteInboxDocument(doc.storedName);

@@ -9,6 +9,51 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Assistant confirmation card helps spot a steered proposal (#530, part
+  2).** An update now shows each field's current value under the proposed
+  one. Free-text fields are shown in full and shaded as the Assistant's
+  wording. A field is flagged when it adds a link or email address that
+  isn't already on the record, runs over 500 characters, or reads like
+  instructions to an AI, and the card says how many fields need a closer
+  look. Flags are only warnings: Confirm still saves. Server-only; the
+  shell's local assistant makes no proposals.
+- **Prompt-injection regression tests and model (#530, part 1).** New unit
+  tests feed injection text through every document extractor (with Ollama
+  and the BYOK provider stubbed to obey it) and through the Assistant's
+  tools and confirm actions, and check that only short, known fields come
+  back and nothing is written without a confirm. Ollama extraction prompts
+  are now built by one helper, `untrustedTextPrompt`, so none can ship
+  without the untrusted-content notice. `docs/security/prompt-injection.md`
+  lists which defences are enforced and which are only advisory.
+  Server-only; the iOS and Android shell has no AI extraction or chat.
+- **Household currency (#453).** Settings → Household has a Household
+  currency next to the timezone; members see it read-only. MCP's
+  `spend_summary` converts to it when no `currency` is given, instead of the
+  first admin's preferred currency, and a new member starts with it as their
+  own preferred currency. Until an admin sets it, it falls back to the first
+  admin's preferred currency, then AUD. Server-only; the iOS and Android
+  shell is unchanged.
+- **Default Reminder thresholds in the standalone app (#536).** The
+  standalone mobile shell's Reminders view has a "Default reminder
+  thresholds" setting, stored on the device, the counterpart of the web's
+  household default. It is checked with the web setting's rule and message
+  (whole days, comma-separated), saved deduplicated and largest first, and
+  left blank it resets to 30,14,7,1. Records with no thresholds of their own
+  use it for Due soon, Needs attention, Upcoming and device reminders, and
+  saving it reschedules the device reminders. A Contract, Warranty or Vehicle
+  saved with the thresholds field blank now stores none of its own (it used
+  to store 30,14,7,1), so it follows the default; records that already have
+  thresholds keep them. Connected mode is unchanged.
+- **Demo seed data (#553).** `scripts/demo/seed.ts` seeds a fictional
+  household (every module, about 60 records, dates relative to today) through
+  the app's own record commands, for the public demo instance. It refuses a
+  database that already has users. Run it with `npx tsx scripts/demo/seed-cli.ts`
+  against a scratch database.
+- **Public demo deploy (#553).** `docker/demo/` builds a demo image from a
+  release with the seed baked in, plus Fly.io (Johannesburg) and Render (free,
+  Frankfurt) configs. The new "Demo deploy" workflow rebuilds and redeploys it
+  nightly and after each release, which is also the reset. Setup:
+  `docs/deployment/demo.md`. The public image is unchanged.
 - **Upload page: one scan, bulk edits and a Quick check screen (#358).**
   Each file is scanned once; the page pre-selects Contract, Warranty or
   Inventory item from what the scan found, and switching type reuses that
@@ -60,9 +105,19 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   built, size-checked and smoke-tested on a native runner before either is
   published, on every Docker-related PR as well as at release, and both
   carry an SBOM and build provenance.
+  Docker Scout scans both images too (#545), each with its own results in
+  the Security tab, under the same `scout` check.
 
 ### Security
 
+- **Docker Scout exception for musl CVE-2026-107891.** The fix (musl
+  1.2.6-r6) is only in Alpine edge, so no rebuild on the v3.24 base can
+  clear it. `.github/scout/` holds an OpenVEX file that lets the scan pass
+  until Alpine v3.24 ships the fix; delete it then. The finding still
+  reaches the Security tab.
+- **zlib 1.4 from Alpine edge (CVE-2026-4738, critical).** The fixed zlib
+  isn't in Alpine v3.24 yet, so the image pulls just that package from
+  edge, as it already does for giflib. Drop it once v3.24 ships 1.4.
 - **MCP server hardening.** `/api/mcp` now compares bearer tokens in
   constant time, throttles wrong tokens per client address (10 per 15
   minutes, recorded in Settings → Security as "MCP request with a wrong
@@ -85,11 +140,24 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- **A form's validation error shows under the field it's about (#406).**
+  When saving fails on one field (an end date before the start date, a
+  missing title, a bad amount), the message now appears under that field,
+  the field's border turns red and it takes focus, instead of the message
+  sitting in a banner at the foot of the form. Errors that aren't about one
+  field still use the banner, as do the sign-in, password and settings
+  forms whose inputs aren't in a `Field`. The holding, trade and portfolio
+  forms now use `Field` like the other record forms. Form actions build
+  their Zod error through one helper, `issueState`, which also names the
+  field; the Assistant's tool results are unchanged. Server-only; the
+  shell's forms are unchanged.
+- **"Add tenancy", not "New tenancy" (#406).** The rental page's button
+  and the add-tenancy page heading use the same verb as every other add.
 - **Joining the household (#372).** Accepting an invitation signs the new
   member straight in and lands them on Upcoming, with a one-time welcome that
   says everything is shared with the household and what their role lets
-  them do. Finishing a password reset signs in too, unless two-factor is on,
-  in which case it still asks for the code at sign-in. On phones, Upcoming
+  them do. Finishing a password reset doesn't sign in: it sends the person
+  to the login page to sign in with the new password. On phones, Upcoming
   takes Documents' place in the bottom bar; Documents and its Inbox count
   move into More, and the More tab shows the count too.
 - **Saving a scanned record confirms it (#359).** After a scan fills in a
@@ -147,8 +215,9 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   accessible name matches its visible text (#411 review).
 - **Consistency pass (#406).** Every add, edit and renew form now has Cancel
   beside Save, going back to the same place as the page's back link. A form
-  error is shown once, in the banner above the buttons (scrolled into view
-  and announced to screen readers), instead of also popping up as a toast.
+  error is shown once (scrolled into view and announced to screen readers),
+  instead of also popping up as a toast; an error about one field now sits
+  under that field (see the entry above).
   An empty Contracts, Warranties, Vehicles, Properties or Travel list shows
   just its sentence and Add button, without Export, search or filter chips;
   an empty Contracts or Warranties list also says how many are in Recently
@@ -263,6 +332,28 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Fixed
 
+- **AI egress proxy works with Pipelock again (#559).** Setting
+  `AI_EGRESS_PROXY_URL` broke document extraction and the Assistant:
+  provider calls were sent to Pipelock's `/fetch` endpoint, which only
+  accepts GET and returns page text, so every POST came back 405. Provider
+  calls now use the proxy as a standard HTTP forward proxy, which carries
+  the method, headers and body unchanged. The Ollama text fallback in the
+  per-domain extractors used to bypass the proxy and now goes through it
+  too. New optional `AI_EGRESS_PROXY_CA_CERT` points at the proxy's CA so
+  it can intercept TLS and scan request bodies; it is trusted for provider
+  calls only. Gemini extraction now sends its key in the `x-goog-api-key`
+  header instead of the URL. Server-only; the iOS and Android shell makes
+  no AI calls.
+- **A permanent delete no longer removes a record restored a moment earlier
+  (#534).** Deleting permanently from Recently deleted, and Trash
+  retention's expiry purge, now only delete a record that's still in Trash,
+  checked in the delete itself. If a Contract, Warranty, Vehicle or Service
+  record, Trip or segment, Property or anything under it, Trade or Document
+  is restored between the click (or retention listing it) and the delete,
+  it survives with its documents and files. A record's permanent delete
+  says "That … has been restored, so it wasn't deleted."; a Document's says
+  "Only a document in Recently deleted can be deleted permanently."
+  Retention skips it and carries on. Inventory had this fix already (#522).
 - **Recently deleted count on empty lists (#514 follow-up).** An empty
   Contracts or Warranties list no longer counts records past the 30-day
   Trash window, which are purged the next time Trash opens.

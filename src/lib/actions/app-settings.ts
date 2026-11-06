@@ -16,6 +16,9 @@ import { sendTestEmail } from "@/lib/notifications/email";
 import { sendTestNtfy } from "@/lib/notifications/ntfy";
 import type { ActionState } from "@/lib/actions/auth";
 import { isValidTimeZone } from "@/lib/duePolicy";
+import { POPULAR_CURRENCIES, isCurrencyCode } from "@/lib/currencyCodes";
+import { aiProviderFetch, isEgressProxyRefusal } from "@/lib/ai/egressProxy";
+import { isAiEgressProxyConfigured } from "@/lib/env";
 
 export async function requireAdmin() {
   const session = await auth();
@@ -282,6 +285,35 @@ export async function saveHouseholdTimeZone(
   return { success: "Household timezone saved." };
 }
 
+// #453 — an empty value clears the setting, so the first admin's preferred
+// currency applies again.
+export async function saveHouseholdCurrency(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  await requireAdmin();
+
+  const raw = formData.get("householdCurrency");
+  const currency = typeof raw === "string" ? raw.trim().toUpperCase() : null;
+  if (currency === null || (currency !== "" && !isCurrencyCode(currency))) {
+    return { error: "Must be an ISO 4217 currency code, such as AUD or USD." };
+  }
+  // New members start with this as their preferred currency, so it must be
+  // one the preference and record currency selects offer.
+  if (currency !== "" && !(POPULAR_CURRENCIES as readonly string[]).includes(currency)) {
+    return { error: "Pick one of the listed currencies." };
+  }
+
+  try {
+    await setAppSetting("household.currency", currency);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Failed to save the household currency." };
+  }
+
+  revalidatePath("/settings/household");
+  return { success: "Household currency saved." };
+}
+
 // Clears a single sensitive setting (e.g. remove a password / token entirely)
 export async function clearAppSetting(key: string): Promise<ActionState> {
   await requireAdmin();
@@ -395,10 +427,17 @@ export async function testOllamaConnection(): Promise<ActionState> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
   try {
-    const res = await fetch(`${ollama.baseUrl.replace(/\/$/, "")}/api/tags`, {
+    const res = await aiProviderFetch(`${ollama.baseUrl.replace(/\/$/, "")}/api/tags`, {
       signal: controller.signal,
     });
-    if (!res.ok) return { error: `Ollama responded with HTTP ${res.status}.` };
+    if (!res.ok) {
+      if (isAiEgressProxyConfigured() && isEgressProxyRefusal(res.status)) {
+        return {
+          error: `The AI egress proxy refused or failed the request (HTTP ${res.status}). Check its logs (docker compose logs pipelock); a LAN Ollama needs its address in Pipelock's ssrf.ip_allowlist.`,
+        };
+      }
+      return { error: `Ollama responded with HTTP ${res.status}.` };
+    }
 
     const data = (await res.json()) as { models?: { name: string }[] };
     const names = data.models?.map((m) => m.name) ?? [];
