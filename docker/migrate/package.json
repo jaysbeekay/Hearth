@@ -4,7 +4,7 @@
   "description": "Prisma CLI for `prisma migrate deploy` in the Docker image, installed apart from the app so the runner can ship Next's standalone output instead of the root project's full production node_modules (#518). Keep the prisma version equal to the root package-lock.json's and the overrides equal to the root package.json's (they patch vulnerable transitive deps, which the Prisma CLI shares); tests/unit/docker-migrate-deps.test.ts checks both.",
   "license": "AGPL-3.0-only",
   "dependencies": {
-    "prisma": "7.10.0"
+    "prisma": "7.10.1"
   },
   "overrides": {
     "nodemailer": "^10.2.1",

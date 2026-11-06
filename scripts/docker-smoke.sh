@@ -114,24 +114,30 @@ check_running_image() { # check_running_image <container>
 
   # PDF export (#523): pdfkit must stay a server external, because a bundled
   # pdfkit loses its .afm font files and every ?format=pdf export returns 500.
-  # Check that the server requires it from node_modules, and that it renders
-  # a PDF in its standard font from there. (The libsql musl binding needs no
-  # check of its own: /api/health above queries the database through it.)
-  docker exec "$c" node -e '
+  # Check that the server loads it from node_modules (as `require("pdfkit")`,
+  # or `import("pdfkit")` since pdfkit 0.20 ships an ESM entry for node), and
+  # that it renders a PDF in its standard font from there, loaded the same
+  # way the server loads it. (The libsql musl binding needs no check of its
+  # own: /api/health above queries the database through it.)
+  docker exec -w /app "$c" node -e '
     const fs = require("fs");
-    const external = fs.readdirSync("/app/.next/server", { recursive: true })
+    const server = fs.readdirSync("/app/.next/server", { recursive: true })
       .filter((f) => f.endsWith(".js"))
-      .some((f) => fs.readFileSync("/app/.next/server/" + f, "utf8").includes("require(\"pdfkit\")"));
-    if (!external) { console.error("pdfkit is bundled into the server, not required from node_modules"); process.exit(1); }
-    const PDFDocument = require(require.resolve("pdfkit", { paths: ["/app"] }));
-    const doc = new PDFDocument();
-    const chunks = [];
-    doc.on("data", (c) => chunks.push(c)).on("end", () => {
-      const pdf = Buffer.concat(chunks);
-      if (pdf.subarray(0, 4).toString() !== "%PDF") { console.error("pdfkit output is not a PDF"); process.exit(1); }
-      console.log("-- pdfkit is external and renders a PDF (" + pdf.length + " bytes)");
-    });
-    doc.font("Helvetica").text("docker smoke").end();
+      .map((f) => fs.readFileSync("/app/.next/server/" + f, "utf8"));
+    const viaImport = server.some((src) => src.includes("import(\"pdfkit\")"));
+    const viaRequire = server.some((src) => src.includes("require(\"pdfkit\")"));
+    if (!viaImport && !viaRequire) { console.error("pdfkit is bundled into the server, not loaded from node_modules"); process.exit(1); }
+    const load = viaImport ? import("pdfkit").then((m) => m.default) : Promise.resolve(require("pdfkit"));
+    load.then((PDFDocument) => {
+      const doc = new PDFDocument();
+      const chunks = [];
+      doc.on("data", (c) => chunks.push(c)).on("end", () => {
+        const pdf = Buffer.concat(chunks);
+        if (pdf.subarray(0, 4).toString() !== "%PDF") { console.error("pdfkit output is not a PDF"); process.exit(1); }
+        console.log("-- pdfkit is external and renders a PDF (" + pdf.length + " bytes)");
+      });
+      doc.font("Helvetica").text("docker smoke").end();
+    }).catch((err) => { console.error(err); process.exit(1); });
   ' || fail "PDF export would fail: pdfkit or its font files are missing"
 
   mcp '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"docker-smoke","version":"1"}}}' >/dev/null \
