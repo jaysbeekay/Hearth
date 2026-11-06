@@ -9,6 +9,12 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- iOS release pipeline: `ios-testflight.yml` builds, signs and uploads the
+  Capacitor shell to TestFlight on each pushed `v*` tag, setting the app
+  version from the tag and a UTC-timestamp build number. Tags created by
+  running `release.yml` from the Actions tab need a manual run, and the
+  workflow doesn't gate releases yet. Setup and required secrets are in
+  `docs/deployment/ios-testflight.md`.
 - **Assistant confirmation card helps spot a steered proposal (#530, part
   2).** An update now shows each field's current value under the proposed
   one. Free-text fields are shown in full and shaded as the Assistant's
