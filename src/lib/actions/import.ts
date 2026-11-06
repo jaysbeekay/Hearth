@@ -13,7 +13,7 @@ import { isModuleEnabled } from "@/lib/modules/enablement";
 import { extractSearchableText } from "@/lib/documents/textExtraction";
 import { describeUploadRejection } from "@/lib/uploadValidation";
 import { computeInboxIntake } from "@/lib/documents/inboxIntake";
-import { addDocumentCommand, purgeDocument, supersedeDocumentCommand } from "@/lib/commands/documents";
+import { addDocumentCommand, discardFiledDocument, supersedeDocumentCommand } from "@/lib/commands/documents";
 import { documentCommandError } from "@/lib/documents/commandErrors";
 import { createContractCommand } from "@/lib/commands/contracts";
 import { createProductCommand } from "@/lib/commands/products";
@@ -295,7 +295,15 @@ export async function attachInboxDocumentAsVersion(
   try {
     await prisma.inboxDocument.delete({ where: { id: inboxId } });
   } catch (error) {
-    await purgeDocument(targetKind, filed.id);
+    try {
+      await discardFiledDocument(targetKind, filed.id);
+    } catch (rollbackError) {
+      // Keep the Inbox failure as the cause, so the log shows why filing
+      // stopped and not only that the rollback failed too.
+      throw new Error("Couldn't take back a filed document after leaving the Inbox failed.", {
+        cause: new AggregateError([error, rollbackError]),
+      });
+    }
     throw error;
   }
   await deleteInboxDocument(doc.storedName);

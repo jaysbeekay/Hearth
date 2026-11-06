@@ -22,7 +22,7 @@ import { isKnownModuleKey } from "@/lib/modules/enablement";
 import type { ModuleKey } from "@/lib/modules/registry";
 import { DATE_FORMAT_OPTIONS, REGION_OPTIONS } from "@/lib/utils";
 import { isUserTimeZoneOption } from "@/lib/timezones";
-import { POPULAR_CURRENCIES } from "@/components/CurrencySelect";
+import { POPULAR_CURRENCIES } from "@/lib/currencyCodes";
 import { env, isAppUrlConfigured, isSetupTokenRequired } from "@/lib/env";
 import { generateToken, hashToken } from "@/lib/crypto";
 import { buildConfiguredAppUrl, isUsableOneTimeToken } from "@/lib/authTokens";
@@ -33,7 +33,7 @@ import {
   recordFailedAttempt,
   resetRateLimit,
 } from "@/lib/rateLimit";
-import { isSmtpConfigured } from "@/lib/appSettings";
+import { getHouseholdCurrency, isSmtpConfigured } from "@/lib/appSettings";
 import { sendInvitationEmail, sendPasswordResetEmail } from "@/lib/notifications/email";
 import { logSecurityEvent } from "@/lib/securityEventLog";
 import { safeCallbackPath } from "@/lib/callbackUrl";
@@ -233,6 +233,13 @@ export async function login(
   return null;
 }
 
+// #453 — a new member starts with the household currency, if the
+// preferences select offers it (otherwise the schema default applies).
+async function newMemberCurrency(): Promise<string | undefined> {
+  const currency = await getHouseholdCurrency();
+  return (POPULAR_CURRENCIES as readonly string[]).includes(currency) ? currency : undefined;
+}
+
 export async function createUser(
   _prevState: ActionState,
   formData: FormData,
@@ -273,6 +280,7 @@ export async function createUser(
         email: parsed.data.email,
         passwordHash,
         role: parsed.data.role,
+        preferredCurrency: await newMemberCurrency(),
       },
     });
 
@@ -317,6 +325,7 @@ export async function createUser(
       email: parsed.data.email,
       passwordHash: placeholderHash,
       role: parsed.data.role,
+      preferredCurrency: await newMemberCurrency(),
     },
   });
 
@@ -649,18 +658,19 @@ export async function resetPassword(
   }
   await logSecurityEvent({ type: "PASSWORD_RESET_COMPLETED", userId: resetToken.userId });
 
-  // #372 — the person just proved they own the inbox and chose this
-  // password, so sign them straight in. Without two-factor the link could
-  // already be used to set a password and sign in with it, so this adds no
-  // new way in; earlier sessions were signed out above. With two-factor on a
-  // reset link must not stand in for the second factor, so they still sign
-  // in with it.
-  return signInAfterPasswordSet(resetToken.userId, parsed.data.password, "/dashboard", "Password updated. You can now sign in.");
+  // A reset ends here and sends the person to the login page to sign in
+  // with the new password (ResetPasswordForm's "Continue to sign in"). It
+  // doesn't sign them in itself: a reset link is something an email inbox
+  // hands out, so signing in stays a separate, deliberate step, and with
+  // two-factor on that step still asks for the code. Earlier sessions were
+  // signed out above.
+  return { success: "Password updated. You can now sign in." };
 }
 
 /**
- * Signs the user in with the password they just set and redirects (signIn
- * throws Next's redirect), or returns `fallback` for the "now sign in" path
+ * Signs a newly invited member in with the password they just set and
+ * redirects (signIn throws Next's redirect), or returns `fallback` for the
+ * "now sign in" path
  * when the account has two-factor on or the sign-in doesn't go through.
  */
 async function signInAfterPasswordSet(
