@@ -9,6 +9,13 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Manage your push devices (#375, part 2).** Settings → My account lists
+  your other devices with push on, each with when it last got a Reminder
+  (or why its last push failed) and a Remove button for a lost or old one.
+  Signing out removes that browser's push subscription, so the next person
+  to use it doesn't get your Reminders. Members only ever see and remove
+  their own devices. Email stays a per-account choice and ntfy stays
+  household-wide.
 - **Web Push reminders (#375, part 1).** Settings → My account has a
   "Notify this device" button: Reminders then arrive as notifications on
   that browser, with no SMTP, ntfy or other account. Push is a fourth

@@ -44,6 +44,20 @@ export default async function SettingsPage() {
     getHouseholdTimeZone(),
     getVapidPublicKey(),
   ]);
+  // #375 — the member's own devices only; other members' stay private.
+  const pushDevices = await prisma.pushSubscription.findMany({
+    where: { userId: session.user.id },
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      endpoint: true,
+      deviceLabel: true,
+      createdAt: true,
+      lastSuccessAt: true,
+      lastFailureAt: true,
+      lastError: true,
+    },
+  });
   if (!user) redirect("/login");
   const appUrl = env.appUrl ?? "http://localhost:3000";
 
@@ -99,7 +113,7 @@ export default async function SettingsPage() {
               )}
             </p>
             <div className="space-y-3">
-              <PushDeviceToggle vapidPublicKey={vapidPublicKey} />
+              <PushDeviceToggle vapidPublicKey={vapidPublicKey} devices={pushDevices} />
               <NotificationPreferencesForm emailReminders={user.emailReminders} />
             </div>
           </Card>

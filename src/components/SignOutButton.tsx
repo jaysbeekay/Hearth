@@ -15,6 +15,7 @@ import {
 } from "@/lib/offlineSession";
 import { awaitSyncIdle, syncPendingOperations } from "@/lib/offlineSync";
 import { buttonClass } from "@/lib/ui";
+import { currentPushSubscription } from "@/lib/pushClient";
 
 // How long the pre-sign-out check may take before we stop waiting on
 // IndexedDB and say so, rather than hang or assume nothing is unsynced.
@@ -63,8 +64,10 @@ export function SignOutButton({
     // Other tabs are told from the sign-in page once the session is really
     // gone (SignedOutCacheCleanup), not here, where they'd reload too early.
     await clearOfflineData();
+    // #375 — this device stops getting the signed-out member's Reminders.
+    const push = await currentPushSubscription();
     try {
-      await logout();
+      await logout(push?.endpoint);
     } catch (err) {
       if (!isRedirect(err)) {
         // Still signed in after all: put back this tab's owner and the
@@ -76,6 +79,7 @@ export function SignOutButton({
         return;
       }
     }
+    await push?.unsubscribe().catch(() => undefined);
     // A full page load, not a client-side navigation, so the router cache
     // and Back can't show the signed-out user's pages (#424 review).
     window.location.replace("/login");

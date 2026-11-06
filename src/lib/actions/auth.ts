@@ -730,6 +730,14 @@ export async function acceptInvitation(
 
 // The caller (SignOutButton) does a full page load to /login afterwards, so
 // no client-side router cache of the signed-out user's pages survives.
-export async function logout() {
+export async function logout(pushEndpoint?: string) {
+  // #375 — drop this device's push subscription with the session, so the
+  // next person on it doesn't get this member's Reminders.
+  if (typeof pushEndpoint === "string" && pushEndpoint.length <= 2048) {
+    const session = await auth();
+    if (session?.user?.id) {
+      await prisma.pushSubscription.deleteMany({ where: { endpoint: pushEndpoint, userId: session.user.id } });
+    }
+  }
   await signOut({ redirect: false });
 }
