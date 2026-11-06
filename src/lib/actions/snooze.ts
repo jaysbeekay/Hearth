@@ -8,6 +8,7 @@ import { ModuleDisabledError } from "@/lib/modules/enablement";
 import { addDays, calendarDayOf, formatDueDate } from "@/lib/duePolicy";
 import { snoozeSchema, unsnoozeSchema } from "@/lib/validation/snooze";
 import type { ActionState } from "@/lib/actions/auth";
+import { issueState } from "@/lib/validation/issues";
 
 // #354 — Snooze ("remind me later") a Due Contract, Warranty or Vehicle, and
 // Unsnooze it. Open to every member who can edit records; READONLY can't.
@@ -36,7 +37,7 @@ function commandError(error: unknown): ActionState {
 export async function snoozeRecord(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const user = await requireUser();
   const parsed = snoozeSchema.safeParse(fields(formData));
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  if (!parsed.success) return { ...issueState(parsed.error) };
   const { kind, id, days, until: chosen } = parsed.data;
 
   const today = await getHouseholdToday();
@@ -53,7 +54,7 @@ export async function snoozeRecord(_prev: ActionState, formData: FormData): Prom
 export async function unsnoozeRecord(_prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireUser();
   const parsed = unsnoozeSchema.safeParse(fields(formData));
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  if (!parsed.success) return { ...issueState(parsed.error) };
   try {
     await unsnoozeRecordCommand(parsed.data.kind, parsed.data.id);
   } catch (error) {

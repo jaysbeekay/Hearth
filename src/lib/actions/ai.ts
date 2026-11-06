@@ -6,8 +6,9 @@ import { setAppSetting } from "@/lib/appSettings";
 import { isEncryptionConfigured } from "@/lib/env";
 import { aiSettingsSchema } from "@/lib/validation/ai";
 import { AI_PROVIDERS_WITHOUT_API_KEY } from "@/lib/ai/types";
+import { issueState } from "@/lib/validation/issues";
 
-export type ActionState = { error?: string; success?: string } | null;
+export type ActionState = { error?: string; field?: string; success?: string } | null;
 
 // Household-wide, admin-only — see src/lib/ai/extract.ts's getByokConfig().
 export async function saveAiSettings(
@@ -22,7 +23,7 @@ export async function saveAiSettings(
     model: formData.get("model") || undefined,
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+    return { ...issueState(parsed.error) };
   }
 
   const needsApiKey = !AI_PROVIDERS_WITHOUT_API_KEY.includes(parsed.data.provider);

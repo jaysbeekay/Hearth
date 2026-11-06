@@ -47,15 +47,13 @@ import type { ActionState } from "@/lib/actions/auth";
 import { parse } from "csv-parse/sync";
 import { inferImportedAssetClass } from "@/lib/priceSource";
 import { describeUploadRejection } from "@/lib/uploadValidation";
+import { issueState } from "@/lib/validation/issues";
 
 const PORTFOLIO_FIELDS = ["name", "description", "currency", "costMethod"];
 const HOLDING_FIELDS = ["ticker", "name", "assetClass", "exchange"];
 const TRADE_FIELDS = ["type", "date", "units", "pricePerUnit", "fees", "currency", "fxRate", "notes"];
 const VALUATION_FIELDS = ["valuedAt", "value", "currency", "source", "notes"];
 
-function firstIssueMessage(error: { issues: { message: string }[] }) {
-  return error.issues[0]?.message ?? "Invalid input";
-}
 
 async function requireUser() {
   const session = await auth();
@@ -92,7 +90,7 @@ export async function createPortfolio(
   const parsed = portfolioSchema.safeParse(formToPortfolioInput(formData));
   if (!parsed.success) {
     return {
-      error: firstIssueMessage(parsed.error),
+      ...issueState(parsed.error),
       values: formDataToStringValues(formData, PORTFOLIO_FIELDS),
     };
   }
@@ -114,7 +112,7 @@ export async function updatePortfolio(
   const parsed = portfolioSchema.safeParse(formToPortfolioInput(formData));
   if (!parsed.success) {
     return {
-      error: firstIssueMessage(parsed.error),
+      ...issueState(parsed.error),
       values: formDataToStringValues(formData, PORTFOLIO_FIELDS),
     };
   }
@@ -148,7 +146,7 @@ export async function createHolding(
   const parsed = holdingSchema.safeParse(formToHoldingInput(formData));
   if (!parsed.success) {
     return {
-      error: firstIssueMessage(parsed.error),
+      ...issueState(parsed.error),
       values: formDataToStringValues(formData, HOLDING_FIELDS),
     };
   }
@@ -171,7 +169,7 @@ export async function updateHolding(
   const parsed = holdingSchema.safeParse(formToHoldingInput(formData));
   if (!parsed.success) {
     return {
-      error: firstIssueMessage(parsed.error),
+      ...issueState(parsed.error),
       values: formDataToStringValues(formData, HOLDING_FIELDS),
     };
   }
@@ -210,7 +208,7 @@ export async function createTrade(
   const parsed = tradeSchema.safeParse(formToTradeInput(formData));
   if (!parsed.success) {
     return {
-      error: firstIssueMessage(parsed.error),
+      ...issueState(parsed.error),
       values: formDataToStringValues(formData, TRADE_FIELDS),
     };
   }
@@ -245,7 +243,7 @@ export async function updateTrade(
   const parsed = tradeSchema.safeParse(formToTradeInput(formData));
   if (!parsed.success) {
     return {
-      error: firstIssueMessage(parsed.error),
+      ...issueState(parsed.error),
       values: formDataToStringValues(formData, TRADE_FIELDS),
     };
   }
@@ -429,7 +427,7 @@ export async function importTrades(
   // only, so validate it for real before any of it reaches the database.
   const validated = importedTradesSchema.safeParse(rows);
   if (!validated.success) {
-    return { error: firstIssueMessage(validated.error) };
+    return { ...issueState(validated.error) };
   }
 
   let result: { imported: number; skipped: number };
@@ -471,7 +469,7 @@ export async function createPropertyValuation(
   const parsed = propertyValuationSchema.safeParse(formToPropertyValuationInput(formData));
   if (!parsed.success) {
     return {
-      error: firstIssueMessage(parsed.error),
+      ...issueState(parsed.error),
       values: formDataToStringValues(formData, VALUATION_FIELDS),
     };
   }
