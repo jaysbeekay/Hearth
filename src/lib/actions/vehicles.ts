@@ -26,6 +26,7 @@ import { RecordNotFoundError, RecordValidationError, StaleEditError } from "@/li
 import type { ActionState } from "@/lib/actions/auth";
 import { describeUploadRejection } from "@/lib/uploadValidation";
 import { parseDocumentCategory } from "@/lib/documents/categories";
+import { issueState } from "@/lib/validation/issues";
 
 const VEHICLE_FORM_FIELDS = [
   "label",
@@ -52,9 +53,6 @@ const VEHICLE_ITEM_FORM_FIELDS = [
   "notes",
 ];
 
-function firstIssueMessage(error: { issues: { message: string }[] }) {
-  return error.issues[0]?.message ?? "Invalid input";
-}
 
 async function requireUser() {
   const session = await auth();
@@ -87,7 +85,7 @@ export async function createVehicle(
   const parsed = vehicleSchema.safeParse(formToVehicleInput(formData));
   if (!parsed.success) {
     return {
-      error: firstIssueMessage(parsed.error),
+      ...issueState(parsed.error),
       values: formDataToStringValues(formData, VEHICLE_FORM_FIELDS),
     };
   }
@@ -111,7 +109,7 @@ export async function updateVehicle(
   const parsed = vehicleSchema.safeParse(formToVehicleInput(formData));
   if (!parsed.success) {
     return {
-      error: firstIssueMessage(parsed.error),
+      ...issueState(parsed.error),
       values: formDataToStringValues(formData, VEHICLE_FORM_FIELDS),
     };
   }
@@ -186,7 +184,7 @@ export async function addVehicleItem(
   const parsed = vehicleItemSchema.safeParse(formToVehicleItemInput(formData));
   if (!parsed.success) {
     return {
-      error: firstIssueMessage(parsed.error),
+      ...issueState(parsed.error),
       values: formDataToStringValues(formData, VEHICLE_ITEM_FORM_FIELDS),
     };
   }
@@ -225,7 +223,7 @@ export async function updateVehicleItem(
   const parsed = vehicleItemSchema.safeParse(formToVehicleItemInput(formData));
   if (!parsed.success) {
     return {
-      error: firstIssueMessage(parsed.error),
+      ...issueState(parsed.error),
       values: formDataToStringValues(formData, VEHICLE_ITEM_FORM_FIELDS),
     };
   }
