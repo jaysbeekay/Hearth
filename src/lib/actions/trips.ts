@@ -25,6 +25,7 @@ import { formDataToStringValues } from "@/lib/form-state";
 import { isModuleEnabled } from "@/lib/modules/enablement";
 import type { ActionState } from "@/lib/actions/auth";
 import { describeUploadRejection } from "@/lib/uploadValidation";
+import { issueState } from "@/lib/validation/issues";
 
 const TRIP_FORM_FIELDS = ["title", "destination", "startDate", "endDate", "notes"];
 
@@ -44,9 +45,6 @@ const TRIP_SEGMENT_FORM_FIELDS = [
   "arrivalIata",
 ];
 
-function firstIssueMessage(error: { issues: { message: string }[] }) {
-  return error.issues[0]?.message ?? "Invalid input";
-}
 
 async function requireUser() {
   const session = await auth();
@@ -77,7 +75,7 @@ export async function createTrip(
   const parsed = tripSchema.safeParse(formToTripInput(formData));
   if (!parsed.success) {
     return {
-      error: firstIssueMessage(parsed.error),
+      ...issueState(parsed.error),
       values: formDataToStringValues(formData, TRIP_FORM_FIELDS),
     };
   }
@@ -101,7 +99,7 @@ export async function updateTrip(
   const parsed = tripSchema.safeParse(formToTripInput(formData));
   if (!parsed.success) {
     return {
-      error: firstIssueMessage(parsed.error),
+      ...issueState(parsed.error),
       values: formDataToStringValues(formData, TRIP_FORM_FIELDS),
     };
   }
@@ -155,7 +153,7 @@ export async function addTripSegment(
   const parsed = tripSegmentSchema.safeParse(formToTripSegmentInput(formData));
   if (!parsed.success) {
     return {
-      error: firstIssueMessage(parsed.error),
+      ...issueState(parsed.error),
       values: formDataToStringValues(formData, TRIP_SEGMENT_FORM_FIELDS),
     };
   }
@@ -191,7 +189,7 @@ export async function updateTripSegment(
   const parsed = tripSegmentSchema.safeParse(formToTripSegmentInput(formData));
   if (!parsed.success) {
     return {
-      error: firstIssueMessage(parsed.error),
+      ...issueState(parsed.error),
       values: formDataToStringValues(formData, TRIP_SEGMENT_FORM_FIELDS),
     };
   }

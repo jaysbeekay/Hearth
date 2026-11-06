@@ -81,7 +81,7 @@ export function SmtpForm({
           </div>
         </Field>
       </div>
-      <FormMessage attempt={state} error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} field={state?.field} success={state?.success} />
       {current.host && current.user && (
         <p className="text-xs text-muted">
           Testing sends against the saved settings — save your changes first if you just edited them.
@@ -143,7 +143,7 @@ export function EmailIngestForm({
           </div>
         </Field>
       </div>
-      <FormMessage attempt={state} error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} field={state?.field} success={state?.success} />
       {current.host && current.user && (
         <p className="text-xs text-muted">
           Testing connects against the saved settings — save your changes first if you just edited
@@ -185,7 +185,7 @@ export function NtfyForm({
           <SensitiveField id="ntfyToken" name="ntfyToken" isSet={current.tokenIsSet} />
         </Field>
       </div>
-      <FormMessage attempt={state} error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} field={state?.field} success={state?.success} />
       {current.url && current.topic && (
         <p className="text-xs text-muted">
           Testing sends against the saved settings — save your changes first if you just edited them.
@@ -223,7 +223,7 @@ export function OllamaForm({
           <input id="ollamaModel" name="ollamaModel" defaultValue={current.model} placeholder="llama3" className={inputClass} />
         </Field>
       </div>
-      <FormMessage attempt={state} error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} field={state?.field} success={state?.success} />
       {current.baseUrl && (
         <p className="text-xs text-muted">
           Testing connects using the saved settings — save your changes first if you just edited them.
@@ -264,7 +264,7 @@ export function BarcodeForm({
           <SensitiveField id="barcodeApiKey" name="barcodeApiKey" isSet={current.apiKeyIsSet} />
         </Field>
       </div>
-      <FormMessage attempt={state} error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} field={state?.field} success={state?.success} />
       <div className="flex justify-end empty:hidden">
         <GroupedSubmit state={state}>Save barcode settings</GroupedSubmit>
       </div>
@@ -386,7 +386,7 @@ export function BackupDestinationForm({
         </div>
       )}
 
-      <FormMessage attempt={state} error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} field={state?.field} success={state?.success} />
       <div className="flex justify-end empty:hidden">
         <GroupedSubmit state={state}>Save backup destination</GroupedSubmit>
       </div>
@@ -420,7 +420,7 @@ export function ReminderScheduleForm({
       <Field label="Default reminder thresholds" htmlFor="reminderDefaultDays" hint="Days before the date, comma-separated, e.g. 30,14,7,1. Used by records that don't set their own.">
         <input id="reminderDefaultDays" name="reminderDefaultDays" defaultValue={current.defaultDays} placeholder="30,14,7,1" className={inputClass} />
       </Field>
-      <FormMessage attempt={state} error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} field={state?.field} success={state?.success} />
       <div className="flex justify-end empty:hidden">
         <GroupedSubmit state={state}>Save reminder schedule</GroupedSubmit>
       </div>
@@ -450,7 +450,7 @@ export function BackupScheduleForm({
       <Field label="Backup retention" htmlFor="retentionCount" hint="Number of backups to keep per destination">
         <input id="retentionCount" name="retentionCount" type="number" min={1} defaultValue={current.retentionCount} className={inputClass} />
       </Field>
-      <FormMessage attempt={state} error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} field={state?.field} success={state?.success} />
       <div className="flex justify-end empty:hidden">
         <GroupedSubmit state={state}>Save backup schedule</GroupedSubmit>
       </div>
@@ -497,7 +497,7 @@ export function HouseholdTimeZoneForm({
           </select>
         </SelectWrapper>
       </Field>
-      <FormMessage attempt={state} error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} field={state?.field} success={state?.success} />
       <div className="flex justify-end empty:hidden">
         <GroupedSubmit state={state}>Save timezone</GroupedSubmit>
       </div>
@@ -536,7 +536,7 @@ export function HouseholdCurrencyForm({
           </select>
         </SelectWrapper>
       </Field>
-      <FormMessage attempt={state} error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} field={state?.field} success={state?.success} />
       <div className="flex justify-end empty:hidden">
         <GroupedSubmit state={state}>Save currency</GroupedSubmit>
       </div>
@@ -563,7 +563,7 @@ export function AviationStackForm({
       >
         <SensitiveField id="aviationstackApiKey" name="aviationstackApiKey" isSet={isKeySet} />
       </Field>
-      <FormMessage attempt={state} error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} field={state?.field} success={state?.success} />
       <div className="flex justify-end empty:hidden">
         <GroupedSubmit state={state}>Save</GroupedSubmit>
       </div>

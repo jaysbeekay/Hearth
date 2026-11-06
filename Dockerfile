@@ -63,7 +63,11 @@ RUN apk upgrade --no-cache && \
     # edge's build keeps that soname unchanged, so pulling just this one
     # package from edge is a safe drop-in. Re-check whether this is still
     # needed next time the base image is bumped.
-    apk add --no-cache --repository=https://dl-cdn.alpinelinux.org/alpine/edge/main 'giflib=5.2.2-r2'
+    # zlib's CVE-2026-4738 (CRITICAL): same story as of 2026-11-06, fixed in
+    # 1.4-r0 on edge/main only, v3.24 still has 1.3.2-r1. libz.so.1 keeps its
+    # soname, so the edge build is a drop-in for what links it. Drop this
+    # once v3.24 ships 1.4.
+    apk add --no-cache --repository=https://dl-cdn.alpinelinux.org/alpine/edge/main 'giflib=5.2.2-r2' 'zlib=1.4-r0'
 
 # The base image ships a full npm CLI under /usr/local/lib/node_modules/npm,
 # bundled with npm's own vendored dependencies (tar, brace-expansion,
