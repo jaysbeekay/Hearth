@@ -1,5 +1,5 @@
 import { PROVIDER_TIMEOUT_MS, type ProviderCall } from "@/lib/ai/providers/types";
-import { proxiedProviderUrl } from "@/lib/ai/egressProxy";
+import { aiProviderFetch } from "@/lib/ai/egressProxy";
 
 // OpenRouter mirrors OpenAI's chat/completions shape. PDF support depends on
 // the routed model, so this sends the "file" content-part OpenRouter
@@ -14,7 +14,7 @@ export const callOpenRouter: ProviderCall = async ({ apiKey, model, buffer, mime
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
   try {
-    const res = await fetch(proxiedProviderUrl("https://openrouter.ai/api/v1/chat/completions"), {
+    const res = await aiProviderFetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
