@@ -110,6 +110,12 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Security
 
+- **Docker image: zlib and musl CVEs pinned from Alpine edge.** Docker
+  Scout flags zlib's CVE-2026-4738 (critical) and musl's CVE-2026-107891
+  (high) in the `node:26-alpine` base. The fixed builds (zlib 1.4-r0, musl
+  1.2.6-r6) are only in edge/main so far, so the `Dockerfile` installs them
+  from there, as it already does for giflib. Drop the pins once Alpine
+  v3.24 has them.
 - **MCP server hardening.** `/api/mcp` now compares bearer tokens in
   constant time, throttles wrong tokens per client address (10 per 15
   minutes, recorded in Settings → Security as "MCP request with a wrong

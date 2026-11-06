@@ -63,7 +63,14 @@ RUN apk upgrade --no-cache && \
     # edge's build keeps that soname unchanged, so pulling just this one
     # package from edge is a safe drop-in. Re-check whether this is still
     # needed next time the base image is bumped.
-    apk add --no-cache --repository=https://dl-cdn.alpinelinux.org/alpine/edge/main 'giflib=5.2.2-r2'
+    apk add --no-cache --repository=https://dl-cdn.alpinelinux.org/alpine/edge/main 'giflib=5.2.2-r2' && \
+    # Same situation for zlib's CVE-2026-4738 (CRITICAL) and musl's
+    # CVE-2026-107891 (HIGH): as of 2026-11-06 the fixes (zlib 1.4-r0, musl
+    # 1.2.6-r6) are only in edge/main, and v3.24 still ships 1.3.2-r1 and
+    # 1.2.6-r3. Both keep their sonames (libz.so.1, libc.musl-*.so.1), and
+    # musl is the same upstream release with the patch applied. Drop these
+    # pins once v3.24 has the fixed builds.
+    apk add --no-cache --repository=https://dl-cdn.alpinelinux.org/alpine/edge/main 'zlib=1.4-r0' 'musl=1.2.6-r6'
 
 # The base image ships a full npm CLI under /usr/local/lib/node_modules/npm,
 # bundled with npm's own vendored dependencies (tar, brace-expansion,
