@@ -131,8 +131,9 @@ The profile must also cover every capability in the app's entitlements. If
 `iCloud.com.hearthapp.app`), first enable **iCloud** with that container on the
 `com.hearthapp.app` identifier (Identifiers → the App ID → Capabilities). Then
 generate or regenerate the profile, because a profile made before a capability
-was added won't include it, and archiving will fail. A profile is tied to its certificate, so regenerate it
-whenever the certificate is renewed (yearly) and update both secrets.
+was added won't include it, and archiving will fail. A profile is tied to its
+certificate, so regenerate it whenever the certificate is renewed (yearly) and
+update both secrets.
 
 ### 3. App Store Connect API key
 

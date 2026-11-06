@@ -1195,7 +1195,8 @@ manual `docker-publish.yml` dispatch from `main` can no longer log in to
 Docker Hub; run it against a tag.
 
 `ios-testflight.yml` signs the Capacitor shell and uploads it to TestFlight
-on every pushed `vx.y.z` tag, with the version taken from the tag; a green run
+on every pushed `v*` tag, pre-releases included, with the version taken from
+the tag (an `-rc.N` suffix is dropped); a green run
 means App Store Connect accepted the upload (processing then takes a few
 minutes). It is **not yet** part of `release.yml`'s `artifacts` job, so a
 failed or unconfigured iOS build doesn't fail the release, and a tag created by
