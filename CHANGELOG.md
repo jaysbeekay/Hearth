@@ -115,6 +115,9 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   clear it. `.github/scout/` holds an OpenVEX file that lets the scan pass
   until Alpine v3.24 ships the fix; delete it then. The finding still
   reaches the Security tab.
+- **zlib 1.4 from Alpine edge (CVE-2026-4738, critical).** The fixed zlib
+  isn't in Alpine v3.24 yet, so the image pulls just that package from
+  edge, as it already does for giflib. Drop it once v3.24 ships 1.4.
 - **MCP server hardening.** `/api/mcp` now compares bearer tokens in
   constant time, throttles wrong tokens per client address (10 per 15
   minutes, recorded in Settings → Security as "MCP request with a wrong
