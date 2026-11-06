@@ -95,6 +95,13 @@ jobs:
           # surfaces via the SARIF upload below, it just doesn't block. It
           # applies to both architectures.
           only-fixed: true
+          # Accepted exceptions, one OpenVEX file each, in .github/scout/:
+          # a CVE whose fix exists but can't reach this image yet (e.g. musl's
+          # CVE-2026-107891, fixed only in Alpine edge as of 2026-11-06). Each
+          # file says why and when to delete it; findings still reach SARIF.
+          vex-location: .github/scout
+          vex-author: Hearth maintainers
+          only-vex-affected: true
           exit-code: true
           sarif-file: ${{ env.SARIF_FILE }}
           # Both legs would update the same PR comment, so whichever finished

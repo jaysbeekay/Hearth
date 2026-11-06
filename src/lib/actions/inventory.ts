@@ -23,6 +23,7 @@ import type { ActionState } from "@/lib/actions/auth";
 import { describeUploadRejection } from "@/lib/uploadValidation";
 import { parseDocumentCategory } from "@/lib/documents/categories";
 import { itemCutoverReadiness } from "@/lib/items/cutoverReadiness";
+import { issueState } from "@/lib/validation/issues";
 
 const INVENTORY_ITEM_FORM_FIELDS = [
   "label",
@@ -40,9 +41,6 @@ const INVENTORY_ITEM_FORM_FIELDS = [
   "warrantyProductId",
 ];
 
-function firstIssueMessage(error: { issues: { message: string }[] }) {
-  return error.issues[0]?.message ?? "Invalid input";
-}
 
 async function requireUser() {
   const session = await auth();
@@ -62,7 +60,7 @@ async function createInventoryItemWithDestination(
   const parsed = inventoryItemSchema.safeParse(formToInventoryItemInput(formData));
   if (!parsed.success) {
     return {
-      error: firstIssueMessage(parsed.error),
+      ...issueState(parsed.error),
       values: formDataToStringValues(formData, INVENTORY_ITEM_FORM_FIELDS),
     };
   }
@@ -119,7 +117,7 @@ async function updateInventoryItemWithDestination(
   const parsed = inventoryItemSchema.safeParse(formToInventoryItemInput(formData));
   if (!parsed.success) {
     return {
-      error: firstIssueMessage(parsed.error),
+      ...issueState(parsed.error),
       values: formDataToStringValues(formData, INVENTORY_ITEM_FORM_FIELDS),
     };
   }
