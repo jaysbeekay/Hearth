@@ -170,6 +170,7 @@ describe("Property commands", () => {
     const itemDir = await attachHomeItemFile(item.id);
     const statementDir = await attachStatementFile(statement.id);
 
+    await deletePropertyCommand(property.id); // #534: only from Trash
     await permanentlyDeletePropertyCommand(property.id);
 
     expect(await db.prisma.property.findUnique({ where: { id: property.id } })).toBeNull();
@@ -188,6 +189,7 @@ describe("Property commands", () => {
     const item = await createMaintenanceRecordCommand(property.id, itemInput());
     const dir = await attachHomeItemFile(item.id, new Date());
 
+    await deletePropertyCommand(property.id);
     await permanentlyDeletePropertyCommand(property.id);
 
     expect(await db.prisma.homeItemDocument.count()).toBe(0);
@@ -200,6 +202,7 @@ describe("Property commands", () => {
     const statement = await createRentalStatementCommand(property.id, statementInput());
     const itemDir = await attachHomeItemFile(item.id);
     const statementDir = await attachStatementFile(statement.id);
+    await deletePropertyCommand(property.id);
     await setModuleEnabled("HOME", false);
 
     await purgeProperty(property.id);
@@ -359,6 +362,7 @@ describe("Maintenance record commands", () => {
     const item = await createMaintenanceRecordCommand(propertyId, itemInput());
     const dir = await attachHomeItemFile(item.id);
 
+    await deleteMaintenanceRecordCommand(item.id);
     await permanentlyDeleteMaintenanceRecordCommand(item.id);
 
     expect(await db.prisma.homeItem.findUnique({ where: { id: item.id } })).toBeNull();

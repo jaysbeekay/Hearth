@@ -6,6 +6,9 @@ import {
   requireLive,
   assertParentRestored,
   RecordNotFoundError,
+  RecordNotInTrashError,
+  inTrashWhere,
+  type PurgeOptions,
   type Trashable,
 } from "@/lib/commands/shared";
 import { queueDocumentExtraction } from "@/lib/documents/queueExtraction";
@@ -37,9 +40,9 @@ async function mirrorStagedDocument(kind: OwnedDocumentKind, id: string) {
 
 /** One Document row, whichever table it lives in. */
 /** A permanent delete was asked for a Document that isn't in Trash. */
-export class DocumentNotInTrashError extends Error {
+export class DocumentNotInTrashError extends RecordNotInTrashError {
   constructor() {
-    super("Only a document in Recently deleted can be deleted permanently.");
+    super("Document", "Only a document in Recently deleted can be deleted permanently.");
     this.name = "DocumentNotInTrashError";
   }
 }
@@ -502,8 +505,6 @@ export async function restoreDocumentCommand(kind: OwnedDocumentKind, id: string
 /** Only from Trash: a live Document has to be deleted to Trash first. */
 export async function permanentlyDeleteDocumentCommand(kind: OwnedDocumentKind, id: string) {
   await gate(kind);
-  const doc = await requireDocument(kind, id);
-  if (!doc.deletedAt) throw new DocumentNotInTrashError();
   const { ownerId } = await purgeDocument(kind, id);
   revalidate(await ownerPaths(kind, ownerId));
   revalidatePath("/settings/trash");
@@ -563,9 +564,36 @@ export async function setDocumentCategoryCommand(
 // a page render and from the scheduler, and purges whether or not the
 // module is on. The row goes first, then the file (see documentStore.ts's
 // reconciliation note for why that order).
-export async function purgeDocument(kind: OwnedDocumentKind, id: string) {
+//
+// Only a Document in Trash is purged, and the check is in the delete's own
+// where clause (#534): a restore that lands between the caller's read (or
+// Trash retention's listing) and the delete makes the delete match nothing,
+// and the restored Document and its file are left alone. A missing Document
+// is not found; a live one is a DocumentNotInTrashError (Trash retention
+// skips both).
+export async function purgeDocument(kind: OwnedDocumentKind, id: string, options: PurgeOptions = {}) {
+  const doc = await requireDocument(kind, id);
+  const { count } = await KINDS[kind].delegate(prisma).deleteMany({ where: { id, ...inTrashWhere(options) } });
+  if (count === 0) {
+    await requireDocument(kind, id);
+    throw new DocumentNotInTrashError();
+  }
+  return removeDocumentFile(kind, id, doc);
+}
+
+/**
+ * Takes back a live Document that was only just filed, row and file, for a
+ * caller undoing its own half-finished write (the Inbox's attach-as-new-
+ * version, when leaving the Inbox fails). Never for anything a person might
+ * have restored: that's purgeDocument.
+ */
+export async function discardFiledDocument(kind: OwnedDocumentKind, id: string) {
   const doc = await requireDocument(kind, id);
   await KINDS[kind].delegate(prisma).delete({ where: { id } });
+  return removeDocumentFile(kind, id, doc);
+}
+
+async function removeDocumentFile(kind: OwnedDocumentKind, id: string, doc: DocumentRecord) {
   await documentStoreFor(kind).remove(doc.ownerId, doc.storedName);
   if (kind === "PRODUCT" || kind === "INVENTORY_ITEM") {
     try { await removeStagedLegacyDocument(kind, id); }

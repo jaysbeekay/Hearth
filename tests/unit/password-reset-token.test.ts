@@ -45,7 +45,7 @@ function password(value = "a-new-long-password-1") {
 const user = () => db.prisma.user.findUniqueOrThrow({ where: { id: userId } });
 
 describe("password reset links", () => {
-  it("set the password, sign out earlier sessions and sign the user in", async () => {
+  it("set the password and sign out earlier sessions, without signing the user in", async () => {
     const token = await link("reset-ok", "RESET");
     const before = await user();
 
@@ -54,7 +54,7 @@ describe("password reset links", () => {
     const after = await user();
     expect(after.passwordHash).not.toBe(before.passwordHash);
     expect(after.sessionVersion).toBe(before.sessionVersion + 1);
-    expect(signIn).toHaveBeenCalledWith("credentials", expect.objectContaining({ redirectTo: "/dashboard" }));
+    expect(signIn).not.toHaveBeenCalled();
     expect(await resetPassword(token, null, password())).toEqual({ error: "This reset link is invalid or has expired." });
   });
 
@@ -82,10 +82,9 @@ describe("password reset links", () => {
     expect(results.filter((r) => r?.success)).toHaveLength(1);
     expect(results.filter((r) => r?.error)).toHaveLength(1);
     expect((await user()).sessionVersion).toBe(before.sessionVersion + 1);
-    expect(signIn).toHaveBeenCalledTimes(1);
   });
 
-  it("don't sign in an account with two-factor on", async () => {
+  it("don't sign in an account with two-factor on either", async () => {
     await db.prisma.user.update({ where: { id: userId }, data: { totpEnabled: true } });
     const token = await link("reset-totp", "RESET");
 

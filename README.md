@@ -510,7 +510,7 @@ its tool disappears on the next connection.
 | `get_contract` | Full details for one contract by id, including document metadata. |
 | `search_contracts` | Case-insensitive search across title, provider, contract number, and notes. |
 | `upcoming_renewals` | Contracts with a Due entry (notice deadline, then end date) within N days (default 30), soonest first. |
-| `spend_summary` | Estimated monthly spend across active contracts, total and per category, converted to one currency like the dashboard. Takes an optional ISO 4217 `currency`; over MCP it defaults to the first admin's preferred currency. May fetch current exchange rates (Yahoo Finance) to convert. |
+| `spend_summary` | Estimated monthly spend across active contracts, total and per category, converted to one currency like the dashboard. Takes an optional ISO 4217 `currency`; over MCP it defaults to the household currency (Settings → Household), or the first admin's preferred currency until one is set. May fetch current exchange rates (Yahoo Finance) to convert. |
 | `whats_due` | Everything Due within N days (default 30): contracts, warranties and, when enabled, vehicle dates and tenancy lease ends. |
 | `list_products` | List tracked products/purchases and warranty status, optionally filtered by search text. |
 | `list_trips` *(Travel)* | List trips with segment count, optionally only ones that haven't ended yet. |
@@ -1004,7 +1004,9 @@ threshold.
   characters are dropped rather than passed to the review form — hardening
   against prompt injection embedded in a malicious document. `AI_EGRESS_PROXY_URL`
   (see "Routing AI traffic through an agent firewall" above) adds an optional
-  network-level layer on top of this.
+  network-level layer on top of this. See
+  [`docs/security/prompt-injection.md`](docs/security/prompt-injection.md)
+  for which of these defences are enforced and which are only advisory.
 - Outbound requests to addresses you configure — webhooks, ntfy, Ollama — are
   checked first, but only against the two things that are never legitimate: a
   non-HTTP(S) scheme, and the cloud instance-metadata addresses. LAN IPs

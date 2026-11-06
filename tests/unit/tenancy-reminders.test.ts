@@ -298,6 +298,7 @@ describe("permanent delete clears the Tenancy's sent log", () => {
     const { property, tenancy } = await rentedProperty({ leaseEnd: "2026-11-24" });
     await runExpirationCheck(at("2026-10-25"));
 
+    await db.prisma.property.update({ where: { id: property.id }, data: { deletedAt: new Date() } });
     await permanentlyDeletePropertyCommand(property.id);
     expect(await db.prisma.notificationLog.count({ where: { ownerId: tenancy.id } })).toBe(0);
   });
