@@ -145,7 +145,10 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   shared to may still be reading it, it is deleted at the next launch or
   export an hour or more later. The backup password is masked when the app
   goes to the background, and a copied password is cleared from the
-  clipboard after a minute. Backup files restored from outside the app are
+  clipboard after a minute, but only if the clipboard still holds it, so
+  something copied in another app since is left alone. On iOS the copied
+  password also never syncs to other devices through Universal Clipboard.
+  Backup files restored from outside the app are
   validated, so a crafted file can't write outside the app's document folder.
 
 - **Docker Scout exception for musl CVE-2026-107891.** The fix (musl

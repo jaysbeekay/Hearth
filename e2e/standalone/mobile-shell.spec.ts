@@ -601,7 +601,13 @@ test.beforeEach(async ({ page }) => {
     } catch {
       // No seed.
     }
+    // The phone's clipboard as the SecureClipboard plugin sees it.
+    // `changeCount` goes up on every write, as UIPasteboard's does; a test
+    // that bumps it stands for a copy made in another app.
+    const nativeClipboard = { value: "", changeCount: 0, writes: [] as { value: string; expiresInMs?: number }[] };
+    let clipboardWrittenAt: number | null = null;
     (window as Window & { Capacitor?: unknown; __hearthStandaloneTest?: unknown }).__hearthStandaloneTest = {
+      nativeClipboard,
       sqliteRuns,
       scheduledNotifications,
       fileWrites,
@@ -759,6 +765,31 @@ test.beforeEach(async ({ page }) => {
             return {};
           },
         },
+        // "hearth-test-no-secure-clipboard" leaves the plugin out, as in a
+        // plain browser.
+        ...(testFlag("hearth-test-no-secure-clipboard")
+          ? {}
+          : {
+              SecureClipboard: {
+                write: async ({ value, expiresInMs }: { value: string; expiresInMs?: number }) => {
+                  nativeClipboard.value = value;
+                  nativeClipboard.changeCount += 1;
+                  nativeClipboard.writes.push({ value, expiresInMs });
+                  clipboardWrittenAt = nativeClipboard.changeCount;
+                  return {};
+                },
+                clearIfUnchanged: async () => {
+                  if (clipboardWrittenAt == null) return { cleared: false, changed: true };
+                  const ours = clipboardWrittenAt === nativeClipboard.changeCount;
+                  clipboardWrittenAt = null;
+                  if (ours) {
+                    nativeClipboard.value = "";
+                    nativeClipboard.changeCount += 1;
+                  }
+                  return { cleared: ours, changed: !ours };
+                },
+              },
+            }),
         // "hearth-test-share" = "cancel" (the user closes the share sheet) or
         // "error" (it fails); otherwise sharing succeeds.
         Share: {
@@ -1260,8 +1291,14 @@ test("standalone export on Android leaves the shared copy for the app it went to
   await expect.poll(async () => (await exportState(page)).cacheFiles).toEqual([]);
 });
 
+type ClipboardHarness = { nativeClipboard: { value: string; changeCount: number; writes: { value: string; expiresInMs?: number }[] } };
+const nativeClipboard = (page: ShellPage) =>
+  page.evaluate(() => {
+    const { value, changeCount, writes } = (window as unknown as { __hearthStandaloneTest: ClipboardHarness }).__hearthStandaloneTest.nativeClipboard;
+    return { value, changeCount, writes: [...writes] };
+  });
+
 test("standalone save-password step masks the password and leaves no trace once left", async ({ page }) => {
-  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.clock.install();
   await reloadStandalone(page);
   await openBackupSettings(page);
@@ -1271,7 +1308,8 @@ test("standalone save-password step masks the password and leaves no trace once 
   await page.locator("[data-save-backup-password]").getByRole("button", { name: "Copy" }).click();
   await expect(page.locator("#standalone-status")).toContainText("clears the clipboard after a minute");
   await expect(field).toHaveAttribute("type", "password");
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("correct horse battery");
+  // Copied through the native plugin, with the same one-minute expiry.
+  expect((await nativeClipboard(page)).writes).toEqual([{ value: "correct horse battery", expiresInMs: 60_000 }]);
   await field.focus();
   await expect(field).toHaveAttribute("type", "text");
   await page.locator("[data-save-backup-password] h3").click();
@@ -1280,12 +1318,47 @@ test("standalone save-password step masks the password and leaves no trace once 
   // A minute later the clipboard no longer holds it.
   await page.clock.fastForward(61_000);
   await page.locator("[data-save-backup-password] h3").click();
-  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe("");
+  await expect.poll(async () => (await nativeClipboard(page)).value).toBe("");
 
   // Back ends the step.
   await page.locator("#back-button").click();
   await openBackupSettings(page);
   await expect(page.locator("[data-save-backup-password]")).toHaveCount(0);
+});
+
+test("standalone copied backup password leaves a later copy from another app alone", async ({ page }) => {
+  await page.clock.install();
+  await reloadStandalone(page);
+  await openBackupSettings(page);
+  await startExport(page);
+  await page.locator("[data-save-backup-password]").getByRole("button", { name: "Copy" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("clears the clipboard after a minute");
+  expect((await nativeClipboard(page)).value).toBe("correct horse battery");
+
+  // Within the minute the user copies something in another app.
+  await page.evaluate(() => {
+    const clipboard = (window as unknown as { __hearthStandaloneTest: ClipboardHarness }).__hearthStandaloneTest.nativeClipboard;
+    clipboard.value = "address from another app";
+    clipboard.changeCount += 1;
+  });
+  await page.clock.fastForward(61_000);
+  await page.locator("[data-save-backup-password] h3").click();
+  await page.locator("[data-save-backup-password] h3").click();
+  expect((await nativeClipboard(page)).value).toBe("address from another app");
+});
+
+test("standalone copied backup password is cleared through the web clipboard without the native plugin", async ({ page }) => {
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.clock.install();
+  await reloadWithTestFlags(page, { "hearth-test-no-secure-clipboard": "1" });
+  await openBackupSettings(page);
+  await startExport(page);
+  await page.locator("[data-save-backup-password]").getByRole("button", { name: "Copy" }).click();
+  await expect(page.locator("#standalone-status")).toContainText("clears the clipboard after a minute");
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("correct horse battery");
+  await page.clock.fastForward(61_000);
+  await page.locator("[data-save-backup-password] h3").click();
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe("");
 });
 
 test("standalone Merge restores a document that was filed from the Inbox", async ({ page }) => {

@@ -13,6 +13,8 @@ const Preferences = Plugins.Preferences;
 const LocalNotifications = Plugins.LocalNotifications;
 const Purchases = Plugins.Purchases;
 const Share = Plugins.Share;
+// ios/App/App/SecureClipboardPlugin.swift and its Android counterpart.
+const SecureClipboard = Plugins.SecureClipboard;
 // ios-shell/www/backup-format.js, loaded before this file.
 const BackupFormat = window.HearthBackupFormat;
 
@@ -3652,11 +3654,20 @@ function maskBackupPasswordFields() {
 
 // The copied password is wiped from the clipboard after
 // BACKUP_PASSWORD_CLIPBOARD_MS, unless Hearth has copied something else
-// since. Reading the clipboard to check it still holds the password would
-// show the system paste prompt, so it is overwritten without that check.
-// A WebView may refuse a clipboard write that isn't part of a tap, so the
-// first tap in Hearth after the deadline tries again.
+// since. On a phone the native SecureClipboard plugin does the copy: it
+// clears the password only while the clipboard still holds it, so a value
+// copied in another app since is never wiped, and it tells without reading
+// the clipboard, which would show the system paste prompt. On iOS the item
+// also expires by itself and never syncs to other devices. Without the
+// plugin (a plain browser) the clipboard is overwritten without that check.
+// The check may be refused while Hearth isn't focused, so the first tap in
+// Hearth after the deadline tries again.
 let backupPasswordClipboardDeadline = null;
+async function copyBackupPassword(value) {
+  if (SecureClipboard) await SecureClipboard.write({ value, expiresInMs: BACKUP_PASSWORD_CLIPBOARD_MS });
+  else await navigator.clipboard.writeText(value);
+}
+
 function scheduleBackupPasswordClipboardClear() {
   backupPasswordClipboardDeadline = Date.now() + BACKUP_PASSWORD_CLIPBOARD_MS;
   setTimeout(() => clearBackupPasswordClipboard().catch(() => undefined), BACKUP_PASSWORD_CLIPBOARD_MS);
@@ -3664,7 +3675,13 @@ function scheduleBackupPasswordClipboardClear() {
 
 async function clearBackupPasswordClipboard() {
   if (backupPasswordClipboardDeadline == null || Date.now() < backupPasswordClipboardDeadline) return;
-  await navigator.clipboard.writeText("");
+  if (SecureClipboard) {
+    const { cleared, changed } = await SecureClipboard.clearIfUnchanged();
+    // Neither: the plugin couldn't check yet, so the next tap tries again.
+    if (!cleared && !changed) return;
+  } else {
+    await navigator.clipboard.writeText("");
+  }
   backupPasswordClipboardDeadline = null;
 }
 
@@ -6622,7 +6639,7 @@ mobileView.addEventListener("click", async (event) => {
   }
   if (button.dataset.copyBackupPassword !== undefined) {
     try {
-      await navigator.clipboard.writeText(state.pendingBackupPassword ?? "");
+      await copyBackupPassword(state.pendingBackupPassword ?? "");
       scheduleBackupPasswordClipboardClear();
       maskBackupPasswordFields();
       showStandaloneStatus("Password copied. Paste it into your password manager; Hearth clears the clipboard after a minute.", true);
