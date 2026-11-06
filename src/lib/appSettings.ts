@@ -17,6 +17,7 @@ const ENCRYPTED_KEYS = new Set([
   "ai.apiKey",
   "chat.apiKey",
   "emailIngest.password",
+  "push.vapidPrivateKey",
 ]);
 
 async function readSetting(key: string): Promise<string | null> {

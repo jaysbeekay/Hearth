@@ -9,6 +9,17 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Web Push reminders (#375, part 1).** Settings → My account has a
+  "Notify this device" button: Reminders then arrive as notifications on
+  that browser, with no SMTP, ntfy or other account. Push is a fourth
+  Reminder channel with the same date-keyed sent log; tapping a
+  notification opens the record. VAPID keys are generated on first use and
+  kept in app settings (private key encrypted with `ENCRYPTION_KEY`);
+  `VAPID_SUBJECT` optionally sets the contact push services see. A device
+  the push service reports gone is dropped, and Reminder delivery health
+  shows how many devices have push on and how many are failing. Per-user
+  channel preferences and the guided setup screen follow in later parts.
+  Server-only for now; the iOS and Android shell is unchanged.
 - **Assistant confirmation card helps spot a steered proposal (#530, part
   2).** An update now shows each field's current value under the proposed
   one. Free-text fields are shown in full and shaded as the Assistant's

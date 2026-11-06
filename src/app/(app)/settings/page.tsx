@@ -11,6 +11,8 @@ import { ChangePasswordForm } from "@/components/ChangePasswordForm";
 import { IcalTokenSection } from "@/components/IcalTokenSection";
 import { TotpSection } from "@/components/TotpSection";
 import { NotificationPreferencesForm } from "@/components/NotificationPreferencesForm";
+import { PushDeviceToggle } from "@/components/PushDeviceToggle";
+import { getVapidPublicKey } from "@/lib/notifications/push";
 import { PreferencesForm } from "@/components/PreferencesForm";
 import { OfflineDocumentsPanel } from "@/components/OfflineDocumentsPanel";
 import { UnconfiguredNotice } from "@/components/UnconfiguredNotice";
@@ -35,11 +37,12 @@ export default async function SettingsPage() {
   // is deleted, which the proxy won't have caught for an in-flight request.
   if (!session?.user) redirect("/login");
 
-  const [user, smtpConfigured, ntfyConfigured, householdTimeZone] = await Promise.all([
+  const [user, smtpConfigured, ntfyConfigured, householdTimeZone, vapidPublicKey] = await Promise.all([
     prisma.user.findUnique({ where: { id: session.user.id } }),
     isSmtpConfigured(),
     isNtfyConfigured(),
     getHouseholdTimeZone(),
+    getVapidPublicKey(),
   ]);
   if (!user) redirect("/login");
   const appUrl = env.appUrl ?? "http://localhost:3000";
@@ -75,26 +78,30 @@ export default async function SettingsPage() {
           <Card as="section">
             <h2 className="mb-3 font-medium">Reminders</h2>
             <p className="mb-3 text-sm text-muted">
-              Reminders are sent by email{ntfyConfigured ? " and push (ntfy)" : ""}.{" "}
+              Reminders are sent to each device with notifications on, and by email
+              {ntfyConfigured ? " and ntfy" : ""}.{" "}
               {!smtpConfigured && !ntfyConfigured && (
                 <span className="text-warning">
-                  No reminder channel is configured yet
+                  Email and ntfy aren&apos;t set up
                   {user.role === "ADMIN" ? (
                     <>
                       {" "}
-                      — set up email or ntfy in{" "}
+                      — set them up in{" "}
                       <Link href={SETTINGS_ROUTES.reminders.href} className="underline">
                         {SETTINGS_ROUTES.reminders.label}
                       </Link>
                       .
                     </>
                   ) : (
-                    " — ask an admin to set up email or ntfy."
+                    " — ask an admin if you'd like them."
                   )}
                 </span>
               )}
             </p>
-            <NotificationPreferencesForm emailReminders={user.emailReminders} />
+            <div className="space-y-3">
+              <PushDeviceToggle vapidPublicKey={vapidPublicKey} />
+              <NotificationPreferencesForm emailReminders={user.emailReminders} />
+            </div>
           </Card>
 
           <Card as="section" className="md:col-span-2">

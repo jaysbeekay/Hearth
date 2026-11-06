@@ -37,7 +37,7 @@ export interface ReminderHealth {
   thresholds: number[];
   /** Null when no Reminder is left (or Reminders aren't enabled). */
   nextReminder: NextReminder | null;
-  channels: { email: boolean; ntfy: boolean; webhook: boolean };
+  channels: { email: boolean; ntfy: boolean; webhook: boolean; push: boolean };
   deliveryReady: boolean;
   lastSent: { channel: string; thresholdDays: number; sentAt: Date } | null;
   /** The latest failed attempt for the current date that no later send has replaced. */
@@ -90,7 +90,7 @@ function summarize(
     : [];
   const lastFailureLog = liveFailures(current).sort(newestFirst)[0];
 
-  const deliveryReady = channels.email || channels.ntfy || channels.webhook;
+  const deliveryReady = channelList(channels).length > 0;
   return {
     enabled: !plan.held && !plan.snoozedUntil && planned != null && plan.thresholds.length > 0,
     onHold: plan.held,
@@ -114,7 +114,7 @@ function summarize(
 }
 
 async function loadContext(): Promise<{ ctx: DueContext; channels: Channels }> {
-  const [{ defaultDays }, today, { email, ntfy, webhook }] = await Promise.all([
+  const [{ defaultDays }, today, { email, ntfy, webhook, push }] = await Promise.all([
     getReminderConfig(),
     getHouseholdToday(),
     // The channels the scheduler will really send on (#387 review).
@@ -122,7 +122,7 @@ async function loadContext(): Promise<{ ctx: DueContext; channels: Channels }> {
   ]);
   return {
     ctx: { today, defaultReminderDays: defaultDays },
-    channels: { email, ntfy, webhook },
+    channels: { email, ntfy, webhook, push },
   };
 }
 
@@ -157,11 +157,13 @@ export interface UncoveredRecord {
 }
 
 export interface HouseholdReminderHealth {
-  channels: { email: boolean; ntfy: boolean; webhook: boolean };
+  channels: { email: boolean; ntfy: boolean; webhook: boolean; push: boolean };
   deliveryReady: boolean;
   /** Last 30 days, across every channel and record. */
   recentSent: number;
   recentFailed: number;
+  /** #375 — subscribed devices, and those whose last push failed. */
+  pushDevices: { total: number; failing: number };
   /** Most recent SENT or FAILED log across the household — the closest
    * proxy for "did the scheduler do anything lately" available without a
    * dedicated job-run log (no job runner exists yet, see #250). */
@@ -189,14 +191,19 @@ const VEHICLE_FIELD_TITLES: Record<VehicleDueField, string> = {
  */
 export async function getHouseholdReminderHealth(): Promise<HouseholdReminderHealth> {
   const { ctx, channels } = await loadContext();
-  const deliveryReady = channels.email || channels.ntfy || channels.webhook;
+  const deliveryReady = channelList(channels).length > 0;
 
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-  const [recentSent, recentFailed, lastLog] = await Promise.all([
+  const [recentSent, recentFailed, lastLog, pushRows] = await Promise.all([
     prisma.notificationLog.count({ where: { status: "SENT", sentAt: { gte: since } } }),
     prisma.notificationLog.count({ where: { status: "FAILED", sentAt: { gte: since } } }),
     prisma.notificationLog.findFirst({ orderBy: { sentAt: "desc" }, select: { sentAt: true } }),
+    prisma.pushSubscription.findMany({ select: { lastSuccessAt: true, lastFailureAt: true } }),
   ]);
+  const pushDevices = {
+    total: pushRows.length,
+    failing: pushRows.filter((d) => d.lastFailureAt && (!d.lastSuccessAt || d.lastFailureAt > d.lastSuccessAt)).length,
+  };
 
   const uncovered: UncoveredRecord[] = [];
   if (deliveryReady) {
@@ -265,6 +272,7 @@ export async function getHouseholdReminderHealth(): Promise<HouseholdReminderHea
     deliveryReady,
     recentSent,
     recentFailed,
+    pushDevices,
     lastActivityAt: lastLog?.sentAt ?? null,
     uncovered,
   };

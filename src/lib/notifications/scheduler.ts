@@ -4,6 +4,7 @@ import { getReminderConfig, getHouseholdToday } from "@/lib/appSettings";
 import { sendReminderEmail } from "@/lib/notifications/email";
 import { sendNtfyReminder } from "@/lib/notifications/ntfy";
 import { sendExpiryWebhooks } from "@/lib/notifications/webhook";
+import { sendPushReminder } from "@/lib/notifications/push";
 import { activeChannels, channelList } from "@/lib/notifications/channels";
 import { getNotificationLogsByOwner, recordNotificationOutcome, toSentLogRow } from "@/lib/notifications/logs";
 import { dayToDate, reminderPlan, type ReminderChannel, type ReminderPlan } from "@/lib/notifications/reminderSchedule";
@@ -74,6 +75,9 @@ export async function runExpirationCheck(now: Date = new Date()) {
       );
     } else if (channel === "NTFY") {
       await sendNtfyReminder({ ...input, dateFormat: householdDateFormat, appUrl });
+    } else if (channel === "PUSH") {
+      // #375 — every subscribed device, each in its owner's date format.
+      await sendPushReminder({ ...input, appUrl });
     } else {
       await sendExpiryWebhooks({ ...input, dateFormat: householdDateFormat, appUrl });
     }
