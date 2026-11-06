@@ -26,9 +26,12 @@ import {
   permanentlyDeleteProductCommand,
 } from "@/lib/commands/products";
 import { RecordNotFoundError, RecordValidationError, StaleEditError } from "@/lib/commands/shared";
+import { issueState } from "@/lib/validation/issues";
 
 export type ActionState = {
   error?: string;
+  /** #406 — the form field `error` belongs to; shown under that field. */
+  field?: string;
   success?: string;
   values?: Record<string, string>;
 } | null;
@@ -89,7 +92,7 @@ export async function createProduct(
   const parsed = productSchema.safeParse(formToProductInput(formData));
   if (!parsed.success) {
     return {
-      error: firstIssueMessage(parsed.error),
+      ...issueState(parsed.error),
       values: formDataToStringValues(formData, PRODUCT_FORM_FIELDS),
     };
   }
@@ -154,7 +157,7 @@ export async function updateProduct(
   const parsed = productSchema.safeParse(formToProductInput(formData));
   if (!parsed.success) {
     return {
-      error: firstIssueMessage(parsed.error),
+      ...issueState(parsed.error),
       values: formDataToStringValues(formData, PRODUCT_FORM_FIELDS),
     };
   }

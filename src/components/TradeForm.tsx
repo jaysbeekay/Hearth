@@ -6,6 +6,7 @@ import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormActions } from "@/components/FormActions";
 import { FormMessage } from "@/components/FormMessage";
+import { Field } from "@/components/FormField";
 import { TRADE_TYPES, TRADE_TYPE_LABELS } from "@/lib/validation/wealth";
 import { SelectWrapper, inputClass, textareaClass, selectClass } from "@/components/SelectWrapper";
 import { CurrencySelect } from "@/components/CurrencySelect";
@@ -103,11 +104,10 @@ export function TradeForm({
 
   return (
     <form ref={formRef} action={formAction} className="space-y-4">
-      <FormMessage attempt={state} error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} field={state?.field} success={state?.success} />
 
       <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium mb-1" htmlFor="type">Type <span className="text-danger">*</span></label>
+        <Field label="Type" htmlFor="type" required>
           <SelectWrapper>
             <select
               id="type"
@@ -120,10 +120,9 @@ export function TradeForm({
               ))}
             </select>
           </SelectWrapper>
-        </div>
+        </Field>
 
-        <div>
-          <label className="block text-sm font-medium mb-1" htmlFor="date">Trade date <span className="text-danger">*</span></label>
+        <Field label="Trade date" htmlFor="date" required>
           <DateInput
             id="date"
             name="date"
@@ -132,12 +131,11 @@ export function TradeForm({
             onChange={(e) => setSelectedDate(e.target.value)}
             className={inputClass}
           />
-        </div>
+        </Field>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium mb-1" htmlFor="units">Units <span className="text-danger">*</span></label>
+        <Field label="Units" htmlFor="units" required>
           <input
             id="units"
             name="units"
@@ -149,12 +147,9 @@ export function TradeForm({
             placeholder="e.g. 100"
             className={inputClass}
           />
-        </div>
+        </Field>
 
-        <div>
-          <label className="block text-sm font-medium mb-1" htmlFor="pricePerUnit">
-            Price per unit <span className="text-danger">*</span>
-          </label>
+        <Field label="Price per unit" htmlFor="pricePerUnit" required>
           <input
             ref={priceInputRef}
             id="pricePerUnit"
@@ -168,7 +163,7 @@ export function TradeForm({
             className={inputClass}
           />
           {priceHintTicker && selectedDate && (
-            <div className="mt-1 flex items-center gap-2 text-xs text-muted">
+            <div className="flex items-center gap-2 text-xs text-muted">
               {priceHintLoading ? (
                 <span>Fetching market price…</span>
               ) : marketPrice != null ? (
@@ -185,12 +180,11 @@ export function TradeForm({
               ) : null}
             </div>
           )}
-        </div>
+        </Field>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium mb-1" htmlFor="fees">Brokerage / fees</label>
+        <Field label="Brokerage / fees" htmlFor="fees">
           <input
             id="fees"
             name="fees"
@@ -201,19 +195,17 @@ export function TradeForm({
             placeholder="e.g. 9.99"
             className={inputClass}
           />
-        </div>
+        </Field>
 
-        <div>
-          <label className="block text-sm font-medium mb-1" htmlFor="currency">Currency</label>
+        <Field label="Currency" htmlFor="currency">
           <CurrencySelect
             name="currency"
             defaultValue={state?.values?.currency ?? trade?.currency ?? defaultCurrency}
           />
-        </div>
+        </Field>
       </div>
 
-      <div>
-        <label className="block text-sm font-medium mb-1" htmlFor="fxRate">AUD per 1 unit of trade currency (e.g. 1.53 for USD)</label>
+      <Field label="AUD per 1 unit of trade currency (e.g. 1.53 for USD)" htmlFor="fxRate">
         <input
           id="fxRate"
           name="fxRate"
@@ -224,10 +216,9 @@ export function TradeForm({
           placeholder="Leave blank for AUD trades"
           className={inputClass}
         />
-      </div>
+      </Field>
 
-      <div>
-        <label className="block text-sm font-medium mb-1" htmlFor="notes">Notes</label>
+      <Field label="Notes" htmlFor="notes">
         <textarea
           id="notes"
           name="notes"
@@ -236,7 +227,7 @@ export function TradeForm({
           placeholder="Optional notes"
           className={textareaClass}
         />
-      </div>
+      </Field>
 
       <div>
         <p className="block text-sm font-medium mb-1">Attach document (optional)</p>
