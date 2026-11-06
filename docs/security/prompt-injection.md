@@ -55,9 +55,13 @@ them. Treat them as a first layer, not a boundary.
 
 ## Agent firewall (Pipelock)
 
-With `AI_EGRESS_PROXY_URL` set, every AI provider call, including the Ollama
-text fallback, goes out through `aiProviderFetch` (`src/lib/ai/egressProxy.ts`)
-as an HTTP forward proxy. `tests/unit/ai-egress-proxy.test.ts` fails if a
+Every AI provider call, including the Ollama text fallback and the Settings
+"Test connection" check, goes out through `aiProviderFetch`
+(`src/lib/ai/egressProxy.ts`). It applies the shared outbound policy
+(`assertSafeOutboundUrl`: http(s) only, never a cloud metadata address) and,
+with `AI_EGRESS_PROXY_URL` set, sends the call through that HTTP forward
+proxy. The proxy URL and CA come from server environment variables only;
+no household member, admin included, can change them from the app. `tests/unit/ai-egress-proxy.test.ts` fails if a
 provider or extractor module calls `fetch()` directly. Setup is in the README.
 
 Enforced, once the proxy is configured (tested with Pipelock 3.7.1,
@@ -96,10 +100,11 @@ side and changes nothing in Hearth.
 
 ## Known gaps
 
-- The Ollama text fallback in `src/lib/documents/*Extraction.ts` does not
-  run `assertSafeOutboundUrl`, unlike the other two Ollama calls. It does go
-  through `AI_EGRESS_PROXY_URL` when that is set (#559).
 - There is no eval against a real provider in CI, because it needs a key.
+- `assertSafeOutboundUrl` resolves the host, then the request resolves it
+  again, so DNS rebinding between the two isn't caught (see
+  `src/lib/net/outbound.ts`). With Pipelock in front, its own SSRF and
+  rebinding checks apply to the connection it actually makes.
 
 ## Adding a new AI feature
 

@@ -17,6 +17,7 @@ import { sendTestNtfy } from "@/lib/notifications/ntfy";
 import type { ActionState } from "@/lib/actions/auth";
 import { isValidTimeZone } from "@/lib/duePolicy";
 import { POPULAR_CURRENCIES, isCurrencyCode } from "@/lib/currencyCodes";
+import { aiProviderFetch } from "@/lib/ai/egressProxy";
 
 export async function requireAdmin() {
   const session = await auth();
@@ -425,7 +426,7 @@ export async function testOllamaConnection(): Promise<ActionState> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
   try {
-    const res = await fetch(`${ollama.baseUrl.replace(/\/$/, "")}/api/tags`, {
+    const res = await aiProviderFetch(`${ollama.baseUrl.replace(/\/$/, "")}/api/tags`, {
       signal: controller.signal,
     });
     if (!res.ok) return { error: `Ollama responded with HTTP ${res.status}.` };

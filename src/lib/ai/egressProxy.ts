@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { rootCertificates } from "node:tls";
 import { ProxyAgent, fetch as undiciFetch } from "undici";
 import { env, isAiEgressProxyConfigured } from "@/lib/env";
+import { assertSafeOutboundUrl } from "@/lib/net/outbound";
 
 // Optional integration point for a local agent-firewall proxy (e.g.
 // Pipelock, https://github.com/pipelab-org/pipelock) sitting between Hearth
@@ -41,14 +42,14 @@ function egressAgent(): ProxyAgent {
 }
 
 // Drop-in for fetch() on every outbound AI provider call. With no proxy
-// configured it is exactly the global fetch, as before.
-// Callers pass a fixed provider endpoint or the admin-configured Ollama URL;
-// it is parsed here and anything other than http(s) is refused.
+// configured it is the global fetch, as before. Callers pass a fixed provider
+// endpoint or the admin-configured Ollama URL. Every call goes through the
+// same outbound policy as webhooks and ntfy (#167): http(s) only, never a
+// cloud metadata address, and no local addresses when
+// BLOCK_PRIVATE_NETWORK_TARGETS is set. Throws UnsafeOutboundUrlError
+// otherwise.
 export async function aiProviderFetch(url: string, init: RequestInit = {}): Promise<Response> {
-  const target = new URL(url);
-  if (target.protocol !== "https:" && target.protocol !== "http:") {
-    throw new Error(`Unsupported AI provider URL scheme: ${target.protocol}`);
-  }
+  const target = await assertSafeOutboundUrl(url);
   if (!isAiEgressProxyConfigured()) return fetch(target, init);
   const res = await undiciFetch(target, {
     ...(init as Parameters<typeof undiciFetch>[1]),
