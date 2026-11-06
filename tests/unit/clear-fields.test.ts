@@ -617,7 +617,7 @@ describe("purge order", () => {
   });
 
   it("a Vehicle's files are gone even when clearing its Reminder log throws", async () => {
-    const vehicle = await p.vehicle.create({ data: { label: "Car", createdById: actorId } });
+    const vehicle = await p.vehicle.create({ data: { label: "Car", createdById: actorId, deletedAt: new Date() } });
     const item = await p.vehicleItem.create({ data: { vehicleId: vehicle.id, type: "SERVICE", title: "Service" } });
     const dir = path.join(db.uploadsDir, "vehicle-items", item.id);
     await putFile(dir);
@@ -628,7 +628,7 @@ describe("purge order", () => {
 
   it("a Contract's files are gone even when clearing its Reminder log throws", async () => {
     const contract = await p.contract.create({
-      data: { title: "C", category: "OTHER", provider: "P", renewalType: "FIXED_TERM", createdById: actorId },
+      data: { title: "C", category: "OTHER", provider: "P", renewalType: "FIXED_TERM", createdById: actorId, deletedAt: new Date() },
     });
     const dir = path.join(db.uploadsDir, contract.id);
     await putFile(dir);
@@ -638,7 +638,7 @@ describe("purge order", () => {
   });
 
   it("a Product's files are gone even when clearing its Reminder log throws", async () => {
-    const product = await p.product.create({ data: { description: "Fridge", createdById: actorId } });
+    const product = await p.product.create({ data: { description: "Fridge", createdById: actorId, deletedAt: new Date() } });
     const dir = path.join(db.uploadsDir, "products", product.id);
     await putFile(dir);
     await expect(purgeProduct(product.id)).rejects.toThrow("log cleanup failed");

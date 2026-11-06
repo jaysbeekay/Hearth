@@ -36,6 +36,9 @@ const LAST_ATTEMPT_KEY = "lastConnectAttempt";
 const LOCAL_REMINDERS_KEY = "hearth.mobile.localRemindersEnabled";
 const SCHEDULED_REMINDERS_KEY = "hearth.mobile.scheduledReminderIds";
 const STANDALONE_MODULES_KEY = "hearth.mobile.enabledStandaloneModules";
+// #536 — the household default Reminder thresholds, the standalone
+// counterpart of the web's reminder.defaultDays setting.
+const DEFAULT_REMINDER_DAYS_KEY = "hearth.mobile.defaultReminderDays";
 const RETRY_DEBOUNCE_MS = 5000;
 const CLEARTEXT_HOSTS = ["localhost", "127.0.0.1", "::1", "[::1]"];
 const CLEARTEXT_SUFFIXES = [".local", ".home.arpa"];
@@ -434,6 +437,7 @@ const state = {
   assistantQuery: "",
   localRemindersEnabled: false,
   pendingNotificationCount: null,
+  defaultReminderDays: null,
   enabledStandaloneModules: [...DEFAULT_STANDALONE_MODULE_KEYS],
   detail: null,
   detailBack: null,
@@ -774,6 +778,7 @@ async function loadData() {
 }
 
 async function loadReminderDeliveryState() {
+  state.defaultReminderDays = normaliseDefaultReminderDays(await prefGet(DEFAULT_REMINDER_DAYS_KEY)) ?? DEFAULT_REMINDER_DAYS;
   state.localRemindersEnabled = (await prefGet(LOCAL_REMINDERS_KEY)) === "true";
   if (!LocalNotifications || !state.localRemindersEnabled) {
     state.pendingNotificationCount = null;
@@ -837,9 +842,12 @@ function numberOrNull(value) {
   return Number.isFinite(number) ? number : null;
 }
 
+// A Contract's, Warranty's or Vehicle's own thresholds, normalised, or null
+// when blank or unreadable, so the household default applies (#536), as
+// on the web, where a blank field means "none of its own".
 function reminderDaysOrDefault(value) {
   const days = parseReminderDays(value);
-  if (days.length === 0) return "30,14,7,1";
+  if (days.length === 0) return null;
   return days.join(",");
 }
 
@@ -1064,7 +1072,25 @@ function dueHouseholdDay(now, timeZone) {
 
 // What every Due question on this device is asked with.
 function dueContext() {
-  return { today: localTermToday(), defaultReminderDays: DEFAULT_REMINDER_DAYS };
+  return { today: localTermToday(), defaultReminderDays: householdDefaultReminderDays() };
+}
+
+// The household default Reminder thresholds (#536): the device's setting,
+// else 30,14,7,1.
+function householdDefaultReminderDays() {
+  return state.defaultReminderDays || DEFAULT_REMINDER_DAYS;
+}
+
+// The default as typed, checked with the web's reminder.defaultDays rule
+// (whole days, comma-separated), deduplicated and largest first; null
+// when blank or invalid.
+function normaliseDefaultReminderDays(value) {
+  const text = String(value ?? "").trim();
+  if (!text || !/^\d+(\s*,\s*\d+)*$/.test(text)) return null;
+  const numbers = text.split(",").map((part) => Number(part.trim()));
+  // A digit run too long for a safe integer would round or become Infinity.
+  if (!numbers.every((number) => Number.isSafeInteger(number))) return null;
+  return Array.from(new Set(numbers)).sort((a, b) => b - a).join(",");
 }
 
 function dueUtcMidnight(y, m, d) {
@@ -1164,7 +1190,7 @@ function dueWholeDayThresholds(value) {
 }
 
 // A record's Reminder thresholds, ascending: its own, else the default's.
-function dueThresholds(reminderDaysBefore, defaultReminderDays = DEFAULT_REMINDER_DAYS) {
+function dueThresholds(reminderDaysBefore, defaultReminderDays = householdDefaultReminderDays()) {
   const own = dueWholeDayThresholds(reminderDaysBefore);
   return own.length > 0 ? own : dueWholeDayThresholds(defaultReminderDays);
 }
@@ -2308,8 +2334,16 @@ function renderReminders() {
     <section class="grid-2">
       ${miniCard("Due soon / overdue", String(dueSoon.length), "Needs attention")}
       ${miniCard("Missing setup", String(missing.length), "Date or thresholds missing")}
-      ${miniCard("Default thresholds", "30,14,7,1", "Days before due date")}
+      ${miniCard("Default thresholds", householdDefaultReminderDays(), "Days before due date")}
       ${miniCard("Delivery", "Local view only", "No server sharing")}
+    </section>
+    <section class="card form-card">
+      <h2>Default reminder thresholds</h2>
+      <p class="muted">Used by records with no thresholds of their own, for Due soon and device reminders. Leave blank for 30,14,7,1.</p>
+      <form data-save-default-reminder-days class="field-grid">
+        <label>Days before due date<input name="defaultReminderDays" inputmode="numeric" value="${escapeAttr(householdDefaultReminderDays())}" placeholder="${escapeAttr(DEFAULT_REMINDER_DAYS)}" /></label>
+        <div class="actions"><button type="submit">Save default</button></div>
+      </form>
     </section>
     <section class="list">
       ${targets.length === 0 ? empty("No reminder-capable records", "Add contracts, products, vehicles or tenancies with expiry dates to build this view.") : targets.map(renderReminderCard).join("")}
@@ -2550,7 +2584,9 @@ function reminderDeliverySummary(health) {
 }
 
 function parseReminderDays(value) {
-  return String(value || "30,14,7,1")
+  const text = String(value ?? "").trim();
+  if (!text) return [];
+  return text
     .split(",")
     .map((part) => Number(part.trim()))
     .filter((number) => Number.isInteger(number) && number >= 0 && number <= 3650)
@@ -3324,7 +3360,7 @@ function renderDetailRows(type, row) {
       ["Status", row.status],
       ["Start", readableDate(row.start_date)],
       ["End", readableDate(row.end_date)],
-      ["Reminder thresholds", row.reminder_days_before || "30,14,7,1"],
+      ["Reminder thresholds", row.reminder_days_before || `${householdDefaultReminderDays()} (default)`],
       ["Cost", [money(row.cost, row.currency), contractCostChangeText(row)].filter(Boolean).join(" · ") || null],
       ["Billing", row.billing_frequency],
       ["Contact", [row.contact_name, row.contact_email, row.contact_phone].filter(Boolean).join(" · ")],
@@ -3339,7 +3375,7 @@ function renderDetailRows(type, row) {
       ["Barcode", row.barcode],
       ["Purchase", readableDate(row.purchase_date)],
       ["Warranty", readableDate(row.warranty_end_date)],
-      ["Reminder thresholds", row.reminder_days_before || "30,14,7,1"],
+      ["Reminder thresholds", row.reminder_days_before || `${householdDefaultReminderDays()} (default)`],
       ["Price", money(row.price, row.currency)],
       ["Property", row.property_id ? recordTitle("properties", getRecord("properties", row.property_id)) : null],
       ["Notes", row.notes],
@@ -3354,7 +3390,7 @@ function renderDetailRows(type, row) {
       ["Rego expiry", vehicleDateLine(row, "rego_expiry")],
       ["Insurance", vehicleDateLine(row, "insurance_expiry")],
       ["Next service due", readableDate(row.next_service_due)],
-      ["Reminder thresholds", row.reminder_days_before || "30,14,7,1"],
+      ["Reminder thresholds", row.reminder_days_before || `${householdDefaultReminderDays()} (default)`],
       ["Notes", row.notes],
     ],
     vehicleItems: [
@@ -3929,7 +3965,7 @@ function formFields(type, row) {
         <label>End date<input name="endDate" type="date" value="${escapeAttr(dateInputValue(row?.end_date))}" /></label>
         <label>Cost<input name="cost" type="number" min="0" step="0.01" value="${escapeAttr(row?.cost ?? "")}" /></label>
         <label>Billing<select name="billingFrequency">${options(["", "WEEKLY", "FORTNIGHTLY", "MONTHLY", "QUARTERLY", "ANNUALLY", "ONE_OFF"], row?.billing_frequency ?? "")}</select></label>
-        <label>Reminder thresholds (days before)<input name="reminderDaysBefore" inputmode="numeric" value="${escapeAttr(row?.reminder_days_before ?? "30,14,7,1")}" placeholder="30,14,7,1" /></label>
+        <label>Reminder thresholds (days before)<input name="reminderDaysBefore" inputmode="numeric" value="${escapeAttr(row?.reminder_days_before ?? "")}" placeholder="${escapeAttr(`${householdDefaultReminderDays()} (default)`)}" /></label>
         <label class="checkbox-row"><input name="needsReview" type="checkbox" ${Number(row?.extraction_pending ?? 0) === 1 ? "checked" : ""} /> Needs review — hold reminders until confirmed</label>
         ${moduleEnabled("vehicles") ? `<label>Linked vehicle<select name="vehicleId"><option value="">Not linked</option>${cache.vehicles.map((vehicle) => `<option value="${escapeAttr(vehicle.id)}" ${vehicle.id === (row ? row.vehicle_id : state.form?.parentId) ? "selected" : ""}>${escapeHtml(recordTitle("vehicles", vehicle))}</option>`).join("")}</select></label>` : ""}
         <label>Contact email<input name="contactEmail" type="email" value="${escapeAttr(row?.contact_email)}" /></label>
@@ -3950,7 +3986,7 @@ function formFields(type, row) {
         <label>Purchase date<input name="purchaseDate" type="date" value="${escapeAttr(dateInputValue(row?.purchase_date))}" /></label>
         <label>Warranty end<input name="warrantyEndDate" type="date" value="${escapeAttr(dateInputValue(row?.warranty_end_date))}" /></label>
         <label>Price<input name="price" type="number" min="0" step="0.01" value="${escapeAttr(row?.price ?? "")}" /></label>
-        <label>Reminder thresholds (days before)<input name="reminderDaysBefore" inputmode="numeric" value="${escapeAttr(row?.reminder_days_before ?? "30,14,7,1")}" placeholder="30,14,7,1" /></label>
+        <label>Reminder thresholds (days before)<input name="reminderDaysBefore" inputmode="numeric" value="${escapeAttr(row?.reminder_days_before ?? "")}" placeholder="${escapeAttr(`${householdDefaultReminderDays()} (default)`)}" /></label>
         <label class="checkbox-row"><input name="needsReview" type="checkbox" ${Number(row?.extraction_pending ?? 0) === 1 ? "checked" : ""} /> Needs review — hold reminders until confirmed</label>
         ${propertyPickerOrHint(propertyId)}
         <label>Notes<textarea name="notes">${escapeHtml(row?.notes)}</textarea></label>
@@ -3970,7 +4006,7 @@ function formFields(type, row) {
         ${vehicleDateField("Rego expiry", "regoExpiry", "rego_expiry", row)}
         ${vehicleDateField("Insurance expiry", "insuranceExpiry", "insurance_expiry", row)}
         <label>Next service due<input name="nextServiceDue" type="date" value="${escapeAttr(dateInputValue(row?.next_service_due))}" /></label>
-        <label>Reminder thresholds (days before)<input name="reminderDaysBefore" inputmode="numeric" value="${escapeAttr(row?.reminder_days_before ?? "30,14,7,1")}" placeholder="30,14,7,1" /></label>
+        <label>Reminder thresholds (days before)<input name="reminderDaysBefore" inputmode="numeric" value="${escapeAttr(row?.reminder_days_before ?? "")}" placeholder="${escapeAttr(`${householdDefaultReminderDays()} (default)`)}" /></label>
         <label>Notes<textarea name="notes">${escapeHtml(row?.notes)}</textarea></label>
       </div>
     `;
@@ -4028,7 +4064,7 @@ function formFields(type, row) {
         <label>Bond amount<input name="bondAmount" type="number" min="0" step="0.01" value="${escapeAttr(row?.bond_amount ?? "")}" /></label>
         <label>Currency<input name="currency" value="${escapeAttr(row?.currency ?? defaultCurrency())}" /></label>
         <label>Linked contract<select name="contractId">${contractOptions(row?.contract_id)}</select></label>
-        <label>Reminder thresholds (days before lease end)<input name="reminderDaysBefore" inputmode="numeric" value="${escapeAttr(row?.reminder_days_before ?? "")}" placeholder="30,14,7,1 (default)" /></label>
+        <label>Reminder thresholds (days before lease end)<input name="reminderDaysBefore" inputmode="numeric" value="${escapeAttr(row?.reminder_days_before ?? "")}" placeholder="${escapeAttr(`${householdDefaultReminderDays()} (default)`)}" /></label>
         <label>Notes<textarea name="notes">${escapeHtml(row?.notes)}</textarea></label>
       </div>
     `;
@@ -5323,6 +5359,25 @@ async function toggleStandaloneModule(moduleKey) {
   await render();
 }
 
+// #536 — saves the household default Reminder thresholds and, with device
+// reminders on, reschedules them. Blank resets it to 30,14,7,1.
+async function saveDefaultReminderDays(form) {
+  const text = String(fieldValue(form, "defaultReminderDays") ?? "").trim();
+  const days = text === "" ? DEFAULT_REMINDER_DAYS : normaliseDefaultReminderDays(text);
+  if (days == null) throw new Error("Default reminder thresholds must be whole numbers of days, comma-separated.");
+  await prefSet(DEFAULT_REMINDER_DAYS_KEY, days);
+  state.defaultReminderDays = days;
+  let rescheduled = true;
+  if (state.localRemindersEnabled) {
+    await syncLocalReminders(false).catch((error) => {
+      rescheduled = false;
+      showStandaloneStatus(`Default saved, but reminders could not be rescheduled: ${error?.message || "unknown error"}`);
+    });
+  }
+  if (rescheduled) showStandaloneStatus("Default reminder thresholds saved.", true);
+  await render();
+}
+
 async function saveLocalProfile(form) {
   const displayName = valueOrNull(fieldValue(form, "displayName")) ?? "Hearth standalone";
   const currency = currencyOrDefault(fieldValue(form, "defaultCurrency")).slice(0, 6);
@@ -5974,6 +6029,10 @@ mobileView.addEventListener("submit", async (event) => {
     }
     if (form.dataset.saveLocalProfile !== undefined) {
       await saveLocalProfile(form);
+      return;
+    }
+    if (form.dataset.saveDefaultReminderDays !== undefined) {
+      await saveDefaultReminderDays(form);
       return;
     }
     if (form.dataset.importInboxForm !== undefined) {

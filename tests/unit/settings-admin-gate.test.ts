@@ -45,6 +45,7 @@ const writes: [string, () => Promise<unknown>][] = [
   ["saveReminderSchedule", () => appSettings.saveReminderSchedule(null, form({ reminderCron: "0 9 * * *", reminderDefaultDays: "30,7" }))],
   ["saveBackupSchedule", () => appSettings.saveBackupSchedule(null, form({ backupCron: "0 3 * * *", retentionCount: "5" }))],
   ["saveHouseholdTimeZone", () => appSettings.saveHouseholdTimeZone(null, form({ householdTimeZone: "Africa/Johannesburg" }))],
+  ["saveHouseholdCurrency", () => appSettings.saveHouseholdCurrency(null, form({ householdCurrency: "ZAR" }))],
   ["clearAppSetting", () => appSettings.clearAppSetting("ntfy.token")],
   ["saveAviationStackSettings", () => appSettings.saveAviationStackSettings(null, form({ aviationstackApiKey: "k" }))],
   ["saveAiSettings", () => saveAiSettings(null, form({ provider: "OLLAMA", model: "m" }))],

@@ -70,6 +70,8 @@ type ChatStreamEvent =
       label?: string;
       data: Record<string, unknown>;
       displayValues?: Record<string, string>;
+      currentValues?: Record<string, unknown>;
+      warnings?: Record<string, string[]>;
     }
   | { type: "error"; message: string }
   | { type: "done"; threadId: string };
@@ -209,6 +211,8 @@ export async function POST(request: NextRequest) {
               label?: string;
               data: Record<string, unknown>;
               displayValues?: Record<string, string>;
+              currentValues?: Record<string, unknown>;
+              warnings?: Record<string, string[]>;
             };
             controller.enqueue(
               sseFrame({
@@ -220,6 +224,8 @@ export async function POST(request: NextRequest) {
                 label: proposal.label,
                 data: proposal.data,
                 displayValues: proposal.displayValues,
+                currentValues: proposal.currentValues,
+                warnings: proposal.warnings,
               }),
             );
           }
