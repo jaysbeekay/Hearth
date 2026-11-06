@@ -193,9 +193,12 @@ describe("sending", () => {
 
   it("never sends to an endpoint on the server's own network", async () => {
     const user = await createTestUser();
-    await subscribe(user.id, "https://192.168.1.1/x");
+    const sub = await subscribe(user.id, "https://192.168.1.1/x");
     await expect(sendPushReminder(reminder)).rejects.toThrow();
     expect(send).not.toHaveBeenCalled();
+    // Push's own wording, not the BLOCK_PRIVATE_NETWORK_TARGETS one.
+    const row = await db.prisma.pushSubscription.findUniqueOrThrow({ where: { id: sub.id } });
+    expect(row.lastError).toBe("The push endpoint isn't a public address (it's private, local or cloud metadata).");
   });
 
   it("sends a test only to the tester's own devices", async () => {
@@ -207,6 +210,15 @@ describe("sending", () => {
 
     expect(await sendTestPush(me.id)).toBe(1);
     expect(send.mock.calls.map(([url]) => url)).toEqual(["https://push.example/mine"]);
+  });
+
+  it("keeps the admin-only key error out of what a member sees", async () => {
+    const user = await createTestUser();
+    await subscribe(user.id, "https://push.example/mine");
+    await db.prisma.appSetting.create({ data: { key: "push.vapidPublicKey", value: "half-a-pair" } });
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(sendTestPush(user.id)).rejects.toThrow("Push isn't available on this server right now.");
+    spy.mockRestore();
   });
 
   it("fails clearly with no devices", async () => {

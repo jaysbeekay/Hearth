@@ -48,9 +48,9 @@ export async function endpointHash(endpoint: string): Promise<string> {
  */
 export async function currentPushSubscription(ms = 2_000): Promise<PushSubscription | null> {
   if (!pushSupported()) return null;
+  const lookup = async () => (await pushRegistration())?.pushManager.getSubscription() ?? null;
   try {
-    const reg = await withTimeout(pushRegistration(), ms);
-    return reg ? await withTimeout(reg.pushManager.getSubscription(), ms) : null;
+    return await withTimeout(lookup(), ms);
   } catch {
     return null;
   }

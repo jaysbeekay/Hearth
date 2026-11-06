@@ -78,14 +78,14 @@ export function PushDeviceToggle({ vapidPublicKey, devices }: { vapidPublicKey: 
       if (!cancelled) setThisDevice(hash);
     }
     async function check(): Promise<Status> {
-      if (!vapidPublicKey) return "unavailable";
       if (!pushSupported()) return "unsupported";
       if (Notification.permission === "denied") return "denied";
       const reg = await pushRegistration();
       if (!reg) return "no-worker";
       const sub = await reg.pushManager.getSubscription();
+      if (sub) remember(await endpointHash(sub.endpoint));
+      if (!vapidPublicKey) return "unavailable";
       if (!sub) return "off";
-      remember(await endpointHash(sub.endpoint));
       // Keep this browser's own row current, but never re-add or take over a
       // row: a subscription the server has no row for, for this member (removed
       // from another device, or left by someone who signed in here before), is
@@ -95,17 +95,15 @@ export function PushDeviceToggle({ vapidPublicKey, devices }: { vapidPublicKey: 
         await sub.unsubscribe();
         return "off";
       }
-      const key = vapidKeyBytes(vapidPublicKey);
-      if (!sameVapidKey(sub.options.applicationServerKey, key)) {
-        // Made with keys the server no longer has: it can't receive anything.
+      const current = sub.options?.applicationServerKey;
+      if (current && !sameVapidKey(current, vapidKeyBytes(vapidPublicKey))) {
+        // Made with keys the server no longer has, so it can't receive
+        // anything: drop it on both sides and let the member turn push on
+        // again with a click (subscribing needs one in some browsers).
+        await removePushSubscription({ endpoint: sub.endpoint });
         await sub.unsubscribe();
-        const fresh = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
-        const result = await savePushSubscription({ ...fresh.toJSON(), deviceLabel: deviceLabel(), previousEndpoint: sub.endpoint });
-        if (result?.error) {
-          if (!cancelled) setState(result);
-          return "off";
-        }
-        remember(await endpointHash(fresh.endpoint));
+        if (!cancelled) setState({ error: "Push was reset on the server. Turn it on again for this device." });
+        return "off";
       }
       return "on";
     }
