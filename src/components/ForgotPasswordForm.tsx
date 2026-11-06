@@ -32,7 +32,7 @@ export function ForgotPasswordForm() {
         />
       </div>
 
-      <FormMessage attempt={state} error={state?.error} />
+      <FormMessage attempt={state} error={state?.error} field={state?.field} />
 
       <SubmitButton className="w-full">Send reset link</SubmitButton>
     </form>

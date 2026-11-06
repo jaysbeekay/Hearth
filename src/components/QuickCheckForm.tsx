@@ -92,7 +92,7 @@ export function QuickCheckForm({ records, canWrite }: { records: QuickCheckRecor
       {canWrite && (
         <div className="flex flex-wrap items-center gap-3">
           <SubmitButton pendingText="Confirming…">Confirm all ({records.length})</SubmitButton>
-          <FormMessage attempt={state} error={state?.error} success={state?.success} />
+          <FormMessage attempt={state} error={state?.error} field={state?.field} success={state?.success} />
         </div>
       )}
     </form>

@@ -132,6 +132,14 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- **A form's validation error shows under the field it's about (#406).**
+  When saving fails on one field (an end date before the start date, a
+  missing title, a bad amount), the message now appears under that field,
+  the field's border turns red and it takes focus, instead of the message
+  sitting in a banner at the foot of the form. Errors that aren't about one
+  field still use the banner. Every action now builds its Zod error through
+  one helper, `issueState`, which also names the field. Server-only; the
+  shell's forms are unchanged.
 - **Joining the household (#372).** Accepting an invitation signs the new
   member straight in and lands them on Upcoming, with a one-time welcome that
   says everything is shared with the household and what their role lets

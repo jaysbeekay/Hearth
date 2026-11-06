@@ -59,7 +59,7 @@ export function ProductDocumentUploadForm({
         <Upload size={16} className="mr-2" />
         Upload
       </SubmitButton>
-      <FormMessage attempt={state} error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} field={state?.field} success={state?.success} />
     </form>
   );
 }

@@ -32,9 +32,12 @@ import {
   permanentlyDeleteContractCommand,
 } from "@/lib/commands/contracts";
 import { RecordNotFoundError, RecordValidationError, StaleEditError } from "@/lib/commands/shared";
+import { issueState } from "@/lib/validation/issues";
 
 export type ActionState = {
   error?: string;
+  /** #406 — the form field `error` belongs to; shown under that field. */
+  field?: string;
   success?: string;
   values?: Record<string, string>;
 } | null;
@@ -102,7 +105,7 @@ export async function createContract(
   const parsed = contractSchema.safeParse(formToContractInput(formData));
   if (!parsed.success) {
     return {
-      error: firstIssueMessage(parsed.error),
+      ...issueState(parsed.error),
       values: formDataToStringValues(formData, CONTRACT_FORM_FIELDS),
     };
   }
@@ -157,7 +160,7 @@ export async function updateContract(
   const parsed = contractSchema.safeParse(formToContractInput(formData));
   if (!parsed.success) {
     return {
-      error: firstIssueMessage(parsed.error),
+      ...issueState(parsed.error),
       values: formDataToStringValues(formData, CONTRACT_FORM_FIELDS),
     };
   }
@@ -217,7 +220,7 @@ export async function renewContract(
     endDate: formData.get("endDate"),
     cost: formData.get("cost"),
   });
-  if (!parsed.success) return { error: firstIssueMessage(parsed.error), values: values() };
+  if (!parsed.success) return { ...issueState(parsed.error), values: values() };
 
   const file = formData.get("file");
   const hasFile = file instanceof File && file.size > 0;

@@ -129,7 +129,7 @@ export function SetupForm({ setupTokenRequired = false }: { setupTokenRequired?:
         })}
       </fieldset>
 
-      <FormMessage attempt={state} error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} field={state?.field} success={state?.success} />
 
       <SubmitButton className="w-full" pendingText="Creating account…">
         Create admin account

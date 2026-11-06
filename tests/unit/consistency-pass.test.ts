@@ -133,3 +133,46 @@ describe("FormMessage on a repeated failure (#514 review)", () => {
     expect(tags.filter((tag) => !tag.includes("attempt="))).toEqual([]);
   });
 });
+
+// #406 — a validation error is shown once, next to its field.
+describe("field errors", () => {
+  it("names the field of the first issue, from a real schema", async () => {
+    const { issueState } = await import("@/lib/validation/issues");
+    const { tripSchema } = await import("@/lib/validation/travel");
+    const parsed = tripSchema.safeParse({ title: "Trip", startDate: "2026-09-10", endDate: "2026-09-01" });
+    expect(parsed.success).toBe(false);
+    if (parsed.success) return;
+    expect(issueState(parsed.error)).toEqual({ error: "End date can't be before the start date.", field: "endDate" });
+  });
+
+  it("leaves a whole-form issue, or no issue, without a field", async () => {
+    const { issueState } = await import("@/lib/validation/issues");
+    expect(issueState({ issues: [{ message: "Pick one", path: [] }] })).toEqual({ error: "Pick one" });
+    expect(issueState({ issues: [{ message: "Bad row", path: [0, "title"] }] })).toEqual({ error: "Bad row" });
+    expect(issueState({ issues: [] })).toEqual({ error: "Invalid input" });
+  });
+
+  it("returns Zod failures through issueState in every record action", () => {
+    const dir = path.join(root, "src", "lib", "actions");
+    const offenders = readdirSync(dir)
+      .filter((f) => f.endsWith(".ts"))
+      // The Assistant's tool results ({ success: false, error }) aren't a
+      // form, so they keep the message alone.
+      .filter((f) =>
+        /(?<!success: false, )\berror: (firstIssueMessage\(|parsed\.error\.issues\[0\])/.test(read(`src/lib/actions/${f}`)),
+      );
+    expect(offenders).toEqual([]);
+  });
+
+  it("passes the action's field to FormMessage wherever a form uses Field", () => {
+    const missing = tsxFiles("src/components").filter((f) => {
+      const text = read(f);
+      return (
+        text.includes('from "@/components/FormField"') &&
+        /<FormMessage attempt=\{state\} error=\{state\?\.error\}/.test(text) &&
+        !text.includes("field={state?.field}")
+      );
+    });
+    expect(missing).toEqual([]);
+  });
+});

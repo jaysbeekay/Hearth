@@ -42,7 +42,7 @@ export function HoldingForm({
 
   return (
     <form action={formAction} className="space-y-4">
-      <FormMessage attempt={state} error={state?.error} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} field={state?.field} success={state?.success} />
 
       <div>
         <label className="block text-sm font-medium mb-1" htmlFor="ticker">
