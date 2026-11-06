@@ -46,6 +46,10 @@ export const env = {
   },
   aiEgressProxy: {
     url: optional("AI_EGRESS_PROXY_URL"),
+    // Path to the proxy's CA certificate (PEM), needed when the proxy
+    // intercepts TLS to scan request/response bodies. Trusted for provider
+    // calls only.
+    caCertFile: optional("AI_EGRESS_PROXY_CA_CERT"),
   },
   emailIngest: {
     host: optional("EMAIL_INGEST_HOST"),
