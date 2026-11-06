@@ -233,7 +233,7 @@ NextAuth v5 (credentials + JWT sessions), Tailwind CSS v4, Zod, node-cron.
 
 ## Running locally
 
-Requires Node.js 22+.
+Requires Node.js 22.19+ (the Docker image uses Node 26).
 
 ```bash
 npm install
@@ -844,7 +844,9 @@ pipelock mcp proxy --config pipelock.yaml --header-file headers.txt \
 
 Use that command as the server's `command`/`args` in the client's MCP config.
 `pipelock mcp proxy --listen 0.0.0.0:8889 --upstream ...` serves an HTTP
-endpoint instead. The MCP server stays read-only either way.
+endpoint instead. The proxy changes nothing about what the MCP server
+offers: ordinary tokens stay read-only, and tokens granted
+`MCP_IMPORT_LABELS` can still only propose records for a member to approve.
 
 ## Barcode scanning for products
 

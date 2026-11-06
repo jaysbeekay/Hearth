@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { rootCertificates } from "node:tls";
+import { getCACertificates } from "node:tls";
 import { ProxyAgent, fetch as undiciFetch } from "undici";
 import { env, isAiEgressProxyConfigured } from "@/lib/env";
 import { assertSafeOutboundUrl } from "@/lib/net/outbound";
@@ -23,14 +23,15 @@ import { assertSafeOutboundUrl } from "@/lib/net/outbound";
 // https call (a CONNECT tunnel). To let it scan request and response
 // bodies, enable TLS interception in the proxy and point
 // AI_EGRESS_PROXY_CA_CERT at its CA certificate; Hearth then trusts that CA
-// for provider calls only, on top of the system roots.
+// for provider calls only, on top of Node's default trust store (bundled
+// roots plus NODE_EXTRA_CA_CERTS, and the OS store if Node uses it).
 
 let cachedAgent: ProxyAgent | null = null;
 
 function egressAgent(): ProxyAgent {
   if (cachedAgent) return cachedAgent;
   const caFile = env.aiEgressProxy.caCertFile;
-  const ca = caFile ? [...rootCertificates, readFileSync(caFile, "utf8")] : undefined;
+  const ca = caFile ? [...getCACertificates("default"), readFileSync(caFile, "utf8")] : undefined;
   cachedAgent = new ProxyAgent({
     uri: env.aiEgressProxy.url,
     // Plain-http targets (a LAN Ollama) are sent as absolute-URI requests so

@@ -120,7 +120,7 @@ describe("every AI provider call uses aiProviderFetch", () => {
 
   it.each(files)("%s makes no direct fetch() call", (file) => {
     const source = readFileSync(path.join(root, file), "utf8");
-    expect(source).not.toMatch(/(?<![\w.])fetch\(/);
+    expect(source).not.toMatch(/(?<!\w)fetch\s*\(/);
   });
 
   it("covers the provider modules and the Ollama text fallbacks", () => {
