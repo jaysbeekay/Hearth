@@ -337,12 +337,33 @@ describe("spendSummary", () => {
     await client.close();
   });
 
-  it("defaults to the member's preferred currency, or the first admin's for MCP", async () => {
+  it("defaults to the member's preferred currency, or the first admin's for MCP until a household currency is set", async () => {
     const admin = await createTestUser({ role: "ADMIN" });
     await db.prisma.user.update({ where: { id: admin.id }, data: { preferredCurrency: "NZD" } });
     const member = await createTestUser();
     await db.prisma.user.update({ where: { id: member.id }, data: { preferredCurrency: "USD" } });
     expect(await defaultSpendCurrency(member.id)).toBe("USD");
+    expect(await defaultSpendCurrency()).toBe("NZD");
+  });
+
+  it("uses the household currency over MCP once an admin sets it (#453)", async () => {
+    const admin = await createTestUser({ role: "ADMIN" });
+    await db.prisma.user.update({ where: { id: admin.id }, data: { preferredCurrency: "NZD" } });
+    const member = await createTestUser();
+    await db.prisma.user.update({ where: { id: member.id }, data: { preferredCurrency: "USD" } });
+    await setAppSetting("household.currency", "ZAR");
+    expect(await defaultSpendCurrency()).toBe("ZAR");
+    // A member's own preference still wins in the Assistant.
+    expect(await defaultSpendCurrency(member.id)).toBe("USD");
+
+    const client = await connectMcp();
+    const result = await client.callTool({ name: "spend_summary", arguments: {} });
+    const text = (result.content as { type: string; text: string }[])[0].text;
+    expect(JSON.parse(text)).toMatchObject({ currency: "ZAR" });
+    await client.close();
+
+    // A stored value that isn't a currency code falls back to the first admin's.
+    await setAppSetting("household.currency", "NOPE");
     expect(await defaultSpendCurrency()).toBe("NZD");
   });
 });

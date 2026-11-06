@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, X } from "lucide-react";
+import { AlertTriangle, Check, X } from "lucide-react";
 import {
   createContractFromAssistant,
   updateContractFromAssistant,
@@ -9,7 +9,8 @@ import {
 import { createProductFromAssistant, updateProductFromAssistant } from "@/lib/actions/products";
 import { formatDate, type DateFormat } from "@/lib/utils";
 import { useDateFormat } from "@/components/DateFormatProvider";
-import { buttonClass, cardClass } from "@/lib/ui";
+import { bannerClass, buttonClass, cardClass } from "@/lib/ui";
+import { FREE_TEXT_FIELDS } from "@/lib/chat/proposalReview";
 
 export interface ProposedAction {
   id: string;
@@ -24,6 +25,10 @@ export interface ProposedAction {
   // How to show a field whose raw value is an id: a linked Property or
   // Vehicle's name. Display only; never sent to the action.
   displayValues?: Record<string, string>;
+  // #530 — an update's current value for each field it changes, and
+  // warnings by field (src/lib/chat/proposalReview.ts). Display only.
+  currentValues?: Record<string, unknown>;
+  warnings?: Record<string, string[]>;
 }
 
 const FIELD_LABELS: Record<string, string> = {
@@ -139,6 +144,10 @@ export function ProposedActionCard({
   const titleValue = action.operation === "update" && action.label
     ? action.label
     : ((action.data.title ?? action.data.description) as string | undefined);
+  const noDisplayValues = new Map<string, string>();
+  const warnings = action.warnings ?? {};
+  const flaggedCount = entries.filter(([key]) => (warnings[key]?.length ?? 0) > 0).length;
+  const hasFreeText = entries.some(([key]) => FREE_TEXT_FIELDS.has(key));
 
   return (
     <div className={cardClass({}, "mt-2 text-sm")}>
@@ -146,13 +155,49 @@ export function ProposedActionCard({
         {action.operation === "create" ? "Create" : "Update"} {action.entity}
         {titleValue ? `: ${titleValue}` : ""}
       </p>
-      <dl className="mb-3 grid grid-cols-1 gap-x-4 gap-y-0.5 text-xs text-muted sm:grid-cols-2">
-        {entries.map(([key, value]) => (
-          <div key={key} className="flex gap-1">
-            <dt className="shrink-0 font-medium">{FIELD_LABELS[key] ?? key}:</dt>
-            <dd className="truncate">{formatValue(key, value, displayValues, dateFormat)}</dd>
-          </div>
-        ))}
+      {flaggedCount > 0 && (
+        <p role="status" className={bannerClass("warning", "mb-2 flex items-start gap-1.5 px-3 py-2 text-xs")}>
+          <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden />
+          {flaggedCount === 1 ? "1 field needs" : `${flaggedCount} fields need`} a closer look before you
+          confirm.
+        </p>
+      )}
+      {hasFreeText && (
+        <p className="mb-2 text-xs text-muted">
+          Shaded text was written by the Assistant. Read it in full before you confirm.
+        </p>
+      )}
+      <dl className="mb-3 grid grid-cols-1 gap-x-4 gap-y-1 text-xs text-muted sm:grid-cols-2">
+        {entries.map(([key, value]) => {
+          const freeText = FREE_TEXT_FIELDS.has(key);
+          // The tool sends a current link as its label, and a blank field as null.
+          const current = action.currentValues?.[key];
+          return (
+            <div key={key} className={freeText ? "flex min-w-0 flex-wrap gap-x-1 sm:col-span-2" : "flex min-w-0 flex-wrap gap-x-1"}>
+              <dt className="shrink-0 font-medium">{FIELD_LABELS[key] ?? key}:</dt>
+              <dd
+                className={
+                  freeText
+                    ? "min-w-0 basis-full whitespace-pre-wrap break-words rounded bg-muted/10 px-1.5 py-0.5 text-foreground"
+                    : "min-w-0 flex-1 truncate"
+                }
+              >
+                {formatValue(key, value, displayValues, dateFormat)}
+              </dd>
+              {current !== undefined && (
+                <dd className="basis-full break-words">
+                  Now: {current === null ? "(blank)" : formatValue(key, current, noDisplayValues, dateFormat)}
+                </dd>
+              )}
+              {(warnings[key] ?? []).map((warning) => (
+                <dd key={warning} className="flex basis-full items-start gap-1 text-warning">
+                  <AlertTriangle size={16} className="shrink-0" aria-hidden />
+                  {warning}
+                </dd>
+              ))}
+            </div>
+          );
+        })}
       </dl>
       {error && (
         <p role="alert" className="mb-2 text-xs text-danger">
@@ -162,7 +207,7 @@ export function ProposedActionCard({
       <div className="flex gap-2">
         <button
           type="button"
-          onClick={handleConfirm}
+          onClick={() => void handleConfirm()}
           disabled={working}
           className={buttonClass("primary")}
         >

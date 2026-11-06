@@ -9,6 +9,9 @@ import {
   isLive,
   RecordNotFoundError,
   RecordValidationError,
+  RecordNotInTrashError,
+  inTrashWhere,
+  type PurgeOptions,
   type UpdateOptions,
 } from "@/lib/commands/shared";
 import type { ClearablePatch } from "@/lib/validation/fullFormUpdate";
@@ -163,9 +166,9 @@ export async function permanentlyDeleteInventoryItemCommand(id: string) {
 }
 
 /** A permanent delete refused because the item isn't in Trash (it was restored). */
-export class ItemNotInTrashError extends RecordValidationError {
+export class ItemNotInTrashError extends RecordNotInTrashError {
   constructor() {
-    super("That item has been restored, so it wasn't deleted.");
+    super("Item");
     this.name = "ItemNotInTrashError";
   }
 }
@@ -183,12 +186,7 @@ export class PurgeFilesPendingError extends Error {
   }
 }
 
-export interface PurgeOptions {
-  // Trash retention's cutoff: only purge the item if it went to Trash
-  // before this, so one restored and deleted again mid-run keeps its new
-  // Trash window.
-  deletedBefore?: Date;
-}
+export type { PurgeOptions };
 
 // The row-and-files part of a permanent delete, with no module gate and no
 // revalidation. Trash retention (src/lib/trash.ts) calls it directly: it runs
@@ -205,7 +203,7 @@ export async function purgeInventoryItem(id: string, options: PurgeOptions = {})
   // #380 staging: the staged copies of its Documents are retired with it.
   const documentIds = (await prisma.inventoryItemDocument.findMany({ where: { inventoryItemId: id }, select: { id: true } })).map((doc) => doc.id);
   const { count } = await prisma.inventoryItem.deleteMany({
-    where: { id, deletedAt: options.deletedBefore ? { lt: options.deletedBefore } : { not: null } },
+    where: { id, ...inTrashWhere(options) },
   });
   if (count === 0) {
     const existing = await prisma.inventoryItem.findUnique({ where: { id }, select: { deletedAt: true } });

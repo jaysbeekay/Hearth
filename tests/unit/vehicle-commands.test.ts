@@ -91,6 +91,7 @@ describe("Vehicle commands", () => {
       data: { ownerType: "VEHICLE", ownerId: vehicle.id, field: "regoExpiry", channel: "EMAIL", thresholdDays: 30 },
     });
 
+    await db.prisma.vehicle.update({ where: { id: vehicle.id }, data: { deletedAt: new Date() } }); // #534: only from Trash
     await permanentlyDeleteVehicleCommand(vehicle.id);
 
     expect(await db.prisma.vehicle.findUnique({ where: { id: vehicle.id } })).toBeNull();
@@ -235,6 +236,7 @@ describe("Service record commands", () => {
     const item = await createServiceRecordCommand(vehicleId, { type: "SERVICE", title: "Service", currency: "AUD" });
     const dir = await attachFile(item.id);
 
+    await db.prisma.vehicleItem.update({ where: { id: item.id }, data: { deletedAt: new Date() } });
     await permanentlyDeleteServiceRecordCommand(item.id);
 
     expect(await db.prisma.vehicleItem.findUnique({ where: { id: item.id } })).toBeNull();

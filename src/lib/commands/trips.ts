@@ -8,6 +8,8 @@ import {
   requireLive,
   assertParentRestored,
   RecordNotFoundError,
+  deleteFromTrash,
+  type PurgeOptions,
   type UpdateOptions,
 } from "@/lib/commands/shared";
 import type { ClearablePatch } from "@/lib/validation/fullFormUpdate";
@@ -120,7 +122,7 @@ export async function permanentlyDeleteTripCommand(id: string) {
 // revalidation. Only for Trash retention (src/lib/trash.ts), which runs from
 // a page render (where revalidatePath can't be called) and from the
 // scheduler, and purges expired records whether or not the module is on.
-export async function purgeTrip(id: string) {
+export async function purgeTrip(id: string, options: PurgeOptions = {}) {
   const existing = await prisma.trip.findUnique({
     where: { id },
     include: { segments: { select: { id: true } } },
@@ -128,8 +130,14 @@ export async function purgeTrip(id: string) {
   if (!existing) throw new RecordNotFoundError("Trip");
   // The row delete cascades to segments and their Document rows (Trash
   // ones included); their files on disk aren't FK-linked, so they're
-  // removed straight after, leaving no files without a row.
-  await prisma.trip.delete({ where: { id } });
+  // removed straight after, leaving no files without a row. Only a Trip in
+  // Trash is deleted (deleteFromTrash, #534).
+  await deleteFromTrash(
+    "Trip",
+    options,
+    (inTrash) => prisma.trip.deleteMany({ where: { id, ...inTrash } }),
+    () => prisma.trip.findUnique({ where: { id }, select: { deletedAt: true } }),
+  );
   for (const segment of existing.segments) {
     await removeOwnerDocumentFiles("TRIP_SEGMENT", segment.id);
   }
@@ -221,11 +229,16 @@ export async function permanentlyDeleteTripSegmentCommand(id: string) {
 }
 
 // See purgeTrip: for Trash retention only.
-export async function purgeTripSegment(id: string) {
+export async function purgeTripSegment(id: string, options: PurgeOptions = {}) {
   const existing = await findTripSegment(id);
   // Cascades to the segment's Document rows (Trash ones included); then the
   // files go.
-  await prisma.tripSegment.delete({ where: { id } });
+  await deleteFromTrash(
+    "Trip segment",
+    options,
+    (inTrash) => prisma.tripSegment.deleteMany({ where: { id, ...inTrash } }),
+    () => prisma.tripSegment.findUnique({ where: { id }, select: { deletedAt: true } }),
+  );
   await removeOwnerDocumentFiles("TRIP_SEGMENT", id);
   return { tripId: existing.tripId };
 }

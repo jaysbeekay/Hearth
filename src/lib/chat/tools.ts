@@ -11,6 +11,7 @@ import {
 import { productSchema, productPatchSchema } from "@/lib/validation/product";
 import { parseNamedPatch } from "@/lib/validation/namedPatch";
 import { linkedRecordError, newLinks, type RecordLinks } from "@/lib/commands/links";
+import { reviewProposal } from "@/lib/chat/proposalReview";
 import { getNetWorth } from "@/lib/wealth";
 import {
   DEFAULT_DUE_HORIZON_DAYS,
@@ -312,6 +313,24 @@ async function linkDisplay(
   return Object.keys(displayValues).length > 0 ? { displayValues } : {};
 }
 
+// An update's review for the card (#530). A current Property or Vehicle link
+// is only an id, so it is shown by its label; a link that no longer resolves
+// is shown as such rather than as a raw id.
+async function reviewUpdate(data: Record<string, unknown>, current: Record<string, unknown>) {
+  const review = reviewProposal("update", data, current);
+  const values = review.currentValues;
+  if (!values) return review;
+  if (typeof values.propertyId === "string") {
+    const property = await prisma.property.findUnique({ where: { id: values.propertyId }, select: { label: true } });
+    values.propertyId = property?.label ?? "A property that no longer exists";
+  }
+  if (typeof values.vehicleId === "string") {
+    const vehicle = await prisma.vehicle.findUnique({ where: { id: values.vehicleId }, select: { label: true } });
+    values.vehicleId = vehicle?.label ?? "A vehicle that no longer exists";
+  }
+  return review;
+}
+
 // A date moved on its own is checked against the saved other date here, so
 // the user isn't shown a card whose confirm the command would refuse.
 function datesOutOfOrder(start: Date | null | undefined, end: Date | null | undefined) {
@@ -335,7 +354,14 @@ const proposeCreateContractTool = defineTool({
     if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
     const links = await linkDisplay(parsed.data);
     if ("error" in links) return links;
-    return { proposed: true, entity: "contract", operation: "create", data: parsed.data, ...links };
+    return {
+      proposed: true,
+      entity: "contract",
+      operation: "create",
+      data: parsed.data,
+      ...links,
+      ...reviewProposal("create", parsed.data),
+    };
   },
 });
 
@@ -376,6 +402,7 @@ const proposeUpdateContractTool = defineTool({
       label: contract.title,
       data: parsed.data,
       ...links,
+      ...(await reviewUpdate(parsed.data, contract)),
     };
   },
 });
@@ -412,7 +439,14 @@ const proposeCreateProductTool = defineTool({
     if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
     const links = await linkDisplay(parsed.data);
     if ("error" in links) return links;
-    return { proposed: true, entity: "product", operation: "create", data: parsed.data, ...links };
+    return {
+      proposed: true,
+      entity: "product",
+      operation: "create",
+      data: parsed.data,
+      ...links,
+      ...reviewProposal("create", parsed.data),
+    };
   },
 });
 
@@ -437,10 +471,8 @@ const proposeUpdateProductTool = defineTool({
     // Only the named fields go into the proposal: see propose_update_contract.
     const parsed = parseNamedPatch(productPatchSchema, fields);
     if (!parsed.success) return { error: parsed.error };
-    const product = await prisma.product.findFirst({
-      where: { id: productId, deletedAt: null },
-      select: { description: true, purchaseDate: true, warrantyEndDate: true, propertyId: true },
-    });
+    // The whole row, so the card can show each changing field's current value (#530).
+    const product = await prisma.product.findFirst({ where: { id: productId, deletedAt: null } });
     if (!product) return { error: "No product with that id." };
     const { purchaseDate = product.purchaseDate, warrantyEndDate = product.warrantyEndDate } = parsed.data;
     if (datesOutOfOrder(purchaseDate, warrantyEndDate)) {
@@ -456,6 +488,7 @@ const proposeUpdateProductTool = defineTool({
       label: product.description,
       data: parsed.data,
       ...links,
+      ...(await reviewUpdate(parsed.data, product)),
     };
   },
 });
