@@ -1518,12 +1518,14 @@ test("standalone restore whose settings fail to save after the commit says the r
     const prefs = (window as unknown as { Capacitor: { Plugins: { Preferences: { set(a: { key: string; value: string }): Promise<void> } } } }).Capacitor.Plugins.Preferences;
     await prefs.set({ key: "hearth.mobile.enabledStandaloneModules", value: JSON.stringify(["VEHICLES"]) });
     await prefs.set({ key: "hearth.mobile.localRemindersEnabled", value: "false" });
+    await prefs.set({ key: "hearth.mobile.defaultReminderDays", value: "60,7" });
   });
   await openBackupSettings(page);
   const { text } = await exportBackup(page);
   await page.evaluate(async () => {
     const prefs = (window as unknown as { Capacitor: { Plugins: { Preferences: { set(a: { key: string; value: string }): Promise<void> } } } }).Capacitor.Plugins.Preferences;
     await prefs.set({ key: "hearth.mobile.enabledStandaloneModules", value: JSON.stringify([]) });
+    await prefs.set({ key: "hearth.mobile.defaultReminderDays", value: "30,14,7,1" });
     localStorage.setItem("hearth-test-pref-set-error", "hearth.mobile.localRemindersEnabled");
   });
   await restoreFile(page, text, { password: "correct horse battery" });
@@ -1539,11 +1541,14 @@ test("standalone restore whose settings fail to save after the commit says the r
     return {
       committed: harness.sqliteRuns.some((run) => run.statement.includes("last_restore_id")),
       modules: (await prefs.get({ key: "hearth.mobile.enabledStandaloneModules" })).value,
+      defaultReminderDays: (await prefs.get({ key: "hearth.mobile.defaultReminderDays" })).value,
       journal: (await prefs.get({ key: "hearth.mobile.restoreJournal" })).value,
     };
   });
   expect(state.committed).toBe(true);
   expect(state.modules).toBe(JSON.stringify(["VEHICLES"]));
+  // #536's default thresholds travel with the backup like the other settings.
+  expect(state.defaultReminderDays).toBe("60,7");
   expect(state.journal).toBeNull();
 });
 
@@ -2360,6 +2365,85 @@ test("standalone Due policy port gives every shared case's entries (#386)", asyn
   for (const [index, c] of fixture.cases.entries()) {
     expect(results[index], c.name).toEqual({ name: c.name, entries: c.expected });
   }
+});
+
+// #536 — the household default Reminder thresholds are a device setting:
+// records with none of their own follow it for Due soon and device reminders,
+// and saving it reschedules them.
+test("standalone default Reminder thresholds drive Due soon and reschedule reminders (#536)", async ({ page }) => {
+  await page.addInitScript(() => {
+    const rows = (window as unknown as { __hearthStandaloneTest: { rowsByTable: Record<string, unknown[]> } }).__hearthStandaloneTest.rowsByTable;
+    const updated_at = "2099-01-01T00:00:00.000Z";
+    const plan = { category: "OTHER", status: "ACTIVE", renewal_type: "MANUAL_RENEWAL", cost: 20, currency: "AUD", billing_frequency: "MONTHLY", reminder_days_before: null, updated_at };
+    rows.contracts.push({ ...plan, id: "default-ten", title: "Ten Day Plan", end_date: "2099-06-11" });
+    rows.contracts.push({ ...plan, id: "default-twenty", title: "Twenty Day Plan", end_date: "2099-06-21" });
+    rows.contracts.push({ ...plan, id: "own-thirty", title: "Own Window Plan", end_date: "2099-06-11", reminder_days_before: "30" });
+  });
+  await page.clock.setFixedTime(new Date("2099-06-01T09:00:00"));
+  await reloadStandalone(page);
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="reminders"]').click();
+
+  const card = (title: string) => page.locator(".record-card").filter({ hasText: title });
+  const scheduled = () =>
+    page.evaluate(() =>
+      ((window as unknown as { __hearthStandaloneTest: { scheduledNotifications: { extra?: { recordId?: string; threshold?: number } }[] } }).__hearthStandaloneTest.scheduledNotifications)
+        .filter((n) => ["default-ten", "default-twenty", "own-thirty"].includes(n.extra?.recordId ?? ""))
+        .map((n) => `${n.extra?.recordId}:${n.extra?.threshold}`)
+        .sort(),
+    );
+
+  // The built-in default, 30,14,7,1: 10 days out is Due soon.
+  await expect(page.locator(".mini-card").filter({ hasText: "Default thresholds" }).locator("strong")).toHaveText("30,14,7,1");
+  await expect(card("Ten Day Plan")).toHaveClass(/warning-card/);
+  await page.getByRole("button", { name: "Enable reminders" }).click();
+  await expect.poll(scheduled).toEqual(["default-ten:1", "default-ten:7", "default-twenty:1", "default-twenty:14", "default-twenty:7"]);
+
+  // Rejected with the web setting's message, and nothing changes.
+  const input = page.locator('input[name="defaultReminderDays"]');
+  await input.fill("soon");
+  await page.getByRole("button", { name: "Save default" }).click();
+  await expect(page.getByText("Default reminder thresholds must be whole numbers of days, comma-separated.")).toBeVisible();
+  await expect(card("Ten Day Plan")).toHaveClass(/warning-card/);
+  // Too long to be a safe whole number (it would become Infinity).
+  await page.locator('input[name="defaultReminderDays"]').fill("7,".concat("9".repeat(400)));
+  await page.getByRole("button", { name: "Save default" }).click();
+  await expect(page.getByText("Default reminder thresholds must be whole numbers of days, comma-separated.")).toBeVisible();
+  await expect(page.locator(".mini-card").filter({ hasText: "Default thresholds" }).locator("strong")).toHaveText("30,14,7,1");
+
+  // 7,1 (typed out of order, with a repeat): 10 days out is no longer Due
+  // soon, and the device reminders are rescheduled to match.
+  await page.locator('input[name="defaultReminderDays"]').fill("1, 7, 7");
+  await page.getByRole("button", { name: "Save default" }).click();
+  await expect(page.getByText("Default reminder thresholds saved.")).toBeVisible();
+  await expect(page.locator(".mini-card").filter({ hasText: "Default thresholds" }).locator("strong")).toHaveText("7,1");
+  await expect(card("Ten Day Plan")).not.toHaveClass(/warning-card|danger-card/);
+  await expect(card("Ten Day Plan")).toContainText("Planned");
+  // A record with its own thresholds keeps them.
+  await expect(card("Own Window Plan")).toHaveClass(/warning-card/);
+  await expect.poll(scheduled).toEqual(["default-ten:1", "default-ten:7", "default-twenty:1", "default-twenty:7"]);
+
+  // Upcoming follows the same window.
+  await page.locator(".bottom-nav").getByRole("button", { name: "More" }).click();
+  await page.locator('#mobile-view button[data-nav="calendar"]').click();
+  await expect(card("Ten Day Plan")).toContainText("In 10d");
+  await expect(card("Ten Day Plan")).not.toHaveClass(/warning-card|danger-card/);
+  await expect(card("Own Window Plan")).toHaveClass(/warning-card/);
+
+  // A new Contract left blank stores no thresholds of its own, so it follows the default.
+  await page.locator(".bottom-nav").getByRole("button", { name: "Contracts" }).click();
+  await page.locator(".search-row").getByRole("button", { name: "Add" }).click();
+  const thresholds = page.locator('input[name="reminderDaysBefore"]');
+  await expect(thresholds).toHaveValue("");
+  await expect(thresholds).toHaveAttribute("placeholder", "7,1 (default)");
+  await page.locator('input[name="title"]').fill("Blank Threshold Plan");
+  await page.locator('input[name="provider"]').fill("Provider");
+  await page.locator('form[data-save-type="contracts"]').getByRole("button", { name: "Save" }).click();
+  const runs = await page.evaluate(() => (window as unknown as { __hearthStandaloneTest: { sqliteRuns: { statement: string; values: unknown[] }[] } }).__hearthStandaloneTest.sqliteRuns);
+  const insert = runs.find((run) => run.statement.startsWith("INSERT INTO contracts") && run.values.includes("Blank Threshold Plan"));
+  expect(insert).toBeDefined();
+  const columns = insert!.statement.slice(insert!.statement.indexOf("(") + 1, insert!.statement.indexOf(")")).split(",").map((column) => column.trim());
+  expect(insert!.values[columns.indexOf("reminder_days_before")]).toBeNull();
 });
 
 // #457 — a Tenancy whose linked Contract Covers it (same end date) has one
