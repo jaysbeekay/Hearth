@@ -95,14 +95,6 @@ jobs:
           # surfaces via the SARIF upload below, it just doesn't block. It
           # applies to both architectures.
           only-fixed: true
-          # Maintainer-approved exceptions live as OpenVEX files in
-          # .github/vex/, each with the reason and when to remove it.
-          # vex-author is a filter, not access control: the files come from
-          # the PR's own checkout and the author field is self-declared, so a
-          # PR can add one. Any change under .github/vex/ needs the same
-          # maintainer review as a code change before it reaches main.
-          vex-location: .github/vex
-          vex-author: jaysbeekay
           exit-code: true
           sarif-file: ${{ env.SARIF_FILE }}
           # Both legs would update the same PR comment, so whichever finished
