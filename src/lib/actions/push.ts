@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { assertPushEndpoint, sendTestPush } from "@/lib/notifications/push";
 import { pushEndpointSchema, pushSubscriptionSchema } from "@/lib/validation/push";
@@ -36,17 +37,26 @@ export async function savePushSubscription(input: unknown): Promise<PushActionSt
   } catch {
     return { error: "This browser's push service isn't one the server can send to." };
   }
-  const existing = await prisma.pushSubscription.findUnique({ where: { endpoint } });
-  if (existing && existing.userId !== userId && (existing.p256dh !== keys.p256dh || existing.auth !== keys.auth)) {
-    return { error: "This push subscription belongs to another account." };
-  }
   const data = { userId, p256dh: keys.p256dh, auth: keys.auth, deviceLabel: deviceLabel || null };
-  await prisma.$transaction([
-    ...(previousEndpoint && previousEndpoint !== endpoint
-      ? [prisma.pushSubscription.deleteMany({ where: { endpoint: previousEndpoint, userId } })]
-      : []),
-    prisma.pushSubscription.upsert({ where: { endpoint }, create: { endpoint, ...data }, update: data }),
-  ]);
+  // One conditional write, so no check-then-write gap: the caller's own row,
+  // or anyone's row with these exact keys.
+  const { count } = await prisma.pushSubscription.updateMany({
+    where: { endpoint, OR: [{ userId }, { p256dh: keys.p256dh, auth: keys.auth }] },
+    data,
+  });
+  if (count === 0) {
+    try {
+      await prisma.pushSubscription.create({ data: { endpoint, ...data } });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        return { error: "This push subscription belongs to another account." };
+      }
+      throw error;
+    }
+  }
+  if (previousEndpoint && previousEndpoint !== endpoint) {
+    await prisma.pushSubscription.deleteMany({ where: { endpoint: previousEndpoint, userId } });
+  }
   revalidatePath("/settings");
   return { success: "Reminders will show up on this device." };
 }

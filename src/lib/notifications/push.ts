@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { encodeAppSetting } from "@/lib/appSettings";
 import { decryptSecret } from "@/lib/crypto";
 import { env, isAppUrlConfigured } from "@/lib/env";
-import { assertSafeOutboundUrl, safeFetch } from "@/lib/net/outbound";
+import { assertSafeOutboundUrl, safeFetch, UnsafeOutboundUrlError } from "@/lib/net/outbound";
 import { buildPushReminder, type ReminderInput } from "@/lib/notifications/reminderContent";
 import { pushDeviceFailing } from "@/lib/notifications/pushStatus";
 
@@ -121,7 +121,17 @@ async function resolveVapidSubject(): Promise<string> {
  * public. Also rejects non-https and cloud-metadata hosts.
  */
 export async function assertPushEndpoint(endpoint: string): Promise<void> {
-  const url = await assertSafeOutboundUrl(endpoint, { allowLocal: false });
+  let url: URL;
+  try {
+    url = await assertSafeOutboundUrl(endpoint, { allowLocal: false });
+  } catch (error) {
+    // The guard's own wording is about BLOCK_PRIVATE_NETWORK_TARGETS, which
+    // doesn't apply here: push never goes to a private address.
+    if (error instanceof UnsafeOutboundUrlError) {
+      throw new Error("The push endpoint isn't a public address (it's private, local or cloud metadata).");
+    }
+    throw error;
+  }
   if (url.protocol !== "https:") throw new Error("Push endpoints must use https.");
 }
 
@@ -163,7 +173,9 @@ async function deliver(t: Target, payload: string, vapid: VapidKeys & { subject:
   const { response, body } = await safeFetch(
     request.endpoint,
     { method: request.method, headers: request.headers, body: request.body ? new Uint8Array(request.body) : null, redirect: "manual" },
-    { allowLocal: false, timeoutMs: 10_000, maxBytes: 16_384 },
+    // Push services answer with an empty or tiny body; the cap only stops a
+    // hostile endpoint streaming without end.
+    { allowLocal: false, timeoutMs: 10_000, maxBytes: 64 * 1024 },
   );
   if (response.status < 200 || response.status > 299) {
     throw new PushSendError(`${response.status}${body ? `: ${body.slice(0, 200)}` : ""}`, response.status);
@@ -180,7 +192,15 @@ async function deliver(t: Target, payload: string, vapid: VapidKeys & { subject:
  */
 async function sendToTargets(targets: Target[], payload: (t: Target) => object): Promise<number> {
   if (targets.length === 0) throw new Error("No devices have push notifications turned on.");
-  const vapid = { ...(await getVapidKeys()), subject: await vapidSubject() };
+  let keys: VapidKeys;
+  try {
+    keys = await getVapidKeys();
+  } catch (error) {
+    // The detail is for the admin's log, not the member who pressed Send test.
+    console.error("[push] VAPID keys unavailable:", error);
+    throw new Error("Push isn't available on this server right now.");
+  }
+  const vapid = { ...keys, subject: await vapidSubject() };
   let delivered = 0;
   let failed = 0;
 
@@ -192,7 +212,7 @@ async function sendToTargets(targets: Target[], payload: (t: Target) => object):
       failed += 1;
       const status = error instanceof PushSendError ? error.statusCode : undefined;
       // lastFailureAt is when the current run of failures began.
-      const failingSince = pushDeviceFailing(t) ? t.lastFailureAt! : now;
+      const failingSince = pushDeviceFailing(t) && t.lastFailureAt ? t.lastFailureAt : now;
       if ((status != null && GONE.has(status)) || now.getTime() - failingSince.getTime() > GIVE_UP_AFTER_MS) {
         await prisma.pushSubscription.deleteMany({ where: { id: t.id } });
       } else {

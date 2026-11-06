@@ -72,8 +72,8 @@ export function PushDeviceToggle({ vapidPublicKey }: { vapidPublicKey: string | 
   useEffect(() => {
     let cancelled = false;
     async function check(): Promise<Status> {
-      if (!vapidPublicKey) return "unavailable";
       if (!pushSupported()) return "unsupported";
+      if (!vapidPublicKey) return "unavailable";
       if (Notification.permission === "denied") return "denied";
       const reg = await registration();
       if (!reg) return "no-worker";
@@ -88,16 +88,15 @@ export function PushDeviceToggle({ vapidPublicKey }: { vapidPublicKey: string | 
         await sub.unsubscribe();
         return "off";
       }
-      const key = keyBytes(vapidPublicKey);
-      if (!sameKey(sub.options.applicationServerKey, key)) {
-        // Made with keys the server no longer has: it can't receive anything.
+      const current = sub.options?.applicationServerKey;
+      if (current && !sameKey(current, keyBytes(vapidPublicKey))) {
+        // Made with keys the server no longer has, so it can't receive
+        // anything: drop it on both sides and let the member turn push on
+        // again with a click (subscribing needs one in some browsers).
+        await removePushSubscription({ endpoint: sub.endpoint });
         await sub.unsubscribe();
-        const fresh = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
-        const result = await savePushSubscription({ ...fresh.toJSON(), deviceLabel: deviceLabel(), previousEndpoint: sub.endpoint });
-        if (result?.error) {
-          if (!cancelled) setState(result);
-          return "off";
-        }
+        if (!cancelled) setState({ error: "Push was reset on the server. Turn it on again for this device." });
+        return "off";
       }
       return "on";
     }
