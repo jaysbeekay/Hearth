@@ -56,8 +56,11 @@ enabled.
 If you set `AI_EGRESS_PROXY_URL`, the AI extraction/chat traffic in the table
 above is routed through that proxy first (e.g. a self-hosted agent-firewall
 like Pipelock) before reaching the provider — only relevant if you've
-configured one yourself, and it sees the same request your server would have
-sent the provider directly.
+configured one yourself. With TLS interception it sees the same request,
+API key included, that your server would have sent the provider directly;
+without it, it sees only the hostname of https provider calls. A
+plain-http Ollama server is always visible to the proxy in full, prompt and
+document text included.
 
 ## What's never collected
 
