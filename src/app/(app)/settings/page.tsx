@@ -78,8 +78,8 @@ export default async function SettingsPage() {
           <Card as="section">
             <h2 className="mb-3 font-medium">Reminders</h2>
             <p className="mb-3 text-sm text-muted">
-              Reminders are sent to each device with notifications on, and by email
-              {ntfyConfigured ? " and ntfy" : ""}.{" "}
+              Reminders are sent to each device with notifications on
+              {smtpConfigured && ntfyConfigured ? ", by email and by ntfy" : smtpConfigured ? " and by email" : ntfyConfigured ? " and by ntfy" : ""}.{" "}
               {!smtpConfigured && !ntfyConfigured && (
                 <span className="text-warning">
                   Email and ntfy aren&apos;t set up

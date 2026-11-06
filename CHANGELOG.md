@@ -14,9 +14,11 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   that browser, with no SMTP, ntfy or other account. Push is a fourth
   Reminder channel with the same date-keyed sent log; tapping a
   notification opens the record. VAPID keys are generated on first use and
-  kept in app settings (private key encrypted with `ENCRYPTION_KEY`);
-  `VAPID_SUBJECT` optionally sets the contact push services see. A device
-  the push service reports gone is dropped, and Reminder delivery health
+  kept in app settings (private key encrypted with `ENCRYPTION_KEY` when
+  that's set); `VAPID_SUBJECT` optionally sets the contact push services
+  see, otherwise `APP_URL` when it's https, otherwise the first admin's
+  email. A device the push service reports gone, or that has failed for 30
+  days, is dropped, and Reminder delivery health
   shows how many devices have push on and how many are failing. Per-user
   channel preferences and the guided setup screen follow in later parts.
   Server-only for now; the iOS and Android shell is unchanged.
