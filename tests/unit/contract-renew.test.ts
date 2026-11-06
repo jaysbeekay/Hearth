@@ -308,6 +308,7 @@ describe("renewContractCommand", () => {
     const term = await db.prisma.contractTerm.findFirstOrThrow({ where: { contractId: contract.id } });
     expect(term.documentId).toBeNull();
 
+    await deleteContractCommand(contract.id);
     await permanentlyDeleteContractCommand(contract.id);
     expect(await db.prisma.contractTerm.count()).toBe(0);
   });

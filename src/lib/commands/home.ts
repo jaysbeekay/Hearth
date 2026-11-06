@@ -9,6 +9,8 @@ import {
   requireLive,
   assertParentRestored,
   RecordNotFoundError,
+  deleteFromTrash,
+  type PurgeOptions,
   type UpdateOptions,
 } from "@/lib/commands/shared";
 import type { ClearablePatch } from "@/lib/validation/fullFormUpdate";
@@ -184,7 +186,7 @@ export async function permanentlyDeletePropertyCommand(id: string) {
 // revalidation. Only for Trash retention (src/lib/trash.ts), which runs from
 // a page render (where revalidatePath can't be called) and from the
 // scheduler, and purges expired records whether or not the module is on.
-export async function purgeProperty(id: string) {
+export async function purgeProperty(id: string, options: PurgeOptions = {}) {
   const existing = await prisma.property.findUnique({
     where: { id },
     include: {
@@ -197,8 +199,14 @@ export async function purgeProperty(id: string) {
   // The row delete cascades to Maintenance records, Tenancies, Rental
   // statements, valuations and their Document rows (linked Contracts and
   // Products are unlinked, not deleted). The files on disk aren't FK-linked,
-  // so they're removed straight after.
-  await prisma.property.delete({ where: { id } });
+  // so they're removed straight after. Only a Property in Trash is deleted
+  // (deleteFromTrash, #534).
+  await deleteFromTrash(
+    "Property",
+    options,
+    (inTrash) => prisma.property.deleteMany({ where: { id, ...inTrash } }),
+    () => prisma.property.findUnique({ where: { id }, select: { deletedAt: true } }),
+  );
   // #445 review: the staged Item table has no FK to Property (it's a
   // snapshot of Product.propertyId), so clear the reference the FK just
   // cleared on Products.
@@ -306,10 +314,15 @@ export async function permanentlyDeleteMaintenanceRecordCommand(id: string) {
 }
 
 // See purgeProperty: for Trash retention only.
-export async function purgeMaintenanceRecord(id: string) {
+export async function purgeMaintenanceRecord(id: string, options: PurgeOptions = {}) {
   const existing = await findMaintenanceRecord(id);
   // Cascades to the record's Document rows; then the files go.
-  await prisma.homeItem.delete({ where: { id } });
+  await deleteFromTrash(
+    "Maintenance record",
+    options,
+    (inTrash) => prisma.homeItem.deleteMany({ where: { id, ...inTrash } }),
+    () => prisma.homeItem.findUnique({ where: { id }, select: { deletedAt: true } }),
+  );
   await removeOwnerDocumentFiles("HOME_ITEM", id);
   return { propertyId: existing.propertyId };
 }
@@ -496,9 +509,14 @@ export async function permanentlyDeleteTenancyCommand(id: string) {
 // so there are no files to remove, but its sent-Reminder log goes with it
 // (#388; NotificationLog is polymorphic, so no cascade). A linked Contract
 // is left alone (the link is on the Tenancy's side).
-export async function purgeTenancy(id: string) {
+export async function purgeTenancy(id: string, options: PurgeOptions = {}) {
   const existing = await findTenancy(id);
-  await prisma.rentalAgreement.delete({ where: { id } });
+  await deleteFromTrash(
+    "Tenancy",
+    options,
+    (inTrash) => prisma.rentalAgreement.deleteMany({ where: { id, ...inTrash } }),
+    () => prisma.rentalAgreement.findUnique({ where: { id }, select: { deletedAt: true } }),
+  );
   await clearNotificationLogs("TENANCY", id);
   return existing;
 }
@@ -581,11 +599,16 @@ export async function permanentlyDeleteRentalStatementCommand(id: string) {
 }
 
 // See purgeProperty: for Trash retention only.
-export async function purgeRentalStatement(id: string) {
+export async function purgeRentalStatement(id: string, options: PurgeOptions = {}) {
   const existing = await findRentalStatement(id);
   // Cascades to the statement's Document rows (Trash ones included); then
   // the files go.
-  await prisma.rentalStatement.delete({ where: { id } });
+  await deleteFromTrash(
+    "Rental statement",
+    options,
+    (inTrash) => prisma.rentalStatement.deleteMany({ where: { id, ...inTrash } }),
+    () => prisma.rentalStatement.findUnique({ where: { id }, select: { deletedAt: true } }),
+  );
   await removeOwnerDocumentFiles("RENTAL_STATEMENT", id);
   return { propertyId: existing.propertyId };
 }
@@ -648,8 +671,13 @@ export async function permanentlyDeletePropertyValuationCommand(id: string) {
 }
 
 // See purgeProperty: for Trash retention only. A valuation has no files.
-export async function purgePropertyValuation(id: string) {
+export async function purgePropertyValuation(id: string, options: PurgeOptions = {}) {
   const existing = await findPropertyValuation(id);
-  await prisma.propertyValuation.delete({ where: { id } });
+  await deleteFromTrash(
+    "Valuation",
+    options,
+    (inTrash) => prisma.propertyValuation.deleteMany({ where: { id, ...inTrash } }),
+    () => prisma.propertyValuation.findUnique({ where: { id }, select: { deletedAt: true } }),
+  );
   return { propertyId: existing.propertyId };
 }

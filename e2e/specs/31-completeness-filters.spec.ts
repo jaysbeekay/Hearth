@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Locator, type Page } from "@playwright/test";
 import { ADMIN_AUTH_FILE } from "../env";
 import { openFormSections } from "../formSections";
 
@@ -107,17 +107,27 @@ test.describe.serial("Completeness filters", () => {
   });
 
   test("typing a search keeps active chips, category and status", async ({ page }) => {
+    // The search box auto-submits from a React onChange, which isn't wired up
+    // until the page hydrates. A fill right after goto() can land on the
+    // server-rendered input and never submit (seen in CI: the box showed the
+    // text but the URL never gained q=). Retry the fill until the URL follows.
+    const searchFor = async (input: Locator, text: string) => {
+      await expect(async () => {
+        await input.fill("");
+        await input.fill(text);
+        await page.waitForURL((url) => url.searchParams.get("q") === text, { timeout: 2000 });
+      }).toPass({ timeout: 15_000 });
+    };
+
     await page.goto("/contracts?status=ACTIVE&missing=details");
-    await page.getByPlaceholder("Search by title, provider, or number…").fill("Completeness");
-    await page.waitForURL((url) => url.searchParams.get("q") === "Completeness");
+    await searchFor(page.getByPlaceholder("Search by title, provider, or number…"), "Completeness");
     const params = new URL(page.url()).searchParams;
     expect(params.get("missing")).toBe("details");
     expect(params.get("status")).toBe("ACTIVE");
     await expect(page.getByRole("button", { name: "Missing key details" })).toHaveAttribute("aria-pressed", "true");
 
     await page.goto("/products?due=soon&noDocument=1");
-    await page.locator('main input[name="q"]').fill("Samsung");
-    await page.waitForURL((url) => url.searchParams.get("q") === "Samsung");
+    await searchFor(page.locator('main input[name="q"]'), "Samsung");
     const productParams = new URL(page.url()).searchParams;
     expect(productParams.get("due")).toBe("soon");
     expect(productParams.get("noDocument")).toBe("1");
