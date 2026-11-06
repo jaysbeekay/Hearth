@@ -6,6 +6,7 @@ import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormActions } from "@/components/FormActions";
 import { FormMessage } from "@/components/FormMessage";
+import { Field } from "@/components/FormField";
 import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 import { CurrencySelect } from "@/components/CurrencySelect";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
@@ -41,8 +42,7 @@ export function PortfolioForm({
     <form action={formAction} className="space-y-4">
       <FormMessage attempt={state} error={state?.error} field={state?.field} success={state?.success} />
 
-      <div>
-        <label className="block text-sm font-medium mb-1" htmlFor="name">Portfolio name <span className="text-danger">*</span></label>
+      <Field label="Portfolio name" htmlFor="name" required>
         <input
           id="name"
           name="name"
@@ -52,10 +52,9 @@ export function PortfolioForm({
           placeholder="e.g. CommSec Shares"
           className={inputClass}
         />
-      </div>
+      </Field>
 
-      <div>
-        <label className="block text-sm font-medium mb-1" htmlFor="description">Description</label>
+      <Field label="Description" htmlFor="description">
         <input
           id="description"
           name="description"
@@ -64,18 +63,16 @@ export function PortfolioForm({
           placeholder="Optional description"
           className={inputClass}
         />
-      </div>
+      </Field>
 
-      <div>
-        <label className="block text-sm font-medium mb-1" htmlFor="currency">Base currency</label>
+      <Field label="Base currency" htmlFor="currency">
         <CurrencySelect
           name="currency"
           defaultValue={state?.values?.currency ?? portfolio?.currency ?? defaultCurrency}
         />
-      </div>
+      </Field>
 
-      <div>
-        <label className="block text-sm font-medium mb-1" htmlFor="costMethod">Cost basis method</label>
+      <Field label="Cost basis method" htmlFor="costMethod">
         <SelectWrapper>
           <select
             id="costMethod"
@@ -88,12 +85,12 @@ export function PortfolioForm({
             ))}
           </select>
         </SelectWrapper>
-        <p className="mt-1 text-xs text-muted">
+        <p className="text-xs text-muted">
           Determines how gains/losses are calculated when units are sold. Changing this
           recalculates cost basis for existing trades — check it matches how you report
           capital gains.
         </p>
-      </div>
+      </Field>
 
       {/* #285 — capture-time disclosure that this isn't private storage. */}
       {!portfolio && <p className="text-xs text-muted">Visible to your whole household once saved.</p>}

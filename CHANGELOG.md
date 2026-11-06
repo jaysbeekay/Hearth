@@ -145,8 +145,11 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   missing title, a bad amount), the message now appears under that field,
   the field's border turns red and it takes focus, instead of the message
   sitting in a banner at the foot of the form. Errors that aren't about one
-  field still use the banner. Every action now builds its Zod error through
-  one helper, `issueState`, which also names the field. Server-only; the
+  field still use the banner, as do the sign-in, password and settings
+  forms whose inputs aren't in a `Field`. The holding, trade and portfolio
+  forms now use `Field` like the other record forms. Form actions build
+  their Zod error through one helper, `issueState`, which also names the
+  field; the Assistant's tool results are unchanged. Server-only; the
   shell's forms are unchanged.
 - **"Add tenancy", not "New tenancy" (#406).** The rental page's button
   and the add-tenancy page heading use the same verb as every other add.
@@ -212,8 +215,9 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   accessible name matches its visible text (#411 review).
 - **Consistency pass (#406).** Every add, edit and renew form now has Cancel
   beside Save, going back to the same place as the page's back link. A form
-  error is shown once, in the banner above the buttons (scrolled into view
-  and announced to screen readers), instead of also popping up as a toast.
+  error is shown once (scrolled into view and announced to screen readers),
+  instead of also popping up as a toast; an error about one field now sits
+  under that field (see the entry above).
   An empty Contracts, Warranties, Vehicles, Properties or Travel list shows
   just its sentence and Add button, without Export, search or filter chips;
   an empty Contracts or Warranties list also says how many are in Recently

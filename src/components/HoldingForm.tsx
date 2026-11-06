@@ -6,6 +6,7 @@ import type { ActionState } from "@/lib/actions/auth";
 import { SubmitButton } from "@/components/SubmitButton";
 import { FormActions } from "@/components/FormActions";
 import { FormMessage } from "@/components/FormMessage";
+import { Field } from "@/components/FormField";
 import { ASSET_CLASSES, ASSET_CLASS_LABELS } from "@/lib/validation/wealth";
 import { SelectWrapper, inputClass, selectClass } from "@/components/SelectWrapper";
 import { makeOfflineAwareAction } from "@/lib/offlineQueue";
@@ -44,10 +45,7 @@ export function HoldingForm({
     <form action={formAction} className="space-y-4">
       <FormMessage attempt={state} error={state?.error} field={state?.field} success={state?.success} />
 
-      <div>
-        <label className="block text-sm font-medium mb-1" htmlFor="ticker">
-          Ticker symbol <span className="text-danger">*</span>
-        </label>
+      <Field label="Ticker symbol" htmlFor="ticker" required hint="ASX: append .AX (e.g. CBA.AX) · Crypto: set the asset class to Crypto and use the CoinGecko ID (e.g. bitcoin) or symbol (e.g. BTC)">
         <input
           id="ticker"
           name="ticker"
@@ -57,13 +55,9 @@ export function HoldingForm({
           placeholder="e.g. CBA.AX, AAPL, bitcoin"
           className={cn(inputClass, "font-mono")}
         />
-        <p className="mt-1 text-xs text-muted">
-          ASX: append .AX (e.g. CBA.AX) · Crypto: set the asset class to Crypto and use the CoinGecko ID (e.g. bitcoin) or symbol (e.g. BTC)
-        </p>
-      </div>
+      </Field>
 
-      <div>
-        <label className="block text-sm font-medium mb-1" htmlFor="name">Display name</label>
+      <Field label="Display name" htmlFor="name">
         <input
           id="name"
           name="name"
@@ -72,11 +66,10 @@ export function HoldingForm({
           placeholder="e.g. Commonwealth Bank of Australia"
           className={inputClass}
         />
-      </div>
+      </Field>
 
       <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium mb-1" htmlFor="assetClass">Asset class</label>
+        <Field label="Asset class" htmlFor="assetClass">
           <SelectWrapper>
             <select
               id="assetClass"
@@ -89,10 +82,9 @@ export function HoldingForm({
               ))}
             </select>
           </SelectWrapper>
-        </div>
+        </Field>
 
-        <div>
-          <label className="block text-sm font-medium mb-1" htmlFor="exchange">Exchange</label>
+        <Field label="Exchange" htmlFor="exchange">
           <SelectWrapper>
             <select
               id="exchange"
@@ -109,7 +101,7 @@ export function HoldingForm({
               {COMMON_EXCHANGES.map((e) => <option key={e} value={e}>{e}</option>)}
             </select>
           </SelectWrapper>
-        </div>
+        </Field>
       </div>
 
       {/* #285 — capture-time disclosure that this isn't private storage. */}

@@ -182,4 +182,11 @@ describe("field errors", () => {
     });
     expect(missing).toEqual([]);
   });
+
+  it("passes field only to forms that have a Field to show it in", () => {
+    const pointless = tsxFiles("src/components").filter(
+      (f) => read(f).includes("field={state?.field}") && !read(f).includes('from "@/components/FormField"'),
+    );
+    expect(pointless).toEqual([]);
+  });
 });

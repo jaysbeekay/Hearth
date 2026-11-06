@@ -26,7 +26,7 @@ export function NotificationPreferencesForm({ emailReminders }: { emailReminders
           <GroupedSubmit state={state}>Save</GroupedSubmit>
         </span>
       </div>
-      <FormMessage attempt={state} error={state?.error} field={state?.field} success={state?.success} />
+      <FormMessage attempt={state} error={state?.error} success={state?.success} />
     </form>
   );
 }
