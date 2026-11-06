@@ -37,7 +37,7 @@ export default async function NewRentalAgreementPage({
 
       <div>
         <p className="text-sm text-muted">{property.label}</p>
-        <h1 className="text-2xl font-medium">New tenancy</h1>
+        <h1 className="text-2xl font-medium">Add tenancy</h1>
         <p className="mt-1 text-sm text-muted">
           Record a tenancy for this property. Add a new one whenever the rent, tenant or terms
           change, so the history is kept for reconciliation.

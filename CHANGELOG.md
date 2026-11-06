@@ -123,6 +123,14 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Security
 
+- **Docker Scout exception for musl CVE-2026-107891.** The fix (musl
+  1.2.6-r6) is only in Alpine edge, so no rebuild on the v3.24 base can
+  clear it. `.github/scout/` holds an OpenVEX file that lets the scan pass
+  until Alpine v3.24 ships the fix; delete it then. The finding still
+  reaches the Security tab.
+- **zlib 1.4 from Alpine edge (CVE-2026-4738, critical).** The fixed zlib
+  isn't in Alpine v3.24 yet, so the image pulls just that package from
+  edge, as it already does for giflib. Drop it once v3.24 ships 1.4.
 - **MCP server hardening.** `/api/mcp` now compares bearer tokens in
   constant time, throttles wrong tokens per client address (10 per 15
   minutes, recorded in Settings → Security as "MCP request with a wrong
@@ -145,6 +153,19 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Changed
 
+- **A form's validation error shows under the field it's about (#406).**
+  When saving fails on one field (an end date before the start date, a
+  missing title, a bad amount), the message now appears under that field,
+  the field's border turns red and it takes focus, instead of the message
+  sitting in a banner at the foot of the form. Errors that aren't about one
+  field still use the banner, as do the sign-in, password and settings
+  forms whose inputs aren't in a `Field`. The holding, trade and portfolio
+  forms now use `Field` like the other record forms. Form actions build
+  their Zod error through one helper, `issueState`, which also names the
+  field; the Assistant's tool results are unchanged. Server-only; the
+  shell's forms are unchanged.
+- **"Add tenancy", not "New tenancy" (#406).** The rental page's button
+  and the add-tenancy page heading use the same verb as every other add.
 - **Joining the household (#372).** Accepting an invitation signs the new
   member straight in and lands them on Upcoming, with a one-time welcome that
   says everything is shared with the household and what their role lets
@@ -207,8 +228,9 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   accessible name matches its visible text (#411 review).
 - **Consistency pass (#406).** Every add, edit and renew form now has Cancel
   beside Save, going back to the same place as the page's back link. A form
-  error is shown once, in the banner above the buttons (scrolled into view
-  and announced to screen readers), instead of also popping up as a toast.
+  error is shown once (scrolled into view and announced to screen readers),
+  instead of also popping up as a toast; an error about one field now sits
+  under that field (see the entry above).
   An empty Contracts, Warranties, Vehicles, Properties or Travel list shows
   just its sentence and Add button, without Export, search or filter chips;
   an empty Contracts or Warranties list also says how many are in Recently
