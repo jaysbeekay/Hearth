@@ -110,6 +110,11 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Security
 
+- **Docker Scout exception for musl CVE-2026-107891.** The fix (musl
+  1.2.6-r6) is only in Alpine edge, so no rebuild on the v3.24 base can
+  clear it. `.github/scout/` holds an OpenVEX file that lets the scan pass
+  until Alpine v3.24 ships the fix; delete it then. The finding still
+  reaches the Security tab.
 - **MCP server hardening.** `/api/mcp` now compares bearer tokens in
   constant time, throttles wrong tokens per client address (10 per 15
   minutes, recorded in Settings → Security as "MCP request with a wrong
