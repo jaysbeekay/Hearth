@@ -233,7 +233,7 @@ NextAuth v5 (credentials + JWT sessions), Tailwind CSS v4, Zod, node-cron.
 
 ## Running locally
 
-Requires Node.js 22+.
+Requires Node.js 22.19+ (the Docker image uses Node 26).
 
 ```bash
 npm install
@@ -759,20 +759,95 @@ so as defense in depth you can route that outbound traffic through a local
 agent firewall that inspects it for injection and credential/data
 exfiltration attempts before it leaves the network.
 
-Set `AI_EGRESS_PROXY_URL` to the base URL of a running instance of an
-agent-firewall proxy — e.g.
-[Pipelock](https://github.com/luckyPipewrench/pipelock), an open-source
-option built for exactly this — and every provider call (Anthropic, Gemini,
-OpenAI, OpenRouter, and Ollama alike) is sent through its `/fetch?url=...`
-mediation endpoint instead of directly to the provider. Leave it unset to
-call providers directly, as before; this is entirely optional and off by
-default.
+Set `AI_EGRESS_PROXY_URL` to an HTTP forward proxy, e.g.
+[Pipelock](https://github.com/pipelab-org/pipelock), an open-source agent
+firewall, and every provider call (Anthropic, Gemini, OpenAI, OpenRouter and
+Ollama, for extraction and the Assistant) goes out through it. Nothing else
+Hearth sends uses it. Leave it unset to call providers directly; this is off
+by default.
 
-`docker-compose.yml` has a commented-out `pipelock` service showing this
-wired up as a sidecar. Note that whatever you point `AI_EGRESS_PROXY_URL` at
-sees the full request it mediates, including your provider API key, the same
-way any reverse proxy sees the traffic passing through it — only point this
-at a proxy you run and trust.
+How much the proxy sees depends on TLS interception:
+
+- **Without it**, an https call is an opaque tunnel. The proxy sees only the
+  hostname, so it can allow or block providers but can't read prompts or
+  documents. Plain-http Ollama is always readable.
+- **With it**, the proxy decrypts and scans request and response bodies, for
+  example blocking a request that carries a cloud access key. Hearth must
+  trust the proxy's CA: set `AI_EGRESS_PROXY_CA_CERT` to its certificate.
+  Hearth trusts that CA for AI provider calls only.
+
+The proxy sees everything it mediates, including your provider API keys.
+Only point this at a proxy you run and trust.
+
+### Pipelock with Docker Compose
+
+`docker-compose.yml` has a commented-out `pipelock` service, pinned to a
+tested release (3.7.1). From the directory holding `docker-compose.yml`:
+
+```bash
+IMG=ghcr.io/luckypipewrench/pipelock:3.7.1
+mkdir -p pipelock
+docker run --rm "$IMG" generate config --preset balanced > pipelock/pipelock.yaml
+# Only for body scanning: create a CA in ./pipelock
+docker run --rm -u "$(id -u)" -e PIPELOCK_HOME=/config -v "$PWD/pipelock:/config" "$IMG" tls init
+chmod 644 pipelock/ca.pem   # Hearth reads the certificate; the key stays 600
+```
+
+Then edit `pipelock/pipelock.yaml`:
+
+- `forward_proxy.enabled: true`. This is required: Hearth uses Pipelock as a
+  forward proxy, not its `/fetch` endpoint, which only accepts GET.
+- For body scanning: `tls_interception.enabled: true`,
+  `ca_cert: /config/ca.pem`, `ca_key: /config/ca-key.pem`. Then mount
+  `./pipelock/ca.pem` into Hearth and set
+  `AI_EGRESS_PROXY_CA_CERT=/app/pipelock-ca.pem` (the line is in the compose
+  file). Hearth reads the CA once at startup, so restart Hearth after
+  regenerating or rotating it.
+- If Ollama runs on your network, add its address to `ssrf.ip_allowlist`
+  (e.g. `- 192.168.1.20/32`). Pipelock blocks private addresses by default,
+  which would break Ollama.
+
+Uncomment the service, set `AI_EGRESS_PROXY_URL=http://pipelock:8888`, and
+run `docker compose up -d`. Blocks and warnings show in
+`docker compose logs pipelock`.
+
+What to expect with the `balanced` preset:
+
+- Your provider key reaching its own provider is allowed. A known secret
+  pattern in a request body, such as an AWS access key, is blocked with a
+  403, and Hearth treats it like a failed provider call.
+- Base64 document uploads log high-entropy warnings but aren't blocked.
+  Body scanning adds a few seconds per document.
+- The `strict` preset only lets through hosts in `api_allowlist`. Its
+  default list has `*.anthropic.com` and `*.openai.com`, so add
+  `generativelanguage.googleapis.com`, `openrouter.ai` and your Ollama host
+  if you use them.
+
+Pipelock's own documentation lists its limits: no body scanning without TLS
+interception, encoded or split data can get past `balanced`, and very large
+responses are only partly inspected. Treat it as one more layer, not a
+guarantee. See
+[`docs/security/prompt-injection.md`](docs/security/prompt-injection.md).
+
+### Pipelock in front of the MCP server
+
+The MCP server (`/api/mcp`) returns household record text, which can carry
+injected instructions, to an external agent. Whoever runs that agent can put
+Pipelock's MCP proxy between the agent and Hearth so responses are scanned
+before the model sees them. Run it on the agent's side; nothing changes in
+Hearth. For an MCP client that launches stdio servers:
+
+```bash
+# headers.txt holds one line, "Authorization: Bearer <your MCP_TOKEN>", mode 600
+pipelock mcp proxy --config pipelock.yaml --header-file headers.txt \
+  --upstream https://hearth.example.com/api/mcp
+```
+
+Use that command as the server's `command`/`args` in the client's MCP config.
+`pipelock mcp proxy --listen 0.0.0.0:8889 --upstream ...` serves an HTTP
+endpoint instead. The proxy changes nothing about what the MCP server
+offers: ordinary tokens stay read-only, and tokens granted
+`MCP_IMPORT_LABELS` can still only propose records for a member to approve.
 
 ## Barcode scanning for products
 
