@@ -22,6 +22,7 @@ import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/ui/PageShell";
 import { SettingsTabs } from "@/components/SettingsTabs";
 import { SaveChangesGroup } from "@/components/SaveChangesGroup";
+import { hashToken } from "@/lib/crypto";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -37,14 +38,30 @@ export default async function SettingsPage() {
   // is deleted, which the proxy won't have caught for an in-flight request.
   if (!session?.user) redirect("/login");
 
-  const [user, smtpConfigured, ntfyConfigured, householdTimeZone, vapidPublicKey] = await Promise.all([
+  const [user, smtpConfigured, ntfyConfigured, householdTimeZone, vapidPublicKey, pushRows] = await Promise.all([
     prisma.user.findUnique({ where: { id: session.user.id } }),
     isSmtpConfigured(),
     isNtfyConfigured(),
     getHouseholdTimeZone(),
     getVapidPublicKey(),
+    // #375 — the member's own devices only; other members' stay private.
+    prisma.pushSubscription.findMany({
+      where: { userId: session.user.id },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        endpoint: true,
+        deviceLabel: true,
+        createdAt: true,
+        lastSuccessAt: true,
+        lastFailureAt: true,
+        lastError: true,
+      },
+    }),
   ]);
   if (!user) redirect("/login");
+  // Endpoints are capability URLs: the page gets only their hashes.
+  const pushDevices = pushRows.map(({ endpoint, ...device }) => ({ ...device, endpointHash: hashToken(endpoint) }));
   const appUrl = env.appUrl ?? "http://localhost:3000";
 
   return (
@@ -99,7 +116,7 @@ export default async function SettingsPage() {
               )}
             </p>
             <div className="space-y-3">
-              <PushDeviceToggle vapidPublicKey={vapidPublicKey} />
+              <PushDeviceToggle vapidPublicKey={vapidPublicKey} devices={pushDevices} />
               <NotificationPreferencesForm emailReminders={user.emailReminders} />
             </div>
           </Card>
