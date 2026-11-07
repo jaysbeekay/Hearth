@@ -12,6 +12,11 @@ const Filesystem = Plugins.Filesystem;
 const Preferences = Plugins.Preferences;
 const LocalNotifications = Plugins.LocalNotifications;
 const Purchases = Plugins.Purchases;
+// On-device document scanning and text recognition: a local native plugin
+// (ios/App/App/HearthScanPlugin.swift — VisionKit, Vision, PDFKit;
+// android/.../HearthScanPlugin.java — ML Kit). Nothing leaves the phone.
+// Absent outside the native apps, so every caller treats it as optional.
+const HearthScan = Plugins.HearthScan;
 
 // RevenueCat public SDK keys — safe to embed client-side (same class of key
 // as a Stripe publishable key), but these are placeholders until a
@@ -38,6 +43,8 @@ const RETRY_DEBOUNCE_MS = 5000;
 const CLEARTEXT_HOSTS = ["localhost", "127.0.0.1", "::1", "[::1]"];
 const CLEARTEXT_SUFFIXES = [".local", ".home.arpa"];
 const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
+const MAX_EXTRACTED_TEXT_LENGTH = 200000;
+const RECOGNIZABLE_MIME_TYPES = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic"]);
 const FILE_DIRECTORY = "DATA";
 const BACKUP_DIRECTORY = "DOCUMENTS";
 const FILE_ROOT = "standalone-documents";
@@ -1509,6 +1516,7 @@ async function storeFile(ownerType, ownerId, file) {
   const extension = (file.name.toLowerCase().match(/\.[a-z0-9]{1,10}$/) ?? [""])[0];
   const storageKey = `${ownerType}/${ownerId}/${crypto.randomUUID()}${extension}`;
   const data = bytesToBase64(bytes);
+  const extractedText = await extractedTextFor(file, data, mimeType);
   await Filesystem.writeFile({
     directory: FILE_DIRECTORY,
     path: `${FILE_ROOT}/${storageKey}`,
@@ -1517,8 +1525,8 @@ async function storeFile(ownerType, ownerId, file) {
   });
   try {
     await run(
-      "INSERT INTO documents (id, owner_type, owner_id, filename, storage_key, mime_type, size, sha256, uploaded_at, version, important, is_head) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, 1)",
-      [localId("document"), ownerType, ownerId, file.name.slice(0, 255), storageKey, mimeType, file.size, sha256, nowIso()],
+      "INSERT INTO documents (id, owner_type, owner_id, filename, storage_key, mime_type, size, sha256, extracted_text, uploaded_at, version, important, is_head) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, 1)",
+      [localId("document"), ownerType, ownerId, file.name.slice(0, 255), storageKey, mimeType, file.size, sha256, extractedText, nowIso()],
     );
   } catch (error) {
     await Filesystem.deleteFile({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${storageKey}` }).catch(() => undefined);
@@ -1534,16 +1542,18 @@ async function storeInboxFile(file) {
   const sha256 = await sha256Hex(bytes);
   const extension = (file.name.toLowerCase().match(/\.[a-z0-9]{1,10}$/) ?? [""])[0];
   const storageKey = `inbox/${crypto.randomUUID()}${extension}`;
+  const data = bytesToBase64(bytes);
+  const extractedText = await extractedTextFor(file, data, mimeType);
   await Filesystem.writeFile({
     directory: FILE_DIRECTORY,
     path: `${FILE_ROOT}/${storageKey}`,
-    data: bytesToBase64(bytes),
+    data,
     recursive: true,
   });
   try {
     await run(
-      "INSERT INTO inbox_documents (id, filename, storage_key, mime_type, size, status, sha256, uploaded_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)",
-      [localId("inbox"), file.name.slice(0, 255), storageKey, mimeType, file.size, inboxStatusForHash(sha256), sha256, nowIso()],
+      "INSERT INTO inbox_documents (id, filename, storage_key, mime_type, size, status, sha256, extracted_text, uploaded_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)",
+      [localId("inbox"), file.name.slice(0, 255), storageKey, mimeType, file.size, inboxStatusForHash(sha256), sha256, extractedText, nowIso()],
     );
   } catch (error) {
     await Filesystem.deleteFile({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${storageKey}` }).catch(() => undefined);
@@ -1551,6 +1561,250 @@ async function storeInboxFile(file) {
   }
   return storageKey;
 }
+
+// --- On-device scanning and text recognition (HearthScan) ------------------
+// Text already read off a just-scanned file, so storing it doesn't OCR twice.
+const scannedFileText = new WeakMap();
+// A form's scanned file, used when its file input has nothing chosen.
+const scannedFormFiles = new WeakMap();
+// Native OCR runs off the main thread but can still be slow on a long PDF.
+// Past this, an import or upload goes ahead without text rather than hang.
+const RECOGNIZE_TEXT_TIMEOUT_MS = 30000;
+// Set once from HearthScan.isAvailable() when standalone mode opens, so the
+// Scan button only shows on a device that can actually scan.
+let scannerAvailable = false;
+
+async function checkScannerAvailability() {
+  if (!HearthScan) return;
+  try {
+    const result = await HearthScan.isAvailable();
+    scannerAvailable = result?.scanner === true;
+  } catch {
+    scannerAvailable = false;
+  }
+}
+
+function withTimeout(promise, ms, message) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+function documentFileInput(required = false) {
+  const input = `<input name="file" type="file" accept=".pdf,.doc,.docx,image/jpeg,image/png,image/webp,image/heic" ${required ? "required " : ""}/>`;
+  if (!HearthScan || !scannerAvailable) return input;
+  return `${input}
+      <button type="button" class="secondary" data-scan-document>Scan with camera</button>
+      <p class="muted" data-scan-summary hidden></p>`;
+}
+
+function cleanExtractedText(text) {
+  const cleaned = String(text ?? "").trim();
+  return cleaned ? cleaned.slice(0, MAX_EXTRACTED_TEXT_LENGTH) : null;
+}
+
+// Best-effort: a device that can't read the file (or a Word document) just
+// stores no text, exactly as before on-device recognition existed.
+async function recognizeDocumentText(base64, mimeType) {
+  if (!HearthScan || !RECOGNIZABLE_MIME_TYPES.has(mimeType)) return null;
+  try {
+    const result = await withTimeout(HearthScan.recognizeText({ data: base64, mimeType }), RECOGNIZE_TEXT_TIMEOUT_MS, "Reading text took too long.");
+    return cleanExtractedText(result?.text);
+  } catch {
+    return null;
+  }
+}
+
+async function extractedTextFor(file, base64, mimeType) {
+  if (scannedFileText.has(file)) return scannedFileText.get(file);
+  return recognizeDocumentText(base64, mimeType);
+}
+
+async function scanIntoForm(form) {
+  if (!HearthScan || !form) return;
+  const result = await HearthScan.scanDocument();
+  if (!result || result.cancelled) return;
+  const file = new File([base64ToBlob(String(result.pdf ?? ""), "application/pdf")], `Scan ${nowIso().slice(0, 10)}.pdf`, { type: "application/pdf" });
+  if (file.size === 0) throw new Error("The scan came back empty.");
+  if (file.size > MAX_UPLOAD_BYTES) throw new Error("That scan is over 15MB. Try scanning fewer pages.");
+  const text = cleanExtractedText(result.text);
+  scannedFileText.set(file, text);
+  scannedFormFiles.set(form, file);
+  const input = form.elements.namedItem("file");
+  if (input) {
+    input.value = "";
+    input.required = false;
+  }
+  const pages = Number(result.pageCount ?? 0);
+  const skipped = Number(result.skippedPages ?? 0);
+  const summary = form.querySelector("[data-scan-summary]");
+  if (summary) {
+    const kept = skipped > 0 ? ` (the first ${pages}; ${skipped} more page${skipped === 1 ? " was" : "s were"} left out)` : "";
+    summary.textContent = `Scanned ${pages} page${pages === 1 ? "" : "s"}${kept}${text ? "" : " (no text found)"}. It's attached when you save.`;
+    summary.hidden = false;
+  }
+  const filled = prefillFromScan(form, text);
+  showStandaloneStatus(
+    filled > 0
+      ? `Filled ${filled} field${filled === 1 ? "" : "s"} from the scan. Check them before saving.`
+      : "Scanned. The document is attached when you save.",
+    true,
+  );
+}
+
+// Only fills empty fields on a new Contract or Warranty, and ticks Needs
+// review so reminders wait until a person has checked the guesses.
+function prefillFromScan(form, text) {
+  if (!text || form.dataset.id) return 0;
+  const type = form.dataset.saveType;
+  const values = type === "contracts" ? contractFieldsFromText(text) : type === "products" ? productFieldsFromText(text) : null;
+  if (!values) return 0;
+  let filled = 0;
+  for (const [name, value] of Object.entries(values)) {
+    if (value == null || value === "") continue;
+    const control = form.elements.namedItem(name);
+    if (!control || control.value) continue;
+    control.value = value;
+    if (control.value === value) filled += 1;
+  }
+  const review = form.elements.namedItem("needsReview");
+  if (filled > 0 && review) review.checked = true;
+  return filled;
+}
+
+async function readStoredDocumentText(id) {
+  const doc = cache.documents.find((item) => item.id === id);
+  if (!doc || !Filesystem) return;
+  const file = await Filesystem.readFile({ directory: FILE_DIRECTORY, path: `${FILE_ROOT}/${doc.storage_key}` });
+  const text = await recognizeDocumentText(String(file.data ?? ""), doc.mime_type);
+  if (!text) {
+    showStandaloneStatus("No text found in this document.");
+    return;
+  }
+  await run("UPDATE documents SET extracted_text = ?, version = version + 1 WHERE id = ?", [text, id]);
+  showStandaloneStatus("Text read. This document now shows up in search.", true);
+  await render();
+}
+
+// Hand port of the server's regex field rules (src/lib/documents/
+// textHeuristics.ts, fieldExtraction.ts, invoiceFieldExtraction.ts) — the
+// shell has no build step to share them. Keep the patterns in step.
+const SCAN_MONTHS = { jan: "01", feb: "02", mar: "03", apr: "04", may: "05", jun: "06", jul: "07", aug: "08", sep: "09", oct: "10", nov: "11", dec: "12" };
+
+function scanIsoDate(day, month, year) {
+  const y = year.length === 2 ? `20${year}` : year;
+  const d = Number(day);
+  const m = Number(month);
+  if (m < 1 || m > 12 || d < 1 || d > 31) return undefined;
+  const iso = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  return Number.isNaN(new Date(iso).getTime()) ? undefined : iso;
+}
+
+// Numeric dates are read day/month/year when ambiguous, as on the server.
+function scanMatchDate(text) {
+  const numeric = text.match(/\b(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})\b/);
+  if (numeric) {
+    const iso = scanIsoDate(numeric[1], numeric[2], numeric[3]);
+    if (iso) return iso;
+  }
+  const iso8601 = text.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/);
+  if (iso8601) {
+    const iso = scanIsoDate(iso8601[3], iso8601[2], iso8601[1]);
+    if (iso) return iso;
+  }
+  const monthName = text.match(/\b(\d{1,2})\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{4})\b/i);
+  if (monthName) {
+    const iso = scanIsoDate(monthName[1], SCAN_MONTHS[monthName[2].toLowerCase()], monthName[3]);
+    if (iso) return iso;
+  }
+  return undefined;
+}
+
+function scanLabeledDate(text, labels) {
+  const lines = text.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    if (!labels.test(lines[i])) continue;
+    const iso = scanMatchDate(lines.slice(i, i + 2).join(" "));
+    if (iso) return iso;
+  }
+  return undefined;
+}
+
+function scanLabeledValue(text, labels, valuePattern) {
+  for (const line of text.split(/\r?\n/)) {
+    if (!labels.test(line)) continue;
+    const match = line.match(valuePattern);
+    if (match) return match[1].trim();
+  }
+  return undefined;
+}
+
+function scanCost(text) {
+  const priority = /(total|amount due|balance due|premium|monthly fee|amount payable|payment)/i;
+  let fallback;
+  for (const line of text.split(/\r?\n/)) {
+    const match = line.match(/(?:AUD|USD|NZD|GBP|EUR|\$)\s?((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{2})?)(?![\d,.]?\d)/);
+    if (!match) continue;
+    const value = match[1].replace(/,/g, "");
+    if (priority.test(line)) return value;
+    fallback ??= value;
+  }
+  return fallback;
+}
+
+function scanEmail(text) {
+  return text.match(/[\w.+-]+@[\w-]+\.[\w.-]+/)?.[0];
+}
+
+function scanCompanyLine(text) {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 1 && line.length < 80);
+  const companyLine = lines.find(
+    (line) => !/\$|gst|total|balance due|amount due/i.test(line) && /(pty ltd|ltd\.?|inc\.?|llc|limited|insurance|telecom|energy|utilities)/i.test(line),
+  );
+  return (companyLine ?? lines[0])?.slice(0, 200);
+}
+
+function scanBillingFrequency(text) {
+  const lower = text.toLowerCase();
+  if (/\bweekly\b/.test(lower)) return "WEEKLY";
+  if (/\bmonthly\b/.test(lower)) return "MONTHLY";
+  if (/\bquarterly\b/.test(lower)) return "QUARTERLY";
+  if (/\b(annual(ly)?|yearly|per annum|p\.a\.)\b/.test(lower)) return "ANNUALLY";
+  if (/\bone[\s-]?(off|time)\b/.test(lower)) return "ONE_OFF";
+  return undefined;
+}
+
+// Keys are the contract form's input names.
+function contractFieldsFromText(text) {
+  return {
+    provider: scanCompanyLine(text),
+    contractNumber: scanLabeledValue(text, /(account|policy|contract|reference|customer|member)\s*(no\.?|number|id)/i, /[:#]?\s*([A-Za-z0-9-/]{4,30})\s*$/),
+    startDate: scanLabeledDate(text, /(start date|commencement|effective date|policy start|contract start|term start|cover start)/i),
+    endDate: scanLabeledDate(text, /(end date|expiry|expiration|renewal date|valid until|valid to|policy end|contract end|term end|cover end)/i),
+    cost: scanCost(text),
+    billingFrequency: scanBillingFrequency(text),
+    contactEmail: scanEmail(text),
+  };
+}
+
+// Keys are the warranty form's input names.
+function productFieldsFromText(text) {
+  return {
+    vendor: scanCompanyLine(text),
+    manufacturer: scanLabeledValue(text, /(manufacturer|brand|made by)/i, /[:#]?\s*([A-Za-z0-9&'.\- ]{2,60})\s*$/),
+    model: scanLabeledValue(text, /model\s*(no\.?|number)?\s*[:#]/i, /[:#]\s*([A-Za-z0-9-/]{2,40})\s*$/),
+    description: scanLabeledValue(text, /(product|item)\s*(name|description)?\s*[:#]/i, /[:#]\s*(.{3,100})\s*$/),
+    serialNumber: scanLabeledValue(text, /(serial\s*(no\.?|number)?|s\/n|imei)/i, /[:#]?\s*([A-Za-z0-9-/]{4,40})\s*$/),
+    purchaseDate: scanLabeledDate(text, /(invoice date|purchase date|date of purchase|order date|tax invoice|receipt date)/i),
+    price: scanCost(text),
+  };
+}
+// ---------------------------------------------------------------------------
 
 function inboxStatusForHash(sha256) {
   if (!sha256) return "NEEDS_REVIEW";
@@ -1677,6 +1931,7 @@ async function openStandalone() {
 }
 
 async function enterStandaloneApp() {
+  await checkScannerAvailability();
   show("standalone");
   await prefSet(MODE_KEY, "standalone");
   await initDb();
@@ -2532,7 +2787,7 @@ function renderInboxImportSection() {
       <h2>Import to inbox</h2>
       <p class="muted">Store a document privately on this phone, then file it to a record later.</p>
       <form data-import-inbox-form class="field-grid">
-        <input name="file" type="file" accept=".pdf,.doc,.docx,image/jpeg,image/png,image/webp,image/heic" required />
+        ${documentFileInput(true)}
         <button type="submit">Upload document</button>
       </form>
     </section>
@@ -3028,7 +3283,7 @@ function renderDetail() {
         <h2>Documents</h2>
       </div>
       <form data-attach-owner-type="${escapeAttr(ownerType)}" data-owner-id="${escapeAttr(id)}" class="field-grid">
-        <input name="file" type="file" accept=".pdf,.doc,.docx,image/jpeg,image/png,image/webp,image/heic" required />
+        ${documentFileInput(true)}
         <button type="submit">Attach document</button>
       </form>
       <div class="list">
@@ -3436,6 +3691,7 @@ function renderDocumentCard(doc) {
       <div class="actions">
         <button data-open-document="${escapeAttr(doc.id)}">Open</button>
         <button data-toggle-important-document="${escapeAttr(doc.id)}">${important ? "Unstar" : "Mark important"}</button>
+        ${HearthScan && !doc.extracted_text && RECOGNIZABLE_MIME_TYPES.has(doc.mime_type) ? `<button data-read-document-text="${escapeAttr(doc.id)}">Read text</button>` : ""}
         <button class="danger" data-delete-document="${escapeAttr(doc.id)}">Delete</button>
       </div>
       ${versionCount > 1 ? renderDocumentVersionHistory(doc) : ""}
@@ -3669,7 +3925,7 @@ function renderForm() {
     <form class="form-card" data-save-type="${escapeAttr(type)}" data-id="${escapeAttr(state.form.id ?? "")}" data-parent-id="${escapeAttr(state.form.parentId ?? "")}">
       <h2>${escapeHtml(title)}</h2>
       ${formFields(type, row)}
-      ${recordTypesWithoutInlineFiles.has(type) ? "" : '<input name="file" type="file" accept=".pdf,.doc,.docx,image/jpeg,image/png,image/webp,image/heic" />'}
+      ${recordTypesWithoutInlineFiles.has(type) ? "" : documentFileInput()}
       <div class="actions">
         <button type="submit">Save</button>
         <button type="button" class="secondary" data-cancel-form>Cancel</button>
@@ -3981,7 +4237,7 @@ function fieldChecked(form, name) {
 
 function formFile(form) {
   const control = form.elements.namedItem("file");
-  return control?.files?.[0] ?? null;
+  return control?.files?.[0] ?? scannedFormFiles.get(form) ?? null;
 }
 
 async function saveForm(form) {
@@ -5316,7 +5572,7 @@ function renderContractRenewalForm(row) {
           <option value="">None</option>
         </select></label>` : ""}
       </div>
-      <input name="file" type="file" accept=".pdf,.doc,.docx,image/jpeg,image/png,image/webp,image/heic" />
+      ${documentFileInput()}
       <div class="actions">
         <button type="submit">Renew</button>
         <button type="button" class="secondary" data-cancel-form>Cancel</button>
@@ -5566,6 +5822,23 @@ document.querySelectorAll(".nav-item").forEach((button) => {
 mobileView.addEventListener("click", async (event) => {
   const button = event.target.closest("button");
   if (!button) return;
+  if (button.dataset.scanDocument !== undefined) {
+    // One scanner at a time: a second tap while the camera opens is ignored.
+    if (button.disabled) return;
+    button.disabled = true;
+    try {
+      await scanIntoForm(button.closest("form")).catch((error) => showStandaloneStatus(error.message || "Could not scan."));
+    } finally {
+      button.disabled = false;
+    }
+    return;
+  }
+  if (button.dataset.readDocumentText) {
+    button.disabled = true;
+    await readStoredDocumentText(button.dataset.readDocumentText).catch((error) => showStandaloneStatus(error.message || "Could not read text."));
+    button.disabled = false;
+    return;
+  }
   if (button.dataset.nav) {
     if (button.dataset.recordType) {
       state.recordType = button.dataset.recordType;

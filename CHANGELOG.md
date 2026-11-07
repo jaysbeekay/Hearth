@@ -9,6 +9,19 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Scan and read documents on the phone (standalone mode).** A *Scan with
+  camera* button now sits beside every document upload in the iOS and
+  Android apps. It opens the system document camera (VisionKit on iOS, the
+  ML Kit Document Scanner on Android), saves the pages as one PDF, and reads
+  the text on the device (Apple Vision, or ML Kit text recognition). On a new
+  Contract or Warranty, the server's regex field rules, ported into the shell,
+  fill in empty fields such as provider, policy number, dates and cost, and
+  tick *Needs review* so reminders wait until someone checks them. Uploaded
+  photos and PDFs also get their text read on import, and older documents get
+  a *Read text* button, so Search finds documents by their contents. Nothing
+  leaves the phone. The Android scanner needs Google Play services; without
+  it, the file picker still works. Shell parity: new local native plugin
+  `HearthScan` (`HearthScanPlugin.swift`, `HearthScanPlugin.java`).
 - **Assistant confirmation card helps spot a steered proposal (#530, part
   2).** An update now shows each field's current value under the proposed
   one. Free-text fields are shown in full and shaded as the Assistant's
@@ -414,6 +427,10 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   PDF" failed with `ENOENT … Helvetica.afm`, because webpack bundled
   `pdfkit` and left its font data behind. `pdfkit` is now a server external
   package, so its data files ship with it.
+- **Document auto-fill read ungrouped amounts short.** "$1234.50" was read as
+  123 and "$1000" as 100 because the amount pattern stopped after three
+  digits without a thousands separator. It now reads the whole amount, grouped
+  or not, and skips a malformed one instead of keeping part of it.
 
 ## [0.20.1] - 2026-10-31
 

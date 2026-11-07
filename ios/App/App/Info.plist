@@ -25,7 +25,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Hearth uses the camera to scan barcodes on products and to attach photos to contracts and documents.</string>
+	<string>Hearth uses the camera to scan documents, barcodes on products, and to attach photos to contracts and documents. Scans are read on this device.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Hearth needs access to your photo library so you can attach existing photos to contracts and documents.</string>
 	<key>UILaunchStoryboardName</key>
