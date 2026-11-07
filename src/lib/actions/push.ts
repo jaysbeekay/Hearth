@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { assertPushEndpoint, sendTestPush } from "@/lib/notifications/push";
-import { pushEndpointSchema, pushSubscriptionSchema } from "@/lib/validation/push";
+import { pushDeviceIdSchema, pushEndpointSchema, pushSubscriptionSchema } from "@/lib/validation/push";
 
 export type PushActionState = { error?: string; success?: string } | null;
 
@@ -94,6 +94,18 @@ export async function removePushSubscription(input: unknown): Promise<PushAction
   await prisma.pushSubscription.deleteMany({ where: { endpoint: parsed.data.endpoint, userId } });
   revalidatePath("/settings");
   return { success: "Push reminders are off on this device." };
+}
+
+/** One of the caller's other devices, e.g. a lost phone, from Settings. */
+export async function removePushDevice(input: unknown): Promise<PushActionState> {
+  const userId = await signedInUserId();
+  if (!userId) return NOT_SIGNED_IN;
+  const parsed = pushDeviceIdSchema.safeParse(input);
+  if (!parsed.success) return { error: "Invalid device." };
+  // Only the caller's own row: another member's id reads as already gone.
+  const { count } = await prisma.pushSubscription.deleteMany({ where: { id: parsed.data.id, userId } });
+  revalidatePath("/settings");
+  return count > 0 ? { success: "Device removed." } : { error: "That device is already gone." };
 }
 
 export async function sendPushTest(): Promise<PushActionState> {

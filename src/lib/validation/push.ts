@@ -20,3 +20,5 @@ export const pushSubscriptionSchema = z.object({
 });
 
 export const pushEndpointSchema = z.object({ endpoint: z.string().min(1).max(ENDPOINT_MAX) });
+
+export const pushDeviceIdSchema = z.object({ id: z.string().min(1).max(64) });
