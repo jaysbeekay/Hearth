@@ -13,11 +13,18 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   Service records, Maintenance records, Trip segments, Rental statements and
   Trades now get their text extracted in the background (pdftotext, then
   OCR; PDFs and images only), so Search can find a receipt by a word inside
-  it. These hits now name the record they're attached to ("Logbook service ·
-  Corolla") and say when only the contents matched. Documents filed before
-  this release are worked through by a new daily `DOCUMENT_TEXT_BACKFILL`
-  job, 25 at a time, which queues its own next batch until none are left.
-  Server-only; the standalone shell has no text extraction.
+  it. These hits name the record they're attached to, with its date
+  ("Logbook service · 12 Mar 2024 · Corolla"), and say when only the
+  contents matched; Documents of every kind are now ranked together, best
+  match first, and a turned-off module's Documents no longer take up room in
+  the results. Documents filed before this release are worked through by a
+  new `DOCUMENT_TEXT_BACKFILL` job, 25 at a time, at startup and then hourly
+  until none are left. Background jobs now have a priority, and the backfill
+  runs below everything else, so it never holds up Reminders, backups or a
+  new upload. Without the extraction tools a Document is retried once
+  they're installed; one that keeps failing ends `FAILED` with the error in
+  the job's `lastError`. Server-only; the standalone shell has no text
+  extraction. Rolling back: README → Searching inside documents.
 - **Manage your push devices (#375, part 2).** Settings → My account lists
   your other devices with push on, each with when it last got a Reminder
   (or why its last push failed) and a Remove button for a lost or old one;
