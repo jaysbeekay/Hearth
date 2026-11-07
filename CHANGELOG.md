@@ -21,7 +21,10 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   days, is dropped, and Reminder delivery health
   shows how many devices have push on and how many are failing. Per-user
   channel preferences and the guided setup screen follow in later parts.
-  Server-only for now; the iOS and Android shell is unchanged.
+  Server-only for now; the iOS and Android shell is unchanged. Push goes to
+  every member's devices, read-only members included, like ntfy. Rolling
+  back below this release needs the `PUSH` rows deleted from
+  `notification_logs` first (README → Notifications).
 - **Assistant confirmation card helps spot a steered proposal (#530, part
   2).** An update now shows each field's current value under the proposed
   one. Free-text fields are shown in full and shaded as the Assistant's
