@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDb, createTestUser } from "../helpers/testDb";
 import { auth, signOut } from "@/lib/auth";
-import { removePushDevice, removePushSubscription, savePushSubscription } from "@/lib/actions/push";
+import { pushSubscriptionHeldByOther, removePushDevice, removePushSubscription, savePushSubscription } from "@/lib/actions/push";
 import { logout } from "@/lib/actions/auth";
 import { hashToken } from "@/lib/crypto";
 import { endpointHash } from "@/lib/pushClient";
@@ -100,6 +100,23 @@ describe("push devices", () => {
     expect(signOut).toHaveBeenCalledTimes(1);
     deleteMany.mockRestore();
     spy.mockRestore();
+  });
+
+  it("tells a member when this browser's subscription is someone else's", async () => {
+    const me = await createTestUser();
+    const before = await createTestUser();
+    await subscribe(before.id, "https://push.example/left-behind");
+    await subscribe(me.id, "https://push.example/mine");
+    await signedInAs(me.id);
+
+    expect(await pushSubscriptionHeldByOther({ endpoint: "https://push.example/left-behind" })).toBe(true);
+    expect(await pushSubscriptionHeldByOther({ endpoint: "https://push.example/mine" })).toBe(false);
+    // No row yet: this browser may be part-way through turning push on.
+    expect(await pushSubscriptionHeldByOther({ endpoint: "https://push.example/new" })).toBe(false);
+    expect(await pushSubscriptionHeldByOther({})).toBe(false);
+    vi.mocked(auth).mockResolvedValue(null as never);
+    expect(await pushSubscriptionHeldByOther({ endpoint: "https://push.example/left-behind" })).toBe(false);
+    expect(await db.prisma.pushSubscription.count()).toBe(2);
   });
 
   it("refuses an invalid device id", async () => {

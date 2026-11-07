@@ -15,7 +15,10 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   a removed device stays removed even if it's still signed in. Signing out
   removes that browser's push subscription, and so does reaching the
   sign-in page after a session ends any other way (password change,
-  expiry), so the next person to use it doesn't get your Reminders. Members
+  expiry), so the next person to use it doesn't get your Reminders. If the
+  sign-in page can't reach the server to confirm the session is over, it
+  keeps trying while it's open, and the next member to sign in on that
+  browser drops a subscription that isn't theirs. Members
   only ever see and remove their own devices, and Settings gets only a hash
   of each device's push endpoint. Email stays a per-account choice and ntfy
   stays household-wide.

@@ -85,6 +85,23 @@ export async function refreshPushSubscription(input: unknown): Promise<{ registe
   return { registered: true };
 }
 
+/**
+ * On every page load while signed in: whether this browser's subscription is
+ * registered to another member, i.e. left behind by someone whose session
+ * ended without Sign out and without the sign-in page reaching the server.
+ * The browser then drops it, and the push service's 410 removes their row.
+ * No row at all answers false, so a browser part-way through turning push on
+ * (subscribed, not yet saved) isn't unsubscribed. Read-only: the caller can't
+ * prove it holds the endpoint, so another member's row is never touched here.
+ */
+export async function pushSubscriptionHeldByOther(input: unknown): Promise<boolean> {
+  const userId = await signedInUserId();
+  const parsed = pushEndpointSchema.safeParse(input);
+  if (!userId || !parsed.success) return false;
+  const row = await prisma.pushSubscription.findUnique({ where: { endpoint: parsed.data.endpoint }, select: { userId: true } });
+  return row !== null && row.userId !== userId;
+}
+
 export async function removePushSubscription(input: unknown): Promise<PushActionState> {
   const userId = await signedInUserId();
   if (!userId) return NOT_SIGNED_IN;

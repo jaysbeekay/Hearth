@@ -1060,6 +1060,9 @@ records every member can already open in the app; the sent log is per record
 and channel, not per device. Removing a device, or a member signing out on
 it, stops the sends after that one, not a send already running: a device can
 still get the notification that was being sent when it was removed.
+Signing out drops the device's row on the server and then unsubscribes the
+browser; if the server delete fails, the unsubscribe still happens and the
+row goes on the next send, when the push service reports the device gone.
 
 Rolling back to a release from before Web Push: delete the push rows from the
 sent log first (`DELETE FROM notification_logs WHERE channel = 'PUSH';`),

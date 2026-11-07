@@ -65,6 +65,10 @@ export function SignOutButton({
     // gone (SignedOutCacheCleanup), not here, where they'd reload too early.
     await clearOfflineData();
     // #375 — this device stops getting the signed-out member's Reminders.
+    // The server row goes with the session and the browser unsubscribes
+    // after; if the row survives (a failed delete, a second tab signing out
+    // first), the push service's 410 on the next send removes it. A push
+    // already handed to the push service can still arrive.
     const push = await currentPushSubscription();
     try {
       await logout(push?.endpoint);

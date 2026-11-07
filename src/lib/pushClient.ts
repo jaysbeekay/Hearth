@@ -56,6 +56,21 @@ export async function currentPushSubscription(ms = 2_000): Promise<PushSubscript
   }
 }
 
+/**
+ * Whether `/api/auth/session` says nobody is signed in: true when it does,
+ * false when someone is, null when the server couldn't be asked.
+ */
+export async function sessionEnded(fetchImpl: typeof fetch = fetch): Promise<boolean | null> {
+  try {
+    const response = await fetchImpl("/api/auth/session", { cache: "no-store", credentials: "same-origin" });
+    if (!response.ok) return null;
+    const session = (await response.json()) as { user?: unknown } | null;
+    return !session?.user;
+  } catch {
+    return null;
+  }
+}
+
 /** Drops this browser's subscription, giving up after `ms`. Never throws. */
 export async function unsubscribeQuietly(sub: PushSubscription | null, ms = 2_000): Promise<void> {
   if (!sub) return;

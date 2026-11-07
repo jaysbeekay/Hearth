@@ -2,19 +2,28 @@
 
 import { useEffect } from "react";
 import { broadcastSession, clearSignedOutData } from "@/lib/offlineSession";
-import { currentPushSubscription, unsubscribeQuietly } from "@/lib/pushClient";
+import { currentPushSubscription, sessionEnded, unsubscribeQuietly } from "@/lib/pushClient";
+import { retryUntilSettled } from "@/lib/retryUntilSettled";
 
-// Going Back to a cached /login after signing in re-mounts this page while
-// signed in, so push is only dropped once the server confirms there's no
-// session: a signed-in member's subscription can't be restored from here.
-async function dropSignedOutPush(): Promise<void> {
+// How long to wait before asking the server again when it couldn't say
+// whether anyone is signed in.
+const SESSION_RETRY_MS = 30_000;
+
+/**
+ * Whether push is settled for this page: dropped, nothing to drop, or kept
+ * for a member who is in fact signed in. False when the server couldn't be
+ * asked, so it's tried again.
+ */
+async function dropSignedOutPush(): Promise<boolean> {
   const sub = await currentPushSubscription();
-  if (!sub) return;
-  const response = await fetch("/api/auth/session", { cache: "no-store", credentials: "same-origin" });
-  if (!response.ok) return;
-  const session = (await response.json()) as { user?: unknown } | null;
-  if (session?.user) return;
-  await unsubscribeQuietly(sub);
+  if (!sub) return true;
+  // Going Back to a cached /login after signing in re-mounts this page while
+  // signed in, so push is only dropped once the server confirms there's no
+  // session: a signed-in member's subscription can't be restored from here.
+  const ended = await sessionEnded();
+  if (ended === null) return false;
+  if (ended) await unsubscribeQuietly(sub);
+  return true;
 }
 
 // #424 — the sign-in page only renders when this browser has no session
@@ -26,15 +35,18 @@ async function dropSignedOutPush(): Promise<void> {
 //   reload (OfflineSessionGuard) instead of carrying on as the old user;
 // - #375 drop this browser's push subscription, which belongs to whoever was
 //   signed in, so a session that ended without Sign out (password change,
-//   expiry) doesn't leave their Reminders arriving here. Its server row goes
-//   on the next send, when the push service answers 410.
+//   expiry) doesn't leave their Reminders arriving here. Their server row
+//   goes on the next send, when the push service answers 410. If the server
+//   can't confirm the session has ended, this tries again every 30 seconds
+//   and whenever the browser comes back online, for as long as the page is
+//   open; after that, PushOwnerCheck drops it when someone else signs in.
 // Queued writes are left: they're keyed by user, so only the same user
 // signing back in sees and syncs them, and anyone else's sign-in purges them.
 export function SignedOutCacheCleanup() {
   useEffect(() => {
     clearSignedOutData().catch(() => {});
-    dropSignedOutPush().catch(() => {});
     broadcastSession({ type: "signed-out" });
+    return retryUntilSettled(dropSignedOutPush, { retryMs: SESSION_RETRY_MS, target: window });
   }, []);
   return null;
 }
