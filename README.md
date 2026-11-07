@@ -1063,12 +1063,15 @@ still get the notification that was being sent when it was removed.
 Signing out drops the device's row on the server and then unsubscribes the
 browser; if the server delete fails, the unsubscribe still happens and the
 row goes on the next send, when the push service reports the device gone.
-A browser shows a Reminder only while the member it's for is signed in on
-it. Otherwise (the session expired, or someone else signed in since) it
-drops its subscription and shows a "Reminders are off on this browser"
-notice with none of the Reminder's content. A member who doesn't open Hearth
-on a device for longer than a session lasts (30 days) has to turn push on
-there again.
+A browser shows a Reminder's content only while the member it's for is
+signed in on it; otherwise it shows a "sign in to see it" notice with none of
+the Reminder's content. It drops its subscription once it's clear the session
+is over: the sign-in page confirmed nobody is signed in, someone else signed
+in, or the session ran out more than a week ago. A member who doesn't open
+Hearth on a device for longer than a session lasts (30 days) gets the notice
+instead of Reminders there, and after another week has to turn push on
+again. Changing or resetting a password turns push off on all of that
+member's devices.
 
 Rolling back to a release from before Web Push: delete the push rows from the
 sent log first (`DELETE FROM notification_logs WHERE channel = 'PUSH';`),

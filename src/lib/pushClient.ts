@@ -56,13 +56,15 @@ export async function currentPushSubscription(ms = 2_000): Promise<PushSubscript
   }
 }
 
+/** What `/api/auth/session` says: nobody signed in, who is, or null when it couldn't be asked. */
+export type SessionCheck = { signedIn: false } | { signedIn: true; userId: string | null; expires: number } | null;
+
 /**
- * Whether `/api/auth/session` says nobody is signed in: true when it does,
- * false when someone is, null when the server couldn't be asked, including
- * when it hasn't answered within `ms` (a stalled connection would otherwise
- * hold up every later try).
+ * Asks `/api/auth/session` who is signed in. Null when the server couldn't
+ * be asked, including when it hasn't answered within `ms` (a stalled
+ * connection would otherwise hold up every later try).
  */
-export async function sessionEnded(fetchImpl: typeof fetch = fetch, ms = 10_000): Promise<boolean | null> {
+export async function readSession(fetchImpl: typeof fetch = fetch, ms = 10_000): Promise<SessionCheck> {
   try {
     const response = await fetchImpl("/api/auth/session", {
       cache: "no-store",
@@ -70,19 +72,34 @@ export async function sessionEnded(fetchImpl: typeof fetch = fetch, ms = 10_000)
       signal: AbortSignal.timeout(ms),
     });
     if (!response.ok) return null;
-    const session = (await response.json()) as { user?: unknown } | null;
-    return !session?.user;
+    const session = (await response.json()) as { user?: { id?: unknown }; expires?: unknown } | null;
+    if (!session?.user) return { signedIn: false };
+    const id = session.user.id;
+    const expires = typeof session.expires === "string" ? Date.parse(session.expires) : NaN;
+    return { signedIn: true, userId: typeof id === "string" && id !== "" ? id : null, expires };
   } catch {
     return null;
   }
 }
 
+/** The part of a PushSubscription the cleanup uses. */
+export interface DroppableSubscription {
+  endpoint: string;
+  unsubscribe(): Promise<boolean>;
+}
+
 /**
- * Drops this browser's subscription, giving up after `ms`. Never throws.
- * Whether it's gone: false when the browser refused or didn't answer.
+ * This browser's subscription, or null when it has none. Unlike
+ * currentPushSubscription, throws when the browser didn't answer within
+ * `ms`, so a caller can tell "none" from "couldn't tell".
  */
-export async function unsubscribeQuietly(sub: PushSubscription | null, ms = 2_000): Promise<boolean> {
-  if (!sub) return true;
+export async function lookupPushSubscription(ms = 2_000): Promise<PushSubscription | null> {
+  if (!pushSupported()) return null;
+  return withTimeout((async () => (await pushRegistration())?.pushManager.getSubscription() ?? null)(), ms);
+}
+
+/** Unsubscribes, giving up after `ms`. Whether it's gone; never throws. */
+async function dropSubscription(sub: DroppableSubscription, ms = 2_000): Promise<boolean> {
   try {
     return await withTimeout(sub.unsubscribe(), ms);
   } catch {
@@ -96,9 +113,57 @@ export async function unsubscribeQuietly(sub: PushSubscription | null, ms = 2_00
  * `endpoint`. Unsubscribing applies to the whole service worker
  * registration, so after a wait (a server round-trip) an older
  * PushSubscription object would also drop one the member has just turned on.
+ * Whether it's settled: false when the browser couldn't be asked or refused.
  */
-export async function unsubscribeIfStill(endpoint: string): Promise<boolean> {
-  const current = await currentPushSubscription();
+export async function unsubscribeIfStill(
+  endpoint: string,
+  lookup: () => Promise<DroppableSubscription | null> = lookupPushSubscription,
+): Promise<boolean> {
+  let current: DroppableSubscription | null;
+  try {
+    current = await lookup();
+  } catch {
+    return false;
+  }
   if (current?.endpoint !== endpoint) return true;
-  return unsubscribeQuietly(current);
+  return dropSubscription(current);
+}
+
+export interface SignedOutPushDeps {
+  readSession: () => Promise<SessionCheck>;
+  lookup: () => Promise<DroppableSubscription | null>;
+  /** Writes the service worker's marker for a member who is signed in after all. */
+  markSignedIn: (userId: string, expires: number) => Promise<void>;
+  /** Tells the service worker nobody is signed in (pushGate.ts). */
+  markSignedOut: () => Promise<void>;
+}
+
+/**
+ * The sign-in page's push cleanup. Whether it's settled: false when the
+ * server or the browser couldn't be asked, or the unsubscribe failed, so
+ * it's tried again.
+ * - Signed in after all (Back to a cached sign-in page): the caches this
+ *   page cleared took the service worker's marker with them, so it's
+ *   written again, and push stays.
+ * - Signed out: the worker is told, and this browser's subscription is
+ *   dropped. It's looked up only now, after the round-trip, so one turned on
+ *   in another tab meanwhile is the one checked.
+ */
+export async function settleSignedOutPush(deps: SignedOutPushDeps): Promise<boolean> {
+  const session = await deps.readSession();
+  if (session === null) return false;
+  if (session.signedIn) {
+    if (session.userId && Number.isFinite(session.expires)) {
+      await deps.markSignedIn(session.userId, session.expires).catch(() => {});
+    }
+    return true;
+  }
+  await deps.markSignedOut().catch(() => {});
+  let sub: DroppableSubscription | null;
+  try {
+    sub = await deps.lookup();
+  } catch {
+    return false;
+  }
+  return sub ? dropSubscription(sub) : true;
 }

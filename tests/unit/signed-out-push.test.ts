@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { retryUntilSettled } from "@/lib/retryUntilSettled";
-import { sessionEnded } from "@/lib/pushClient";
+import { readSession, settleSignedOutPush, unsubscribeIfStill, type SessionCheck } from "@/lib/pushClient";
 
 // #375 — the sign-in page drops the previous member's push subscription only
 // once the server confirms nobody is signed in, and keeps asking until it can.
@@ -9,14 +9,19 @@ function respond(body: unknown, status = 200): typeof fetch {
   return vi.fn(async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch;
 }
 
-describe("sessionEnded", () => {
-  it("answers whether anyone is signed in, or null when the server can't say", async () => {
-    expect(await sessionEnded(respond(null))).toBe(true);
-    expect(await sessionEnded(respond({}))).toBe(true);
-    expect(await sessionEnded(respond({ user: { id: "u1" } }))).toBe(false);
-    expect(await sessionEnded(respond({ error: "x" }, 500))).toBeNull();
-    expect(await sessionEnded(vi.fn(async () => { throw new TypeError("Failed to fetch"); }) as unknown as typeof fetch)).toBeNull();
-    expect(await sessionEnded(vi.fn(async () => new Response("<html>", { status: 200 })) as unknown as typeof fetch)).toBeNull();
+describe("readSession", () => {
+  it("answers who is signed in, or null when the server can't say", async () => {
+    expect(await readSession(respond(null))).toEqual({ signedIn: false });
+    expect(await readSession(respond({}))).toEqual({ signedIn: false });
+    expect(await readSession(respond({ user: { id: "u1" }, expires: "2026-12-07T08:00:00.000Z" }))).toEqual({
+      signedIn: true,
+      userId: "u1",
+      expires: Date.parse("2026-12-07T08:00:00.000Z"),
+    });
+    expect(await readSession(respond({ user: {} }))).toEqual({ signedIn: true, userId: null, expires: NaN });
+    expect(await readSession(respond({ error: "x" }, 500))).toBeNull();
+    expect(await readSession(vi.fn(async () => { throw new TypeError("Failed to fetch"); }) as unknown as typeof fetch)).toBeNull();
+    expect(await readSession(vi.fn(async () => new Response("<html>", { status: 200 })) as unknown as typeof fetch)).toBeNull();
   });
 
   it("gives up on a server that never answers, so the next try isn't held up", async () => {
@@ -26,7 +31,62 @@ describe("sessionEnded", () => {
           init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
         }),
     ) as unknown as typeof fetch;
-    expect(await sessionEnded(stalled, 20)).toBeNull();
+    expect(await readSession(stalled, 20)).toBeNull();
+  });
+});
+
+describe("settleSignedOutPush", () => {
+  function sub(endpoint = "https://push.example/a", result: Promise<boolean> | (() => Promise<boolean>) = async () => true) {
+    return { endpoint, unsubscribe: vi.fn(typeof result === "function" ? result : () => result) };
+  }
+  function deps(session: SessionCheck, current: ReturnType<typeof sub> | null | Error = sub()) {
+    return {
+      readSession: vi.fn(async () => session),
+      lookup: vi.fn(async () => {
+        if (current instanceof Error) throw current;
+        return current;
+      }),
+      markSignedIn: vi.fn(async () => {}),
+      markSignedOut: vi.fn(async () => {}),
+    };
+  }
+
+  it("drops the subscription once the server says nobody is signed in, and tells the worker", async () => {
+    const s = sub();
+    const d = deps({ signedIn: false }, s);
+    expect(await settleSignedOutPush(d)).toBe(true);
+    expect(s.unsubscribe).toHaveBeenCalled();
+    expect(d.markSignedOut).toHaveBeenCalled();
+  });
+
+  it("keeps push for a member signed in after all, and writes their marker again", async () => {
+    const s = sub();
+    const d = deps({ signedIn: true, userId: "u1", expires: 123 }, s);
+    expect(await settleSignedOutPush(d)).toBe(true);
+    expect(s.unsubscribe).not.toHaveBeenCalled();
+    expect(d.markSignedOut).not.toHaveBeenCalled();
+    expect(d.markSignedIn).toHaveBeenCalledWith("u1", 123);
+  });
+
+  it("tries again when the server, the browser or the unsubscribe can't be relied on", async () => {
+    expect(await settleSignedOutPush(deps(null))).toBe(false);
+    expect(await settleSignedOutPush(deps({ signedIn: false }, new Error("timed out")))).toBe(false);
+    expect(await settleSignedOutPush(deps({ signedIn: false }, sub(undefined, async () => false)))).toBe(false);
+    expect(await settleSignedOutPush(deps({ signedIn: false }, null))).toBe(true);
+  });
+});
+
+describe("unsubscribeIfStill", () => {
+  it("drops only the subscription it was asked about, and says when it couldn't tell", async () => {
+    const mine = { endpoint: "https://push.example/old", unsubscribe: vi.fn(async () => true) };
+    expect(await unsubscribeIfStill("https://push.example/old", async () => mine)).toBe(true);
+    expect(mine.unsubscribe).toHaveBeenCalledTimes(1);
+
+    const turnedOnSince = { endpoint: "https://push.example/new", unsubscribe: vi.fn(async () => true) };
+    expect(await unsubscribeIfStill("https://push.example/old", async () => turnedOnSince)).toBe(true);
+    expect(turnedOnSince.unsubscribe).not.toHaveBeenCalled();
+
+    expect(await unsubscribeIfStill("https://push.example/old", async () => { throw new Error("timed out"); })).toBe(false);
   });
 });
 

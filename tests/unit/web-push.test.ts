@@ -1,7 +1,7 @@
 import { createECDH, randomBytes } from "node:crypto";
 import net from "node:net";
 import webpush from "web-push";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDb, createTestUser } from "../helpers/testDb";
 import { auth } from "@/lib/auth";
 import { safeFetch } from "@/lib/net/outbound";
@@ -142,6 +142,8 @@ describe("push endpoints", () => {
 });
 
 describe("sending", () => {
+  afterEach(() => vi.restoreAllMocks());
+
   it("drops a subscription the push service says is gone, and records success on the rest", async () => {
     const user = await createTestUser();
     const gone = await subscribe(user.id, "https://push.example/gone");
@@ -172,7 +174,6 @@ describe("sending", () => {
     );
     expect(sent["https://push.example/a"].userId).toBe(a.id);
     expect(sent["https://push.example/b"].userId).toBe(b.id);
-    details.mockRestore();
   });
 
   it("throws a generic error only when no device got it, keeping the detail on the device", async () => {

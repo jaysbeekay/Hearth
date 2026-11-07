@@ -515,10 +515,16 @@ export async function changePassword(
   // one. That necessarily includes this session, so sign out and send the
   // user back to /login rather than leaving them on a page whose session
   // silently stopped working.
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { passwordHash, sessionVersion: { increment: 1 } },
-  });
+  // #375 — and stops every device's push: a browser left signed in
+  // elsewhere would otherwise keep showing this member's Reminders. Each
+  // device turns it on again after signing in.
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash, sessionVersion: { increment: 1 } },
+    }),
+    prisma.pushSubscription.deleteMany({ where: { userId: user.id } }),
+  ]);
   await logSecurityEvent({ type: "PASSWORD_CHANGED", userId: user.id, email: user.email });
 
   await signOut({ redirectTo: "/login?passwordChanged=1" });
@@ -620,6 +626,9 @@ async function setPasswordWithToken(
       where: { id: token.userId },
       data: { passwordHash, sessionVersion: { increment: 1 } },
     });
+    // #375 — a reset is for a lost or stolen password: stop push on every
+    // device that was signed in with it.
+    await tx.pushSubscription.deleteMany({ where: { userId: token.userId } });
     await tx.passwordResetToken.updateMany({
       where: { userId: token.userId, usedAt: null },
       data: { usedAt: now },

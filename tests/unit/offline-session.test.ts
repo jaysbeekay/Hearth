@@ -24,11 +24,17 @@ class FakeCaches {
       put: async (key: string, response: Response) => {
         entries.set(key, response);
       },
+      match: async (key: string) => entries.get(key)?.clone(),
     };
   }
 }
 
 let fakeCaches: FakeCaches;
+
+async function marker(): Promise<unknown> {
+  const res = fakeCaches.stores.get("hearth-session")?.get("/__hearth/offline-session");
+  return res ? res.clone().json() : null;
+}
 
 // A fresh copy of the modules, as on a new page load.
 async function load() {
@@ -181,6 +187,35 @@ describe("claiming offline data", () => {
     await seed(l, { ops: [op("b1", "bob")] });
     await l.session.claimOfflineData(alice);
     expect((await keys(l)).ops).toEqual(["b1"]);
+  });
+
+  it("#375 writes the marker again after the sign-in page cleared it, as on going Forward", async () => {
+    const l = await load();
+    const expires = Date.now() + 60_000;
+    await l.session.markOfflineSession("alice", expires);
+    await l.session.clearSignedOutData();
+    expect(fakeCaches.stores.has("hearth-session")).toBe(false);
+    await l.session.markOfflineSession("alice", expires);
+    expect(await marker()).toEqual({ userId: "alice", expires });
+  });
+
+  it("#375 never winds the same member's marker back to an earlier expiry", async () => {
+    const l = await load();
+    const later = Date.now() + 120_000;
+    await l.session.markOfflineSession("alice", later);
+    await l.session.markOfflineSession("alice", later - 60_000);
+    expect(await marker()).toEqual({ userId: "alice", expires: later });
+    await l.session.markOfflineSession("reader", later - 60_000);
+    expect(await marker()).toEqual({ userId: "reader", expires: later - 60_000 });
+  });
+
+  it("#375 marks the browser signed out, unless a member has signed in since", async () => {
+    const l = await load();
+    await l.session.markSignedOut();
+    expect(await marker()).toEqual({ signedOut: true });
+    await l.session.markOfflineSession("alice", Date.now() + 60_000);
+    await l.session.markSignedOut();
+    expect(await marker()).toMatchObject({ userId: "alice" });
   });
 
   it("writes the session marker after the claim, so the claim can't clear it", async () => {

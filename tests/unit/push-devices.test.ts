@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDb, createTestUser } from "../helpers/testDb";
 import { auth, signOut } from "@/lib/auth";
 import { removePushDevice, removePushSubscription, savePushSubscription } from "@/lib/actions/push";
-import { logout } from "@/lib/actions/auth";
+import bcrypt from "bcryptjs";
+import { changePassword, logout, resetPassword } from "@/lib/actions/auth";
 import { hashToken } from "@/lib/crypto";
 import { endpointHash } from "@/lib/pushClient";
 
@@ -100,6 +101,31 @@ describe("push devices", () => {
     expect(signOut).toHaveBeenCalledTimes(1);
     deleteMany.mockRestore();
     spy.mockRestore();
+  });
+
+  it("stops push on every device of a member whose password changes or is reset", async () => {
+    const me = await createTestUser();
+    const other = await createTestUser();
+    await db.prisma.user.update({ where: { id: me.id }, data: { passwordHash: await bcrypt.hash("old-long-password-1", 4) } });
+    await subscribe(me.id, "https://push.example/laptop");
+    await subscribe(me.id, "https://push.example/phone");
+    await subscribe(other.id, "https://push.example/theirs");
+    await signedInAs(me.id);
+
+    const fd = new FormData();
+    fd.set("currentPassword", "old-long-password-1");
+    fd.set("newPassword", "new-long-password-2");
+    await changePassword(null, fd);
+    expect((await db.prisma.pushSubscription.findMany()).map((r) => r.endpoint)).toEqual(["https://push.example/theirs"]);
+
+    await subscribe(other.id, "https://push.example/theirs-too");
+    await db.prisma.passwordResetToken.create({
+      data: { tokenHash: hashToken("reset-1"), userId: other.id, purpose: "RESET", expiresAt: new Date(Date.now() + 3_600_000) },
+    });
+    const reset = new FormData();
+    reset.set("password", "a-new-long-password-1");
+    expect(await resetPassword("reset-1", null, reset)).toEqual({ success: expect.any(String) });
+    expect(await db.prisma.pushSubscription.count()).toBe(0);
   });
 
   it("refuses an invalid device id", async () => {

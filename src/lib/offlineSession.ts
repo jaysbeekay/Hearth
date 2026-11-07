@@ -10,6 +10,7 @@ import {
 import {
   clearOfflineOwner,
   isUserDataCache,
+  isValidSessionMarker,
   SESSION_CACHE,
   SESSION_MARKER_PATH,
   setOfflineOwner,
@@ -19,6 +20,7 @@ import {
   type SessionMarker,
 } from "@/lib/offlineOwner";
 import type { PendingFile, QueuedOperation } from "@/lib/offlineQueue";
+import type { SignedOutMarker } from "@/lib/pushGate";
 import type { OfflineDocument } from "@/lib/offlineDocuments";
 
 // #424 — the device-side half of "one user's offline data never reaches
@@ -73,13 +75,39 @@ export async function clearRuntimeCaches(): Promise<void> {
   await clearExpirationIndex();
 }
 
-async function writeSessionMarker(marker: SessionMarker): Promise<void> {
-  if (!hasCacheStorage()) return;
+async function readStoredMarker(): Promise<unknown> {
+  if (!hasCacheStorage()) return null;
+  const res = await (await caches.open(SESSION_CACHE)).match(SESSION_MARKER_PATH);
+  return res ? res.json().catch(() => null) : null;
+}
+
+async function putMarker(value: SessionMarker | SignedOutMarker): Promise<void> {
   const cache = await caches.open(SESSION_CACHE);
   await cache.put(
     SESSION_MARKER_PATH,
-    new Response(JSON.stringify(marker), { headers: { "Content-Type": "application/json" } }),
+    new Response(JSON.stringify(value), { headers: { "Content-Type": "application/json" } }),
   );
+}
+
+async function writeSessionMarker(marker: SessionMarker): Promise<void> {
+  if (!hasCacheStorage()) return;
+  // A page rendered from an older cached payload mustn't wind the same
+  // member's expiry back.
+  const stored = await readStoredMarker();
+  if (isValidSessionMarker(stored, Date.now()) && stored.userId === marker.userId && stored.expires > marker.expires) return;
+  await putMarker(marker);
+}
+
+/**
+ * #375 — on the sign-in page, once the server has confirmed nobody is signed
+ * in: tells the service worker this browser's push subscription was left
+ * behind (pushGate.ts). Skipped if a member has signed in since, in another
+ * tab, and written their own marker.
+ */
+export async function markSignedOut(): Promise<void> {
+  if (typeof window === "undefined" || !hasCacheStorage()) return;
+  if (isValidSessionMarker(await readStoredMarker(), Date.now())) return;
+  await putMarker({ signedOut: true });
 }
 
 // --- Claiming ------------------------------------------------------------
@@ -237,6 +265,9 @@ export async function clearOfflineData(): Promise<void> {
  */
 export async function clearSignedOutData(): Promise<void> {
   if (typeof window === "undefined") return;
+  // The marker goes with the caches. If this page was reached by going Back
+  // while still signed in, going Forward must write it again.
+  markerWritten = null;
   await Promise.allSettled([
     withTimeout(clearRuntimeCaches(), STEP_TIMEOUT_MS),
     withTimeout(clearStores([DOCUMENTS_STORE, PAGES_STORE]), STEP_TIMEOUT_MS),
