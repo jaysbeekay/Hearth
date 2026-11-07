@@ -93,21 +93,29 @@ async function assertDocumentSearchFtsIntact() {
     // update. A rebuild that re-created the #314 filename-only `_au` trigger
     // would pass the name check above while content search silently stopped
     // updating.
-    const TEXT_TABLES = [
-      "documents",
-      "inbox_documents",
-      "product_documents",
-      "trip_segment_documents",
-      "rental_statement_documents",
-      "home_item_documents",
-      "vehicle_item_documents",
-      "trade_documents",
-    ];
-    const triggerSql = new Map(triggerRows.rows.map((r) => [String(r.name), String(r.sql ?? "")]));
-    const stale = TEXT_TABLES.map((table) => `fts_${table}_au`).filter(
-      (name) => !/AFTER UPDATE OF [^\n]*"extractedText"/.test(triggerSql.get(name) ?? "") ||
-        !/extractedText\s*=\s*NEW\."extractedText"/.test(triggerSql.get(name) ?? ""),
+    const TEXT_TABLES: Record<string, string> = {
+      documents: "CONTRACT",
+      inbox_documents: "INBOX",
+      product_documents: "PRODUCT",
+      trip_segment_documents: "TRIP_SEGMENT",
+      rental_statement_documents: "RENTAL_STATEMENT",
+      home_item_documents: "HOME_ITEM",
+      vehicle_item_documents: "VEHICLE_ITEM",
+      trade_documents: "TRADE",
+    };
+    const triggerSql = new Map(
+      triggerRows.rows.map((r) => [String(r.name), String(r.sql ?? "").replace(/\s+/g, " ")]),
     );
+    const stale = Object.entries(TEXT_TABLES)
+      .filter(([table, kind]) => {
+        const sql = triggerSql.get(`fts_${table}_au`) ?? "";
+        return (
+          !/AFTER UPDATE OF (?:"\w+", )*"extractedText"(?:, "\w+")* ON /.test(sql) ||
+          !/extractedText = NEW\."extractedText"/.test(sql) ||
+          !sql.includes(`kind = '${kind}'`)
+        );
+      })
+      .map(([table]) => `fts_${table}_au`);
     if (stale.length > 0) {
       throw new Error(
         `document_search_fts update trigger(s) don't carry extractedText (see #398): ${stale.join(", ")}. ` +

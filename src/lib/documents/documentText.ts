@@ -92,8 +92,15 @@ export async function processSearchTextJob(payload: unknown): Promise<void> {
   const row = await delegate(job.kind).findUnique({ where: { id: job.id }, select: { id: true } });
   if (!row) return;
   const buffer = await documentStoreFor(job.kind).read(job.ownerId, job.storedName);
+  const caps = await getExtractionCapabilities();
   const result = await withExtractionSlot(() => extractTextDetailed(buffer, job.mimeType));
-  if (result.unavailable) throw new ExtractionToolsUnavailableError(job.mimeType);
+  if (result.unavailable) {
+    // The check said the tool was there but running it failed (a sandbox, a
+    // broken library): a plain failure, so it ends FAILED rather than coming
+    // back every time the check passes again.
+    if (toolsReported(caps, job.mimeType)) throw new Error(`Text extraction tools for ${job.mimeType} are installed but couldn't be run`);
+    throw new ExtractionToolsUnavailableError(job.mimeType);
+  }
   const text = result.text.trim().slice(0, MAX_SEARCHABLE_TEXT_LENGTH) || null;
   await delegate(job.kind).updateMany({
     where: { id: job.id },
@@ -115,7 +122,17 @@ export async function giveUpSearchTextJob(payload: unknown, error: unknown): Pro
   });
 }
 
+/** Whether the tools that could have been missing for this type were reported installed. */
+function toolsReported(caps: ExtractionCapabilities, mimeType: string): boolean {
+  if (mimeType === "application/pdf") return caps.pdfOcr;
+  return caps.imageOcr;
+}
+
 export const BACKFILL_BATCH_SIZE = 25;
+/** A PENDING Document this old with nothing queued for it is picked up again. */
+export const ORPHAN_PENDING_MS = 60 * 60_000;
+/** Finished backfill runs are kept this long, then cleared from the job table. */
+const BACKFILL_HISTORY_MS = 7 * 24 * 60 * 60_000;
 
 const PDF = { mimeType: "application/pdf" };
 const IMAGE = { mimeType: { startsWith: "image/" } };
@@ -129,6 +146,10 @@ const IMAGE = { mimeType: { startsWith: "image/" } };
 function pickableWhere(caps: ExtractionCapabilities) {
   const or: Record<string, unknown>[] = [{ extractionStatus: null, NOT: [PDF, IMAGE] }];
   if (caps.pdfText || caps.pdfOcr) or.push({ extractionStatus: null, ...PDF });
+  // Only once OCR is there: an UNAVAILABLE PDF needed OCR, or was marked
+  // while no PDF tool was installed. The second kind also waits for OCR,
+  // even if only pdftotext is installed later; retrying it on pdftotext
+  // alone would send every scan back through three failing attempts.
   if (caps.pdfOcr) or.push({ extractionStatus: EXTRACTION_UNAVAILABLE, ...PDF });
   if (caps.imageOcr) {
     or.push({ extractionStatus: null, ...IMAGE }, { extractionStatus: EXTRACTION_UNAVAILABLE, ...IMAGE });
@@ -145,11 +166,15 @@ function pickableWhere(caps: ExtractionCapabilities) {
  * queue never holds more than one batch. Returns whether to run again.
  */
 export async function runDocumentTextBackfill(): Promise<{ more: boolean }> {
+  await prisma.backgroundJob.deleteMany({
+    where: { type: "DOCUMENT_TEXT_BACKFILL", status: "DONE", finishedAt: { lt: new Date(Date.now() - BACKFILL_HISTORY_MS) } },
+  });
   const inFlight = await prisma.backgroundJob.count({
     where: { type: "OCR_DOCUMENT", priority: JOB_PRIORITY.BACKGROUND, status: { in: ["PENDING", "RUNNING"] } },
   });
   if (inFlight > 0) return { more: true };
 
+  await releaseOrphanedPending();
   const where = pickableWhere(await getExtractionCapabilities());
   let left = BACKFILL_BATCH_SIZE;
   for (const kind of SEARCH_TEXT_KINDS) {
@@ -185,4 +210,33 @@ export async function runDocumentTextBackfill(): Promise<{ more: boolean }> {
 /** Back to "not looked at", for a Document whose extraction couldn't be queued. */
 export async function resetSearchTextStatus(kind: SearchTextKind, id: string): Promise<void> {
   await delegate(kind).updateMany({ where: { id, extractionStatus: "PENDING" }, data: { extractionStatus: null } });
+}
+
+/**
+ * A Document left PENDING with no extraction job for it (the process died
+ * between filing it and queueing its job, a settle that failed, a rollback
+ * whose older build failed its job) goes back to "not looked at", so this
+ * batch picks it up. Only once it's an hour old, so a job that's about to be
+ * queued isn't raced.
+ */
+async function releaseOrphanedPending(): Promise<void> {
+  const before = new Date(Date.now() - ORPHAN_PENDING_MS);
+  for (const kind of SEARCH_TEXT_KINDS) {
+    const rows: { id: string }[] = await delegate(kind).findMany({
+      where: { extractionStatus: "PENDING", deletedAt: null, uploadedAt: { lt: before } },
+      select: { id: true },
+      orderBy: { uploadedAt: "asc" },
+      take: BACKFILL_BATCH_SIZE,
+    });
+    for (const row of rows) {
+      const live = await prisma.backgroundJob.count({
+        where: {
+          type: "OCR_DOCUMENT",
+          status: { in: ["PENDING", "RUNNING"] },
+          payload: { contains: `"id":${JSON.stringify(row.id)}` },
+        },
+      });
+      if (live === 0) await resetSearchTextStatus(kind, row.id);
+    }
+  }
 }

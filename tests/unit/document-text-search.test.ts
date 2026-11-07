@@ -21,6 +21,13 @@ const ALL_TOOLS = {
   pdfOcr: true,
   imageOcr: true,
 } as const;
+const PDFTOTEXT_ONLY = {
+  binaries: { pdftotext: true, pdftoppm: false, tesseract: false },
+  status: { pdftotext: "available", pdftoppm: "missing", tesseract: "missing" },
+  pdfText: true,
+  pdfOcr: false,
+  imageOcr: false,
+} as const;
 const NO_TOOLS = {
   binaries: { pdftotext: false, pdftoppm: false, tesseract: false },
   status: { pdftotext: "missing", pdftoppm: "missing", tesseract: "missing" },
@@ -47,6 +54,7 @@ const db = setupTestDb();
 const { addDocumentCommand, purgeDocument } = await import("@/lib/commands/documents");
 const { runPendingJobs, runOneJob, enqueueJobUnlessPending } = await import("@/lib/jobs/runner");
 const { GET } = await import("@/app/api/search/route");
+const { POST: cronPOST } = await import("@/app/api/cron/route");
 const { extractTextDetailed, getExtractionCapabilities } = await import("@/lib/documents/textExtraction");
 const { queueDocumentExtraction } = await import("@/lib/documents/queueExtraction");
 
@@ -67,6 +75,12 @@ afterEach(() => {
 
 function pdf(text: string, name = "receipt.pdf", type = "application/pdf") {
   return new File([`%PDF-1.4\nTEXT:${text}`], name, { type });
+}
+
+function png(text: string, name = "photo.png") {
+  return new File([Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from(`TEXT:${text}`)])], name, {
+    type: "image/png",
+  });
 }
 
 function docx(name: string, text = "") {
@@ -98,8 +112,8 @@ interface Hit {
   matchedInDocument?: boolean;
 }
 
-async function documentHits(q: string): Promise<Hit[]> {
-  const res = await GET(new NextRequest(`http://localhost/api/search?q=${encodeURIComponent(q)}`));
+async function documentHits(q: string, extra = ""): Promise<Hit[]> {
+  const res = await GET(new NextRequest(`http://localhost/api/search?q=${encodeURIComponent(q)}${extra}`));
   const body = (await res.json()) as { groups: Record<string, Hit[]> };
   return body.groups.Documents ?? [];
 }
@@ -250,6 +264,26 @@ describe("Search finds a Document by its contents", () => {
     expect((await documentHits("statement")).map((hit) => hit.title)).toEqual(["statement-service.docx"]);
   });
 
+  it("doesn't let Documents a list filter leaves out crowd out ones that would show", async () => {
+    const owner = await serviceRecord();
+    for (let i = 0; i < 65; i += 1) await addDocumentCommand("VEHICLE_ITEM", owner.ownerId, { file: docx(`statement-${i}.docx`) });
+    const contract = await db.prisma.contract.create({
+      data: { title: "Insurance", category: "OTHER", provider: "Acme", createdById: actorId },
+    });
+    await addDocumentCommand("CONTRACT", contract.id, { file: docx("statement-policy.docx") });
+
+    // Needs review: Vehicles, and so their Documents, are left out.
+    expect((await documentHits("statement", "&review=1")).map((hit) => hit.title)).toEqual(["statement-policy.docx"]);
+  });
+
+  it("an image's contents too", async () => {
+    const owner = await serviceRecord();
+    await addDocumentCommand("VEHICLE_ITEM", owner.ownerId, { file: png("odometer reads 84211") });
+    await drainJobs();
+
+    expect((await documentHits("84211")).map((h) => h.title)).toEqual(["photo.png"]);
+  });
+
   it("ranks Documents across kinds, a filename match ahead of a content match", async () => {
     const contract = await db.prisma.contract.create({ data: { title: "Insurance", category: "OTHER", provider: "Acme", createdById: actorId } });
     await addDocumentCommand("CONTRACT", contract.id, { file: pdf("mentions a quokka once", "policy.pdf") });
@@ -303,6 +337,21 @@ describe("Extraction on upload", () => {
     const ocr = await db.prisma.backgroundJob.findMany({ where: { type: "OCR_DOCUMENT" } });
     expect(ocr.map((j) => [j.status, j.attempts, j.lastError])).toEqual([["FAILED", 3, "pdftoppm crashed"]]);
     expect(await statusOf(doc.id)).toBe("FAILED");
+  });
+
+  it("marks it FAILED when the tools are reported installed but can't be run, so it doesn't come back", async () => {
+    vi.mocked(extractTextDetailed).mockResolvedValue({ text: "", unavailable: true });
+    const owner = await serviceRecord();
+    const doc = await addDocumentCommand("VEHICLE_ITEM", owner.ownerId, { file: pdf("replaced the timing belt") });
+
+    await drainJobsOverTime();
+    await enqueueJobUnlessPending("DOCUMENT_TEXT_BACKFILL");
+    await drainJobsOverTime();
+
+    expect(await statusOf(doc.id)).toBe("FAILED");
+    expect(extractTextDetailed).toHaveBeenCalledTimes(3);
+    const ocr = await db.prisma.backgroundJob.findMany({ where: { type: "OCR_DOCUMENT" } });
+    expect(ocr[0].lastError).toMatch(/couldn't be run/);
   });
 
   it("marks it FAILED when its last attempt's lease runs out", async () => {
@@ -443,6 +492,87 @@ describe("Backfill of Documents filed before text search", () => {
     expect(extractTextDetailed).not.toHaveBeenCalled();
     expect(await db.prisma.backgroundJob.count({ where: { type: "OCR_DOCUMENT" } })).toBe(0);
     expect(await db.prisma.backgroundJob.count({ where: { status: { not: "DONE" } } })).toBe(0);
+  });
+
+  it("picks up Documents of several kinds in one batch of 25", async () => {
+    for (let i = 0; i < 20; i += 1) await filedBeforeThisChange(pdf(`quoll${i}x`));
+    const prop = await db.prisma.property.create({ data: { label: "House", createdById: actorId } });
+    const item = await db.prisma.homeItem.create({ data: { propertyId: prop.id, type: "MAINTENANCE", title: "Gutters" } });
+    for (let i = 0; i < 10; i += 1) {
+      const doc = await addDocumentCommand("HOME_ITEM", item.id, { file: pdf(`dunnart${i}x`) });
+      await db.prisma.homeItemDocument.update({ where: { id: doc.id }, data: { extractionStatus: null } });
+    }
+    await db.prisma.backgroundJob.deleteMany({});
+
+    await enqueueJobUnlessPending("DOCUMENT_TEXT_BACKFILL");
+    await runOneJob();
+
+    const jobs = await db.prisma.backgroundJob.findMany({ where: { type: "OCR_DOCUMENT" } });
+    expect(jobs).toHaveLength(25);
+    expect(new Set(jobs.map((j) => JSON.parse(j.payload).kind))).toEqual(new Set(["VEHICLE_ITEM", "HOME_ITEM"]));
+    const left =
+      (await db.prisma.vehicleItemDocument.count({ where: { extractionStatus: null } })) +
+      (await db.prisma.homeItemDocument.count({ where: { extractionStatus: null } }));
+    expect(left).toBe(5);
+    await drainJobsOverTime();
+    for (const word of ["quoll19x", "dunnart9x"]) expect(await documentHits(word)).toHaveLength(1);
+  });
+
+  it("with only pdftotext, reads PDFs but leaves images for when OCR is installed", async () => {
+    vi.mocked(getExtractionCapabilities).mockResolvedValue(PDFTOTEXT_ONLY);
+    const scan = await filedBeforeThisChange(pdf("replaced the timing belt"));
+    const photo = await filedBeforeThisChange(png("odometer reads 84211"));
+
+    await runBackfill();
+
+    expect(await statusOf(scan.id)).toBe("COMPLETED");
+    expect(await statusOf(photo.id)).toBeNull();
+    expect(await documentHits("84211")).toEqual([]);
+  });
+
+  it("picks up a Document left PENDING an hour ago with nothing queued for it", async () => {
+    const doc = await filedBeforeThisChange(pdf("replaced the timing belt"));
+    await db.prisma.vehicleItemDocument.update({
+      where: { id: doc.id },
+      data: { extractionStatus: "PENDING", uploadedAt: new Date(Date.now() - 2 * 60 * 60_000) },
+    });
+    const recent = await filedBeforeThisChange(pdf("rotated the tyres"));
+    await db.prisma.vehicleItemDocument.update({ where: { id: recent.id }, data: { extractionStatus: "PENDING" } });
+
+    await runBackfill();
+
+    expect((await documentHits("timing belt")).map((h) => h.title)).toEqual(["receipt.pdf"]);
+    // Just filed: its job may be about to be queued, so it's left alone.
+    expect(await statusOf(recent.id)).toBe("PENDING");
+  });
+
+  it("clears finished runs older than a week from the job table", async () => {
+    const old = await db.prisma.backgroundJob.create({
+      data: { type: "DOCUMENT_TEXT_BACKFILL", payload: "{}", status: "DONE", finishedAt: new Date(Date.now() - 8 * 24 * 60 * 60_000) },
+    });
+
+    await runBackfill();
+
+    expect(await db.prisma.backgroundJob.findUnique({ where: { id: old.id } })).toBeNull();
+    expect(await db.prisma.backgroundJob.count({ where: { type: "DOCUMENT_TEXT_BACKFILL", status: "DONE" } })).toBe(1);
+  });
+
+  it("is left to the server's own runner by POST /api/cron", async () => {
+    for (let i = 0; i < 3; i += 1) await filedBeforeThisChange(pdf(`potoroo${i}x`));
+    await enqueueJobUnlessPending("DOCUMENT_TEXT_BACKFILL");
+    await runOneJob();
+    vi.stubEnv("CRON_SECRET", "s3cret");
+    try {
+      const res = await cronPOST(
+        new NextRequest("http://localhost/api/cron", { method: "POST", headers: { "x-cron-secret": "s3cret" } }),
+      );
+      expect(res.status).toBe(200);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+
+    expect(await db.prisma.backgroundJob.count({ where: { type: "OCR_DOCUMENT", status: "PENDING" } })).toBe(3);
+    expect(await db.prisma.backgroundJob.count({ where: { type: "REMINDER_CHECK", status: "DONE" } })).toBe(1);
   });
 
   it("leaves a PDF alone while no PDF tools are installed, without queueing itself forever", async () => {

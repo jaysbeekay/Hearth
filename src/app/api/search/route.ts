@@ -102,6 +102,8 @@ export async function GET(request: NextRequest) {
   const filters = parseSearchFilters(request.nextUrl.searchParams);
   const filter = hasListFilters(filters);
   const vehicleFilterOnly = !filters.review && !filters.noDocument && !filters.important;
+  // Inventory items only have Missing key details; any other filter leaves them out.
+  const inventoryFilterOk = !filter || (filters.missingDetails && !filters.due && vehicleFilterOnly);
 
   const textOk = q.length >= 2;
   if (!textOk && !filter) {
@@ -131,17 +133,22 @@ export async function GET(request: NextRequest) {
   // owner-liveness filters as before) and re-sorts back into FTS rank order,
   // since that resolution step can drop hits and doesn't preserve rank.
   //
-  // #398 review — only the kinds whose module is on, so a disabled module's
+  // #398 review — only the kinds whose results can show: the module is on,
+  // and the list filters don't leave that kind out (below), so other
   // Documents can't fill the ranked hits and push out ones that would show.
   const searchKinds: DocumentKind[] = [
     "INBOX",
     ...OWNED_DOCUMENT_KINDS.filter((kind) => {
       const moduleKey = DOCUMENT_KIND_MODULE[kind];
-      return moduleKey === null || enabledModules.has(moduleKey);
+      if (moduleKey !== null && !enabledModules.has(moduleKey)) return false;
+      if (kind === "VEHICLE_ITEM") return vehicleFilterOnly;
+      if (kind === "INVENTORY_ITEM") return inventoryFilterOk;
+      return true;
     }),
   ];
-  const ftsHits = textOk ? await searchDocumentsFts(q, { limit: 60, kinds: searchKinds }) : [];
-  const { dateFormat } = textOk ? await getUserPreferences() : { dateFormat: null };
+  const [ftsHits, { dateFormat }] = textOk
+    ? await Promise.all([searchDocumentsFts(q, { limit: 60, kinds: searchKinds }), getUserPreferences()])
+    : [[], { dateFormat: null }];
   const day = (d: Date | null | undefined) => (d ? formatDate(d, dateFormat) : null);
 
   queries.push(
@@ -276,6 +283,7 @@ export async function GET(request: NextRequest) {
                 subtitle: r.contract.title,
                 href: `/contracts/${r.contract.id}`,
                 group: "Documents",
+                matchedInDocument: !matchedViaFields(q, [r.filename]),
               })),
           ),
       );
@@ -298,6 +306,7 @@ export async function GET(request: NextRequest) {
                 subtitle: r.product.description,
                 href: `/products/${r.product.id}`,
                 group: "Documents",
+                matchedInDocument: !matchedViaFields(q, [r.filename]),
               })),
           ),
       );
@@ -575,8 +584,6 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Inventory items only have Missing key details; any other filter leaves them out.
-  const inventoryFilterOk = !filter || (filters.missingDetails && !filters.due && vehicleFilterOnly);
   if (enabledModules.has("INVENTORY") && (textOk || filter) && inventoryFilterOk) {
     queries.push(
       prisma.inventoryItem
@@ -621,6 +628,7 @@ export async function GET(request: NextRequest) {
                 subtitle: r.inventoryItem.label,
                 href: `/inventory/${r.inventoryItem.id}`,
                 group: "Documents",
+                matchedInDocument: !matchedViaFields(q, [r.filename]),
               })),
           ),
       );

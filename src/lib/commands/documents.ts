@@ -121,6 +121,10 @@ interface KindConfig {
 
 // #398 — a kind whose text is extracted only for Search: PDFs and images
 // are queued for extraction; anything else is settled at once, with no text.
+// `input.extractedText` isn't used here yet: nothing files an Inbox Document
+// onto these kinds. When something does, pass it through and skip the job,
+// and make the kind's `fts_*_ai` trigger insert NEW."extractedText" (it
+// inserts NULL today); see the implementation note on #398.
 function searchTextHooks(kind: SearchTextKind): Pick<KindConfig, "createData" | "afterCreate"> {
   return {
     createData: (_input, stored) => ({ extractionStatus: hasExtractableText(stored.mimeType) ? "PENDING" : "COMPLETED" }),

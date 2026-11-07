@@ -734,26 +734,31 @@ or to a cloud AI provider you've explicitly opted into below.
 
 ### Searching inside documents
 
-Search also finds a document by a word inside it, on every kind of record:
-Contracts, Warranties, the Inbox, Service records, Maintenance records, Trip
-segments, Rental statements and Trades. The same local text extraction
+Search also finds a document by a word inside it: Contract documents,
+Warranty invoices, the Inbox, and the documents on Service records,
+Maintenance records, Trip segments, Rental statements and Trades. Inventory
+item documents are found by filename. The same local text extraction
 (stage 1 above) runs in the background on each PDF or image when it's
 uploaded; nothing is sent anywhere. Documents filed before this existed are
 worked through by a background catch-up, 25 at a time, when the server
-starts and then every hour until none are left. It runs below every other
-background job, so Reminders and backups are never held up behind it.
+starts and then every hour until none are left. It runs at a lower priority
+than every other background job, so a Reminder check or backup is at most
+queued behind the one extraction already running, and `POST /api/cron`
+leaves it to the server's own job runner.
 
 Without `pdftotext`, `pdftoppm` and `tesseract` (the Docker image has them)
-documents are still found by filename. Those that needed a missing tool are
-picked up again once it's installed; a document that ran fine but had no
-text, or kept failing, isn't retried.
+documents are still found by filename. One that needed a missing tool is
+picked up again once that tool is installed (for a PDF, once `pdftoppm` and
+`tesseract` are). A document that ran fine but had no text, or kept failing,
+isn't retried.
 
 Rolling back to a release from before this: older builds ignore the new
 columns, and any text-extraction jobs still queued for these record types
-end as failed jobs, which is harmless. To remove the columns as well, first
-drop the five `fts_*_documents_au` triggers that mention `extractedText` (or
-re-create them from `20260828000000_add_document_search_fts`), since SQLite
-won't drop a column a trigger uses.
+end as failed jobs, which is harmless; upgrading again picks those documents
+up. To remove the columns as well, first drop the five `fts_*_documents_au`
+triggers that mention `extractedText` (or re-create them from
+`20260828000000_add_document_search_fts`), since SQLite won't drop a column
+a trigger uses.
 
 ## Bring your own AI key
 

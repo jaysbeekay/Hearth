@@ -95,7 +95,7 @@ export async function enqueueJobUnlessPending(type: JobType, payload: Record<str
   }
 }
 
-async function claimJob() {
+async function claimJob(minPriority?: number) {
   const now = new Date();
   // A job whose last allowed attempt lost its lease (the process died, or
   // the attempt hung past LEASE_MS) can't be reclaimed below; fail it and
@@ -108,7 +108,11 @@ async function claimJob() {
   });
   for (const job of lost) await settleFailedOcr(job.payload, new Error("Lease expired on the last attempt"));
   const candidate = await prisma.backgroundJob.findFirst({
-    where: { OR: [{ status: "PENDING", availableAt: { lte: now } }, { status: "RUNNING", leasedUntil: { lt: now } }], attempts: { lt: MAX_ATTEMPTS } },
+    where: {
+      OR: [{ status: "PENDING", availableAt: { lte: now } }, { status: "RUNNING", leasedUntil: { lt: now } }],
+      attempts: { lt: MAX_ATTEMPTS },
+      ...(minPriority === undefined ? {} : { priority: { gte: minPriority } }),
+    },
     // #398 review — the document text backfill's jobs run at a lower
     // priority, so they never hold up anything queued after them.
     orderBy: [{ priority: "desc" }, { createdAt: "asc" }],
@@ -151,8 +155,14 @@ async function executeJob(job: { type: string; payload: string }): Promise<NextR
   else throw new Error(`Unsupported job type: ${job.type}`);
 }
 
-export async function runOneJob(options: { timeoutMs?: number } = {}) {
-  const job = await claimJob();
+interface RunOptions {
+  timeoutMs?: number;
+  /** Only claim jobs at this priority or above (JOB_PRIORITY). */
+  minPriority?: number;
+}
+
+export async function runOneJob(options: RunOptions = {}) {
+  const job = await claimJob(options.minPriority);
   if (!job) return false;
   try {
     const next = await withTimeout(executeJob(job), options.timeoutMs ?? JOB_TIMEOUT_MS, job.type);
@@ -205,7 +215,7 @@ async function processOcr(payload: ExtractionJobPayload) {
   else await prisma.inboxDocument.update({ where: { id: payload.id }, data: { extractedText: text, extractionStatus: text ? "COMPLETED" : "FAILED" } });
 }
 
-export async function runPendingJobs(limit = 4, options: { timeoutMs?: number } = {}): Promise<void> {
+export async function runPendingJobs(limit = 4, options: RunOptions = {}): Promise<void> {
   for (let i = 0; i < limit; i += 1) {
     if (!(await runOneJob(options))) break;
   }
