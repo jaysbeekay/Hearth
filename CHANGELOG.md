@@ -142,7 +142,8 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 - **Removed two unused dependencies.** `react-hook-form` and
   `@hookform/resolvers` were in `dependencies`, but nothing imported them.
-  Forms submit to server actions, which validate with Zod. This replaces
+  Forms submit to server actions, which validate with Zod. No behaviour
+  change. This replaces
   dependabot's resolvers 5→7 bump (#569).
 
 - **A form's validation error shows under the field it's about (#406).**

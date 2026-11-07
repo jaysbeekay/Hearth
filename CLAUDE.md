@@ -205,8 +205,8 @@ for the full list and defaults before assuming a feature is unconfigured or misb
   layout (`layout.tsx`); `src/app/login`, `src/app/setup`, `src/app/forgot-password`,
   `src/app/reset-password` are outside it.
 - Zod schemas in `src/lib/validation/` are the single source of truth for validation,
-  which runs in the server actions; forms submit `FormData` and show the action's
-  error. Client forms import only option lists and labels from these files (e.g.
+  which runs only on the server (server actions, and the sync, MCP, chat and import
+  handlers); forms submit `FormData` and show the action's error. Client forms import only option lists and labels from these files (e.g.
   `TRADE_TYPES`), so check those call sites too when renaming or removing a value.
   `firstIssueMessage`-style helpers convert Zod errors to the `ActionState` shape
   (`{ error, success, values }`) returned by every action for `useActionState`/form
