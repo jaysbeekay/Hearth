@@ -18,6 +18,16 @@ describe("sessionEnded", () => {
     expect(await sessionEnded(vi.fn(async () => { throw new TypeError("Failed to fetch"); }) as unknown as typeof fetch)).toBeNull();
     expect(await sessionEnded(vi.fn(async () => new Response("<html>", { status: 200 })) as unknown as typeof fetch)).toBeNull();
   });
+
+  it("gives up on a server that never answers, so the next try isn't held up", async () => {
+    const stalled = vi.fn(
+      (_url: unknown, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+        }),
+    ) as unknown as typeof fetch;
+    expect(await sessionEnded(stalled, 20)).toBeNull();
+  });
 });
 
 describe("retryUntilSettled", () => {

@@ -15,7 +15,7 @@ import {
 } from "@/lib/offlineSession";
 import { awaitSyncIdle, syncPendingOperations } from "@/lib/offlineSync";
 import { buttonClass } from "@/lib/ui";
-import { currentPushSubscription, unsubscribeQuietly } from "@/lib/pushClient";
+import { currentPushSubscription, unsubscribeIfStill } from "@/lib/pushClient";
 
 // How long the pre-sign-out check may take before we stop waiting on
 // IndexedDB and say so, rather than hang or assume nothing is unsynced.
@@ -66,9 +66,10 @@ export function SignOutButton({
     await clearOfflineData();
     // #375 — this device stops getting the signed-out member's Reminders.
     // The server row goes with the session and the browser unsubscribes
-    // after; if the row survives (a failed delete, a second tab signing out
-    // first), the push service's 410 on the next send removes it. A push
-    // already handed to the push service can still arrive.
+    // after; if the row survives (a failed delete, a session that had
+    // already expired), the push service's 410 on the next send removes it.
+    // A push already handed to the push service can still arrive; the
+    // service worker shows only a generic notice for it (pushGate.ts).
     const push = await currentPushSubscription();
     try {
       await logout(push?.endpoint);
@@ -83,7 +84,7 @@ export function SignOutButton({
         return;
       }
     }
-    await unsubscribeQuietly(push);
+    if (push) await unsubscribeIfStill(push.endpoint);
     // A full page load, not a client-side navigation, so the router cache
     // and Back can't show the signed-out user's pages (#424 review).
     window.location.replace("/login");

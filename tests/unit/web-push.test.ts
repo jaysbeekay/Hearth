@@ -1,5 +1,6 @@
 import { createECDH, randomBytes } from "node:crypto";
 import net from "node:net";
+import webpush from "web-push";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDb, createTestUser } from "../helpers/testDb";
 import { auth } from "@/lib/auth";
@@ -155,6 +156,23 @@ describe("sending", () => {
     expect(init).toMatchObject({ method: "POST", redirect: "manual" });
     expect(options).toMatchObject({ allowLocal: false, timeoutMs: 10_000 });
     expect(init?.body).toBeInstanceOf(Uint8Array);
+  });
+
+  it("tells each device which member its Reminder is for, so the browser can check", async () => {
+    const a = await createTestUser();
+    const b = await createTestUser();
+    await subscribe(a.id, "https://push.example/a");
+    await subscribe(b.id, "https://push.example/b");
+    send.mockImplementation(async () => status(201));
+    const details = vi.spyOn(webpush, "generateRequestDetails");
+
+    expect(await sendPushReminder(reminder)).toBe(2);
+    const sent = Object.fromEntries(
+      details.mock.calls.map(([sub, payload]) => [sub.endpoint, JSON.parse(String(payload)) as { userId?: string }]),
+    );
+    expect(sent["https://push.example/a"].userId).toBe(a.id);
+    expect(sent["https://push.example/b"].userId).toBe(b.id);
+    details.mockRestore();
   });
 
   it("throws a generic error only when no device got it, keeping the detail on the device", async () => {

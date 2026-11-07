@@ -137,6 +137,7 @@ export async function assertPushEndpoint(endpoint: string): Promise<void> {
 
 type Target = {
   id: string;
+  userId: string;
   endpoint: string;
   p256dh: string;
   auth: string;
@@ -207,7 +208,9 @@ async function sendToTargets(targets: Target[], payload: (t: Target) => object):
   for (const t of targets) {
     const now = new Date();
     try {
-      await deliver(t, JSON.stringify(payload(t)), vapid);
+      // userId: the service worker shows a Reminder only while that member
+      // is signed in on the browser (pushGate.ts).
+      await deliver(t, JSON.stringify({ ...payload(t), userId: t.userId }), vapid);
     } catch (error) {
       failed += 1;
       const status = error instanceof PushSendError ? error.statusCode : undefined;
@@ -238,6 +241,7 @@ async function sendToTargets(targets: Target[], payload: (t: Target) => object):
 
 const SELECT = {
   id: true,
+  userId: true,
   endpoint: true,
   p256dh: true,
   auth: true,

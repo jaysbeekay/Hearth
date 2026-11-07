@@ -58,11 +58,17 @@ export async function currentPushSubscription(ms = 2_000): Promise<PushSubscript
 
 /**
  * Whether `/api/auth/session` says nobody is signed in: true when it does,
- * false when someone is, null when the server couldn't be asked.
+ * false when someone is, null when the server couldn't be asked, including
+ * when it hasn't answered within `ms` (a stalled connection would otherwise
+ * hold up every later try).
  */
-export async function sessionEnded(fetchImpl: typeof fetch = fetch): Promise<boolean | null> {
+export async function sessionEnded(fetchImpl: typeof fetch = fetch, ms = 10_000): Promise<boolean | null> {
   try {
-    const response = await fetchImpl("/api/auth/session", { cache: "no-store", credentials: "same-origin" });
+    const response = await fetchImpl("/api/auth/session", {
+      cache: "no-store",
+      credentials: "same-origin",
+      signal: AbortSignal.timeout(ms),
+    });
     if (!response.ok) return null;
     const session = (await response.json()) as { user?: unknown } | null;
     return !session?.user;
@@ -71,12 +77,28 @@ export async function sessionEnded(fetchImpl: typeof fetch = fetch): Promise<boo
   }
 }
 
-/** Drops this browser's subscription, giving up after `ms`. Never throws. */
-export async function unsubscribeQuietly(sub: PushSubscription | null, ms = 2_000): Promise<void> {
-  if (!sub) return;
+/**
+ * Drops this browser's subscription, giving up after `ms`. Never throws.
+ * Whether it's gone: false when the browser refused or didn't answer.
+ */
+export async function unsubscribeQuietly(sub: PushSubscription | null, ms = 2_000): Promise<boolean> {
+  if (!sub) return true;
   try {
-    await withTimeout(sub.unsubscribe(), ms);
+    return await withTimeout(sub.unsubscribe(), ms);
   } catch {
     // The server row goes on the next send (410) or 30 days of failures.
+    return false;
   }
+}
+
+/**
+ * Drops this browser's subscription only if it's still the one with
+ * `endpoint`. Unsubscribing applies to the whole service worker
+ * registration, so after a wait (a server round-trip) an older
+ * PushSubscription object would also drop one the member has just turned on.
+ */
+export async function unsubscribeIfStill(endpoint: string): Promise<boolean> {
+  const current = await currentPushSubscription();
+  if (current?.endpoint !== endpoint) return true;
+  return unsubscribeQuietly(current);
 }

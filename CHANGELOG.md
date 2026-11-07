@@ -17,8 +17,11 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   sign-in page after a session ends any other way (password change,
   expiry), so the next person to use it doesn't get your Reminders. If the
   sign-in page can't reach the server to confirm the session is over, it
-  keeps trying while it's open, and the next member to sign in on that
-  browser drops a subscription that isn't theirs. Members
+  keeps trying while it's open. Whatever happens there, a browser only shows
+  a Reminder while the member it's for is signed in on it: otherwise it
+  drops its subscription and shows a plain "Reminders are off on this
+  browser" notice instead, so a session that expired, or someone else
+  signing in, can't leave your Reminders arriving there. Members
   only ever see and remove their own devices, and Settings gets only a hash
   of each device's push endpoint. Email stays a per-account choice and ntfy
   stays household-wide.

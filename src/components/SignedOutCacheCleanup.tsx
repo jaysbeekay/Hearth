@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { broadcastSession, clearSignedOutData } from "@/lib/offlineSession";
-import { currentPushSubscription, sessionEnded, unsubscribeQuietly } from "@/lib/pushClient";
+import { currentPushSubscription, sessionEnded, unsubscribeIfStill } from "@/lib/pushClient";
 import { retryUntilSettled } from "@/lib/retryUntilSettled";
 
 // How long to wait before asking the server again when it couldn't say
@@ -12,7 +12,7 @@ const SESSION_RETRY_MS = 30_000;
 /**
  * Whether push is settled for this page: dropped, nothing to drop, or kept
  * for a member who is in fact signed in. False when the server couldn't be
- * asked, so it's tried again.
+ * asked or the browser didn't drop it, so it's tried again.
  */
 async function dropSignedOutPush(): Promise<boolean> {
   const sub = await currentPushSubscription();
@@ -22,8 +22,7 @@ async function dropSignedOutPush(): Promise<boolean> {
   // session: a signed-in member's subscription can't be restored from here.
   const ended = await sessionEnded();
   if (ended === null) return false;
-  if (ended) await unsubscribeQuietly(sub);
-  return true;
+  return ended ? unsubscribeIfStill(sub.endpoint) : true;
 }
 
 // #424 — the sign-in page only renders when this browser has no session
@@ -39,7 +38,8 @@ async function dropSignedOutPush(): Promise<boolean> {
 //   goes on the next send, when the push service answers 410. If the server
 //   can't confirm the session has ended, this tries again every 30 seconds
 //   and whenever the browser comes back online, for as long as the page is
-//   open; after that, PushOwnerCheck drops it when someone else signs in.
+//   open. Whatever happens here, the service worker shows a Reminder only
+//   while the member it's for is signed in on this browser (pushGate.ts).
 // Queued writes are left: they're keyed by user, so only the same user
 // signing back in sees and syncs them, and anyone else's sign-in purges them.
 export function SignedOutCacheCleanup() {
