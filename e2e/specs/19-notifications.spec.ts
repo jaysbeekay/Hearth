@@ -179,12 +179,15 @@ test("a tenancy's lease end delivers a tenancy.expiring webhook and shows on the
 
 // #375 — "Turn on reminders" with push. The dev server runs no service
 // worker and headless Chromium can't reach a real push service, so the page
-// gets a stand-in registration whose subscription points at an endpoint that
+// gets a stand-in permission and registration whose subscription points at an endpoint that
 // never resolves. The server stores and lists it like any other device; this
 // test turns it off again so later specs see no push device.
-test("turning push on and off from the Turn on reminders screen", async ({ page, context }) => {
-  await context.grantPermissions(["notifications"], { origin: BASE_URL });
+test("turning push on and off from the Turn on reminders screen", async ({ page }) => {
   await page.addInitScript(() => {
+    // Headless Chromium in CI reports notifications as denied even after
+    // grantPermissions, so the permission is part of the stand-in too.
+    Object.defineProperty(Notification, "permission", { get: () => "granted" });
+    Notification.requestPermission = async () => "granted";
     const KEY = "e2e-push-stub";
     const b64url = (bytes: Uint8Array) =>
       btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
