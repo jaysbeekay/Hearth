@@ -52,6 +52,7 @@ enum NotificationChannel {
   EMAIL
   NTFY
   WEBHOOK
+  PUSH
 }
 
 // #201 foundation: NotificationLog is now polymorphic across the three
@@ -215,6 +216,7 @@ model User {
   trips                 Trip[]
   properties            Property[]
   passkeys              PasskeyCredential[]
+  pushSubscriptions     PushSubscription[]
   vehicles              Vehicle[]
   inventoryItems        InventoryItem[]
   portfolios            Portfolio[]
@@ -274,6 +276,26 @@ model PasskeyCredential {
 
   @@index([userId])
   @@map("passkey_credentials")
+}
+
+// #375 — a browser's Web Push subscription: one row per device that turned
+// on reminders. The endpoint is unique, so a device that changes hands
+// belongs to whoever subscribed it last.
+model PushSubscription {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint      String    @unique
+  p256dh        String
+  auth          String
+  deviceLabel   String?
+  createdAt     DateTime  @default(now())
+  lastSuccessAt DateTime?
+  lastFailureAt DateTime? // when the current run of failures began
+  lastError     String?
+
+  @@index([userId])
+  @@map("push_subscriptions")
 }
 
 model PasskeyChallenge {

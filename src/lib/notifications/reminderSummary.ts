@@ -5,13 +5,14 @@ const CHANNEL_LABELS = new Map([
   ["EMAIL", "email"],
   ["NTFY", "ntfy"],
   ["WEBHOOK", "webhook"],
+  ["PUSH", "push"],
 ]);
 
 export const channelLabel = (channel: string) => CHANNEL_LABELS.get(channel) ?? channel;
 
 /** "Email + ntfy", or "None configured". */
 export function channelSummary(channels: ReminderHealth["channels"]): string {
-  const active = [channels.email && "Email", channels.ntfy && "ntfy", channels.webhook && "Webhook"].filter(Boolean);
+  const active = [channels.email && "Email", channels.ntfy && "ntfy", channels.webhook && "Webhook", channels.push && "Push"].filter(Boolean);
   return active.length > 0 ? active.join(" + ") : "None configured";
 }
 

@@ -19,7 +19,7 @@ Open `http://localhost:3000` — you'll be sent to `/setup` to create the first 
 | `DATABASE_URL` | SQLite path — defaults to `file:./data/app.db`, i.e. `/app/data/app.db` inside the container |
 | `AUTH_SECRET` | Session signing key — generate with `openssl rand -base64 32` |
 
-Everything else is optional. Set `SMTP_*` to enable email reminders, `NTFY_*` for push notifications, `OLLAMA_BASE_URL` for local AI extraction, and `S3_*` / `SFTP_*` for offsite backups. See the full reference below and `.env.example` for all available variables.
+Everything else is optional. Set `SMTP_*` to enable email reminders, `NTFY_*` for push notifications via ntfy (Web Push to members' own browsers needs no setup), `OLLAMA_BASE_URL` for local AI extraction, and `S3_*` / `SFTP_*` for offsite backups. See the full reference below and `.env.example` for all available variables.
 
 ## Deploy
 
@@ -81,7 +81,7 @@ security notes.
 - Attach documents (PDF/images/Word) to contracts or products — uploading a document
   auto-fills fields like provider, dates, and cost via AI/heuristic extraction
 - Configurable reminder thresholds per contract/product (e.g. 30/14/7/1 days before expiry)
-- Reminders via email (SMTP) and/or push notifications ([ntfy](https://ntfy.sh))
+- Reminders via email (SMTP), push notifications ([ntfy](https://ntfy.sh)), and/or Web Push to each member's own browsers and phones
 - Reminder health status per record — enabled, next reminder date, thresholds, delivery
   channel/status, last sent, last failure — plus a one-off "Send test reminder" action
 - Auto-filled fields from a scanned document require an explicit confirmation before
@@ -329,6 +329,9 @@ services:
       NTFY_URL: ${NTFY_URL:-https://ntfy.sh}
       NTFY_TOPIC: ${NTFY_TOPIC:-hearth-changeme-a1b2c3}
       NTFY_TOKEN: ${NTFY_TOKEN:-}
+      # Web Push needs no setup; optionally the contact push services see
+      # ("mailto:..." or "https://..."). See .env.example.
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
       CRON_SECRET: ${CRON_SECRET:-}
       MCP_TOKEN: ${MCP_TOKEN:-}
       MCP_TOKENS: ${MCP_TOKENS:-}
@@ -1013,6 +1016,7 @@ for the full list with defaults. Notable ones:
 | `SQLITE_JOURNAL_MODE` | Optional. `DELETE` (default) or `WAL`. WAL lets pages keep loading while a large write commits. Only turn it on when `./data` is on a local disk: on a NAS share (NFS/SMB) or a Windows folder under WSL2 (`/mnt/c`) it can corrupt the database or stop the app starting. Under WAL the database also keeps `app.db-wal` and `app.db-shm` files; see the backup notes above. Setting `DELETE` again switches an existing database back on the next start. |
 | `SMTP_HOST` / `SMTP_USER` | Set both to enable email reminders. |
 | `NTFY_TOPIC` | Set to enable push reminders via ntfy. |
+| `VAPID_SUBJECT` | Optional. The contact (`mailto:…` or `https://…`) Web Push services see on every push. Defaults to `APP_URL` when that's https, otherwise the first admin's email address. |
 | `REMINDER_CRON_SCHEDULE` | When the built-in scheduler checks for expiring contracts (cron syntax, default daily at 08:00). |
 | `CRON_SECRET` | Optional. If set, enables `POST /api/cron` (with header `x-cron-secret`) so an external scheduler can trigger the check instead of/alongside the built-in one. |
 | `AUTH_TRUST_HOST` | Set to `true` when running behind a reverse proxy (e.g. nginx) — see "Locking down access with nginx + mTLS" above. |
@@ -1049,6 +1053,19 @@ each configured channel for the soonest threshold that's been crossed and not
 already notified — so adding a contract or product that's already past
 several thresholds only sends one catch-up reminder per channel, not one per
 threshold.
+
+Web Push goes to every device any member has turned it on for, read-only
+members included. That's the same household-wide model as ntfy, and the same
+records every member can already open in the app; the sent log is per record
+and channel, not per device. Removing a device, or a member signing out on
+it, stops the sends after that one, not a send already running: a device can
+still get the notification that was being sent when it was removed.
+
+Rolling back to a release from before Web Push: delete the push rows from the
+sent log first (`DELETE FROM notification_logs WHERE channel = 'PUSH';`),
+since older builds don't know that channel and fail reading those rows.
+Leave the `push_subscriptions` table and its `_prisma_migrations` row in
+place: older builds ignore both, and dropping either breaks upgrading again.
 
 ## Security notes
 
