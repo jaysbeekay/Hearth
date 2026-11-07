@@ -6,6 +6,7 @@ import {
   getExtractionCapabilities,
   MAX_SEARCHABLE_TEXT_LENGTH,
   withExtractionSlot,
+  type ExtractionBinary,
   type ExtractionCapabilities,
 } from "@/lib/documents/textExtraction";
 import { JOB_PRIORITY } from "@/lib/jobs/priority";
@@ -92,14 +93,15 @@ export async function processSearchTextJob(payload: unknown): Promise<void> {
   const row = await delegate(job.kind).findUnique({ where: { id: job.id }, select: { id: true } });
   if (!row) return;
   const buffer = await documentStoreFor(job.kind).read(job.ownerId, job.storedName);
-  const caps = await getExtractionCapabilities();
   const result = await withExtractionSlot(() => extractTextDetailed(buffer, job.mimeType));
   if (result.unavailable) {
-    // The check said the tool was there but running it failed (a sandbox, a
-    // broken library): a plain failure, so it ends FAILED rather than coming
-    // back every time the check passes again.
-    if (toolsReported(caps, job.mimeType)) throw new Error(`Text extraction tools for ${job.mimeType} are installed but couldn't be run`);
-    throw new ExtractionToolsUnavailableError(job.mimeType);
+    // Asked after the run, which updates what's known: a tool that isn't
+    // there (never installed, or removed since) is UNAVAILABLE and comes
+    // back once it's installed. One that's there but couldn't be run (a
+    // sandbox, a broken library) is a plain failure, so it ends FAILED
+    // rather than coming back every time the check passes again.
+    if (toolMissing(await getExtractionCapabilities(), job.mimeType)) throw new ExtractionToolsUnavailableError(job.mimeType);
+    throw new Error(`Text extraction tools for ${job.mimeType} are installed but couldn't be run`);
   }
   const text = result.text.trim().slice(0, MAX_SEARCHABLE_TEXT_LENGTH) || null;
   await delegate(job.kind).updateMany({
@@ -122,16 +124,16 @@ export async function giveUpSearchTextJob(payload: unknown, error: unknown): Pro
   });
 }
 
-/** Whether the tools that could have been missing for this type were reported installed. */
-function toolsReported(caps: ExtractionCapabilities, mimeType: string): boolean {
-  if (mimeType === "application/pdf") return caps.pdfOcr;
-  return caps.imageOcr;
+/** Whether a tool this type can need is not installed (as opposed to installed but unusable). */
+function toolMissing(caps: ExtractionCapabilities, mimeType: string): boolean {
+  const needed: ExtractionBinary[] = mimeType === "application/pdf" ? ["pdftoppm", "tesseract"] : ["tesseract"];
+  return needed.some((binary) => caps.status[binary] === "missing");
 }
 
 export const BACKFILL_BATCH_SIZE = 25;
 /** A PENDING Document this old with nothing queued for it is picked up again. */
 export const ORPHAN_PENDING_MS = 60 * 60_000;
-/** Finished backfill runs are kept this long, then cleared from the job table. */
+/** Finished backfill runs (DONE or FAILED) are kept this long, then cleared from the job table. */
 const BACKFILL_HISTORY_MS = 7 * 24 * 60 * 60_000;
 
 const PDF = { mimeType: "application/pdf" };
@@ -167,7 +169,7 @@ function pickableWhere(caps: ExtractionCapabilities) {
  */
 export async function runDocumentTextBackfill(): Promise<{ more: boolean }> {
   await prisma.backgroundJob.deleteMany({
-    where: { type: "DOCUMENT_TEXT_BACKFILL", status: "DONE", finishedAt: { lt: new Date(Date.now() - BACKFILL_HISTORY_MS) } },
+    where: { type: "DOCUMENT_TEXT_BACKFILL", status: { in: ["DONE", "FAILED"] }, finishedAt: { lt: new Date(Date.now() - BACKFILL_HISTORY_MS) } },
   });
   const inFlight = await prisma.backgroundJob.count({
     where: { type: "OCR_DOCUMENT", priority: JOB_PRIORITY.BACKGROUND, status: { in: ["PENDING", "RUNNING"] } },

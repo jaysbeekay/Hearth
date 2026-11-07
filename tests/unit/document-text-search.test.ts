@@ -57,6 +57,7 @@ const { GET } = await import("@/app/api/search/route");
 const { POST: cronPOST } = await import("@/app/api/cron/route");
 const { extractTextDetailed, getExtractionCapabilities } = await import("@/lib/documents/textExtraction");
 const { queueDocumentExtraction } = await import("@/lib/documents/queueExtraction");
+const { runDocumentTextBackfill } = await import("@/lib/documents/documentText");
 
 const OPT_IN_MODULES: ModuleKey[] = ["TRAVEL", "HOME", "VEHICLES", "INVENTORY", "WEALTH"];
 
@@ -339,8 +340,18 @@ describe("Extraction on upload", () => {
     expect(await statusOf(doc.id)).toBe("FAILED");
   });
 
-  it("marks it FAILED when the tools are reported installed but can't be run, so it doesn't come back", async () => {
-    vi.mocked(extractTextDetailed).mockResolvedValue({ text: "", unavailable: true });
+  it("marks it FAILED when the tools are installed but can't be run, so it doesn't come back", async () => {
+    // tesseract is there but not executable (EACCES): the run marks it so.
+    vi.mocked(extractTextDetailed).mockImplementation(async () => {
+      vi.mocked(getExtractionCapabilities).mockResolvedValue({
+        ...ALL_TOOLS,
+        status: { ...ALL_TOOLS.status, tesseract: "unusable" },
+        binaries: { ...ALL_TOOLS.binaries, tesseract: false },
+        pdfOcr: false,
+        imageOcr: false,
+      });
+      return { text: "", unavailable: true };
+    });
     const owner = await serviceRecord();
     const doc = await addDocumentCommand("VEHICLE_ITEM", owner.ownerId, { file: pdf("replaced the timing belt") });
 
@@ -352,6 +363,26 @@ describe("Extraction on upload", () => {
     expect(extractTextDetailed).toHaveBeenCalledTimes(3);
     const ocr = await db.prisma.backgroundJob.findMany({ where: { type: "OCR_DOCUMENT" } });
     expect(ocr[0].lastError).toMatch(/couldn't be run/);
+  });
+
+  it("leaves it UNAVAILABLE when a tool was removed while the server ran", async () => {
+    // Reported installed at start; the run hits ENOENT and marks it missing.
+    vi.mocked(extractTextDetailed).mockImplementation(async () => {
+      vi.mocked(getExtractionCapabilities).mockResolvedValue({
+        ...ALL_TOOLS,
+        status: { ...ALL_TOOLS.status, tesseract: "missing" },
+        binaries: { ...ALL_TOOLS.binaries, tesseract: false },
+        pdfOcr: false,
+        imageOcr: false,
+      });
+      return { text: "", unavailable: true };
+    });
+    const owner = await serviceRecord();
+    const doc = await addDocumentCommand("VEHICLE_ITEM", owner.ownerId, { file: pdf("replaced the timing belt") });
+
+    await drainJobsOverTime();
+
+    expect(await statusOf(doc.id)).toBe("UNAVAILABLE");
   });
 
   it("marks it FAILED when its last attempt's lease runs out", async () => {
@@ -546,14 +577,44 @@ describe("Backfill of Documents filed before text search", () => {
     expect(await statusOf(recent.id)).toBe("PENDING");
   });
 
+  it("leaves an old PENDING Document alone while its job is still queued, waiting for a retry, or running", async () => {
+    const docs = [];
+    for (let i = 0; i < 3; i += 1) docs.push(await filedBeforeThisChange(pdf("replaced the timing belt")));
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60_000);
+    const live = [
+      { status: "PENDING" },
+      { status: "PENDING", attempts: 1, availableAt: new Date(Date.now() + 3_600_000) },
+      { status: "RUNNING", attempts: 1, leasedUntil: new Date(Date.now() + 3_600_000) },
+    ];
+    for (const [i, job] of live.entries()) {
+      const doc = docs[i];
+      await db.prisma.vehicleItemDocument.update({ where: { id: doc.id }, data: { extractionStatus: "PENDING", uploadedAt: twoHoursAgo } });
+      // An upload's job: normal priority, the payload the Document command writes.
+      await db.prisma.backgroundJob.create({
+        data: {
+          type: "OCR_DOCUMENT",
+          payload: JSON.stringify({ kind: "VEHICLE_ITEM", id: doc.id, ownerId: doc.ownerId, storedName: doc.storedName, mimeType: doc.mimeType }),
+          ...job,
+        },
+      });
+    }
+
+    await runDocumentTextBackfill();
+
+    for (const doc of docs) expect(await statusOf(doc.id)).toBe("PENDING");
+  });
+
   it("clears finished runs older than a week from the job table", async () => {
-    const old = await db.prisma.backgroundJob.create({
-      data: { type: "DOCUMENT_TEXT_BACKFILL", payload: "{}", status: "DONE", finishedAt: new Date(Date.now() - 8 * 24 * 60 * 60_000) },
-    });
+    const weekAgo = new Date(Date.now() - 8 * 24 * 60 * 60_000);
+    const old = await Promise.all(
+      ["DONE", "FAILED"].map((status) =>
+        db.prisma.backgroundJob.create({ data: { type: "DOCUMENT_TEXT_BACKFILL", payload: "{}", status, finishedAt: weekAgo } }),
+      ),
+    );
 
     await runBackfill();
 
-    expect(await db.prisma.backgroundJob.findUnique({ where: { id: old.id } })).toBeNull();
+    for (const job of old) expect(await db.prisma.backgroundJob.findUnique({ where: { id: job.id } })).toBeNull();
     expect(await db.prisma.backgroundJob.count({ where: { type: "DOCUMENT_TEXT_BACKFILL", status: "DONE" } })).toBe(1);
   });
 
