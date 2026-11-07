@@ -737,7 +737,9 @@ or to a cloud AI provider you've explicitly opted into below.
 Search also finds a document by a word inside it: Contract documents,
 Warranty invoices, the Inbox, and the documents on Service records,
 Maintenance records, Trip segments, Rental statements and Trades. Inventory
-item documents are found by filename. The same local text extraction
+item documents are found by filename. A Document with several versions
+shows once, as its latest version, or as an older version (saying so) when
+only that one matches. The same local text extraction
 (stage 1 above) runs in the background on each PDF or image when it's
 uploaded; nothing is sent anywhere. Documents filed before this existed are
 worked through by a background catch-up, 25 at a time, when the server

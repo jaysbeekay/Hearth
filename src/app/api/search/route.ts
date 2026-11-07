@@ -8,6 +8,7 @@ import { TRADE_TYPE_LABELS } from "@/lib/validation/wealth";
 import { DOCUMENT_KIND_MODULE, OWNED_DOCUMENT_KINDS } from "@/lib/documents/kinds";
 import type { DocumentKind } from "@/lib/documents/documentQueries";
 import { searchDocumentsFts, hitOwnerIds, hitDocIds, sortByHitRank } from "@/lib/documents/documentSearch";
+import { collapseVersionHits } from "@/lib/documents/searchVersions";
 import {
   contractFilterWheres,
   contractMissingParts,
@@ -57,6 +58,12 @@ function matchedViaFields(q: string, fields: (string | null | undefined)[]) {
 // that record's parent ("Logbook service · 12 Mar 2024 · Corolla").
 function ownerSubtitle(...parts: (string | null | undefined)[]): string {
   return parts.filter(Boolean).join(" · ");
+}
+
+// A Document whose latest version didn't match, only an older one (an
+// earlier policy's wording): it's shown, and says which it is.
+function olderLabel(hit: { olderVersion: boolean }): string | null {
+  return hit.olderVersion ? "Older version" : null;
 }
 
 // #395 — under Missing key details each row says which part is missing
@@ -274,13 +281,13 @@ export async function GET(request: NextRequest) {
             where: { id: { in: contractDocIds }, deletedAt: null, contract: { deletedAt: null } },
             select: { id: true, filename: true, contract: { select: { id: true, title: true } } },
           })
-          .then((rows) =>
-            sortByHitRank(rows, ftsHits)
+          .then(async (rows) =>
+            (await collapseVersionHits("CONTRACT", sortByHitRank(rows, ftsHits)))
               .slice(0, LIMIT)
               .map((r) => ({
                 id: r.id,
                 title: r.filename,
-                subtitle: r.contract.title,
+                subtitle: ownerSubtitle(olderLabel(r), r.contract.title),
                 href: `/contracts/${r.contract.id}`,
                 group: "Documents",
                 matchedInDocument: !matchedViaFields(q, [r.filename]),
@@ -297,13 +304,13 @@ export async function GET(request: NextRequest) {
             where: { id: { in: productDocIds }, deletedAt: null, product: { deletedAt: null } },
             select: { id: true, filename: true, product: { select: { id: true, description: true } } },
           })
-          .then((rows) =>
-            sortByHitRank(rows, ftsHits)
+          .then(async (rows) =>
+            (await collapseVersionHits("PRODUCT", sortByHitRank(rows, ftsHits)))
               .slice(0, LIMIT)
               .map((r) => ({
                 id: r.id,
                 title: r.filename,
-                subtitle: r.product.description,
+                subtitle: ownerSubtitle(olderLabel(r), r.product.description),
                 href: `/products/${r.product.id}`,
                 group: "Documents",
                 matchedInDocument: !matchedViaFields(q, [r.filename]),
@@ -380,13 +387,13 @@ export async function GET(request: NextRequest) {
               vehicleItem: { select: { title: true, date: true, vehicleId: true, vehicle: { select: { label: true } } } },
             },
           })
-          .then((rows) =>
-            sortByHitRank(rows, ftsHits)
+          .then(async (rows) =>
+            (await collapseVersionHits("VEHICLE_ITEM", sortByHitRank(rows, ftsHits)))
               .slice(0, LIMIT)
               .map((r) => ({
                 id: r.id,
                 title: r.filename,
-                subtitle: ownerSubtitle(r.vehicleItem.title, day(r.vehicleItem.date), r.vehicleItem.vehicle.label),
+                subtitle: ownerSubtitle(olderLabel(r), r.vehicleItem.title, day(r.vehicleItem.date), r.vehicleItem.vehicle.label),
                 href: `/vehicles/${r.vehicleItem.vehicleId}`,
                 group: "Documents",
                 matchedInDocument: !matchedViaFields(q, [r.filename]),
@@ -445,13 +452,13 @@ export async function GET(request: NextRequest) {
               tripSegment: { select: { title: true, startDate: true, tripId: true, trip: { select: { title: true } } } },
             },
           })
-          .then((rows) =>
-            sortByHitRank(rows, ftsHits)
+          .then(async (rows) =>
+            (await collapseVersionHits("TRIP_SEGMENT", sortByHitRank(rows, ftsHits)))
               .slice(0, LIMIT)
               .map((r) => ({
                 id: r.id,
                 title: r.filename,
-                subtitle: ownerSubtitle(r.tripSegment.title, day(r.tripSegment.startDate), r.tripSegment.trip.title),
+                subtitle: ownerSubtitle(olderLabel(r), r.tripSegment.title, day(r.tripSegment.startDate), r.tripSegment.trip.title),
                 href: `/travel/${r.tripSegment.tripId}`,
                 group: "Documents",
                 matchedInDocument: !matchedViaFields(q, [r.filename]),
@@ -534,13 +541,13 @@ export async function GET(request: NextRequest) {
               homeItem: { select: { id: true, propertyId: true, title: true, date: true, property: { select: { label: true } } } },
             },
           })
-          .then((rows) =>
-            sortByHitRank(rows, ftsHits)
+          .then(async (rows) =>
+            (await collapseVersionHits("HOME_ITEM", sortByHitRank(rows, ftsHits)))
               .slice(0, LIMIT)
               .map((r) => ({
                 id: r.id,
                 title: r.filename,
-                subtitle: ownerSubtitle(r.homeItem.title, day(r.homeItem.date), r.homeItem.property.label),
+                subtitle: ownerSubtitle(olderLabel(r), r.homeItem.title, day(r.homeItem.date), r.homeItem.property.label),
                 href: `/home/${r.homeItem.propertyId}`,
                 group: "Documents",
                 matchedInDocument: !matchedViaFields(q, [r.filename]),
@@ -564,13 +571,14 @@ export async function GET(request: NextRequest) {
               },
             },
           })
-          .then((rows) =>
-            sortByHitRank(rows, ftsHits)
+          .then(async (rows) =>
+            (await collapseVersionHits("RENTAL_STATEMENT", sortByHitRank(rows, ftsHits)))
               .slice(0, LIMIT)
               .map((r) => ({
                 id: r.id,
                 title: r.filename,
                 subtitle: ownerSubtitle(
+                  olderLabel(r),
                   "Rental statement",
                   day(r.rentalStatement.statementDate ?? r.rentalStatement.periodStart),
                   r.rentalStatement.property.label,
@@ -619,13 +627,13 @@ export async function GET(request: NextRequest) {
             where: { id: { in: inventoryItemDocIds }, deletedAt: null, inventoryItem: { deletedAt: null } },
             select: { id: true, filename: true, inventoryItem: { select: { id: true, label: true } } },
           })
-          .then((rows) =>
-            sortByHitRank(rows, ftsHits)
+          .then(async (rows) =>
+            (await collapseVersionHits("INVENTORY_ITEM", sortByHitRank(rows, ftsHits)))
               .slice(0, LIMIT)
               .map((r) => ({
                 id: r.id,
                 title: r.filename,
-                subtitle: r.inventoryItem.label,
+                subtitle: ownerSubtitle(olderLabel(r), r.inventoryItem.label),
                 href: `/inventory/${r.inventoryItem.id}`,
                 group: "Documents",
                 matchedInDocument: !matchedViaFields(q, [r.filename]),
@@ -672,13 +680,13 @@ export async function GET(request: NextRequest) {
               },
             },
           })
-          .then((rows) =>
-            sortByHitRank(rows, ftsHits)
+          .then(async (rows) =>
+            (await collapseVersionHits("TRADE", sortByHitRank(rows, ftsHits)))
               .slice(0, LIMIT)
               .map((r) => ({
                 id: r.id,
                 title: r.filename,
-                subtitle: ownerSubtitle(TRADE_TYPE_LABELS[r.trade.type] ?? "Trade", day(r.trade.date), r.trade.holding.ticker),
+                subtitle: ownerSubtitle(olderLabel(r), TRADE_TYPE_LABELS[r.trade.type] ?? "Trade", day(r.trade.date), r.trade.holding.ticker),
                 href: `/wealth/portfolios/${r.trade.holding.portfolioId}/holdings/${r.trade.holding.id}`,
                 group: "Documents",
                 matchedInDocument: !matchedViaFields(q, [r.filename]),
