@@ -98,6 +98,11 @@ export async function register() {
         // its own — folded in here anyway so every scheduled job goes
         // through the exact same enqueue path.
         if (cronDue("*/15 * * * *", now)) await enqueueJobUnlessPending("PRICE_REFRESH");
+
+        // #398 — daily; once nothing is left it finds nothing and stops at
+        // one quick run. While Documents are waiting it queues its own next
+        // batch, so a household is caught up in hours, not days.
+        if (cronDue("30 3 * * *", now)) await enqueueJobUnlessPending("DOCUMENT_TEXT_BACKFILL");
       } catch (error) {
         console.error("[jobs] scheduled-job ticker failed:", error);
       }

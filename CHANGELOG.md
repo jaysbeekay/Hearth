@@ -9,6 +9,16 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Search finds every Document by its contents (#398).** Documents on
+  Service records, Maintenance records, Trip segments, Rental statements and
+  Trades now get their text extracted in the background (pdftotext, then
+  OCR; PDFs and images only), so Search can find a receipt by a word inside
+  it. These hits now name the record they're attached to ("Logbook service ·
+  Corolla") and say when only the contents matched. Documents filed before
+  this release are worked through by a new daily `DOCUMENT_TEXT_BACKFILL`
+  job, 25 at a time, which queues its own next batch until none are left.
+  Server-only; the standalone shell has no text extraction.
+
 - **Assistant confirmation card helps spot a steered proposal (#530, part
   2).** An update now shows each field's current value under the proposed
   one. Free-text fields are shown in full and shaded as the Assistant's

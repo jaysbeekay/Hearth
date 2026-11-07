@@ -12,6 +12,7 @@ import {
   type Trashable,
 } from "@/lib/commands/shared";
 import { queueDocumentExtraction } from "@/lib/documents/queueExtraction";
+import { hasExtractableText, type SearchTextKind } from "@/lib/documents/documentText";
 import { getDocumentVersionChain } from "@/lib/documents/documentQueries";
 import { DOCUMENT_KIND_MODULE, OWNED_DOCUMENT_KINDS, type OwnedDocumentKind } from "@/lib/documents/kinds";
 import { ProductDocumentKind } from "@/generated/prisma/enums";
@@ -117,6 +118,24 @@ interface KindConfig {
   afterCreate?: (doc: DocumentRecord, input: AddDocumentInput) => Promise<void>;
 }
 
+// #398 — a kind whose text is extracted only for Search: PDFs and images
+// are queued for extraction; anything else is settled at once, with no text.
+function searchTextHooks(kind: SearchTextKind): Pick<KindConfig, "createData" | "afterCreate"> {
+  return {
+    createData: (input) => ({ extractionStatus: hasExtractableText(input.file.type) ? "PENDING" : "COMPLETED" }),
+    afterCreate: async (doc) => {
+      if (!hasExtractableText(doc.mimeType)) return;
+      await queueDocumentExtraction({
+        kind,
+        id: doc.id,
+        ownerId: doc.ownerId,
+        storedName: doc.storedName,
+        mimeType: doc.mimeType,
+      });
+    },
+  };
+}
+
 const KINDS: Record<OwnedDocumentKind, KindConfig> = {
   CONTRACT: {
     ownerField: "contractId",
@@ -187,6 +206,7 @@ const KINDS: Record<OwnedDocumentKind, KindConfig> = {
         }
       );
     },
+    ...searchTextHooks("TRIP_SEGMENT"),
   },
   RENTAL_STATEMENT: {
     ownerField: "rentalStatementId",
@@ -207,6 +227,7 @@ const KINDS: Record<OwnedDocumentKind, KindConfig> = {
         }
       );
     },
+    ...searchTextHooks("RENTAL_STATEMENT"),
   },
   HOME_ITEM: {
     ownerField: "homeItemId",
@@ -227,6 +248,7 @@ const KINDS: Record<OwnedDocumentKind, KindConfig> = {
         }
       );
     },
+    ...searchTextHooks("HOME_ITEM"),
   },
   VEHICLE_ITEM: {
     ownerField: "vehicleItemId",
@@ -247,6 +269,7 @@ const KINDS: Record<OwnedDocumentKind, KindConfig> = {
         }
       );
     },
+    ...searchTextHooks("VEHICLE_ITEM"),
   },
   INVENTORY_ITEM: {
     ownerField: "inventoryItemId",
@@ -274,6 +297,7 @@ const KINDS: Record<OwnedDocumentKind, KindConfig> = {
         }
       );
     },
+    ...searchTextHooks("TRADE"),
   },
 };
 

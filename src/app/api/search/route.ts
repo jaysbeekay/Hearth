@@ -49,6 +49,12 @@ function matchedViaFields(q: string, fields: (string | null | undefined)[]) {
   return fields.some((f) => f?.toLowerCase().includes(needle));
 }
 
+// #398 — a Document hit names the record it's attached to, then that
+// record's parent ("Logbook service · Corolla").
+function ownerSubtitle(...parts: (string | null | undefined)[]): string {
+  return parts.filter(Boolean).join(" · ");
+}
+
 // #395 — under Missing key details each row says which part is missing
 // ("No end date"), from the same rule that selected it.
 function missingSubtitle(parts: string[]): string | undefined {
@@ -346,7 +352,7 @@ export async function GET(request: NextRequest) {
             select: {
               id: true,
               filename: true,
-              vehicleItem: { select: { vehicleId: true, vehicle: { select: { label: true } } } },
+              vehicleItem: { select: { title: true, vehicleId: true, vehicle: { select: { label: true } } } },
             },
           })
           .then((rows) =>
@@ -355,9 +361,10 @@ export async function GET(request: NextRequest) {
               .map((r) => ({
                 id: r.id,
                 title: r.filename,
-                subtitle: r.vehicleItem.vehicle.label,
+                subtitle: ownerSubtitle(r.vehicleItem.title, r.vehicleItem.vehicle.label),
                 href: `/vehicles/${r.vehicleItem.vehicleId}`,
                 group: "Documents",
+                matchedInDocument: !matchedViaFields(q, [r.filename]),
               })),
           ),
       );
@@ -410,7 +417,7 @@ export async function GET(request: NextRequest) {
             select: {
               id: true,
               filename: true,
-              tripSegment: { select: { tripId: true, trip: { select: { title: true } } } },
+              tripSegment: { select: { title: true, tripId: true, trip: { select: { title: true } } } },
             },
           })
           .then((rows) =>
@@ -419,9 +426,10 @@ export async function GET(request: NextRequest) {
               .map((r) => ({
                 id: r.id,
                 title: r.filename,
-                subtitle: r.tripSegment.trip.title,
+                subtitle: ownerSubtitle(r.tripSegment.title, r.tripSegment.trip.title),
                 href: `/travel/${r.tripSegment.tripId}`,
                 group: "Documents",
+                matchedInDocument: !matchedViaFields(q, [r.filename]),
               })),
           ),
       );
@@ -498,7 +506,7 @@ export async function GET(request: NextRequest) {
             select: {
               id: true,
               filename: true,
-              homeItem: { select: { id: true, propertyId: true, title: true } },
+              homeItem: { select: { id: true, propertyId: true, title: true, property: { select: { label: true } } } },
             },
           })
           .then((rows) =>
@@ -507,9 +515,10 @@ export async function GET(request: NextRequest) {
               .map((r) => ({
                 id: r.id,
                 title: r.filename,
-                subtitle: r.homeItem.title,
+                subtitle: ownerSubtitle(r.homeItem.title, r.homeItem.property.label),
                 href: `/home/${r.homeItem.propertyId}`,
                 group: "Documents",
+                matchedInDocument: !matchedViaFields(q, [r.filename]),
               })),
           ),
       );
@@ -536,9 +545,10 @@ export async function GET(request: NextRequest) {
               .map((r) => ({
                 id: r.id,
                 title: r.filename,
-                subtitle: r.rentalStatement.property.label,
+                subtitle: ownerSubtitle("Rental statement", r.rentalStatement.property.label),
                 href: `/home/${r.rentalStatement.propertyId}/rental`,
                 group: "Documents",
+                matchedInDocument: !matchedViaFields(q, [r.filename]),
               })),
           ),
       );
@@ -640,9 +650,10 @@ export async function GET(request: NextRequest) {
               .map((r) => ({
                 id: r.id,
                 title: r.filename,
-                subtitle: r.trade.holding.ticker,
+                subtitle: ownerSubtitle("Trade", r.trade.holding.ticker),
                 href: `/wealth/portfolios/${r.trade.holding.portfolioId}/holdings/${r.trade.holding.id}`,
                 group: "Documents",
+                matchedInDocument: !matchedViaFields(q, [r.filename]),
               })),
           ),
       );

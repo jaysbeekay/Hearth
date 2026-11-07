@@ -923,6 +923,10 @@ model TripSegmentDocument {
   supersedes    TripSegmentDocument? @relation("TripSegmentDocumentVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
   supersededBy  TripSegmentDocument? @relation("TripSegmentDocumentVersions")
   uploadedAt    DateTime             @default(now())
+  // #398: text for Search. A NULL status means not looked at yet, which
+  // DOCUMENT_TEXT_BACKFILL picks up (see migration 20261106120000).
+  extractedText    String?
+  extractionStatus String?
 
   @@index([tripSegmentId])
   @@index([uploadedAt])
@@ -1038,6 +1042,10 @@ model RentalStatementDocument {
   supersedes        RentalStatementDocument? @relation("RentalStatementDocumentVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
   supersededBy      RentalStatementDocument? @relation("RentalStatementDocumentVersions")
   uploadedAt        DateTime                 @default(now())
+  // #398: text for Search. A NULL status means not looked at yet, which
+  // DOCUMENT_TEXT_BACKFILL picks up (see migration 20261106120000).
+  extractedText    String?
+  extractionStatus String?
 
   @@index([rentalStatementId])
   @@index([uploadedAt])
@@ -1087,6 +1095,10 @@ model HomeItemDocument {
   supersedes   HomeItemDocument? @relation("HomeItemDocumentVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
   supersededBy HomeItemDocument? @relation("HomeItemDocumentVersions")
   uploadedAt   DateTime          @default(now())
+  // #398: text for Search. A NULL status means not looked at yet, which
+  // DOCUMENT_TEXT_BACKFILL picks up (see migration 20261106120000).
+  extractedText    String?
+  extractionStatus String?
 
   @@index([homeItemId])
   @@index([uploadedAt])
@@ -1180,6 +1192,10 @@ model VehicleItemDocument {
   supersedes    VehicleItemDocument? @relation("VehicleItemDocumentVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
   supersededBy  VehicleItemDocument? @relation("VehicleItemDocumentVersions")
   uploadedAt    DateTime             @default(now())
+  // #398: text for Search. A NULL status means not looked at yet, which
+  // DOCUMENT_TEXT_BACKFILL picks up (see migration 20261106120000).
+  extractedText    String?
+  extractionStatus String?
 
   @@index([vehicleItemId])
   @@index([uploadedAt])
@@ -1323,6 +1339,10 @@ model TradeDocument {
   supersedes   TradeDocument? @relation("TradeDocumentVersions", fields: [supersedesId], references: [id], onDelete: SetNull)
   supersededBy TradeDocument? @relation("TradeDocumentVersions")
   uploadedAt   DateTime       @default(now())
+  // #398: text for Search. A NULL status means not looked at yet, which
+  // DOCUMENT_TEXT_BACKFILL picks up (see migration 20261106120000).
+  extractedText    String?
+  extractionStatus String?
 
   @@index([tradeId])
   @@index([uploadedAt])

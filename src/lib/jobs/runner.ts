@@ -6,6 +6,8 @@ import { runExpirationCheck } from "@/lib/notifications/scheduler";
 import { runBackup } from "@/lib/backup/scheduler";
 import { runEmailIngestion } from "@/lib/emailIngestion/scheduler";
 import { syncLegacyDocument } from "@/lib/items/syncLegacyDocument";
+import { isSearchTextKind, readSearchTextFile, runDocumentTextBackfill, saveSearchText } from "@/lib/documents/documentText";
+import type { ExtractionJobPayload } from "@/lib/documents/queueExtraction";
 
 // #250 — REMINDER_CHECK/BACKUP_RUN/EMAIL_INGEST join PRICE_REFRESH/
 // OCR_DOCUMENT on this same DB-leased runner, replacing the direct
@@ -17,7 +19,10 @@ export type JobType =
   | "OCR_DOCUMENT"
   | "REMINDER_CHECK"
   | "BACKUP_RUN"
-  | "EMAIL_INGEST";
+  | "EMAIL_INGEST"
+  // #398 — extracts text from Documents filed before text search covered
+  // every kind, a batch at a time; queues itself again while any are left.
+  | "DOCUMENT_TEXT_BACKFILL";
 export const LEASE_MS = 5 * 60_000;
 const MAX_ATTEMPTS = 3;
 // #432 — a job that never settles (an S3 upload with no request timeout, a
@@ -57,6 +62,7 @@ const SINGLETON_TYPES = new Set<JobType>([
   "BACKUP_RUN",
   "EMAIL_INGEST",
   "PRICE_REFRESH",
+  "DOCUMENT_TEXT_BACKFILL",
 ]);
 
 // Used by the scheduled-job ticker (instrumentation.ts) and /api/cron — a
@@ -103,12 +109,18 @@ async function claimJob() {
   return result.count === 1 ? { ...candidate, leasedUntil } : null;
 }
 
-async function executeJob(job: { type: string; payload: string }) {
+// Resolves to a job type to queue again once this run is DONE: a singleton
+// can't queue its own next run while it still holds its dedupe key.
+async function executeJob(job: { type: string; payload: string }): Promise<JobType | void> {
   if (job.type === "PRICE_REFRESH") await refreshAllPortfolioPrices();
   else if (job.type === "OCR_DOCUMENT") await processOcr(JSON.parse(job.payload));
   else if (job.type === "REMINDER_CHECK") await runExpirationCheck();
   else if (job.type === "BACKUP_RUN") await runBackup();
   else if (job.type === "EMAIL_INGEST") await runEmailIngestion();
+  else if (job.type === "DOCUMENT_TEXT_BACKFILL") {
+    const { more } = await runDocumentTextBackfill((payload) => enqueueJob("OCR_DOCUMENT", { ...payload }));
+    if (more) return "DOCUMENT_TEXT_BACKFILL";
+  }
   else throw new Error(`Unsupported job type: ${job.type}`);
 }
 
@@ -116,11 +128,12 @@ export async function runOneJob(options: { timeoutMs?: number } = {}) {
   const job = await claimJob();
   if (!job) return false;
   try {
-    await withTimeout(executeJob(job), options.timeoutMs ?? JOB_TIMEOUT_MS, job.type);
+    const next = await withTimeout(executeJob(job), options.timeoutMs ?? JOB_TIMEOUT_MS, job.type);
     await prisma.backgroundJob.update({
       where: { id: job.id },
       data: { status: "DONE", finishedAt: new Date(), leasedUntil: null, activeDedupeKey: null },
     });
+    if (next) await enqueueJobUnlessPending(next);
   } catch (error) {
     const failedTerminally = job.attempts + 1 >= MAX_ATTEMPTS;
     await prisma.backgroundJob.update({
@@ -139,7 +152,13 @@ export async function runOneJob(options: { timeoutMs?: number } = {}) {
   return true;
 }
 
-async function processOcr(payload: { kind: "contract" | "product" | "inbox"; id: string; ownerId?: string; storedName: string; mimeType: string }) {
+async function processOcr(payload: ExtractionJobPayload) {
+  if (isSearchTextKind(payload.kind)) {
+    const kind = payload.kind;
+    const buffer = await readSearchTextFile(kind, payload.ownerId!, payload.storedName);
+    await saveSearchText(kind, payload.id, await extractSearchableText(buffer, payload.mimeType));
+    return;
+  }
   const buffer = payload.kind === "contract" ? await readDocument(payload.ownerId!, payload.storedName) : payload.kind === "product" ? await readProductDocument(payload.ownerId!, payload.storedName) : await readInboxDocument(payload.storedName);
   const text = await extractSearchableText(buffer, payload.mimeType);
   if (payload.kind === "contract") await prisma.document.update({ where: { id: payload.id }, data: { extractedText: text, extractionStatus: text ? "COMPLETED" : "FAILED" } });
