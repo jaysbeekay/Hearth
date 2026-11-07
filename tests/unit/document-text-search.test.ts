@@ -601,7 +601,9 @@ describe("Backfill of Documents filed before text search", () => {
 
     await runDocumentTextBackfill();
 
+    // Not released and queued a second time.
     for (const doc of docs) expect(await statusOf(doc.id)).toBe("PENDING");
+    expect(await db.prisma.backgroundJob.count({ where: { type: "OCR_DOCUMENT" } })).toBe(3);
   });
 
   it("clears finished runs older than a week from the job table", async () => {
