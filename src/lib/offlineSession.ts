@@ -20,7 +20,7 @@ import {
   type SessionMarker,
 } from "@/lib/offlineOwner";
 import type { PendingFile, QueuedOperation } from "@/lib/offlineQueue";
-import type { SignedOutMarker } from "@/lib/pushGate";
+import { isSignedOutMarker, type SignedOutMarker } from "@/lib/pushGate";
 import type { OfflineDocument } from "@/lib/offlineDocuments";
 
 // #424 — the device-side half of "one user's offline data never reaches
@@ -89,13 +89,25 @@ async function putMarker(value: SessionMarker | SignedOutMarker): Promise<void> 
   );
 }
 
+/**
+ * Runs a read-then-write of the marker with no other tab's in between, where
+ * the browser has Web Locks; otherwise just runs it.
+ */
+async function withMarkerLock(work: () => Promise<void>): Promise<void> {
+  const locks = typeof navigator === "undefined" ? undefined : navigator.locks;
+  if (locks) await locks.request("hearth-session-marker", work);
+  else await work();
+}
+
 async function writeSessionMarker(marker: SessionMarker): Promise<void> {
   if (!hasCacheStorage()) return;
-  // A page rendered from an older cached payload mustn't wind the same
-  // member's expiry back.
-  const stored = await readStoredMarker();
-  if (isValidSessionMarker(stored, Date.now()) && stored.userId === marker.userId && stored.expires > marker.expires) return;
-  await putMarker(marker);
+  await withMarkerLock(async () => {
+    // A page rendered from an older cached payload mustn't wind the same
+    // member's expiry back.
+    const stored = await readStoredMarker();
+    if (isValidSessionMarker(stored, Date.now()) && stored.userId === marker.userId && stored.expires > marker.expires) return;
+    await putMarker(marker);
+  });
 }
 
 /**
@@ -106,8 +118,25 @@ async function writeSessionMarker(marker: SessionMarker): Promise<void> {
  */
 export async function markSignedOut(): Promise<void> {
   if (typeof window === "undefined" || !hasCacheStorage()) return;
-  if (isValidSessionMarker(await readStoredMarker(), Date.now())) return;
-  await putMarker({ signedOut: true });
+  await withMarkerLock(async () => {
+    if (isValidSessionMarker(await readStoredMarker(), Date.now())) return;
+    await putMarker({ signedOut: true });
+  });
+}
+
+/**
+ * #375 — on every signed-in page load, before anything else: a member is
+ * signed in, so a signed-out marker left by the sign-in page is wrong now.
+ * Removed straight away rather than after the claim, so a slow claim can't
+ * leave the service worker reading it as proof and dropping their push. No
+ * marker at all only holds a Reminder's content back.
+ */
+export async function clearSignedOutMarker(): Promise<void> {
+  if (typeof window === "undefined" || !hasCacheStorage()) return;
+  await withMarkerLock(async () => {
+    if (!isSignedOutMarker(await readStoredMarker())) return;
+    await (await caches.open(SESSION_CACHE)).delete(SESSION_MARKER_PATH);
+  });
 }
 
 // --- Claiming ------------------------------------------------------------
@@ -134,6 +163,11 @@ export function whenOfflineDataClaimed(ms = 2_000): Promise<void> {
   return withTimeout(firstClaim, ms).catch(() => {});
 }
 
+/** True between a sign-out clearing this tab's offline data and the page being replaced. */
+export function isSigningOut(): boolean {
+  return signingOut;
+}
+
 /**
  * Claims this device's offline data for `owner`: another user's queued
  * writes, offline Documents and cached lists are purged; writes from before
@@ -143,11 +177,6 @@ export function whenOfflineDataClaimed(ms = 2_000): Promise<void> {
  * service worker's caches. Runs once per tab per user, however often the
  * layout re-renders.
  */
-/** True between a sign-out clearing this tab's offline data and the page being replaced. */
-export function isSigningOut(): boolean {
-  return signingOut;
-}
-
 export function claimOfflineData(owner: OfflineOwner): Promise<void> {
   if (typeof window === "undefined" || signingOut) return Promise.resolve();
   lastOwner = { ...owner };
@@ -168,14 +197,16 @@ export function claimOfflineData(owner: OfflineOwner): Promise<void> {
 
 /**
  * Tells the service worker who is signed in, until when. `expires` is the
- * session's expiry as of the last render: a session revoked on the server
- * before then isn't reflected here until the next load.
+ * session's expiry as of the last render, the last time the tab came into
+ * view, or the sign-in page's session check: a session revoked on the server
+ * before then isn't reflected here until one of those next happens.
  */
 export async function markOfflineSession(userId: string, expires: number): Promise<void> {
   if (typeof window === "undefined" || signingOut) return;
   lastMarker = { userId, expires };
-  // Wait for a claim in progress, which may clear the marker's cache.
-  await claim?.done.catch(() => {});
+  // Wait for a claim in progress, which may clear the marker's cache, but
+  // not for ever: a stalled one mustn't keep the marker unwritten.
+  if (claim) await withTimeout(claim.done, STEP_TIMEOUT_MS).catch(() => {});
   const key = `${userId}:${expires}`;
   if (signingOut || markerWritten === key) return;
   await writeSessionMarker({ userId, expires });

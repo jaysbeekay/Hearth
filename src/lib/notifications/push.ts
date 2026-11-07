@@ -208,8 +208,8 @@ async function sendToTargets(targets: Target[], payload: (t: Target) => object):
   for (const t of targets) {
     const now = new Date();
     try {
-      // userId: the service worker shows a Reminder only while that member
-      // is signed in on the browser (pushGate.ts).
+      // userId: the service worker shows a Reminder's content only while
+      // that member is signed in on the browser (pushGate.ts).
       await deliver(t, JSON.stringify({ ...payload(t), userId: t.userId }), vapid);
     } catch (error) {
       failed += 1;

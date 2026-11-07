@@ -627,7 +627,8 @@ async function setPasswordWithToken(
       data: { passwordHash, sessionVersion: { increment: 1 } },
     });
     // #375 — a reset is for a lost or stolen password: stop push on every
-    // device that was signed in with it.
+    // device that was signed in with it. Invitations share this path; a new
+    // member has no devices yet, so it deletes nothing there.
     await tx.pushSubscription.deleteMany({ where: { userId: token.userId } });
     await tx.passwordResetToken.updateMany({
       where: { userId: token.userId, usedAt: null },

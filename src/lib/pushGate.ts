@@ -2,7 +2,10 @@ import { isValidSessionMarker } from "@/lib/offlineOwner";
 
 // #375 — the service worker's check before it shows a Reminder. A push is
 // for one member (the payload's userId), and its content is shown only while
-// the worker's session marker says that member is signed in on this browser.
+// the worker's session marker names that member and hasn't expired. The
+// marker is as fresh as the member's last page load or return to the tab, so
+// a session revoked on the server (a role change) shows until then; a
+// password change or reset deletes the member's push rows instead.
 //
 // Anything else shows a notice with none of the Reminder's content. The
 // subscription itself is dropped only on positive evidence that it was left
@@ -28,7 +31,7 @@ export function isSignedOutMarker(value: unknown): value is SignedOutMarker {
 /** What the service worker shows in place of a Reminder it won't show. */
 export const SIGNED_OUT_NOTICE = {
   title: "Hearth",
-  body: "A Reminder arrived for someone who isn't signed in on this browser. Sign in to see it.",
+  body: "A Hearth Reminder arrived. Open Hearth to see it.",
   tag: "hearth-push-signed-out",
   url: "/settings",
 } as const;
@@ -39,9 +42,10 @@ export function pushDecision(targetUserId: unknown, marker: unknown, now: number
   if (isSignedOutMarker(marker)) return "notice-and-drop";
   if (typeof targetUserId !== "string" || targetUserId === "") return "notice";
   if (isValidSessionMarker(marker, now)) return marker.userId === targetUserId ? "show" : "notice-and-drop";
-  // An expired marker: long expired means the session is over.
+  // An expired marker: long expired means the session is over. Anything
+  // malformed proves nothing.
   if (isValidSessionMarker(marker, now - MARKER_GRACE_MS)) return "notice";
-  return marker && typeof marker === "object" && "userId" in marker ? "notice-and-drop" : "notice";
+  return isValidSessionMarker(marker, Number.NEGATIVE_INFINITY) ? "notice-and-drop" : "notice";
 }
 
 export type PushPayload = { title?: unknown; body?: unknown; url?: unknown; tag?: unknown; userId?: unknown };

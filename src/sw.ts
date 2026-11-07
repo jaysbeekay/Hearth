@@ -32,7 +32,8 @@ declare const self: typeof globalThis & {
   addEventListener(type: "notificationclick", listener: (event: NotificationEvent) => void): void;
 };
 
-// #424 — the signed-in user's marker, written by OfflineSessionGuard and
+// #424 — the signed-in user's marker (or #375's signed-out one), written by
+// OfflineSessionGuard and the sign-in page (offlineSession.ts) and
 // removed on sign-out. Read per request: it's one small cache lookup.
 async function readSessionMarker(): Promise<unknown> {
   const cache = await caches.open(SESSION_CACHE);

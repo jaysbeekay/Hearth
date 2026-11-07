@@ -15,7 +15,8 @@ import {
 } from "@/lib/offlineSession";
 import { awaitSyncIdle, syncPendingOperations } from "@/lib/offlineSync";
 import { buttonClass } from "@/lib/ui";
-import { currentPushSubscription, unsubscribeIfStill } from "@/lib/pushClient";
+import { currentPushSubscription, deviceLabel, unsubscribeIfStill } from "@/lib/pushClient";
+import { savePushSubscription } from "@/lib/actions/push";
 
 // How long the pre-sign-out check may take before we stop waiting on
 // IndexedDB and say so, rather than hang or assume nothing is unsynced.
@@ -78,6 +79,11 @@ export function SignOutButton({
         // Still signed in after all: put back this tab's owner and the
         // service worker's session marker so offline use keeps working.
         await restoreOfflineSession();
+        // #375 — and this device's push row, in case the server deleted it
+        // before the answer was lost; saving an existing row is a no-op.
+        if (push) {
+          await savePushSubscription({ ...push.toJSON(), deviceLabel: deviceLabel() }).catch(() => {});
+        }
         setBusy(null);
         setPrompt(null);
         showToast("Couldn't reach the server to sign out. Try again when you're back online.", "error");

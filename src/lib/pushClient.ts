@@ -167,3 +167,19 @@ export async function settleSignedOutPush(deps: SignedOutPushDeps): Promise<bool
   }
   return sub ? dropSubscription(sub) : true;
 }
+
+/**
+ * #375 — when a signed-in tab comes back into view: writes the service
+ * worker's marker with the session's current expiry, which rolls on with
+ * every request while the layout (and its `expires`) stays put. Only for the
+ * member this tab belongs to, and only with an expiry the server gave.
+ */
+export async function refreshSessionMarker(
+  userId: string,
+  deps: { readSession: () => Promise<SessionCheck>; mark: (userId: string, expires: number) => Promise<void> },
+): Promise<boolean> {
+  const session = await deps.readSession();
+  if (!session?.signedIn || session.userId !== userId || !Number.isFinite(session.expires)) return false;
+  await deps.mark(userId, session.expires);
+  return true;
+}

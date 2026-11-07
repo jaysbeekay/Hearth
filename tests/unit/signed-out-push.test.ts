@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { retryUntilSettled } from "@/lib/retryUntilSettled";
-import { readSession, settleSignedOutPush, unsubscribeIfStill, type SessionCheck } from "@/lib/pushClient";
+import { readSession, refreshSessionMarker, settleSignedOutPush, unsubscribeIfStill, type SessionCheck } from "@/lib/pushClient";
 
 // #375 — the sign-in page drops the previous member's push subscription only
 // once the server confirms nobody is signed in, and keeps asking until it can.
@@ -68,11 +68,61 @@ describe("settleSignedOutPush", () => {
     expect(d.markSignedIn).toHaveBeenCalledWith("u1", 123);
   });
 
+  it("looks the subscription up only after the server has answered", async () => {
+    let answer: (s: SessionCheck) => void = () => {};
+    const d = deps({ signedIn: false });
+    d.readSession.mockImplementation(() => new Promise<SessionCheck>((r) => { answer = r; }));
+    const settled = settleSignedOutPush(d);
+    await Promise.resolve();
+    expect(d.lookup).not.toHaveBeenCalled();
+    answer({ signedIn: false });
+    expect(await settled).toBe(true);
+    expect(d.lookup).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves push alone for a member signed in, writing a marker only from a usable answer", async () => {
+    const s = sub();
+    for (const session of [
+      { signedIn: true as const, userId: null, expires: 123 },
+      { signedIn: true as const, userId: "u1", expires: NaN },
+    ]) {
+      const d = deps(session, s);
+      expect(await settleSignedOutPush(d)).toBe(true);
+      expect(d.markSignedIn).not.toHaveBeenCalled();
+      expect(d.lookup).not.toHaveBeenCalled();
+    }
+    expect(s.unsubscribe).not.toHaveBeenCalled();
+  });
+
+  it("still drops the subscription when telling the worker fails", async () => {
+    const s = sub();
+    const d = deps({ signedIn: false }, s);
+    d.markSignedOut.mockRejectedValueOnce(new Error("quota"));
+    expect(await settleSignedOutPush(d)).toBe(true);
+    expect(s.unsubscribe).toHaveBeenCalled();
+  });
+
   it("tries again when the server, the browser or the unsubscribe can't be relied on", async () => {
     expect(await settleSignedOutPush(deps(null))).toBe(false);
     expect(await settleSignedOutPush(deps({ signedIn: false }, new Error("timed out")))).toBe(false);
     expect(await settleSignedOutPush(deps({ signedIn: false }, sub(undefined, async () => false)))).toBe(false);
     expect(await settleSignedOutPush(deps({ signedIn: false }, null))).toBe(true);
+  });
+});
+
+describe("refreshSessionMarker", () => {
+  it("writes the marker only for this tab's member, with an expiry the server gave", async () => {
+    const mark = vi.fn(async () => {});
+    const ask = (session: SessionCheck) => refreshSessionMarker("u1", { readSession: async () => session, mark });
+
+    expect(await ask({ signedIn: true, userId: "u1", expires: 500 })).toBe(true);
+    expect(mark).toHaveBeenCalledWith("u1", 500);
+    mark.mockClear();
+    expect(await ask({ signedIn: true, userId: "u2", expires: 500 })).toBe(false);
+    expect(await ask({ signedIn: true, userId: "u1", expires: NaN })).toBe(false);
+    expect(await ask({ signedIn: false })).toBe(false);
+    expect(await ask(null)).toBe(false);
+    expect(mark).not.toHaveBeenCalled();
   });
 });
 

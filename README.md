@@ -1063,15 +1063,19 @@ still get the notification that was being sent when it was removed.
 Signing out drops the device's row on the server and then unsubscribes the
 browser; if the server delete fails, the unsubscribe still happens and the
 row goes on the next send, when the push service reports the device gone.
-A browser shows a Reminder's content only while the member it's for is
-signed in on it; otherwise it shows a "sign in to see it" notice with none of
-the Reminder's content. It drops its subscription once it's clear the session
-is over: the sign-in page confirmed nobody is signed in, someone else signed
-in, or the session ran out more than a week ago. A member who doesn't open
-Hearth on a device for longer than a session lasts (30 days) gets the notice
-instead of Reminders there, and after another week has to turn push on
-again. Changing or resetting a password turns push off on all of that
-member's devices.
+A browser shows a Reminder's content only while it last saw the member it's
+for signed in there, as of their last page load or return to the tab, and
+that session hasn't run out. Otherwise it shows an "Open Hearth to see it"
+notice with none of the Reminder's content. It drops its subscription once
+it's clear the session is over: the sign-in page confirmed nobody is signed
+in, someone else signed in, or the session ran out more than a week ago.
+Opening Hearth after a session ends lands on the sign-in page, which drops
+the subscription there and then, so push has to be turned on again after
+signing back in. Changing or resetting a password turns push off on all of
+that member's devices, though a push the push service had already queued
+(Hearth asks them to keep one for up to a day) can still arrive and show on
+a browser that hasn't loaded Hearth since. A session ended on the server by
+a role change isn't seen until that browser next loads Hearth either.
 
 Rolling back to a release from before Web Push: delete the push rows from the
 sent log first (`DELETE FROM notification_logs WHERE channel = 'PUSH';`),

@@ -3,7 +3,7 @@ import { setupTestDb, createTestUser } from "../helpers/testDb";
 import { auth, signOut } from "@/lib/auth";
 import { removePushDevice, removePushSubscription, savePushSubscription } from "@/lib/actions/push";
 import bcrypt from "bcryptjs";
-import { changePassword, logout, resetPassword } from "@/lib/actions/auth";
+import { acceptInvitation, changePassword, logout, resetPassword } from "@/lib/actions/auth";
 import { hashToken } from "@/lib/crypto";
 import { endpointHash } from "@/lib/pushClient";
 
@@ -126,6 +126,19 @@ describe("push devices", () => {
     reset.set("password", "a-new-long-password-1");
     expect(await resetPassword("reset-1", null, reset)).toEqual({ success: expect.any(String) });
     expect(await db.prisma.pushSubscription.count()).toBe(0);
+  });
+
+  it("leaves everyone's push alone when a new member accepts an invitation", async () => {
+    const existing = await createTestUser();
+    const invited = await createTestUser();
+    await subscribe(existing.id, "https://push.example/existing");
+    await db.prisma.passwordResetToken.create({
+      data: { tokenHash: hashToken("invite-1"), userId: invited.id, purpose: "INVITE", expiresAt: new Date(Date.now() + 3_600_000) },
+    });
+    const fd = new FormData();
+    fd.set("password", "a-new-long-password-1");
+    expect((await acceptInvitation("invite-1", null, fd))?.success).toBeTruthy();
+    expect(await db.prisma.pushSubscription.count()).toBe(1);
   });
 
   it("refuses an invalid device id", async () => {

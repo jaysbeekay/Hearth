@@ -34,9 +34,20 @@ const dropSignedOutPush = () =>
 // signing back in sees and syncs them, and anyone else's sign-in purges them.
 export function SignedOutCacheCleanup() {
   useEffect(() => {
-    clearSignedOutData().catch(() => {});
     broadcastSession({ type: "signed-out" });
-    return retryUntilSettled(dropSignedOutPush, { retryMs: SESSION_RETRY_MS, target: window });
+    // Push only after the clear, which deletes the marker's cache: started
+    // together, the clear could delete the marker the push check writes.
+    let stopRetry: (() => void) | null = null;
+    let unmounted = false;
+    clearSignedOutData()
+      .catch(() => {})
+      .finally(() => {
+        if (!unmounted) stopRetry = retryUntilSettled(dropSignedOutPush, { retryMs: SESSION_RETRY_MS, target: window });
+      });
+    return () => {
+      unmounted = true;
+      stopRetry?.();
+    };
   }, []);
   return null;
 }

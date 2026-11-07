@@ -25,6 +25,7 @@ class FakeCaches {
         entries.set(key, response);
       },
       match: async (key: string) => entries.get(key)?.clone(),
+      delete: async (key: string) => entries.delete(key),
     };
   }
 }
@@ -211,10 +212,21 @@ describe("claiming offline data", () => {
 
   it("#375 marks the browser signed out, unless a member has signed in since", async () => {
     const l = await load();
+    await l.session.markOfflineSession("alice", Date.now() - 1);
     await l.session.markSignedOut();
     expect(await marker()).toEqual({ signedOut: true });
     await l.session.markOfflineSession("alice", Date.now() + 60_000);
     await l.session.markSignedOut();
+    expect(await marker()).toMatchObject({ userId: "alice" });
+  });
+
+  it("#375 removes a signed-out marker when a signed-in page loads, and nothing else", async () => {
+    const l = await load();
+    await l.session.markSignedOut();
+    await l.session.clearSignedOutMarker();
+    expect(await marker()).toBeNull();
+    await l.session.markOfflineSession("alice", Date.now() + 60_000);
+    await l.session.clearSignedOutMarker();
     expect(await marker()).toMatchObject({ userId: "alice" });
   });
 
