@@ -35,8 +35,10 @@ const dropSignedOutPush = () =>
 export function SignedOutCacheCleanup() {
   useEffect(() => {
     broadcastSession({ type: "signed-out" });
-    // Push only after the clear, which deletes the marker's cache: started
-    // together, the clear could delete the marker the push check writes.
+    // Push only after the clear settles or times out, since it deletes the
+    // marker's cache: started together, the clear could delete the marker the
+    // push check writes. (A clear that outlasts its timeout still can; that
+    // leaves no marker, which only holds a Reminder's content back.)
     let stopRetry: (() => void) | null = null;
     let unmounted = false;
     clearSignedOutData()

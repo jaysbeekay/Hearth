@@ -134,8 +134,11 @@ export interface SignedOutPushDeps {
   lookup: () => Promise<DroppableSubscription | null>;
   /** Writes the service worker's marker for a member who is signed in after all. */
   markSignedIn: (userId: string, expires: number) => Promise<void>;
-  /** Tells the service worker nobody is signed in (pushGate.ts). */
-  markSignedOut: () => Promise<void>;
+  /**
+   * Tells the service worker nobody is signed in (pushGate.ts). False when
+   * it didn't, because a member has signed in since.
+   */
+  markSignedOut: () => Promise<boolean>;
 }
 
 /**
@@ -158,7 +161,8 @@ export async function settleSignedOutPush(deps: SignedOutPushDeps): Promise<bool
     }
     return true;
   }
-  await deps.markSignedOut().catch(() => {});
+  // Signed in since, in another tab: that member's push now, not ours to drop.
+  if ((await deps.markSignedOut().catch(() => true)) === false) return true;
   let sub: DroppableSubscription | null;
   try {
     sub = await deps.lookup();

@@ -29,6 +29,8 @@ describe("pushDecision", () => {
     expect(pushDecision("u1", { expires: now + 1 }, now)).toBe("notice");
     expect(pushDecision("u1", { userId: "u1" }, now)).toBe("notice");
     expect(pushDecision("u1", { userId: "u1", expires: null }, now)).toBe("notice");
+    expect(pushDecision("u1", { userId: "u1", expires: NaN }, now)).toBe("notice");
+    expect(pushDecision("u1", { userId: "", expires: now - MARKER_GRACE_MS - 1 }, now)).toBe("notice");
     expect(pushDecision(undefined, signedIn("u1"), now)).toBe("notice");
     expect(pushDecision("", signedIn(""), now)).toBe("notice");
     expect(pushDecision(42, signedIn("u1"), now)).toBe("notice");

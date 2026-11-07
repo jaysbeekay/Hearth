@@ -19,10 +19,12 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
   sign-in page can't reach the server to confirm the session is over, it
   keeps trying while it's open. Whatever happens there, a browser only shows
   a Reminder's content while it last saw the member it's for signed in
-  there; otherwise it shows a plain "Open Hearth to see it" notice, and drops its
-  subscription once it's clear the session is over (signed out, someone
-  else signed in, or the session ran out over a week ago). Changing or
-  resetting your password turns push off on all your devices. Members
+  there; otherwise it shows a plain "Open Hearth to see it" notice, and
+  drops its subscription once it's clear the session is over (signed out,
+  someone else signed in, or the session ran out over a week ago).
+  Changing or resetting your password turns push off on all your devices,
+  though a push already queued at the push service can still arrive.
+  Members
   only ever see and remove their own devices, and Settings gets only a hash
   of each device's push endpoint. Email stays a per-account choice and ntfy
   stays household-wide.

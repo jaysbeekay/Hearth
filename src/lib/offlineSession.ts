@@ -95,7 +95,11 @@ async function putMarker(value: SessionMarker | SignedOutMarker): Promise<void> 
  */
 async function withMarkerLock(work: () => Promise<void>): Promise<void> {
   const locks = typeof navigator === "undefined" ? undefined : navigator.locks;
-  if (locks) await locks.request("hearth-session-marker", work);
+  // Bounded, so a tab whose cache call hangs can't hold up every other
+  // tab's marker writes. The lock covers read-then-write only: the cache
+  // deletes in clearRuntimeCaches don't take it, and at worst leave no
+  // marker, which only holds a Reminder's content back.
+  if (locks) await locks.request("hearth-session-marker", { signal: AbortSignal.timeout(STEP_TIMEOUT_MS) }, work);
   else await work();
 }
 
@@ -114,14 +118,18 @@ async function writeSessionMarker(marker: SessionMarker): Promise<void> {
  * #375 — on the sign-in page, once the server has confirmed nobody is signed
  * in: tells the service worker this browser's push subscription was left
  * behind (pushGate.ts). Skipped if a member has signed in since, in another
- * tab, and written their own marker.
+ * tab, and written their own marker; false then, so the caller leaves push
+ * alone too.
  */
-export async function markSignedOut(): Promise<void> {
-  if (typeof window === "undefined" || !hasCacheStorage()) return;
+export async function markSignedOut(): Promise<boolean> {
+  if (typeof window === "undefined" || !hasCacheStorage()) return true;
+  let written = false;
   await withMarkerLock(async () => {
     if (isValidSessionMarker(await readStoredMarker(), Date.now())) return;
     await putMarker({ signedOut: true });
+    written = true;
   });
+  return written;
 }
 
 /**
@@ -188,9 +196,18 @@ export function claimOfflineData(owner: OfflineOwner): Promise<void> {
     claim = { key, done };
     // The claim may clear the cache the marker lives in; write it again after.
     markerWritten = null;
-    done.catch(() => {
-      if (claim?.done === done) claim = null;
-    });
+    done.then(
+      () => {
+        // markOfflineSession stops waiting for a slow claim, so the marker
+        // may already be written, and then deleted by this claim's clear.
+        if (claim?.done !== done || signingOut || lastMarker?.userId !== owner.userId) return;
+        markerWritten = null;
+        void markOfflineSession(lastMarker.userId, lastMarker.expires).catch(() => {});
+      },
+      () => {
+        if (claim?.done === done) claim = null;
+      },
+    );
   }
   return claim.done;
 }

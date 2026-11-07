@@ -47,7 +47,7 @@ describe("settleSignedOutPush", () => {
         return current;
       }),
       markSignedIn: vi.fn(async () => {}),
-      markSignedOut: vi.fn(async () => {}),
+      markSignedOut: vi.fn(async () => true),
     };
   }
 
@@ -73,7 +73,8 @@ describe("settleSignedOutPush", () => {
     const d = deps({ signedIn: false });
     d.readSession.mockImplementation(() => new Promise<SessionCheck>((r) => { answer = r; }));
     const settled = settleSignedOutPush(d);
-    await Promise.resolve();
+    await vi.waitFor(() => expect(d.readSession).toHaveBeenCalled());
+    for (let i = 0; i < 10; i += 1) await Promise.resolve();
     expect(d.lookup).not.toHaveBeenCalled();
     answer({ signedIn: false });
     expect(await settled).toBe(true);
@@ -91,6 +92,15 @@ describe("settleSignedOutPush", () => {
       expect(d.markSignedIn).not.toHaveBeenCalled();
       expect(d.lookup).not.toHaveBeenCalled();
     }
+    expect(s.unsubscribe).not.toHaveBeenCalled();
+  });
+
+  it("leaves push alone when a member signed in, in another tab, before the worker was told", async () => {
+    const s = sub();
+    const d = deps({ signedIn: false }, s);
+    d.markSignedOut.mockResolvedValueOnce(false);
+    expect(await settleSignedOutPush(d)).toBe(true);
+    expect(d.lookup).not.toHaveBeenCalled();
     expect(s.unsubscribe).not.toHaveBeenCalled();
   });
 

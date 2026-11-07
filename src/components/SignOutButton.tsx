@@ -16,7 +16,7 @@ import {
 import { awaitSyncIdle, syncPendingOperations } from "@/lib/offlineSync";
 import { buttonClass } from "@/lib/ui";
 import { currentPushSubscription, deviceLabel, unsubscribeIfStill } from "@/lib/pushClient";
-import { savePushSubscription } from "@/lib/actions/push";
+import { refreshPushSubscription, savePushSubscription } from "@/lib/actions/push";
 
 // How long the pre-sign-out check may take before we stop waiting on
 // IndexedDB and say so, rather than hang or assume nothing is unsynced.
@@ -24,6 +24,23 @@ const CHECK_TIMEOUT_MS = 3_000;
 
 function changesThatHavent(n: number): string {
   return n === 1 ? "1 change that hasn't" : `${n} changes that haven't`;
+}
+
+async function isOwnPushDevice(push: PushSubscription): Promise<boolean> {
+  try {
+    return (await refreshPushSubscription({ ...push.toJSON(), deviceLabel: deviceLabel() })).registered;
+  } catch {
+    return false;
+  }
+}
+
+async function putPushDeviceBack(push: PushSubscription): Promise<boolean> {
+  try {
+    const state = await savePushSubscription({ ...push.toJSON(), deviceLabel: deviceLabel() });
+    return !state?.error;
+  } catch {
+    return false;
+  }
 }
 
 function isRedirect(err: unknown): boolean {
@@ -72,6 +89,9 @@ export function SignOutButton({
     // A push already handed to the push service can still arrive; the
     // service worker shows only a generic notice for it (pushGate.ts).
     const push = await currentPushSubscription();
+    // Whether this device's push is this member's, so a failed sign-out
+    // below puts back only a row they had, never one they didn't turn on.
+    const hadPush = push ? await isOwnPushDevice(push) : false;
     try {
       await logout(push?.endpoint);
     } catch (err) {
@@ -80,13 +100,16 @@ export function SignOutButton({
         // service worker's session marker so offline use keeps working.
         await restoreOfflineSession();
         // #375 — and this device's push row, in case the server deleted it
-        // before the answer was lost; saving an existing row is a no-op.
-        if (push) {
-          await savePushSubscription({ ...push.toJSON(), deviceLabel: deviceLabel() }).catch(() => {});
-        }
+        // before the answer was lost.
+        const pushKept = !push || !hadPush || (await putPushDeviceBack(push));
         setBusy(null);
         setPrompt(null);
-        showToast("Couldn't reach the server to sign out. Try again when you're back online.", "error");
+        showToast(
+          pushKept
+            ? "Couldn't reach the server to sign out. Try again when you're back online."
+            : "Couldn't reach the server to sign out. Try again when you're back online. If Reminders stop arriving here, turn them on again in Settings.",
+          "error",
+        );
         return;
       }
     }
