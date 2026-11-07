@@ -39,6 +39,7 @@ import { RecordNotFoundError, RecordValidationError, StaleEditError } from "@/li
 import type { ActionState } from "@/lib/actions/auth";
 import { describeUploadRejection } from "@/lib/uploadValidation";
 import { parseDocumentCategory } from "@/lib/documents/categories";
+import { issueState } from "@/lib/validation/issues";
 
 const PROPERTY_FORM_FIELDS = [
   "label",
@@ -88,9 +89,6 @@ const HOME_ITEM_FORM_FIELDS = [
   "notes",
 ];
 
-function firstIssueMessage(error: { issues: { message: string }[] }) {
-  return error.issues[0]?.message ?? "Invalid input";
-}
 
 async function requireUser() {
   const session = await auth();
@@ -129,7 +127,7 @@ export async function createProperty(
   const parsed = propertySchema.safeParse(formToPropertyInput(formData));
   if (!parsed.success) {
     return {
-      error: firstIssueMessage(parsed.error),
+      ...issueState(parsed.error),
       values: formDataToStringValues(formData, PROPERTY_FORM_FIELDS),
     };
   }
@@ -150,7 +148,7 @@ export async function updateProperty(
   const parsed = propertySchema.safeParse(formToPropertyInput(formData));
   if (!parsed.success) {
     return {
-      error: firstIssueMessage(parsed.error),
+      ...issueState(parsed.error),
       values: formDataToStringValues(formData, PROPERTY_FORM_FIELDS),
     };
   }
@@ -225,7 +223,7 @@ export async function addHomeItem(
   const parsed = homeItemSchema.safeParse(formToHomeItemInput(formData));
   if (!parsed.success) {
     return {
-      error: firstIssueMessage(parsed.error),
+      ...issueState(parsed.error),
       values: formDataToStringValues(formData, HOME_ITEM_FORM_FIELDS),
     };
   }
@@ -264,7 +262,7 @@ export async function updateHomeItem(
   const parsed = homeItemSchema.safeParse(formToHomeItemInput(formData));
   if (!parsed.success) {
     return {
-      error: firstIssueMessage(parsed.error),
+      ...issueState(parsed.error),
       values: formDataToStringValues(formData, HOME_ITEM_FORM_FIELDS),
     };
   }
@@ -321,7 +319,7 @@ export async function createRentalAgreement(
   const parsed = rentalAgreementSchema.safeParse(formToRentalAgreementInput(formData));
   if (!parsed.success) {
     return {
-      error: firstIssueMessage(parsed.error),
+      ...issueState(parsed.error),
       values: formDataToStringValues(formData, RENTAL_AGREEMENT_FORM_FIELDS),
     };
   }
@@ -345,7 +343,7 @@ export async function updateRentalAgreement(
   const parsed = rentalAgreementSchema.safeParse(formToRentalAgreementInput(formData));
   if (!parsed.success) {
     return {
-      error: firstIssueMessage(parsed.error),
+      ...issueState(parsed.error),
       values: formDataToStringValues(formData, RENTAL_AGREEMENT_FORM_FIELDS),
     };
   }
@@ -449,7 +447,7 @@ export async function createRentalStatement(
   const parsed = rentalStatementSchema.safeParse(formToRentalStatementInput(formData));
   if (!parsed.success) {
     return {
-      error: firstIssueMessage(parsed.error),
+      ...issueState(parsed.error),
       values: formDataToStringValues(formData, RENTAL_STATEMENT_FORM_FIELDS),
     };
   }
@@ -485,7 +483,7 @@ export async function updateRentalStatement(
   const parsed = rentalStatementSchema.safeParse(formToRentalStatementInput(formData));
   if (!parsed.success) {
     return {
-      error: firstIssueMessage(parsed.error),
+      ...issueState(parsed.error),
       values: formDataToStringValues(formData, RENTAL_STATEMENT_FORM_FIELDS),
     };
   }
