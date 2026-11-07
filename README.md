@@ -1054,6 +1054,18 @@ already notified — so adding a contract or product that's already past
 several thresholds only sends one catch-up reminder per channel, not one per
 threshold.
 
+Web Push goes to every device any member has turned it on for, read-only
+members included. That's the same household-wide model as ntfy, and the same
+records every member can already open in the app; the sent log is per record
+and channel, not per device. Removing a device, or a member signing out on
+it, stops the sends after that one, not a send already running: a device can
+still get the notification that was being sent when it was removed.
+
+Rolling back to a release from before Web Push: delete the push rows from the
+sent log first (`DELETE FROM notification_logs WHERE channel = 'PUSH';`),
+since older builds don't know that channel and fail reading those rows. The
+`push_subscriptions` table can stay; older builds ignore it.
+
 ## Security notes
 
 - New users can only be created by an existing admin (Settings → Household → Members) —
