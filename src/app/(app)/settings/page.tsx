@@ -12,7 +12,7 @@ import { IcalTokenSection } from "@/components/IcalTokenSection";
 import { TotpSection } from "@/components/TotpSection";
 import { NotificationPreferencesForm } from "@/components/NotificationPreferencesForm";
 import { PushDeviceToggle } from "@/components/PushDeviceToggle";
-import { getVapidPublicKey } from "@/lib/notifications/push";
+import { getVapidPublicKey, ownPushDevices } from "@/lib/notifications/push";
 import { PreferencesForm } from "@/components/PreferencesForm";
 import { OfflineDocumentsPanel } from "@/components/OfflineDocumentsPanel";
 import { UnconfiguredNotice } from "@/components/UnconfiguredNotice";
@@ -22,7 +22,6 @@ import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/ui/PageShell";
 import { SettingsTabs } from "@/components/SettingsTabs";
 import { SaveChangesGroup } from "@/components/SaveChangesGroup";
-import { hashToken } from "@/lib/crypto";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -38,30 +37,16 @@ export default async function SettingsPage() {
   // is deleted, which the proxy won't have caught for an in-flight request.
   if (!session?.user) redirect("/login");
 
-  const [user, smtpConfigured, ntfyConfigured, householdTimeZone, vapidPublicKey, pushRows] = await Promise.all([
+  const [user, smtpConfigured, ntfyConfigured, householdTimeZone, vapidPublicKey, pushDevices] = await Promise.all([
     prisma.user.findUnique({ where: { id: session.user.id } }),
     isSmtpConfigured(),
     isNtfyConfigured(),
     getHouseholdTimeZone(),
     getVapidPublicKey(),
     // #375 — the member's own devices only; other members' stay private.
-    prisma.pushSubscription.findMany({
-      where: { userId: session.user.id },
-      orderBy: { createdAt: "asc" },
-      select: {
-        id: true,
-        endpoint: true,
-        deviceLabel: true,
-        createdAt: true,
-        lastSuccessAt: true,
-        lastFailureAt: true,
-        lastError: true,
-      },
-    }),
+    ownPushDevices(session.user.id),
   ]);
   if (!user) redirect("/login");
-  // Endpoints are capability URLs: the page gets only their hashes.
-  const pushDevices = pushRows.map(({ endpoint, ...device }) => ({ ...device, endpointHash: hashToken(endpoint) }));
   const appUrl = env.appUrl ?? "http://localhost:3000";
 
   return (

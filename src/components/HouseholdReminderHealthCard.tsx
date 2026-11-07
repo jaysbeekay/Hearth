@@ -94,7 +94,7 @@ export function HouseholdReminderHealthCard({
         <p className={bannerClass("neutral", "flex items-start gap-2")}>
           <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden />
           No delivery channel configured — every record that comes due has no working reminder
-          coverage until email or ntfy is set up below, or a webhook under Integrations.
+          coverage until push, email or ntfy is turned on, or a webhook is added under Integrations.
         </p>
       ) : health.uncovered.length > 0 ? (
         <div className="space-y-2">

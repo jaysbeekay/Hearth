@@ -9,6 +9,14 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Turn on reminders (#375, part 3).** The dashboard's "Reminders aren't
+  configured" item and the onboarding checklist now open one screen,
+  available to every member, that lists the ways to get Reminders in order
+  of effort: notify this device (one tap, no account), email, then ntfy.
+  Each has its own Test button, and the household's reminder delivery
+  health is at the bottom. Email and ntfy still need an admin's server
+  settings, which stay in Settings → Reminders & channels; the screen links
+  there for admins.
 - **Manage your push devices (#375, part 2).** Settings → My account lists
   your other devices with push on, each with when it last got a Reminder
   (or why its last push failed) and a Remove button for a lost or old one;

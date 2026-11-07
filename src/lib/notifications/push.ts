@@ -2,7 +2,7 @@ import webpush from "web-push";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { encodeAppSetting } from "@/lib/appSettings";
-import { decryptSecret } from "@/lib/crypto";
+import { decryptSecret, hashToken } from "@/lib/crypto";
 import { env, isAppUrlConfigured } from "@/lib/env";
 import { assertSafeOutboundUrl, safeFetch, UnsafeOutboundUrlError } from "@/lib/net/outbound";
 import { buildPushReminder, type ReminderInput } from "@/lib/notifications/reminderContent";
@@ -267,6 +267,28 @@ export async function sendTestPush(userId: string, input?: Omit<ReminderInput, "
 }
 
 /** For tests: forget the in-process key and subject caches. */
+/**
+ * A member's own push devices as Settings and the "Turn on reminders" screen
+ * list them. Endpoints are capability URLs, so only their hashes leave the
+ * server; the browser hashes its own to spot itself.
+ */
+export async function ownPushDevices(userId: string) {
+  const rows = await prisma.pushSubscription.findMany({
+    where: { userId },
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      endpoint: true,
+      deviceLabel: true,
+      createdAt: true,
+      lastSuccessAt: true,
+      lastFailureAt: true,
+      lastError: true,
+    },
+  });
+  return rows.map(({ endpoint, ...device }) => ({ ...device, endpointHash: hashToken(endpoint) }));
+}
+
 export function resetPushCaches(): void {
   cachedKeys = null;
   cachedSubject = null;

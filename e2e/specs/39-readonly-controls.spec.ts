@@ -66,7 +66,7 @@ const WRITE_BUTTON =
 // Links that lead to a write: by name for the actions whose target is the
 // record itself, and by href for every create, edit and import page.
 const WRITE_LINK =
-  /^(Edit|Renew|Renew or cancel|Set the new end date|Set the new lease end|Update tenancy|Upload document|Upload a document|Upload|Fill in|Confirm details|Review|Configure reminders|Add.*|New .*|Import CSV)$/;
+  /^(Edit|Renew|Renew or cancel|Set the new end date|Set the new lease end|Update tenancy|Upload document|Upload a document|Upload|Fill in|Confirm details|Review|Turn on reminders|Add.*|New .*|Import CSV)$/;
 const WRITE_HREF = 'a[href$="/new"], a[href*="/new?"], a[href$="/edit"], a[href$="/import"], a[href="/import"]';
 // A form bound to a server action carries Next's $ACTION_ hidden inputs.
 // Plain GET forms (search, export, list filters) are the only forms a

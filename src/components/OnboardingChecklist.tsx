@@ -30,7 +30,7 @@ export function OnboardingChecklist({
 
   const steps = [
     { label: "Invite a household member", href: "/settings/users", done: memberCount > 1 },
-    { label: "Set up reminders", href: "/settings/reminders", done: remindersConfigured },
+    { label: "Turn on reminders", href: "/reminders", done: remindersConfigured },
     {
       label: "Review optional modules",
       href: "/settings/modules",

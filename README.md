@@ -182,6 +182,10 @@ _The property detail screenshot was captured without network access, so it doesn
 | --- | --- |
 | ![Settings — Reminders & channels](docs/screenshots/settings-reminders.png) | ![Settings — reminder schedule](docs/screenshots/settings-reminders-schedule.png) |
 
+| Turn on reminders | |
+| --- | --- |
+| ![Turn on reminders](docs/screenshots/turn-on-reminders.png) | |
+
 | Settings — Members | Settings — AI & privacy |
 | --- | --- |
 | ![Settings — Members](docs/screenshots/settings-household.png) | ![Settings — AI & privacy](docs/screenshots/settings-ai.png) |
