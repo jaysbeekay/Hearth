@@ -1063,8 +1063,9 @@ still get the notification that was being sent when it was removed.
 
 Rolling back to a release from before Web Push: delete the push rows from the
 sent log first (`DELETE FROM notification_logs WHERE channel = 'PUSH';`),
-since older builds don't know that channel and fail reading those rows. The
-`push_subscriptions` table can stay; older builds ignore it.
+since older builds don't know that channel and fail reading those rows.
+Leave the `push_subscriptions` table and its `_prisma_migrations` row in
+place: older builds ignore both, and dropping either breaks upgrading again.
 
 ## Security notes
 
