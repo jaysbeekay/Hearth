@@ -38,6 +38,7 @@ services:
       # Optional: route AI provider calls through a local agent-firewall proxy
       # (e.g. the commented-out "pipelock" service below) — see .env.example.
       AI_EGRESS_PROXY_URL: ${AI_EGRESS_PROXY_URL:-}
+      AI_EGRESS_PROXY_CA_CERT: ${AI_EGRESS_PROXY_CA_CERT:-}
       BARCODE_LOOKUP_ENABLED: ${BARCODE_LOOKUP_ENABLED:-}
       BARCODE_LOOKUP_API_KEY: ${BARCODE_LOOKUP_API_KEY:-}
       MAP_TILE_URL: ${MAP_TILE_URL:-}
@@ -65,6 +66,9 @@ services:
       BACKUP_LOCAL_PATH: ${BACKUP_LOCAL_PATH:-}
     volumes:
       - ./data:/app/data
+      # With the pipelock service below and TLS interception on, also mount
+      # its CA certificate and set AI_EGRESS_PROXY_CA_CERT: /app/pipelock-ca.pem
+      # - ./pipelock/ca.pem:/app/pipelock-ca.pem:ro
     restart: unless-stopped
 
   # Optional: self-host ntfy instead of relying on the public ntfy.sh
@@ -80,15 +84,14 @@ services:
   #     - ./data/ntfy:/var/cache/ntfy
   #   restart: unless-stopped
 
-  # Optional: run Pipelock (https://github.com/luckyPipewrench/pipelock), an
+  # Optional: run Pipelock (https://github.com/pipelab-org/pipelock), an
   # open-source agent firewall, in front of Hearth's outbound AI provider
-  # traffic. Uncomment this service and set AI_EGRESS_PROXY_URL:
-  # http://pipelock:8888 above. Generate pipelock.yaml first with
-  # `pipelock generate config --preset balanced > pipelock.yaml` (see
-  # upstream README) and review it before pointing production traffic at it.
+  # traffic. Hearth uses it as a forward proxy. Set up ./pipelock first (see
+  # README "Routing AI traffic through an agent firewall"), uncomment this
+  # service and set AI_EGRESS_PROXY_URL: http://pipelock:8888 above.
   # pipelock:
-  #   image: ghcr.io/luckypipewrench/pipelock:latest
+  #   image: ghcr.io/luckypipewrench/pipelock:3.7.1@sha256:20402f0df5d2fb3ef50dadd8f70f758b49d878c3d90b2797eaadcb0f2f0c2ebd
   #   command: run --config /config/pipelock.yaml --listen 0.0.0.0:8888
   #   volumes:
-  #     - ./pipelock.yaml:/config/pipelock.yaml:ro
+  #     - ./pipelock:/config:ro
   #   restart: unless-stopped
