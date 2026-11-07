@@ -402,8 +402,11 @@ model ContractTerm {
 // no schema syntax for triggers. If a future change to this model forces
 // Prisma's SQLite RedefineTables fallback (rebuilds the table via CREATE
 // new_X/DROP TABLE X/rename), those triggers are silently dropped — the new
-// migration must re-create all three verbatim, or e2e/prepare-db.ts's
-// document_search_fts integrity check fails CI.
+// migration must re-create all three, or e2e/prepare-db.ts's
+// document_search_fts integrity check fails CI. Copy each table's latest
+// definition, not necessarily the #314 one: the trip segment, rental
+// statement, home item, vehicle item and trade `_au` triggers were replaced
+// in 20261107120000_document_text_all_kinds (#398) to carry extractedText.
 model Document {
   id               String         @id @default(cuid())
   contractId       String
@@ -946,11 +949,12 @@ model TripSegmentDocument {
   supersededBy  TripSegmentDocument? @relation("TripSegmentDocumentVersions")
   uploadedAt    DateTime             @default(now())
   // #398: text for Search. A NULL status means not looked at yet, which
-  // DOCUMENT_TEXT_BACKFILL picks up (see migration 20261106120000).
+  // DOCUMENT_TEXT_BACKFILL picks up (see migration 20261107120000).
   extractedText    String?
   extractionStatus String?
 
   @@index([tripSegmentId])
+  @@index([extractionStatus])
   @@index([uploadedAt])
   @@index([sha256])
   @@index([category])
@@ -1065,11 +1069,12 @@ model RentalStatementDocument {
   supersededBy      RentalStatementDocument? @relation("RentalStatementDocumentVersions")
   uploadedAt        DateTime                 @default(now())
   // #398: text for Search. A NULL status means not looked at yet, which
-  // DOCUMENT_TEXT_BACKFILL picks up (see migration 20261106120000).
+  // DOCUMENT_TEXT_BACKFILL picks up (see migration 20261107120000).
   extractedText    String?
   extractionStatus String?
 
   @@index([rentalStatementId])
+  @@index([extractionStatus])
   @@index([uploadedAt])
   @@index([sha256])
   @@index([category])
@@ -1118,11 +1123,12 @@ model HomeItemDocument {
   supersededBy HomeItemDocument? @relation("HomeItemDocumentVersions")
   uploadedAt   DateTime          @default(now())
   // #398: text for Search. A NULL status means not looked at yet, which
-  // DOCUMENT_TEXT_BACKFILL picks up (see migration 20261106120000).
+  // DOCUMENT_TEXT_BACKFILL picks up (see migration 20261107120000).
   extractedText    String?
   extractionStatus String?
 
   @@index([homeItemId])
+  @@index([extractionStatus])
   @@index([uploadedAt])
   @@index([sha256])
   @@index([category])
@@ -1215,11 +1221,12 @@ model VehicleItemDocument {
   supersededBy  VehicleItemDocument? @relation("VehicleItemDocumentVersions")
   uploadedAt    DateTime             @default(now())
   // #398: text for Search. A NULL status means not looked at yet, which
-  // DOCUMENT_TEXT_BACKFILL picks up (see migration 20261106120000).
+  // DOCUMENT_TEXT_BACKFILL picks up (see migration 20261107120000).
   extractedText    String?
   extractionStatus String?
 
   @@index([vehicleItemId])
+  @@index([extractionStatus])
   @@index([uploadedAt])
   @@index([sha256])
   @@index([category])
@@ -1362,11 +1369,12 @@ model TradeDocument {
   supersededBy TradeDocument? @relation("TradeDocumentVersions")
   uploadedAt   DateTime       @default(now())
   // #398: text for Search. A NULL status means not looked at yet, which
-  // DOCUMENT_TEXT_BACKFILL picks up (see migration 20261106120000).
+  // DOCUMENT_TEXT_BACKFILL picks up (see migration 20261107120000).
   extractedText    String?
   extractionStatus String?
 
   @@index([tradeId])
+  @@index([extractionStatus])
   @@index([uploadedAt])
   @@index([sha256])
   @@index([category])
@@ -1451,6 +1459,8 @@ model BackgroundJob {
   // legitimately run many at once, one per document, and never set this)
   // never collide with each other.
   activeDedupeKey String?   @unique
+  // #398 review — claimed highest first (JOB_PRIORITY, src/lib/jobs/priority.ts).
+  priority        Int       @default(0)
 
   @@index([status, availableAt])
   @@map("background_jobs")

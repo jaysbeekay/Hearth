@@ -732,6 +732,29 @@ instance, point `OLLAMA_BASE_URL` at the host's LAN IP or
 fields are ever sent anywhere else — only to the Ollama server you configure,
 or to a cloud AI provider you've explicitly opted into below.
 
+### Searching inside documents
+
+Search also finds a document by a word inside it, on every kind of record:
+Contracts, Warranties, the Inbox, Service records, Maintenance records, Trip
+segments, Rental statements and Trades. The same local text extraction
+(stage 1 above) runs in the background on each PDF or image when it's
+uploaded; nothing is sent anywhere. Documents filed before this existed are
+worked through by a background catch-up, 25 at a time, when the server
+starts and then every hour until none are left. It runs below every other
+background job, so Reminders and backups are never held up behind it.
+
+Without `pdftotext`, `pdftoppm` and `tesseract` (the Docker image has them)
+documents are still found by filename. Those that needed a missing tool are
+picked up again once it's installed; a document that ran fine but had no
+text, or kept failing, isn't retried.
+
+Rolling back to a release from before this: older builds ignore the new
+columns, and any text-extraction jobs still queued for these record types
+end as failed jobs, which is harmless. To remove the columns as well, first
+drop the five `fts_*_documents_au` triggers that mention `extractedText` (or
+re-create them from `20260828000000_add_document_search_fts`), since SQLite
+won't drop a column a trigger uses.
+
 ## Bring your own AI key
 
 An admin can optionally connect the household's own API key for a cloud AI provider —

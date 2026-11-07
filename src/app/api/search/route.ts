@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getEnabledModuleKeys } from "@/lib/modules/enablement";
-import { formatPropertyAddress } from "@/lib/utils";
+import { formatDate, formatPropertyAddress } from "@/lib/utils";
+import { getUserPreferences } from "@/lib/userPreferences";
+import { TRADE_TYPE_LABELS } from "@/lib/validation/wealth";
+import { DOCUMENT_KIND_MODULE, OWNED_DOCUMENT_KINDS } from "@/lib/documents/kinds";
+import type { DocumentKind } from "@/lib/documents/documentQueries";
 import { searchDocumentsFts, hitOwnerIds, hitDocIds, sortByHitRank } from "@/lib/documents/documentSearch";
 import {
   contractFilterWheres,
@@ -49,8 +53,8 @@ function matchedViaFields(q: string, fields: (string | null | undefined)[]) {
   return fields.some((f) => f?.toLowerCase().includes(needle));
 }
 
-// #398 — a Document hit names the record it's attached to, then that
-// record's parent ("Logbook service · Corolla").
+// #398 — a Document hit names the record it's attached to, its date, then
+// that record's parent ("Logbook service · 12 Mar 2024 · Corolla").
 function ownerSubtitle(...parts: (string | null | undefined)[]): string {
   return parts.filter(Boolean).join(" · ");
 }
@@ -126,7 +130,19 @@ export async function GET(request: NextRequest) {
   // hits' docIds through that kind's own Prisma delegate (applying the same
   // owner-liveness filters as before) and re-sorts back into FTS rank order,
   // since that resolution step can drop hits and doesn't preserve rank.
-  const ftsHits = textOk ? await searchDocumentsFts(q, { limit: 60 }) : [];
+  //
+  // #398 review — only the kinds whose module is on, so a disabled module's
+  // Documents can't fill the ranked hits and push out ones that would show.
+  const searchKinds: DocumentKind[] = [
+    "INBOX",
+    ...OWNED_DOCUMENT_KINDS.filter((kind) => {
+      const moduleKey = DOCUMENT_KIND_MODULE[kind];
+      return moduleKey === null || enabledModules.has(moduleKey);
+    }),
+  ];
+  const ftsHits = textOk ? await searchDocumentsFts(q, { limit: 60, kinds: searchKinds }) : [];
+  const { dateFormat } = textOk ? await getUserPreferences() : { dateFormat: null };
+  const day = (d: Date | null | undefined) => (d ? formatDate(d, dateFormat) : null);
 
   queries.push(
     prisma.contract
@@ -352,7 +368,7 @@ export async function GET(request: NextRequest) {
             select: {
               id: true,
               filename: true,
-              vehicleItem: { select: { title: true, vehicleId: true, vehicle: { select: { label: true } } } },
+              vehicleItem: { select: { title: true, date: true, vehicleId: true, vehicle: { select: { label: true } } } },
             },
           })
           .then((rows) =>
@@ -361,7 +377,7 @@ export async function GET(request: NextRequest) {
               .map((r) => ({
                 id: r.id,
                 title: r.filename,
-                subtitle: ownerSubtitle(r.vehicleItem.title, r.vehicleItem.vehicle.label),
+                subtitle: ownerSubtitle(r.vehicleItem.title, day(r.vehicleItem.date), r.vehicleItem.vehicle.label),
                 href: `/vehicles/${r.vehicleItem.vehicleId}`,
                 group: "Documents",
                 matchedInDocument: !matchedViaFields(q, [r.filename]),
@@ -417,7 +433,7 @@ export async function GET(request: NextRequest) {
             select: {
               id: true,
               filename: true,
-              tripSegment: { select: { title: true, tripId: true, trip: { select: { title: true } } } },
+              tripSegment: { select: { title: true, startDate: true, tripId: true, trip: { select: { title: true } } } },
             },
           })
           .then((rows) =>
@@ -426,7 +442,7 @@ export async function GET(request: NextRequest) {
               .map((r) => ({
                 id: r.id,
                 title: r.filename,
-                subtitle: ownerSubtitle(r.tripSegment.title, r.tripSegment.trip.title),
+                subtitle: ownerSubtitle(r.tripSegment.title, day(r.tripSegment.startDate), r.tripSegment.trip.title),
                 href: `/travel/${r.tripSegment.tripId}`,
                 group: "Documents",
                 matchedInDocument: !matchedViaFields(q, [r.filename]),
@@ -506,7 +522,7 @@ export async function GET(request: NextRequest) {
             select: {
               id: true,
               filename: true,
-              homeItem: { select: { id: true, propertyId: true, title: true, property: { select: { label: true } } } },
+              homeItem: { select: { id: true, propertyId: true, title: true, date: true, property: { select: { label: true } } } },
             },
           })
           .then((rows) =>
@@ -515,7 +531,7 @@ export async function GET(request: NextRequest) {
               .map((r) => ({
                 id: r.id,
                 title: r.filename,
-                subtitle: ownerSubtitle(r.homeItem.title, r.homeItem.property.label),
+                subtitle: ownerSubtitle(r.homeItem.title, day(r.homeItem.date), r.homeItem.property.label),
                 href: `/home/${r.homeItem.propertyId}`,
                 group: "Documents",
                 matchedInDocument: !matchedViaFields(q, [r.filename]),
@@ -535,7 +551,7 @@ export async function GET(request: NextRequest) {
               id: true,
               filename: true,
               rentalStatement: {
-                select: { id: true, propertyId: true, property: { select: { label: true } } },
+                select: { id: true, propertyId: true, statementDate: true, periodStart: true, property: { select: { label: true } } },
               },
             },
           })
@@ -545,7 +561,11 @@ export async function GET(request: NextRequest) {
               .map((r) => ({
                 id: r.id,
                 title: r.filename,
-                subtitle: ownerSubtitle("Rental statement", r.rentalStatement.property.label),
+                subtitle: ownerSubtitle(
+                  "Rental statement",
+                  day(r.rentalStatement.statementDate ?? r.rentalStatement.periodStart),
+                  r.rentalStatement.property.label,
+                ),
                 href: `/home/${r.rentalStatement.propertyId}/rental`,
                 group: "Documents",
                 matchedInDocument: !matchedViaFields(q, [r.filename]),
@@ -640,7 +660,7 @@ export async function GET(request: NextRequest) {
               id: true,
               filename: true,
               trade: {
-                select: { id: true, holding: { select: { id: true, portfolioId: true, ticker: true } } },
+                select: { id: true, type: true, date: true, holding: { select: { id: true, portfolioId: true, ticker: true } } },
               },
             },
           })
@@ -650,7 +670,7 @@ export async function GET(request: NextRequest) {
               .map((r) => ({
                 id: r.id,
                 title: r.filename,
-                subtitle: ownerSubtitle("Trade", r.trade.holding.ticker),
+                subtitle: ownerSubtitle(TRADE_TYPE_LABELS[r.trade.type] ?? "Trade", day(r.trade.date), r.trade.holding.ticker),
                 href: `/wealth/portfolios/${r.trade.holding.portfolioId}/holdings/${r.trade.holding.id}`,
                 group: "Documents",
                 matchedInDocument: !matchedViaFields(q, [r.filename]),
@@ -692,6 +712,9 @@ export async function GET(request: NextRequest) {
   for (const r of results) {
     (groups[r.group] ??= []).push(r);
   }
+  // #398 review — each kind's block is ranked; across kinds, rank too, not
+  // Contract Documents first whatever matched best.
+  if (groups.Documents) groups.Documents = sortByHitRank(groups.Documents, ftsHits);
 
   return NextResponse.json({ groups }, { headers: { "Cache-Control": "no-store" } });
 }

@@ -1,5 +1,14 @@
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { documentStoreFor } from "@/lib/storage";
+import {
+  extractTextDetailed,
+  getExtractionCapabilities,
+  MAX_SEARCHABLE_TEXT_LENGTH,
+  withExtractionSlot,
+  type ExtractionCapabilities,
+} from "@/lib/documents/textExtraction";
+import { JOB_PRIORITY } from "@/lib/jobs/priority";
 import type { OwnedDocumentKind } from "@/lib/documents/kinds";
 
 // #398 — the Document kinds whose text is extracted only so Search can find
@@ -15,8 +24,8 @@ export const SEARCH_TEXT_KINDS = [
 ] as const satisfies readonly OwnedDocumentKind[];
 export type SearchTextKind = (typeof SEARCH_TEXT_KINDS)[number];
 
-export function isSearchTextKind(kind: string): kind is SearchTextKind {
-  return (SEARCH_TEXT_KINDS as readonly string[]).includes(kind);
+export function isSearchTextKind(kind: unknown): kind is SearchTextKind {
+  return typeof kind === "string" && (SEARCH_TEXT_KINDS as readonly string[]).includes(kind);
 }
 
 /** Only PDFs and images go through pdftotext/OCR; anything else has no text to find. */
@@ -24,73 +33,156 @@ export function hasExtractableText(mimeType: string): boolean {
   return mimeType === "application/pdf" || mimeType.startsWith("image/");
 }
 
+/**
+ * extractionStatus for these kinds:
+ * - NULL: not looked at yet (filed before #398, or a queueing failure); the
+ *   backfill picks it up.
+ * - PENDING: an OCR_DOCUMENT job is queued for it.
+ * - COMPLETED: has its text, or isn't a PDF or image.
+ * - FAILED: extraction ran and found no text, or kept failing; not retried.
+ * - UNAVAILABLE: the tools its type needs (pdftotext/pdftoppm/tesseract)
+ *   weren't installed; the backfill retries it once they are.
+ */
+export const EXTRACTION_UNAVAILABLE = "UNAVAILABLE";
+
+/** Thrown when the server lacks the tools a file needs, so the job retries and logs why. */
+export class ExtractionToolsUnavailableError extends Error {
+  constructor(mimeType: string) {
+    super(`Text extraction tools for ${mimeType} aren't installed (pdftotext, pdftoppm, tesseract)`);
+    this.name = "ExtractionToolsUnavailableError";
+  }
+}
+
 // Same tradeoff as the Document command: each delegate has its own
 // generated types, and only the shared columns are used.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Delegate = any;
+type Client = typeof prisma | Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
-const TABLES: Record<SearchTextKind, { delegate: () => Delegate; ownerField: string }> = {
-  TRIP_SEGMENT: { delegate: () => prisma.tripSegmentDocument, ownerField: "tripSegmentId" },
-  RENTAL_STATEMENT: { delegate: () => prisma.rentalStatementDocument, ownerField: "rentalStatementId" },
-  HOME_ITEM: { delegate: () => prisma.homeItemDocument, ownerField: "homeItemId" },
-  VEHICLE_ITEM: { delegate: () => prisma.vehicleItemDocument, ownerField: "vehicleItemId" },
-  TRADE: { delegate: () => prisma.tradeDocument, ownerField: "tradeId" },
+const TABLES: Record<SearchTextKind, { model: string; ownerField: string }> = {
+  TRIP_SEGMENT: { model: "tripSegmentDocument", ownerField: "tripSegmentId" },
+  RENTAL_STATEMENT: { model: "rentalStatementDocument", ownerField: "rentalStatementId" },
+  HOME_ITEM: { model: "homeItemDocument", ownerField: "homeItemId" },
+  VEHICLE_ITEM: { model: "vehicleItemDocument", ownerField: "vehicleItemId" },
+  TRADE: { model: "tradeDocument", ownerField: "tradeId" },
 };
 
-export function readSearchTextFile(kind: SearchTextKind, ownerId: string, storedName: string) {
-  return documentStoreFor(kind).read(ownerId, storedName);
+function delegate(kind: SearchTextKind, client: Client = prisma): Delegate {
+  return (client as unknown as Record<string, Delegate>)[TABLES[kind].model];
 }
 
-export async function saveSearchText(kind: SearchTextKind, id: string, text: string | null) {
-  await TABLES[kind].delegate().update({
-    where: { id },
+const searchTextJobSchema = z.object({
+  kind: z.enum(SEARCH_TEXT_KINDS),
+  id: z.string().min(1),
+  ownerId: z.string().min(1),
+  storedName: z.string().min(1),
+  mimeType: z.string().min(1),
+});
+export type SearchTextJob = z.infer<typeof searchTextJobSchema>;
+
+/**
+ * An OCR_DOCUMENT job for one of these kinds: reads the file, extracts its
+ * text and stores it, which the table's FTS trigger copies into the search
+ * index. Throws (so the job is retried and the error logged) when the file
+ * can't be read, extraction crashes, or the tools aren't installed.
+ */
+export async function processSearchTextJob(payload: unknown): Promise<void> {
+  const job = searchTextJobSchema.parse(payload);
+  // Purged since it was queued: nothing to do, and no error to retry.
+  const row = await delegate(job.kind).findUnique({ where: { id: job.id }, select: { id: true } });
+  if (!row) return;
+  const buffer = await documentStoreFor(job.kind).read(job.ownerId, job.storedName);
+  const result = await withExtractionSlot(() => extractTextDetailed(buffer, job.mimeType));
+  if (result.unavailable) throw new ExtractionToolsUnavailableError(job.mimeType);
+  const text = result.text.trim().slice(0, MAX_SEARCHABLE_TEXT_LENGTH) || null;
+  await delegate(job.kind).updateMany({
+    where: { id: job.id },
     data: { extractedText: text, extractionStatus: text ? "COMPLETED" : "FAILED" },
+  });
+}
+
+/**
+ * After an OCR_DOCUMENT job for one of these kinds has used its last
+ * attempt: the Document leaves PENDING, as UNAVAILABLE when the tools were
+ * missing (retried once they're installed) or FAILED otherwise.
+ */
+export async function giveUpSearchTextJob(payload: unknown, error: unknown): Promise<void> {
+  const job = searchTextJobSchema.safeParse(payload);
+  if (!job.success) return;
+  await delegate(job.data.kind).updateMany({
+    where: { id: job.data.id, extractionStatus: "PENDING" },
+    data: { extractionStatus: error instanceof ExtractionToolsUnavailableError ? EXTRACTION_UNAVAILABLE : "FAILED" },
   });
 }
 
 export const BACKFILL_BATCH_SIZE = 25;
 
-export interface SearchTextJob {
-  kind: SearchTextKind;
-  id: string;
-  ownerId: string;
-  storedName: string;
-  mimeType: string;
+const PDF = { mimeType: "application/pdf" };
+const IMAGE = { mimeType: { startsWith: "image/" } };
+
+/**
+ * The Documents the backfill can settle with the tools this server has. One
+ * whose tools are missing stays as it is, so it neither blocks the batches
+ * nor fails over and over; an UNAVAILABLE one comes back once its tools are
+ * installed. Documents in Trash are left for a later batch, once restored.
+ */
+function pickableWhere(caps: ExtractionCapabilities) {
+  const or: Record<string, unknown>[] = [{ extractionStatus: null, NOT: [PDF, IMAGE] }];
+  if (caps.pdfText || caps.pdfOcr) or.push({ extractionStatus: null, ...PDF });
+  if (caps.pdfOcr) or.push({ extractionStatus: EXTRACTION_UNAVAILABLE, ...PDF });
+  if (caps.imageOcr) {
+    or.push({ extractionStatus: null, ...IMAGE }, { extractionStatus: EXTRACTION_UNAVAILABLE, ...IMAGE });
+  }
+  return { deletedAt: null, OR: or };
 }
 
 /**
- * One batch of the DOCUMENT_TEXT_BACKFILL job: Documents filed before #398
- * still have a NULL extractionStatus. Each one found is settled the way a
- * new upload is (a PDF or image is queued for extraction, anything else has
- * no text), so it's never picked up twice. Documents in Trash are left
- * NULL, for a later batch once they're restored. Returns whether any are
- * left, so the runner can queue the next batch.
- *
- * The runner passes `queue` in: this module is imported by the runner, so
- * it can't import the job queue itself.
+ * One batch of the DOCUMENT_TEXT_BACKFILL job. Each Document found is
+ * settled the way a new upload is (a PDF or image is queued for
+ * extraction, anything else has no text), its status and its job written
+ * together, so it's never picked up twice or left PENDING with no job.
+ * The next batch waits until this one's extractions have finished, so the
+ * queue never holds more than one batch. Returns whether to run again.
  */
-export async function runDocumentTextBackfill(queue: (job: SearchTextJob) => Promise<unknown>): Promise<{ more: boolean }> {
-  const waiting = { extractionStatus: null, deletedAt: null };
+export async function runDocumentTextBackfill(): Promise<{ more: boolean }> {
+  const inFlight = await prisma.backgroundJob.count({
+    where: { type: "OCR_DOCUMENT", priority: JOB_PRIORITY.BACKGROUND, status: { in: ["PENDING", "RUNNING"] } },
+  });
+  if (inFlight > 0) return { more: true };
+
+  const where = pickableWhere(await getExtractionCapabilities());
   let left = BACKFILL_BATCH_SIZE;
   for (const kind of SEARCH_TEXT_KINDS) {
     if (left === 0) break;
-    const { delegate, ownerField } = TABLES[kind];
-    const rows: { id: string; storedName: string; mimeType: string; [owner: string]: string }[] = await delegate().findMany({
-      where: waiting,
+    const { ownerField } = TABLES[kind];
+    const rows: { id: string; storedName: string; mimeType: string; [owner: string]: string }[] = await delegate(kind).findMany({
+      where,
       select: { id: true, storedName: true, mimeType: true, [ownerField]: true },
       orderBy: { uploadedAt: "asc" },
       take: left,
     });
     for (const row of rows) {
-      if (hasExtractableText(row.mimeType)) {
-        await delegate().update({ where: { id: row.id }, data: { extractionStatus: "PENDING" } });
-        await queue({ kind, id: row.id, ownerId: row[ownerField], storedName: row.storedName, mimeType: row.mimeType });
-      } else {
-        await delegate().update({ where: { id: row.id }, data: { extractionStatus: "COMPLETED" } });
+      if (!hasExtractableText(row.mimeType)) {
+        await delegate(kind).update({ where: { id: row.id }, data: { extractionStatus: "COMPLETED" } });
+        continue;
       }
+      const job: SearchTextJob = { kind, id: row.id, ownerId: row[ownerField], storedName: row.storedName, mimeType: row.mimeType };
+      await prisma.$transaction(async (tx) => {
+        await delegate(kind, tx).update({ where: { id: row.id }, data: { extractionStatus: "PENDING" } });
+        await tx.backgroundJob.create({
+          data: { type: "OCR_DOCUMENT", payload: JSON.stringify(job), priority: JOB_PRIORITY.BACKGROUND },
+        });
+      });
     }
     left -= rows.length;
   }
-  const remaining = await Promise.all(SEARCH_TEXT_KINDS.map((kind) => TABLES[kind].delegate().count({ where: waiting })));
-  return { more: remaining.some((n: number) => n > 0) };
+  for (const kind of SEARCH_TEXT_KINDS) {
+    if (await delegate(kind).findFirst({ where, select: { id: true } })) return { more: true };
+  }
+  return { more: false };
+}
+
+/** Back to "not looked at", for a Document whose extraction couldn't be queued. */
+export async function resetSearchTextStatus(kind: SearchTextKind, id: string): Promise<void> {
+  await delegate(kind).updateMany({ where: { id, extractionStatus: "PENDING" }, data: { extractionStatus: null } });
 }

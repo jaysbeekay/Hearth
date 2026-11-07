@@ -66,11 +66,25 @@ export async function register() {
   const cron = await import("node-cron");
   const { enqueueJobUnlessPending, createJobTick } = await import("@/lib/jobs/runner");
   const { cronDue } = await import("@/lib/jobs/cronDue");
+  const { JOB_PRIORITY } = await import("@/lib/jobs/priority");
 
   if (!globalForCron.__jobTickerStarted) {
     globalForCron.__jobTickerStarted = true;
 
+    // #398 — the document text backfill: once at startup, so an upgrade
+    // starts catching up straight away, then hourly in its own try, so a
+    // server that sleeps at night still gets to it and a failure in the
+    // other steps never skips it. Once nothing is left each run is one quick
+    // look; while Documents are waiting it queues its own next batch. It's a
+    // singleton, so a run already queued makes these a no-op.
+    const enqueueBackfill = () =>
+      enqueueJobUnlessPending("DOCUMENT_TEXT_BACKFILL", {}, { priority: JOB_PRIORITY.BACKGROUND }).catch((error: unknown) => {
+        console.error("[jobs] couldn't queue the document text backfill:", error);
+      });
+    void enqueueBackfill();
+
     cron.schedule("* * * * *", async () => {
+      if (cronDue("17 * * * *", new Date())) await enqueueBackfill();
       try {
         const {
           getReminderConfig,
@@ -98,11 +112,6 @@ export async function register() {
         // its own — folded in here anyway so every scheduled job goes
         // through the exact same enqueue path.
         if (cronDue("*/15 * * * *", now)) await enqueueJobUnlessPending("PRICE_REFRESH");
-
-        // #398 — daily; once nothing is left it finds nothing and stops at
-        // one quick run. While Documents are waiting it queues its own next
-        // batch, so a household is caught up in hours, not days.
-        if (cronDue("30 3 * * *", now)) await enqueueJobUnlessPending("DOCUMENT_TEXT_BACKFILL");
       } catch (error) {
         console.error("[jobs] scheduled-job ticker failed:", error);
       }

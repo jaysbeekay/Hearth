@@ -12,7 +12,7 @@ import {
   type Trashable,
 } from "@/lib/commands/shared";
 import { queueDocumentExtraction } from "@/lib/documents/queueExtraction";
-import { hasExtractableText, type SearchTextKind } from "@/lib/documents/documentText";
+import { hasExtractableText, resetSearchTextStatus, type SearchTextKind } from "@/lib/documents/documentText";
 import { getDocumentVersionChain } from "@/lib/documents/documentQueries";
 import { DOCUMENT_KIND_MODULE, OWNED_DOCUMENT_KINDS, type OwnedDocumentKind } from "@/lib/documents/kinds";
 import { ProductDocumentKind } from "@/generated/prisma/enums";
@@ -114,7 +114,8 @@ interface KindConfig {
   delegate: (db: Db) => Delegate;
   loadOwner: (ownerId: string, db: Db) => Promise<OwnerInfo | null>;
   // Extra columns for a new row, and what to do once it exists.
-  createData?: (input: AddDocumentInput) => Record<string, unknown>;
+  /** `stored` is what was saved: its type is the sniffed one when the upload's was generic. */
+  createData?: (input: AddDocumentInput, stored: { mimeType: string }) => Record<string, unknown>;
   afterCreate?: (doc: DocumentRecord, input: AddDocumentInput) => Promise<void>;
 }
 
@@ -122,16 +123,23 @@ interface KindConfig {
 // are queued for extraction; anything else is settled at once, with no text.
 function searchTextHooks(kind: SearchTextKind): Pick<KindConfig, "createData" | "afterCreate"> {
   return {
-    createData: (input) => ({ extractionStatus: hasExtractableText(input.file.type) ? "PENDING" : "COMPLETED" }),
+    createData: (_input, stored) => ({ extractionStatus: hasExtractableText(stored.mimeType) ? "PENDING" : "COMPLETED" }),
     afterCreate: async (doc) => {
       if (!hasExtractableText(doc.mimeType)) return;
-      await queueDocumentExtraction({
-        kind,
-        id: doc.id,
-        ownerId: doc.ownerId,
-        storedName: doc.storedName,
-        mimeType: doc.mimeType,
-      });
+      try {
+        await queueDocumentExtraction({
+          kind,
+          id: doc.id,
+          ownerId: doc.ownerId,
+          storedName: doc.storedName,
+          mimeType: doc.mimeType,
+        });
+      } catch (error) {
+        // Nothing queued: back to "not looked at", so the backfill picks it
+        // up instead of it staying PENDING for good.
+        await resetSearchTextStatus(kind, doc.id).catch(() => {});
+        throw error;
+      }
     },
   };
 }
@@ -434,7 +442,7 @@ async function insertDocument(
           sha256,
           category: input.category ?? null,
           supersedesId,
-          ...config.createData?.(input),
+          ...config.createData?.(input, { mimeType }),
         },
         select: rowSelect(kind),
       });

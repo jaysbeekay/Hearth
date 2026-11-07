@@ -78,7 +78,7 @@ async function assertDocumentSearchFtsIntact() {
       );
     }
 
-    const triggerRows = await client.execute("SELECT name FROM sqlite_master WHERE type = 'trigger'");
+    const triggerRows = await client.execute("SELECT name, sql FROM sqlite_master WHERE type = 'trigger'");
     const actualTriggers = new Set(triggerRows.rows.map((r) => String(r.name)));
     const missing = expectedTriggers.filter((t) => !actualTriggers.has(t));
     if (missing.length > 0) {
@@ -86,6 +86,33 @@ async function assertDocumentSearchFtsIntact() {
         `document_search_fts sync trigger(s) missing (see #314): ${missing.join(", ")}. ` +
           "A migration likely rebuilt one of the 9 document tables (SQLite RedefineTables) without " +
           "re-creating its triggers — see the comment above each document model in schema.prisma.",
+      );
+    }
+
+    // #398 — a table with extracted text must copy it into the index on
+    // update. A rebuild that re-created the #314 filename-only `_au` trigger
+    // would pass the name check above while content search silently stopped
+    // updating.
+    const TEXT_TABLES = [
+      "documents",
+      "inbox_documents",
+      "product_documents",
+      "trip_segment_documents",
+      "rental_statement_documents",
+      "home_item_documents",
+      "vehicle_item_documents",
+      "trade_documents",
+    ];
+    const triggerSql = new Map(triggerRows.rows.map((r) => [String(r.name), String(r.sql ?? "")]));
+    const stale = TEXT_TABLES.map((table) => `fts_${table}_au`).filter(
+      (name) => !/AFTER UPDATE OF [^\n]*"extractedText"/.test(triggerSql.get(name) ?? "") ||
+        !/extractedText\s*=\s*NEW\."extractedText"/.test(triggerSql.get(name) ?? ""),
+    );
+    if (stale.length > 0) {
+      throw new Error(
+        `document_search_fts update trigger(s) don't carry extractedText (see #398): ${stale.join(", ")}. ` +
+          "Re-create them from prisma/migrations/20261107120000_document_text_all_kinds " +
+          "(or 20260828000000_add_document_search_fts for documents, inbox_documents and product_documents).",
       );
     }
   } finally {
