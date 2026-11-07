@@ -60,8 +60,10 @@ function ownerSubtitle(...parts: (string | null | undefined)[]): string {
   return parts.filter(Boolean).join(" · ");
 }
 
-// A Document whose latest version didn't match, only an older one (an
-// earlier policy's wording): it's shown, and says which it is.
+// A Document whose latest version isn't among the hits, only an older one
+// (an earlier policy's wording): it's shown, and says which it is. Rarely,
+// the latest also matched but ranked below the 60 hits asked for; the label
+// is still true.
 function olderLabel(hit: { olderVersion: boolean }): string | null {
   return hit.olderVersion ? "Older version" : null;
 }
