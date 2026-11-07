@@ -8,7 +8,7 @@ import { getNtfyConfig, isSmtpConfigured } from "@/lib/appSettings";
 import { getVapidPublicKey, ownPushDevices } from "@/lib/notifications/push";
 import { getHouseholdReminderHealth } from "@/lib/notifications/health";
 import { sendChannelTest } from "@/lib/actions/reminders";
-import { PushDeviceToggle } from "@/components/PushDeviceToggle";
+import { NotifyThisDevice } from "@/components/DeviceReminderToggle";
 import { NotificationPreferencesForm } from "@/components/NotificationPreferencesForm";
 import { TestConnectionButton } from "@/components/TestConnectionButton";
 import { HouseholdReminderHealthCard } from "@/components/HouseholdReminderHealthCard";
@@ -96,7 +96,7 @@ export default async function TurnOnRemindersPage() {
       </div>
 
       <Step n={1} title="Notify this device" hint="One tap, no account needed. Do it on each phone or computer you use.">
-        <PushDeviceToggle vapidPublicKey={vapidPublicKey} devices={pushDevices} />
+        <NotifyThisDevice userId={session.user.id} vapidPublicKey={vapidPublicKey} devices={pushDevices} />
       </Step>
 
       <Step n={2} title="Email" hint={user.email ? `Sent to ${user.email}.` : "Sent to your account's email address."}>

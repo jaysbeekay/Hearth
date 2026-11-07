@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { broadcastSession, clearSignedOutData, markOfflineSession, markSignedOut } from "@/lib/offlineSession";
 import { lookupPushSubscription, readSession, settleSignedOutPush } from "@/lib/pushClient";
+import { cancelDeviceReminders } from "@/lib/nativeReminders";
 import { retryUntilSettled } from "@/lib/retryUntilSettled";
 
 // How long to wait before asking the server again when it couldn't say
@@ -35,6 +36,11 @@ const dropSignedOutPush = () =>
 export function SignedOutCacheCleanup() {
   useEffect(() => {
     broadcastSession({ type: "signed-out" });
+    // #375 — in the phone app, Reminders scheduled on the device hold
+    // household records' names, so they go too. Whether they were on is
+    // kept: the same member's next sign-in schedules them again, and anyone
+    // else's turns them off (DeviceReminderSync).
+    void cancelDeviceReminders().catch(() => {});
     // Push only after the clear settles or times out, since it deletes the
     // marker's cache: started together, the clear could delete the marker the
     // push check writes. (A clear that outlasts its timeout still can; that

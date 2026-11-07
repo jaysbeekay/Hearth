@@ -9,6 +9,12 @@ Versions follow [Semantic Versioning](https://semver.org/), starting at `0.1.0`.
 
 ### Added
 
+- **Reminders in the phone app (#375, part 3b).** The iOS/Android app
+  can't use Web Push, so "Notify this device" there becomes "Notify this
+  phone": it schedules the household's Reminders for the next four months as
+  notifications on the phone, worded like Web Push, and again each time the
+  app opens. Tapping one opens its record. The sign-in page cancels them,
+  and another member signing in turns them off.
 - **Turn on reminders (#375, part 3).** The dashboard's "Reminders aren't
   configured" item and the onboarding checklist now open one screen,
   available to every member, that lists the ways to get Reminders in order
